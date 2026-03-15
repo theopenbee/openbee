@@ -12,9 +12,9 @@ func TestBeeConfig_DerivedFields(t *testing.T) {
 server:
   host: "localhost"
   port: 8080
-mcp:
-  api_key: "test-key"
 bee:
+  mcp:
+    api_key: "test-key"
   claude:
     path: "claude-custom"
 `)
@@ -28,8 +28,8 @@ bee:
 	if cfg.Bee.MCPBaseURL != "http://localhost:8080" {
 		t.Errorf("MCPBaseURL: want http://localhost:8080 got %q", cfg.Bee.MCPBaseURL)
 	}
-	if cfg.Bee.MCPAPIKey != "test-key" {
-		t.Errorf("MCPAPIKey: want test-key got %q", cfg.Bee.MCPAPIKey)
+	if cfg.Bee.MCP.APIKey != "test-key" {
+		t.Errorf("MCP.APIKey: want test-key got %q", cfg.Bee.MCP.APIKey)
 	}
 	if cfg.Bee.Claude.Path != "claude-custom" {
 		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Claude.Path)

@@ -24,7 +24,6 @@ func DefaultWorkerBaseDir() string {
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
-	MCP      MCPConfig      `yaml:"mcp"`
 	Bee      BeeConfig      `yaml:"bee"`
 }
 
@@ -38,10 +37,10 @@ type BeeConfig struct {
 	Claude          ClaudeConfig    `yaml:"claude"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
+	MCP             MCPConfig       `yaml:"mcp"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
-	MCPAPIKey  string `yaml:"-"` // copied from MCPConfig.APIKey
 }
 
 type PlatformsConfig struct {
@@ -96,7 +95,6 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
-	cfg.Bee.MCPAPIKey = cfg.MCP.APIKey
 	return cfg, nil
 }
 

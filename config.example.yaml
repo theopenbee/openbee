@@ -5,9 +5,6 @@ server:
 database:
   path: ./data/robobee.db
 
-mcp:
-  api_key: ""  # Set a secret key to enable the MCP server endpoint
-
 bee:
   claude:
     path: claude
@@ -26,4 +23,6 @@ bee:
     batch_size: 10
     timeout: 5m
     queue_warn_threshold: 100
+  mcp:
+    api_key: ""  # Set a secret key to enable the MCP server endpoint
   message_debounce: 3s
