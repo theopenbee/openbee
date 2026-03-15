@@ -14,11 +14,9 @@ server:
   port: 8080
 mcp:
   api_key: "test-key"
-runtime:
-  claude_code:
-    binary: "claude-custom"
 bee:
-  name: "bee"
+  claude:
+    path: "claude-custom"
 `)
 	f.Close()
 
@@ -33,8 +31,8 @@ bee:
 	if cfg.Bee.MCPAPIKey != "test-key" {
 		t.Errorf("MCPAPIKey: want test-key got %q", cfg.Bee.MCPAPIKey)
 	}
-	if cfg.Bee.Binary != "claude-custom" {
-		t.Errorf("Binary: want claude-custom got %q", cfg.Bee.Binary)
+	if cfg.Bee.Claude.Path != "claude-custom" {
+		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Claude.Path)
 	}
 }
 
@@ -44,8 +42,6 @@ func TestBeeConfig_BinaryDefault(t *testing.T) {
 server:
   host: "localhost"
   port: 8080
-bee:
-  name: "bee"
 `)
 	f.Close()
 
@@ -54,8 +50,8 @@ bee:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Binary != "claude" {
-		t.Errorf("Binary default: want claude got %q", cfg.Bee.Binary)
+	if cfg.Bee.Claude.Path != "claude" {
+		t.Errorf("Claude.Path default: want claude got %q", cfg.Bee.Claude.Path)
 	}
 }
 

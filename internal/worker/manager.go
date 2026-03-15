@@ -35,7 +35,7 @@ type claudeContent struct {
 
 type Manager struct {
 	workerBaseDir  string
-	runtimeCfg     config.RuntimeConfig
+	beeCfg         config.BeeConfig
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 
@@ -46,13 +46,13 @@ type Manager struct {
 
 func NewManager(
 	workerBaseDir string,
-	rc config.RuntimeConfig,
+	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:  workerBaseDir,
-		runtimeCfg:     rc,
+		beeCfg:         bc,
 		workerStore:    ws,
 		executionStore: es,
 		activeRuntimes: make(map[string]Runtime),
@@ -115,8 +115,8 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 		log.Printf("execute worker: ensure system rules: %v", err)
 	}
 
-	rt := NewClaudeRuntime(m.runtimeCfg.ClaudeCode.Binary, m.runtimeCfg.MCPBaseURL, m.runtimeCfg.MCPAPIKey)
-	timeout := m.runtimeCfg.ClaudeCode.Timeout
+	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCPAPIKey)
+	timeout := m.beeCfg.Claude.Timeout
 
 	// Build the prompt: memory + trigger input
 	prompt := worker.Memory
@@ -158,8 +158,8 @@ func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, trigge
 		log.Printf("execute worker with session: ensure system rules: %v", err)
 	}
 
-	rt := NewClaudeRuntime(m.runtimeCfg.ClaudeCode.Binary, m.runtimeCfg.MCPBaseURL, m.runtimeCfg.MCPAPIKey)
-	timeout := m.runtimeCfg.ClaudeCode.Timeout
+	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCPAPIKey)
+	timeout := m.beeCfg.Claude.Timeout
 
 	// On resume, only the new message is sent — the worker's base prompt is already
 	// established in the Claude session history (same as ReplyExecution).
@@ -312,8 +312,8 @@ func (m *Manager) ReplyExecution(ctx context.Context, executionID string, messag
 		log.Printf("reply execution: ensure system rules: %v", err)
 	}
 
-	rt := NewClaudeRuntime(m.runtimeCfg.ClaudeCode.Binary, m.runtimeCfg.MCPBaseURL, m.runtimeCfg.MCPAPIKey)
-	timeout := m.runtimeCfg.ClaudeCode.Timeout
+	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCPAPIKey)
+	timeout := m.beeCfg.Claude.Timeout
 
 	if err := m.launchRuntime(newExec, worker, rt, timeout, message, true); err != nil {
 		m.executionStore.UpdateResult(newExec.ID, err.Error(), model.ExecStatusFailed)

@@ -68,7 +68,7 @@ func buildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	mgr := buildWorkerManager(cfg.Runtime, s)
+	mgr := buildWorkerManager(cfg.Bee, s)
 
 	dispatchCh := make(chan dispatcher.DispatchTask, 128)
 
@@ -134,8 +134,8 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(rc config.RuntimeConfig, s appStores) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), rc, s.workerStore, s.execStore)
+func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan dispatcher.DispatchTask) (*bee.Feeder, *taskscheduler.Scheduler) {

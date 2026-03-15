@@ -30,7 +30,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.RuntimeConfig{ClaudeCode: config.RuntimeEntry{Binary: "claude"}},
+		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
@@ -209,7 +209,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.RuntimeConfig{ClaudeCode: config.RuntimeEntry{Binary: "claude"}},
+		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
@@ -518,7 +518,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.RuntimeConfig{ClaudeCode: config.RuntimeEntry{Binary: "claude"}},
+		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)

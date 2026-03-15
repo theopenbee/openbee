@@ -31,7 +31,7 @@ type BeeProcess struct {
 // NewBeeProcess creates a BeeProcess.
 func NewBeeProcess(cfg config.BeeConfig) *BeeProcess {
 	return &BeeProcess{
-		binary: cfg.Binary,
+		binary: cfg.Claude.Path,
 		mcpURL: cfg.MCPBaseURL + "/mcp/sse",
 		apiKey: cfg.MCPAPIKey,
 	}

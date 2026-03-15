@@ -5,15 +5,13 @@ server:
 database:
   path: ./data/robobee.db
 
-runtime:
-  claude_code:
-    binary: claude
-    timeout: 30m
-
 mcp:
   api_key: ""  # Set a secret key to enable the MCP server endpoint
 
 bee:
+  claude:
+    path: claude
+    timeout: 30m
   message_debounce: 3s
   platforms:
     feishu:

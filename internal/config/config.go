@@ -24,20 +24,24 @@ func DefaultWorkerBaseDir() string {
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
-	Runtime  RuntimeConfig  `yaml:"runtime"`
 	MCP      MCPConfig      `yaml:"mcp"`
 	Bee      BeeConfig      `yaml:"bee"`
 }
 
+type ClaudeConfig struct {
+	Path    string        `yaml:"path"`
+	Timeout time.Duration `yaml:"timeout"`
+}
+
 type BeeConfig struct {
 	MessageDebounce time.Duration   `yaml:"message_debounce"`
+	Claude          ClaudeConfig    `yaml:"claude"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 	MCPAPIKey  string `yaml:"-"` // copied from MCPConfig.APIKey
-	Binary     string `yaml:"-"` // copied from Runtime.ClaudeCode.Binary
 }
 
 type PlatformsConfig struct {
@@ -78,18 +82,6 @@ type DatabaseConfig struct {
 	Path string `yaml:"path"`
 }
 
-type RuntimeConfig struct {
-	ClaudeCode RuntimeEntry `yaml:"claude_code"`
-	// Derived fields — not in YAML, computed by Load()
-	MCPBaseURL string `yaml:"-"`
-	MCPAPIKey  string `yaml:"-"`
-}
-
-type RuntimeEntry struct {
-	Binary  string        `yaml:"binary"`
-	Timeout time.Duration `yaml:"timeout"`
-}
-
 
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
@@ -105,9 +97,6 @@ func Load(path string) (Config, error) {
 	}
 	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
 	cfg.Bee.MCPAPIKey = cfg.MCP.APIKey
-	cfg.Bee.Binary = cfg.Runtime.ClaudeCode.Binary
-	cfg.Runtime.MCPBaseURL = cfg.Bee.MCPBaseURL
-	cfg.Runtime.MCPAPIKey = cfg.MCP.APIKey
 	return cfg, nil
 }
 
@@ -127,8 +116,8 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Feeder.QueueWarnThreshold == 0 {
 		cfg.Bee.Feeder.QueueWarnThreshold = 100
 	}
-	if cfg.Runtime.ClaudeCode.Binary == "" {
-		cfg.Runtime.ClaudeCode.Binary = "claude"
+	if cfg.Bee.Claude.Path == "" {
+		cfg.Bee.Claude.Path = "claude"
 	}
 	return nil
 }
