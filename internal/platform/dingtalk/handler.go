@@ -1,10 +1,14 @@
 package dingtalk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
@@ -63,6 +67,8 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			PlatformMessageID: data.MsgId,
 			MessageTime:       data.CreateAt,
 		}
+		go addThinkingEmoji(ctx, r.cfg, data)
+
 		dispatch(msg)
 		slog.Info("dispatched message", "component", "dingtalk", "sessionKey", msg.SessionKey)
 		return []byte(""), nil
@@ -91,6 +97,74 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	}
 	slog.Info("reply sent ok", "component", "dingtalk")
 	return nil
+}
+
+// getAccessToken obtains an access token from the DingTalk OAuth2 API.
+func getAccessToken(clientID, clientSecret string) (string, error) {
+	body, _ := json.Marshal(map[string]string{
+		"appKey":    clientID,
+		"appSecret": clientSecret,
+	})
+	resp, err := http.Post("https://api.dingtalk.com/v1.0/oauth2/accessToken", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("request access token: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		AccessToken string `json:"accessToken"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode access token response: %w", err)
+	}
+	if result.AccessToken == "" {
+		return "", fmt.Errorf("empty access token in response")
+	}
+	return result.AccessToken, nil
+}
+
+// addThinkingEmoji adds a 🤔思考中 emoji reaction to the user's message.
+func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
+	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		slog.Warn("failed to get access token for emoji reaction", "component", "dingtalk", "error", err)
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"robotCode":          cfg.ClientID,
+		"openMsgId":          data.MsgId,
+		"openConversationId": data.ConversationId,
+		"emotionType":        2,
+		"emotionName":        "🤔思考中",
+		"textEmotion": map[string]string{
+			"emotionId":    "2659900",
+			"emotionName":  "🤔思考中",
+			"text":         "🤔思考中",
+			"backgroundId": "im_bg_1",
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.dingtalk.com/v1.0/robot/emotion/reply", bytes.NewReader(payload))
+	if err != nil {
+		slog.Warn("failed to create emoji request", "component", "dingtalk", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-acs-dingtalk-access-token", token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Warn("failed to send emoji reaction", "component", "dingtalk", "error", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("emoji reaction returned non-200", "component", "dingtalk", "status", resp.StatusCode)
+	}
 }
 
 var _ platform.Platform = (*DingTalkPlatform)(nil)
