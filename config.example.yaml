@@ -9,6 +9,8 @@ bee:
   claude:
     path: claude
     timeout: 30m
+  mcp:
+    api_key: ""
   platforms:
     feishu:
       enabled: false
@@ -19,10 +21,8 @@ bee:
       client_id: ""
       client_secret: ""
   feeder:
-    interval: 10s
+    interval: 1s
     batch_size: 10
     timeout: 5m
     queue_warn_threshold: 100
-  mcp:
-    api_key: ""  # Set a secret key to enable the MCP server endpoint
   message_debounce: 3s
