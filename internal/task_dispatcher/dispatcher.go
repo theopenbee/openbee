@@ -19,7 +19,11 @@ const (
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
 	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
-	GetExecution(id string) (model.WorkerExecution, error)
+}
+
+// ExecutionQuerier retrieves execution state by ID.
+type ExecutionQuerier interface {
+	GetByID(id string) (model.WorkerExecution, error)
 }
 
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
@@ -51,6 +55,7 @@ type TaskDispatcher struct {
 	manager      ExecutionManager
 	taskStore    TaskStore
 	sessionStore SessionStore
+	execQuerier  ExecutionQuerier
 	in           <-chan DispatchTask
 	results      chan internalResult
 	queues       map[string]*queueState
@@ -58,11 +63,12 @@ type TaskDispatcher struct {
 }
 
 // New constructs a TaskDispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, in <-chan DispatchTask) *TaskDispatcher {
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execQuerier ExecutionQuerier, in <-chan DispatchTask) *TaskDispatcher {
 	return &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
+		execQuerier:  execQuerier,
 		in:           in,
 		results:      make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
@@ -198,7 +204,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID,
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	for time.Now().Before(deadline) {
-		exec, err := d.manager.GetExecution(executionID)
+		exec, err := d.execQuerier.GetByID(executionID)
 		if err != nil {
 			slog.Error("poll error", "component", "taskdispatcher", "execID", executionID, "error", err)
 			return

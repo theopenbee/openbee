@@ -153,7 +153,7 @@ func buildPipeline(
 	dispatchCh chan task_dispatcher.DispatchTask,
 ) (*msgingest.Gateway, *task_dispatcher.TaskDispatcher) {
 	ingest := msgingest.New(s.msgStore, debounce)
-	disp := task_dispatcher.New(mgr, s.taskStore, s.sessionStore, dispatchCh)
+	disp := task_dispatcher.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh)
 	return ingest, disp
 }
 

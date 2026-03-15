@@ -19,7 +19,6 @@ import (
 type mockExecManager struct {
 	mu                   sync.Mutex
 	execResult           model.WorkerExecution
-	getResult            model.WorkerExecution
 	resumedWithSessionID string
 	executedInstructions []string
 }
@@ -33,8 +32,13 @@ func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessi
 	m.mu.Unlock()
 	return m.execResult, nil
 }
-func (m *mockExecManager) GetExecution(_ string) (model.WorkerExecution, error) {
-	return m.getResult, nil
+
+type mockExecutionQuerier struct {
+	result model.WorkerExecution
+}
+
+func (m *mockExecutionQuerier) GetByID(_ string) (model.WorkerExecution, error) {
+	return m.result, nil
 }
 
 type mockTaskStore struct{}
@@ -69,9 +73,9 @@ func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey st
 	return nil
 }
 
-func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, ss task_dispatcher.SessionStore) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask) {
+func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, eq task_dispatcher.ExecutionQuerier, ss task_dispatcher.SessionStore) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask) {
 	in := make(chan task_dispatcher.DispatchTask, 4)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
 	return d, in
 }
 
@@ -107,9 +111,9 @@ func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
 func TestTaskDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
-		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "done!"},
 	}
-	d, in := newTaskDispatcher(mgr, newMockSessionStore())
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "done!"}}
+	d, in := newTaskDispatcher(mgr, eq, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -125,9 +129,9 @@ func TestTaskDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
 func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
-		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted},
 	}
-	d, in := newTaskDispatcher(mgr, newMockSessionStore())
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in := newTaskDispatcher(mgr, eq, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -165,7 +169,7 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 
 func TestTaskDispatcher_ClearSession_ClearsSessionContexts(t *testing.T) {
 	ss := newMockSessionStore()
-	d, _ := newTaskDispatcher(&mockExecManager{}, ss)
+	d, _ := newTaskDispatcher(&mockExecManager{}, &mockExecutionQuerier{}, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -197,8 +201,9 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 	blocker := make(chan struct{})
 	mgr := &blockingExecManager{blocker: blocker}
 
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
 	in := make(chan task_dispatcher.DispatchTask, 4)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -246,9 +251,9 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
-		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"},
 	}
-	d, in := newTaskDispatcher(mgr, ss)
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
+	d, in := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -273,9 +278,9 @@ func TestTaskDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
 	ss := newMockSessionStore()
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "new-session"},
-		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "fresh!"},
 	}
-	d, in := newTaskDispatcher(mgr, ss)
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "fresh!"}}
+	d, in := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -302,11 +307,11 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 
 	mgr := &fallbackExecManager{
 		freshResult: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session"},
-		getResult:   model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"},
 	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task_dispatcher.DispatchTask, 4)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -347,7 +352,8 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 func TestTaskDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
 	blocker := make(chan struct{})
 	mgr := &blockingExecManager{blocker: blocker}
-	d, in := newTaskDispatcher(mgr, newMockSessionStore())
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
+	d, in := newTaskDispatcher(mgr, eq, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -397,13 +403,9 @@ func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (
 	atomic.AddInt64(&m.completed, 1)
 	return model.WorkerExecution{ID: "exec-x"}, nil
 }
-func (m *blockingExecManager) GetExecution(_ string) (model.WorkerExecution, error) {
-	return model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}, nil
-}
 
 type fallbackExecManager struct {
 	freshResult model.WorkerExecution
-	getResult   model.WorkerExecution
 	freshCount  int64
 }
 
@@ -413,7 +415,4 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID s
 	}
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
-}
-func (m *fallbackExecManager) GetExecution(_ string) (model.WorkerExecution, error) {
-	return m.getResult, nil
 }

@@ -259,11 +259,6 @@ func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
 	return m.workerStore.Delete(id)
 }
 
-// GetExecution returns the current state of an execution by ID.
-func (m *Manager) GetExecution(id string) (model.WorkerExecution, error) {
-	return m.executionStore.GetByID(id)
-}
-
 func (m *Manager) StopExecution(executionID string) error {
 	m.mu.RLock()
 	proc, ok := m.activeProcesses[executionID]
