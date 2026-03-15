@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"strconv"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/platform"
+	"github.com/robobee/core/internal/utils"
 )
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
@@ -47,14 +47,14 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			msg := event.Event.Message
 			senderOpenId := "<nil>"
 			if s := event.Event.Sender; s != nil && s.SenderId != nil {
-				senderOpenId = derefStr(s.SenderId.OpenId)
+				senderOpenId = utils.DerefStr(s.SenderId.OpenId)
 			}
 			slog.Info("received event", "component", "feishu",
-				"messageId", derefStr(msg.MessageId),
-				"chatId", derefStr(msg.ChatId),
-				"chatType", derefStr(msg.ChatType),
-				"messageType", derefStr(msg.MessageType),
-				"content", derefStr(msg.Content),
+				"messageId", utils.DerefStr(msg.MessageId),
+				"chatId", utils.DerefStr(msg.ChatId),
+				"chatType", utils.DerefStr(msg.ChatType),
+				"messageType", utils.DerefStr(msg.MessageType),
+				"content", utils.DerefStr(msg.Content),
 				"senderOpenId", senderOpenId,
 			)
 			if msg == nil || *msg.MessageType != "text" {
@@ -83,6 +83,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				slog.Error("failed to marshal event", "component", "feishu", "error", err)
 				return nil
 			}
+
 			// Add "typing" reaction to acknowledge message receipt
 			go func() {
 				resp, err := r.larkClient.Im.MessageReaction.Create(ctx,
@@ -98,15 +99,17 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 					slog.Error("add reaction error", "component", "feishu", "error", err, "resp", resp)
 				}
 			}()
+
 			dispatch(platform.InboundMessage{
 				Platform:          "feishu",
 				SenderID:          senderID,
 				SessionKey:        "feishu:" + *msg.ChatId + ":" + senderID,
 				Content:           text,
 				Raw:               string(rawBytes),
-				PlatformMessageID: feishuMsgID(msg.MessageId),
-				MessageTime:       parseMillis(msg.CreateTime),
+				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),
+				MessageTime:       utils.ParseMillis(msg.CreateTime),
 			})
+
 			return nil
 		})
 
@@ -170,31 +173,3 @@ var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 
-func derefStr(s *string) string {
-	if s == nil {
-		return "<nil>"
-	}
-	return *s
-}
-
-// feishuMsgID safely dereferences a *string message ID.
-// Returns "" (not "<nil>") for nil so dedup is skipped when MessageId is absent.
-func feishuMsgID(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-// parseMillis converts a *string millisecond timestamp (e.g. "1609073151345") to int64.
-// Returns 0 for nil or unparseable input.
-func parseMillis(s *string) int64 {
-	if s == nil {
-		return 0
-	}
-	v, err := strconv.ParseInt(*s, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return v
-}

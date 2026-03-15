@@ -51,20 +51,17 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			return []byte(""), nil
 		}
 		rawBytes, err := json.Marshal(data)
-		rawContent := data.Text.Content
 		if err != nil {
 			slog.Error("failed to marshal raw callback data", "component", "dingtalk", "error", err)
-		} else {
-			rawContent = string(rawBytes)
 		}
 		msg := platform.InboundMessage{
 			Platform:          "dingtalk",
 			SenderID:          data.SenderStaffId,
 			SessionKey:        "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
 			Content:           text,
-			Raw:               rawContent,
+			Raw:               string(rawBytes),
 			PlatformMessageID: data.MsgId,
-			MessageTime:       data.CreateAt, // int64 Unix ms per DingTalk open platform docs
+			MessageTime:       data.CreateAt,
 		}
 		dispatch(msg)
 		slog.Info("dispatched message", "component", "dingtalk", "sessionKey", msg.SessionKey)
