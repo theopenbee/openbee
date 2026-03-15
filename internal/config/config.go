@@ -32,7 +32,6 @@ type Config struct {
 
 type BeeConfig struct {
 	Name      string          `yaml:"name"`
-	Persona   string          `yaml:"persona"`
 	Feeder    FeederConfig    `yaml:"feeder"`
 	Platforms PlatformsConfig `yaml:"platforms"`
 

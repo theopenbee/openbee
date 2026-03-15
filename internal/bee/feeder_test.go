@@ -228,7 +228,7 @@ func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
 func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := bee.WriteCLAUDEMD(dir, "my persona"); err != nil {
+	if err := bee.WriteCLAUDEMD(dir, bee.DefaultPersona); err != nil {
 		t.Fatal(err)
 	}
 
@@ -236,7 +236,7 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CLAUDE.md should be created: %v", err)
 	}
-	if string(data) != "my persona" {
+	if string(data) != bee.DefaultPersona {
 		t.Errorf("unexpected content: %q", string(data))
 	}
 }

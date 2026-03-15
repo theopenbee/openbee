@@ -88,7 +88,7 @@ func (f *Feeder) tick(ctx context.Context) {
 		return
 	}
 
-	if err := WriteCLAUDEMD(f.workDir, f.cfg.Persona); err != nil {
+	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
 		log.Printf("feeder: write CLAUDE.md: %v", err)
 		f.rollback(ctx, msgs)
 		return
