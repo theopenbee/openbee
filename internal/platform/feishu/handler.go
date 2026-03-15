@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
@@ -119,6 +121,9 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			reactionCh := make(chan string, 1)
 			r.pendingReactions.Store(*msg.MessageId, reactionCh)
 			go func() {
+				defer time.AfterFunc(10*time.Minute, func() {
+					r.pendingReactions.Delete(*msg.MessageId)
+				})
 				resp, err := r.larkClient.Im.MessageReaction.Create(ctx,
 					larkim.NewCreateMessageReactionReqBuilder().
 						MessageId(*msg.MessageId).
@@ -228,7 +233,15 @@ func (r *FeishuReceiver) downloadMessageResource(ctx context.Context, messageID,
 	if closer, ok := resp.File.(io.Closer); ok {
 		defer closer.Close()
 	}
-	return io.ReadAll(resp.File)
+	const maxSize = 30 * 1024 * 1024 // 30MB
+	data, err := io.ReadAll(io.LimitReader(resp.File, int64(maxSize)+1))
+	if err != nil {
+		return nil, fmt.Errorf("read resource: %w", err)
+	}
+	if len(data) > maxSize {
+		return nil, fmt.Errorf("resource too large: exceeds %d bytes", maxSize)
+	}
+	return data, nil
 }
 
 // downloadSaveAndPlaceholder downloads a resource, detects MIME, saves it, builds a placeholder,
@@ -242,12 +255,16 @@ func (r *FeishuReceiver) downloadSaveAndPlaceholder(
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
 	}
 
-	mime := r.mediaSvc.DetectMIME(data, fileName)
-	ext := r.mediaSvc.ExtensionFromMIME(mime)
+	var ext string
+	var mime string
 	if fileName != "" {
-		if origExt := filepath.Ext(fileName); origExt != "" {
-			ext = origExt
-		}
+		ext = filepath.Ext(fileName)
+	}
+	if ext == "" {
+		mime = r.mediaSvc.DetectMIME(data, fileName)
+		ext = r.mediaSvc.ExtensionFromMIME(mime)
+	} else {
+		mime = r.mediaSvc.DetectMIME(data, fileName)
 	}
 
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
@@ -300,13 +317,25 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 		parts = append(parts, result.TextContent)
 	}
 
-	for _, imageKey := range result.ImageKeys {
-		parts = append(parts, r.downloadSaveAndPlaceholder(ctx, messageID, imageKey, "image", "image", ""))
-	}
-
-	for _, mk := range result.MediaKeys {
-		// Pass empty mediaType so downloadSaveAndPlaceholder uses MIME-based detection
-		parts = append(parts, r.downloadSaveAndPlaceholder(ctx, messageID, mk.FileKey, "file", "", mk.FileName))
+	totalMedia := len(result.ImageKeys) + len(result.MediaKeys)
+	if totalMedia > 0 {
+		mediaParts := make([]string, totalMedia)
+		g, gCtx := errgroup.WithContext(ctx)
+		for i, imageKey := range result.ImageKeys {
+			g.Go(func() error {
+				mediaParts[i] = r.downloadSaveAndPlaceholder(gCtx, messageID, imageKey, "image", "image", "")
+				return nil
+			})
+		}
+		offset := len(result.ImageKeys)
+		for i, mk := range result.MediaKeys {
+			g.Go(func() error {
+				mediaParts[offset+i] = r.downloadSaveAndPlaceholder(gCtx, messageID, mk.FileKey, "file", "", mk.FileName)
+				return nil
+			})
+		}
+		_ = g.Wait()
+		parts = append(parts, mediaParts...)
 	}
 
 	if len(parts) == 0 {
@@ -316,42 +345,49 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 }
 
 
-func fileCategory(path string) string {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".tiff":
-		return "image"
-	case ".opus", ".ogg", ".mp3", ".wav", ".amr", ".aac", ".flac", ".m4a":
-		return "audio"
-	case ".mp4", ".mov", ".avi":
-		return "video"
-	default:
-		return "file"
-	}
+// fileTypeInfo holds Feishu upload metadata for a file extension.
+type fileTypeInfo struct {
+	category string // "image", "audio", "video", "file"
+	fileType string // Feishu file_type for upload: "opus", "mp4", "pdf", etc.
+	msgType  string // Feishu msg_type for sending: "audio", "media", "file"
 }
 
-func feishuFileType(path string) string {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".opus", ".ogg":
-		return "opus"
-	case ".mp4", ".mov", ".avi":
-		return "mp4"
-	case ".pdf":
-		return "pdf"
-	case ".doc", ".docx":
-		return "doc"
-	case ".xls", ".xlsx":
-		return "xls"
-	case ".ppt", ".pptx":
-		return "ppt"
-	default:
-		return "stream"
-	}
+var extFileTypeMap = map[string]fileTypeInfo{
+	// Images
+	".jpg": {"image", "stream", "file"}, ".jpeg": {"image", "stream", "file"},
+	".png": {"image", "stream", "file"}, ".gif": {"image", "stream", "file"},
+	".webp": {"image", "stream", "file"}, ".bmp": {"image", "stream", "file"},
+	".ico": {"image", "stream", "file"}, ".tiff": {"image", "stream", "file"},
+	// Audio
+	".opus": {"audio", "opus", "audio"}, ".ogg": {"audio", "opus", "audio"},
+	".mp3": {"audio", "stream", "file"}, ".wav": {"audio", "stream", "file"},
+	".amr": {"audio", "stream", "file"}, ".aac": {"audio", "stream", "file"},
+	".flac": {"audio", "stream", "file"}, ".m4a": {"audio", "stream", "file"},
+	// Video
+	".mp4": {"video", "mp4", "media"}, ".mov": {"video", "mp4", "media"},
+	".avi": {"video", "mp4", "media"},
+	// Documents
+	".pdf": {"file", "pdf", "file"},
+	".doc": {"file", "doc", "file"}, ".docx": {"file", "doc", "file"},
+	".xls": {"file", "xls", "file"}, ".xlsx": {"file", "xls", "file"},
+	".ppt": {"file", "ppt", "file"}, ".pptx": {"file", "ppt", "file"},
 }
 
-func feishuMediaMsgType(fileType string) string {
-	switch fileType {
+var defaultFileType = fileTypeInfo{"file", "stream", "file"}
+
+func lookupFileType(path string) fileTypeInfo {
+	ext := strings.ToLower(filepath.Ext(path))
+	if info, ok := extFileTypeMap[ext]; ok {
+		return info
+	}
+	return defaultFileType
+}
+
+func fileCategory(path string) string      { return lookupFileType(path).category }
+func feishuFileType(path string) string     { return lookupFileType(path).fileType }
+func feishuMediaMsgType(ft string) string {
+	// ft is the result of feishuFileType, look up by matching fileType field
+	switch ft {
 	case "opus":
 		return "audio"
 	case "mp4":
@@ -373,33 +409,37 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return fmt.Errorf("unmarshal raw event: %w", err)
 	}
 	imMsg := event.Event.Message
+	if imMsg == nil || imMsg.ChatId == nil || imMsg.ChatType == nil || imMsg.MessageId == nil {
+		return fmt.Errorf("malformed event: missing required message fields")
+	}
 	chatID := *imMsg.ChatId
 	chatType := *imMsg.ChatType
 	messageID := *imMsg.MessageId
 
-	// Recall "typing" reaction before sending reply.
-	// The receiver stores a chan string; we wait up to 5s for the reaction ID.
+	// Recall "typing" reaction in background to avoid blocking the reply.
 	if val, ok := s.pendingReactions.LoadAndDelete(messageID); ok {
 		if ch, ok := val.(chan string); ok {
-			timer := time.NewTimer(5 * time.Second)
-			select {
-			case reactionID, received := <-ch:
-				timer.Stop()
-				if received && reactionID != "" {
-					recallCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-					resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
-						larkim.NewDeleteMessageReactionReqBuilder().
-							MessageId(messageID).
-							ReactionId(reactionID).
-							Build())
-					cancel()
-					if err != nil || !resp.Success() {
-						slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+			go func() {
+				timer := time.NewTimer(5 * time.Second)
+				defer timer.Stop()
+				select {
+				case reactionID, received := <-ch:
+					if received && reactionID != "" {
+						recallCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+						resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
+							larkim.NewDeleteMessageReactionReqBuilder().
+								MessageId(messageID).
+								ReactionId(reactionID).
+								Build())
+						cancel()
+						if err != nil || !resp.Success() {
+							slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+						}
 					}
+				case <-timer.C:
+					slog.Warn("timed out waiting for reaction ID", "component", "feishu", "messageID", messageID)
 				}
-			case <-timer.C:
-				slog.Warn("timed out waiting for reaction ID", "component", "feishu", "messageID", messageID)
-			}
+			}()
 		}
 	}
 

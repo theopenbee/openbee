@@ -56,28 +56,24 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
 		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick)
 
-		// Parse raw data to get msgtype and content
-		rawBytes, _ := json.Marshal(data)
-		var rawData map[string]any
-		json.Unmarshal(rawBytes, &rawData)
-
-		msgtype := "text"
-		if mt, ok := rawData["msgtype"].(string); ok && mt != "" {
-			msgtype = mt
+		msgtype := data.Msgtype
+		if msgtype == "" {
+			msgtype = "text"
 		}
+		content, _ := data.Content.(map[string]any)
 
 		var textContent string
 		switch msgtype {
 		case "text":
 			textContent = strings.TrimSpace(data.Text.Content)
 		case "picture":
-			textContent = r.handleDingTalkPicture(ctx, rawData)
+			textContent = r.handleDingTalkPicture(ctx, content)
 		case "richText":
-			textContent = r.handleDingTalkRichText(ctx, rawData)
+			textContent = r.handleDingTalkRichText(ctx, content)
 		case "file":
-			textContent = r.handleDingTalkFile(ctx, rawData)
+			textContent = r.handleDingTalkFile(ctx, content)
 		case "audio":
-			textContent = r.handleDingTalkAudio(rawData)
+			textContent = r.handleDingTalkAudio(content)
 		case "video":
 			textContent = r.mediaSvc.BuildPlaceholder("video", "", "")
 		default:
@@ -90,6 +86,12 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 		}
 		if data.SenderStaffId == "" {
 			slog.Warn("skipping message with empty SenderStaffId", "component", "dingtalk")
+			return []byte(""), nil
+		}
+
+		rawBytes, err := json.Marshal(data)
+		if err != nil {
+			slog.Error("failed to marshal callback data", "component", "dingtalk", "error", err)
 			return []byte(""), nil
 		}
 
@@ -175,15 +177,17 @@ func httpDownload(ctx context.Context, url string) ([]byte, string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("download failed: status %d", resp.StatusCode)
 	}
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxDownloadSize+1))
 	if err != nil {
 		return nil, "", err
+	}
+	if len(data) > maxDownloadSize {
+		return nil, "", fmt.Errorf("download too large: exceeds %d bytes", maxDownloadSize)
 	}
 	return data, resp.Header.Get("Content-Type"), nil
 }
 
-func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, raw map[string]any) string {
-	content, _ := raw["content"].(map[string]any)
+func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, content map[string]any) string {
 	if content == nil {
 		return r.mediaSvc.BuildPlaceholder("image", "", "")
 	}
@@ -210,43 +214,61 @@ func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, raw map[st
 	return r.mediaSvc.BuildPlaceholder("image", path, "")
 }
 
-func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, raw map[string]any) string {
-	content, _ := raw["content"].(map[string]any)
+func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, content map[string]any) string {
 	if content == nil {
 		return ""
 	}
 	richTextArr, _ := content["richText"].([]any)
-	var textParts []string
-	for _, item := range richTextArr {
+
+	// Each item may have text, image, or both — store results by index for ordering.
+	type itemResult struct{ text, image string }
+	results := make([]itemResult, len(richTextArr))
+
+	var wg sync.WaitGroup
+	for i, item := range richTextArr {
 		itemMap, _ := item.(map[string]any)
 		if itemMap == nil {
 			continue
 		}
 		if text, ok := itemMap["text"].(string); ok && text != "" {
-			textParts = append(textParts, text)
+			results[i].text = text
 		}
 		if picURL, ok := itemMap["pictureUrl"].(string); ok && picURL != "" {
-			data, ct, err := httpDownload(ctx, picURL)
-			if err != nil {
-				slog.Error("download richtext image", "component", "dingtalk", "error", err)
-				textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", "", ""))
-				continue
-			}
-			ext := r.mediaSvc.ExtensionFromMIME(ct)
-			path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
-			if err != nil {
-				slog.Error("save richtext image", "component", "dingtalk", "error", err)
-				textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", "", ""))
-				continue
-			}
-			textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", path, ""))
+			wg.Add(1)
+			go func(idx int, url string) {
+				defer wg.Done()
+				data, ct, err := httpDownload(ctx, url)
+				if err != nil {
+					slog.Error("download richtext image", "component", "dingtalk", "error", err)
+					results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
+					return
+				}
+				ext := r.mediaSvc.ExtensionFromMIME(ct)
+				path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+				if err != nil {
+					slog.Error("save richtext image", "component", "dingtalk", "error", err)
+					results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
+					return
+				}
+				results[idx].image = r.mediaSvc.BuildPlaceholder("image", path, "")
+			}(i, picURL)
+		}
+	}
+	wg.Wait()
+
+	var textParts []string
+	for _, r := range results {
+		if r.text != "" {
+			textParts = append(textParts, r.text)
+		}
+		if r.image != "" {
+			textParts = append(textParts, r.image)
 		}
 	}
 	return strings.Join(textParts, "\n")
 }
 
-func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, raw map[string]any) string {
-	content, _ := raw["content"].(map[string]any)
+func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[string]any) string {
 	if content == nil {
 		return r.mediaSvc.BuildPlaceholder("document", "", "")
 	}
@@ -277,15 +299,17 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, raw map[strin
 		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
 	}
 	placeholder := r.mediaSvc.BuildPlaceholder("document", path, fileName)
-	extracted, _ := r.mediaSvc.ExtractText(ctx, path)
+	extracted, err := r.mediaSvc.ExtractText(ctx, path)
+	if err != nil {
+		slog.Error("extract text failed", "component", "dingtalk", "path", path, "error", err)
+	}
 	if extracted != "" {
 		return placeholder + "\n" + extracted
 	}
 	return placeholder
 }
 
-func (r *DingTalkReceiver) handleDingTalkAudio(raw map[string]any) string {
-	content, _ := raw["content"].(map[string]any)
+func (r *DingTalkReceiver) handleDingTalkAudio(content map[string]any) string {
 	if content != nil {
 		if recognition, ok := content["recognition"].(string); ok && recognition != "" {
 			return recognition
@@ -300,7 +324,11 @@ type DingTalkSender struct {
 	pendingEmojis *sync.Map
 }
 
-const markdownTitle = "RoboBee"
+const (
+	markdownTitle   = "RoboBee"
+	maxDownloadSize = 100 * 1024 * 1024 // 100MB
+	maxUploadSize   = 20 * 1024 * 1024  // 20MB
+)
 
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var data chatbot.BotCallbackDataModel
@@ -352,14 +380,34 @@ func dingTalkMediaType(path string) string {
 	}
 }
 
+// imageContentType returns the MIME content type for an image file path.
+func imageContentType(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	default:
+		return "image/jpeg"
+	}
+}
+
 // uploadMediaToDingTalk uploads a file to DingTalk's OAPI media endpoint.
 func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, filePath, mediaType string) (string, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return "", fmt.Errorf("stat file: %w", err)
+	}
+	if fi.Size() > maxUploadSize {
+		return "", fmt.Errorf("file too large: %d bytes (max %d)", fi.Size(), maxUploadSize)
+	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("read file: %w", err)
-	}
-	if len(data) > 20*1024*1024 {
-		return "", fmt.Errorf("file too large: %d bytes (max 20MB)", len(data))
 	}
 
 	token, err := getOAPIToken(cfg.ClientID, cfg.ClientSecret)
@@ -372,18 +420,7 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 
 	ct := "application/octet-stream"
 	if mediaType == "image" {
-		switch strings.ToLower(filepath.Ext(filePath)) {
-		case ".png":
-			ct = "image/png"
-		case ".gif":
-			ct = "image/gif"
-		case ".webp":
-			ct = "image/webp"
-		case ".bmp":
-			ct = "image/bmp"
-		default:
-			ct = "image/jpeg"
-		}
+		ct = imageContentType(filePath)
 	}
 
 	part, err := writer.CreatePart(map[string][]string{
@@ -393,8 +430,12 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 	if err != nil {
 		return "", err
 	}
-	part.Write(data)
-	writer.Close()
+	if _, err := part.Write(data); err != nil {
+		return "", fmt.Errorf("write multipart data: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("close multipart writer: %w", err)
+	}
 
 	url := fmt.Sprintf("https://oapi.dingtalk.com/media/upload?access_token=%s&type=%s", token, mediaType)
 
