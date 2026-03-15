@@ -33,7 +33,7 @@ func (s *Server) listExecutions(c *gin.Context) {
 func (s *Server) getExecution(c *gin.Context) {
 	exec, err := s.executionStore.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": localize(c, "ExecutionNotFound")})
+		c.JSON(http.StatusNotFound, gin.H{"error": "execution not found"})
 		return
 	}
 	c.JSON(http.StatusOK, exec)

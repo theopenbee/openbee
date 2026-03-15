@@ -32,8 +32,6 @@ func NewServer(
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: false,
 	}))
-	router.Use(i18nMiddleware())
-
 	s := &Server{
 		router:         router,
 		workerStore:    ws,

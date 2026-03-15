@@ -43,7 +43,7 @@ func (s *Server) listWorkers(c *gin.Context) {
 func (s *Server) getWorker(c *gin.Context) {
 	w, err := s.workerStore.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": localize(c, "WorkerNotFound")})
+		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
 	}
 	c.JSON(http.StatusOK, w)
@@ -52,7 +52,7 @@ func (s *Server) getWorker(c *gin.Context) {
 func (s *Server) updateWorker(c *gin.Context) {
 	w, err := s.workerStore.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": localize(c, "WorkerNotFound")})
+		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
 	}
 
