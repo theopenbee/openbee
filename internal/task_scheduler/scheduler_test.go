@@ -1,4 +1,4 @@
-package taskscheduler_test
+package task_scheduler_test
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/dispatcher"
+	"github.com/robobee/core/internal/task_dispatcher"
 	"github.com/robobee/core/internal/model"
 	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/taskscheduler"
+	"github.com/robobee/core/internal/task_scheduler"
 )
 
 func setupDB(t *testing.T) (*sql.DB, *store.TaskStore) {
@@ -34,8 +34,8 @@ func TestScheduler_ImmediateTask_Dispatched(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	dispCh := make(chan dispatcher.DispatchTask, 10)
-	sched := taskscheduler.New(ts, dispCh, 50*time.Millisecond)
+	dispCh := make(chan task_dispatcher.DispatchTask, 10)
+	sched := task_scheduler.New(ts, dispCh, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -67,8 +67,8 @@ func TestScheduler_CountdownTask_NotDispatchedBeforeTime(t *testing.T) {
 		CreatedAt:   now, UpdatedAt: now,
 	})
 
-	dispCh := make(chan dispatcher.DispatchTask, 10)
-	sched := taskscheduler.New(ts, dispCh, 50*time.Millisecond)
+	dispCh := make(chan task_dispatcher.DispatchTask, 10)
+	sched := task_scheduler.New(ts, dispCh, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()

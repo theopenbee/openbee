@@ -1,4 +1,4 @@
-package dispatcher_test
+package task_dispatcher_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/dispatcher"
+	"github.com/robobee/core/internal/task_dispatcher"
 	"github.com/robobee/core/internal/model"
 	"github.com/robobee/core/internal/platform"
 )
@@ -73,14 +73,14 @@ func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey st
 	return nil
 }
 
-func newDispatcher(mgr dispatcher.ExecutionManager, ss dispatcher.SessionStore) (*dispatcher.Dispatcher, chan dispatcher.DispatchTask) {
-	in := make(chan dispatcher.DispatchTask, 4)
-	d := dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, ss task_dispatcher.SessionStore) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask) {
+	in := make(chan task_dispatcher.DispatchTask, 4)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
 	return d, in
 }
 
-func immediateTask(sessionKey, workerID, instruction string) dispatcher.DispatchTask {
-	return dispatcher.DispatchTask{
+func immediateTask(sessionKey, workerID, instruction string) task_dispatcher.DispatchTask {
+	return task_dispatcher.DispatchTask{
 		TaskID:      "task-1",
 		WorkerID:    workerID,
 		SessionKey:  sessionKey,
@@ -108,12 +108,12 @@ func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
 
 // --- Tests ---
 
-func TestDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
+func TestTaskDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "done!"},
 	}
-	d, in := newDispatcher(mgr, newMockSessionStore())
+	d, in := newTaskDispatcher(mgr, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -126,18 +126,18 @@ func TestDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
 	}
 }
 
-func TestDispatcher_InstructionInjection(t *testing.T) {
+func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted},
 	}
-	d, in := newDispatcher(mgr, newMockSessionStore())
+	d, in := newTaskDispatcher(mgr, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)
 
-	task := dispatcher.DispatchTask{
+	task := task_dispatcher.DispatchTask{
 		TaskID:      "task-abc",
 		WorkerID:    "w1",
 		SessionKey:  "s1",
@@ -167,9 +167,9 @@ func TestDispatcher_InstructionInjection(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ClearSession_ClearsSessionContexts(t *testing.T) {
+func TestTaskDispatcher_ClearSession_ClearsSessionContexts(t *testing.T) {
 	ss := newMockSessionStore()
-	d, _ := newDispatcher(&mockExecManager{}, ss)
+	d, _ := newTaskDispatcher(&mockExecManager{}, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -196,13 +196,13 @@ func TestDispatcher_ClearSession_ClearsSessionContexts(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T) {
+func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T) {
 	ss := newMockSessionStore()
 	blocker := make(chan struct{})
 	mgr := &blockingExecManager{blocker: blocker}
 
-	in := make(chan dispatcher.DispatchTask, 4)
-	d := dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+	in := make(chan task_dispatcher.DispatchTask, 4)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -244,7 +244,7 @@ func TestDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
+func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 	ss := newMockSessionStore()
 	ss.data["s1|w1"] = "prior-session-id"
 
@@ -252,7 +252,7 @@ func TestDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"},
 	}
-	d, in := newDispatcher(mgr, ss)
+	d, in := newTaskDispatcher(mgr, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -273,13 +273,13 @@ func TestDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
+func TestTaskDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
 	ss := newMockSessionStore()
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "new-session"},
 		getResult:  model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "fresh!"},
 	}
-	d, in := newDispatcher(mgr, ss)
+	d, in := newTaskDispatcher(mgr, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -300,7 +300,7 @@ func TestDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
+func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
 	ss := newMockSessionStore()
 	ss.data["s1|w1"] = "broken-session-id"
 
@@ -309,8 +309,8 @@ func TestDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
 		getResult:   model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"},
 	}
 
-	in := make(chan dispatcher.DispatchTask, 4)
-	d := dispatcher.New(mgr, &mockTaskStore{}, ss, in)
+	in := make(chan task_dispatcher.DispatchTask, 4)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -348,10 +348,10 @@ func TestDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
 	}
 }
 
-func TestDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
+func TestTaskDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
 	blocker := make(chan struct{})
 	mgr := &blockingExecManager{blocker: blocker}
-	d, in := newDispatcher(mgr, newMockSessionStore())
+	d, in := newTaskDispatcher(mgr, newMockSessionStore())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -138,7 +138,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 }
 
 // ExecuteWorkerWithSession runs a worker resuming an existing Claude session identified by sessionID.
-// This is used by the Dispatcher when a prior session exists for the (sessionKey, workerID) pair.
+// This is used by the TaskDispatcher when a prior session exists for the (sessionKey, workerID) pair.
 func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {

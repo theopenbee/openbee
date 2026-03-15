@@ -13,14 +13,14 @@ import (
 	"github.com/robobee/core/internal/api"
 	"github.com/robobee/core/internal/bee"
 	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/dispatcher"
+	"github.com/robobee/core/internal/task_dispatcher"
 	"github.com/robobee/core/internal/mcp"
 	"github.com/robobee/core/internal/msgingest"
 	"github.com/robobee/core/internal/platform"
 	"github.com/robobee/core/internal/platform/dingtalk"
 	"github.com/robobee/core/internal/platform/feishu"
 	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/taskscheduler"
+	"github.com/robobee/core/internal/task_scheduler"
 	"github.com/robobee/core/internal/worker"
 )
 
@@ -71,7 +71,7 @@ func buildApp(cfg config.Config) (*App, error) {
 
 	mgr := buildWorkerManager(cfg.Bee, s)
 
-	dispatchCh := make(chan dispatcher.DispatchTask, 128)
+	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
 
 	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
 
@@ -139,10 +139,10 @@ func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
 	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
 }
 
-func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan dispatcher.DispatchTask) (*bee.Feeder, *taskscheduler.Scheduler) {
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask) (*bee.Feeder, *task_scheduler.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, beeProcess, config.DefaultBeeWorkDir(), cfg)
-	sched := taskscheduler.New(s.taskStore, dispatchCh, cfg.Feeder.Interval)
+	sched := task_scheduler.New(s.taskStore, dispatchCh, cfg.Feeder.Interval)
 	return feeder, sched
 }
 
@@ -150,10 +150,10 @@ func buildPipeline(
 	debounce time.Duration,
 	s appStores,
 	mgr *worker.Manager,
-	dispatchCh chan dispatcher.DispatchTask,
-) (*msgingest.Gateway, *dispatcher.Dispatcher) {
+	dispatchCh chan task_dispatcher.DispatchTask,
+) (*msgingest.Gateway, *task_dispatcher.TaskDispatcher) {
 	ingest := msgingest.New(s.msgStore, debounce)
-	disp := dispatcher.New(mgr, s.taskStore, s.sessionStore, dispatchCh)
+	disp := task_dispatcher.New(mgr, s.taskStore, s.sessionStore, dispatchCh)
 	return ingest, disp
 }
 

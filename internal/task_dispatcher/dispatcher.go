@@ -1,4 +1,4 @@
-package dispatcher
+package task_dispatcher
 
 import (
 	"context"
@@ -23,12 +23,12 @@ type ExecutionManager interface {
 	GetExecution(id string) (model.WorkerExecution, error)
 }
 
-// TaskStore is the subset of store.TaskStore used by the Dispatcher.
+// TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
 	SetExecution(ctx context.Context, taskID, executionID, status string) error
 }
 
-// SessionStore is the subset of store.SessionStore used by the Dispatcher.
+// SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
 	GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error)
 	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID string) error
@@ -46,8 +46,8 @@ type internalResult struct {
 	task     DispatchTask
 }
 
-// Dispatcher serializes worker executions per (SessionKey, WorkerID).
-type Dispatcher struct {
+// TaskDispatcher serializes worker executions per (SessionKey, WorkerID).
+type TaskDispatcher struct {
 	ctx          context.Context
 	manager      ExecutionManager
 	taskStore    TaskStore
@@ -58,9 +58,9 @@ type Dispatcher struct {
 	clearCh      chan string
 }
 
-// New constructs a Dispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, in <-chan DispatchTask) *Dispatcher {
-	return &Dispatcher{
+// New constructs a TaskDispatcher.
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, in <-chan DispatchTask) *TaskDispatcher {
+	return &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
@@ -72,7 +72,7 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
-func (d *Dispatcher) Run(ctx context.Context) {
+func (d *TaskDispatcher) Run(ctx context.Context) {
 	d.ctx = ctx
 	for {
 		select {
@@ -95,7 +95,7 @@ func queueKey(sessionKey, workerID string) string {
 	return sessionKey + "|" + workerID
 }
 
-func (d *Dispatcher) handleInbound(task DispatchTask) {
+func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 	key := queueKey(task.SessionKey, task.WorkerID)
 	state, ok := d.queues[key]
 	if !ok {
@@ -117,15 +117,15 @@ func (d *Dispatcher) handleInbound(task DispatchTask) {
 
 // ClearSession removes all queued tasks for the given session and clears session contexts.
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
-func (d *Dispatcher) ClearSession(sessionKey string) {
+func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	select {
 	case d.clearCh <- sessionKey:
 	default:
-		slog.Warn("clearCh full, dropping clear", "component", "dispatcher", "sessionKey", sessionKey)
+		slog.Warn("clearCh full, dropping clear", "component", "taskdispatcher", "sessionKey", sessionKey)
 	}
 }
 
-func (d *Dispatcher) clearQueues(sessionKey string) {
+func (d *TaskDispatcher) clearQueues(sessionKey string) {
 	prefix := sessionKey + "|"
 	for key := range d.queues {
 		if strings.HasPrefix(key, prefix) {
@@ -133,7 +133,7 @@ func (d *Dispatcher) clearQueues(sessionKey string) {
 		}
 	}
 	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		slog.Error("clear session contexts", "component", "dispatcher", "sessionKey", sessionKey, "error", err)
+		slog.Error("clear session contexts", "component", "taskdispatcher", "sessionKey", sessionKey, "error", err)
 	}
 }
 
@@ -147,7 +147,7 @@ func buildInstruction(task DispatchTask) string {
 		task.TaskID, task.MessageID, task.Instruction)
 }
 
-func (d *Dispatcher) executeAsync(ctx context.Context, key string, task DispatchTask, replyTo platform.InboundMessage) {
+func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task DispatchTask, replyTo platform.InboundMessage) {
 	var exec model.WorkerExecution
 	var err error
 
@@ -156,15 +156,15 @@ func (d *Dispatcher) executeAsync(ctx context.Context, key string, task Dispatch
 	if task.TaskType == model.TaskTypeImmediate {
 		sessionID, sessErr := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
 		if sessErr != nil {
-			slog.Error("get session context", "component", "dispatcher", "error", sessErr)
+			slog.Error("get session context", "component", "taskdispatcher", "error", sessErr)
 		}
 		if sessionID != "" {
-			slog.Info("resuming session", "component", "dispatcher", "sessionID", sessionID, "taskID", task.TaskID)
+			slog.Info("resuming session", "component", "taskdispatcher", "sessionID", sessionID, "taskID", task.TaskID)
 			exec, err = d.manager.ExecuteWorkerWithSession(ctx, task.WorkerID, instruction, sessionID)
 			if err != nil {
-				slog.Error("resume error, falling back to fresh", "component", "dispatcher", "error", err)
+				slog.Error("resume error, falling back to fresh", "component", "taskdispatcher", "error", err)
 				if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-					slog.Error("clear stale session contexts", "component", "dispatcher", "sessionKey", task.SessionKey, "error", clearErr)
+					slog.Error("clear stale session contexts", "component", "taskdispatcher", "sessionKey", task.SessionKey, "error", clearErr)
 				}
 				exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
 			}
@@ -172,12 +172,12 @@ func (d *Dispatcher) executeAsync(ctx context.Context, key string, task Dispatch
 		}
 	}
 
-	slog.Info("executing worker", "component", "dispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
+	slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
 	exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
 
 execStarted:
 	if err != nil {
-		slog.Error("execute error", "component", "dispatcher", "error", err)
+		slog.Error("execute error", "component", "taskdispatcher", "error", err)
 		select {
 		case d.results <- internalResult{queueKey: key, task: task}:
 		case <-ctx.Done():
@@ -195,17 +195,17 @@ execStarted:
 	}
 }
 
-func (d *Dispatcher) waitForResult(ctx context.Context, executionID, taskID, sessionKey, workerID string) {
+func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID, sessionKey, workerID string) {
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	for time.Now().Before(deadline) {
 		exec, err := d.manager.GetExecution(executionID)
 		if err != nil {
-			slog.Error("poll error", "component", "dispatcher", "execID", executionID, "error", err)
+			slog.Error("poll error", "component", "taskdispatcher", "execID", executionID, "error", err)
 			return
 		}
 		if string(exec.Status) != lastStatus {
-			slog.Info("polling execution", "component", "dispatcher", "execID", executionID, "status", exec.Status)
+			slog.Info("polling execution", "component", "taskdispatcher", "execID", executionID, "status", exec.Status)
 			lastStatus = string(exec.Status)
 		}
 		switch exec.Status {
@@ -214,7 +214,7 @@ func (d *Dispatcher) waitForResult(ctx context.Context, executionID, taskID, ses
 			// Terminal task status is set by the worker via mark_task_success.
 			if sessionKey != "" && workerID != "" {
 				if err := d.sessionStore.UpsertSessionContext(ctx, sessionKey, workerID, exec.SessionID); err != nil {
-					slog.Error("upsert session context", "component", "dispatcher", "error", err)
+					slog.Error("upsert session context", "component", "taskdispatcher", "error", err)
 				}
 			}
 			return
@@ -230,7 +230,7 @@ func (d *Dispatcher) waitForResult(ctx context.Context, executionID, taskID, ses
 	}
 }
 
-func (d *Dispatcher) handleResult(res internalResult) {
+func (d *TaskDispatcher) handleResult(res internalResult) {
 	state, ok := d.queues[res.queueKey]
 	if !ok {
 		return

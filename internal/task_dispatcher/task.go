@@ -1,8 +1,8 @@
-package dispatcher
+package task_dispatcher
 
 import "github.com/robobee/core/internal/platform"
 
-// DispatchTask is the unit of work sent to the Dispatcher by the TaskScheduler.
+// DispatchTask is the unit of work sent to the TaskDispatcher by the TaskScheduler.
 type DispatchTask struct {
 	TaskID          string                  // task record ID
 	WorkerID        string

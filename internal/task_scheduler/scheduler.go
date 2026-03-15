@@ -1,4 +1,4 @@
-package taskscheduler
+package task_scheduler
 
 import (
 	"context"
@@ -6,21 +6,21 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/robobee/core/internal/dispatcher"
+	"github.com/robobee/core/internal/task_dispatcher"
 	"github.com/robobee/core/internal/model"
 	"github.com/robobee/core/internal/platform"
 	"github.com/robobee/core/internal/store"
 )
 
-// Scheduler polls for due tasks and sends them to the Dispatcher.
+// Scheduler polls for due tasks and sends them to the TaskDispatcher.
 type Scheduler struct {
 	taskStore    *store.TaskStore
-	dispatchCh   chan<- dispatcher.DispatchTask
+	dispatchCh   chan<- task_dispatcher.DispatchTask
 	pollInterval time.Duration
 }
 
 // New creates a Scheduler.
-func New(taskStore *store.TaskStore, dispatchCh chan<- dispatcher.DispatchTask, pollInterval time.Duration) *Scheduler {
+func New(taskStore *store.TaskStore, dispatchCh chan<- task_dispatcher.DispatchTask, pollInterval time.Duration) *Scheduler {
 	return &Scheduler{
 		taskStore:    taskStore,
 		dispatchCh:   dispatchCh,
@@ -78,7 +78,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 
 		sessionKey := ct.MessageSessionKey
 
-		dt := dispatcher.DispatchTask{
+		dt := task_dispatcher.DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
 			SessionKey:  sessionKey,
