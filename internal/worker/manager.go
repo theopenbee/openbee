@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robobee/core/internal/claude"
 	"github.com/robobee/core/internal/claudemd"
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/model"
@@ -39,8 +40,8 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 
-	activeRuntimes map[string]Runtime      // execution_id -> runtime
-	logSubscribers map[string][]chan Output // execution_id -> subscribers
+	activeRuntimes map[string]Runtime            // execution_id -> runtime
+	logSubscribers map[string][]chan claude.Output // execution_id -> subscribers
 	mu             sync.RWMutex
 }
 
@@ -56,7 +57,7 @@ func NewManager(
 		workerStore:    ws,
 		executionStore: es,
 		activeRuntimes: make(map[string]Runtime),
-		logSubscribers: make(map[string][]chan Output),
+		logSubscribers: make(map[string][]chan claude.Output),
 	}
 }
 
@@ -183,7 +184,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	outputCh, err := rt.Execute(execCtx, worker.WorkDir, prompt, ExecuteOptions{SessionID: exec.SessionID, Resume: resume})
+	outputCh, err := rt.Execute(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume})
 	if err != nil {
 		cancel()
 		return err
@@ -198,7 +199,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan Output, cancel context.CancelFunc) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc) {
 	defer cancel()
 	var rawLogsBuilder strings.Builder
 	var lastAssistantText string
@@ -218,7 +219,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		}
 
 		switch out.Type {
-		case OutputStdout:
+		case claude.OutputStdout:
 			rawLogsBuilder.WriteString(out.Content)
 			rawLogsBuilder.WriteByte('\n')
 			// Parse stream-json to extract assistant text and result
@@ -240,7 +241,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 					}
 				}
 			}
-		case OutputDone:
+		case claude.OutputDone:
 			rawLogs := rawLogsBuilder.String()
 			// Save raw stdout logs
 			m.executionStore.UpdateLogs(exec.ID, rawLogs)
@@ -259,7 +260,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
-		case OutputError:
+		case claude.OutputError:
 			rawLogs := rawLogsBuilder.String()
 			m.executionStore.UpdateLogs(exec.ID, rawLogs)
 			m.executionStore.UpdateResult(exec.ID, rawLogs+"\nERROR: "+out.Content, model.ExecStatusFailed)
@@ -277,11 +278,11 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	m.mu.Unlock()
 }
 
-func (m *Manager) SubscribeLogs(executionID string) <-chan Output {
+func (m *Manager) SubscribeLogs(executionID string) <-chan claude.Output {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	ch := make(chan Output, 100)
+	ch := make(chan claude.Output, 100)
 	m.logSubscribers[executionID] = append(m.logSubscribers[executionID], ch)
 	return ch
 }

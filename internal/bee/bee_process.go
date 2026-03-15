@@ -1,16 +1,12 @@
 package bee
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sync"
-	"time"
 
+	"github.com/robobee/core/internal/claude"
 	"github.com/robobee/core/internal/config"
 )
 
@@ -23,17 +19,13 @@ const DefaultPersona = `你是 bee，一个 AI 智能助手。
 
 // BeeProcess represents a single short-lived bee Claude invocation.
 type BeeProcess struct {
-	binary string
-	mcpURL string
-	apiKey string
+	invoker *claude.Invoker
 }
 
 // NewBeeProcess creates a BeeProcess.
 func NewBeeProcess(cfg config.BeeConfig) *BeeProcess {
 	return &BeeProcess{
-		binary: cfg.Claude.Path,
-		mcpURL: cfg.MCPBaseURL + "/mcp/sse",
-		apiKey: cfg.MCP.APIKey,
+		invoker: claude.NewInvoker(cfg.Claude.Path, cfg.MCPBaseURL, cfg.MCP.APIKey),
 	}
 }
 
@@ -50,86 +42,12 @@ func WriteCLAUDEMD(workDir, persona string) error {
 	return os.WriteFile(path, []byte(persona), 0o644)
 }
 
-// Run spawns the bee process with the given prompt and waits for it to exit.
+// Run spawns the bee process with the given prompt and returns a Process handle and output channel.
 // If sessionID is non-empty and resume is true, passes --resume <sessionID>.
 // If sessionID is non-empty and resume is false, passes --session-id <sessionID>.
-// Returns nil on exit code 0, an error otherwise.
-func (p *BeeProcess) Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) error {
-	mcpConfig := fmt.Sprintf(
-		`{"mcpServers":{"robobee":{"type":"sse","url":%q}}}`,
-		p.mcpURL+"?api_key="+url.QueryEscape(p.apiKey),
-	)
-	args := []string{
-		"--dangerously-skip-permissions",
-		"--verbose",
-		"--output-format", "stream-json",
-		"--mcp-config", mcpConfig,
-		"-p", prompt,
-	}
-	if sessionID != "" {
-		if resume {
-			args = append(args, "--resume", sessionID)
-		} else {
-			args = append(args, "--session-id", sessionID)
-		}
-	}
-	cmd := exec.CommandContext(ctx, p.binary, args...)
-	cmd.Dir = workDir
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	// Create log file for this run.
-	sid := sessionID
-	if sid == "" {
-		sid = "nosession"
-	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("get home dir: %w", err)
-	}
-	logDir := filepath.Join(homeDir, ".robobee", "bee-logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir bee-logs: %w", err)
-	}
-	logFileName := fmt.Sprintf("%s_%s.log", sid, time.Now().Format("20060102_150405"))
-	logFile, err := os.OpenFile(filepath.Join(logDir, logFileName), os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("open bee log file: %w", err)
-	}
-	defer logFile.Close()
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start bee: %w", err)
-	}
-
-	// Drain stdout/stderr into log file.
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			fmt.Fprintf(logFile, "[stdout] %s\n", scanner.Text())
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			fmt.Fprintf(logFile, "[stderr] %s\n", scanner.Text())
-		}
-	}()
-
-	wg.Wait()
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("bee exited with error: %w", err)
-	}
-	return nil
+func (p *BeeProcess) Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error) {
+	return p.invoker.Run(ctx, workDir, prompt, claude.RunOptions{
+		SessionID: sessionID,
+		Resume:    resume,
+	})
 }

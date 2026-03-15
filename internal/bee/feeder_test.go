@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/robobee/core/internal/bee"
+	"github.com/robobee/core/internal/claude"
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/store"
 )
@@ -51,11 +52,20 @@ type beeCall struct {
 	resume    bool
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt, sessionID string, resume bool) error {
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, sessionID: sessionID, resume: resume})
 	m.mu.Unlock()
-	return m.err
+
+	ch := make(chan claude.Output, 1)
+	if m.err != nil {
+		ch <- claude.Output{Type: claude.OutputError, Content: m.err.Error()}
+	} else {
+		ch <- claude.Output{Type: claude.OutputDone}
+	}
+	close(ch)
+
+	return &claude.Process{}, ch, nil
 }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
