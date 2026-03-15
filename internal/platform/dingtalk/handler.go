@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -328,6 +329,13 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	return nil
 }
 
+var sanitizeFileNameRe = regexp.MustCompile(`[\x00-\x1f\x7f\r\n"\\]`)
+
+// sanitizeFileName removes control characters for safe multipart upload (CWE-93).
+func sanitizeFileName(name string) string {
+	return sanitizeFileNameRe.ReplaceAllString(name, "_")
+}
+
 // dingTalkMediaType maps file extension to DingTalk upload media type.
 func dingTalkMediaType(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
@@ -367,7 +375,7 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 	}
 
 	part, err := writer.CreatePart(map[string][]string{
-		"Content-Disposition": {fmt.Sprintf(`form-data; name="media"; filename="%s"`, filepath.Base(filePath))},
+		"Content-Disposition": {fmt.Sprintf(`form-data; name="media"; filename="%s"`, sanitizeFileName(filepath.Base(filePath)))},
 		"Content-Type":        {ct},
 	})
 	if err != nil {
@@ -410,7 +418,7 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 // sendMediaViaDingTalk sends a media message via sessionWebhook.
 func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhook, filePath, mediaID string) error {
 	mediaType := dingTalkMediaType(filePath)
-	fileName := filepath.Base(filePath)
+	fileName := sanitizeFileName(filepath.Base(filePath))
 	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
 
 	var payload map[string]any
