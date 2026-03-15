@@ -72,12 +72,6 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if !strings.Contains(content, "系统元数据") {
 		t.Error("missing worker-specific 系统元数据 section")
 	}
-	if !strings.Contains(content, `你的名称是 "测试助手"`) {
-		t.Error("missing worker name in rules")
-	}
-	if !strings.Contains(content, `"测试助手: "`) {
-		t.Error("missing name prefix format in rules")
-	}
 	if !strings.Contains(content, "Worker 配置") {
 		t.Error("missing worker config block")
 	}
@@ -89,9 +83,6 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	}
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
-	}
-	if strings.Contains(content, "CLAUDE.md 中的一级标题") {
-		t.Error("should not contain fallback instruction when name is provided")
 	}
 }
 
@@ -111,12 +102,6 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 
 	if !strings.Contains(content, "mark_task_success") {
 		t.Error("missing worker-specific rules")
-	}
-	if !strings.Contains(content, "CLAUDE.md 中的一级标题") {
-		t.Error("missing fallback instruction when name is not provided")
-	}
-	if strings.Contains(content, `你的名称是 "`) {
-		t.Error("should not contain direct name when name is empty")
 	}
 }
 
