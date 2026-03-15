@@ -39,6 +39,12 @@ func TestParseMediaKeys(t *testing.T) {
 			wantFile: "file_audio",
 		},
 		{
+			name:     "audio type with duration",
+			content:  `{"file_key":"file_audio","duration":2000}`,
+			msgType:  "audio",
+			wantFile: "file_audio",
+		},
+		{
 			name:    "invalid json",
 			content: `not json`,
 			msgType: "image",

@@ -172,15 +172,19 @@ var validFeishuKey = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
 
 // parseMediaKeys extracts image_key, file_key, and file_name from content JSON based on message type.
 func parseMediaKeys(contentJSON, msgType string) (imageKey, fileKey, fileName string) {
-	var content map[string]string
+	var content map[string]any
 	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
 		return "", "", ""
 	}
+	str := func(key string) string {
+		v, _ := content[key].(string)
+		return v
+	}
 	switch msgType {
 	case "image", "sticker":
-		return content["image_key"], "", ""
+		return str("image_key"), "", ""
 	default:
-		return "", content["file_key"], content["file_name"]
+		return "", str("file_key"), str("file_name")
 	}
 }
 
