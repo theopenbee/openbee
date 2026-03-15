@@ -31,7 +31,6 @@ type Config struct {
 }
 
 type BeeConfig struct {
-	Name      string          `yaml:"name"`
 	Feeder    FeederConfig    `yaml:"feeder"`
 	Platforms PlatformsConfig `yaml:"platforms"`
 
@@ -118,9 +117,6 @@ func Load(path string) (Config, error) {
 func applyDefaults(cfg *Config) error {
 	if cfg.MessageQueue.DebounceWindow == 0 {
 		cfg.MessageQueue.DebounceWindow = 3 * time.Second
-	}
-	if cfg.Bee.Name == "" {
-		cfg.Bee.Name = "bee"
 	}
 	if cfg.Bee.Feeder.Interval == 0 {
 		cfg.Bee.Feeder.Interval = 10 * time.Second
