@@ -21,6 +21,7 @@ type OutboundMessage struct {
 	SessionKey string
 	Content    string
 	ReplyTo    InboundMessage
+	MediaPath  string // optional local file path to upload and send
 }
 
 // PlatformReceiverAdapter receives inbound messages and dispatches them.
