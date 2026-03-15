@@ -13,8 +13,8 @@ const (
 	RoleBee    = "bee"
 	RoleWorker = "worker"
 
-	systemRulesFile = ".robobee.claude.md"
-	importLine      = "@.robobee.claude.md"
+	SystemRulesFile = ".robobee.md"
+	ImportLine      = "@" + SystemRulesFile
 )
 
 // options holds optional parameters for EnsureSystemRules.
@@ -153,7 +153,7 @@ func rulesForRole(role string, opts options) string {
 	}
 }
 
-// EnsureSystemRules writes .robobee.claude.md with the latest system rules
+// EnsureSystemRules writes .robobee.md with the latest system rules
 // for the given role, and ensures CLAUDE.md contains the @import reference.
 // It does NOT create CLAUDE.md if it doesn't exist.
 func EnsureSystemRules(workDir, role string, optFns ...Option) error {
@@ -161,10 +161,10 @@ func EnsureSystemRules(workDir, role string, optFns ...Option) error {
 	for _, fn := range optFns {
 		fn(&opts)
 	}
-	// 1. Write .robobee.claude.md (always overwrite)
-	rulesPath := filepath.Join(workDir, systemRulesFile)
+	// 1. Write .robobee.md (always overwrite)
+	rulesPath := filepath.Join(workDir, SystemRulesFile)
 	if err := os.WriteFile(rulesPath, []byte(rulesForRole(role, opts)), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", systemRulesFile, err)
+		return fmt.Errorf("write %s: %w", SystemRulesFile, err)
 	}
 
 	// 2. Check CLAUDE.md for import reference
@@ -178,8 +178,8 @@ func EnsureSystemRules(workDir, role string, optFns ...Option) error {
 	}
 
 	// 3. Append import if missing
-	if !strings.Contains(string(data), importLine) {
-		data = append(data, []byte("\n"+importLine+"\n")...)
+	if !strings.Contains(string(data), ImportLine) {
+		data = append(data, []byte("\n"+ImportLine+"\n")...)
 		if err := os.WriteFile(claudePath, data, 0o644); err != nil {
 			return fmt.Errorf("update CLAUDE.md: %w", err)
 		}

@@ -76,7 +76,7 @@ func (m *Manager) CreateWorker(
 	// Initialize CLAUDE.md only if it doesn't already exist
 	claudeMD := filepath.Join(workDir, "CLAUDE.md")
 	if _, err := os.Stat(claudeMD); os.IsNotExist(err) {
-		initialContent := "@.robobee.claude.md\n"
+		initialContent := claudemd.ImportLine + "\n"
 		if err := os.WriteFile(claudeMD, []byte(initialContent), 0644); err != nil {
 			return model.Worker{}, fmt.Errorf("create CLAUDE.md: %w", err)
 		}
@@ -200,7 +200,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 
 func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan Output, cancel context.CancelFunc) {
 	defer cancel()
-	var rawLogs string
+	var rawLogsBuilder strings.Builder
 	var lastAssistantText string
 	var streamResult string
 
@@ -219,7 +219,8 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 
 		switch out.Type {
 		case OutputStdout:
-			rawLogs += out.Content + "\n"
+			rawLogsBuilder.WriteString(out.Content)
+			rawLogsBuilder.WriteByte('\n')
 			// Parse stream-json to extract assistant text and result
 			line := strings.TrimSpace(out.Content)
 			if strings.HasPrefix(line, "{") {
@@ -240,6 +241,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 				}
 			}
 		case OutputDone:
+			rawLogs := rawLogsBuilder.String()
 			// Save raw stdout logs
 			m.executionStore.UpdateLogs(exec.ID, rawLogs)
 			// Determine result with priority: file > streamResult > lastAssistantText > rawLogs
@@ -258,6 +260,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case OutputError:
+			rawLogs := rawLogsBuilder.String()
 			m.executionStore.UpdateLogs(exec.ID, rawLogs)
 			m.executionStore.UpdateResult(exec.ID, rawLogs+"\nERROR: "+out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
