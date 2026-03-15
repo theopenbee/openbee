@@ -18,8 +18,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input string) (model.WorkerExecution, error)
-	ExecuteWorkerWithSession(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
 	GetExecution(id string) (model.WorkerExecution, error)
 }
 
@@ -160,20 +159,20 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 		}
 		if sessionID != "" {
 			slog.Info("resuming session", "component", "taskdispatcher", "sessionID", sessionID, "taskID", task.TaskID)
-			exec, err = d.manager.ExecuteWorkerWithSession(ctx, task.WorkerID, instruction, sessionID)
+			exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
 			if err != nil {
 				slog.Error("resume error, falling back to fresh", "component", "taskdispatcher", "error", err)
 				if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
 					slog.Error("clear stale session contexts", "component", "taskdispatcher", "sessionKey", task.SessionKey, "error", clearErr)
 				}
-				exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
+				exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 			}
 			goto execStarted
 		}
 	}
 
 	slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
-	exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
+	exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 
 execStarted:
 	if err != nil {

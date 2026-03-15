@@ -98,18 +98,23 @@ func (m *Manager) CreateWorker(
 	})
 }
 
-func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput string) (model.WorkerExecution, error) {
+// ExecuteWorker runs a worker. When sessionID is non-empty, it resumes the existing
+// Claude session (resume=true); otherwise it starts a fresh session.
+func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	exec, err := m.executionStore.Create(workerID, triggerInput)
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+
+	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}
 
-	// Update worker status
 	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
 		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
@@ -118,43 +123,10 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
 	}
 
+	resume := sessionID != ""
 	timeout := m.beeCfg.Claude.Timeout
 
-	if err := m.launchRuntime(exec, worker, timeout, triggerInput, false); err != nil {
-		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
-		return exec, fmt.Errorf("start runtime: %w", err)
-	}
-
-	return exec, nil
-}
-
-// ExecuteWorkerWithSession runs a worker resuming an existing Claude session identified by sessionID.
-// This is used by the TaskDispatcher when a prior session exists for the (sessionKey, workerID) pair.
-func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
-	worker, err := m.workerStore.GetByID(workerID)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
-	}
-
-	exec, err := m.executionStore.CreateWithSessionID(workerID, triggerInput, sessionID)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("create execution with session: %w", err)
-	}
-
-	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		slog.Error("failed to update worker status", "component", "worker", "error", err)
-	}
-
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
-		slog.Error("ensure system rules", "component", "worker", "op", "executeWithSession", "error", err)
-	}
-
-	timeout := m.beeCfg.Claude.Timeout
-
-	// On resume, only the new message is sent — the worker's base prompt is already
-	// established in the Claude session history (same as ReplyExecution).
-	if err := m.launchRuntime(exec, worker, timeout, triggerInput, true); err != nil {
+	if err := m.launchRuntime(exec, worker, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -285,7 +257,7 @@ func (m *Manager) ReplyExecution(ctx context.Context, executionID string, messag
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
-	newExec, err := m.executionStore.CreateWithSessionID(srcExec.WorkerID, message, srcExec.SessionID)
+	newExec, err := m.executionStore.Create(srcExec.WorkerID, message, srcExec.SessionID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("create reply execution: %w", err)
 	}

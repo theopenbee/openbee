@@ -113,7 +113,7 @@ func (s *Server) sendMessage(c *gin.Context) {
 		return
 	}
 
-	exec, err := s.manager.ExecuteWorker(context.Background(), workerID, req.Message)
+	exec, err := s.manager.ExecuteWorker(context.Background(), workerID, req.Message, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

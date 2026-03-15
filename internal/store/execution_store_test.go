@@ -3,6 +3,7 @@ package store
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/robobee/core/internal/model"
 )
 
@@ -18,7 +19,7 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 
-	exec, err := es.Create(w.ID, "test message")
+	exec, err := es.Create(w.ID, "test message", uuid.New().String())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestExecutionStore_UpdateStatus(t *testing.T) {
 	es := NewExecutionStore(db)
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message")
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String())
 
 	err = es.UpdateStatus(exec.ID, model.ExecStatusRunning)
 	if err != nil {
@@ -72,7 +73,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	es := NewExecutionStore(db)
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, err := es.Create(w.ID, "test")
+	exec, err := es.Create(w.ID, "test", uuid.New().String())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	es := NewExecutionStore(db)
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test")
+	exec, _ := es.Create(w.ID, "test", uuid.New().String())
 
 	if err := es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted); err != nil {
 		t.Fatalf("UpdateResult: %v", err)
@@ -129,7 +130,7 @@ func TestExecutionStore_GetBySessionID(t *testing.T) {
 	es := NewExecutionStore(db)
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message")
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String())
 
 	got, err := es.GetBySessionID(exec.SessionID)
 	if err != nil {

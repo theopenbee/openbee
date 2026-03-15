@@ -24,15 +24,11 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction string) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string) (model.WorkerExecution, error) {
 	m.mu.Lock()
-	m.executedInstructions = append(m.executedInstructions, instruction)
-	m.mu.Unlock()
-	return m.execResult, nil
-}
-func (m *mockExecManager) ExecuteWorkerWithSession(_ context.Context, _, instruction, sessionID string) (model.WorkerExecution, error) {
-	m.mu.Lock()
-	m.resumedWithSessionID = sessionID
+	if sessionID != "" {
+		m.resumedWithSessionID = sessionID
+	}
 	m.executedInstructions = append(m.executedInstructions, instruction)
 	m.mu.Unlock()
 	return m.execResult, nil
@@ -395,13 +391,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _ string) (model.WorkerExecution, error) {
-	atomic.AddInt64(&m.started, 1)
-	<-m.blocker
-	atomic.AddInt64(&m.completed, 1)
-	return model.WorkerExecution{ID: "exec-x"}, nil
-}
-func (m *blockingExecManager) ExecuteWorkerWithSession(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -417,12 +407,12 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _ string) (model.WorkerExecution, error) {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID string) (model.WorkerExecution, error) {
+	if sessionID != "" {
+		return model.WorkerExecution{}, fmt.Errorf("session broken")
+	}
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
-}
-func (m *fallbackExecManager) ExecuteWorkerWithSession(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
-	return model.WorkerExecution{}, fmt.Errorf("session broken")
 }
 func (m *fallbackExecManager) GetExecution(_ string) (model.WorkerExecution, error) {
 	return m.getResult, nil

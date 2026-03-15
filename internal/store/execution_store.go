@@ -17,7 +17,7 @@ func NewExecutionStore(db *sql.DB) *ExecutionStore {
 	return &ExecutionStore{db: db}
 }
 
-func (s *ExecutionStore) create(workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
+func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
@@ -36,14 +36,6 @@ func (s *ExecutionStore) create(workerID, triggerInput, sessionID string) (model
 		return model.WorkerExecution{}, fmt.Errorf("insert execution: %w", err)
 	}
 	return exec, nil
-}
-
-func (s *ExecutionStore) Create(workerID, triggerInput string) (model.WorkerExecution, error) {
-	return s.create(workerID, triggerInput, uuid.New().String())
-}
-
-func (s *ExecutionStore) CreateWithSessionID(workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
-	return s.create(workerID, triggerInput, sessionID)
 }
 
 const execSelect = `
