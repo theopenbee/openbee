@@ -13,10 +13,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
+	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
+	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/media"
@@ -44,16 +47,39 @@ func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return 
 
 // DingTalkReceiver connects to DingTalk via the stream SDK and dispatches inbound messages.
 type DingTalkReceiver struct {
-	cfg           config.DingTalkConfig
-	pendingEmojis *sync.Map
-	mediaSvc      *media.Service
+	cfg              config.DingTalkConfig
+	pendingEmojis    *sync.Map
+	mediaSvc         *media.Service
+	mu               sync.Mutex
+	cli              *client.StreamClient
+	lastActivityTime atomic.Value // time.Time
 }
 
 func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
+	r.lastActivityTime.Store(time.Now())
+	if err := r.createAndStartClient(ctx, dispatch); err != nil {
+		return fmt.Errorf("initial connection failed: %w", err)
+	}
+	slog.Info("DingTalk bot started with heartbeat supervisor", "component", "dingtalk")
+	r.supervisorLoop(ctx, dispatch)
+	return nil
+}
+
+func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch func(platform.InboundMessage)) error {
 	cli := client.NewStreamClient(
 		client.WithAppCredential(client.NewAppCredentialConfig(r.cfg.ClientID, r.cfg.ClientSecret)),
+		client.WithKeepAlive(30*time.Second),
+		client.WithAutoReconnect(true),
 	)
+
+	// Register system ping handler to track activity from server-side pings.
+	cli.RegisterRouter("SYSTEM", "ping", handler.IFrameHandler(func(ctx context.Context, df *payload.DataFrame) (*payload.DataFrameResponse, error) {
+		r.lastActivityTime.Store(time.Now())
+		return cli.OnPing(ctx, df)
+	}))
+
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
+		r.lastActivityTime.Store(time.Now())
 		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick)
 
 		msgtype := data.Msgtype
@@ -114,8 +140,79 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 		return []byte(""), nil
 	})
 
-	slog.Info("DingTalk bot starting...")
-	return cli.Start(ctx)
+	if err := cli.Start(ctx); err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	r.cli = cli
+	r.mu.Unlock()
+
+	slog.Info("DingTalk stream client connected", "component", "dingtalk")
+	return nil
+}
+
+const (
+	supervisorCheckInterval = 30 * time.Second
+	activityTimeout         = 90 * time.Second
+	reconnectDelay          = 5 * time.Second
+)
+
+func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(platform.InboundMessage)) {
+	ticker := time.NewTicker(supervisorCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("DingTalk supervisor shutting down", "component", "dingtalk")
+			r.mu.Lock()
+			if r.cli != nil {
+				r.cli.AutoReconnect = false
+				r.cli.Close()
+			}
+			r.mu.Unlock()
+			return
+
+		case <-ticker.C:
+			last, ok := r.lastActivityTime.Load().(time.Time)
+			if !ok {
+				continue
+			}
+			elapsed := time.Since(last)
+			if elapsed <= activityTimeout {
+				continue
+			}
+
+			slog.Warn("DingTalk heartbeat timeout, triggering reconnect", "component", "dingtalk", "elapsed", elapsed)
+
+			r.mu.Lock()
+			if r.cli != nil {
+				r.cli.AutoReconnect = false
+				r.cli.Close()
+				r.cli = nil
+			}
+			r.mu.Unlock()
+
+			r.lastActivityTime.Store(time.Now())
+			if err := r.createAndStartClient(ctx, dispatch); err != nil {
+				slog.Error("DingTalk reconnect failed, retrying", "component", "dingtalk", "error", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(reconnectDelay):
+				}
+				r.lastActivityTime.Store(time.Now())
+				if err := r.createAndStartClient(ctx, dispatch); err != nil {
+					slog.Error("DingTalk reconnect retry failed", "component", "dingtalk", "error", err)
+				} else {
+					slog.Info("DingTalk reconnected successfully after retry", "component", "dingtalk")
+				}
+			} else {
+				slog.Info("DingTalk reconnected successfully", "component", "dingtalk")
+			}
+		}
+	}
 }
 
 // exchangeDownloadCode exchanges a downloadCode for a download URL via DingTalk API.
