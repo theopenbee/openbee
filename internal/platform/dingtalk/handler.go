@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -109,49 +108,6 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	}
 	slog.Info("reply sent ok", "component", "dingtalk")
 	return nil
-}
-
-var (
-	tokenCache struct {
-		token     string
-		expiresAt time.Time
-	}
-	tokenMu sync.Mutex
-)
-
-// getAccessToken obtains an access token from the DingTalk OAuth2 API,
-// caching the result for 1 hour to avoid redundant requests.
-func getAccessToken(clientID, clientSecret string) (string, error) {
-	tokenMu.Lock()
-	defer tokenMu.Unlock()
-
-	if tokenCache.token != "" && time.Now().Before(tokenCache.expiresAt) {
-		return tokenCache.token, nil
-	}
-
-	body, _ := json.Marshal(map[string]string{
-		"appKey":    clientID,
-		"appSecret": clientSecret,
-	})
-	resp, err := http.Post("https://api.dingtalk.com/v1.0/oauth2/accessToken", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("request access token: %w", err)
-	}
-	defer resp.Body.Close()
-	var result struct {
-		AccessToken string `json:"accessToken"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode access token response: %w", err)
-	}
-	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access token in response")
-	}
-
-	tokenCache.token = result.AccessToken
-	tokenCache.expiresAt = time.Now().Add(1 * time.Hour)
-
-	return result.AccessToken, nil
 }
 
 func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) []byte {
