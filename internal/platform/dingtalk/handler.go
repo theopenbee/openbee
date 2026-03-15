@@ -99,9 +99,9 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 		case "file":
 			textContent = r.handleDingTalkFile(ctx, content)
 		case "audio":
-			textContent = r.handleDingTalkAudio(content)
+			textContent = r.handleDingTalkAudio(ctx, content)
 		case "video":
-			textContent = r.mediaSvc.BuildPlaceholder("video", "", "")
+			textContent = r.handleDingTalkVideo(ctx, content)
 		default:
 			slog.Warn("skipping unsupported message type", "component", "dingtalk", "msgtype", msgtype)
 			return []byte(""), nil
@@ -311,6 +311,40 @@ func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, content ma
 	return r.mediaSvc.BuildPlaceholder("image", path, "")
 }
 
+func (r *DingTalkReceiver) handleDingTalkVideo(ctx context.Context, content map[string]any) string {
+	if content == nil {
+		return r.mediaSvc.BuildPlaceholder("video", "", "")
+	}
+	downloadCode, _ := content["downloadCode"].(string)
+	if downloadCode == "" {
+		return r.mediaSvc.BuildPlaceholder("video", "", "")
+	}
+	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
+	if err != nil {
+		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("video", "", "")
+	}
+	data, ct, err := httpDownload(ctx, dlURL)
+	if err != nil {
+		slog.Error("download video failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("video", "", "")
+	}
+	ext := r.mediaSvc.ExtensionFromMIME(ct)
+	if ext == "" {
+		if vt, _ := content["videoType"].(string); vt != "" {
+			ext = "." + vt
+		} else {
+			ext = ".mp4"
+		}
+	}
+	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+	if err != nil {
+		slog.Error("save video failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("video", "", "")
+	}
+	return r.mediaSvc.BuildPlaceholder("video", path, "")
+}
+
 func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, content map[string]any) string {
 	if content == nil {
 		return ""
@@ -349,6 +383,37 @@ func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, content m
 				}
 				results[idx].image = r.mediaSvc.BuildPlaceholder("image", path, "")
 			}(i, picURL)
+		} else {
+			dlCode, _ := itemMap["downloadCode"].(string)
+			if dlCode == "" {
+				dlCode, _ = itemMap["pictureDownloadCode"].(string)
+			}
+			if dlCode != "" {
+				wg.Add(1)
+				go func(idx int, code string) {
+					defer wg.Done()
+					dlURL, err := exchangeDownloadCode(ctx, r.cfg, code)
+					if err != nil {
+						slog.Error("exchange richtext image download code", "component", "dingtalk", "error", err)
+						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
+						return
+					}
+					data, ct, err := httpDownload(ctx, dlURL)
+					if err != nil {
+						slog.Error("download richtext image", "component", "dingtalk", "error", err)
+						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
+						return
+					}
+					ext := r.mediaSvc.ExtensionFromMIME(ct)
+					path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+					if err != nil {
+						slog.Error("save richtext image", "component", "dingtalk", "error", err)
+						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
+						return
+					}
+					results[idx].image = r.mediaSvc.BuildPlaceholder("image", path, "")
+				}(i, dlCode)
+			}
 		}
 	}
 	wg.Wait()
@@ -406,13 +471,38 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[s
 	return placeholder
 }
 
-func (r *DingTalkReceiver) handleDingTalkAudio(content map[string]any) string {
+func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[string]any) string {
+	recognition := ""
 	if content != nil {
-		if recognition, ok := content["recognition"].(string); ok && recognition != "" {
-			return recognition
-		}
+		recognition, _ = content["recognition"].(string)
 	}
-	return r.mediaSvc.BuildPlaceholder("audio", "", "")
+	if content == nil {
+		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+	}
+	downloadCode, _ := content["downloadCode"].(string)
+	if downloadCode == "" {
+		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+	}
+	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
+	if err != nil {
+		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+	}
+	data, ct, err := httpDownload(ctx, dlURL)
+	if err != nil {
+		slog.Error("download audio failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+	}
+	ext := r.mediaSvc.ExtensionFromMIME(ct)
+	if ext == "" {
+		ext = ".ogg"
+	}
+	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+	if err != nil {
+		slog.Error("save audio failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+	}
+	return r.mediaSvc.BuildPlaceholder("audio", path, recognition)
 }
 
 // DingTalkSender sends messages via the DingTalk chatbot replier.
