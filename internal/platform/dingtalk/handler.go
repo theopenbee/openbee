@@ -80,7 +80,16 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
 		r.lastActivityTime.Store(time.Now())
-		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick)
+		slog.Info("received message", "component", "dingtalk",
+			"msgId", data.MsgId,
+			"conversationId", data.ConversationId,
+			"conversationType", data.ConversationType,
+			"msgtype", data.Msgtype,
+			"senderNick", data.SenderNick,
+			"senderStaffId", data.SenderStaffId,
+			"senderCorpId", data.SenderCorpId,
+			"content", data.Text.Content,
+		)
 
 		msgtype := data.Msgtype
 		if msgtype == "" {
