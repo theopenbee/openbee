@@ -17,6 +17,7 @@ import (
 	"github.com/robobee/core/internal/mcp"
 	"github.com/robobee/core/internal/msgingest"
 	"github.com/robobee/core/internal/platform"
+	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform/dingtalk"
 	"github.com/robobee/core/internal/platform/feishu"
 	"github.com/robobee/core/internal/store"
@@ -158,9 +159,10 @@ func buildPipeline(
 }
 
 func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig) []platform.Platform {
+	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
-		result = append(result, feishu.NewPlatform(fc))
+		result = append(result, feishu.NewPlatform(fc, mediaSvc))
 	}
 	if dc.Enabled {
 		result = append(result, dingtalk.NewPlatform(dc))
