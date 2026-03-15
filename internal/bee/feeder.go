@@ -3,7 +3,7 @@ package bee
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -47,16 +47,16 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 func (f *Feeder) RecoverFeeding(ctx context.Context) {
 	ids, err := f.msgStore.ResetFeedingToReceived(ctx)
 	if err != nil {
-		log.Printf("feeder: recover feeding: %v", err)
+		slog.Error("recover feeding", "component", "feeder", "error", err)
 		return
 	}
 	if len(ids) == 0 {
 		return
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
-		log.Printf("feeder: delete orphaned tasks: %v", err)
+		slog.Error("delete orphaned tasks", "component", "feeder", "error", err)
 	}
-	log.Printf("feeder: recovered %d feeding message(s)", len(ids))
+	slog.Info("recovered feeding messages", "component", "feeder", "count", len(ids))
 }
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
@@ -76,12 +76,12 @@ func (f *Feeder) Run(ctx context.Context) {
 func (f *Feeder) tick(ctx context.Context) {
 	count, _ := f.msgStore.CountReceived(ctx)
 	if count > f.cfg.Feeder.QueueWarnThreshold {
-		log.Printf("feeder: WARNING: %d unprocessed messages in queue (threshold: %d)", count, f.cfg.Feeder.QueueWarnThreshold)
+		slog.Warn("unprocessed messages in queue", "component", "feeder", "count", count, "threshold", f.cfg.Feeder.QueueWarnThreshold)
 	}
 
 	msgs, err := f.msgStore.ClaimBatch(ctx, f.cfg.Feeder.BatchSize)
 	if err != nil {
-		log.Printf("feeder: claim batch: %v", err)
+		slog.Error("claim batch", "component", "feeder", "error", err)
 		return
 	}
 	if len(msgs) == 0 {
@@ -89,12 +89,12 @@ func (f *Feeder) tick(ctx context.Context) {
 	}
 
 	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
-		log.Printf("feeder: write CLAUDE.md: %v", err)
+		slog.Error("write CLAUDE.md", "component", "feeder", "error", err)
 		f.rollback(ctx, msgs)
 		return
 	}
 	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
-		log.Printf("feeder: ensure system rules: %v", err)
+		slog.Error("ensure system rules", "component", "feeder", "error", err)
 		// non-fatal: continue even if system rules update fails
 	}
 
@@ -119,7 +119,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// Look up existing session for this sessionKey
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
-		log.Printf("feeder: get session context for %s: %v", sessionKey, err)
+		slog.Error("get session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		f.rollback(ctx, msgs)
 		return
 	}
@@ -133,14 +133,14 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	defer cancel()
 
 	if err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume); err != nil {
-		log.Printf("feeder: bee run failed for %s: %v", sessionKey, err)
+		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		f.rollback(ctx, msgs)
 		return
 	}
 
 	// Persist session_id before marking messages processed
 	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-		log.Printf("feeder: upsert session context for %s: %v", sessionKey, err)
+		slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		// non-fatal: messages are marked processed, but the session ID is not persisted.
 		// On the next tick, GetSessionContext returns "" and bee starts a new session,
 		// losing conversational continuity silently.
@@ -151,7 +151,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		msgIDs[i] = m.ID
 	}
 	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
-		log.Printf("feeder: mark bee_processed for %s: %v", sessionKey, err)
+		slog.Error("mark bee_processed", "component", "feeder", "sessionKey", sessionKey, "error", err)
 	}
 }
 
@@ -161,10 +161,10 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage) {
 		ids[i] = m.ID
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
-		log.Printf("feeder: rollback delete tasks: %v", err)
+		slog.Error("rollback delete tasks", "component", "feeder", "error", err)
 	}
 	if err := f.msgStore.ResetFeedingBatch(ctx, ids); err != nil {
-		log.Printf("feeder: rollback messages: %v", err)
+		slog.Error("rollback messages", "component", "feeder", "error", err)
 	}
 }
 

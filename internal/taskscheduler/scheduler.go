@@ -2,7 +2,7 @@ package taskscheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -33,11 +33,11 @@ func New(taskStore *store.TaskStore, dispatchCh chan<- dispatcher.DispatchTask, 
 func (s *Scheduler) RecoverRunning(ctx context.Context) {
 	n, err := s.taskStore.ResetRunningToPending(ctx)
 	if err != nil {
-		log.Printf("taskscheduler: recover running tasks: %v", err)
+		slog.Error("recover running tasks", "component", "taskscheduler", "error", err)
 		return
 	}
 	if n > 0 {
-		log.Printf("taskscheduler: reset %d running task(s) to pending", n)
+		slog.Info("reset running tasks to pending", "component", "taskscheduler", "count", n)
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 	nowMS := time.Now().UnixMilli()
 	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS)
 	if err != nil {
-		log.Printf("taskscheduler: claim due tasks: %v", err)
+		slog.Error("claim due tasks", "component", "taskscheduler", "error", err)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 		if ct.Type == model.TaskTypeScheduled && ct.CronExpr != "" {
 			sched, err := cron.ParseStandard(ct.CronExpr)
 			if err != nil {
-				log.Printf("taskscheduler: invalid cron %q for task %s: %v", ct.CronExpr, ct.ID, err)
+				slog.Error("invalid cron expression", "component", "taskscheduler", "cronExpr", ct.CronExpr, "taskID", ct.ID, "error", err)
 				s.taskStore.SetExecution(ctx, ct.ID, "", model.TaskStatusFailed) //nolint:errcheck
 				continue
 			}

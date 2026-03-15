@@ -3,7 +3,7 @@ package dingtalk
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
@@ -42,18 +42,18 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 	)
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
 		text := strings.TrimSpace(data.Text.Content)
-		log.Printf("dingtalk: received message conversationId=%s sender=%s text=%q", data.ConversationId, data.SenderNick, text)
+		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick, "text", text)
 		if text == "" {
 			return []byte(""), nil
 		}
 		if data.SenderStaffId == "" {
-			log.Printf("dingtalk: skipping message with empty SenderStaffId conversationId=%s", data.ConversationId)
+			slog.Warn("skipping message with empty SenderStaffId", "component", "dingtalk", "conversationId", data.ConversationId)
 			return []byte(""), nil
 		}
 		rawBytes, err := json.Marshal(data)
 		rawContent := data.Text.Content
 		if err != nil {
-			log.Printf("dingtalk: failed to marshal raw callback data: %v", err)
+			slog.Error("failed to marshal raw callback data", "component", "dingtalk", "error", err)
 		} else {
 			rawContent = string(rawBytes)
 		}
@@ -67,11 +67,11 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			MessageTime:       data.CreateAt, // int64 Unix ms per DingTalk open platform docs
 		}
 		dispatch(msg)
-		log.Printf("dingtalk: dispatched message sessionKey=%s", msg.SessionKey)
+		slog.Info("dispatched message", "component", "dingtalk", "sessionKey", msg.SessionKey)
 		return []byte(""), nil
 	})
 
-	log.Println("DingTalk bot starting...")
+	slog.Info("DingTalk bot starting...")
 	return cli.Start(ctx)
 }
 
@@ -83,16 +83,16 @@ const markdownTitle = "RoboBee"
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var data chatbot.BotCallbackDataModel
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &data); err != nil {
-		log.Printf("dingtalk: sender: failed to unmarshal raw: %v", err)
+		slog.Error("failed to unmarshal raw", "component", "dingtalk", "error", err)
 		return nil
 	}
 	replier := chatbot.NewChatbotReplier()
-	log.Printf("dingtalk: sending reply sessionKey=%s webhookLen=%d contentLen=%d", msg.ReplyTo.SessionKey, len(data.SessionWebhook), len(msg.Content))
+	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
 	if err := replier.SimpleReplyMarkdown(ctx, data.SessionWebhook, []byte(markdownTitle), []byte(msg.Content)); err != nil {
-		log.Printf("dingtalk: reply send error: %v", err)
+		slog.Error("reply send error", "component", "dingtalk", "error", err)
 		return nil
 	}
-	log.Printf("dingtalk: reply sent ok")
+	slog.Info("reply sent ok", "component", "dingtalk")
 	return nil
 }
 

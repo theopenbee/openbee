@@ -3,7 +3,7 @@ package feishu
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strconv"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -49,13 +49,13 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			if s := event.Event.Sender; s != nil && s.SenderId != nil {
 				senderOpenId = derefStr(s.SenderId.OpenId)
 			}
-			log.Printf("feishu: received event messageId=%s chatId=%s chatType=%s messageType=%s content=%s senderOpenId=%s",
-				derefStr(msg.MessageId),
-				derefStr(msg.ChatId),
-				derefStr(msg.ChatType),
-				derefStr(msg.MessageType),
-				derefStr(msg.Content),
-				senderOpenId,
+			slog.Info("received event", "component", "feishu",
+				"messageId", derefStr(msg.MessageId),
+				"chatId", derefStr(msg.ChatId),
+				"chatType", derefStr(msg.ChatType),
+				"messageType", derefStr(msg.MessageType),
+				"content", derefStr(msg.Content),
+				"senderOpenId", senderOpenId,
 			)
 			if msg == nil || *msg.MessageType != "text" {
 				return nil
@@ -70,17 +70,17 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			}
 			sender := event.Event.Sender
 			if sender == nil || sender.SenderId == nil || sender.SenderId.OpenId == nil {
-				log.Printf("feishu: skipping message with nil sender or OpenId")
+				slog.Warn("skipping message with nil sender or OpenId", "component", "feishu")
 				return nil
 			}
 			if msg.ChatId == nil {
-				log.Printf("feishu: skipping message with nil ChatId")
+				slog.Warn("skipping message with nil ChatId", "component", "feishu")
 				return nil
 			}
 			senderID := *sender.SenderId.OpenId
 			rawBytes, err := json.Marshal(event)
 			if err != nil {
-				log.Printf("feishu: failed to marshal event: %v", err)
+				slog.Error("failed to marshal event", "component", "feishu", "error", err)
 				return nil
 			}
 			// Add "typing" reaction to acknowledge message receipt
@@ -95,7 +95,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 							Build()).
 						Build())
 				if err != nil || !resp.Success() {
-					log.Printf("feishu: add reaction error: %v, resp: %+v", err, resp)
+					slog.Error("add reaction error", "component", "feishu", "error", err, "resp", resp)
 				}
 			}()
 			dispatch(platform.InboundMessage{
@@ -115,7 +115,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 		larkws.WithLogLevel(larkcore.LogLevelInfo),
 	)
 
-	log.Println("Feishu bot starting...")
+	slog.Info("Feishu bot starting...")
 	return wsClient.Start(ctx)
 }
 
@@ -127,7 +127,7 @@ type FeishuSender struct {
 func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var event larkim.P2MessageReceiveV1
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &event); err != nil {
-		log.Printf("feishu: sender: failed to unmarshal raw: %v", err)
+		slog.Error("failed to unmarshal raw", "component", "feishu", "error", err)
 		return nil
 	}
 	imMsg := event.Event.Message
@@ -148,7 +148,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 					Build()).
 				Build())
 		if err != nil || !resp.Success() {
-			log.Printf("feishu: send message error: %v, resp: %+v", err, resp)
+			slog.Error("send message error", "component", "feishu", "error", err, "resp", resp)
 		}
 	} else {
 		resp, err := s.larkClient.Im.Message.Reply(ctx,
@@ -160,7 +160,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 					Build()).
 				Build())
 		if err != nil || !resp.Success() {
-			log.Printf("feishu: reply message error: %v, resp: %+v", err, resp)
+			slog.Error("reply message error", "component", "feishu", "error", err, "resp", resp)
 		}
 	}
 	return nil

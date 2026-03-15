@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +83,7 @@ func (m *Manager) CreateWorker(
 	}
 
 	if err := claudemd.EnsureSystemRules(workDir, claudemd.RoleWorker, claudemd.WithName(name), claudemd.WithDescription(description)); err != nil {
-		log.Printf("create worker: ensure system rules: %v", err)
+		slog.Error("ensure system rules", "component", "worker", "op", "create", "error", err)
 	}
 
 	return m.workerStore.Create(model.Worker{
@@ -108,11 +108,11 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 
 	// Update worker status
 	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		log.Printf("failed to update worker status: %v", err)
+		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
 	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
-		log.Printf("execute worker: ensure system rules: %v", err)
+		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
 	}
 
 	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)
@@ -151,11 +151,11 @@ func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, trigge
 	}
 
 	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		log.Printf("failed to update worker status: %v", err)
+		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
 	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
-		log.Printf("execute worker with session: ensure system rules: %v", err)
+		slog.Error("ensure system rules", "component", "worker", "op", "executeWithSession", "error", err)
 	}
 
 	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)
@@ -305,11 +305,11 @@ func (m *Manager) ReplyExecution(ctx context.Context, executionID string, messag
 	}
 
 	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		log.Printf("failed to update worker status: %v", err)
+		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
 	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
-		log.Printf("reply execution: ensure system rules: %v", err)
+		slog.Error("ensure system rules", "component", "worker", "op", "reply", "error", err)
 	}
 
 	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)

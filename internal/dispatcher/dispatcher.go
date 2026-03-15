@@ -3,7 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -121,7 +121,7 @@ func (d *Dispatcher) ClearSession(sessionKey string) {
 	select {
 	case d.clearCh <- sessionKey:
 	default:
-		log.Printf("dispatcher: clearCh full, dropping clear for %s", sessionKey)
+		slog.Warn("clearCh full, dropping clear", "component", "dispatcher", "sessionKey", sessionKey)
 	}
 }
 
@@ -133,7 +133,7 @@ func (d *Dispatcher) clearQueues(sessionKey string) {
 		}
 	}
 	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		log.Printf("dispatcher: clear session contexts for %s: %v", sessionKey, err)
+		slog.Error("clear session contexts", "component", "dispatcher", "sessionKey", sessionKey, "error", err)
 	}
 }
 
@@ -156,15 +156,15 @@ func (d *Dispatcher) executeAsync(ctx context.Context, key string, task Dispatch
 	if task.TaskType == model.TaskTypeImmediate {
 		sessionID, sessErr := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
 		if sessErr != nil {
-			log.Printf("dispatcher: get session context error: %v", sessErr)
+			slog.Error("get session context", "component", "dispatcher", "error", sessErr)
 		}
 		if sessionID != "" {
-			log.Printf("dispatcher: resuming session=%s for task %s", sessionID, task.TaskID)
+			slog.Info("resuming session", "component", "dispatcher", "sessionID", sessionID, "taskID", task.TaskID)
 			exec, err = d.manager.ExecuteWorkerWithSession(ctx, task.WorkerID, instruction, sessionID)
 			if err != nil {
-				log.Printf("dispatcher: resume error (falling back to fresh): %v", err)
+				slog.Error("resume error, falling back to fresh", "component", "dispatcher", "error", err)
 				if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-					log.Printf("dispatcher: clear stale session contexts for %s: %v", task.SessionKey, clearErr)
+					slog.Error("clear stale session contexts", "component", "dispatcher", "sessionKey", task.SessionKey, "error", clearErr)
 				}
 				exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
 			}
@@ -172,12 +172,12 @@ func (d *Dispatcher) executeAsync(ctx context.Context, key string, task Dispatch
 		}
 	}
 
-	log.Printf("dispatcher: executing worker %s for task %s", task.WorkerID, task.TaskID)
+	slog.Info("executing worker", "component", "dispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
 	exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction)
 
 execStarted:
 	if err != nil {
-		log.Printf("dispatcher: execute error: %v", err)
+		slog.Error("execute error", "component", "dispatcher", "error", err)
 		select {
 		case d.results <- internalResult{queueKey: key, task: task}:
 		case <-ctx.Done():
@@ -201,11 +201,11 @@ func (d *Dispatcher) waitForResult(ctx context.Context, executionID, taskID, ses
 	for time.Now().Before(deadline) {
 		exec, err := d.manager.GetExecution(executionID)
 		if err != nil {
-			log.Printf("dispatcher: poll error execID=%s: %v", executionID, err)
+			slog.Error("poll error", "component", "dispatcher", "execID", executionID, "error", err)
 			return
 		}
 		if string(exec.Status) != lastStatus {
-			log.Printf("dispatcher: polling execID=%s status=%s", executionID, exec.Status)
+			slog.Info("polling execution", "component", "dispatcher", "execID", executionID, "status", exec.Status)
 			lastStatus = string(exec.Status)
 		}
 		switch exec.Status {
@@ -214,7 +214,7 @@ func (d *Dispatcher) waitForResult(ctx context.Context, executionID, taskID, ses
 			// Terminal task status is set by the worker via mark_task_success.
 			if sessionKey != "" && workerID != "" {
 				if err := d.sessionStore.UpsertSessionContext(ctx, sessionKey, workerID, exec.SessionID); err != nil {
-					log.Printf("dispatcher: upsert session context: %v", err)
+					slog.Error("upsert session context", "component", "dispatcher", "error", err)
 				}
 			}
 			return

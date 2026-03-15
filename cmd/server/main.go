@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/robobee/core/internal/config"
@@ -15,12 +15,14 @@ func main() {
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
 
 	app, err := buildApp(cfg)
 	if err != nil {
-		log.Fatalf("failed to build app: %v", err)
+		slog.Error("failed to build app", "error", err)
+		os.Exit(1)
 	}
 
 	app.Run()

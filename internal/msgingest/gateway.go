@@ -2,7 +2,7 @@ package msgingest
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -69,7 +69,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 	select {
 	case g.out <- msg:
 	default:
-		log.Printf("msgingest: output channel full, dropping message sessionKey=%s", msg.SessionKey)
+		slog.Warn("output channel full, dropping message", "component", "msgingest", "sessionKey", msg.SessionKey)
 	}
 }
 
@@ -82,7 +82,7 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	if msg.PlatformMessageID != "" {
 		if _, dup := g.seen[msg.PlatformMessageID]; dup {
 			g.mu.Unlock()
-			log.Printf("msgingest: duplicate dropped platformMsgID=%s", msg.PlatformMessageID)
+			slog.Info("duplicate dropped", "component", "msgingest", "platformMsgID", msg.PlatformMessageID)
 			return
 		}
 		g.seen[msg.PlatformMessageID] = struct{}{}
@@ -163,12 +163,11 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)
 	if err != nil {
-		log.Printf("msgingest: CreateBatch error sessionKey=%s: %v", sessionKey, err)
+		slog.Error("CreateBatch error", "component", "msgingest", "sessionKey", sessionKey, "error", err)
 		return
 	}
 	if inserted != int64(n) {
-		log.Printf("msgingest: CreateBatch partial insert sessionKey=%s: expected %d got %d, suppressing emit",
-			sessionKey, n, inserted)
+		slog.Warn("CreateBatch partial insert, suppressing emit", "component", "msgingest", "sessionKey", sessionKey, "expected", n, "got", inserted)
 		return
 	}
 

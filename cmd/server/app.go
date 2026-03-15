@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,15 +45,16 @@ func (a *App) Run() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-quit
-		log.Println("Shutting down...")
+		slog.Info("Shutting down...")
 		cancel()
 		a.db.Close()
 		os.Exit(0)
 	}()
 
-	log.Printf("RoboBee Core starting on %s", a.addr)
+	slog.Info("RoboBee Core starting", "addr", a.addr)
 	if err := a.server.Run(a.addr); err != nil {
-		log.Fatalf("server error: %v", err)
+		slog.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -99,7 +100,7 @@ func buildApp(cfg config.Config) (*App, error) {
 		recv := p.Receiver()
 		runners = append(runners, func(ctx context.Context) {
 			if err := recv.Start(ctx, ingest.Dispatch); err != nil {
-				log.Printf("platform receiver error: %v", err)
+				slog.Error("platform receiver error", "error", err)
 			}
 		})
 	}
