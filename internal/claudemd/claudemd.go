@@ -21,6 +21,7 @@ const (
 type options struct {
 	name        string
 	description string
+	memory      string
 }
 
 // Option configures EnsureSystemRules behavior.
@@ -37,6 +38,13 @@ func WithName(name string) Option {
 func WithDescription(desc string) Option {
 	return func(o *options) {
 		o.description = desc
+	}
+}
+
+// WithMemory sets the worker memory to embed in system rules.
+func WithMemory(memory string) Option {
+	return func(o *options) {
+		o.memory = memory
 	}
 }
 
@@ -151,8 +159,8 @@ func workerRules() string {
 		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage)
 }
 
-func workerConfigBlock(name, description string) string {
-	if name == "" && description == "" {
+func workerConfigBlock(name, description, memory string) string {
+	if name == "" && description == "" && memory == "" {
 		return ""
 	}
 	block := "\n## Worker 配置\n\n"
@@ -161,6 +169,9 @@ func workerConfigBlock(name, description string) string {
 	}
 	if description != "" {
 		block += fmt.Sprintf("- **职责:** %s\n", description)
+	}
+	if memory != "" {
+		block += fmt.Sprintf("\n### Memory\n\n%s\n", memory)
 	}
 	block += "\n"
 	return block
@@ -172,7 +183,7 @@ func rulesForRole(role string, opts options) string {
 	case RoleBee:
 		return sharedRules() + beeRules()
 	case RoleWorker:
-		return workerConfigBlock(opts.name, opts.description) + sharedRules() + workerRules()
+		return workerConfigBlock(opts.name, opts.description, opts.memory) + sharedRules() + workerRules()
 	default:
 		return sharedRules()
 	}

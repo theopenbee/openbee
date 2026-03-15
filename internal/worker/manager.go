@@ -42,7 +42,7 @@ type Manager struct {
 	invoker        *claude.Invoker
 
 	activeProcesses map[string]*claude.Process      // execution_id -> process
-	logSubscribers  map[string][]chan claude.Output   // execution_id -> subscribers
+	logSubscribers  map[string][]chan claude.Output // execution_id -> subscribers
 	mu              sync.RWMutex
 }
 
@@ -85,7 +85,7 @@ func (m *Manager) CreateWorker(
 		}
 	}
 
-	if err := claudemd.EnsureSystemRules(workDir, claudemd.RoleWorker, claudemd.WithName(name), claudemd.WithDescription(description)); err != nil {
+	if err := claudemd.EnsureSystemRules(workDir, claudemd.RoleWorker, claudemd.WithName(name), claudemd.WithDescription(description), claudemd.WithMemory(memory)); err != nil {
 		slog.Error("ensure system rules", "component", "worker", "op", "create", "error", err)
 	}
 
@@ -114,23 +114,13 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
+	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
 		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
 	}
 
 	timeout := m.beeCfg.Claude.Timeout
 
-	// Build the prompt: memory + trigger input
-	prompt := worker.Memory
-	if triggerInput != "" {
-		if worker.Memory != "" {
-			prompt = fmt.Sprintf("%s\n\n---\nMessage:\n%s", worker.Memory, triggerInput)
-		} else {
-			prompt = triggerInput
-		}
-	}
-
-	if err := m.launchRuntime(exec, worker, timeout, prompt, false); err != nil {
+	if err := m.launchRuntime(exec, worker, timeout, triggerInput, false); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -156,7 +146,7 @@ func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, trigge
 		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
+	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
 		slog.Error("ensure system rules", "component", "worker", "op", "executeWithSession", "error", err)
 	}
 
@@ -309,7 +299,7 @@ func (m *Manager) ReplyExecution(ctx context.Context, executionID string, messag
 		slog.Error("failed to update worker status", "component", "worker", "error", err)
 	}
 
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description)); err != nil {
+	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
 		slog.Error("ensure system rules", "component", "worker", "op", "reply", "error", err)
 	}
 
