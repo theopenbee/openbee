@@ -1,11 +1,13 @@
 package feishu
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -340,6 +342,57 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 	return strings.Join(parts, "\n")
 }
 
+var sanitizeFileNameRe = regexp.MustCompile(`[\x00-\x1f\x7f\r\n"\\]`)
+
+func sanitizeFileName(name string) string {
+	return sanitizeFileNameRe.ReplaceAllString(name, "_")
+}
+
+func fileCategory(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".tiff":
+		return "image"
+	case ".opus", ".ogg", ".mp3", ".wav", ".amr", ".aac", ".flac", ".m4a":
+		return "audio"
+	case ".mp4", ".mov", ".avi":
+		return "video"
+	default:
+		return "file"
+	}
+}
+
+func feishuFileType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".opus", ".ogg":
+		return "opus"
+	case ".mp4", ".mov", ".avi":
+		return "mp4"
+	case ".pdf":
+		return "pdf"
+	case ".doc", ".docx":
+		return "doc"
+	case ".xls", ".xlsx":
+		return "xls"
+	case ".ppt", ".pptx":
+		return "ppt"
+	default:
+		return "stream"
+	}
+}
+
+func feishuMediaMsgType(fileType string) string {
+	switch fileType {
+	case "opus":
+		return "audio"
+	case "mp4":
+		return "media"
+	default:
+		return "file"
+	}
+}
+
 // FeishuSender sends messages via the Feishu IM API.
 type FeishuSender struct {
 	larkClient       *lark.Client
@@ -371,16 +424,24 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		}
 	}
 
-	content, _ := json.Marshal(map[string]string{"text": msg.Content})
+	if msg.MediaPath != "" {
+		return s.sendMedia(ctx, msg.MediaPath, chatID, chatType, messageID)
+	}
 
+	// Text message
+	content, _ := json.Marshal(map[string]string{"text": msg.Content})
+	return s.sendMessage(ctx, chatID, chatType, messageID, larkim.MsgTypeText, string(content))
+}
+
+func (s *FeishuSender) sendMessage(ctx context.Context, chatID, chatType, messageID, msgType, content string) error {
 	if chatType == "p2p" {
 		resp, err := s.larkClient.Im.Message.Create(ctx,
 			larkim.NewCreateMessageReqBuilder().
 				ReceiveIdType(larkim.ReceiveIdTypeChatId).
 				Body(larkim.NewCreateMessageReqBodyBuilder().
-					MsgType(larkim.MsgTypeText).
+					MsgType(msgType).
 					ReceiveId(chatID).
-					Content(string(content)).
+					Content(content).
 					Build()).
 				Build())
 		if err != nil || !resp.Success() {
@@ -391,15 +452,97 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 			larkim.NewReplyMessageReqBuilder().
 				MessageId(messageID).
 				Body(larkim.NewReplyMessageReqBodyBuilder().
-					MsgType(larkim.MsgTypeText).
-					Content(string(content)).
+					MsgType(msgType).
+					Content(content).
 					Build()).
 				Build())
 		if err != nil || !resp.Success() {
-			slog.Error("reply message error", "component", "feishu", "error", err, "resp", resp)
+			code := 0
+			if resp != nil {
+				code = resp.Code
+			}
+			if code == 230011 || code == 231003 {
+				slog.Warn("reply failed, falling back to direct send", "component", "feishu", "code", code)
+				resp2, err2 := s.larkClient.Im.Message.Create(ctx,
+					larkim.NewCreateMessageReqBuilder().
+						ReceiveIdType(larkim.ReceiveIdTypeChatId).
+						Body(larkim.NewCreateMessageReqBodyBuilder().
+							MsgType(msgType).
+							ReceiveId(chatID).
+							Content(content).
+							Build()).
+						Build())
+				if err2 != nil || !resp2.Success() {
+					slog.Error("fallback send error", "component", "feishu", "error", err2, "resp", resp2)
+				}
+			} else {
+				slog.Error("reply message error", "component", "feishu", "error", err, "resp", resp)
+			}
 		}
 	}
 	return nil
+}
+
+func (s *FeishuSender) sendMedia(ctx context.Context, mediaPath, chatID, chatType, messageID string) error {
+	data, err := os.ReadFile(mediaPath)
+	if err != nil {
+		return fmt.Errorf("read media file: %w", err)
+	}
+	if len(data) > 30*1024*1024 {
+		return fmt.Errorf("file too large: %d bytes (max 30MB)", len(data))
+	}
+
+	category := fileCategory(mediaPath)
+	fileName := sanitizeFileName(filepath.Base(mediaPath))
+
+	if category == "image" {
+		return s.uploadAndSendImage(ctx, data, chatID, chatType, messageID)
+	}
+	return s.uploadAndSendFile(ctx, data, fileName, mediaPath, chatID, chatType, messageID)
+}
+
+func (s *FeishuSender) uploadAndSendImage(ctx context.Context, data []byte, chatID, chatType, messageID string) error {
+	uploadCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	resp, err := s.larkClient.Im.Image.Create(uploadCtx,
+		larkim.NewCreateImageReqBuilder().
+			Body(larkim.NewCreateImageReqBodyBuilder().
+				ImageType(larkim.ImageTypeMessage).
+				Image(bytes.NewReader(data)).
+				Build()).
+			Build())
+	if err != nil || !resp.Success() {
+		return fmt.Errorf("upload image: err=%v resp=%v", err, resp)
+	}
+
+	imageKey := *resp.Data.ImageKey
+	content, _ := json.Marshal(map[string]string{"image_key": imageKey})
+	return s.sendMessage(ctx, chatID, chatType, messageID, larkim.MsgTypeImage, string(content))
+}
+
+func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileName, mediaPath, chatID, chatType, messageID string) error {
+	ft := feishuFileType(mediaPath)
+
+	uploadCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	resp, err := s.larkClient.Im.File.Create(uploadCtx,
+		larkim.NewCreateFileReqBuilder().
+			Body(larkim.NewCreateFileReqBodyBuilder().
+				FileType(ft).
+				FileName(fileName).
+				File(bytes.NewReader(data)).
+				Build()).
+			Build())
+	if err != nil || !resp.Success() {
+		return fmt.Errorf("upload file: err=%v resp=%v", err, resp)
+	}
+
+	fileKey := *resp.Data.FileKey
+	msgType := feishuMediaMsgType(ft)
+	content, _ := json.Marshal(map[string]string{"file_key": fileKey})
+	return s.sendMessage(ctx, chatID, chatType, messageID, msgType, string(content))
 }
 
 var _ platform.Platform = (*FeishuPlatform)(nil)
