@@ -235,18 +235,13 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			rawLogs := rawLogsBuilder.String()
 			// Save raw stdout logs
 			m.executionStore.UpdateLogs(exec.ID, rawLogs)
-			// Determine result with priority: file > streamResult > lastAssistantText > rawLogs
+			// Determine result with priority: streamResult > lastAssistantText > rawLogs
 			result := rawLogs
 			if lastAssistantText != "" {
 				result = lastAssistantText
 			}
 			if streamResult != "" {
 				result = streamResult
-			}
-			resultFilePath := filepath.Join(worker.WorkDir, ".robobee_result.txt")
-			if data, err := os.ReadFile(resultFilePath); err == nil && len(data) > 0 {
-				result = string(data)
-				os.Remove(resultFilePath)
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
