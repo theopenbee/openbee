@@ -1,13 +1,10 @@
-import { useState } from "react"
-import { useParams, Link, useNavigate } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
-import { useSessionExecutions, useReplyExecution } from "@/hooks/use-executions"
+import { useSessionExecutions } from "@/hooks/use-executions"
 import { LogViewer } from "@/components/log-viewer"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 
 const statusColor: Record<string, string> = {
   pending: "bg-gray-100 text-gray-800",
@@ -19,31 +16,10 @@ const statusColor: Record<string, string> = {
 export function SessionDetail() {
   const { t } = useTranslation()
   const { sessionId } = useParams<{ sessionId: string }>()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: executions = [], error } = useSessionExecutions(sessionId!)
-  const replyExecution = useReplyExecution()
-  const [replyText, setReplyText] = useState("")
-  const [replyError, setReplyError] = useState<string | null>(null)
 
-  const lastExecution = executions[executions.length - 1]
   const workerId = executions[0]?.worker_id
-
-  const handleReply = async () => {
-    if (!lastExecution || !replyText.trim()) return
-    setReplyError(null)
-    try {
-      const newExec = await replyExecution.mutateAsync({
-        executionId: lastExecution.id,
-        message: replyText,
-      })
-      setReplyText("")
-      await queryClient.invalidateQueries({ queryKey: ["sessions", newExec.session_id, "executions"] })
-      navigate(`/sessions/${newExec.session_id}`)
-    } catch (err) {
-      setReplyError(err instanceof Error ? err.message : t("sessionDetail.failedToSend"))
-    }
-  }
 
   if (executions.length === 0 && !error) return <p>Loading...</p>
 
@@ -115,26 +91,6 @@ export function SessionDetail() {
           </div>
         ))}
       </div>
-
-      {lastExecution?.status === "completed" && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">{t("executionDetail.reply")}</h2>
-          {replyError && <p className="text-red-500 mb-2">{replyError}</p>}
-          <Textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder={t("sessionDetail.replyPlaceholder")}
-            rows={4}
-            className="mb-2"
-          />
-          <Button
-            onClick={handleReply}
-            disabled={replyExecution.isPending || !replyText.trim()}
-          >
-            {replyExecution.isPending ? t("common.sending") : t("sessionDetail.sendReply")}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

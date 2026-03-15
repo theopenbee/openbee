@@ -1,19 +1,11 @@
 import { useState, useMemo } from "react"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
-import { useSendMessage } from "@/hooks/use-executions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Pencil } from "lucide-react"
 
@@ -33,10 +25,8 @@ const execStatusColor: Record<string, string> = {
 export function WorkerDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const { data: worker, error: workerError } = useWorker(id!)
   const { data: executions = [] } = useWorkerExecutions(id!)
-  const sendMessage = useSendMessage()
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, typeof executions>()
@@ -53,21 +43,6 @@ export function WorkerDetail() {
   const [isEditingDesc, setIsEditingDesc] = useState(false)
   const [editDesc, setEditDesc] = useState("")
   const updateWorker = useUpdateWorker()
-
-  const [msgDialogOpen, setMsgDialogOpen] = useState(false)
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
-
-  const handleSendMessage = async () => {
-    try {
-      const exec = await sendMessage.mutateAsync({ workerId: id!, message })
-      setMsgDialogOpen(false)
-      setMessage("")
-      navigate(`/executions/${exec.id}`)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t("workerDetail.failedToSend"))
-    }
-  }
 
   if (!worker) return <p>Loading...</p>
 
@@ -115,32 +90,11 @@ export function WorkerDetail() {
         </div>
         <div className="flex gap-2 items-center">
           <Badge className={statusColor[worker.status] || ""}>{worker.status}</Badge>
-          <Dialog open={msgDialogOpen} onOpenChange={setMsgDialogOpen}>
-            <DialogTrigger render={<Button />}>
-              {t("workerDetail.sendMessage")}
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t("workerDetail.sendMessageTitle", { name: worker.name })}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <Textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={t("workerDetail.messagePlaceholder")}
-                  rows={4}
-                />
-                <Button onClick={handleSendMessage} className="w-full">
-                  {t("common.send")}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
-      {(error || workerError) && (
-        <p className="text-red-500 mb-4">{error || workerError?.message}</p>
+      {workerError && (
+        <p className="text-red-500 mb-4">{workerError?.message}</p>
       )}
 
       <Tabs defaultValue="sessions">

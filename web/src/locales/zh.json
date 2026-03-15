@@ -11,7 +11,6 @@
     "view": "查看",
     "create": "创建",
     "send": "发送",
-    "sending": "发送中...",
     "noDescription": "无描述",
     "onDemand": "按需触发"
   },
@@ -55,10 +54,6 @@
   },
   "workerDetail": {
     "sessions": "会话",
-    "sendMessage": "发送消息",
-    "sendMessageTitle": "向 {{name}} 发送消息",
-    "messagePlaceholder": "输入消息...",
-    "failedToSend": "发送消息失败",
     "workerInfo": "工作者信息",
     "id": "ID",
     "workDir": "工作目录",
@@ -76,19 +71,12 @@
     "triggerInput": "触发输入",
     "pid": "进程ID",
     "started": "开始时间",
-    "completed": "完成时间",
-    "reply": "回复",
-    "replyPlaceholder": "继续对话...",
-    "sendReply": "发送回复",
-    "failedToSend": "发送回复失败"
+    "completed": "完成时间"
   },
   "sessionDetail": {
     "session": "会话",
     "worker": "工作者",
-    "turn": "第 {{index}} 轮",
-    "replyPlaceholder": "继续对话...",
-    "sendReply": "发送回复",
-    "failedToSend": "发送回复失败"
+    "turn": "第 {{index}} 轮"
   },
   "logViewer": {
     "waiting": "等待输出...",

@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
 export function useExecutions() {
@@ -20,13 +20,6 @@ export function useExecution(id: string) {
   })
 }
 
-export function useSendMessage() {
-  return useMutation({
-    mutationFn: ({ workerId, message }: { workerId: string; message: string }) =>
-      api.message.send(workerId, message),
-  })
-}
-
 export function useSessionExecutions(sessionId: string) {
   return useQuery({
     queryKey: ["sessions", sessionId, "executions"],
@@ -39,13 +32,6 @@ export function useSessionExecutions(sessionId: string) {
       )
       return hasActive ? 3000 : false
     },
-  })
-}
-
-export function useReplyExecution() {
-  return useMutation({
-    mutationFn: ({ executionId, message }: { executionId: string; message: string }) =>
-      api.executions.reply(executionId, message),
   })
 }
 

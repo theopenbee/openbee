@@ -244,43 +244,6 @@ func (m *Manager) SubscribeLogs(executionID string) <-chan claude.Output {
 	return ch
 }
 
-func (m *Manager) ReplyExecution(ctx context.Context, executionID string, message string) (model.WorkerExecution, error) {
-	srcExec, err := m.executionStore.GetByID(executionID)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("get execution: %w", err)
-	}
-	if srcExec.Status == model.ExecStatusRunning || srcExec.Status == model.ExecStatusPending {
-		return model.WorkerExecution{}, fmt.Errorf("execution is still running")
-	}
-
-	worker, err := m.workerStore.GetByID(srcExec.WorkerID)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
-	}
-	newExec, err := m.executionStore.Create(srcExec.WorkerID, message, srcExec.SessionID)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("create reply execution: %w", err)
-	}
-
-	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		slog.Error("failed to update worker status", "component", "worker", "error", err)
-	}
-
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
-		slog.Error("ensure system rules", "component", "worker", "op", "reply", "error", err)
-	}
-
-	timeout := m.beeCfg.Claude.Timeout
-
-	if err := m.launchRuntime(newExec, worker, timeout, message, true); err != nil {
-		m.executionStore.UpdateResult(newExec.ID, err.Error(), model.ExecStatusFailed)
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
-		return newExec, fmt.Errorf("start runtime: %w", err)
-	}
-
-	return newExec, nil
-}
-
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
 	if deleteWorkDir {
 		worker, err := m.workerStore.GetByID(id)

@@ -49,22 +49,6 @@ func (s *Server) listSessionExecutions(c *gin.Context) {
 	c.JSON(http.StatusOK, execs)
 }
 
-func (s *Server) replyExecution(c *gin.Context) {
-	var req struct {
-		Message string `json:"message" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	newExec, err := s.manager.ReplyExecution(c.Request.Context(), c.Param("id"), req.Message)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusAccepted, newExec)
-}
-
 func (s *Server) streamLogs(c *gin.Context) {
 	execID := c.Param("id")
 

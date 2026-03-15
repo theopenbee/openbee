@@ -56,9 +56,6 @@ func (s *Server) setupRoutes() {
 		api.PUT("/workers/:id", s.updateWorker)
 		api.DELETE("/workers/:id", s.deleteWorker)
 
-		// Worker message trigger
-		api.POST("/workers/:id/message", s.sendMessage)
-
 		// Worker executions
 		api.GET("/workers/:id/executions", s.listWorkerExecutions)
 
@@ -68,7 +65,6 @@ func (s *Server) setupRoutes() {
 		// Executions
 		api.GET("/executions", s.listExecutions)
 		api.GET("/executions/:id", s.getExecution)
-		api.POST("/executions/:id/reply", s.replyExecution)
 		// WebSocket logs
 		api.GET("/executions/:id/logs", s.streamLogs)
 	}

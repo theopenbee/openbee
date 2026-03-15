@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -94,29 +93,4 @@ func (s *Server) deleteWorker(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
-}
-
-func (s *Server) sendMessage(c *gin.Context) {
-	workerID := c.Param("id")
-
-	_, err := s.workerStore.GetByID(workerID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": localize(c, "WorkerNotFound")})
-		return
-	}
-
-	var req struct {
-		Message string `json:"message" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	exec, err := s.manager.ExecuteWorker(context.Background(), workerID, req.Message, "")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusAccepted, exec)
 }

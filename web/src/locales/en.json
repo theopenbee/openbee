@@ -11,7 +11,6 @@
     "view": "View",
     "create": "Create",
     "send": "Send",
-    "sending": "Sending...",
     "noDescription": "No description",
     "onDemand": "On-demand"
   },
@@ -55,10 +54,6 @@
   },
   "workerDetail": {
     "sessions": "Sessions",
-    "sendMessage": "Send Message",
-    "sendMessageTitle": "Send Message to {{name}}",
-    "messagePlaceholder": "Enter your message...",
-    "failedToSend": "Failed to send message",
     "workerInfo": "Worker Info",
     "id": "ID",
     "workDir": "Work Dir",
@@ -76,19 +71,12 @@
     "triggerInput": "Trigger Input",
     "pid": "PID",
     "started": "Started",
-    "completed": "Completed",
-    "reply": "Reply",
-    "replyPlaceholder": "Continue the conversation...",
-    "sendReply": "Send Reply",
-    "failedToSend": "Failed to send reply"
+    "completed": "Completed"
   },
   "sessionDetail": {
     "session": "Session",
     "worker": "Worker",
-    "turn": "Turn {{index}}",
-    "replyPlaceholder": "Continue the conversation...",
-    "sendReply": "Send Reply",
-    "failedToSend": "Failed to send reply"
+    "turn": "Turn {{index}}"
   },
   "logViewer": {
     "waiting": "Waiting for output...",
