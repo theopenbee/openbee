@@ -16,6 +16,7 @@ bee:
       enabled: false
       app_id: ""
       app_secret: ""
+      max_media_size: 104857600  # 100MB，最大媒体下载大小（字节）
     dingtalk:
       enabled: false
       client_id: ""

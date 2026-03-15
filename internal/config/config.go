@@ -56,9 +56,10 @@ type FeederConfig struct {
 }
 
 type FeishuConfig struct {
-	Enabled   bool   `yaml:"enabled"`
-	AppID     string `yaml:"app_id"`
-	AppSecret string `yaml:"app_secret"`
+	Enabled      bool   `yaml:"enabled"`
+	AppID        string `yaml:"app_id"`
+	AppSecret    string `yaml:"app_secret"`
+	MaxMediaSize int    `yaml:"max_media_size"` // 最大媒体下载大小（字节），默认 100MB
 }
 
 type DingTalkConfig struct {
@@ -116,6 +117,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"
+	}
+	if cfg.Bee.Platforms.Feishu.MaxMediaSize == 0 {
+		cfg.Bee.Platforms.Feishu.MaxMediaSize = 100 * 1024 * 1024 // 100MB
 	}
 	return nil
 }

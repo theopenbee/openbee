@@ -237,7 +237,7 @@ func (r *FeishuReceiver) downloadMessageResource(ctx context.Context, messageID,
 	if closer, ok := resp.File.(io.Closer); ok {
 		defer closer.Close()
 	}
-	const maxSize = 30 * 1024 * 1024 // 30MB
+	maxSize := r.cfg.MaxMediaSize
 	data, err := io.ReadAll(io.LimitReader(resp.File, int64(maxSize)+1))
 	if err != nil {
 		return nil, fmt.Errorf("read resource: %w", err)
