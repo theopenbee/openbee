@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
@@ -19,16 +20,17 @@ import (
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
 type DingTalkPlatform struct {
-	receiver *DingTalkReceiver
-	sender   *DingTalkSender
+	receiver      *DingTalkReceiver
+	sender        *DingTalkSender
+	pendingEmojis sync.Map
 }
 
 // NewPlatform constructs a DingTalkPlatform from configuration.
 func NewPlatform(cfg config.DingTalkConfig) platform.Platform {
-	return &DingTalkPlatform{
-		receiver: &DingTalkReceiver{cfg: cfg},
-		sender:   &DingTalkSender{},
-	}
+	p := &DingTalkPlatform{}
+	p.receiver = &DingTalkReceiver{cfg: cfg, pendingEmojis: &p.pendingEmojis}
+	p.sender = &DingTalkSender{cfg: cfg, pendingEmojis: &p.pendingEmojis}
+	return p
 }
 
 func (d *DingTalkPlatform) ID() string                                 { return "dingtalk" }
@@ -37,7 +39,8 @@ func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return 
 
 // DingTalkReceiver connects to DingTalk via the stream SDK and dispatches inbound messages.
 type DingTalkReceiver struct {
-	cfg config.DingTalkConfig
+	cfg           config.DingTalkConfig
+	pendingEmojis *sync.Map
 }
 
 func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
@@ -67,7 +70,10 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			PlatformMessageID: data.MsgId,
 			MessageTime:       data.CreateAt,
 		}
-		go addThinkingEmoji(ctx, r.cfg, data)
+		go func() {
+			addThinkingEmoji(ctx, r.cfg, data)
+			r.pendingEmojis.Store(data.MsgId, struct{}{})
+		}()
 
 		dispatch(msg)
 		slog.Info("dispatched message", "component", "dingtalk", "sessionKey", msg.SessionKey)
@@ -79,7 +85,10 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 }
 
 // DingTalkSender sends messages via the DingTalk chatbot replier.
-type DingTalkSender struct{}
+type DingTalkSender struct {
+	cfg           config.DingTalkConfig
+	pendingEmojis *sync.Map
+}
 
 const markdownTitle = "RoboBee"
 
@@ -88,6 +97,9 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &data); err != nil {
 		slog.Error("failed to unmarshal raw", "component", "dingtalk", "error", err)
 		return nil
+	}
+	if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
+		recallThinkingEmoji(ctx, s.cfg, &data)
 	}
 	replier := chatbot.NewChatbotReplier()
 	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
@@ -99,8 +111,24 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	return nil
 }
 
-// getAccessToken obtains an access token from the DingTalk OAuth2 API.
+var (
+	tokenCache struct {
+		token     string
+		expiresAt time.Time
+	}
+	tokenMu sync.Mutex
+)
+
+// getAccessToken obtains an access token from the DingTalk OAuth2 API,
+// caching the result for 1 hour to avoid redundant requests.
 func getAccessToken(clientID, clientSecret string) (string, error) {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+
+	if tokenCache.token != "" && time.Now().Before(tokenCache.expiresAt) {
+		return tokenCache.token, nil
+	}
+
 	body, _ := json.Marshal(map[string]string{
 		"appKey":    clientID,
 		"appSecret": clientSecret,
@@ -119,17 +147,14 @@ func getAccessToken(clientID, clientSecret string) (string, error) {
 	if result.AccessToken == "" {
 		return "", fmt.Errorf("empty access token in response")
 	}
+
+	tokenCache.token = result.AccessToken
+	tokenCache.expiresAt = time.Now().Add(1 * time.Hour)
+
 	return result.AccessToken, nil
 }
 
-// addThinkingEmoji adds a 🤔思考中 emoji reaction to the user's message.
-func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
-	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
-	if err != nil {
-		slog.Warn("failed to get access token for emoji reaction", "component", "dingtalk", "error", err)
-		return
-	}
-
+func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) []byte {
 	payload, _ := json.Marshal(map[string]any{
 		"robotCode":          cfg.ClientID,
 		"openMsgId":          data.MsgId,
@@ -143,13 +168,24 @@ func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chat
 			"backgroundId": "im_bg_1",
 		},
 	})
+	return payload
+}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) {
+	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		slog.Warn("failed to get access token for emoji "+action, "component", "dingtalk", "error", err)
+		return
+	}
+
+	payload := buildEmojiPayload(cfg, data)
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.dingtalk.com/v1.0/robot/emotion/reply", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		slog.Warn("failed to create emoji request", "component", "dingtalk", "error", err)
+		slog.Warn("failed to create emoji "+action+" request", "component", "dingtalk", "error", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -157,14 +193,24 @@ func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chat
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Warn("failed to send emoji reaction", "component", "dingtalk", "error", err)
+		slog.Warn("failed to "+action+" emoji reaction", "component", "dingtalk", "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Warn("emoji reaction returned non-200", "component", "dingtalk", "status", resp.StatusCode)
+		slog.Warn("emoji "+action+" returned non-200", "component", "dingtalk", "status", resp.StatusCode)
 	}
+}
+
+// addThinkingEmoji adds a 🤔思考中 emoji reaction to the user's message.
+func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
+	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply")
+}
+
+// recallThinkingEmoji recalls the 🤔思考中 emoji reaction from the user's message.
+func recallThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
+	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/recall", 3*time.Second, "recall")
 }
 
 var _ platform.Platform = (*DingTalkPlatform)(nil)

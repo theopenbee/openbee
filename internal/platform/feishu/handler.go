@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sync"
+	"time"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -18,17 +20,18 @@ import (
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
-	receiver *FeishuReceiver
-	sender   *FeishuSender
+	receiver         *FeishuReceiver
+	sender           *FeishuSender
+	pendingReactions sync.Map
 }
 
 // NewPlatform constructs a FeishuPlatform from configuration.
 func NewPlatform(cfg config.FeishuConfig) platform.Platform {
 	larkClient := lark.NewClient(cfg.AppID, cfg.AppSecret)
-	return &FeishuPlatform{
-		receiver: &FeishuReceiver{larkClient: larkClient, cfg: cfg},
-		sender:   &FeishuSender{larkClient: larkClient},
-	}
+	p := &FeishuPlatform{}
+	p.receiver = &FeishuReceiver{larkClient: larkClient, cfg: cfg, pendingReactions: &p.pendingReactions}
+	p.sender = &FeishuSender{larkClient: larkClient, pendingReactions: &p.pendingReactions}
+	return p
 }
 
 func (f *FeishuPlatform) ID() string                                 { return "feishu" }
@@ -37,8 +40,9 @@ func (f *FeishuPlatform) Sender() platform.PlatformSenderAdapter     { return f.
 
 // FeishuReceiver connects to Feishu via WebSocket and dispatches inbound messages.
 type FeishuReceiver struct {
-	larkClient *lark.Client
-	cfg        config.FeishuConfig
+	larkClient       *lark.Client
+	cfg              config.FeishuConfig
+	pendingReactions *sync.Map
 }
 
 func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
@@ -97,6 +101,10 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						Build())
 				if err != nil || !resp.Success() {
 					slog.Error("add reaction error", "component", "feishu", "error", err, "resp", resp)
+					return
+				}
+				if resp.Data != nil && resp.Data.ReactionId != nil {
+					r.pendingReactions.Store(*msg.MessageId, *resp.Data.ReactionId)
 				}
 			}()
 
@@ -124,7 +132,8 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 
 // FeishuSender sends messages via the Feishu IM API.
 type FeishuSender struct {
-	larkClient *lark.Client
+	larkClient       *lark.Client
+	pendingReactions *sync.Map
 }
 
 func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
@@ -137,6 +146,20 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	chatID := *imMsg.ChatId
 	chatType := *imMsg.ChatType
 	messageID := *imMsg.MessageId
+
+	// Recall "typing" reaction before sending reply
+	if reactionID, ok := s.pendingReactions.LoadAndDelete(messageID); ok {
+		recallCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
+			larkim.NewDeleteMessageReactionReqBuilder().
+				MessageId(messageID).
+				ReactionId(reactionID.(string)).
+				Build())
+		cancel()
+		if err != nil || !resp.Success() {
+			slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+		}
+	}
 
 	content, _ := json.Marshal(map[string]string{"text": msg.Content})
 
