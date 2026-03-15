@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -300,6 +302,22 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
 		recallThinkingEmoji(ctx, s.cfg, &data)
 	}
+
+	if msg.MediaPath != "" {
+		mediaType := dingTalkMediaType(msg.MediaPath)
+		mediaID, err := uploadMediaToDingTalk(ctx, s.cfg, msg.MediaPath, mediaType)
+		if err != nil {
+			slog.Error("upload media failed", "component", "dingtalk", "error", err)
+			return fmt.Errorf("upload media: %w", err)
+		}
+		if err := sendMediaViaDingTalk(ctx, s.cfg, data.SessionWebhook, msg.MediaPath, mediaID); err != nil {
+			slog.Error("send media failed", "component", "dingtalk", "error", err)
+			return fmt.Errorf("send media: %w", err)
+		}
+		return nil
+	}
+
+	// Text message
 	replier := chatbot.NewChatbotReplier()
 	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
 	if err := replier.SimpleReplyMarkdown(ctx, data.SessionWebhook, []byte(markdownTitle), []byte(msg.Content)); err != nil {
@@ -307,6 +325,142 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 		return nil
 	}
 	slog.Info("reply sent ok", "component", "dingtalk")
+	return nil
+}
+
+// dingTalkMediaType maps file extension to DingTalk upload media type.
+func dingTalkMediaType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp":
+		return "image"
+	case ".mp4", ".mov", ".avi":
+		return "video"
+	case ".mp3", ".wav", ".amr", ".ogg", ".aac", ".flac", ".m4a", ".opus":
+		return "voice"
+	default:
+		return "file"
+	}
+}
+
+// uploadMediaToDingTalk uploads a file to DingTalk's OAPI media endpoint.
+func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, filePath, mediaType string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("read file: %w", err)
+	}
+	if len(data) > 20*1024*1024 {
+		return "", fmt.Errorf("file too large: %d bytes (max 20MB)", len(data))
+	}
+
+	token, err := getOAPIToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		return "", fmt.Errorf("get OAPI token: %w", err)
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	ct := "application/octet-stream"
+	if mediaType == "image" {
+		ct = "image/jpeg"
+	}
+
+	part, err := writer.CreatePart(map[string][]string{
+		"Content-Disposition": {fmt.Sprintf(`form-data; name="media"; filename="%s"`, filepath.Base(filePath))},
+		"Content-Type":        {ct},
+	})
+	if err != nil {
+		return "", err
+	}
+	part.Write(data)
+	writer.Close()
+
+	url := fmt.Sprintf("https://oapi.dingtalk.com/media/upload?access_token=%s&type=%s", token, mediaType)
+
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload media: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		MediaID string `json:"media_id"`
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode upload response: %w", err)
+	}
+	if result.ErrCode != 0 {
+		return "", fmt.Errorf("upload error %d: %s", result.ErrCode, result.ErrMsg)
+	}
+	return result.MediaID, nil
+}
+
+// sendMediaViaDingTalk sends a media message via sessionWebhook.
+func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhook, filePath, mediaID string) error {
+	mediaType := dingTalkMediaType(filePath)
+	fileName := filepath.Base(filePath)
+	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
+
+	var payload map[string]any
+	switch mediaType {
+	case "image":
+		payload = map[string]any{
+			"msgtype":  "markdown",
+			"markdown": map[string]string{"title": "Image", "text": fmt.Sprintf("![image](%s)", mediaID)},
+		}
+	case "voice":
+		payload = map[string]any{
+			"msgtype": "voice",
+			"voice":   map[string]string{"mediaId": mediaID, "duration": "60000"},
+		}
+	case "video":
+		payload = map[string]any{
+			"msgtype": "video",
+			"video":   map[string]string{"duration": "0", "videoMediaId": mediaID, "videoType": "mp4", "picMediaId": ""},
+		}
+	default:
+		payload = map[string]any{
+			"msgtype": "file",
+			"file":    map[string]string{"mediaId": mediaID, "fileName": fileName, "fileType": fileType},
+		}
+	}
+
+	body, _ := json.Marshal(payload)
+
+	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		return fmt.Errorf("get access token: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhook, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-acs-dingtalk-access-token", token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send media: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("send media failed: status=%d body=%s", resp.StatusCode, string(respBody))
+	}
 	return nil
 }
 
