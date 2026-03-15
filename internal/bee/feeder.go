@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robobee/core/internal/claude"
 	"github.com/robobee/core/internal/claudemd"
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/store"
@@ -16,7 +19,7 @@ import (
 
 // BeeRunner abstracts the bee process invocation (real or test double).
 type BeeRunner interface {
-	Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) error
+	Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error)
 }
 
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
@@ -132,7 +135,14 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()
 
-	if err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume); err != nil {
+	_, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
+	if err != nil {
+		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
+		f.rollback(ctx, msgs)
+		return
+	}
+
+	if err := f.drainBeeOutput(outputCh, sessionID); err != nil {
 		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		f.rollback(ctx, msgs)
 		return
@@ -166,6 +176,43 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage) {
 	if err := f.msgStore.ResetFeedingBatch(ctx, ids); err != nil {
 		slog.Error("rollback messages", "component", "feeder", "error", err)
 	}
+}
+
+// drainBeeOutput consumes the output channel and writes to a log file.
+// Returns nil on success (OutputDone), error on failure (OutputError).
+func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, sessionID string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("get home dir: %w", err)
+	}
+	logDir := filepath.Join(homeDir, ".robobee", "bee-logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return fmt.Errorf("mkdir bee-logs: %w", err)
+	}
+	logFileName := fmt.Sprintf("%s_%s.log", sessionID, time.Now().Format("20060102_150405"))
+	logFile, err := os.OpenFile(filepath.Join(logDir, logFileName), os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open bee log file: %w", err)
+	}
+	defer logFile.Close()
+
+	var done bool
+	for out := range ch {
+		switch out.Type {
+		case claude.OutputStdout:
+			fmt.Fprintf(logFile, "[stdout] %s\n", out.Content)
+		case claude.OutputStderr:
+			fmt.Fprintf(logFile, "[stderr] %s\n", out.Content)
+		case claude.OutputError:
+			return fmt.Errorf("bee exited with error: %s", out.Content)
+		case claude.OutputDone:
+			done = true
+		}
+	}
+	if !done {
+		return fmt.Errorf("bee output channel closed without completion signal")
+	}
+	return nil
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
