@@ -55,7 +55,7 @@ type TaskDispatcher struct {
 	manager      ExecutionManager       // 启动 worker 执行
 	taskStore    TaskStore              // 持久化 task 与 execution 的关联状态
 	sessionStore SessionStore           // 管理会话上下文的读写与清理
-	execQuerier  ExecutionQuerier       // 按 ID 查询 execution 状态
+	execStore  ExecutionQuerier       // 按 ID 查询 execution 状态
 	in           <-chan DispatchTask    // 入站任务通道
 	results      chan internalResult    // 内部完成信号通道，用于驱动队列调度
 	queues       map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
@@ -63,12 +63,12 @@ type TaskDispatcher struct {
 }
 
 // New constructs a TaskDispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execQuerier ExecutionQuerier, in <-chan DispatchTask) *TaskDispatcher {
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask) *TaskDispatcher {
 	return &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
-		execQuerier:  execQuerier,
+		execStore:  execStore,
 		in:           in,
 		results:      make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
@@ -204,7 +204,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID,
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	for time.Now().Before(deadline) {
-		exec, err := d.execQuerier.GetByID(executionID)
+		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
 			slog.Error("poll error", "component", "taskdispatcher", "execID", executionID, "error", err)
 			return
