@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -123,10 +122,13 @@ func exchangeDownloadCode(ctx context.Context, cfg config.DingTalkConfig, downlo
 	if err != nil {
 		return "", err
 	}
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"downloadCode": downloadCode,
 		"robotCode":    cfg.ClientID,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal download request: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -142,6 +144,9 @@ func exchangeDownloadCode(ctx context.Context, cfg config.DingTalkConfig, downlo
 		return "", fmt.Errorf("exchange download code: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("exchange download code: status %d", resp.StatusCode)
+	}
 	var result struct {
 		DownloadURL string `json:"downloadUrl"`
 	}
@@ -167,6 +172,9 @@ func httpDownload(ctx context.Context, url string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("download failed: status %d", resp.StatusCode)
+	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, "", err
@@ -298,7 +306,7 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	var data chatbot.BotCallbackDataModel
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &data); err != nil {
 		slog.Error("failed to unmarshal raw", "component", "dingtalk", "error", err)
-		return nil
+		return fmt.Errorf("unmarshal raw: %w", err)
 	}
 	if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
 		recallThinkingEmoji(ctx, s.cfg, &data)
@@ -323,17 +331,10 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
 	if err := replier.SimpleReplyMarkdown(ctx, data.SessionWebhook, []byte(markdownTitle), []byte(msg.Content)); err != nil {
 		slog.Error("reply send error", "component", "dingtalk", "error", err)
-		return nil
+		return fmt.Errorf("reply send: %w", err)
 	}
 	slog.Info("reply sent ok", "component", "dingtalk")
 	return nil
-}
-
-var sanitizeFileNameRe = regexp.MustCompile(`[\x00-\x1f\x7f\r\n"\\]`)
-
-// sanitizeFileName removes control characters for safe multipart upload (CWE-93).
-func sanitizeFileName(name string) string {
-	return sanitizeFileNameRe.ReplaceAllString(name, "_")
 }
 
 // dingTalkMediaType maps file extension to DingTalk upload media type.
@@ -371,11 +372,22 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 
 	ct := "application/octet-stream"
 	if mediaType == "image" {
-		ct = "image/jpeg"
+		switch strings.ToLower(filepath.Ext(filePath)) {
+		case ".png":
+			ct = "image/png"
+		case ".gif":
+			ct = "image/gif"
+		case ".webp":
+			ct = "image/webp"
+		case ".bmp":
+			ct = "image/bmp"
+		default:
+			ct = "image/jpeg"
+		}
 	}
 
 	part, err := writer.CreatePart(map[string][]string{
-		"Content-Disposition": {fmt.Sprintf(`form-data; name="media"; filename="%s"`, sanitizeFileName(filepath.Base(filePath)))},
+		"Content-Disposition": {fmt.Sprintf(`form-data; name="media"; filename="%s"`, platform.SanitizeFileName(filepath.Base(filePath)))},
 		"Content-Type":        {ct},
 	})
 	if err != nil {
@@ -418,7 +430,7 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 // sendMediaViaDingTalk sends a media message via sessionWebhook.
 func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhook, filePath, mediaID string) error {
 	mediaType := dingTalkMediaType(filePath)
-	fileName := sanitizeFileName(filepath.Base(filePath))
+	fileName := platform.SanitizeFileName(filepath.Base(filePath))
 	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
 
 	var payload map[string]any
@@ -445,7 +457,10 @@ func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhoo
 		}
 	}
 
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal media payload: %w", err)
+	}
 
 	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
