@@ -106,6 +106,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
+	resume := sessionID != ""
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
@@ -122,8 +123,6 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
 		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
 	}
-
-	resume := sessionID != ""
 	timeout := m.beeCfg.Claude.Timeout
 
 	if err := m.launchRuntime(exec, worker, timeout, triggerInput, resume); err != nil {
