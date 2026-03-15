@@ -56,8 +56,8 @@ type TaskDispatcher struct {
 	taskStore    TaskStore              // 持久化 task 与 execution 的关联状态
 	sessionStore SessionStore           // 管理会话上下文的读写与清理
 	execStore    ExecutionQuerier       // 按 ID 查询 execution 状态
-	in           <-chan DispatchTask    // 入站任务通道
-	results      chan internalResult    // 内部完成信号通道，用于驱动队列调度
+	inCh         <-chan DispatchTask    // 入站任务通道
+	resultsCh    chan internalResult    // 内部完成信号通道，用于驱动队列调度
 	queues       map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
 	clearCh      chan string            // 接收需要清理的 sessionKey 信号
 }
@@ -69,8 +69,8 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
 		execStore:    execStore,
-		in:           in,
-		results:      make(chan internalResult, 64),
+		inCh:         in,
+		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
 		clearCh:      make(chan string, 8),
 	}
@@ -81,12 +81,12 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 	d.ctx = ctx
 	for {
 		select {
-		case task, ok := <-d.in:
+		case task, ok := <-d.inCh:
 			if !ok {
 				return
 			}
 			d.handleInbound(task)
-		case res := <-d.results:
+		case res := <-d.resultsCh:
 			d.handleResult(res)
 		case sessionKey := <-d.clearCh:
 			d.clearQueues(sessionKey)
@@ -184,7 +184,7 @@ execStarted:
 	if err != nil {
 		slog.Error("execute error", "component", "taskdispatcher", "error", err)
 		select {
-		case d.results <- internalResult{queueKey: key, task: task}:
+		case d.resultsCh <- internalResult{queueKey: key, task: task}:
 		case <-ctx.Done():
 		}
 		return
@@ -195,7 +195,7 @@ execStarted:
 	}
 	d.waitForResult(ctx, exec.ID, task.TaskID, task.SessionKey, task.WorkerID)
 	select {
-	case d.results <- internalResult{queueKey: key, task: task}:
+	case d.resultsCh <- internalResult{queueKey: key, task: task}:
 	case <-ctx.Done():
 	}
 }
