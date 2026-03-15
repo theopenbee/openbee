@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -49,24 +52,50 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 		client.WithAppCredential(client.NewAppCredentialConfig(r.cfg.ClientID, r.cfg.ClientSecret)),
 	)
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
-		text := strings.TrimSpace(data.Text.Content)
-		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick, "text", text)
-		if text == "" {
+		slog.Info("received message", "component", "dingtalk", "conversationId", data.ConversationId, "sender", data.SenderNick)
+
+		// Parse raw data to get msgtype and content
+		rawBytes, _ := json.Marshal(data)
+		var rawData map[string]any
+		json.Unmarshal(rawBytes, &rawData)
+
+		msgtype := "text"
+		if mt, ok := rawData["msgtype"].(string); ok && mt != "" {
+			msgtype = mt
+		}
+
+		var textContent string
+		switch msgtype {
+		case "text":
+			textContent = strings.TrimSpace(data.Text.Content)
+		case "picture":
+			textContent = r.handleDingTalkPicture(ctx, rawData)
+		case "richText":
+			textContent = r.handleDingTalkRichText(ctx, rawData)
+		case "file":
+			textContent = r.handleDingTalkFile(ctx, rawData)
+		case "audio":
+			textContent = r.handleDingTalkAudio(rawData)
+		case "video":
+			textContent = r.mediaSvc.BuildPlaceholder("video", "", "")
+		default:
+			slog.Warn("skipping unsupported message type", "component", "dingtalk", "msgtype", msgtype)
+			return []byte(""), nil
+		}
+
+		if textContent == "" {
 			return []byte(""), nil
 		}
 		if data.SenderStaffId == "" {
-			slog.Warn("skipping message with empty SenderStaffId", "component", "dingtalk", "conversationId", data.ConversationId)
+			slog.Warn("skipping message with empty SenderStaffId", "component", "dingtalk")
 			return []byte(""), nil
 		}
-		rawBytes, err := json.Marshal(data)
-		if err != nil {
-			slog.Error("failed to marshal raw callback data", "component", "dingtalk", "error", err)
-		}
+
 		msg := platform.InboundMessage{
 			Platform:          "dingtalk",
 			SenderID:          data.SenderStaffId,
 			SessionKey:        "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
-			Content:           text,
+			Content:           textContent,
 			Raw:               string(rawBytes),
 			PlatformMessageID: data.MsgId,
 			MessageTime:       data.CreateAt,
@@ -83,6 +112,175 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 
 	slog.Info("DingTalk bot starting...")
 	return cli.Start(ctx)
+}
+
+// exchangeDownloadCode exchanges a downloadCode for a download URL via DingTalk API.
+func exchangeDownloadCode(ctx context.Context, cfg config.DingTalkConfig, downloadCode string) (string, error) {
+	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		return "", err
+	}
+	body, _ := json.Marshal(map[string]string{
+		"downloadCode": downloadCode,
+		"robotCode":    cfg.ClientID,
+	})
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.dingtalk.com/v1.0/robot/messageFiles/download",
+		bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-acs-dingtalk-access-token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("exchange download code: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		DownloadURL string `json:"downloadUrl"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode download URL: %w", err)
+	}
+	if result.DownloadURL == "" {
+		return "", fmt.Errorf("empty download URL")
+	}
+	return result.DownloadURL, nil
+}
+
+// httpDownload downloads a file from a URL and returns its bytes and content type.
+func httpDownload(ctx context.Context, url string) ([]byte, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, resp.Header.Get("Content-Type"), nil
+}
+
+func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, raw map[string]any) string {
+	content, _ := raw["content"].(map[string]any)
+	if content == nil {
+		return r.mediaSvc.BuildPlaceholder("image", "", "")
+	}
+	downloadCode, _ := content["downloadCode"].(string)
+	if downloadCode == "" {
+		return r.mediaSvc.BuildPlaceholder("image", "", "")
+	}
+	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
+	if err != nil {
+		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("image", "", "")
+	}
+	data, ct, err := httpDownload(ctx, dlURL)
+	if err != nil {
+		slog.Error("download image failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("image", "", "")
+	}
+	ext := r.mediaSvc.ExtensionFromMIME(ct)
+	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+	if err != nil {
+		slog.Error("save image failed", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("image", "", "")
+	}
+	return r.mediaSvc.BuildPlaceholder("image", path, "")
+}
+
+func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, raw map[string]any) string {
+	content, _ := raw["content"].(map[string]any)
+	if content == nil {
+		return ""
+	}
+	richTextArr, _ := content["richText"].([]any)
+	var textParts []string
+	for _, item := range richTextArr {
+		itemMap, _ := item.(map[string]any)
+		if itemMap == nil {
+			continue
+		}
+		if text, ok := itemMap["text"].(string); ok && text != "" {
+			textParts = append(textParts, text)
+		}
+		if picURL, ok := itemMap["pictureUrl"].(string); ok && picURL != "" {
+			data, ct, err := httpDownload(ctx, picURL)
+			if err != nil {
+				slog.Error("download richtext image", "component", "dingtalk", "error", err)
+				textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", "", ""))
+				continue
+			}
+			ext := r.mediaSvc.ExtensionFromMIME(ct)
+			path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+			if err != nil {
+				slog.Error("save richtext image", "component", "dingtalk", "error", err)
+				textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", "", ""))
+				continue
+			}
+			textParts = append(textParts, r.mediaSvc.BuildPlaceholder("image", path, ""))
+		}
+	}
+	return strings.Join(textParts, "\n")
+}
+
+func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, raw map[string]any) string {
+	content, _ := raw["content"].(map[string]any)
+	if content == nil {
+		return r.mediaSvc.BuildPlaceholder("document", "", "")
+	}
+	downloadCode, _ := content["downloadCode"].(string)
+	fileName, _ := content["fileName"].(string)
+	if downloadCode == "" {
+		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
+	}
+	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
+	if err != nil {
+		slog.Error("exchange file download code", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
+	}
+	data, _, err := httpDownload(ctx, dlURL)
+	if err != nil {
+		slog.Error("download file", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
+	}
+	ext := ".bin"
+	if fileName != "" {
+		if origExt := filepath.Ext(fileName); origExt != "" {
+			ext = origExt
+		}
+	}
+	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+	if err != nil {
+		slog.Error("save file", "component", "dingtalk", "error", err)
+		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
+	}
+	placeholder := r.mediaSvc.BuildPlaceholder("document", path, fileName)
+	extracted, _ := r.mediaSvc.ExtractText(ctx, path)
+	if extracted != "" {
+		return placeholder + "\n" + extracted
+	}
+	return placeholder
+}
+
+func (r *DingTalkReceiver) handleDingTalkAudio(raw map[string]any) string {
+	content, _ := raw["content"].(map[string]any)
+	if content != nil {
+		if recognition, ok := content["recognition"].(string); ok && recognition != "" {
+			return recognition
+		}
+	}
+	return r.mediaSvc.BuildPlaceholder("audio", "", "")
 }
 
 // DingTalkSender sends messages via the DingTalk chatbot replier.
