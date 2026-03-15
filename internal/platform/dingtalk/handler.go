@@ -14,6 +14,7 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 
 	"github.com/robobee/core/internal/config"
+	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform"
 )
 
@@ -25,9 +26,9 @@ type DingTalkPlatform struct {
 }
 
 // NewPlatform constructs a DingTalkPlatform from configuration.
-func NewPlatform(cfg config.DingTalkConfig) platform.Platform {
+func NewPlatform(cfg config.DingTalkConfig, mediaSvc *media.Service) platform.Platform {
 	p := &DingTalkPlatform{}
-	p.receiver = &DingTalkReceiver{cfg: cfg, pendingEmojis: &p.pendingEmojis}
+	p.receiver = &DingTalkReceiver{cfg: cfg, pendingEmojis: &p.pendingEmojis, mediaSvc: mediaSvc}
 	p.sender = &DingTalkSender{cfg: cfg, pendingEmojis: &p.pendingEmojis}
 	return p
 }
@@ -40,6 +41,7 @@ func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return 
 type DingTalkReceiver struct {
 	cfg           config.DingTalkConfig
 	pendingEmojis *sync.Map
+	mediaSvc      *media.Service
 }
 
 func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {

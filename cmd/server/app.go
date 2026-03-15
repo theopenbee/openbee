@@ -165,7 +165,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig) []platform
 		result = append(result, feishu.NewPlatform(fc, mediaSvc))
 	}
 	if dc.Enabled {
-		result = append(result, dingtalk.NewPlatform(dc))
+		result = append(result, dingtalk.NewPlatform(dc, mediaSvc))
 	}
 	return result
 }
