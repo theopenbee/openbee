@@ -55,7 +55,7 @@ type TaskDispatcher struct {
 	manager      ExecutionManager       // 启动 worker 执行
 	taskStore    TaskStore              // 持久化 task 与 execution 的关联状态
 	sessionStore SessionStore           // 管理会话上下文的读写与清理
-	execStore  ExecutionQuerier       // 按 ID 查询 execution 状态
+	execStore    ExecutionQuerier       // 按 ID 查询 execution 状态
 	in           <-chan DispatchTask    // 入站任务通道
 	results      chan internalResult    // 内部完成信号通道，用于驱动队列调度
 	queues       map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
@@ -68,7 +68,7 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
-		execStore:  execStore,
+		execStore:    execStore,
 		in:           in,
 		results:      make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
