@@ -92,23 +92,14 @@ func beeRules() string {
 		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage)
 }
 
-func workerRules(name, description string) string {
-	var namePrefix string
-	if name != "" {
-		namePrefix = fmt.Sprintf(`
+func workerRules() string {
+	namePrefix := fmt.Sprintf(`
 ## 通知名称前缀
 
-你的名称是 "%[1]s"。使用 `+"`%[2]s`"+` 发送消息时，消息内容必须以 "%[1]s: " 为前缀。例如，发送 "%[1]s: 任务已完成"。
-`, name, toolnames.SendMessage)
-	} else {
-		namePrefix = fmt.Sprintf(`
-## 通知名称前缀
-
-使用 `+"`%s`"+` 发送消息时，消息内容必须以你的名称作为前缀，格式为 "名称: 消息内容"。你的名称来自 CLAUDE.md 中的一级标题（`+"`# {name}`"+`）。例如，如果你的名称是"山姆"，则发送 "山姆: 任务已完成"。
+使用 `+"`%s`"+` 发送消息时，消息内容必须以你的名称作为前缀，格式为 "名称: 消息内容"。
 `, toolnames.SendMessage)
-	}
 
-	return fmt.Sprintf(`
+	return namePrefix + "\n" + fmt.Sprintf(`
 ## 系统元数据
 
 每个任务的指令开头会包含系统元数据行，格式为：
@@ -132,7 +123,7 @@ func workerRules(name, description string) string {
 这是每个任务的最后一步，不可遗漏。先调用 `+"`%s`"+` 通知结果，再标记状态。
 `,
 		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage,
-		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage) + namePrefix + workerConfigBlock(name, description)
+		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage)
 }
 
 func workerConfigBlock(name, description string) string {
@@ -146,6 +137,7 @@ func workerConfigBlock(name, description string) string {
 	if description != "" {
 		block += fmt.Sprintf("- **职责:** %s\n", description)
 	}
+	block += "\n"
 	return block
 }
 
@@ -155,7 +147,7 @@ func rulesForRole(role string, opts options) string {
 	case RoleBee:
 		return sharedRules() + beeRules()
 	case RoleWorker:
-		return sharedRules() + workerRules(opts.name, opts.description)
+		return workerConfigBlock(opts.name, opts.description) + sharedRules() + workerRules()
 	default:
 		return sharedRules()
 	}
