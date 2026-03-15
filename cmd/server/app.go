@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/robobee/core/internal/api"
 	"github.com/robobee/core/internal/bee"
@@ -74,7 +75,7 @@ func buildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
 
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh)
-	ingest, disp := buildPipeline(cfg.MessageQueue, s, mgr, dispatchCh)
+	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh)
 
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk)
@@ -145,12 +146,12 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan dispatcher.Disp
 }
 
 func buildPipeline(
-	cfg config.MessageQueueConfig,
+	debounce time.Duration,
 	s appStores,
 	mgr *worker.Manager,
 	dispatchCh chan dispatcher.DispatchTask,
 ) (*msgingest.Gateway, *dispatcher.Dispatcher) {
-	ingest := msgingest.New(s.msgStore, cfg.DebounceWindow)
+	ingest := msgingest.New(s.msgStore, debounce)
 	disp := dispatcher.New(mgr, s.taskStore, s.sessionStore, dispatchCh)
 	return ingest, disp
 }

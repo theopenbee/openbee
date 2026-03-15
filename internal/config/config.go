@@ -22,17 +22,17 @@ func DefaultWorkerBaseDir() string {
 }
 
 type Config struct {
-	Server       ServerConfig        `yaml:"server"`
-	Database     DatabaseConfig      `yaml:"database"`
-	Runtime      RuntimeConfig       `yaml:"runtime"`
-	MessageQueue MessageQueueConfig  `yaml:"message_queue"`
-	MCP          MCPConfig           `yaml:"mcp"`
-	Bee          BeeConfig           `yaml:"bee"`
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	Runtime  RuntimeConfig  `yaml:"runtime"`
+	MCP      MCPConfig      `yaml:"mcp"`
+	Bee      BeeConfig      `yaml:"bee"`
 }
 
 type BeeConfig struct {
-	Feeder    FeederConfig    `yaml:"feeder"`
-	Platforms PlatformsConfig `yaml:"platforms"`
+	MessageDebounce time.Duration   `yaml:"message_debounce"`
+	Feeder          FeederConfig    `yaml:"feeder"`
+	Platforms       PlatformsConfig `yaml:"platforms"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
@@ -90,9 +90,6 @@ type RuntimeEntry struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
-type MessageQueueConfig struct {
-	DebounceWindow time.Duration `yaml:"debounce_window"`
-}
 
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
@@ -115,8 +112,8 @@ func Load(path string) (Config, error) {
 }
 
 func applyDefaults(cfg *Config) error {
-	if cfg.MessageQueue.DebounceWindow == 0 {
-		cfg.MessageQueue.DebounceWindow = 3 * time.Second
+	if cfg.Bee.MessageDebounce == 0 {
+		cfg.Bee.MessageDebounce = 3 * time.Second
 	}
 	if cfg.Bee.Feeder.Interval == 0 {
 		cfg.Bee.Feeder.Interval = 10 * time.Second

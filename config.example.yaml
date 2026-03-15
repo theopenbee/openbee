@@ -2,9 +2,6 @@ server:
   port: 8080
   host: localhost
 
-message_queue:
-  debounce_window: 3s
-
 database:
   path: ./data/robobee.db
 
@@ -17,7 +14,7 @@ mcp:
   api_key: ""  # Set a secret key to enable the MCP server endpoint
 
 bee:
-  name: "bee"
+  message_debounce: 3s
   platforms:
     feishu:
       enabled: false
