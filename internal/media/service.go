@@ -40,6 +40,9 @@ func (s *Service) SaveInbound(_ context.Context, data []byte, ext string) (strin
 
 // DetectMIME detects the MIME type from file content bytes, falling back to extension-based mapping.
 func (s *Service) DetectMIME(data []byte, fileName string) string {
+	if len(data) >= 4 && string(data[:4]) == "OggS" {
+		return "audio/ogg"
+	}
 	if len(data) > 0 {
 		ct := http.DetectContentType(data)
 		if ct != "application/octet-stream" && ct != "text/plain; charset=utf-8" {

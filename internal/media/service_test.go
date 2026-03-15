@@ -97,6 +97,17 @@ func TestDetectMIME(t *testing.T) {
 	if got := s.DetectMIME([]byte("hello"), ""); got != "text/plain; charset=utf-8" {
 		t.Errorf("DetectMIME(text, empty) = %q, want text/plain; charset=utf-8", got)
 	}
+
+	// OGG magic bytes (Opus audio in OGG container)
+	ogg := []byte{'O', 'g', 'g', 'S', 0x00, 0x02, 0x00, 0x00}
+	if got := s.DetectMIME(ogg, ""); got != "audio/ogg" {
+		t.Errorf("DetectMIME(ogg) = %q, want audio/ogg", got)
+	}
+
+	// OGG detection should take priority even with a filename
+	if got := s.DetectMIME(ogg, "voice.bin"); got != "audio/ogg" {
+		t.Errorf("DetectMIME(ogg, voice.bin) = %q, want audio/ogg", got)
+	}
 }
 
 func TestSaveInbound(t *testing.T) {
