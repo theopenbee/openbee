@@ -12,7 +12,6 @@ bee:
   claude:
     path: claude
     timeout: 30m
-  message_debounce: 3s
   platforms:
     feishu:
       enabled: false
@@ -27,3 +26,4 @@ bee:
     batch_size: 10
     timeout: 5m
     queue_warn_threshold: 100
+  message_debounce: 3s
