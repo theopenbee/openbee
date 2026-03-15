@@ -35,21 +35,25 @@ type RunOptions struct {
 }
 ```
 
-`Invoker` struct:
+`Invoker` is stateless and safe for concurrent use. `Run` returns a `Process` handle for per-invocation lifecycle control:
 
 ```go
 type Invoker struct {
     binary string
     mcpURL string
     apiKey string
-    cmd    *exec.Cmd
-    mu     sync.Mutex
+}
+
+// Process represents a running Claude CLI invocation.
+type Process struct {
+    cmd *exec.Cmd
+    mu  sync.Mutex
 }
 
 func NewInvoker(binary, mcpBaseURL, apiKey string) *Invoker
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions) (<-chan Output, error)
-func (inv *Invoker) Stop() error
-func (inv *Invoker) PID() int
+func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions) (*Process, <-chan Output, error)
+func (p *Process) Stop() error
+func (p *Process) PID() int
 ```
 
 `Run` responsibilities:
@@ -58,7 +62,7 @@ func (inv *Invoker) PID() int
 3. Create stdout/stderr pipes
 4. Start process
 5. Spawn goroutines to drain pipes into buffered channel (buffer size 100)
-6. Scanner buffer: 1MB (`make([]byte, 1024*1024)`) for both stdout and stderr
+6. Scanner buffer: 1MB (`make([]byte, 1024*1024)`) for both stdout and stderr — note: bee previously used the default 64KB buffer, this is a deliberate improvement to prevent silent truncation of long JSON lines
 7. After both scanners complete, call `cmd.Wait()` and send `OutputDone` or `OutputError`
 8. Close channel
 
@@ -66,15 +70,15 @@ func (inv *Invoker) PID() int
 
 ### `bee_process.go`
 
-- `BeeProcess` stores a `*claude.Invoker` internally (constructed in `NewBeeProcess`)
-- `Run` signature changes: `Run(ctx, workDir, prompt, sessionID, resume) (<-chan claude.Output, error)`
-- `Run` delegates to `Invoker.Run()` and returns the channel directly
+- `BeeProcess` stores a `*claude.Invoker` internally (constructed in `NewBeeProcess`); safe for concurrent use
+- `Run` signature changes: `Run(ctx, workDir, prompt, sessionID, resume) (*claude.Process, <-chan claude.Output, error)`
+- `Run` delegates to `Invoker.Run()` and returns the process handle and channel directly
 - Remove all subprocess management code (MCP config, args, pipes, scanners)
 - `WriteCLAUDEMD` and `DefaultPersona` remain unchanged
 
 ### `feeder.go`
 
-- `BeeRunner` interface changes: `Run(...) (<-chan claude.Output, error)`
+- `BeeRunner` interface changes: `Run(...) (*claude.Process, <-chan claude.Output, error)`
 - `processBeeGroup` consumes the channel:
   - Creates log file (same naming: `{sessionID}_{timestamp}.log`)
   - Iterates channel, writes stdout/stderr lines to log file
@@ -89,15 +93,15 @@ func (inv *Invoker) PID() int
 
 ### `claude_runtime.go`
 
-- `ClaudeRuntime` stores a `*claude.Invoker` internally
-- `Execute` delegates to `Invoker.Run()`, returns the channel
+- `ClaudeRuntime` stores a `*claude.Invoker` internally and the current `*claude.Process`
+- `Execute` delegates to `Invoker.Run()`, stores the process handle, returns the channel
 - Remove all subprocess management code
-- `Stop()` and `PID()` delegate to `Invoker`
+- `Stop()` and `PID()` delegate to the stored `*claude.Process`
 
 ### `runtime.go`
 
 - Delete `OutputType`, `Output` type definitions — use `claude.Output` and `claude.OutputType`
-- `ExecuteOptions` renamed to use `claude.RunOptions` or kept as a local alias
+- Delete `ExecuteOptions` — use `claude.RunOptions` directly
 - `Runtime` interface returns `<-chan claude.Output`
 
 ### `manager.go`
@@ -125,3 +129,5 @@ func (inv *Invoker) PID() int
 | Modify | `internal/worker/claude_runtime.go` — use Invoker |
 | Modify | `internal/worker/runtime.go` — remove Output types, use claude package |
 | Modify | `internal/worker/manager.go` — update type references |
+| Modify | `internal/worker/runtime_test.go` — update imports |
+| Create | `internal/claude/invoker_test.go` — unit test for Invoker |
