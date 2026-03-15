@@ -51,15 +51,15 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per (SessionKey, WorkerID).
 type TaskDispatcher struct {
-	ctx          context.Context
-	manager      ExecutionManager
-	taskStore    TaskStore
-	sessionStore SessionStore
-	execQuerier  ExecutionQuerier
-	in           <-chan DispatchTask
-	results      chan internalResult
-	queues       map[string]*queueState
-	clearCh      chan string
+	ctx          context.Context        // 由 Run 注入的生命周期上下文
+	manager      ExecutionManager       // 启动 worker 执行
+	taskStore    TaskStore              // 持久化 task 与 execution 的关联状态
+	sessionStore SessionStore           // 管理会话上下文的读写与清理
+	execQuerier  ExecutionQuerier       // 按 ID 查询 execution 状态
+	in           <-chan DispatchTask    // 入站任务通道
+	results      chan internalResult    // 内部完成信号通道，用于驱动队列调度
+	queues       map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
+	clearCh      chan string            // 接收需要清理的 sessionKey 信号
 }
 
 // New constructs a TaskDispatcher.
