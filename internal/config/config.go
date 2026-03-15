@@ -25,22 +25,26 @@ type Config struct {
 	Server       ServerConfig        `yaml:"server"`
 	Database     DatabaseConfig      `yaml:"database"`
 	Runtime      RuntimeConfig       `yaml:"runtime"`
-	Feishu       FeishuConfig        `yaml:"feishu"`
-	DingTalk     DingTalkConfig      `yaml:"dingtalk"`
 	MessageQueue MessageQueueConfig  `yaml:"message_queue"`
 	MCP          MCPConfig           `yaml:"mcp"`
 	Bee          BeeConfig           `yaml:"bee"`
 }
 
 type BeeConfig struct {
-	Name    string       `yaml:"name"`
-	Persona string       `yaml:"persona"`
-	Feeder  FeederConfig `yaml:"feeder"`
+	Name      string          `yaml:"name"`
+	Persona   string          `yaml:"persona"`
+	Feeder    FeederConfig    `yaml:"feeder"`
+	Platforms PlatformsConfig `yaml:"platforms"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 	MCPAPIKey  string `yaml:"-"` // copied from MCPConfig.APIKey
 	Binary     string `yaml:"-"` // copied from Runtime.ClaudeCode.Binary
+}
+
+type PlatformsConfig struct {
+	Feishu   FeishuConfig   `yaml:"feishu"`
+	DingTalk DingTalkConfig `yaml:"dingtalk"`
 }
 
 type FeederConfig struct {

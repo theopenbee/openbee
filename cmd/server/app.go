@@ -77,7 +77,7 @@ func buildApp(cfg config.Config) (*App, error) {
 	ingest, disp := buildPipeline(cfg.MessageQueue, s, mgr, dispatchCh)
 
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
-	platforms := buildPlatforms(cfg.Feishu, cfg.DingTalk)
+	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk)
 
 	// Populate sender map before goroutines start
 	for _, p := range platforms {
