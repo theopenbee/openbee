@@ -39,10 +39,11 @@ type Manager struct {
 	beeCfg         config.BeeConfig
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
+	invoker        *claude.Invoker
 
-	activeRuntimes map[string]Runtime            // execution_id -> runtime
-	logSubscribers map[string][]chan claude.Output // execution_id -> subscribers
-	mu             sync.RWMutex
+	activeProcesses map[string]*claude.Process      // execution_id -> process
+	logSubscribers  map[string][]chan claude.Output   // execution_id -> subscribers
+	mu              sync.RWMutex
 }
 
 func NewManager(
@@ -52,12 +53,13 @@ func NewManager(
 	es *store.ExecutionStore,
 ) *Manager {
 	return &Manager{
-		workerBaseDir:  workerBaseDir,
-		beeCfg:         bc,
-		workerStore:    ws,
-		executionStore: es,
-		activeRuntimes: make(map[string]Runtime),
-		logSubscribers: make(map[string][]chan claude.Output),
+		workerBaseDir:   workerBaseDir,
+		beeCfg:          bc,
+		workerStore:     ws,
+		executionStore:  es,
+		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
+		activeProcesses: make(map[string]*claude.Process),
+		logSubscribers:  make(map[string][]chan claude.Output),
 	}
 }
 
@@ -116,7 +118,6 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
 	}
 
-	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)
 	timeout := m.beeCfg.Claude.Timeout
 
 	// Build the prompt: memory + trigger input
@@ -129,7 +130,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput stri
 		}
 	}
 
-	if err := m.launchRuntime(exec, worker, rt, timeout, prompt, false); err != nil {
+	if err := m.launchRuntime(exec, worker, timeout, prompt, false); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -159,12 +160,11 @@ func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, trigge
 		slog.Error("ensure system rules", "component", "worker", "op", "executeWithSession", "error", err)
 	}
 
-	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)
 	timeout := m.beeCfg.Claude.Timeout
 
 	// On resume, only the new message is sent — the worker's base prompt is already
 	// established in the Claude session history (same as ReplyExecution).
-	if err := m.launchRuntime(exec, worker, rt, timeout, triggerInput, true); err != nil {
+	if err := m.launchRuntime(exec, worker, timeout, triggerInput, true); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -173,9 +173,9 @@ func (m *Manager) ExecuteWorkerWithSession(ctx context.Context, workerID, trigge
 	return exec, nil
 }
 
-// launchRuntime applies timeout, starts the runtime, registers it, updates PID, and launches monitoring.
+// launchRuntime applies timeout, starts the invoker, registers the process, updates PID, and launches monitoring.
 // The execution context is always derived from context.Background() to decouple from the caller's request.
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, rt Runtime, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, timeout time.Duration, prompt string, resume bool) error {
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -184,17 +184,17 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	outputCh, err := rt.Execute(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume})
+	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume})
 	if err != nil {
 		cancel()
 		return err
 	}
 
 	m.mu.Lock()
-	m.activeRuntimes[exec.ID] = rt
+	m.activeProcesses[exec.ID] = proc
 	m.mu.Unlock()
 
-	m.executionStore.UpdatePID(exec.ID, rt.PID())
+	m.executionStore.UpdatePID(exec.ID, proc.PID())
 	go m.monitorExecution(exec, worker, outputCh, cancel)
 	return nil
 }
@@ -270,7 +270,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 
 	// Cleanup
 	m.mu.Lock()
-	delete(m.activeRuntimes, exec.ID)
+	delete(m.activeProcesses, exec.ID)
 	for _, sub := range m.logSubscribers[exec.ID] {
 		close(sub)
 	}
@@ -313,10 +313,9 @@ func (m *Manager) ReplyExecution(ctx context.Context, executionID string, messag
 		slog.Error("ensure system rules", "component", "worker", "op", "reply", "error", err)
 	}
 
-	rt := NewClaudeRuntime(m.beeCfg.Claude.Path, m.beeCfg.MCPBaseURL, m.beeCfg.MCP.APIKey)
 	timeout := m.beeCfg.Claude.Timeout
 
-	if err := m.launchRuntime(newExec, worker, rt, timeout, message, true); err != nil {
+	if err := m.launchRuntime(newExec, worker, timeout, message, true); err != nil {
 		m.executionStore.UpdateResult(newExec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return newExec, fmt.Errorf("start runtime: %w", err)
@@ -347,11 +346,11 @@ func (m *Manager) GetExecution(id string) (model.WorkerExecution, error) {
 
 func (m *Manager) StopExecution(executionID string) error {
 	m.mu.RLock()
-	rt, ok := m.activeRuntimes[executionID]
+	proc, ok := m.activeProcesses[executionID]
 	m.mu.RUnlock()
 
 	if !ok {
-		return fmt.Errorf("no active runtime for execution %s", executionID)
+		return fmt.Errorf("no active process for execution %s", executionID)
 	}
-	return rt.Stop()
+	return proc.Stop()
 }
