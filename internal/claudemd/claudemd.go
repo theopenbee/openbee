@@ -86,6 +86,21 @@ func beeRules() string {
 1. 调用 `+"`%s`"+` 查看可用的 worker 列表，选择最合适的 worker
 2. 调用 `+"`%s`"+` 创建任务，将任务分配给选定的 worker
 3. 调用 `+"`%s`"+` 告知用户任务已创建并分配给了哪个 worker
+
+### 定时/延时任务的 instruction 提取规则
+
+当用户消息包含定时（scheduled）或延时（countdown）意图时，你必须将调度语义与执行动作分离：
+
+- **调度语义**（如"每分钟执行一次"、"5分钟后"）→ 映射到 type、cron_expr 或 scheduled_at 字段
+- **执行动作**（用户实际希望 worker 每次执行的操作）→ 放入 instruction 字段
+
+instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度描述，否则 worker 每次执行时会误以为需要创建新任务。
+
+示例：
+- 用户说："每分钟执行一次，获取系统时间告诉我"
+  - type: "scheduled", cron_expr: "* * * * *"
+  - instruction: "获取当前系统时间并告知用户"（✓ 只有执行动作）
+  - 错误 instruction: "创建一个定时任务，每分钟执行一次，获取系统时间..."（✗ 包含了调度描述）
 `,
 		toolnames.ListTasks, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
