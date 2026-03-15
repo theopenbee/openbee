@@ -113,7 +113,11 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				return nil
 			}
 
-			// Add "typing" reaction to acknowledge message receipt
+			// Add "typing" reaction to acknowledge message receipt.
+			// Use a buffered channel to coordinate with Send's reaction recall,
+			// avoiding a race where LoadAndDelete runs before Store.
+			reactionCh := make(chan string, 1)
+			r.pendingReactions.Store(*msg.MessageId, reactionCh)
 			go func() {
 				resp, err := r.larkClient.Im.MessageReaction.Create(ctx,
 					larkim.NewCreateMessageReactionReqBuilder().
@@ -126,10 +130,13 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						Build())
 				if err != nil || !resp.Success() {
 					slog.Error("add reaction error", "component", "feishu", "error", err, "resp", resp)
+					close(reactionCh)
 					return
 				}
 				if resp.Data != nil && resp.Data.ReactionId != nil {
-					r.pendingReactions.Store(*msg.MessageId, *resp.Data.ReactionId)
+					reactionCh <- *resp.Data.ReactionId
+				} else {
+					close(reactionCh)
 				}
 			}()
 
@@ -224,6 +231,48 @@ func (r *FeishuReceiver) downloadMessageResource(ctx context.Context, messageID,
 	return io.ReadAll(resp.File)
 }
 
+// downloadSaveAndPlaceholder downloads a resource, detects MIME, saves it, builds a placeholder,
+// and appends extracted text if available. Returns the placeholder string.
+func (r *FeishuReceiver) downloadSaveAndPlaceholder(
+	ctx context.Context, messageID, key, resType, mediaType, fileName string,
+) string {
+	data, err := r.downloadMessageResource(ctx, messageID, key, resType)
+	if err != nil {
+		slog.Error("download media failed", "component", "feishu", "key", key, "error", err)
+		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
+	}
+
+	mime := r.mediaSvc.DetectMIME(data, fileName)
+	ext := r.mediaSvc.ExtensionFromMIME(mime)
+	if fileName != "" {
+		if origExt := filepath.Ext(fileName); origExt != "" {
+			ext = origExt
+		}
+	}
+
+	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
+	if err != nil {
+		slog.Error("save media failed", "component", "feishu", "key", key, "error", err)
+		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
+	}
+
+	// Use MIME-based media type when caller passes empty mediaType (e.g. post media)
+	mt := mediaType
+	if mt == "" {
+		mt = media.MediaTypeFromMIME(mime)
+	}
+	placeholder := r.mediaSvc.BuildPlaceholder(mt, path, fileName)
+
+	extracted, err := r.mediaSvc.ExtractText(ctx, path)
+	if err != nil {
+		slog.Warn("text extraction failed", "component", "feishu", "path", path, "error", err)
+	}
+	if extracted != "" {
+		placeholder += "\n" + extracted
+	}
+	return placeholder
+}
+
 // resolveMediaContent handles download, save, text extraction, and placeholder building for media messages.
 func (r *FeishuReceiver) resolveMediaContent(ctx context.Context, messageID, msgType, contentJSON string) string {
 	imageKey, fileKey, fileName := parseMediaKeys(contentJSON, msgType)
@@ -235,41 +284,7 @@ func (r *FeishuReceiver) resolveMediaContent(ctx context.Context, messageID, msg
 		slog.Warn("no file key found in content", "component", "feishu", "msgType", msgType)
 		return r.mediaSvc.BuildPlaceholder(mediaTypeForMsgType(msgType), "", fileName)
 	}
-
-	resType := resourceType(msgType)
-	data, err := r.downloadMessageResource(ctx, messageID, key, resType)
-	if err != nil {
-		slog.Error("download media failed", "component", "feishu", "msgType", msgType, "error", err)
-		return r.mediaSvc.BuildPlaceholder(mediaTypeForMsgType(msgType), "", fileName)
-	}
-
-	// Determine extension: prefer original file extension, fall back to MIME detection
-	mime := r.mediaSvc.DetectMIME(data, fileName)
-	ext := r.mediaSvc.ExtensionFromMIME(mime)
-	if fileName != "" {
-		if origExt := filepath.Ext(fileName); origExt != "" {
-			ext = origExt
-		}
-	}
-
-	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
-	if err != nil {
-		slog.Error("save media failed", "component", "feishu", "msgType", msgType, "error", err)
-		return r.mediaSvc.BuildPlaceholder(mediaTypeForMsgType(msgType), "", fileName)
-	}
-
-	placeholder := r.mediaSvc.BuildPlaceholder(mediaTypeForMsgType(msgType), path, fileName)
-
-	// For documents, try text extraction and append
-	extracted, err := r.mediaSvc.ExtractText(ctx, path)
-	if err != nil {
-		slog.Warn("text extraction failed", "component", "feishu", "path", path, "error", err)
-	}
-	if extracted != "" {
-		placeholder += "\n" + extracted
-	}
-
-	return placeholder
+	return r.downloadSaveAndPlaceholder(ctx, messageID, key, resourceType(msgType), mediaTypeForMsgType(msgType), fileName)
 }
 
 // resolvePostContent parses a post (rich text) message, downloads embedded images/media, and returns combined content.
@@ -285,55 +300,13 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 		parts = append(parts, result.TextContent)
 	}
 
-	// Download embedded images
 	for _, imageKey := range result.ImageKeys {
-		data, err := r.downloadMessageResource(ctx, messageID, imageKey, "image")
-		if err != nil {
-			slog.Error("download post image failed", "component", "feishu", "imageKey", imageKey, "error", err)
-			parts = append(parts, r.mediaSvc.BuildPlaceholder("image", "", ""))
-			continue
-		}
-		mime := r.mediaSvc.DetectMIME(data, "")
-		ext := r.mediaSvc.ExtensionFromMIME(mime)
-		path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
-		if err != nil {
-			slog.Error("save post image failed", "component", "feishu", "error", err)
-			parts = append(parts, r.mediaSvc.BuildPlaceholder("image", "", ""))
-			continue
-		}
-		parts = append(parts, r.mediaSvc.BuildPlaceholder("image", path, ""))
+		parts = append(parts, r.downloadSaveAndPlaceholder(ctx, messageID, imageKey, "image", "image", ""))
 	}
 
-	// Download embedded media files
 	for _, mk := range result.MediaKeys {
-		data, err := r.downloadMessageResource(ctx, messageID, mk.FileKey, "file")
-		if err != nil {
-			slog.Error("download post media failed", "component", "feishu", "fileKey", mk.FileKey, "error", err)
-			parts = append(parts, r.mediaSvc.BuildPlaceholder("document", "", mk.FileName))
-			continue
-		}
-		mime := r.mediaSvc.DetectMIME(data, mk.FileName)
-		ext := r.mediaSvc.ExtensionFromMIME(mime)
-		if mk.FileName != "" {
-			if origExt := filepath.Ext(mk.FileName); origExt != "" {
-				ext = origExt
-			}
-		}
-		path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
-		if err != nil {
-			slog.Error("save post media failed", "component", "feishu", "error", err)
-			parts = append(parts, r.mediaSvc.BuildPlaceholder("document", "", mk.FileName))
-			continue
-		}
-		placeholder := r.mediaSvc.BuildPlaceholder(media.MediaTypeFromMIME(mime), path, mk.FileName)
-		extracted, err := r.mediaSvc.ExtractText(ctx, path)
-		if err != nil {
-			slog.Warn("text extraction failed", "component", "feishu", "path", path, "error", err)
-		}
-		if extracted != "" {
-			placeholder += "\n" + extracted
-		}
-		parts = append(parts, placeholder)
+		// Pass empty mediaType so downloadSaveAndPlaceholder uses MIME-based detection
+		parts = append(parts, r.downloadSaveAndPlaceholder(ctx, messageID, mk.FileKey, "file", "", mk.FileName))
 	}
 
 	if len(parts) == 0 {
@@ -342,11 +315,6 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 	return strings.Join(parts, "\n")
 }
 
-var sanitizeFileNameRe = regexp.MustCompile(`[\x00-\x1f\x7f\r\n"\\]`)
-
-func sanitizeFileName(name string) string {
-	return sanitizeFileNameRe.ReplaceAllString(name, "_")
-}
 
 func fileCategory(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
@@ -402,25 +370,36 @@ type FeishuSender struct {
 func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var event larkim.P2MessageReceiveV1
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &event); err != nil {
-		slog.Error("failed to unmarshal raw", "component", "feishu", "error", err)
-		return nil
+		return fmt.Errorf("unmarshal raw event: %w", err)
 	}
 	imMsg := event.Event.Message
 	chatID := *imMsg.ChatId
 	chatType := *imMsg.ChatType
 	messageID := *imMsg.MessageId
 
-	// Recall "typing" reaction before sending reply
-	if reactionID, ok := s.pendingReactions.LoadAndDelete(messageID); ok {
-		recallCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
-			larkim.NewDeleteMessageReactionReqBuilder().
-				MessageId(messageID).
-				ReactionId(reactionID.(string)).
-				Build())
-		cancel()
-		if err != nil || !resp.Success() {
-			slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+	// Recall "typing" reaction before sending reply.
+	// The receiver stores a chan string; we wait up to 5s for the reaction ID.
+	if val, ok := s.pendingReactions.LoadAndDelete(messageID); ok {
+		if ch, ok := val.(chan string); ok {
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case reactionID, received := <-ch:
+				timer.Stop()
+				if received && reactionID != "" {
+					recallCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+					resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
+						larkim.NewDeleteMessageReactionReqBuilder().
+							MessageId(messageID).
+							ReactionId(reactionID).
+							Build())
+					cancel()
+					if err != nil || !resp.Success() {
+						slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+					}
+				}
+			case <-timer.C:
+				slog.Warn("timed out waiting for reaction ID", "component", "feishu", "messageID", messageID)
+			}
 		}
 	}
 
@@ -433,54 +412,55 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	return s.sendMessage(ctx, chatID, chatType, messageID, larkim.MsgTypeText, string(content))
 }
 
-func (s *FeishuSender) sendMessage(ctx context.Context, chatID, chatType, messageID, msgType, content string) error {
-	if chatType == "p2p" {
-		resp, err := s.larkClient.Im.Message.Create(ctx,
-			larkim.NewCreateMessageReqBuilder().
-				ReceiveIdType(larkim.ReceiveIdTypeChatId).
-				Body(larkim.NewCreateMessageReqBodyBuilder().
-					MsgType(msgType).
-					ReceiveId(chatID).
-					Content(content).
-					Build()).
-				Build())
-		if err != nil || !resp.Success() {
-			slog.Error("send message error", "component", "feishu", "error", err, "resp", resp)
-		}
-	} else {
-		resp, err := s.larkClient.Im.Message.Reply(ctx,
-			larkim.NewReplyMessageReqBuilder().
-				MessageId(messageID).
-				Body(larkim.NewReplyMessageReqBodyBuilder().
-					MsgType(msgType).
-					Content(content).
-					Build()).
-				Build())
-		if err != nil || !resp.Success() {
-			code := 0
-			if resp != nil {
-				code = resp.Code
-			}
-			if code == 230011 || code == 231003 {
-				slog.Warn("reply failed, falling back to direct send", "component", "feishu", "code", code)
-				resp2, err2 := s.larkClient.Im.Message.Create(ctx,
-					larkim.NewCreateMessageReqBuilder().
-						ReceiveIdType(larkim.ReceiveIdTypeChatId).
-						Body(larkim.NewCreateMessageReqBodyBuilder().
-							MsgType(msgType).
-							ReceiveId(chatID).
-							Content(content).
-							Build()).
-						Build())
-				if err2 != nil || !resp2.Success() {
-					slog.Error("fallback send error", "component", "feishu", "error", err2, "resp", resp2)
-				}
-			} else {
-				slog.Error("reply message error", "component", "feishu", "error", err, "resp", resp)
-			}
-		}
+func (s *FeishuSender) createMessage(ctx context.Context, chatID, msgType, content string) error {
+	resp, err := s.larkClient.Im.Message.Create(ctx,
+		larkim.NewCreateMessageReqBuilder().
+			ReceiveIdType(larkim.ReceiveIdTypeChatId).
+			Body(larkim.NewCreateMessageReqBodyBuilder().
+				MsgType(msgType).
+				ReceiveId(chatID).
+				Content(content).
+				Build()).
+			Build())
+	if err != nil {
+		return fmt.Errorf("create message: %w", err)
+	}
+	if !resp.Success() {
+		return fmt.Errorf("create message failed: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 	return nil
+}
+
+func (s *FeishuSender) sendMessage(ctx context.Context, chatID, chatType, messageID, msgType, content string) error {
+	if chatType == "p2p" {
+		return s.createMessage(ctx, chatID, msgType, content)
+	}
+
+	// Group chat: try reply first
+	resp, err := s.larkClient.Im.Message.Reply(ctx,
+		larkim.NewReplyMessageReqBuilder().
+			MessageId(messageID).
+			Body(larkim.NewReplyMessageReqBodyBuilder().
+				MsgType(msgType).
+				Content(content).
+				Build()).
+			Build())
+	if err == nil && resp.Success() {
+		return nil
+	}
+
+	code := 0
+	if resp != nil {
+		code = resp.Code
+	}
+	if code == 230011 || code == 231003 {
+		slog.Warn("reply failed, falling back to direct send", "component", "feishu", "code", code)
+		return s.createMessage(ctx, chatID, msgType, content)
+	}
+	if err != nil {
+		return fmt.Errorf("reply message: %w", err)
+	}
+	return fmt.Errorf("reply message failed: code=%d msg=%s", resp.Code, resp.Msg)
 }
 
 func (s *FeishuSender) sendMedia(ctx context.Context, mediaPath, chatID, chatType, messageID string) error {
@@ -493,7 +473,7 @@ func (s *FeishuSender) sendMedia(ctx context.Context, mediaPath, chatID, chatTyp
 	}
 
 	category := fileCategory(mediaPath)
-	fileName := sanitizeFileName(filepath.Base(mediaPath))
+	fileName := platform.SanitizeFileName(filepath.Base(mediaPath))
 
 	if category == "image" {
 		return s.uploadAndSendImage(ctx, data, chatID, chatType, messageID)
@@ -541,7 +521,14 @@ func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileN
 
 	fileKey := *resp.Data.FileKey
 	msgType := feishuMediaMsgType(ft)
-	content, _ := json.Marshal(map[string]string{"file_key": fileKey})
+	var contentMap map[string]string
+	switch msgType {
+	case "media":
+		contentMap = map[string]string{"file_key": fileKey, "file_name": fileName}
+	default: // "audio", "file"
+		contentMap = map[string]string{"file_key": fileKey}
+	}
+	content, _ := json.Marshal(contentMap)
 	return s.sendMessage(ctx, chatID, chatType, messageID, msgType, string(content))
 }
 
