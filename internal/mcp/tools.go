@@ -105,13 +105,14 @@ func toolSchemas() []toolSchema {
 		},
 		{
 			Name:        toolnames.ListTasks,
-			Description: "List tasks filtered by message_id or session_key (mutually exclusive), optionally filtered by status (supports comma-separated values like 'pending,running')",
+			Description: "List tasks filtered by message_id or session_key (mutually exclusive), optionally filtered by status and/or type",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"message_id":  map[string]string{"type": "string", "description": "Filter by message ID"},
 					"session_key": map[string]string{"type": "string", "description": "Filter by session key (mutually exclusive with message_id)"},
 					"status":      map[string]string{"type": "string", "description": "Optional status filter, supports comma-separated values e.g. 'pending,running'"},
+					"type":        map[string]string{"type": "string", "description": "Optional type filter, supports comma-separated values e.g. 'scheduled' or 'immediate,countdown'"},
 				},
 			},
 		},
@@ -393,6 +394,7 @@ func (s *MCPServer) toolListTasks(args json.RawMessage) (any, error) {
 		MessageID  string `json:"message_id"`
 		SessionKey string `json:"session_key"`
 		Status     string `json:"status"`
+		Type       string `json:"type"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -407,9 +409,9 @@ func (s *MCPServer) toolListTasks(args json.RawMessage) (any, error) {
 	var tasks []model.Task
 	var err error
 	if params.SessionKey != "" {
-		tasks, err = s.taskStore.ListBySessionKey(context.Background(), params.SessionKey, params.Status)
+		tasks, err = s.taskStore.ListBySessionKey(context.Background(), params.SessionKey, params.Status, params.Type)
 	} else {
-		tasks, err = s.taskStore.ListByMessageID(context.Background(), params.MessageID, params.Status)
+		tasks, err = s.taskStore.ListByMessageID(context.Background(), params.MessageID, params.Status, params.Type)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
@@ -565,7 +567,7 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	ctx := context.Background()
 
 	// Step 1: Collect running tasks with execution IDs (before cancelling)
-	runningTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "running")
+	runningTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "running", "")
 	if err != nil {
 		return nil, fmt.Errorf("list running tasks: %w", err)
 	}

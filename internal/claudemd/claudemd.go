@@ -87,6 +87,15 @@ func beeRules() string {
 2. 调用 `+"`%s`"+` 创建任务，将任务分配给选定的 worker
 3. 调用 `+"`%s`"+` 告知用户任务已创建并分配给了哪个 worker
 
+### 任务查询的精确过滤
+
+当用户查询特定类型的任务时（如"定时任务"、"即时任务"），你必须使用 %s 的 type 参数精确过滤，只返回用户询问的类型。不要返回用户未询问的任务类型。
+
+- "定时任务" → type: "scheduled"
+- "即时任务" → type: "immediate"
+- "延时任务" → type: "countdown"
+- "所有任务" 或未指定类型 → 不传 type 参数
+
 ### 定时/延时任务的 instruction 提取规则
 
 当用户消息包含定时（scheduled）或延时（countdown）意图时，你必须将调度语义与执行动作分离：
@@ -104,7 +113,8 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 `,
 		toolnames.ListTasks, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
-		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage)
+		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage,
+		toolnames.ListTasks)
 }
 
 func workerRules() string {

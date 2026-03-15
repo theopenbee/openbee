@@ -165,7 +165,7 @@ func TestTaskStore_ListByMessageID(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ListByMessageID(context.Background(), "m1", "")
+	tasks, err := ts.ListByMessageID(context.Background(), "m1", "", "")
 	if err != nil {
 		t.Fatalf("ListByMessageID: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	})
 
 	// List all tasks for session-A
-	tasks, err := ts.ListBySessionKey(ctx, "session-A", "")
+	tasks, err := ts.ListBySessionKey(ctx, "session-A", "", "")
 	if err != nil {
 		t.Fatalf("ListBySessionKey: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	}
 
 	// List only pending tasks for session-A
-	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending")
+	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending", "")
 	if err != nil {
 		t.Fatalf("ListBySessionKey (pending): %v", err)
 	}
@@ -288,7 +288,7 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	}
 
 	// List with comma-separated status
-	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending,running")
+	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending,running", "")
 	if err != nil {
 		t.Fatalf("ListBySessionKey (pending,running): %v", err)
 	}
@@ -297,7 +297,7 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	}
 
 	// List for session-B
-	tasks, err = ts.ListBySessionKey(ctx, "session-B", "")
+	tasks, err = ts.ListBySessionKey(ctx, "session-B", "", "")
 	if err != nil {
 		t.Fatalf("ListBySessionKey session-B: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestTaskStore_ListByMessageID_CommaSeparatedStatus(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ListByMessageID(ctx, "m1", "pending,running")
+	tasks, err := ts.ListByMessageID(ctx, "m1", "pending,running", "")
 	if err != nil {
 		t.Fatalf("ListByMessageID: %v", err)
 	}
@@ -375,19 +375,19 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 	}
 
 	// Verify: session-A completed task untouched
-	tasksA, _ := ts.ListBySessionKey(ctx, "session-A", "completed")
+	tasksA, _ := ts.ListBySessionKey(ctx, "session-A", "completed", "")
 	if len(tasksA) != 1 {
 		t.Errorf("completed task should be untouched, got %d", len(tasksA))
 	}
 
 	// Verify: session-A cancelled tasks
-	cancelledA, _ := ts.ListBySessionKey(ctx, "session-A", "cancelled")
+	cancelledA, _ := ts.ListBySessionKey(ctx, "session-A", "cancelled", "")
 	if len(cancelledA) != 2 {
 		t.Errorf("expected 2 cancelled tasks, got %d", len(cancelledA))
 	}
 
 	// Verify: session-B unaffected
-	tasksB, _ := ts.ListBySessionKey(ctx, "session-B", "pending")
+	tasksB, _ := ts.ListBySessionKey(ctx, "session-B", "pending", "")
 	if len(tasksB) != 1 {
 		t.Errorf("session-B task should be unaffected, got %d", len(tasksB))
 	}

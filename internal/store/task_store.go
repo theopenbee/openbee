@@ -51,30 +51,31 @@ func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) 
 	return scanTask(row)
 }
 
-// appendStatusFilter appends an IN clause for comma-separated status values.
-// If status is empty, nothing is appended.
-func appendStatusFilter(q string, args []any, status string) (string, []any) {
-	if status == "" {
+// appendCSVFilter appends an IN clause for a comma-separated filter on the given column.
+// If value is empty, nothing is appended.
+func appendCSVFilter(q string, args []any, column, value string) (string, []any) {
+	if value == "" {
 		return q, args
 	}
-	statuses := strings.Split(status, ",")
-	placeholders := strings.Repeat("?,", len(statuses))
+	values := strings.Split(value, ",")
+	placeholders := strings.Repeat("?,", len(values))
 	placeholders = placeholders[:len(placeholders)-1]
-	q += " AND t.status IN (" + placeholders + ")"
-	for _, st := range statuses {
-		args = append(args, strings.TrimSpace(st))
+	q += " AND t." + column + " IN (" + placeholders + ")"
+	for _, v := range values {
+		args = append(args, strings.TrimSpace(v))
 	}
 	return q, args
 }
 
-// ListByMessageID returns tasks for a given message, optionally filtered by status.
-func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status string) ([]model.Task, error) {
+// ListByMessageID returns tasks for a given message, optionally filtered by status and/or type.
+func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
 	             t.created_at, t.updated_at
 	      FROM tasks t WHERE t.message_id = ?`
 	args := []any{messageID}
-	q, args = appendStatusFilter(q, args, status)
+	q, args = appendCSVFilter(q, args, "status", status)
+	q, args = appendCSVFilter(q, args, "type", taskType)
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
@@ -84,8 +85,8 @@ func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status strin
 }
 
 // ListBySessionKey returns tasks whose originating message belongs to the given session.
-// status supports comma-separated values (e.g., "pending,running"); empty means all.
-func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status string) ([]model.Task, error) {
+// status and taskType support comma-separated values (e.g., "pending,running"); empty means all.
+func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
 	             t.created_at, t.updated_at
@@ -93,7 +94,8 @@ func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status str
 	      JOIN platform_messages pm ON t.message_id = pm.id
 	      WHERE pm.session_key = ?`
 	args := []any{sessionKey}
-	q, args = appendStatusFilter(q, args, status)
+	q, args = appendCSVFilter(q, args, "status", status)
+	q, args = appendCSVFilter(q, args, "type", taskType)
 	q += " ORDER BY t.created_at DESC"
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
