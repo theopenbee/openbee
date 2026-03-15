@@ -152,13 +152,14 @@ func toolSchemas() []toolSchema {
 		},
 		{
 			Name:        toolnames.SendMessage,
-			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target.",
+			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target. Supports sending media files (images, documents, audio, video) by providing a local file path.",
 			InputSchema: map[string]any{
 				"type":     "object",
-				"required": []string{"message_id", "content"},
+				"required": []string{"message_id"},
 				"properties": map[string]any{
 					"message_id": map[string]string{"type": "string", "description": "ID of the originating platform message (resolves platform and reply context)"},
-					"content":    map[string]string{"type": "string", "description": "Message content to send"},
+					"content":    map[string]string{"type": "string", "description": "Text content to send (required unless media_path is provided)"},
+					"media_path": map[string]string{"type": "string", "description": "Local file path to upload and send as media (image, file, audio, or video)"},
 				},
 			},
 		},
@@ -518,6 +519,7 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID string `json:"message_id"`
 		Content   string `json:"content"`
+		MediaPath string `json:"media_path"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -525,8 +527,8 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 	if params.MessageID == "" {
 		return nil, fmt.Errorf("message_id is required")
 	}
-	if params.Content == "" {
-		return nil, fmt.Errorf("content is required")
+	if params.Content == "" && params.MediaPath == "" {
+		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
 	stored, err := s.messageStore.GetByID(context.Background(), params.MessageID)
@@ -539,17 +541,28 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("no sender registered for platform %q", stored.Platform)
 	}
 
-	outbound := platform.OutboundMessage{
-		ReplyTo: platform.InboundMessage{
-			Platform:   stored.Platform,
-			SessionKey: stored.SessionKey,
-			Raw:        stored.Raw,
-		},
-		Content: params.Content,
+	replyTo := platform.InboundMessage{
+		Platform:   stored.Platform,
+		SessionKey: stored.SessionKey,
+		Raw:        stored.Raw,
 	}
-	if err := sender.Send(context.Background(), outbound); err != nil {
-		return nil, fmt.Errorf("send message: %w", err)
+
+	// Send text first if both content and media_path are provided
+	if params.Content != "" {
+		outbound := platform.OutboundMessage{ReplyTo: replyTo, Content: params.Content}
+		if err := sender.Send(context.Background(), outbound); err != nil {
+			return nil, fmt.Errorf("send text message: %w", err)
+		}
 	}
+
+	// Send media if media_path is provided
+	if params.MediaPath != "" {
+		outbound := platform.OutboundMessage{ReplyTo: replyTo, MediaPath: params.MediaPath}
+		if err := sender.Send(context.Background(), outbound); err != nil {
+			return nil, fmt.Errorf("send media message: %w", err)
+		}
+	}
+
 	return map[string]string{"status": "sent"}, nil
 }
 
