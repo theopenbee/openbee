@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/robobee/core/internal/model"
-	"github.com/robobee/core/internal/platform"
 )
 
 const (
@@ -41,7 +40,6 @@ type SessionStore interface {
 type queueState struct {
 	executing    bool
 	pendingTasks []DispatchTask
-	lastReplyTo  platform.InboundMessage
 }
 
 type internalResult struct {
@@ -108,15 +106,11 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 		d.queues[key] = state
 	}
 
-	replyTo := task.ReplyTo
-
 	if !state.executing {
 		state.executing = true
-		state.lastReplyTo = replyTo
-		go d.executeAsync(d.ctx, key, task, replyTo)
+		go d.executeAsync(d.ctx, key, task)
 	} else {
 		state.pendingTasks = append(state.pendingTasks, task)
-		state.lastReplyTo = replyTo
 	}
 }
 
@@ -152,52 +146,51 @@ func buildInstruction(task DispatchTask) string {
 		task.TaskID, task.MessageID, task.Instruction)
 }
 
-func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task DispatchTask, replyTo platform.InboundMessage) {
-	var exec model.WorkerExecution
-	var err error
-
+func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task DispatchTask) {
 	instruction := buildInstruction(task)
-
-	if task.TaskType == model.TaskTypeImmediate {
-		sessionID, sessErr := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
-		if sessErr != nil {
-			slog.Error("get session context", "component", "taskdispatcher", "error", sessErr)
-		}
-		if sessionID != "" {
-			slog.Info("resuming session", "component", "taskdispatcher", "sessionID", sessionID, "taskID", task.TaskID)
-			exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
-			if err != nil {
-				slog.Error("resume error, falling back to fresh", "component", "taskdispatcher", "error", err)
-				if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-					slog.Error("clear stale session contexts", "component", "taskdispatcher", "sessionKey", task.SessionKey, "error", clearErr)
-				}
-				exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
-			}
-			goto execStarted
-		}
-	}
-
-	slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
-	exec, err = d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
-
-execStarted:
-	if err != nil {
-		slog.Error("execute error", "component", "taskdispatcher", "error", err)
+	defer func() {
 		select {
 		case d.resultsCh <- internalResult{queueKey: key, task: task}:
 		case <-ctx.Done():
 		}
+	}()
+
+	exec, err := d.resolveExecution(ctx, task, instruction)
+	if err != nil {
+		slog.Error("execute error", "component", "taskdispatcher", "error", err)
 		return
 	}
-
 	if task.TaskID != "" {
-		d.taskStore.SetExecution(ctx, task.TaskID, exec.ID, model.TaskStatusRunning) //nolint:errcheck
+		if err := d.taskStore.SetExecution(ctx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
+			slog.Error("set execution", "component", "taskdispatcher", "taskID", task.TaskID, "error", err)
+		}
 	}
 	d.waitForResult(ctx, exec.ID, task.TaskID, task.SessionKey, task.WorkerID)
-	select {
-	case d.resultsCh <- internalResult{queueKey: key, task: task}:
-	case <-ctx.Done():
+}
+
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
+	if task.TaskType != model.TaskTypeImmediate {
+		slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
+		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 	}
+	sessionID, err := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
+	if err != nil {
+		slog.Error("get session context", "component", "taskdispatcher", "error", err)
+	}
+	if sessionID == "" {
+		slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
+		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+	}
+	slog.Info("resuming session", "component", "taskdispatcher", "sessionID", sessionID, "taskID", task.TaskID)
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
+	if err == nil {
+		return exec, nil
+	}
+	slog.Error("resume error, falling back to fresh", "component", "taskdispatcher", "error", err)
+	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
+		slog.Error("clear stale session contexts", "component", "taskdispatcher", "sessionKey", task.SessionKey, "error", clearErr)
+	}
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID, sessionKey, workerID string) {
@@ -244,9 +237,7 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 	if len(state.pendingTasks) > 0 {
 		next := state.pendingTasks[0]
 		state.pendingTasks = state.pendingTasks[1:]
-		nextReplyTo := next.ReplyTo
-		state.lastReplyTo = nextReplyTo
-		go d.executeAsync(d.ctx, res.queueKey, next, nextReplyTo)
+		go d.executeAsync(d.ctx, res.queueKey, next)
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)
