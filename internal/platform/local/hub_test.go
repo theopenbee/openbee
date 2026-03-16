@@ -48,11 +48,18 @@ func TestSSEHub_Broadcast_IsolatesSessions(t *testing.T) {
 
 func TestSSEHub_Unsubscribe_StopsReceiving(t *testing.T) {
 	h := local.NewSSEHub()
-	_, unsub := h.Subscribe("local:s1")
+	ch, unsub := h.Subscribe("local:s1")
 	unsub()
 
-	// Should not panic on broadcast to empty subscriber list
+	// Broadcast after unsubscribe: must not panic and must not deliver
 	h.Broadcast("local:s1", "orphan")
+
+	select {
+	case msg := <-ch:
+		t.Fatalf("should not receive after unsubscribe, got %q", msg)
+	default:
+		// expected: channel is empty and no panic occurred
+	}
 }
 
 func TestSSEHub_MultipleSubscribers(t *testing.T) {

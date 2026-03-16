@@ -34,7 +34,6 @@ func (h *SSEHub) Subscribe(sessionKey string) (<-chan string, func()) {
 				break
 			}
 		}
-		close(ch)
 	}
 }
 
