@@ -11,6 +11,7 @@ export function Nav() {
     { href: "/", label: t("nav.dashboard") },
     { href: "/workers", label: t("nav.workers") },
     { href: "/executions", label: t("nav.executions") },
+    { href: "/local-chat", label: t("localChat.title") },
   ]
 
   return (
@@ -26,7 +27,7 @@ export function Nav() {
               to={link.href}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-primary",
-                pathname === link.href
+                (pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href)))
                   ? "text-foreground"
                   : "text-muted-foreground"
               )}
