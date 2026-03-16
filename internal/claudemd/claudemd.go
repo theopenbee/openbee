@@ -58,13 +58,14 @@ func sharedRules() string {
 1. **任务开始时** — 收到任务后、开始实际处理之前，立即调用 `+"`%s`"+` 告知用户你已接收任务并即将开始处理
 2. **阶段性进展时** — 如果任务涉及多个步骤或阶段，每完成一个阶段调用 `+"`%s`"+` 汇报当前进度和下一步计划
 3. **任务完成时** — 任务执行完毕后，调用 `+"`%s`"+` 汇报最终结果
+4. **遇到问题需要咨询时** — 当执行过程中遇到需要用户决策、确认或提供额外信息的问题时，立即调用 `+"`%s`"+` 向用户说明问题（如果存在选项的话也一并说明）并等待回复
 
 ### 通知原则
 
 - 简洁明了，不要冗长描述
 - 包含关键信息：正在做什么、完成了什么、结果是什么
 - 遇到异常或阻塞时也必须通知用户
-`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
+`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
 }
 
 func beeRules() string {
