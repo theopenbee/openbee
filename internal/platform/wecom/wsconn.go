@@ -92,6 +92,7 @@ type WsConn struct {
 	missedPong     int
 	reconnectCount int
 
+	writeMu sync.Mutex // guards conn.WriteMessage — gorilla/websocket requires exclusive writer
 	queueMu sync.Mutex
 	queues  map[string][]*replyEntry // per req_id send queue
 	pending map[string]*replyEntry   // req_ids awaiting ack
@@ -192,12 +193,15 @@ func (c *WsConn) dialAndAuth(ctx context.Context) error {
 	return nil
 }
 
-// sendRaw JSON-encodes and writes a frame to conn. Caller must not hold c.mu.
+// sendRaw JSON-encodes and writes a frame to conn.
+// Acquires writeMu to satisfy gorilla/websocket's single-concurrent-writer requirement.
 func (c *WsConn) sendRaw(conn *websocket.Conn, frame WsFrame) error {
 	data, err := json.Marshal(frame)
 	if err != nil {
 		return err
 	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	return conn.WriteMessage(websocket.TextMessage, data)
 }
 
@@ -442,7 +446,7 @@ func (c *WsConn) processQueue(reqID string) {
 			c.queueMu.Lock()
 			delete(c.pending, reqID)
 			c.queueMu.Unlock()
-			entry.err = fmt.Errorf("ack timeout (5s) for reqID %s", reqID)
+			entry.err = fmt.Errorf("ack timeout (%s) for reqID %s", c.cfg.ReplyAckTimeout, reqID)
 			close(entry.done)
 		}
 

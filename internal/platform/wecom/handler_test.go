@@ -373,7 +373,7 @@ func TestSend_MediaUpload(t *testing.T) {
 	}
 	var ps sync.Map
 	ps.Store("msg-200", "stream-200")
-	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn, mediaSvc: media.NewService()}
 
 	raw := buildRawFrame(t, "req-200", messageBody{
 		MsgID: "msg-200", ChatType: "single", From: messageFrom{UserID: "u1"},

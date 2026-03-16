@@ -6,7 +6,7 @@ import (
 
 // InboundMessage carries a parsed message from any platform.
 type InboundMessage struct {
-	Platform          string // "feishu" | "dingtalk"
+	Platform          string // "feishu" | "dingtalk" | "wecom"
 	SenderID          string
 	SessionKey        string // platform-prefixed session key, e.g. "feishu:chatID:userID"
 	Content           string

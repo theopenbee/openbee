@@ -25,11 +25,12 @@ import (
 // ─── Media size constants ──────────────────────────────────────────────────
 
 const (
-	wecomChunkSize = 512 * 1024       // 512 KB per chunk
-	wecomMaxImage  = 10 * 1024 * 1024 // 10 MB
-	wecomMaxVideo  = 10 * 1024 * 1024
-	wecomMaxVoice  = 2 * 1024 * 1024  // 2 MB
-	wecomMaxFile   = 20 * 1024 * 1024 // 20 MB
+	wecomChunkSize    = 512 * 1024        // 512 KB per chunk
+	wecomMaxImage     = 10 * 1024 * 1024  // 10 MB
+	wecomMaxVideo     = 10 * 1024 * 1024
+	wecomMaxVoice     = 2 * 1024 * 1024   // 2 MB
+	wecomMaxFile      = 20 * 1024 * 1024  // 20 MB
+	wecomMaxDownload  = 100 * 1024 * 1024 // 100 MB inbound download cap (matches Feishu/DingTalk)
 )
 
 // ─── Message body types ────────────────────────────────────────────────────
@@ -413,9 +414,18 @@ func (r *WeComReceiver) downloadDecryptSave(ctx context.Context, url, aesKey, me
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("wecom: download returned non-200", "component", "wecom", "status", resp.StatusCode)
+		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, wecomMaxDownload+1))
 	if err != nil {
 		slog.Error("wecom: read media body failed", "component", "wecom", "error", err)
+		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
+	}
+	if len(data) > wecomMaxDownload {
+		slog.Error("wecom: download too large", "component", "wecom", "size", len(data))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 
@@ -499,9 +509,6 @@ func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, s
 	}
 
 	svc := s.mediaSvc
-	if svc == nil {
-		svc = media.NewService()
-	}
 	mime := svc.DetectMIME(data, filepath.Base(mediaPath))
 	wecomType, err := resolveWeComMediaType(mime, len(data))
 	if err != nil {
@@ -535,6 +542,8 @@ func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, s
 
 // uploadMedia performs the 3-step WeCom media upload: init → chunks → finish.
 func (s *WeComSender) uploadMedia(ctx context.Context, data []byte, mediaType, filename string) (string, error) {
+	// ctx is accepted for future cancellation support but not currently threaded
+	// into sendReplyFn (WsConn.SendReply does not take a context).
 	_ = ctx
 	totalSize := len(data)
 	totalChunks := (totalSize + wecomChunkSize - 1) / wecomChunkSize
