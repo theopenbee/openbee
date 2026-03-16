@@ -117,6 +117,11 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 // ClearSession removes all queued tasks for the given session and clears session contexts.
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
+	// Clear DB synchronously so feeder can detect the clear after bee exits.
+	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey); err != nil {
+		slog.Error("clear session contexts", "component", "taskdispatcher", "sessionKey", sessionKey, "error", err)
+	}
+	// Signal Run loop to clear in-memory queues.
 	select {
 	case d.clearCh <- sessionKey:
 	default:

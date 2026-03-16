@@ -148,12 +148,28 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	// Persist session_id before marking messages processed
-	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-		slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
-		// non-fatal: messages are marked processed, but the session ID is not persisted.
-		// On the next tick, GetSessionContext returns "" and bee starts a new session,
-		// losing conversational continuity silently.
+	// Persist session_id before marking messages processed.
+	// If we resumed a previous session, check whether bee cleared it (e.g. via clear_session).
+	// Upserting after a clear would undo the reset.
+	if resume {
+		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+		if checkErr == nil && currentID == "" {
+			slog.Info("session cleared during bee execution, skipping context upsert",
+				"component", "feeder", "sessionKey", sessionKey)
+			// fall through to MarkBeeProcessed without upserting
+		} else {
+			// session still valid (or DB error — upsert defensively)
+			if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
+				slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
+			}
+		}
+	} else {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
+			slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
+			// non-fatal: messages are marked processed, but the session ID is not persisted.
+			// On the next tick, GetSessionContext returns "" and bee starts a new session,
+			// losing conversational continuity silently.
+		}
 	}
 
 	msgIDs := make([]string, len(msgs))
