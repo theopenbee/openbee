@@ -513,9 +513,10 @@ type DingTalkSender struct {
 }
 
 const (
-	markdownTitle   = "RoboBee"
-	maxDownloadSize = 100 * 1024 * 1024 // 100MB
-	maxUploadSize   = 20 * 1024 * 1024  // 20MB
+	markdownTitle      = "RoboBee"
+	maxDownloadSize    = 100 * 1024 * 1024 // 100MB
+	maxUploadSize      = 20 * 1024 * 1024  // 20MB
+	maxVoiceUploadSize = 2 * 1024 * 1024   // 2MB — voice limit per DingTalk spec
 )
 
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
@@ -711,11 +712,11 @@ func doProactiveRequest(ctx context.Context, cfg config.DingTalkConfig, endpoint
 func dingTalkMediaType(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp":
+	case ".jpg", ".png", ".gif", ".bmp":
 		return "image"
-	case ".mp4", ".mov", ".avi":
+	case ".mp4":
 		return "video"
-	case ".mp3", ".wav", ".amr", ".ogg", ".aac", ".flac", ".m4a", ".opus":
+	case ".mp3", ".wav", ".amr":
 		return "voice"
 	default:
 		return "file"
@@ -729,8 +730,6 @@ func imageContentType(path string) string {
 		return "image/png"
 	case ".gif":
 		return "image/gif"
-	case ".webp":
-		return "image/webp"
 	case ".bmp":
 		return "image/bmp"
 	default:
@@ -744,8 +743,12 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 	if err != nil {
 		return "", fmt.Errorf("stat file: %w", err)
 	}
-	if fi.Size() > maxUploadSize {
-		return "", fmt.Errorf("file too large: %d bytes (max %d)", fi.Size(), maxUploadSize)
+	limit := int64(maxUploadSize)
+	if mediaType == "voice" {
+		limit = maxVoiceUploadSize
+	}
+	if fi.Size() > limit {
+		return "", fmt.Errorf("file too large: %d bytes (max %d)", fi.Size(), limit)
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
