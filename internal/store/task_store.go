@@ -202,7 +202,7 @@ func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 }
 
 // UpdateStatus sets only the status of a task. Unlike SetExecution, it does
-// not touch execution_id. Used by mark_task_success MCP tool and FailTask.
+// not touch execution_id.
 func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`,
