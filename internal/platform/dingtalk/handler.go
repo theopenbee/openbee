@@ -528,12 +528,27 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 		recallThinkingEmoji(ctx, s.cfg, &data)
 	}
 
+	expired := isWebhookExpired(&data)
+	if expired {
+		slog.Info("sessionWebhook expired, using proactive API",
+			"component", "dingtalk",
+			"sessionKey", msg.ReplyTo.SessionKey,
+			"conversationType", data.ConversationType)
+	}
+
 	if msg.MediaPath != "" {
 		mediaType := dingTalkMediaType(msg.MediaPath)
 		mediaID, err := uploadMediaToDingTalk(ctx, s.cfg, msg.MediaPath, mediaType)
 		if err != nil {
 			slog.Error("upload media failed", "component", "dingtalk", "error", err)
 			return fmt.Errorf("upload media: %w", err)
+		}
+		if expired {
+			if err := sendMediaProactive(ctx, s.cfg, &data, msg.MediaPath, mediaID); err != nil {
+				slog.Error("proactive media send failed", "component", "dingtalk", "error", err)
+				return fmt.Errorf("proactive media send: %w", err)
+			}
+			return nil
 		}
 		if err := sendMediaViaDingTalk(ctx, s.cfg, data.SessionWebhook, msg.MediaPath, mediaID); err != nil {
 			slog.Error("send media failed", "component", "dingtalk", "error", err)
@@ -543,6 +558,15 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	}
 
 	// Text message
+	if expired {
+		if err := sendTextProactive(ctx, s.cfg, &data, msg.Content); err != nil {
+			slog.Error("proactive text send failed", "component", "dingtalk", "error", err)
+			return fmt.Errorf("proactive text send: %w", err)
+		}
+		slog.Info("proactive reply sent ok", "component", "dingtalk")
+		return nil
+	}
+
 	replier := chatbot.NewChatbotReplier()
 	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
 	if err := replier.SimpleReplyMarkdown(ctx, data.SessionWebhook, []byte(markdownTitle), []byte(msg.Content)); err != nil {
@@ -550,6 +574,136 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 		return fmt.Errorf("reply send: %w", err)
 	}
 	slog.Info("reply sent ok", "component", "dingtalk")
+	return nil
+}
+
+// isWebhookExpired reports whether the sessionWebhook in data has expired.
+// SessionWebhookExpiredTime is a Unix timestamp in milliseconds.
+func isWebhookExpired(data *chatbot.BotCallbackDataModel) bool {
+	if data.SessionWebhookExpiredTime <= 0 {
+		return true
+	}
+	return time.Now().UnixMilli() >= data.SessionWebhookExpiredTime
+}
+
+// proactiveEndpoint returns the appropriate DingTalk API endpoint for proactive
+// message sending based on conversation type ("1" = group, "2" = single).
+func proactiveEndpoint(conversationType string) string {
+	if conversationType == "2" {
+		return "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
+	}
+	return "https://api.dingtalk.com/v1.0/robot/groupMessages/send"
+}
+
+// buildProactiveTextPayload constructs the request body for proactive text (markdown) sending.
+func buildProactiveTextPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, content string) map[string]any {
+	msgParam, _ := json.Marshal(map[string]string{
+		"title": markdownTitle,
+		"text":  content,
+	})
+	payload := map[string]any{
+		"robotCode": cfg.ClientID,
+		"msgKey":    "sampleMarkdown",
+		"msgParam":  string(msgParam),
+	}
+	if data.ConversationType == "2" {
+		payload["userIds"] = []string{data.SenderStaffId}
+	} else {
+		payload["openConversationId"] = data.ConversationId
+	}
+	return payload
+}
+
+// sendTextProactive sends a text (markdown) message via the proactive API.
+func sendTextProactive(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, content string) error {
+	endpoint := proactiveEndpoint(data.ConversationType)
+	p := buildProactiveTextPayload(cfg, data, content)
+	return doProactiveRequest(ctx, cfg, endpoint, p)
+}
+
+// buildProactiveMediaPayload constructs the request body for proactive media sending.
+func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string) map[string]any {
+	mediaType := dingTalkMediaType(filePath)
+	fileName := platform.SanitizeFileName(filepath.Base(filePath))
+	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
+
+	var msgKey string
+	var msgParam string
+
+	switch mediaType {
+	case "image":
+		msgKey = "sampleMarkdown"
+		p, _ := json.Marshal(map[string]string{
+			"title": "Image",
+			"text":  fmt.Sprintf("![image](%s)", mediaID),
+		})
+		msgParam = string(p)
+	case "voice":
+		msgKey = "sampleAudio"
+		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "duration": "60000"})
+		msgParam = string(p)
+	case "video":
+		msgKey = "sampleVideo"
+		p, _ := json.Marshal(map[string]string{
+			"duration": "0", "videoMediaId": mediaID,
+			"videoType": "mp4", "picMediaId": "",
+		})
+		msgParam = string(p)
+	default:
+		msgKey = "sampleFile"
+		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "fileName": fileName, "fileType": fileType})
+		msgParam = string(p)
+	}
+
+	payload := map[string]any{
+		"robotCode": cfg.ClientID,
+		"msgKey":    msgKey,
+		"msgParam":  msgParam,
+	}
+	if data.ConversationType == "2" {
+		payload["userIds"] = []string{data.SenderStaffId}
+	} else {
+		payload["openConversationId"] = data.ConversationId
+	}
+	return payload
+}
+
+// sendMediaProactive sends a media message via the proactive API.
+func sendMediaProactive(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string) error {
+	endpoint := proactiveEndpoint(data.ConversationType)
+	p := buildProactiveMediaPayload(cfg, data, filePath, mediaID)
+	return doProactiveRequest(ctx, cfg, endpoint, p)
+}
+
+// doProactiveRequest sends an authenticated POST to a DingTalk API endpoint.
+func doProactiveRequest(ctx context.Context, cfg config.DingTalkConfig, endpoint string, payload map[string]any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal proactive payload: %w", err)
+	}
+
+	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
+	if err != nil {
+		return fmt.Errorf("get access token for proactive send: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-acs-dingtalk-access-token", token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("proactive send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("proactive send failed: status=%d body=%s", resp.StatusCode, string(respBody))
+	}
 	return nil
 }
 
