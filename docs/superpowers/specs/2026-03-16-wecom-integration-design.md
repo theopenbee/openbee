@@ -30,7 +30,7 @@ internal/platform/wecom/
 | File | Change |
 |------|--------|
 | `internal/config/config.go` | Add `WeComConfig` struct; add to `PlatformsConfig`; add default for `WebSocketURL` |
-| `cmd/server/app.go` | Add WeCom to `buildPlatforms()`; pass `WeComConfig` |
+| `cmd/server/app.go` | Add WeCom to `buildPlatforms()`; update call site |
 | `config.example.yaml` | Add WeCom config example |
 
 ### Data Flow
@@ -43,8 +43,8 @@ WeComReceiver.Start()
     │  1. Parse frame body → MessageBody
     │  2. Extract content by msgtype (download+decrypt media if needed)
     │  3. Send <think></think> thinking indicator (aibot_respond_msg, finish=false)
-    │  4. pendingStreams.Store(msgId, streamId)
-    │  5. dispatch(InboundMessage{Raw: JSON-encoded WsFrame})
+    │  4. pendingStreams.Store(msgId, streamId) + schedule 10-min TTL cleanup
+    │  5. dispatch(InboundMessage{Raw: string(JSON-encoded WsFrame)})
     ▼
 msgingest.Gateway → bee.Feeder → AI processing
     ▼
@@ -125,15 +125,15 @@ type WsFrameHeaders struct {
 
 ```go
 const (
-    WsCmdSubscribe          = "aibot_subscribe"
-    WsCmdHeartbeat          = "ping"
-    WsCmdCallback           = "aibot_msg_callback"
-    WsCmdEventCallback      = "aibot_event_callback"
-    WsCmdResponse           = "aibot_respond_msg"
-    WsCmdSendMsg            = "aibot_send_msg"
-    WsCmdUploadMediaInit    = "aibot_upload_media_init"
-    WsCmdUploadMediaChunk   = "aibot_upload_media_chunk"
-    WsCmdUploadMediaFinish  = "aibot_upload_media_finish"
+    WsCmdSubscribe         = "aibot_subscribe"
+    WsCmdHeartbeat         = "ping"
+    WsCmdCallback          = "aibot_msg_callback"
+    WsCmdEventCallback     = "aibot_event_callback"
+    WsCmdResponse          = "aibot_respond_msg"
+    WsCmdSendMsg           = "aibot_send_msg"
+    WsCmdUploadMediaInit   = "aibot_upload_media_init"
+    WsCmdUploadMediaChunk  = "aibot_upload_media_chunk"
+    WsCmdUploadMediaFinish = "aibot_upload_media_finish"
 )
 ```
 
@@ -141,25 +141,23 @@ const (
 
 ```go
 type WsConnConfig struct {
-    BotID               string
-    Secret              string
-    URL                 string
-    HeartbeatInterval   time.Duration // default 30s
-    MaxReconnectAttempts int          // default 100
-    ReconnectBaseDelay  time.Duration // default 1s, exponential backoff, cap 30s
-    ReplyAckTimeout     time.Duration // default 5s
+    BotID                string
+    Secret               string
+    URL                  string
+    HeartbeatInterval    time.Duration // default 30s
+    MaxReconnectAttempts int           // default 100
+    ReconnectBaseDelay   time.Duration // default 1s, exponential backoff, cap 30s
+    ReplyAckTimeout      time.Duration // default 5s
 }
 
-type WsConn struct {
-    // internal state
-}
+type WsConn struct { /* internal state */ }
 
 func NewWsConn(cfg WsConnConfig) *WsConn
 func (c *WsConn) Connect(ctx context.Context) error  // blocks until ctx cancelled
 func (c *WsConn) SendReply(reqID, cmd string, body any) (WsFrame, error)
 func (c *WsConn) IsConnected() bool
 
-// Callbacks set before Connect()
+// Callbacks — set before Connect()
 OnAuthenticated func()
 OnMessage       func(frame WsFrame)
 ```
@@ -171,12 +169,13 @@ OnMessage       func(frame WsFrame)
 3. On subscribe ack (errcode=0): start heartbeat ticker, call `OnAuthenticated`
 4. Heartbeat: every 30s send `ping`; track missed pongs; if ≥2 missed → `ws.Close()` → triggers reconnect
 5. On close: exponential back-off reconnect (1s, 2s, 4s … cap 30s), max 100 attempts
-6. Inbound `aibot_msg_callback` / `aibot_event_callback` → `OnMessage(frame)`
-7. Other frames (no cmd): matched by `req_id` prefix to release reply queue or ack pending
+6. Inbound `aibot_msg_callback` → `OnMessage(frame)`
+7. Inbound `aibot_event_callback` → drop with `slog.Debug`. Event types such as `enter_chat` and `template_card_event` are **out of scope** for this integration; welcome messages and card interactions are not supported.
+8. Other frames (no cmd): matched by `req_id` prefix to release reply queue or ack pending
 
 ### Reply queue
 
-Same-`req_id` messages are serialized: send head item → wait for ack (or 5s timeout) → send next. Uses `map[string][]replyQueueItem` + `map[string]pendingAck`. Prevents WeCom from receiving out-of-order frames for the same conversation.
+Same-`req_id` messages are serialized: send head item → wait for server ack (or 5s timeout) → send next. Uses `map[string][]replyQueueItem` + `map[string]pendingAck`. Prevents WeCom from receiving out-of-order frames for the same conversation.
 
 ### req_id generation
 
@@ -186,6 +185,8 @@ func generateReqID(prefix string) string {
 }
 ```
 
+Each distinct send operation (subscribe, heartbeat, each upload step, each reply) must use its own freshly generated `req_id`. Never reuse a `req_id` across different operations or upload steps, as this would serialize unrelated operations through the same reply queue slot and cause deadlocks.
+
 ---
 
 ## `crypto.go` — AES Decryption
@@ -194,8 +195,8 @@ Ported from `aibot-node-sdk-main/src/crypto.ts`.
 
 ```go
 // DecryptFile decrypts a WeCom media file using AES-256-CBC.
-// aesKeyBase64 is the Base64-encoded 256-bit key from the message body (image.aeskey / file.aeskey).
-// IV = first 16 bytes of the decoded key.
+// aesKeyBase64 is the Base64-encoded 256-bit key from the message body
+// (image.aeskey / file.aeskey). IV = first 16 bytes of the decoded key.
 // Padding = PKCS#7 with 32-byte block size (manual removal, no auto-padding).
 func DecryptFile(encrypted []byte, aesKeyBase64 string) ([]byte, error)
 ```
@@ -210,16 +211,16 @@ Uses only stdlib `crypto/aes` and `crypto/cipher` — no new dependencies.
 
 ```go
 type WeComPlatform struct {
-    receiver       *WeComReceiver
-    sender         *WeComSender
-    pendingStreams  sync.Map  // key: msgId (string) → value: streamId (string)
+    receiver      *WeComReceiver
+    sender        *WeComSender
+    pendingStreams sync.Map  // key: msgId (string) → value: streamId (string)
 }
 
 func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platform
 
-func (p *WeComPlatform) ID() string                                  { return "wecom" }
-func (p *WeComPlatform) Receiver() platform.PlatformReceiverAdapter  { return p.receiver }
-func (p *WeComPlatform) Sender() platform.PlatformSenderAdapter      { return p.sender }
+func (p *WeComPlatform) ID() string                                 { return "wecom" }
+func (p *WeComPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
+func (p *WeComPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 ```
 
 ### WeComReceiver
@@ -239,18 +240,24 @@ func (r *WeComReceiver) Start(ctx context.Context, dispatch func(platform.Inboun
 
 1. Unmarshal `frame.Body` → `MessageBody`
 2. Determine `chatId` and `senderID`:
-   - Single: `chatId = body.from.userid`, `senderID = body.from.userid`
-   - Group: `chatId = body.chatid`, `senderID = body.from.userid`
-3. Extract text content by `msgtype`:
-   - `text` → `body.text.content`
-   - `voice` → `body.voice.content` (already transcribed)
-   - `image` → `downloadDecryptSave(body.image.url, body.image.aeskey, "image")` → placeholder
-   - `file` → `downloadDecryptSave(body.file.url, body.file.aeskey, "document")` → placeholder
-   - `mixed` → iterate `body.mixed.msg_item`, parallel-download images via errgroup
-   - `quote` → append quoted text/image after main content
-   - Other → skip with `slog.Warn`
-4. If content empty → skip
-5. Send thinking message:
+   - Single (`chattype == "single"`): `chatId = body.from.userid`, `senderID = body.from.userid`
+   - Group (`chattype == "group"`): `chatId = body.chatid`, `senderID = body.from.userid`
+3. Extract text content by `msgtype`. For `quote` messages, first extract the primary message content (from the top-level `msgtype` field, e.g. `body.text.content`), then append the quoted content afterward:
+   - `text` → `rawText = body.text.content`; `content = rawText`
+   - `voice` → `content = body.voice.content` (already transcribed by WeCom); `rawText = content`
+   - `image` → `content = downloadDecryptSave(body.image.url, body.image.aeskey, "image", "")`; `rawText = ""`
+   - `file` → `content = downloadDecryptSave(body.file.url, body.file.aeskey, "document", filename)`; `rawText = ""`
+   - `mixed` → iterate `body.mixed.msg_item`, parallel-download images via `errgroup`; join text parts and image placeholders in order; `rawText = joined plain text parts only` (no image placeholders; `at`-markup in text items is preserved as-is)
+   - If `body.quote != nil`: append quoted content to `content` based on `body.quote.msgtype`:
+     - `text` → append `body.quote.text.content`
+     - `voice` → append `body.quote.voice.content`
+     - `image` → `downloadDecryptSave(quote.image.url, quote.image.aeskey, "image", "")` → append placeholder
+     - `file` → `downloadDecryptSave(quote.file.url, quote.file.aeskey, "document", filename)` → append placeholder
+     - `mixed` → iterate `quote.mixed.msg_item` same as top-level `mixed` (parallel image download via errgroup), append result
+     - Other quote types → skip
+   - Other `msgtype` → `slog.Warn("skipping unsupported msgtype")`, return
+4. If `content` is empty → return (skip dispatch)
+5. Send thinking message (failure → `slog.Warn`, continue):
    ```
    streamId = generateReqID("stream")
    wsConn.SendReply(frame.Headers.ReqID, WsCmdResponse, {
@@ -258,16 +265,16 @@ func (r *WeComReceiver) Start(ctx context.Context, dispatch func(platform.Inboun
        stream: { id: streamId, finish: false, content: "<think></think>" }
    })
    ```
-6. `pendingStreams.Store(body.msgid, streamId)`
-7. Marshal `frame` → rawBytes
-8. `dispatch(InboundMessage{Platform: "wecom", SenderID: senderID, SessionKey: "wecom:"+chatId+":"+senderID, Content: content, Raw: rawBytes, PlatformMessageID: body.msgid, MessageTime: body.create_time * 1000})`
+6. `pendingStreams.Store(body.msgid, streamId)`; schedule TTL cleanup via `time.AfterFunc(10*time.Minute, func() { pendingStreams.Delete(body.msgid) })` to prevent leaks if the downstream pipeline drops the message without ever calling `Send`
+7. Marshal `frame` → `rawBytes`
+8. `dispatch(platform.InboundMessage{Platform: "wecom", SenderID: senderID, SessionKey: "wecom:" + chatId + ":" + senderID, Content: content, RawContent: rawText, Raw: string(rawBytes), PlatformMessageID: body.msgid, MessageTime: body.create_time * 1000})` — note: `create_time` is Unix seconds from WeCom; multiply by 1000 for milliseconds; `Raw` is `string` not `[]byte`
 
-**`downloadDecryptSave`:**
-- HTTP GET encrypted bytes
-- `DecryptFile(bytes, aeskey)` if aeskey non-empty
-- `mediaSvc.DetectMIME` → ext
-- `mediaSvc.SaveInbound` → path
-- `mediaSvc.BuildPlaceholder(mediaType, path, filename)`
+**`downloadDecryptSave(url, aeskey, mediaType, filename string) string`:**
+- HTTP GET encrypted bytes (120s timeout)
+- If `aeskey != ""`: `DecryptFile(bytes, aeskey)`
+- `mediaSvc.DetectMIME(data, filename)` → MIME → ext
+- `mediaSvc.SaveInbound(ctx, data, ext)` → path
+- Return `mediaSvc.BuildPlaceholder(mediaType, path, filename)`; on any error log and return `mediaSvc.BuildPlaceholder(mediaType, "", filename)`
 
 ### WeComSender
 
@@ -282,17 +289,22 @@ func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 
 **Send steps:**
 
-1. Unmarshal `msg.ReplyTo.Raw` → `WsFrame`; extract `reqID = frame.Headers.ReqID`, `msgId = body.msgid`, `chatId`
-2. `streamId, ok = pendingStreams.LoadAndDelete(msgId)`; if not found use a new streamId (fallback)
+1. Unmarshal `msg.ReplyTo.Raw` → `WsFrame`; unmarshal `frame.Body` → `MessageBody`; extract `reqID = frame.Headers.ReqID`, `msgId = body.msgid`, `chatId` (same logic as receiver step 2)
+2. `val, ok = pendingStreams.LoadAndDelete(msgId)`; extract `streamId` from `val` if ok; if not found generate a new `streamId` as fallback
 3. If `msg.MediaPath != ""`:
-   a. Read file bytes
-   b. Detect MIME → WeCom media type (`image` / `voice` / `video` / `file`); voice must be AMR, otherwise send as file
-   c. Chunk upload (512KB/chunk, base64):
-      - `SendReply(newReqID, WsCmdUploadMediaInit, {type, filename, total_size, total_chunks, md5})`
-      - For each chunk: `SendReply(newReqID, WsCmdUploadMediaChunk, {upload_id, chunk_index, base64_data})`
-      - `SendReply(newReqID, WsCmdUploadMediaFinish, {upload_id})` → `media_id`
-   d. `SendReply(newReqID, WsCmdSendMsg, {chatid, msgtype, [msgtype]: {media_id}})`
-   e. Finish thinking stream: `SendReply(reqID, WsCmdResponse, stream{id: streamId, finish: true, content: "📎 文件已发送，请查收。"})`
+   a. Read file bytes from `msg.MediaPath`
+   b. Detect MIME → WeCom media type; apply size limits and downgrade rules:
+      - `image`: max 10 MB; if >10 MB downgrade to `file`
+      - `video`: max 10 MB; if >10 MB downgrade to `file`
+      - `voice`: only AMR (`audio/amr`) is supported; non-AMR → downgrade to `file`; max 2 MB; if >2 MB downgrade to `file`
+      - `file`: max 20 MB; if >20 MB return error (reject, do not upload)
+   c. Chunk upload — **each step uses its own freshly generated `req_id`**:
+      - Compute `md5 = md5(fileBytes)`, `totalChunks = ceil(len / 512KB)`
+      - `SendReply(generateReqID(WsCmdUploadMediaInit), WsCmdUploadMediaInit, {type, filename, total_size, total_chunks, md5})` → `upload_id`
+      - For each chunk index `i`: `SendReply(generateReqID(WsCmdUploadMediaChunk), WsCmdUploadMediaChunk, {upload_id, chunk_index: i, base64_data})` — **sequential only** (the SDK reference warns that high-concurrency chunk submission causes WeCom backend to return system errors; concurrency is intentionally not used)
+      - `SendReply(generateReqID(WsCmdUploadMediaFinish), WsCmdUploadMediaFinish, {upload_id})` → `media_id`
+   d. `SendReply(generateReqID(WsCmdSendMsg), WsCmdSendMsg, {chatid, msgtype, [msgtype]: {media_id}})` — note: the JSON wire key is `chatid` (snake_case), matching the WeCom protocol; Go variable is `chatId` but the struct tag must be `json:"chatid"`
+   e. Finish thinking stream: `SendReply(reqID, WsCmdResponse, {msgtype: "stream", stream: {id: streamId, finish: true, content: "📎 文件已发送，请查收。"}})`
 4. Else (text):
    - `SendReply(reqID, WsCmdResponse, {msgtype: "stream", stream: {id: streamId, finish: true, content: msg.Content}})`
 
@@ -307,7 +319,7 @@ func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 
 ## `cmd/server/app.go` changes
 
-`buildPlatforms` signature extended:
+`buildPlatforms` updated — `wc` inserted before `mc` to keep WeCom adjacent to other platform configs:
 
 ```go
 func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, mc config.MediaConfig) []platform.Platform {
@@ -320,17 +332,23 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 }
 ```
 
-Call site in `buildApp` updated to pass `cfg.Bee.Platforms.WeCom`.
+Call site in `buildApp` (line ~97) updated:
+```go
+platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Media)
+```
 
 ---
 
 ## Error Handling
 
-- Thinking message send failure: log warning, continue (don't block dispatch)
-- Media download/decrypt failure: log error, use `mediaSvc.BuildPlaceholder(type, "", filename)` (no path)
-- Media upload failure in sender: return error (caller logs)
-- WsConn `SendReply` timeout: return error
-- Reconnect after auth failure: log error + reconnect (same as DingTalk supervisor pattern)
+- Thinking message send failure: `slog.Warn`, continue (don't block dispatch)
+- `aibot_event_callback` frames: drop with `slog.Debug`
+- Media download/decrypt failure: `slog.Error`, use `mediaSvc.BuildPlaceholder(type, "", filename)` (no path)
+- Media upload failure in sender: return error
+- File >20 MB: return error without uploading
+- `WsConn.SendReply` timeout (5s): return error
+- Reconnect after auth failure: `slog.Error` + reconnect (same as DingTalk supervisor pattern)
+- `pendingStreams` orphan leak: prevented by 10-minute `time.AfterFunc` TTL cleanup set at Store time
 
 ---
 
@@ -344,6 +362,11 @@ No new Go module dependencies. Uses only:
 
 ## Testing
 
-- `crypto_test.go` — unit test for `DecryptFile` with known test vectors
-- `handler_test.go` — test `processMessage` for each message type using mock wsConn
-- Existing `msgingest` and platform interface compile-time checks (`var _ platform.Platform = ...`)
+- `crypto_test.go` — unit test for `DecryptFile` with known test vectors (encrypt with known key, verify round-trip)
+- `handler_test.go` — test `processMessage` for each message type (text, voice, image, file, mixed, quote) using a mock `dispatch` function; verify `SessionKey`, `Content`, `RawContent`, `PlatformMessageID` for each
+- Compile-time interface checks at bottom of `handler.go`:
+  ```go
+  var _ platform.Platform                = (*WeComPlatform)(nil)
+  var _ platform.PlatformReceiverAdapter = (*WeComReceiver)(nil)
+  var _ platform.PlatformSenderAdapter   = (*WeComSender)(nil)
+  ```
