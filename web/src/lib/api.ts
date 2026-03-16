@@ -1,7 +1,8 @@
 import type { Worker, WorkerExecution } from "./types"
 import i18n from "i18next"
+import { config } from "./config"
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080/api"
+const API_BASE = config.apiUrl
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, ...restOptions } = options ?? {}

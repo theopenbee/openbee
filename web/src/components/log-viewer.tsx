@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Streamdown } from "streamdown";
+import { config } from "@/lib/config";
 
 // ─── Data model ───────────────────────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ export function LogViewer({ executionId, status, logs, onComplete }: LogViewerPr
 
   // Real-time WebSocket stream
   useEffect(() => {
-    const wsBase = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+    const wsBase = config.apiUrl;
     const wsUrl =
       wsBase.replace(/^http/, "ws") + `/executions/${executionId}/logs`;
     const ws = new WebSocket(wsUrl);
