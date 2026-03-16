@@ -417,3 +417,91 @@ func TestTaskStore_ResetRunningToPending(t *testing.T) {
 		t.Errorf("expected pending, got %q", got.Status)
 	}
 }
+
+func TestTaskStore_FailTask_RegularTask_MarksAsFailed(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "x",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	if err := ts.FailTask(ctx, id); err != nil {
+		t.Fatalf("FailTask: %v", err)
+	}
+
+	got, _ := ts.GetByID(ctx, id)
+	if got.Status != model.TaskStatusFailed {
+		t.Errorf("expected status=failed, got %q", got.Status)
+	}
+}
+
+func TestTaskStore_FailTask_ScheduledTask_WithCron_ResetsToPending(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "x",
+		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
+		Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	if err := ts.FailTask(ctx, id); err != nil {
+		t.Fatalf("FailTask: %v", err)
+	}
+
+	got, _ := ts.GetByID(ctx, id)
+	if got.Status != model.TaskStatusPending {
+		t.Errorf("expected status=pending (reset for next run), got %q", got.Status)
+	}
+}
+
+func TestTaskStore_FailTask_ScheduledTask_NoCron_MarksAsFailed(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "x",
+		Type: model.TaskTypeScheduled, CronExpr: "",
+		Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	if err := ts.FailTask(ctx, id); err != nil {
+		t.Fatalf("FailTask: %v", err)
+	}
+
+	got, _ := ts.GetByID(ctx, id)
+	if got.Status != model.TaskStatusFailed {
+		t.Errorf("expected status=failed (no cron), got %q", got.Status)
+	}
+}
+
+func TestTaskStore_FailTask_ScheduledTask_Cancelled_NoChange(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "x",
+		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
+		Status: model.TaskStatusCancelled,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	// FailTask on a cancelled scheduled task should not error
+	if err := ts.FailTask(ctx, id); err != nil {
+		t.Fatalf("FailTask on cancelled task: %v", err)
+	}
+
+	got, _ := ts.GetByID(ctx, id)
+	if got.Status != model.TaskStatusCancelled {
+		t.Errorf("expected status=cancelled (preserved), got %q", got.Status)
+	}
+}

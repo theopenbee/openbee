@@ -202,7 +202,7 @@ func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 }
 
 // UpdateStatus sets only the status of a task. Unlike SetExecution, it does
-// not touch execution_id. Used by mark_task_success and mark_task_failed MCP tools.
+// not touch execution_id. Used by mark_task_success MCP tool and FailTask.
 func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`,
@@ -282,6 +282,21 @@ func (s *TaskStore) CompleteScheduledTask(ctx context.Context, taskID string) (b
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// FailTask marks a task as failed. For scheduled tasks with a cron expression,
+// it resets to pending instead so the task retries on the next scheduled run.
+// Called by the dispatcher when a worker process exits abnormally.
+func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("get task: %w", err)
+	}
+	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
+		_, err := s.CompleteScheduledTask(ctx, taskID)
+		return err
+	}
+	return s.UpdateStatus(ctx, taskID, model.TaskStatusFailed)
 }
 
 // UpdateNextRunAt sets next_run_at for a scheduled task after dispatch.
