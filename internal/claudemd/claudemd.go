@@ -118,11 +118,24 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
   - type: "scheduled", cron_expr: "* * * * *"
   - instruction: "获取当前系统时间并告知用户"（✓ 只有执行动作）
   - 错误 instruction: "创建一个定时任务，每分钟执行一次，获取系统时间..."（✗ 包含了调度描述）
+
+## 自我配置
+
+当用户明确要求修改你的名字或职责描述时，你可以直接编辑工作目录中的 `+"`CLAUDE.md`"+` 文件来更新自身配置。
+
+操作步骤：
+1. 读取当前 `+"`CLAUDE.md`"+` 内容
+2. 按用户要求修改名字或职责描述（第一行 "你是 XXX" 部分）
+3. 确保文件末尾保留 `+"`@.robobee.md`"+` 这一行，不要删除
+4. 将修改后的内容写回 `+"`CLAUDE.md`"+`
+5. 用 `+"`%s`"+` 告知用户：配置已更新，下次对话起将使用新的名字/描述
+
+注意：只修改用户明确要求的内容，不要改动其他部分。
 `,
 		toolnames.ListTasks, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage,
-		toolnames.ListTasks)
+		toolnames.ListTasks, toolnames.SendMessage)
 }
 
 func workerRules() string {
