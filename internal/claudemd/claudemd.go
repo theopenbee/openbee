@@ -141,22 +141,20 @@ func workerRules() string {
 [系统元数据] task_id=<task_id> message_id=<message_id>
 `+"```"+`
 
-- **task_id** — 当前任务的唯一标识，用于调用 `+"`%s`"+` 或 `+"`%s`"+` 标记任务状态
+- **task_id** — 当前任务的唯一标识，用于调用 `+"`%s`"+` 标记任务成功
 - **message_id** — 原始用户消息的标识，用于调用 `+"`%s`"+` 回复用户
 
 你必须从系统元数据中提取这些 ID 并在后续工具调用中正确使用。
 
 ## 任务状态标记
 
-任务执行成功时，你必须调用 `+"`%s`"+` 标记任务完成：
+任务执行完成后，必须调用 `+"`%s`"+` 标记任务成功，并附上结果摘要。
 
-- **成功** — 调用 `+"`%s`"+` 并附上结果摘要
-
-先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记任务成功。
-
-任务失败由系统自动处理，无需手动调用失败标记工具。
+这是每个任务的最后一步，不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。
 `,
-		toolnames.MarkTaskSuccess, toolnames.MarkTaskSuccess, toolnames.SendMessage, toolnames.MarkTaskSuccess)
+		toolnames.MarkTaskSuccess, toolnames.SendMessage,
+		toolnames.MarkTaskSuccess,
+		toolnames.SendMessage, toolnames.MarkTaskSuccess)
 }
 
 func workerConfigBlock(name, description, memory string) string {

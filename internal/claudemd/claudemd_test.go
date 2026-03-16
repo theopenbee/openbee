@@ -66,8 +66,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if !strings.Contains(content, "mark_task_success") {
 		t.Error("missing worker-specific rules (mark_task_success)")
 	}
-	if !strings.Contains(content, "mark_task_failed") {
-		t.Error("missing worker-specific rules (mark_task_failed)")
+	if strings.Contains(content, "mark_task_failed") {
+		t.Error("worker rules must not contain mark_task_failed (failure is now system-handled)")
 	}
 	if !strings.Contains(content, "系统元数据") {
 		t.Error("missing worker-specific 系统元数据 section")
