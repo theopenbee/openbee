@@ -173,7 +173,7 @@ func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask) (*bee.Feeder, *task_scheduler.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, beeProcess, config.DefaultBeeWorkDir(), cfg)
-	sched := task_scheduler.New(s.taskStore, dispatchCh, cfg.Feeder.Interval)
+	sched := task_scheduler.New(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
 

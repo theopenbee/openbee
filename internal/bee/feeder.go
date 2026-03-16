@@ -64,7 +64,7 @@ func (f *Feeder) RecoverFeeding(ctx context.Context) {
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
 func (f *Feeder) Run(ctx context.Context) {
-	ticker := time.NewTicker(f.cfg.Feeder.Interval)
+	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -78,11 +78,11 @@ func (f *Feeder) Run(ctx context.Context) {
 
 func (f *Feeder) tick(ctx context.Context) {
 	count, _ := f.msgStore.CountReceived(ctx)
-	if count > f.cfg.Feeder.QueueWarnThreshold {
-		slog.Warn("unprocessed messages in queue", "component", "feeder", "count", count, "threshold", f.cfg.Feeder.QueueWarnThreshold)
+	if count > QueueWarnThreshold {
+		slog.Warn("unprocessed messages in queue", "component", "feeder", "count", count, "threshold", QueueWarnThreshold)
 	}
 
-	msgs, err := f.msgStore.ClaimBatch(ctx, f.cfg.Feeder.BatchSize)
+	msgs, err := f.msgStore.ClaimBatch(ctx, 1)
 	if err != nil {
 		slog.Error("claim batch", "component", "feeder", "error", err)
 		return

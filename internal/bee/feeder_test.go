@@ -76,10 +76,7 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 
 func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, runner bee.BeeRunner) *bee.Feeder {
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Interval = 50 * time.Millisecond
-	cfg.Feeder.BatchSize = 10
 	cfg.Feeder.Timeout = 5 * time.Second
-	cfg.Feeder.QueueWarnThreshold = 100
 	return bee.NewFeeder(ms, ts, ss, runner, "/tmp", cfg)
 }
 
@@ -92,10 +89,10 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, runner)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go f.Run(ctx)
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(700 * time.Millisecond)
 
 	calls := runner.getCalls()
 	if len(calls) == 0 {
@@ -142,10 +139,10 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, runner)
 
-	tickCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	go f.Run(tickCtx)
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(700 * time.Millisecond)
 
 	calls := runner.getCalls()
 	if len(calls) == 0 {
@@ -169,10 +166,10 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	f := newFeeder(ms, ts, ss, runner)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go f.Run(ctx)
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(700 * time.Millisecond)
 
 	var status string
 	db.QueryRow(`SELECT status FROM platform_messages WHERE id='m1'`).Scan(&status)
@@ -196,10 +193,10 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, runner)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	go f.Run(ctx)
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(1200 * time.Millisecond)
 
 	calls := runner.getCalls()
 	if len(calls) != 2 {

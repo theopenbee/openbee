@@ -55,10 +55,7 @@ type PlatformsConfig struct {
 }
 
 type FeederConfig struct {
-	Interval           time.Duration `yaml:"interval"`
-	BatchSize          int           `yaml:"batch_size"`
-	Timeout            time.Duration `yaml:"timeout"`
-	QueueWarnThreshold int           `yaml:"queue_warn_threshold"`
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 type FeishuConfig struct {
@@ -110,17 +107,8 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.MessageDebounce == 0 {
 		cfg.Bee.MessageDebounce = 3 * time.Second
 	}
-	if cfg.Bee.Feeder.Interval == 0 {
-		cfg.Bee.Feeder.Interval = 10 * time.Second
-	}
-	if cfg.Bee.Feeder.BatchSize == 0 {
-		cfg.Bee.Feeder.BatchSize = 10
-	}
 	if cfg.Bee.Feeder.Timeout == 0 {
 		cfg.Bee.Feeder.Timeout = 5 * time.Minute
-	}
-	if cfg.Bee.Feeder.QueueWarnThreshold == 0 {
-		cfg.Bee.Feeder.QueueWarnThreshold = 100
 	}
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"
