@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/robobee/core/internal/mcp"
 	"github.com/robobee/core/internal/store"
@@ -31,6 +32,7 @@ func NewServer(
 	staticFS fs.FS,
 ) *Server {
 	router := gin.Default()
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
