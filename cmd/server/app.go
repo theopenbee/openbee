@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/robobee/core/internal/api"
 	"github.com/robobee/core/internal/bee"
 	"github.com/robobee/core/internal/config"
@@ -61,6 +62,10 @@ func (a *App) Run() {
 
 // buildApp wires all components together. Returns a ready-to-run App.
 func buildApp(cfg config.Config) (*App, error) {
+	if !cfg.Server.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	if cfg.Bee.MCP.APIKey == "" {
 		return nil, fmt.Errorf("bee.mcp.api_key must be set — bee requires MCP to create tasks")
 	}

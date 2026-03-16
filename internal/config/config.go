@@ -74,8 +74,9 @@ type MCPConfig struct {
 
 
 type ServerConfig struct {
-	Port int    `yaml:"port"`
-	Host string `yaml:"host"`
+	Port  int    `yaml:"port"`
+	Host  string `yaml:"host"`
+	Debug bool   `yaml:"debug"`
 }
 
 type DatabaseConfig struct {
