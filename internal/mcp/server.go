@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -110,10 +111,13 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 	s.sessions[sessionID] = ch
 	s.mu.Unlock()
 
+	slog.Info("MCP SSE connected", "session", sessionID, "client", c.ClientIP())
+
 	defer func() {
 		s.mu.Lock()
 		delete(s.sessions, sessionID)
 		s.mu.Unlock()
+		slog.Info("MCP SSE handler exited", "session", sessionID)
 	}()
 
 	c.Header("Content-Type", "text/event-stream")
@@ -130,25 +134,31 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 		params.Set("api_key", apiKey)
 	}
 	endpointURL := fmt.Sprintf("/mcp/messages?%s", params.Encode())
-	fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
+	n, err := fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
+	slog.Info("MCP SSE wrote endpoint event", "session", sessionID, "bytes", n, "err", err)
 	c.Writer.Flush()
+	slog.Info("MCP SSE flushed endpoint event", "session", sessionID)
 
 	ctx := c.Request.Context()
-	heartbeat := time.NewTicker(30 * time.Second)
+	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			slog.Info("MCP SSE context done", "session", sessionID, "reason", ctx.Err())
 			return
 		case <-heartbeat.C:
+			slog.Info("MCP SSE sending heartbeat", "session", sessionID)
 			fmt.Fprintf(c.Writer, ": heartbeat\n\n")
 			c.Writer.Flush()
 		case resp, ok := <-ch:
 			if !ok {
+				slog.Info("MCP SSE channel closed", "session", sessionID)
 				return
 			}
 			data, _ := json.Marshal(resp)
+			slog.Info("MCP SSE sending message event", "session", sessionID, "id", resp.ID)
 			fmt.Fprintf(c.Writer, "event: message\ndata: %s\n\n", data)
 			c.Writer.Flush()
 		}

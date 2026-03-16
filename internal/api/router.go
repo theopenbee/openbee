@@ -34,7 +34,11 @@ func NewServer(
 	localChat *LocalChatHandler,
 ) *Server {
 	router := gin.Default()
-	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{"/api/local/sessions/.+/stream"})))
+	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
+		"/api/local/sessions/.+/stream",
+		"/mcp/sse",
+		"/mcp/messages",
+	})))
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
