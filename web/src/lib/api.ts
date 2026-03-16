@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution } from "./types"
+import type { Worker, WorkerExecution, LocalChatSession, ChatMessage } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 
@@ -54,6 +54,38 @@ export const api = {
     executions: async (sessionId: string) => {
       const execs = await fetchAPI<WorkerExecution[] | null>(`/sessions/${sessionId}/executions`)
       return Array.isArray(execs) ? execs : []
+    },
+  },
+  localChat: {
+    listSessions: async () => {
+      const sessions = await fetchAPI<LocalChatSession[] | null>("/local/sessions")
+      return Array.isArray(sessions) ? sessions : []
+    },
+    createSession: (name: string) =>
+      fetchAPI<LocalChatSession>("/local/sessions", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
+    deleteSession: (id: string) =>
+      fetchAPI(`/local/sessions/${id}`, { method: "DELETE" }),
+    sendMessage: (sessionId: string, content: string, mediaPath?: string) =>
+      fetchAPI(`/local/sessions/${sessionId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content, media_path: mediaPath }),
+      }),
+    getMessages: async (sessionId: string) => {
+      const msgs = await fetchAPI<ChatMessage[] | null>(`/local/sessions/${sessionId}/messages`)
+      return Array.isArray(msgs) ? msgs : []
+    },
+    uploadMedia: async (sessionId: string, file: File) => {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`${API_BASE}/local/sessions/${sessionId}/media`, {
+        method: "POST",
+        body: form,
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json() as Promise<{ path: string }>
     },
   },
 }

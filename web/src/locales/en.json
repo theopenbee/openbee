@@ -83,5 +83,16 @@
     "noLogs": "No logs recorded.",
     "input": "Input",
     "output": "Output"
+  },
+  "localChat": {
+    "title": "Local Chat",
+    "newChat": "New Chat",
+    "sessionNamePlaceholder": "Session name",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "uploadFile": "Upload file",
+    "processing": "Processing...",
+    "deleteSession": "Delete session",
+    "emptyState": "No sessions yet. Click \"New Chat\" to start."
   }
 }

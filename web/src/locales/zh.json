@@ -83,5 +83,16 @@
     "noLogs": "没有日志记录。",
     "input": "输入",
     "output": "输出"
+  },
+  "localChat": {
+    "title": "本地对话",
+    "newChat": "新建对话",
+    "sessionNamePlaceholder": "对话名称",
+    "inputPlaceholder": "输入消息...",
+    "send": "发送",
+    "uploadFile": "上传文件",
+    "processing": "处理中...",
+    "deleteSession": "删除对话",
+    "emptyState": "暂无对话，点击「新建对话」开始"
   }
 }

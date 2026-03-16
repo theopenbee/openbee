@@ -24,3 +24,16 @@ export interface WorkerExecution {
   started_at: number | null
   completed_at: number | null
 }
+
+export interface LocalChatSession {
+  id: string
+  name: string
+  created_at: number
+  updated_at: number
+}
+
+export interface ChatMessage {
+  role: "user" | "bee"
+  content: string
+  ts: number
+}
