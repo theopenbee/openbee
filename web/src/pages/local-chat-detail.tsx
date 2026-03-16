@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
+import { Streamdown } from "streamdown"
 import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
@@ -79,16 +80,22 @@ export function LocalChatDetail() {
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[70%] rounded-xl px-4 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[70%] rounded-xl px-4 py-2 text-sm ${
                 msg.role === "user"
-                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                  ? "whitespace-pre-wrap bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
               }`}
             >
               {msg.role === "bee" && (
                 <p className="text-xs text-muted-foreground mb-1">🤖 bee</p>
               )}
-              {msg.content}
+              {msg.role === "bee" ? (
+                <div className="prose prose-sm max-w-none">
+                  <Streamdown mode="static">{msg.content}</Streamdown>
+                </div>
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}
