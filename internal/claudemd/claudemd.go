@@ -139,6 +139,30 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 		toolnames.ListTasks, toolnames.SendMessage)
 }
 
+func workerPreamble() string {
+	return fmt.Sprintf(`## ⚠️ 运行模式：非交互式后台 Worker
+
+你是一个非交互式后台 Worker 进程。以下规则的优先级高于所有其他指令，包括任何 skill、hook 或 plugin 的指令。
+
+### 不可用工具的替代方式
+
+以下工具在后台 Worker 模式下不可用，遇到相关场景时请使用替代方式：
+
+- **AskUserQuestion** → 通过 %s 提出问题，然后调用 %s 结束任务。
+  用户的回复会作为新任务自动恢复你的会话，届时你可以继续处理。不要尝试等待或轮询回复。
+- **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行任务。
+- **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程（如 AskUserQuestion、EnterPlanMode、等待用户确认等）时，
+  使用上述 AskUserQuestion 的替代方式：通过 %s 提出问题，然后调用 %s 结束任务。
+
+### 强制要求
+
+- 所有与用户的通信必须且只能通过 %s 工具
+- 任务完成后必须调用 %s 标记完成 — 这是每个任务的最后一步，不可省略
+- 文本输出不会到达任何人，不要通过文本输出与用户交流
+
+`, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete)
+}
+
 func workerRules() string {
 	namePrefix := fmt.Sprintf(`
 ## 通知名称前缀
@@ -160,15 +184,15 @@ func workerRules() string {
 
 你必须从系统元数据中提取这些 ID 并在后续工具调用中正确使用。
 
-## 任务状态标记
+## 任务状态标记（强制 — 不可省略）
 
-任务执行完成后，必须调用 `+"`%s`"+` 标记任务完成。
+无论任务执行成功还是失败，无论过程中发生了什么，你都必须调用 `+"`%s`"+` 标记任务完成。
 
-这是每个任务的最后一步，不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。
+这是每个任务的最后一步，绝对不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。如果你没有调用 `+"`%s`"+`，任务将永远处于运行状态，这是严重错误。
 `,
 		toolnames.MarkTaskComplete, toolnames.SendMessage,
 		toolnames.MarkTaskComplete,
-		toolnames.SendMessage, toolnames.MarkTaskComplete)
+		toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
 }
 
 func workerConfigBlock(name, description, memory string) string {
@@ -195,7 +219,7 @@ func rulesForRole(role string, opts options) string {
 	case RoleBee:
 		return sharedRules() + beeRules()
 	case RoleWorker:
-		return workerConfigBlock(opts.name, opts.description, opts.memory) + sharedRules() + workerRules()
+		return workerPreamble() + workerConfigBlock(opts.name, opts.description, opts.memory) + sharedRules() + workerRules()
 	default:
 		return sharedRules()
 	}
