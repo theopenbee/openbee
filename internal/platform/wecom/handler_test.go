@@ -3,6 +3,7 @@ package wecom
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"sync"
 	"testing"
 
@@ -303,4 +304,129 @@ func TestProcessMessage_QuoteFile(t *testing.T) {
 	require.Len(t, dispatched, 1)
 	assert.Contains(t, dispatched[0].Content, "see attached")
 	assert.Contains(t, dispatched[0].Content, "document")
+}
+
+// mockSendReply records all SendReply calls and returns a configurable response.
+type mockSendReply struct {
+	mu       sync.Mutex
+	calls    []sentReply
+	response map[string]WsFrame // cmd → response frame to return
+}
+
+func (m *mockSendReply) fn(reqID, cmd string, body any) (WsFrame, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, sentReply{reqID: reqID, cmd: cmd, body: body})
+	if resp, ok := m.response[cmd]; ok {
+		return resp, nil
+	}
+	return WsFrame{}, nil
+}
+
+func buildUploadInitResponse(uploadID string) WsFrame {
+	body, _ := json.Marshal(map[string]string{"upload_id": uploadID})
+	return WsFrame{Body: body}
+}
+
+func buildUploadFinishResponse(mediaID string) WsFrame {
+	body, _ := json.Marshal(map[string]string{"media_id": mediaID})
+	return WsFrame{Body: body}
+}
+
+func TestSend_TextReply(t *testing.T) {
+	mock := &mockSendReply{}
+	var ps sync.Map
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+
+	// Pre-store stream ID
+	ps.Store("msg-100", "stream-abc")
+
+	raw := buildRawFrame(t, "req-100", messageBody{
+		MsgID: "msg-100", ChatType: "single", From: messageFrom{UserID: "u1"},
+	})
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		Content: "hello back",
+		ReplyTo: platform.InboundMessage{Raw: raw},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, mock.calls, 1)
+	assert.Equal(t, WsCmdResponse, mock.calls[0].cmd)
+	assert.Equal(t, "req-100", mock.calls[0].reqID)
+
+	body := mock.calls[0].body.(streamBody)
+	assert.True(t, body.Stream.Finish)
+	assert.Equal(t, "hello back", body.Stream.Content)
+	assert.Equal(t, "stream-abc", body.Stream.ID)
+}
+
+func TestSend_MediaUpload(t *testing.T) {
+	// Create a small temp file
+	tmpFile := t.TempDir() + "/test.png"
+	require.NoError(t, os.WriteFile(tmpFile, make([]byte, 100), 0600))
+
+	mock := &mockSendReply{
+		response: map[string]WsFrame{
+			WsCmdUploadMediaInit:   buildUploadInitResponse("upload-xyz"),
+			WsCmdUploadMediaFinish: buildUploadFinishResponse("media-xyz"),
+		},
+	}
+	var ps sync.Map
+	ps.Store("msg-200", "stream-200")
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+
+	raw := buildRawFrame(t, "req-200", messageBody{
+		MsgID: "msg-200", ChatType: "single", From: messageFrom{UserID: "u1"},
+	})
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		MediaPath: tmpFile,
+		ReplyTo:   platform.InboundMessage{Raw: raw},
+	})
+	require.NoError(t, err)
+
+	cmds := make([]string, len(mock.calls))
+	for i, c := range mock.calls {
+		cmds[i] = c.cmd
+	}
+	// Expected: init, chunk(s), finish, send_msg, respond_msg (thinking finish)
+	assert.Contains(t, cmds, WsCmdUploadMediaInit)
+	assert.Contains(t, cmds, WsCmdUploadMediaChunk)
+	assert.Contains(t, cmds, WsCmdUploadMediaFinish)
+	assert.Contains(t, cmds, WsCmdSendMsg)
+	assert.Contains(t, cmds, WsCmdResponse)
+}
+
+func TestSend_FileTooLarge(t *testing.T) {
+	var ps sync.Map
+	ps.Store("msg-300", "stream-300")
+	mock := &mockSendReply{}
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+
+	// Create exactly 20MB+1 byte file
+	tmpFile := t.TempDir() + "/big.bin"
+	data := make([]byte, 20*1024*1024+1)
+	require.NoError(t, os.WriteFile(tmpFile, data, 0600))
+
+	raw := buildRawFrame(t, "req-300", messageBody{
+		MsgID: "msg-300", ChatType: "single", From: messageFrom{UserID: "u1"},
+	})
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		MediaPath: tmpFile,
+		ReplyTo:   platform.InboundMessage{Raw: raw},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "too large")
+}
+
+// buildRawFrame creates the Raw string for OutboundMessage.ReplyTo.
+func buildRawFrame(t *testing.T, reqID string, body messageBody) string {
+	t.Helper()
+	bodyJSON, _ := json.Marshal(body)
+	frame := WsFrame{
+		Cmd:     WsCmdCallback,
+		Headers: WsFrameHeaders{ReqID: reqID},
+		Body:    bodyJSON,
+	}
+	raw, _ := json.Marshal(frame)
+	return string(raw)
 }

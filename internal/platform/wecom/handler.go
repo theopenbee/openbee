@@ -2,11 +2,14 @@ package wecom
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,6 +20,16 @@ import (
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform"
+)
+
+// ─── Media size constants ──────────────────────────────────────────────────
+
+const (
+	wecomChunkSize = 512 * 1024       // 512 KB per chunk
+	wecomMaxImage  = 10 * 1024 * 1024 // 10 MB
+	wecomMaxVideo  = 10 * 1024 * 1024
+	wecomMaxVoice  = 2 * 1024 * 1024  // 2 MB
+	wecomMaxFile   = 20 * 1024 * 1024 // 20 MB
 )
 
 // ─── Message body types ────────────────────────────────────────────────────
@@ -160,6 +173,7 @@ func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platf
 		pendingStreams: &p.pendingStreams,
 		wsConn:        wsConn,
 		sendReplyFn:   wsConn.SendReply,
+		mediaSvc:      mediaSvc,
 	}
 	return p
 }
@@ -434,6 +448,7 @@ type WeComSender struct {
 	pendingStreams *sync.Map
 	wsConn        *WsConn
 	sendReplyFn   sendReplyFn
+	mediaSvc      *media.Service
 }
 
 // Send delivers a reply to WeCom. Text replies use aibot_respond_msg streaming;
@@ -478,11 +493,138 @@ func (s *WeComSender) sendText(_ context.Context, content, reqID, streamID strin
 
 // sendMedia uploads a media file and sends it via aibot_send_msg.
 func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, streamID string) error {
-	// TODO: implemented in Task 5
+	data, err := os.ReadFile(mediaPath)
+	if err != nil {
+		return fmt.Errorf("wecom: read media file: %w", err)
+	}
+
+	svc := s.mediaSvc
+	if svc == nil {
+		svc = media.NewService()
+	}
+	mime := svc.DetectMIME(data, filepath.Base(mediaPath))
+	wecomType, err := resolveWeComMediaType(mime, len(data))
+	if err != nil {
+		return err
+	}
+
+	mediaID, err := s.uploadMedia(ctx, data, wecomType, filepath.Base(mediaPath))
+	if err != nil {
+		return err
+	}
+
+	// Build send body
+	sendBody := sendMsgBody{ChatID: chatID, MsgType: wecomType}
+	mc := &mediaIDContent{MediaID: mediaID}
+	switch wecomType {
+	case "image":
+		sendBody.Image = mc
+	case "voice":
+		sendBody.Voice = mc
+	case "video":
+		sendBody.Video = mc
+	default:
+		sendBody.File = mc
+	}
+	if _, err := s.sendReplyFn(generateReqID(WsCmdSendMsg), WsCmdSendMsg, sendBody); err != nil {
+		return fmt.Errorf("wecom: send media message: %w", err)
+	}
+
+	return s.finishStream(reqID, streamID, "📎 文件已发送，请查收。")
+}
+
+// uploadMedia performs the 3-step WeCom media upload: init → chunks → finish.
+func (s *WeComSender) uploadMedia(ctx context.Context, data []byte, mediaType, filename string) (string, error) {
 	_ = ctx
-	slog.Warn("wecom: sendMedia not yet implemented", "component", "wecom", "path", mediaPath)
-	// Finish thinking stream with a placeholder so the user sees something.
-	return s.finishStream(reqID, streamID, "⚠️ 媒体发送暂不支持。")
+	totalSize := len(data)
+	totalChunks := (totalSize + wecomChunkSize - 1) / wecomChunkSize
+	md5sum := fmt.Sprintf("%x", md5.Sum(data))
+
+	// Step 1: init
+	initResp, err := s.sendReplyFn(
+		generateReqID(WsCmdUploadMediaInit),
+		WsCmdUploadMediaInit,
+		uploadInitBody{
+			Type:        mediaType,
+			Filename:    filepath.Base(filename),
+			TotalSize:   totalSize,
+			TotalChunks: totalChunks,
+			MD5:         md5sum,
+		},
+	)
+	if err != nil {
+		return "", fmt.Errorf("wecom: upload init: %w", err)
+	}
+	var initResult struct {
+		UploadID string `json:"upload_id"`
+	}
+	if err := json.Unmarshal(initResp.Body, &initResult); err != nil || initResult.UploadID == "" {
+		return "", fmt.Errorf("wecom: upload init: no upload_id in response")
+	}
+	uploadID := initResult.UploadID
+
+	// Step 2: sequential chunks
+	for i := 0; i < totalChunks; i++ {
+		start := i * wecomChunkSize
+		end := start + wecomChunkSize
+		if end > totalSize {
+			end = totalSize
+		}
+		b64 := base64.StdEncoding.EncodeToString(data[start:end])
+		if _, err := s.sendReplyFn(
+			generateReqID(WsCmdUploadMediaChunk),
+			WsCmdUploadMediaChunk,
+			uploadChunkBody{UploadID: uploadID, ChunkIndex: i, Base64Data: b64},
+		); err != nil {
+			return "", fmt.Errorf("wecom: upload chunk %d: %w", i, err)
+		}
+	}
+
+	// Step 3: finish
+	finishResp, err := s.sendReplyFn(
+		generateReqID(WsCmdUploadMediaFinish),
+		WsCmdUploadMediaFinish,
+		uploadFinishBody{UploadID: uploadID},
+	)
+	if err != nil {
+		return "", fmt.Errorf("wecom: upload finish: %w", err)
+	}
+	var finishResult struct {
+		MediaID string `json:"media_id"`
+	}
+	if err := json.Unmarshal(finishResp.Body, &finishResult); err != nil || finishResult.MediaID == "" {
+		return "", fmt.Errorf("wecom: upload finish: no media_id in response")
+	}
+	return finishResult.MediaID, nil
+}
+
+// resolveWeComMediaType maps a MIME type and file size to a WeCom media type.
+// Large files are downgraded to "file" rather than rejected (except files > 20 MB).
+func resolveWeComMediaType(mime string, size int) (string, error) {
+	switch {
+	case strings.HasPrefix(mime, "image/"):
+		if size > wecomMaxImage {
+			return "file", nil
+		}
+		return "image", nil
+	case strings.HasPrefix(mime, "video/"):
+		if size > wecomMaxVideo {
+			return "file", nil
+		}
+		return "video", nil
+	case mime == "audio/amr":
+		if size > wecomMaxVoice {
+			return "file", nil
+		}
+		return "voice", nil
+	case strings.HasPrefix(mime, "audio/"):
+		return "file", nil
+	default:
+		if size > wecomMaxFile {
+			return "", fmt.Errorf("wecom: file too large: %d bytes (max %d)", size, wecomMaxFile)
+		}
+		return "file", nil
+	}
 }
 
 // finishStream closes the thinking stream with the given text.
@@ -494,9 +636,6 @@ func (s *WeComSender) finishStream(reqID, streamID, text string) error {
 	_, err := s.sendReplyFn(reqID, WsCmdResponse, body)
 	return err
 }
-
-// suppress unused variable warning for chatID in sendMedia
-var _ = (*WeComSender).sendMedia
 
 // ─── Compile-time interface assertions ─────────────────────────────────────
 
