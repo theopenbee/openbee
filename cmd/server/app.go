@@ -22,6 +22,7 @@ import (
 	"github.com/robobee/core/internal/platform/dingtalk"
 	"github.com/robobee/core/internal/platform/feishu"
 	"github.com/robobee/core/internal/platform/local"
+	"github.com/robobee/core/internal/platform/wecom"
 	"github.com/robobee/core/internal/store"
 	"github.com/robobee/core/internal/task_scheduler"
 	"github.com/robobee/core/internal/worker"
@@ -94,7 +95,7 @@ func buildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform["local"] = localSender
 
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
-	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Media)
+	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Media)
 
 	// Populate sender map before goroutines start
 	for _, p := range platforms {
@@ -188,7 +189,7 @@ func buildPipeline(
 	return ingest, disp
 }
 
-func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, mc config.MediaConfig) []platform.Platform {
+func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, mc config.MediaConfig) []platform.Platform {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
@@ -196,6 +197,9 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, mc config.
 	}
 	if dc.Enabled {
 		result = append(result, dingtalk.NewPlatform(dc, mc, mediaSvc))
+	}
+	if wc.Enabled {
+		result = append(result, wecom.NewPlatform(wc, mediaSvc))
 	}
 	return result
 }
