@@ -28,6 +28,7 @@ type ExecutionQuerier interface {
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
 	SetExecution(ctx context.Context, taskID, executionID, status string) error
+	FailTask(ctx context.Context, taskID string) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
@@ -142,7 +143,7 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
-// can call mark_task_success/failed and send_message via MCP.
+// can call mark_task_success and send_message via MCP.
 func buildInstruction(task DispatchTask) string {
 	if task.TaskID == "" {
 		return task.Instruction
@@ -222,7 +223,12 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID,
 			}
 			return
 		case model.ExecStatusFailed:
-			// Terminal task status is set by the worker via mark_task_failed.
+			// Dispatcher sets terminal task status on abnormal worker exit.
+			if taskID != "" {
+				if err := d.taskStore.FailTask(ctx, taskID); err != nil {
+					slog.Error("fail task", "component", "taskdispatcher", "taskID", taskID, "error", err)
+				}
+			}
 			return
 		}
 		select {
