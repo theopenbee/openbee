@@ -23,7 +23,7 @@ var migrations = []migration{
 		work_dir    TEXT NOT NULL,
 		status      TEXT NOT NULL DEFAULT 'idle',
 		description TEXT NOT NULL DEFAULT '',
-		prompt      TEXT NOT NULL DEFAULT '',
+		memory      TEXT NOT NULL DEFAULT '',
 		created_at  INTEGER NOT NULL,
 		updated_at  INTEGER NOT NULL
 	)`,
@@ -76,7 +76,6 @@ var migrations = []migration{
 		scheduled_at      INTEGER,
 		cron_expr         TEXT NOT NULL DEFAULT '',
 		next_run_at       INTEGER,
-		reply_session_key TEXT NOT NULL DEFAULT '',
 		execution_id      TEXT NOT NULL DEFAULT '',
 		created_at        INTEGER NOT NULL,
 		updated_at        INTEGER NOT NULL
@@ -127,16 +126,6 @@ var migrations = []migration{
 		updated_at   INTEGER NOT NULL,
 		PRIMARY KEY (session_key, agent_id)
 	)`,
-	},
-	{
-		version: 13,
-		name:    "20260314_drop_tasks_reply_session_key",
-		sql:     `ALTER TABLE tasks DROP COLUMN reply_session_key`,
-	},
-	{
-		version: 14,
-		name:    "20260314_rename_workers_prompt_to_memory",
-		sql:     `ALTER TABLE workers RENAME COLUMN prompt TO memory`,
 	},
 }
 
