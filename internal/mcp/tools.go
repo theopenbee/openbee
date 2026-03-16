@@ -139,18 +139,6 @@ func toolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.MarkTaskFailed,
-			Description: "Mark a task as failed",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"task_id"},
-				"properties": map[string]any{
-					"task_id": map[string]string{"type": "string", "description": "Task ID to mark as failed"},
-					"reason":  map[string]string{"type": "string", "description": "Optional failure reason"},
-				},
-			},
-		},
-		{
 			Name:        toolnames.SendMessage,
 			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target. Supports sending media files (images, documents, audio, video) by providing a local file path.",
 			InputSchema: map[string]any{
@@ -203,8 +191,6 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolCancelTask(args)
 	case toolnames.MarkTaskSuccess:
 		return s.toolMarkTaskSuccess(args)
-	case toolnames.MarkTaskFailed:
-		return s.toolMarkTaskFailed(args)
 	case toolnames.SendMessage:
 		return s.toolSendMessage(args)
 	case toolnames.ClearSession:
@@ -481,38 +467,6 @@ func (s *MCPServer) toolMarkTaskSuccess(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("mark task success: %w", err)
 	}
 	return map[string]string{"task_id": params.TaskID, "status": "completed"}, nil
-}
-
-func (s *MCPServer) toolMarkTaskFailed(args json.RawMessage) (any, error) {
-	var params struct {
-		TaskID string `json:"task_id"`
-		Reason string `json:"reason"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.TaskID == "" {
-		return nil, fmt.Errorf("task_id is required")
-	}
-	ctx := context.Background()
-	task, err := s.taskStore.GetByID(ctx, params.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
-		reset, err := s.taskStore.CompleteScheduledTask(ctx, params.TaskID)
-		if err != nil {
-			return nil, fmt.Errorf("reset scheduled task: %w", err)
-		}
-		if !reset {
-			return map[string]string{"task_id": params.TaskID, "status": "cancelled", "reason": params.Reason}, nil
-		}
-		return map[string]string{"task_id": params.TaskID, "status": "pending", "reason": params.Reason}, nil
-	}
-	if err := s.taskStore.UpdateStatus(ctx, params.TaskID, model.TaskStatusFailed); err != nil {
-		return nil, fmt.Errorf("mark task failed: %w", err)
-	}
-	return map[string]string{"task_id": params.TaskID, "status": "failed", "reason": params.Reason}, nil
 }
 
 func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {

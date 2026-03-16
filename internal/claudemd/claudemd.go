@@ -148,15 +148,15 @@ func workerRules() string {
 
 ## 任务状态标记
 
-任务执行结束后，你必须根据执行结果标记任务状态：
+任务执行成功时，你必须调用 `+"`%s`"+` 标记任务完成：
 
 - **成功** — 调用 `+"`%s`"+` 并附上结果摘要
-- **失败** — 调用 `+"`%s`"+` 并附上失败原因
 
-这是每个任务的最后一步，不可遗漏。先调用 `+"`%s`"+` 通知结果，再标记状态。
+先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记任务成功。
+
+任务失败由系统自动处理，无需手动调用失败标记工具。
 `,
-		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage,
-		toolnames.MarkTaskSuccess, toolnames.MarkTaskFailed, toolnames.SendMessage)
+		toolnames.MarkTaskSuccess, toolnames.MarkTaskSuccess, toolnames.SendMessage, toolnames.MarkTaskSuccess)
 }
 
 func workerConfigBlock(name, description, memory string) string {

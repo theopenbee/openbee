@@ -262,75 +262,6 @@ func TestCallTool_MarkTaskSuccess_MissingTaskID(t *testing.T) {
 	}
 }
 
-// --- mark_task_failed ---
-
-func TestCallTool_MarkTaskFailed(t *testing.T) {
-	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
-	ctx := context.Background()
-	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-fake2", "feishu:c1:u1", "feishu", "hi", `{}`, "", 0) //nolint
-
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
-	w := workerResult.(model.Worker)
-	taskResult, err := s.CallTool("create_task", mustMarshal(t, map[string]any{
-		"message_id":  "msg-fake2",
-		"worker_id":   w.ID,
-		"instruction": "do something",
-		"type":        "immediate",
-	}))
-	if err != nil {
-		t.Fatalf("create_task: %v", err)
-	}
-	taskMap := taskResult.(map[string]string)
-	taskID := taskMap["task_id"]
-
-	result, err := s.CallTool("mark_task_failed", mustMarshal(t, map[string]any{
-		"task_id": taskID,
-		"reason":  "network timeout",
-	}))
-	if err != nil {
-		t.Fatalf("mark_task_failed: %v", err)
-	}
-	m := result.(map[string]string)
-	if m["status"] != "failed" {
-		t.Errorf("expected status=failed, got %q", m["status"])
-	}
-	if m["reason"] != "network timeout" {
-		t.Errorf("expected reason=network timeout, got %q", m["reason"])
-	}
-}
-
-func TestCallTool_MarkTaskFailed_NoReason(t *testing.T) {
-	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
-	ctx := context.Background()
-	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-fake3", "feishu:c1:u1", "feishu", "hi", `{}`, "", 0) //nolint
-
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W3"}))
-	w := workerResult.(model.Worker)
-	taskResult, err := s.CallTool("create_task", mustMarshal(t, map[string]any{
-		"message_id":  "msg-fake3",
-		"worker_id":   w.ID,
-		"instruction": "x",
-		"type":        "immediate",
-	}))
-	if err != nil {
-		t.Fatalf("create_task (no reason setup): %v", err)
-	}
-	taskMap := taskResult.(map[string]string)
-
-	result, err := s.CallTool("mark_task_failed", mustMarshal(t, map[string]any{
-		"task_id": taskMap["task_id"],
-	}))
-	if err != nil {
-		t.Fatalf("mark_task_failed (no reason): %v", err)
-	}
-	m := result.(map[string]string)
-	if m["status"] != "failed" {
-		t.Errorf("expected status=failed, got %q", m["status"])
-	}
-}
-
 // --- send_message ---
 
 func TestCallTool_SendMessage_CallsSender(t *testing.T) {
@@ -414,8 +345,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 12 {
-		t.Errorf("expected 12 tool schemas (8 existing + 3 new), got %d", len(schemas))
+	if len(schemas) != 11 {
+		t.Errorf("expected 11 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -425,7 +356,7 @@ func TestToolSchemas_IncludesNewTools(t *testing.T) {
 	for _, s := range schemas {
 		names[s.Name] = true
 	}
-	for _, want := range []string{"mark_task_success", "mark_task_failed", "send_message"} {
+	for _, want := range []string{"mark_task_success", "send_message"} {
 		if !names[want] {
 			t.Errorf("missing tool schema: %s", want)
 		}

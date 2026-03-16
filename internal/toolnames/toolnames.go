@@ -11,7 +11,6 @@ const (
 	ListTasks       = "list_tasks"
 	CancelTask      = "cancel_task"
 	MarkTaskSuccess = "mark_task_success"
-	MarkTaskFailed  = "mark_task_failed"
 	SendMessage     = "send_message"
 	ClearSession    = "clear_session"
 )
