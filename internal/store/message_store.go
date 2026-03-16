@@ -260,3 +260,41 @@ func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, e
 	}
 	return m, nil
 }
+
+// InboundMessage is a non-merged platform_messages row for display in chat history.
+type InboundMessage struct {
+	ID         string
+	Content    string
+	ReceivedAt int64
+}
+
+// ListBySessionKey returns all non-merged messages for a session, ordered by received_at ASC.
+func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string) ([]InboundMessage, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, content, received_at FROM platform_messages
+         WHERE session_key = ? AND status != 'merged'
+         ORDER BY received_at ASC`,
+		sessionKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	msgs := []InboundMessage{}
+	for rows.Next() {
+		var m InboundMessage
+		if err := rows.Scan(&m.ID, &m.Content, &m.ReceivedAt); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+// DeleteBySessionKey removes all platform_messages for the given session key.
+func (s *MessageStore) DeleteBySessionKey(ctx context.Context, sessionKey string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM platform_messages WHERE session_key = ?`, sessionKey,
+	)
+	return err
+}
