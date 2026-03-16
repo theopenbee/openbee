@@ -204,7 +204,7 @@ func TestProcessMessage_Image(t *testing.T) {
 		ChatType: "single",
 		From:     messageFrom{UserID: "u1"},
 		MsgType:  "image",
-		Image:    &mediaContent{URL: "https://example.com/img.jpg", AesKey: "key1"},
+		Image:    &encryptedMedia{URL: "https://example.com/img.jpg", AesKey: "key1"},
 	})
 
 	var dispatched []platform.InboundMessage
@@ -224,7 +224,7 @@ func TestProcessMessage_File(t *testing.T) {
 		ChatType: "single",
 		From:     messageFrom{UserID: "u1"},
 		MsgType:  "file",
-		File:     &fileContent{URL: "https://example.com/doc.pdf", AesKey: "key2"},
+		File:     &encryptedMedia{URL: "https://example.com/doc.pdf", AesKey: "key2"},
 	})
 
 	var dispatched []platform.InboundMessage
@@ -245,7 +245,7 @@ func TestProcessMessage_Mixed(t *testing.T) {
 		MsgType:  "mixed",
 		Mixed: &mixedContent{MsgItem: []mixedItem{
 			{MsgType: "text", Text: &textContent{Content: "look at this:"}},
-			{MsgType: "image", Image: &mediaContent{URL: "https://example.com/x.png", AesKey: "key3"}},
+			{MsgType: "image", Image: &encryptedMedia{URL: "https://example.com/x.png", AesKey: "key3"}},
 		}},
 	})
 
@@ -294,7 +294,7 @@ func TestProcessMessage_QuoteFile(t *testing.T) {
 		Text:     &textContent{Content: "see attached"},
 		Quote: &quoteContent{
 			MsgType: "file",
-			File:    &fileContent{URL: "https://example.com/q.pdf", AesKey: "key4"},
+			File:    &encryptedMedia{URL: "https://example.com/q.pdf", AesKey: "key4"},
 		},
 	})
 

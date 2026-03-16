@@ -401,6 +401,11 @@ func (c *WsConn) SendReply(reqID, cmd string, body any) (WsFrame, error) {
 // processQueue drains the queue for reqID, sending one frame at a time and
 // waiting for ack before proceeding.
 func (c *WsConn) processQueue(reqID string) {
+	timer := time.NewTimer(c.cfg.ReplyAckTimeout)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	defer timer.Stop()
 	for {
 		c.queueMu.Lock()
 		queue := c.queues[reqID]
@@ -439,10 +444,14 @@ func (c *WsConn) processQueue(reqID string) {
 		c.queueMu.Unlock()
 
 		// Wait for ack or timeout.
+		timer.Reset(c.cfg.ReplyAckTimeout)
 		select {
 		case <-entry.done:
 			// ack arrived via releaseReplyAck
-		case <-time.After(c.cfg.ReplyAckTimeout):
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case <-timer.C:
 			c.queueMu.Lock()
 			delete(c.pending, reqID)
 			c.queueMu.Unlock()

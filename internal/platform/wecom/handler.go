@@ -25,12 +25,25 @@ import (
 // ─── Media size constants ──────────────────────────────────────────────────
 
 const (
-	wecomChunkSize    = 512 * 1024        // 512 KB per chunk
-	wecomMaxImage     = 10 * 1024 * 1024  // 10 MB
-	wecomMaxVideo     = 10 * 1024 * 1024
-	wecomMaxVoice     = 2 * 1024 * 1024   // 2 MB
-	wecomMaxFile      = 20 * 1024 * 1024  // 20 MB
-	wecomMaxDownload  = 100 * 1024 * 1024 // 100 MB inbound download cap (matches Feishu/DingTalk)
+	wecomChunkSize   = 512 * 1024        // 512 KB per chunk
+	wecomMaxImage    = 10 * 1024 * 1024  // 10 MB
+	wecomMaxVideo    = 10 * 1024 * 1024
+	wecomMaxVoice    = 2 * 1024 * 1024   // 2 MB
+	wecomMaxFile     = 20 * 1024 * 1024  // 20 MB
+	wecomMaxDownload = 100 * 1024 * 1024 // 100 MB inbound download cap (matches Feishu/DingTalk)
+)
+
+// ─── Message type / chat type constants ───────────────────────────────────
+
+const (
+	msgTypeText   = "text"
+	msgTypeVoice  = "voice"
+	msgTypeImage  = "image"
+	msgTypeFile   = "file"
+	msgTypeMixed  = "mixed"
+	msgTypeStream = "stream"
+	msgTypeVideo  = "video"
+	chatTypeGroup = "group"
 )
 
 // ─── Message body types ────────────────────────────────────────────────────
@@ -46,8 +59,8 @@ type messageBody struct {
 	MsgType     string        `json:"msgtype"`
 	Text        *textContent  `json:"text"`
 	Voice       *voiceContent `json:"voice"`
-	Image       *mediaContent `json:"image"`
-	File        *fileContent  `json:"file"`
+	Image       *encryptedMedia `json:"image"`
+	File        *encryptedMedia `json:"file"`
 	Mixed       *mixedContent `json:"mixed"`
 	Quote       *quoteContent `json:"quote"`
 }
@@ -64,12 +77,7 @@ type voiceContent struct {
 	Content string `json:"content"`
 }
 
-type mediaContent struct {
-	URL    string `json:"url"`
-	AesKey string `json:"aeskey"`
-}
-
-type fileContent struct {
+type encryptedMedia struct {
 	URL    string `json:"url"`
 	AesKey string `json:"aeskey"`
 }
@@ -81,15 +89,15 @@ type mixedContent struct {
 type mixedItem struct {
 	MsgType string        `json:"msgtype"`
 	Text    *textContent  `json:"text"`
-	Image   *mediaContent `json:"image"`
+	Image   *encryptedMedia `json:"image"`
 }
 
 type quoteContent struct {
 	MsgType string        `json:"msgtype"`
 	Text    *textContent  `json:"text"`
 	Voice   *voiceContent `json:"voice"`
-	Image   *mediaContent `json:"image"`
-	File    *fileContent  `json:"file"`
+	Image   *encryptedMedia `json:"image"`
+	File    *encryptedMedia `json:"file"`
 	Mixed   *mixedContent `json:"mixed"`
 }
 
@@ -224,7 +232,7 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 	}
 
 	chatID := body.From.UserID
-	if body.ChatType == "group" {
+	if body.ChatType == chatTypeGroup {
 		chatID = body.ChatID
 	}
 	senderID := body.From.UserID
@@ -237,7 +245,7 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 	// Send thinking indicator.
 	streamID := generateReqID("stream")
 	thinking := streamBody{
-		MsgType: "stream",
+		MsgType: msgTypeStream,
 		Stream:  streamItem{ID: streamID, Finish: false, Content: "<think></think>"},
 	}
 	if _, err := r.sendReplyFn(frame.Headers.ReqID, WsCmdResponse, thinking); err != nil {
@@ -266,33 +274,33 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 // rawText is plain text only (no media placeholders); content may include placeholders.
 func (r *WeComReceiver) extractContent(ctx context.Context, body *messageBody) (rawText, content string) {
 	switch body.MsgType {
-	case "text":
+	case msgTypeText:
 		if body.Text == nil {
 			return "", ""
 		}
 		rawText = body.Text.Content
 		content = rawText
 
-	case "voice":
+	case msgTypeVoice:
 		if body.Voice == nil {
 			return "", ""
 		}
 		rawText = body.Voice.Content
 		content = rawText
 
-	case "image":
+	case msgTypeImage:
 		if body.Image == nil {
 			return "", r.mediaSvc.BuildPlaceholder("image", "", "")
 		}
 		content = r.download(ctx, body.Image.URL, body.Image.AesKey, "image", "")
 
-	case "file":
+	case msgTypeFile:
 		if body.File == nil {
 			return "", r.mediaSvc.BuildPlaceholder("document", "", "")
 		}
 		content = r.download(ctx, body.File.URL, body.File.AesKey, "document", "")
 
-	case "mixed":
+	case msgTypeMixed:
 		if body.Mixed == nil {
 			return "", ""
 		}
@@ -331,11 +339,11 @@ func (r *WeComReceiver) extractMixedContent(ctx context.Context, items []mixedIt
 	for i, item := range items {
 		i, item := i, item
 		switch item.MsgType {
-		case "text":
+		case msgTypeText:
 			if item.Text != nil {
 				results[i].text = item.Text.Content
 			}
-		case "image":
+		case msgTypeImage:
 			if item.Image != nil {
 				url, key := item.Image.URL, item.Image.AesKey
 				g.Go(func() error {
@@ -366,23 +374,23 @@ func (r *WeComReceiver) extractQuoteContent(ctx context.Context, q *quoteContent
 		return ""
 	}
 	switch q.MsgType {
-	case "text":
+	case msgTypeText:
 		if q.Text != nil {
 			return q.Text.Content
 		}
-	case "voice":
+	case msgTypeVoice:
 		if q.Voice != nil {
 			return q.Voice.Content
 		}
-	case "image":
+	case msgTypeImage:
 		if q.Image != nil {
 			return r.download(ctx, q.Image.URL, q.Image.AesKey, "image", "")
 		}
-	case "file":
+	case msgTypeFile:
 		if q.File != nil {
 			return r.download(ctx, q.File.URL, q.File.AesKey, "document", "")
 		}
-	case "mixed":
+	case msgTypeMixed:
 		if q.Mixed != nil {
 			_, content := r.extractMixedContent(ctx, q.Mixed.MsgItem)
 			return content
@@ -475,7 +483,7 @@ func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 
 	reqID := frame.Headers.ReqID
 	chatID := body.From.UserID
-	if body.ChatType == "group" {
+	if body.ChatType == chatTypeGroup {
 		chatID = body.ChatID
 	}
 	msgID := body.MsgID
@@ -494,7 +502,7 @@ func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 // sendText sends a streaming text reply.
 func (s *WeComSender) sendText(_ context.Context, content, reqID, streamID string) error {
 	body := streamBody{
-		MsgType: "stream",
+		MsgType: msgTypeStream,
 		Stream:  streamItem{ID: streamID, Finish: true, Content: content},
 	}
 	_, err := s.sendReplyFn(reqID, WsCmdResponse, body)
@@ -524,11 +532,11 @@ func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, s
 	sendBody := sendMsgBody{ChatID: chatID, MsgType: wecomType}
 	mc := &mediaIDContent{MediaID: mediaID}
 	switch wecomType {
-	case "image":
+	case msgTypeImage:
 		sendBody.Image = mc
-	case "voice":
+	case msgTypeVoice:
 		sendBody.Voice = mc
-	case "video":
+	case msgTypeVideo:
 		sendBody.Video = mc
 	default:
 		sendBody.File = mc
@@ -613,33 +621,33 @@ func resolveWeComMediaType(mime string, size int) (string, error) {
 	switch {
 	case strings.HasPrefix(mime, "image/"):
 		if size > wecomMaxImage {
-			return "file", nil
+			return msgTypeFile, nil
 		}
-		return "image", nil
+		return msgTypeImage, nil
 	case strings.HasPrefix(mime, "video/"):
 		if size > wecomMaxVideo {
-			return "file", nil
+			return msgTypeFile, nil
 		}
-		return "video", nil
+		return msgTypeVideo, nil
 	case mime == "audio/amr":
 		if size > wecomMaxVoice {
-			return "file", nil
+			return msgTypeFile, nil
 		}
-		return "voice", nil
+		return msgTypeVoice, nil
 	case strings.HasPrefix(mime, "audio/"):
-		return "file", nil
+		return msgTypeFile, nil
 	default:
 		if size > wecomMaxFile {
 			return "", fmt.Errorf("wecom: file too large: %d bytes (max %d)", size, wecomMaxFile)
 		}
-		return "file", nil
+		return msgTypeFile, nil
 	}
 }
 
 // finishStream closes the thinking stream with the given text.
 func (s *WeComSender) finishStream(reqID, streamID, text string) error {
 	body := streamBody{
-		MsgType: "stream",
+		MsgType: msgTypeStream,
 		Stream:  streamItem{ID: streamID, Finish: true, Content: text},
 	}
 	_, err := s.sendReplyFn(reqID, WsCmdResponse, body)
