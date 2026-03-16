@@ -10,7 +10,7 @@ const (
 	CreateTask      = "create_task"
 	ListTasks       = "list_tasks"
 	CancelTask      = "cancel_task"
-	MarkTaskSuccess = "mark_task_success"
+	MarkTaskComplete = "mark_task_complete"
 	SendMessage     = "send_message"
 	ClearSession    = "clear_session"
 )

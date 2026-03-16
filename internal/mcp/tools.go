@@ -128,7 +128,7 @@ func toolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.MarkTaskSuccess,
+			Name:        toolnames.MarkTaskComplete,
 			Description: "Mark a task as successfully completed",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -189,8 +189,8 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolListTasks(args)
 	case toolnames.CancelTask:
 		return s.toolCancelTask(args)
-	case toolnames.MarkTaskSuccess:
-		return s.toolMarkTaskSuccess(args)
+	case toolnames.MarkTaskComplete:
+		return s.toolMarkTaskComplete(args)
 	case toolnames.SendMessage:
 		return s.toolSendMessage(args)
 	case toolnames.ClearSession:
@@ -438,7 +438,7 @@ func (s *MCPServer) toolCancelTask(args json.RawMessage) (any, error) {
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
 }
 
-func (s *MCPServer) toolMarkTaskSuccess(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolMarkTaskComplete(args json.RawMessage) (any, error) {
 	var params struct {
 		TaskID string `json:"task_id"`
 	}

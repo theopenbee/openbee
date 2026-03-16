@@ -216,9 +216,9 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	return mcp.NewServer(ws, mgr, ts, ms, senders, nil, nil), db
 }
 
-// --- mark_task_success ---
+// --- mark_task_complete ---
 
-func TestCallTool_MarkTaskSuccess(t *testing.T) {
+func TestCallTool_MarkTaskComplete(t *testing.T) {
 	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
 	ctx := context.Background()
 	ms := store.NewMessageStore(db)
@@ -239,11 +239,11 @@ func TestCallTool_MarkTaskSuccess(t *testing.T) {
 	taskMap := taskResult.(map[string]string)
 	taskID := taskMap["task_id"]
 
-	result, err := s.CallTool("mark_task_success", mustMarshal(t, map[string]any{
+	result, err := s.CallTool("mark_task_complete", mustMarshal(t, map[string]any{
 		"task_id": taskID,
 	}))
 	if err != nil {
-		t.Fatalf("mark_task_success: %v", err)
+		t.Fatalf("mark_task_complete: %v", err)
 	}
 	m := result.(map[string]string)
 	if m["status"] != "completed" {
@@ -254,9 +254,9 @@ func TestCallTool_MarkTaskSuccess(t *testing.T) {
 	}
 }
 
-func TestCallTool_MarkTaskSuccess_MissingTaskID(t *testing.T) {
+func TestCallTool_MarkTaskComplete_MissingTaskID(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("mark_task_success", mustMarshal(t, map[string]any{}))
+	_, err := s.CallTool("mark_task_complete", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing task_id")
 	}
@@ -356,7 +356,7 @@ func TestToolSchemas_IncludesNewTools(t *testing.T) {
 	for _, s := range schemas {
 		names[s.Name] = true
 	}
-	for _, want := range []string{"mark_task_success", "send_message"} {
+	for _, want := range []string{"mark_task_complete", "send_message"} {
 		if !names[want] {
 			t.Errorf("missing tool schema: %s", want)
 		}

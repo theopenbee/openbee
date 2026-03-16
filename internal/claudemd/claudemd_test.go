@@ -41,8 +41,8 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	if !strings.Contains(content, "任务分发流程") {
 		t.Error("missing bee-specific 任务分发流程 section")
 	}
-	if strings.Contains(content, "mark_task_success") {
-		t.Error("bee rules should not contain worker-specific mark_task_success")
+	if strings.Contains(content, "mark_task_complete") {
+		t.Error("bee rules should not contain worker-specific mark_task_complete")
 	}
 }
 
@@ -63,8 +63,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if !strings.Contains(content, "任务通知规范") {
 		t.Error("missing shared rules")
 	}
-	if !strings.Contains(content, "mark_task_success") {
-		t.Error("missing worker-specific rules (mark_task_success)")
+	if !strings.Contains(content, "mark_task_complete") {
+		t.Error("missing worker-specific rules (mark_task_complete)")
 	}
 	if strings.Contains(content, "mark_task_failed") {
 		t.Error("worker rules must not contain mark_task_failed (failure is now system-handled)")
@@ -100,7 +100,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "mark_task_success") {
+	if !strings.Contains(content, "mark_task_complete") {
 		t.Error("missing worker-specific rules")
 	}
 }

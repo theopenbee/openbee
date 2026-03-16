@@ -148,13 +148,13 @@ func workerRules() string {
 
 ## 任务状态标记
 
-任务执行完成后，必须调用 `+"`%s`"+` 标记任务结束。
+任务执行完成后，必须调用 `+"`%s`"+` 标记任务完成。
 
 这是每个任务的最后一步，不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。
 `,
-		toolnames.MarkTaskSuccess, toolnames.SendMessage,
-		toolnames.MarkTaskSuccess,
-		toolnames.SendMessage, toolnames.MarkTaskSuccess)
+		toolnames.MarkTaskComplete, toolnames.SendMessage,
+		toolnames.MarkTaskComplete,
+		toolnames.SendMessage, toolnames.MarkTaskComplete)
 }
 
 func workerConfigBlock(name, description, memory string) string {
