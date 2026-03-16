@@ -24,6 +24,7 @@ import (
 	"github.com/robobee/core/internal/store"
 	"github.com/robobee/core/internal/task_scheduler"
 	"github.com/robobee/core/internal/worker"
+	webui "github.com/robobee/core/web"
 )
 
 // App holds all wired-up components and runs the server.
@@ -176,5 +177,5 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig) []platform
 }
 
 func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, mcpSrv *mcp.MCPServer) *api.Server {
-	return api.NewServer(s.workerStore, s.execStore, mgr, mcpSrv, cfg.APIKey)
+	return api.NewServer(s.workerStore, s.execStore, mgr, mcpSrv, cfg.APIKey, webui.DistFS)
 }

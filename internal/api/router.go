@@ -1,6 +1,10 @@
 package api
 
 import (
+	"io/fs"
+	"net/http"
+	"strings"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/robobee/core/internal/mcp"
@@ -15,6 +19,7 @@ type Server struct {
 	manager        *worker.Manager
 	mcpServer      *mcp.MCPServer
 	mcpAPIKey      string
+	staticFS       fs.FS
 }
 
 func NewServer(
@@ -23,6 +28,7 @@ func NewServer(
 	mgr *worker.Manager,
 	mcpSrv *mcp.MCPServer,
 	mcpAPIKey string,
+	staticFS fs.FS,
 ) *Server {
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -39,6 +45,7 @@ func NewServer(
 		manager:        mgr,
 		mcpServer:      mcpSrv,
 		mcpAPIKey:      mcpAPIKey,
+		staticFS:       staticFS,
 	}
 	s.setupRoutes()
 	return s
@@ -71,6 +78,30 @@ func (s *Server) setupRoutes() {
 	if s.mcpServer != nil {
 		mcpGroup := s.router.Group("/mcp")
 		s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
+	}
+
+	if s.staticFS != nil {
+		sub, _ := fs.Sub(s.staticFS, "dist")
+		httpFS := http.FS(sub)
+
+		// Read index.html once at startup for the SPA fallback
+		indexHTML, _ := fs.ReadFile(sub, "index.html")
+
+		s.router.NoRoute(func(c *gin.Context) {
+			path := strings.TrimPrefix(c.Request.URL.Path, "/")
+			if path != "" {
+				f, err := sub.Open(path)
+				if err == nil {
+					f.Close()
+					c.FileFromFS(path, httpFS)
+					return
+				}
+			}
+			// Serve index.html directly — must NOT use c.FileFromFS("index.html", ...)
+			// because http.FileServer redirects any URL ending in /index.html to ./,
+			// causing an infinite redirect loop.
+			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+		})
 	}
 }
 
