@@ -97,11 +97,12 @@ func (h *LocalChatHandler) createSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	now := time.Now().UnixMilli()
 	c.JSON(http.StatusCreated, store.LocalSession{
 		ID:        id,
 		Name:      body.Name,
-		CreatedAt: time.Now().UnixMilli(),
-		UpdatedAt: time.Now().UnixMilli(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	})
 }
 
