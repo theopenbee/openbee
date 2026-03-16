@@ -282,16 +282,7 @@ func (r *FeishuReceiver) downloadSaveAndPlaceholder(
 	if mt == "" {
 		mt = media.MediaTypeFromMIME(mime)
 	}
-	placeholder := r.mediaSvc.BuildPlaceholder(mt, path, fileName)
-
-	extracted, err := r.mediaSvc.ExtractText(ctx, path)
-	if err != nil {
-		slog.Warn("text extraction failed", "component", "feishu", "path", path, "error", err)
-	}
-	if extracted != "" {
-		placeholder += "\n" + extracted
-	}
-	return placeholder
+	return r.mediaSvc.BuildPlaceholder(mt, path, fileName)
 }
 
 // resolveMediaContent handles download, save, text extraction, and placeholder building for media messages.

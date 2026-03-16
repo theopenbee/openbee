@@ -469,15 +469,7 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[s
 		slog.Error("save file", "component", "dingtalk", "error", err)
 		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
 	}
-	placeholder := r.mediaSvc.BuildPlaceholder("document", path, fileName)
-	extracted, err := r.mediaSvc.ExtractText(ctx, path)
-	if err != nil {
-		slog.Error("extract text failed", "component", "dingtalk", "path", path, "error", err)
-	}
-	if extracted != "" {
-		return placeholder + "\n" + extracted
-	}
-	return placeholder
+	return r.mediaSvc.BuildPlaceholder("document", path, fileName)
 }
 
 func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[string]any) string {
