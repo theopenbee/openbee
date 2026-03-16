@@ -7,3 +7,5 @@ config.yaml
 openclaw/
 .robobee.md
 .superpowers/
+wecom-openclaw-plugin-main/
+aibot-node-sdk-main/

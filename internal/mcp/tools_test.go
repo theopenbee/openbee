@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 	"github.com/robobee/core/internal/config"
 	"github.com/robobee/core/internal/mcp"
 	"github.com/robobee/core/internal/model"
