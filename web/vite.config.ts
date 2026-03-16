@@ -9,6 +9,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/api": "http://localhost:8080"
+    },
+  },
   build: {
     target: "es2020",
     rollupOptions: {
