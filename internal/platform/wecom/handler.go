@@ -177,6 +177,8 @@ type WeComReceiver struct {
 	mediaSvc      *media.Service
 	wsConn        *WsConn
 	sendReplyFn   sendReplyFn // injectable for testing
+	// downloadFn is injectable for testing; defaults to downloadDecryptSave.
+	downloadFn func(ctx context.Context, url, aesKey, mediaType, filename string) string
 }
 
 // Start begins receiving messages and blocks until ctx is cancelled.
@@ -186,6 +188,15 @@ func (r *WeComReceiver) Start(ctx context.Context, dispatch func(platform.Inboun
 	}
 	slog.Info("WeCom bot starting", "component", "wecom")
 	return r.wsConn.Connect(ctx)
+}
+
+// download is a helper that uses the injected downloadFn if available,
+// otherwise falls back to downloadDecryptSave.
+func (r *WeComReceiver) download(ctx context.Context, url, aesKey, mediaType, filename string) string {
+	if r.downloadFn != nil {
+		return r.downloadFn(ctx, url, aesKey, mediaType, filename)
+	}
+	return r.downloadDecryptSave(ctx, url, aesKey, mediaType, filename)
 }
 
 // processMessage extracts content from a callback frame, sends the thinking
@@ -258,13 +269,13 @@ func (r *WeComReceiver) extractContent(ctx context.Context, body *messageBody) (
 		if body.Image == nil {
 			return "", r.mediaSvc.BuildPlaceholder("image", "", "")
 		}
-		content = r.downloadDecryptSave(ctx, body.Image.URL, body.Image.AesKey, "image", "")
+		content = r.download(ctx, body.Image.URL, body.Image.AesKey, "image", "")
 
 	case "file":
 		if body.File == nil {
 			return "", r.mediaSvc.BuildPlaceholder("document", "", "")
 		}
-		content = r.downloadDecryptSave(ctx, body.File.URL, body.File.AesKey, "document", "")
+		content = r.download(ctx, body.File.URL, body.File.AesKey, "document", "")
 
 	case "mixed":
 		if body.Mixed == nil {
@@ -313,7 +324,7 @@ func (r *WeComReceiver) extractMixedContent(ctx context.Context, items []mixedIt
 			if item.Image != nil {
 				url, key := item.Image.URL, item.Image.AesKey
 				g.Go(func() error {
-					results[i].image = r.downloadDecryptSave(gCtx, url, key, "image", "")
+					results[i].image = r.download(gCtx, url, key, "image", "")
 					return nil
 				})
 			}
@@ -350,11 +361,11 @@ func (r *WeComReceiver) extractQuoteContent(ctx context.Context, q *quoteContent
 		}
 	case "image":
 		if q.Image != nil {
-			return r.downloadDecryptSave(ctx, q.Image.URL, q.Image.AesKey, "image", "")
+			return r.download(ctx, q.Image.URL, q.Image.AesKey, "image", "")
 		}
 	case "file":
 		if q.File != nil {
-			return r.downloadDecryptSave(ctx, q.File.URL, q.File.AesKey, "document", "")
+			return r.download(ctx, q.File.URL, q.File.AesKey, "document", "")
 		}
 	case "mixed":
 		if q.Mixed != nil {

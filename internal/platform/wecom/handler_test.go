@@ -1,6 +1,7 @@
 package wecom
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -178,4 +179,128 @@ func TestProcessMessage_PendingStreams(t *testing.T) {
 	val, ok := r.pendingStreams.Load("msg-006")
 	assert.True(t, ok)
 	assert.NotEmpty(t, val.(string))
+}
+
+// newTestReceiverWithDownload returns a receiver whose downloadDecryptSave
+// always returns a predictable placeholder (no real HTTP).
+func newTestReceiverWithDownload(mock *mockWsConn) *WeComReceiver {
+	r := newTestReceiver(mock)
+	r.downloadFn = func(_ context.Context, url, _, mediaType, filename string) string {
+		if url == "" {
+			return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
+		}
+		return r.mediaSvc.BuildPlaceholder(mediaType, "/tmp/fake-"+mediaType, filename)
+	}
+	return r
+}
+
+func TestProcessMessage_Image(t *testing.T) {
+	mock := &mockWsConn{}
+	r := newTestReceiverWithDownload(mock)
+
+	frame := buildFrame(t, "req-010", messageBody{
+		MsgID:    "msg-010",
+		ChatType: "single",
+		From:     messageFrom{UserID: "u1"},
+		MsgType:  "image",
+		Image:    &mediaContent{URL: "https://example.com/img.jpg", AesKey: "key1"},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Contains(t, dispatched[0].Content, "image")
+	assert.Equal(t, "", dispatched[0].RawContent)
+}
+
+func TestProcessMessage_File(t *testing.T) {
+	mock := &mockWsConn{}
+	r := newTestReceiverWithDownload(mock)
+
+	frame := buildFrame(t, "req-011", messageBody{
+		MsgID:    "msg-011",
+		ChatType: "single",
+		From:     messageFrom{UserID: "u1"},
+		MsgType:  "file",
+		File:     &fileContent{URL: "https://example.com/doc.pdf", AesKey: "key2"},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Contains(t, dispatched[0].Content, "document")
+}
+
+func TestProcessMessage_Mixed(t *testing.T) {
+	mock := &mockWsConn{}
+	r := newTestReceiverWithDownload(mock)
+
+	frame := buildFrame(t, "req-012", messageBody{
+		MsgID:    "msg-012",
+		ChatType: "single",
+		From:     messageFrom{UserID: "u1"},
+		MsgType:  "mixed",
+		Mixed: &mixedContent{MsgItem: []mixedItem{
+			{MsgType: "text", Text: &textContent{Content: "look at this:"}},
+			{MsgType: "image", Image: &mediaContent{URL: "https://example.com/x.png", AesKey: "key3"}},
+		}},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Contains(t, dispatched[0].Content, "look at this:")
+	assert.Contains(t, dispatched[0].Content, "image")
+	assert.Equal(t, "look at this:", dispatched[0].RawContent)
+}
+
+func TestProcessMessage_TextWithQuote(t *testing.T) {
+	mock := &mockWsConn{}
+	r := newTestReceiverWithDownload(mock)
+
+	frame := buildFrame(t, "req-013", messageBody{
+		MsgID:    "msg-013",
+		ChatType: "single",
+		From:     messageFrom{UserID: "u1"},
+		MsgType:  "text",
+		Text:     &textContent{Content: "my reply"},
+		Quote: &quoteContent{
+			MsgType: "text",
+			Text:    &textContent{Content: "quoted original"},
+		},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Contains(t, dispatched[0].Content, "my reply")
+	assert.Contains(t, dispatched[0].Content, "quoted original")
+}
+
+func TestProcessMessage_QuoteFile(t *testing.T) {
+	mock := &mockWsConn{}
+	r := newTestReceiverWithDownload(mock)
+
+	frame := buildFrame(t, "req-014", messageBody{
+		MsgID:    "msg-014",
+		ChatType: "single",
+		From:     messageFrom{UserID: "u1"},
+		MsgType:  "text",
+		Text:     &textContent{Content: "see attached"},
+		Quote: &quoteContent{
+			MsgType: "file",
+			File:    &fileContent{URL: "https://example.com/q.pdf", AesKey: "key4"},
+		},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Contains(t, dispatched[0].Content, "see attached")
+	assert.Contains(t, dispatched[0].Content, "document")
 }
