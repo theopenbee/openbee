@@ -22,6 +22,11 @@ bee:
       enabled: false
       client_id: ""
       client_secret: ""
+    wecom:
+      enabled: false
+      bot_id: "YOUR_BOT_ID"
+      secret: "YOUR_BOT_SECRET"
+      # websocket_url: wss://openws.work.weixin.qq.com  # optional, this is the default
   feeder:
     timeout: 5m
   media:

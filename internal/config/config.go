@@ -52,6 +52,7 @@ type BeeConfig struct {
 type PlatformsConfig struct {
 	Feishu   FeishuConfig   `yaml:"feishu"`
 	DingTalk DingTalkConfig `yaml:"dingtalk"`
+	WeCom    WeComConfig    `yaml:"wecom"`
 }
 
 type FeederConfig struct {
@@ -69,6 +70,13 @@ type DingTalkConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
+}
+
+type WeComConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	BotID        string `yaml:"bot_id"`
+	Secret       string `yaml:"secret"`
+	WebSocketURL string `yaml:"websocket_url"`
 }
 
 type MCPConfig struct {
@@ -121,6 +129,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.Feishu.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Feishu.MaxMediaSize = 100 * 1024 * 1024 // 100MB
+	}
+	if cfg.Bee.Platforms.WeCom.WebSocketURL == "" {
+		cfg.Bee.Platforms.WeCom.WebSocketURL = "wss://openws.work.weixin.qq.com"
 	}
 	return nil
 }
