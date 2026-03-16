@@ -14,13 +14,14 @@ import (
 )
 
 type Server struct {
-	router         *gin.Engine
-	workerStore    *store.WorkerStore
-	executionStore *store.ExecutionStore
-	manager        *worker.Manager
-	mcpServer      *mcp.MCPServer
-	mcpAPIKey      string
-	staticFS       fs.FS
+	router           *gin.Engine
+	workerStore      *store.WorkerStore
+	executionStore   *store.ExecutionStore
+	manager          *worker.Manager
+	mcpServer        *mcp.MCPServer
+	mcpAPIKey        string
+	staticFS         fs.FS
+	localChatHandler *LocalChatHandler
 }
 
 func NewServer(
@@ -30,9 +31,10 @@ func NewServer(
 	mcpSrv *mcp.MCPServer,
 	mcpAPIKey string,
 	staticFS fs.FS,
+	localChat *LocalChatHandler,
 ) *Server {
 	router := gin.Default()
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{"/api/local/sessions/.+/stream"})))
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -41,13 +43,14 @@ func NewServer(
 		AllowCredentials: false,
 	}))
 	s := &Server{
-		router:         router,
-		workerStore:    ws,
-		executionStore: es,
-		manager:        mgr,
-		mcpServer:      mcpSrv,
-		mcpAPIKey:      mcpAPIKey,
-		staticFS:       staticFS,
+		router:           router,
+		workerStore:      ws,
+		executionStore:   es,
+		manager:          mgr,
+		mcpServer:        mcpSrv,
+		mcpAPIKey:        mcpAPIKey,
+		staticFS:         staticFS,
+		localChatHandler: localChat,
 	}
 	s.setupRoutes()
 	return s
@@ -74,6 +77,16 @@ func (s *Server) setupRoutes() {
 		api.GET("/executions/:id", s.getExecution)
 		// WebSocket logs
 		api.GET("/executions/:id/logs", s.streamLogs)
+
+		// Local chat
+		if s.localChatHandler != nil {
+			s.localChatHandler.RegisterRoutes(api)
+		}
+	}
+
+	// SSE stream for local chat — registered outside gzip middleware
+	if s.localChatHandler != nil {
+		s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
 	}
 
 	// MCP — only registered when an API key is configured
