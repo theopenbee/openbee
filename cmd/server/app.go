@@ -21,6 +21,7 @@ import (
 	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform/dingtalk"
 	"github.com/robobee/core/internal/platform/feishu"
+	"github.com/robobee/core/internal/platform/local"
 	"github.com/robobee/core/internal/store"
 	"github.com/robobee/core/internal/task_scheduler"
 	"github.com/robobee/core/internal/worker"
@@ -85,6 +86,13 @@ func buildApp(cfg config.Config) (*App, error) {
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh)
 
+	// Local platform — always enabled, separate gateway with short debounce
+	localHub := local.NewSSEHub()
+	localReceiver := local.NewLocalReceiver(64)
+	localSender := local.NewLocalSender(s.localReplyStore, localHub)
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
+	sendersByPlatform["local"] = localSender
+
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk)
 
@@ -99,6 +107,12 @@ func buildApp(cfg config.Config) (*App, error) {
 
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
+		func(ctx context.Context) { localIngest.Run(ctx) },
+		func(ctx context.Context) {
+			if err := localReceiver.Start(ctx, localIngest.Dispatch); err != nil {
+				slog.Error("local receiver error", "error", err)
+			}
+		},
 		func(ctx context.Context) { feeder.Run(ctx) },
 		func(ctx context.Context) { sched.Run(ctx) },
 		func(ctx context.Context) { disp.Run(ctx) },
@@ -112,7 +126,13 @@ func buildApp(cfg config.Config) (*App, error) {
 		})
 	}
 
-	srv := buildAPIServer(cfg.Bee.MCP, s, mgr, mcpSrv)
+	localChatHandler := api.NewLocalChatHandler(
+		localReceiver, localHub,
+		s.localSessionStore, s.localReplyStore,
+		s.msgStore, s.sessionStore,
+	)
+
+	srv := buildAPIServer(cfg.Bee.MCP, s, mgr, mcpSrv, localChatHandler)
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
@@ -121,11 +141,13 @@ func buildApp(cfg config.Config) (*App, error) {
 // appStores groups all store instances for passing to sub-builders.
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
-	workerStore  *store.WorkerStore
-	execStore    *store.ExecutionStore
-	msgStore     *store.MessageStore
-	taskStore    *store.TaskStore
-	sessionStore *store.SessionStore
+	workerStore      *store.WorkerStore
+	execStore        *store.ExecutionStore
+	msgStore         *store.MessageStore
+	taskStore        *store.TaskStore
+	sessionStore     *store.SessionStore
+	localSessionStore *store.LocalSessionStore
+	localReplyStore  *store.LocalReplyStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -134,11 +156,13 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		return nil, appStores{}, fmt.Errorf("init database: %w", err)
 	}
 	return db, appStores{
-		workerStore:  store.NewWorkerStore(db),
-		execStore:    store.NewExecutionStore(db),
-		msgStore:     store.NewMessageStore(db),
-		taskStore:    store.NewTaskStore(db),
-		sessionStore: store.NewSessionStore(db),
+		workerStore:       store.NewWorkerStore(db),
+		execStore:         store.NewExecutionStore(db),
+		msgStore:          store.NewMessageStore(db),
+		taskStore:         store.NewTaskStore(db),
+		sessionStore:      store.NewSessionStore(db),
+		localSessionStore: store.NewLocalSessionStore(db),
+		localReplyStore:   store.NewLocalReplyStore(db),
 	}, nil
 }
 
@@ -176,6 +200,6 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig) []platform
 	return result
 }
 
-func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, mcpSrv *mcp.MCPServer) *api.Server {
-	return api.NewServer(s.workerStore, s.execStore, mgr, mcpSrv, cfg.APIKey, webui.DistFS)
+func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
+	return api.NewServer(s.workerStore, s.execStore, mgr, mcpSrv, cfg.APIKey, webui.DistFS, localChat)
 }
