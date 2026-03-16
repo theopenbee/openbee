@@ -65,7 +65,7 @@ func TestBuildProactiveMediaPayload_File(t *testing.T) {
 		ConversationType: "1",
 		ConversationId:   "groupId",
 	}
-	payload := buildProactiveMediaPayload(cfg, data, "/tmp/report.pdf", "media123")
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/report.pdf", "media123", mediaInfo{})
 	assert.Equal(t, "sampleFile", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
 	var param map[string]string
@@ -78,7 +78,7 @@ func TestBuildProactiveMediaPayload_File(t *testing.T) {
 func TestBuildProactiveMediaPayload_Audio(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
 	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
-	payload := buildProactiveMediaPayload(cfg, data, "/tmp/voice.mp3", "audio456")
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/voice.mp3", "audio456", mediaInfo{durationMs: 60000})
 	assert.Equal(t, "sampleAudio", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
 	var param map[string]string
@@ -90,14 +90,19 @@ func TestBuildProactiveMediaPayload_Audio(t *testing.T) {
 func TestBuildProactiveMediaPayload_Video(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
 	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
-	payload := buildProactiveMediaPayload(cfg, data, "/tmp/clip.mp4", "vid789")
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/clip.mp4", "vid789", mediaInfo{durationSec: 30, picMediaID: "thumb001"})
 	assert.Equal(t, "sampleVideo", payload["msgKey"])
+	paramStr, _ := payload["msgParam"].(string)
+	var param map[string]string
+	json.Unmarshal([]byte(paramStr), &param)
+	assert.Equal(t, "30", param["duration"])
+	assert.Equal(t, "thumb001", param["picMediaId"])
 }
 
 func TestBuildProactiveMediaPayload_Image(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
 	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
-	payload := buildProactiveMediaPayload(cfg, data, "/tmp/photo.jpg", "img001")
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/photo.jpg", "img001", mediaInfo{})
 	assert.Equal(t, "sampleMarkdown", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
 	var param map[string]string

@@ -27,4 +27,7 @@ bee:
     batch_size: 10
     timeout: 5m
     queue_warn_threshold: 100
+  media:
+    ffprobe_path: ffprobe  # defaults to ffprobe on PATH
+    ffmpeg_path: ffmpeg    # defaults to ffmpeg on PATH
   message_debounce: 3s

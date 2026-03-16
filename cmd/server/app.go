@@ -94,7 +94,7 @@ func buildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform["local"] = localSender
 
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
-	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk)
+	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Media)
 
 	// Populate sender map before goroutines start
 	for _, p := range platforms {
@@ -188,14 +188,14 @@ func buildPipeline(
 	return ingest, disp
 }
 
-func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig) []platform.Platform {
+func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, mc config.MediaConfig) []platform.Platform {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
 		result = append(result, feishu.NewPlatform(fc, mediaSvc))
 	}
 	if dc.Enabled {
-		result = append(result, dingtalk.NewPlatform(dc, mediaSvc))
+		result = append(result, dingtalk.NewPlatform(dc, mc, mediaSvc))
 	}
 	return result
 }

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
 	"github.com/robobee/core/internal/config"
+	"github.com/robobee/core/internal/ffmedia"
 	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform"
 )
@@ -34,10 +36,10 @@ type DingTalkPlatform struct {
 }
 
 // NewPlatform constructs a DingTalkPlatform from configuration.
-func NewPlatform(cfg config.DingTalkConfig, mediaSvc *media.Service) platform.Platform {
+func NewPlatform(cfg config.DingTalkConfig, mediaCfg config.MediaConfig, mediaSvc *media.Service) platform.Platform {
 	p := &DingTalkPlatform{}
 	p.receiver = &DingTalkReceiver{cfg: cfg, pendingEmojis: &p.pendingEmojis, mediaSvc: mediaSvc}
-	p.sender = &DingTalkSender{cfg: cfg, pendingEmojis: &p.pendingEmojis}
+	p.sender = &DingTalkSender{cfg: cfg, mediaCfg: mediaCfg, pendingEmojis: &p.pendingEmojis}
 	return p
 }
 
@@ -509,7 +511,15 @@ func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[
 // DingTalkSender sends messages via the DingTalk chatbot replier.
 type DingTalkSender struct {
 	cfg           config.DingTalkConfig
+	mediaCfg      config.MediaConfig
 	pendingEmojis *sync.Map
+}
+
+// mediaInfo holds duration/thumbnail metadata for voice and video messages.
+type mediaInfo struct {
+	durationMs  int    // voice: milliseconds
+	durationSec int    // video: seconds
+	picMediaID  string // video: thumbnail mediaId
 }
 
 const (
@@ -539,19 +549,47 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 
 	if msg.MediaPath != "" {
 		mediaType := dingTalkMediaType(msg.MediaPath)
+
+		var info mediaInfo
+		switch mediaType {
+		case "voice":
+			durationMs, err := ffmedia.AudioDurationMs(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
+			if err != nil {
+				slog.Warn("could not probe audio duration, using 0", "component", "dingtalk", "error", err)
+			}
+			info.durationMs = durationMs
+		case "video":
+			durationSec, err := ffmedia.VideoDurationSec(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
+			if err != nil {
+				slog.Warn("could not probe video duration, using 0", "component", "dingtalk", "error", err)
+			}
+			info.durationSec = durationSec
+
+			thumbPath, cleanup, err := ffmedia.ExtractFirstFrame(ctx, msg.MediaPath, s.mediaCfg.FFmpegPath)
+			if err == nil {
+				defer cleanup()
+				picMediaID, uploadErr := uploadMediaToDingTalk(ctx, s.cfg, thumbPath, "image")
+				if uploadErr != nil {
+					slog.Warn("could not upload video thumbnail", "component", "dingtalk", "error", uploadErr)
+				} else {
+					info.picMediaID = picMediaID
+				}
+			}
+		}
+
 		mediaID, err := uploadMediaToDingTalk(ctx, s.cfg, msg.MediaPath, mediaType)
 		if err != nil {
 			slog.Error("upload media failed", "component", "dingtalk", "error", err)
 			return fmt.Errorf("upload media: %w", err)
 		}
 		if expired {
-			if err := sendMediaProactive(ctx, s.cfg, &data, msg.MediaPath, mediaID); err != nil {
+			if err := sendMediaProactive(ctx, s.cfg, &data, msg.MediaPath, mediaID, info); err != nil {
 				slog.Error("proactive media send failed", "component", "dingtalk", "error", err)
 				return fmt.Errorf("proactive media send: %w", err)
 			}
 			return nil
 		}
-		if err := sendMediaViaDingTalk(ctx, s.cfg, data.SessionWebhook, msg.MediaPath, mediaID); err != nil {
+		if err := sendMediaViaDingTalk(ctx, s.cfg, data.SessionWebhook, msg.MediaPath, mediaID, info); err != nil {
 			slog.Error("send media failed", "component", "dingtalk", "error", err)
 			return fmt.Errorf("send media: %w", err)
 		}
@@ -623,7 +661,7 @@ func sendTextProactive(ctx context.Context, cfg config.DingTalkConfig, data *cha
 }
 
 // buildProactiveMediaPayload constructs the request body for proactive media sending.
-func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string) map[string]any {
+func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string, info mediaInfo) map[string]any {
 	mediaType := dingTalkMediaType(filePath)
 	fileName := platform.SanitizeFileName(filepath.Base(filePath))
 	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
@@ -640,14 +678,20 @@ func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCall
 		})
 		msgParam = string(p)
 	case "voice":
+		duration := strconv.Itoa(info.durationMs)
+		if info.durationMs == 0 {
+			duration = "0"
+		}
 		msgKey = "sampleAudio"
-		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "duration": "60000"})
+		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "duration": duration})
 		msgParam = string(p)
 	case "video":
 		msgKey = "sampleVideo"
 		p, _ := json.Marshal(map[string]string{
-			"duration": "0", "videoMediaId": mediaID,
-			"videoType": "mp4", "picMediaId": "",
+			"duration":     strconv.Itoa(info.durationSec),
+			"videoMediaId": mediaID,
+			"videoType":    "mp4",
+			"picMediaId":   info.picMediaID,
 		})
 		msgParam = string(p)
 	default:
@@ -670,9 +714,9 @@ func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCall
 }
 
 // sendMediaProactive sends a media message via the proactive API.
-func sendMediaProactive(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string) error {
+func sendMediaProactive(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, filePath, mediaID string, info mediaInfo) error {
 	endpoint := proactiveEndpoint(data.ConversationType)
-	p := buildProactiveMediaPayload(cfg, data, filePath, mediaID)
+	p := buildProactiveMediaPayload(cfg, data, filePath, mediaID, info)
 	return doProactiveRequest(ctx, cfg, endpoint, p)
 }
 
@@ -814,7 +858,7 @@ func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, fileP
 }
 
 // sendMediaViaDingTalk sends a media message via sessionWebhook.
-func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhook, filePath, mediaID string) error {
+func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhook, filePath, mediaID string, info mediaInfo) error {
 	mediaType := dingTalkMediaType(filePath)
 	fileName := platform.SanitizeFileName(filepath.Base(filePath))
 	fileType := strings.TrimPrefix(filepath.Ext(filePath), ".")
@@ -827,14 +871,23 @@ func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhoo
 			"markdown": map[string]string{"title": "Image", "text": fmt.Sprintf("![image](%s)", mediaID)},
 		}
 	case "voice":
+		duration := strconv.Itoa(info.durationMs)
+		if info.durationMs == 0 {
+			duration = "0"
+		}
 		payload = map[string]any{
 			"msgtype": "voice",
-			"voice":   map[string]string{"mediaId": mediaID, "duration": "60000"},
+			"voice":   map[string]string{"mediaId": mediaID, "duration": duration},
 		}
 	case "video":
 		payload = map[string]any{
 			"msgtype": "video",
-			"video":   map[string]string{"duration": "0", "videoMediaId": mediaID, "videoType": "mp4", "picMediaId": ""},
+			"video": map[string]string{
+				"duration":     strconv.Itoa(info.durationSec),
+				"videoMediaId": mediaID,
+				"videoType":    "mp4",
+				"picMediaId":   info.picMediaID,
+			},
 		}
 	default:
 		payload = map[string]any{

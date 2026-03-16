@@ -32,12 +32,18 @@ type ClaudeConfig struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+type MediaConfig struct {
+	FFprobePath string `yaml:"ffprobe_path"`
+	FFmpegPath  string `yaml:"ffmpeg_path"`
+}
+
 type BeeConfig struct {
 	MessageDebounce time.Duration   `yaml:"message_debounce"`
 	Claude          ClaudeConfig    `yaml:"claude"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
 	MCP             MCPConfig       `yaml:"mcp"`
+	Media           MediaConfig     `yaml:"media"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
@@ -118,6 +124,12 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"
+	}
+	if cfg.Bee.Media.FFprobePath == "" {
+		cfg.Bee.Media.FFprobePath = "ffprobe"
+	}
+	if cfg.Bee.Media.FFmpegPath == "" {
+		cfg.Bee.Media.FFmpegPath = "ffmpeg"
 	}
 	if cfg.Bee.Platforms.Feishu.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Feishu.MaxMediaSize = 100 * 1024 * 1024 // 100MB
