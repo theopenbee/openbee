@@ -127,6 +127,31 @@ var migrations = []migration{
 		PRIMARY KEY (session_key, agent_id)
 	)`,
 	},
+	{
+		version: 13,
+		name:    "20260315_create_table_local_sessions",
+		sql: `CREATE TABLE IF NOT EXISTS local_sessions (
+		id         TEXT PRIMARY KEY,
+		name       TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`,
+	},
+	{
+		version: 14,
+		name:    "20260315_create_table_local_replies",
+		sql: `CREATE TABLE IF NOT EXISTS local_replies (
+		id          TEXT PRIMARY KEY,
+		session_key TEXT NOT NULL,
+		content     TEXT NOT NULL,
+		created_at  INTEGER NOT NULL
+	)`,
+	},
+	{
+		version: 15,
+		name:    "20260315_create_index_local_replies_session_key",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON local_replies(session_key)`,
+	},
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {
