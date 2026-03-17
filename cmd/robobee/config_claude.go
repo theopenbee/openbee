@@ -62,6 +62,15 @@ func deepseekEnv(apiKey string) map[string]string {
 	}
 }
 
+func aliyunEnv(apiKey, model string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
+		"ANTHROPIC_BASE_URL":                       "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		"ANTHROPIC_MODEL":                          model,
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+	}
+}
+
 func customEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   baseURL,

@@ -65,6 +65,31 @@ func TestProviderEnvMap_DeepSeek(t *testing.T) {
 	}
 }
 
+func TestProviderEnvMap_Aliyun(t *testing.T) {
+	env := aliyunEnv("ali-key-789", "qwen3.5-plus")
+	if env["ANTHROPIC_AUTH_TOKEN"] != "ali-key-789" {
+		t.Errorf("want ali-key-789, got %q", env["ANTHROPIC_AUTH_TOKEN"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "https://coding.dashscope.aliyuncs.com/apps/anthropic" {
+		t.Errorf("unexpected base url: %q", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_MODEL"] != "qwen3.5-plus" {
+		t.Errorf("unexpected model: %q", env["ANTHROPIC_MODEL"])
+	}
+	if env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] != "1" {
+		t.Errorf("unexpected traffic flag: %q", env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"])
+	}
+	if len(env) != 4 {
+		t.Errorf("aliyun env should have exactly 4 keys, got %d", len(env))
+	}
+
+	// Verify non-default model propagation
+	env2 := aliyunEnv("ali-key", "MiniMax-M2.5")
+	if env2["ANTHROPIC_MODEL"] != "MiniMax-M2.5" {
+		t.Errorf("model not propagated: want MiniMax-M2.5, got %q", env2["ANTHROPIC_MODEL"])
+	}
+}
+
 func TestProviderEnvMap_Custom(t *testing.T) {
 	env := customEnv("https://my.api/v1", "my-key")
 	if env["ANTHROPIC_BASE_URL"] != "https://my.api/v1" {
