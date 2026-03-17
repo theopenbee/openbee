@@ -1,0 +1,38 @@
+# RoboBee 配置文件
+# 由 robobee config 命令生成
+
+server:
+  port: {{.ServerPort}}
+  host: {{.ServerHost}}
+  debug: {{.Debug}}
+
+database:
+  path: {{.DBPath}}
+
+bee:
+  claude:
+    path: {{.ClaudePath}}
+    timeout: {{.ClaudeTimeout}}
+  mcp:
+    api_key: "{{.MCPAPIKey}}"
+  platforms:
+    feishu:
+      enabled: {{.FeishuEnabled}}
+      app_id: "{{.FeishuAppID}}"
+      app_secret: "{{.FeishuAppSecret}}"
+      # max_media_size: 104857600  # 100MB，最大媒体下载大小（字节）
+    dingtalk:
+      enabled: {{.DingtalkEnabled}}
+      client_id: "{{.DingtalkClientID}}"
+      client_secret: "{{.DingtalkClientSecret}}"
+    wecom:
+      enabled: {{.WecomEnabled}}
+      bot_id: "{{.WecomBotID}}"
+      secret: "{{.WecomSecret}}"
+      # websocket_url: wss://openws.work.weixin.qq.com  # optional, this is the default
+  feeder:
+    timeout: {{.FeederTimeout}}
+  media:
+    ffprobe_path: {{.FFprobePath}}  # defaults to ffprobe on PATH
+    ffmpeg_path: {{.FFmpegPath}}    # defaults to ffmpeg on PATH
+  message_debounce: {{.MessageDebounce}}
