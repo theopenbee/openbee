@@ -2,10 +2,129 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestMapArch(t *testing.T) {
+	tests := []struct {
+		goarch string
+		want   string
+	}{
+		{"amd64", "x64"},
+		{"arm64", "arm64"},
+		{"386", "386"},
+		{"riscv64", "riscv64"},
+	}
+	for _, tt := range tests {
+		if got := mapArch(tt.goarch); got != tt.want {
+			t.Errorf("mapArch(%q) = %q, want %q", tt.goarch, got, tt.want)
+		}
+	}
+}
+
+func TestIsMuslWith(t *testing.T) {
+	// 匹配到 musl
+	found := isMuslWith(func(pattern string) ([]string, error) {
+		return []string{"/lib/ld-musl-x86_64.so.1"}, nil
+	})
+	if !found {
+		t.Error("expected true when musl linker found")
+	}
+
+	// 未匹配
+	notFound := isMuslWith(func(pattern string) ([]string, error) {
+		return nil, nil
+	})
+	if notFound {
+		t.Error("expected false when no musl linker")
+	}
+
+	// glob 出错 — fail-open
+	errCase := isMuslWith(func(pattern string) ([]string, error) {
+		return nil, fmt.Errorf("permission denied")
+	})
+	if errCase {
+		t.Error("expected false (fail-open) when glob errors")
+	}
+}
+
+func TestIsSupportedPlatform(t *testing.T) {
+	supported := []claudePlatform{
+		{"darwin", "arm64", ""},
+		{"darwin", "x64", ""},
+		{"linux", "arm64", ""},
+		{"linux", "x64", ""},
+		{"linux", "arm64", "musl"},
+		{"linux", "x64", "musl"},
+	}
+	for _, p := range supported {
+		if !isSupportedPlatform(p) {
+			t.Errorf("expected supported: %+v", p)
+		}
+	}
+
+	unsupported := []claudePlatform{
+		{"windows", "x64", ""},
+		{"windows", "arm64", ""},
+		{"freebsd", "x64", ""},
+		{"linux", "386", ""},
+		{"darwin", "x64", "musl"},
+		{"darwin", "arm64", "musl"},
+	}
+	for _, p := range unsupported {
+		if isSupportedPlatform(p) {
+			t.Errorf("expected unsupported: %+v", p)
+		}
+	}
+}
+
+func TestBuildClaudeDownloadURL(t *testing.T) {
+	tests := []struct {
+		platform claudePlatform
+		want     string
+	}{
+		{
+			claudePlatform{"darwin", "arm64", ""},
+			claudeDownloadURL + "?os=darwin&arch=arm64",
+		},
+		{
+			claudePlatform{"darwin", "x64", ""},
+			claudeDownloadURL + "?os=darwin&arch=x64",
+		},
+		{
+			claudePlatform{"linux", "x64", ""},
+			claudeDownloadURL + "?os=linux&arch=x64",
+		},
+		{
+			claudePlatform{"linux", "arm64", "musl"},
+			claudeDownloadURL + "?os=linux&arch=arm64&variant=musl",
+		},
+	}
+	for _, tt := range tests {
+		got := buildClaudeDownloadURL(tt.platform)
+		if got != tt.want {
+			t.Errorf("buildClaudeDownloadURL(%+v) = %q, want %q", tt.platform, got, tt.want)
+		}
+	}
+}
+
+func TestDetectPlatform(t *testing.T) {
+	p := detectPlatform()
+	if p.os == "" {
+		t.Error("detectPlatform() returned empty os")
+	}
+	if p.arch == "" {
+		t.Error("detectPlatform() returned empty arch")
+	}
+	// On the current machine, the detected platform should be supported
+	// (this test runs on darwin or linux CI)
+	if !isSupportedPlatform(p) {
+		t.Errorf("current platform %+v should be supported", p)
+	}
+}
 
 func TestProviderEnvMap_Moonshot(t *testing.T) {
 	env := moonshotEnv("test-key-123")

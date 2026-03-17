@@ -238,7 +238,85 @@ func promptClaudeManualPath(vals *configValues) error {
 	return nil
 }
 
+// claudePlatform represents a target platform for Claude Code download.
+type claudePlatform struct {
+	os      string // "darwin" or "linux"
+	arch    string // "arm64" or "x64"
+	variant string // "" or "musl"
+}
+
+// supportedPlatforms lists all platforms that support Claude Code download.
+var supportedPlatforms = map[claudePlatform]struct{}{
+	{"darwin", "arm64", ""}:    {},
+	{"darwin", "x64", ""}:      {},
+	{"linux", "arm64", ""}:     {},
+	{"linux", "x64", ""}:       {},
+	{"linux", "arm64", "musl"}: {},
+	{"linux", "x64", "musl"}:   {},
+}
+
+// isSupportedPlatform checks if the given platform is in the supported list.
+func isSupportedPlatform(p claudePlatform) bool {
+	_, ok := supportedPlatforms[p]
+	return ok
+}
+
+// detectPlatform builds a claudePlatform from the current runtime environment.
+func detectPlatform() claudePlatform {
+	p := claudePlatform{
+		os:   runtime.GOOS,
+		arch: mapArch(runtime.GOARCH),
+	}
+	if runtime.GOOS == "linux" && isMusl() {
+		p.variant = "musl"
+	}
+	return p
+}
+
+// mapArch converts Go's runtime.GOARCH to the download platform arch name.
+func mapArch(goarch string) string {
+	if goarch == "amd64" {
+		return "x64"
+	}
+	return goarch
+}
+
+// isMuslWith checks if the system uses musl libc by looking for the musl dynamic linker.
+// The globFunc parameter allows dependency injection for testing.
+func isMuslWith(globFunc func(string) ([]string, error)) bool {
+	matches, err := globFunc("/lib/ld-musl-*.so*")
+	if err != nil {
+		return false // fail-open: treat errors as non-musl
+	}
+	return len(matches) > 0
+}
+
+// isMusl checks if the current system uses musl libc.
+func isMusl() bool {
+	return isMuslWith(filepath.Glob)
+}
+
+// buildClaudeDownloadURL constructs the download URL for the given platform.
+func buildClaudeDownloadURL(p claudePlatform) string {
+	url := fmt.Sprintf("%s?os=%s&arch=%s", claudeDownloadURL, p.os, p.arch)
+	if p.variant != "" {
+		url += "&variant=" + p.variant
+	}
+	return url
+}
+
 func downloadClaude(vals *configValues) error {
+	// Platform validation
+	platform := detectPlatform()
+	if !isSupportedPlatform(platform) {
+		return fmt.Errorf(
+			"当前系统 (%s/%s) 不支持自动下载 Claude Code。\n"+
+				"支持的平台: darwin-arm64, darwin-x64, linux-arm64, linux-x64, linux-arm64-musl, linux-x64-musl\n"+
+				"请手动安装。",
+			runtime.GOOS, runtime.GOARCH,
+		)
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("获取用户目录失败: %w", err)
@@ -249,16 +327,10 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	binaryName := "claude"
-	if runtime.GOOS == "windows" {
-		binaryName = "claude.exe"
-	}
-	destPath := filepath.Join(binDir, binaryName)
-	arch := runtime.GOARCH
-	goos := runtime.GOOS
-	url := fmt.Sprintf("%s?os=%s&arch=%s", claudeDownloadURL, goos, arch)
+	destPath := filepath.Join(binDir, "claude")
+	url := buildClaudeDownloadURL(platform)
 
-	fmt.Printf("正在下载 Claude (%s/%s)...\n", goos, arch)
+	fmt.Printf("正在下载 Claude (%s/%s)...\n", platform.os, platform.arch)
 
 	resp, err := http.Get(url)
 	if err != nil {
