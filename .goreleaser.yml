@@ -28,7 +28,8 @@ archives:
   - id: default
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE*
@@ -56,19 +57,14 @@ release:
   prerelease: auto
   name_template: "v{{.Version}}"
 
-brews:
+homebrew_casks:
   - repository:
       owner: robobeedev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
     homepage: "https://github.com/robobeedev/robobee"
     description: "RoboBee 核心服务"
     license: ""
-    install: |
-      bin.install "robobee"
-    test: |
-      system "#{bin}/robobee", "--version"
 
 scoops:
   - repository:
