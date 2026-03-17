@@ -1,0 +1,113 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - cmd: bash -c "cd web && pnpm install --frozen-lockfile && pnpm build"
+
+builds:
+  - id: robobee
+    main: ./cmd/robobee/
+    binary: robobee
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - LICENSE*
+      - README*
+      - config.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  github:
+    owner: robobee
+    name: core
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+brews:
+  - repository:
+      owner: robobee
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/robobee/core"
+    description: "RoboBee 核心服务"
+    license: ""
+    install: |
+      bin.install "robobee"
+    test: |
+      system "#{bin}/robobee", "--version"
+
+scoops:
+  - repository:
+      owner: robobee
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://github.com/robobee/core"
+    description: "RoboBee 核心服务"
+    license: ""
+
+snapcrafts:
+  - id: robobee
+    name: robobee
+    summary: "RoboBee 核心服务"
+    description: |
+      RoboBee 是一个多平台机器人核心服务，支持飞书、钉钉、企业微信等平台。
+    grade: stable
+    confinement: strict
+    publish: true
+    apps:
+      robobee:
+        command: robobee
+        plugs:
+          - network
+          - network-bind
+
+nfpms:
+  - id: robobee
+    package_name: robobee
+    vendor: RoboBee
+    homepage: "https://github.com/robobee/core"
+    maintainer: "RoboBee Team"
+    description: "RoboBee 核心服务"
+    license: ""
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: config.example.yaml
+        dst: /etc/robobee/config.example.yaml
+        type: config

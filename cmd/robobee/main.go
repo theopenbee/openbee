@@ -1,17 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "robobee",
-	Short: "RoboBee 核心服务",
+	Use:     "robobee",
+	Short:   "RoboBee 核心服务",
+	Version: version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
+}
+
+func init() {
+	rootCmd.SetVersionTemplate(fmt.Sprintf("robobee %s (commit: %s, built: %s)\n", version, commit, date))
 }
 
 func main() {
