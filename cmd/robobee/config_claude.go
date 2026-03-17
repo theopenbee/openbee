@@ -71,6 +71,24 @@ func aliyunEnv(apiKey, model string) map[string]string {
 	}
 }
 
+func volcengineEnv(apiKey, model string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
+		"ANTHROPIC_BASE_URL":                       "https://ark.cn-beijing.volces.com/api/coding",
+		"ANTHROPIC_MODEL":                          model,
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+	}
+}
+
+func tencentEnv(apiKey, model string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
+		"ANTHROPIC_BASE_URL":                       "https://api.lkeap.cloud.tencent.com/coding/anthropic",
+		"ANTHROPIC_MODEL":                          model,
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+	}
+}
+
 func customEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   baseURL,
@@ -283,6 +301,8 @@ func configureClaudeProvider() error {
 			"智谱清言（GLM）",
 			"稀宇科技（MiniMax）",
 			"阿里云（千问）",
+			"火山引擎（豆包）",
+			"腾讯云",
 			"自定义服务商",
 		},
 	}, &provider); err != nil {
@@ -347,6 +367,60 @@ func configureClaudeProvider() error {
 			return handleSurveyErr(err)
 		}
 		env = aliyunEnv(apiKey, model)
+
+	case "火山引擎（豆包）":
+		var apiKey string
+		if err := survey.AskOne(&survey.Input{
+			Message: "火山引擎 API Key:",
+		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+		var model string
+		if err := survey.AskOne(&survey.Select{
+			Message: "选择模型:",
+			Options: []string{
+				"doubao-seed-2.0-code",
+				"doubao-seed-2.0-pro",
+				"doubao-seed-2.0-lite",
+				"doubao-seed-code",
+				"minimax-m2.5",
+				"glm-4.7",
+				"deepseek-v3.2",
+				"kimi-k2.5",
+			},
+			Default: "doubao-seed-2.0-code",
+		}, &model); err != nil {
+			return handleSurveyErr(err)
+		}
+		env = volcengineEnv(apiKey, model)
+		needClaudeJSON = true
+
+	case "腾讯云":
+		var apiKey string
+		if err := survey.AskOne(&survey.Input{
+			Message: "腾讯云 API Key:",
+		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+		var model string
+		if err := survey.AskOne(&survey.Select{
+			Message: "选择模型:",
+			Options: []string{
+				"tc-code-latest（auto）",
+				"hunyuan-2.0-instruct",
+				"hunyuan-2.0-thinking",
+				"minimax-m2.5",
+				"kimi-k2.5",
+				"glm-5",
+				"hunyuan-t1",
+				"hunyuan-turbos",
+			},
+			Default: "tc-code-latest（auto）",
+		}, &model); err != nil {
+			return handleSurveyErr(err)
+		}
+		env = tencentEnv(apiKey, model)
+		needClaudeJSON = true
 
 	case "自定义服务商":
 		var baseURL, apiKey string

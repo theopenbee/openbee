@@ -90,6 +90,56 @@ func TestProviderEnvMap_Aliyun(t *testing.T) {
 	}
 }
 
+func TestProviderEnvMap_Volcengine(t *testing.T) {
+	env := volcengineEnv("volc-key-123", "doubao-seed-2.0-code")
+	if env["ANTHROPIC_AUTH_TOKEN"] != "volc-key-123" {
+		t.Errorf("want volc-key-123, got %q", env["ANTHROPIC_AUTH_TOKEN"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "https://ark.cn-beijing.volces.com/api/coding" {
+		t.Errorf("unexpected base url: %q", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_MODEL"] != "doubao-seed-2.0-code" {
+		t.Errorf("unexpected model: %q", env["ANTHROPIC_MODEL"])
+	}
+	if env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] != "1" {
+		t.Errorf("unexpected traffic flag: %q", env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"])
+	}
+	if len(env) != 4 {
+		t.Errorf("volcengine env should have exactly 4 keys, got %d", len(env))
+	}
+
+	// Verify non-default model propagation
+	env2 := volcengineEnv("volc-key", "kimi-k2.5")
+	if env2["ANTHROPIC_MODEL"] != "kimi-k2.5" {
+		t.Errorf("model not propagated: want kimi-k2.5, got %q", env2["ANTHROPIC_MODEL"])
+	}
+}
+
+func TestProviderEnvMap_Tencent(t *testing.T) {
+	env := tencentEnv("tc-key-456", "tc-code-latest（auto）")
+	if env["ANTHROPIC_AUTH_TOKEN"] != "tc-key-456" {
+		t.Errorf("want tc-key-456, got %q", env["ANTHROPIC_AUTH_TOKEN"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "https://api.lkeap.cloud.tencent.com/coding/anthropic" {
+		t.Errorf("unexpected base url: %q", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_MODEL"] != "tc-code-latest（auto）" {
+		t.Errorf("unexpected model: %q", env["ANTHROPIC_MODEL"])
+	}
+	if env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] != "1" {
+		t.Errorf("unexpected traffic flag: %q", env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"])
+	}
+	if len(env) != 4 {
+		t.Errorf("tencent env should have exactly 4 keys, got %d", len(env))
+	}
+
+	// Verify non-default model propagation
+	env2 := tencentEnv("tc-key", "hunyuan-2.0-instruct")
+	if env2["ANTHROPIC_MODEL"] != "hunyuan-2.0-instruct" {
+		t.Errorf("model not propagated: want hunyuan-2.0-instruct, got %q", env2["ANTHROPIC_MODEL"])
+	}
+}
+
 func TestProviderEnvMap_Custom(t *testing.T) {
 	env := customEnv("https://my.api/v1", "my-key")
 	if env["ANTHROPIC_BASE_URL"] != "https://my.api/v1" {
