@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -155,15 +157,38 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 2 — MCP config
 	fmt.Println("\n=== MCP 配置 ===")
 
-	mcpDefault := ""
+	mcpKeyChoice := "随机生成"
 	if vals.MCPAPIKey != "" {
-		mcpDefault = vals.MCPAPIKey
+		mcpKeyChoice = "手动输入"
 	}
-	if err := survey.AskOne(&survey.Input{
-		Message: "MCP API Key:",
-		Default: mcpDefault,
-	}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
+	var mcpMethod string
+	if err := survey.AskOne(&survey.Select{
+		Message: "MCP API Key 设置方式:",
+		Options: []string{"随机生成", "手动输入"},
+		Default: mcpKeyChoice,
+	}, &mcpMethod); err != nil {
 		return handleSurveyErr(err)
+	}
+
+	switch mcpMethod {
+	case "随机生成":
+		b := make([]byte, 12)
+		if _, err := rand.Read(b); err != nil {
+			return fmt.Errorf("生成随机 key 失败: %w", err)
+		}
+		vals.MCPAPIKey = hex.EncodeToString(b)
+		fmt.Printf("已生成 MCP API Key: %s\n", vals.MCPAPIKey)
+	case "手动输入":
+		mcpDefault := ""
+		if vals.MCPAPIKey != "" {
+			mcpDefault = vals.MCPAPIKey
+		}
+		if err := survey.AskOne(&survey.Input{
+			Message: "MCP API Key:",
+			Default: mcpDefault,
+		}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
 	}
 
 	// Step 3 — Platform config
