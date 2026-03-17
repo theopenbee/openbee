@@ -18,14 +18,16 @@
 
 ```
 Step 1: 基本配置（端口、Host、Debug、DB路径）— 不变
-Step 2: Claude 配置（新）
+Step 2: Claude 配置（新插入）
   2a. Claude 可执行程序配置
   2b. Claude 模型服务商配置
-Step 3: MCP 配置 — 不变
-Step 4: 平台配置 — 不变
-Step 5: 高级配置（移除 Claude 路径和超时，保留 Feeder/Debounce/FFmpeg）
-Step 6: 确认写入 — 不变
+Step 3: MCP 配置（原 Step 2，编号后移）
+Step 4: 平台配置（原 Step 3，编号后移）
+Step 5: 高级配置（原 Step 4，移除 Claude 路径和超时，保留 Feeder/Debounce/FFmpeg）
+Step 6: 确认写入（原 Step 5，编号后移）
 ```
+
+> **注意：** 代码中现有的 Step 注释（`// Step 2 — MCP config` 等）需要全部重新编号。
 
 ## Step 2 详细设计
 
@@ -34,7 +36,7 @@ Step 6: 确认写入 — 不变
 **流程：**
 
 1. 调用 `exec.LookPath("claude")` 检测 PATH 中是否有 claude
-2. **如果找到：** 提示 "已检测到系统安装的 Claude: /path/to/claude，将自动使用"，自动设置 `vals.ClaudePath`
+2. **如果找到：** 提示 "已检测到系统安装的 Claude: /path/to/claude，将自动使用"，将 `vals.ClaudePath` 设置为 `LookPath` 返回的绝对路径
 3. **如果没找到：** 提供选择菜单：
    - "手动输入 Claude 路径"
    - "下载 Claude"
@@ -45,11 +47,11 @@ Step 6: 确认写入 — 不变
 
 **下载分支：**
 - 通过 `runtime.GOARCH` 检测当前 CPU 架构（amd64 / arm64）
-- 向 placeholder 下载地址发送请求，传递架构参数，获取下载链接
-- 下载 Claude 可执行文件
+- 下载地址定义为常量 `claudeDownloadURL`，当前值为 placeholder（`https://example.com/claude/download`），后续替换为真实地址
+- 向下载地址发送 GET 请求，URL query 参数传递 `arch=amd64` 或 `arch=arm64`，响应体为 Claude 二进制文件
 - 保存到 `~/.robobee/bin/claude`
 - 设置可执行权限 (`chmod +x`)
-- 如果 `~/.robobee/bin/` 目录不存在，先创建
+- 如果 `~/.robobee/bin/` 目录不存在，先创建（`os.MkdirAll`）
 - 下载失败时提示错误并回退到手动输入路径
 
 **Claude 超时配置：**
@@ -169,7 +171,8 @@ Step 6: 确认写入 — 不变
 
 - 如果 `~/.claude/` 目录不存在，先创建（`os.MkdirAll`）
 - JSON 使用缩进格式化写入，保持可读性
-- 文件已存在时直接覆盖（用户已通过交互确认继续配置）
+- **`~/.claude/settings.json` 采用合并策略：** 如果文件已存在，先读取并解析现有内容，只更新 `env` 字段中的相关 key，保留文件中其他配置（如 `allowedTools`、`permissions` 等），避免数据丢失
+- **`~/.claude.json` 采用合并策略：** 如果文件已存在，先读取并解析现有内容，合并写入 `hasCompletedOnboarding: true`，保留其他字段
 
 ## 代码结构
 
