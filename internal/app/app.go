@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -14,16 +14,16 @@ import (
 	"github.com/robobee/core/internal/api"
 	"github.com/robobee/core/internal/bee"
 	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/task_dispatcher"
+	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/mcp"
 	"github.com/robobee/core/internal/msgingest"
 	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/media"
 	"github.com/robobee/core/internal/platform/dingtalk"
 	"github.com/robobee/core/internal/platform/feishu"
 	"github.com/robobee/core/internal/platform/local"
 	"github.com/robobee/core/internal/platform/wecom"
 	"github.com/robobee/core/internal/store"
+	"github.com/robobee/core/internal/task_dispatcher"
 	"github.com/robobee/core/internal/task_scheduler"
 	"github.com/robobee/core/internal/worker"
 	webui "github.com/robobee/core/web"
@@ -63,8 +63,8 @@ func (a *App) Run() {
 	}
 }
 
-// buildApp wires all components together. Returns a ready-to-run App.
-func buildApp(cfg config.Config) (*App, error) {
+// BuildApp wires all components together. Returns a ready-to-run App.
+func BuildApp(cfg config.Config) (*App, error) {
 	if !cfg.Server.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -142,13 +142,13 @@ func buildApp(cfg config.Config) (*App, error) {
 // appStores groups all store instances for passing to sub-builders.
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
-	workerStore      *store.WorkerStore
-	execStore        *store.ExecutionStore
-	msgStore         *store.MessageStore
-	taskStore        *store.TaskStore
-	sessionStore     *store.SessionStore
+	workerStore       *store.WorkerStore
+	execStore         *store.ExecutionStore
+	msgStore          *store.MessageStore
+	taskStore         *store.TaskStore
+	sessionStore      *store.SessionStore
 	localSessionStore *store.LocalSessionStore
-	localReplyStore  *store.LocalReplyStore
+	localReplyStore   *store.LocalReplyStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
