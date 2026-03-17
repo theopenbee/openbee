@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed config.yaml.tmpl
+var ConfigTemplate string
 
 // DefaultBeeWorkDir returns the hardcoded bee working directory: ~/.robobee/bee
 func DefaultBeeWorkDir() string {

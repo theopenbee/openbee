@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -12,12 +11,12 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"github.com/robobee/core/internal/config"
 )
 
 var errInterrupted = errors.New("interrupted")
 
-//go:embed config.yaml.tmpl
-var configTemplate string
+var configTemplate = config.ConfigTemplate
 
 type configValues struct {
 	ServerPort   string
