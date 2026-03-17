@@ -13,7 +13,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 )
 
-const claudeDownloadURL = "https://example.com/claude/download"
+const claudeDownloadURL = "https://cc-download.robobee.dev/claude/download"
 
 // Provider display names used in the selection menu and switch cases.
 const (
