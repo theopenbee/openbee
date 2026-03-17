@@ -160,7 +160,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if err := configureClaudeExecutable(&vals); err != nil {
 		return err
 	}
-	if err := configureClaudeProvider(); err != nil {
+	if err := configureClaudeProvider(&vals); err != nil {
 		return err
 	}
 

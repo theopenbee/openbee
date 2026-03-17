@@ -15,6 +15,29 @@ import (
 
 const claudeDownloadURL = "https://example.com/claude/download"
 
+// Provider display names used in the selection menu and switch cases.
+const (
+	providerMoonshot   = "月之暗面（Kimi）"
+	providerDeepSeek   = "深度求索（DeepSeek）"
+	providerGLM        = "智谱清言（GLM）"
+	providerMiniMax    = "稀宇科技（MiniMax）"
+	providerAliyun     = "阿里云（千问）"
+	providerVolcengine = "火山引擎（豆包）"
+	providerTencent    = "腾讯云"
+	providerCustom     = "自定义服务商"
+)
+
+// promptAPIKey asks the user for an API key with the given message.
+func promptAPIKey(message string) (string, error) {
+	var apiKey string
+	if err := survey.AskOne(&survey.Input{
+		Message: message,
+	}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
+		return "", handleSurveyErr(err)
+	}
+	return apiKey, nil
+}
+
 // Provider env map builders — only ANTHROPIC_AUTH_TOKEN comes from user input.
 
 func moonshotEnv(apiKey string) map[string]string {
@@ -62,31 +85,26 @@ func deepseekEnv(apiKey string) map[string]string {
 	}
 }
 
-func aliyunEnv(apiKey, model string) map[string]string {
+// standardProviderEnv builds an env map for providers that need only base URL, API key, and model.
+func standardProviderEnv(baseURL, apiKey, model string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
-		"ANTHROPIC_BASE_URL":                       "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		"ANTHROPIC_BASE_URL":                       baseURL,
 		"ANTHROPIC_MODEL":                          model,
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 	}
+}
+
+func aliyunEnv(apiKey, model string) map[string]string {
+	return standardProviderEnv("https://coding.dashscope.aliyuncs.com/apps/anthropic", apiKey, model)
 }
 
 func volcengineEnv(apiKey, model string) map[string]string {
-	return map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
-		"ANTHROPIC_BASE_URL":                       "https://ark.cn-beijing.volces.com/api/coding",
-		"ANTHROPIC_MODEL":                          model,
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-	}
+	return standardProviderEnv("https://ark.cn-beijing.volces.com/api/coding", apiKey, model)
 }
 
 func tencentEnv(apiKey, model string) map[string]string {
-	return map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
-		"ANTHROPIC_BASE_URL":                       "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-		"ANTHROPIC_MODEL":                          model,
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-	}
+	return standardProviderEnv("https://api.lkeap.cloud.tencent.com/coding/anthropic", apiKey, model)
 }
 
 func customEnv(baseURL, apiKey string) map[string]string {
@@ -104,16 +122,17 @@ func mergeClaudeSettings(path string, env map[string]string) error {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	existing := make(map[string]interface{})
+	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
-		// Ignore malformed JSON — treat as empty
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			fmt.Printf("警告: %s JSON 格式错误，将覆盖: %v\n", path, err)
+		}
 	}
 
 	// Get or create the env map
-	envMap, ok := existing["env"].(map[string]interface{})
+	envMap, ok := existing["env"].(map[string]any)
 	if !ok {
-		envMap = make(map[string]interface{})
+		envMap = make(map[string]any)
 	}
 
 	// Merge new env values
@@ -132,9 +151,11 @@ func mergeClaudeSettings(path string, env map[string]string) error {
 // mergeClaudeJSON reads existing ~/.claude.json (if any),
 // sets hasCompletedOnboarding=true, preserves all other keys, and writes back.
 func mergeClaudeJSON(path string) error {
-	existing := make(map[string]interface{})
+	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			fmt.Printf("警告: %s JSON 格式错误，将覆盖: %v\n", path, err)
+		}
 	}
 
 	existing["hasCompletedOnboarding"] = true
@@ -197,7 +218,7 @@ func promptClaudeManualPath(vals *configValues) error {
 	if err := survey.AskOne(&survey.Input{
 		Message: "Claude 可执行文件路径:",
 		Default: vals.ClaudePath,
-	}, &vals.ClaudePath, survey.WithValidator(func(val interface{}) error {
+	}, &vals.ClaudePath, survey.WithValidator(func(val any) error {
 		path, _ := val.(string)
 		info, err := os.Stat(path)
 		if err != nil {
@@ -249,18 +270,31 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
 	}
 
-	f, err := os.Create(destPath)
+	// Write to temp file first, rename on success to avoid leaving corrupt binaries.
+	tmpPath := destPath + ".tmp"
+	f, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("创建文件失败: %w", err)
 	}
-	defer f.Close()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("写入文件失败: %w", err)
 	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("关闭文件失败: %w", err)
+	}
 
-	if err := os.Chmod(destPath, 0755); err != nil {
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		os.Remove(tmpPath)
 		return fmt.Errorf("设置可执行权限失败: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("移动文件失败: %w", err)
 	}
 
 	vals.ClaudePath = destPath
@@ -272,8 +306,8 @@ func downloadClaude(vals *configValues) error {
 // 1. Check if ~/.claude/settings.json exists
 // 2. If exists: offer to skip or reconfigure
 // 3. Select provider, collect API key, merge into settings.json
-// 4. For GLM/MiniMax: also merge into ~/.claude.json
-func configureClaudeProvider() error {
+// 4. For providers that need onboarding bypass: also merge into ~/.claude.json
+func configureClaudeProvider(vals *configValues) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("获取用户目录失败: %w", err)
@@ -297,19 +331,20 @@ func configureClaudeProvider() error {
 	}
 
 	// Select provider
+	providerOptions := []string{
+		providerMoonshot,
+		providerDeepSeek,
+		providerGLM,
+		providerMiniMax,
+		providerAliyun,
+		providerVolcengine,
+		providerTencent,
+		providerCustom,
+	}
 	var provider string
 	if err := survey.AskOne(&survey.Select{
 		Message: "选择模型服务商:",
-		Options: []string{
-			"月之暗面（Kimi）",
-			"深度求索（DeepSeek）",
-			"智谱清言（GLM）",
-			"稀宇科技（MiniMax）",
-			"阿里云（千问）",
-			"火山引擎（豆包）",
-			"腾讯云",
-			"自定义服务商",
-		},
+		Options: providerOptions,
 	}, &provider); err != nil {
 		return handleSurveyErr(err)
 	}
@@ -318,50 +353,40 @@ func configureClaudeProvider() error {
 	needClaudeJSON := false
 
 	switch provider {
-	case "月之暗面（Kimi）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "Moonshot API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerMoonshot:
+		apiKey, err := promptAPIKey("Moonshot API Key:")
+		if err != nil {
+			return err
 		}
 		env = moonshotEnv(apiKey)
 
-	case "深度求索（DeepSeek）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "DeepSeek API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerDeepSeek:
+		apiKey, err := promptAPIKey("DeepSeek API Key:")
+		if err != nil {
+			return err
 		}
 		env = deepseekEnv(apiKey)
 
-	case "智谱清言（GLM）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "智谱 API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerGLM:
+		apiKey, err := promptAPIKey("智谱 API Key:")
+		if err != nil {
+			return err
 		}
 		env = glmEnv(apiKey)
 		needClaudeJSON = true
 
-	case "稀宇科技（MiniMax）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "MiniMax API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerMiniMax:
+		apiKey, err := promptAPIKey("MiniMax API Key:")
+		if err != nil {
+			return err
 		}
 		env = minimaxEnv(apiKey)
 		needClaudeJSON = true
 
-	case "阿里云（千问）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "阿里云 API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerAliyun:
+		apiKey, err := promptAPIKey("阿里云 API Key:")
+		if err != nil {
+			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
@@ -373,12 +398,10 @@ func configureClaudeProvider() error {
 		}
 		env = aliyunEnv(apiKey, model)
 
-	case "火山引擎（豆包）":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "火山引擎 API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerVolcengine:
+		apiKey, err := promptAPIKey("火山引擎 API Key:")
+		if err != nil {
+			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
@@ -400,12 +423,10 @@ func configureClaudeProvider() error {
 		env = volcengineEnv(apiKey, model)
 		needClaudeJSON = true
 
-	case "腾讯云":
-		var apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "腾讯云 API Key:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerTencent:
+		apiKey, err := promptAPIKey("腾讯云 API Key:")
+		if err != nil {
+			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
@@ -427,17 +448,14 @@ func configureClaudeProvider() error {
 		env = tencentEnv(apiKey, model)
 		needClaudeJSON = true
 
-	case "自定义服务商":
-		var baseURL, apiKey string
-		if err := survey.AskOne(&survey.Input{
-			Message: "ANTHROPIC_BASE_URL:",
-		}, &baseURL, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+	case providerCustom:
+		baseURL, err := promptAPIKey("ANTHROPIC_BASE_URL:")
+		if err != nil {
+			return err
 		}
-		if err := survey.AskOne(&survey.Input{
-			Message: "ANTHROPIC_AUTH_TOKEN:",
-		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
+		apiKey, err := promptAPIKey("ANTHROPIC_AUTH_TOKEN:")
+		if err != nil {
+			return err
 		}
 		env = customEnv(baseURL, apiKey)
 	}

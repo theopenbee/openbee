@@ -167,12 +167,12 @@ func TestMergeSettingsJSON_NewFile(t *testing.T) {
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	envMap, ok := result["env"].(map[string]interface{})
+	envMap, ok := result["env"].(map[string]any)
 	if !ok {
 		t.Fatal("env key missing or wrong type")
 	}
@@ -188,9 +188,9 @@ func TestMergeSettingsJSON_PreservesExistingKeys(t *testing.T) {
 	path := filepath.Join(claudeDir, "settings.json")
 
 	// Write existing file with extra keys
-	existing := map[string]interface{}{
+	existing := map[string]any{
 		"allowedTools": []string{"Read", "Write"},
-		"env": map[string]interface{}{
+		"env": map[string]any{
 			"SOME_OTHER_VAR": "keep-me",
 		},
 	}
@@ -204,7 +204,7 @@ func TestMergeSettingsJSON_PreservesExistingKeys(t *testing.T) {
 	}
 
 	data, _ = os.ReadFile(path)
-	var result map[string]interface{}
+	var result map[string]any
 	json.Unmarshal(data, &result)
 
 	// allowedTools preserved
@@ -212,7 +212,7 @@ func TestMergeSettingsJSON_PreservesExistingKeys(t *testing.T) {
 		t.Error("allowedTools was lost during merge")
 	}
 
-	envMap := result["env"].(map[string]interface{})
+	envMap := result["env"].(map[string]any)
 	// New keys written
 	if envMap["ANTHROPIC_AUTH_TOKEN"] != "new-key" {
 		t.Errorf("want new-key, got %v", envMap["ANTHROPIC_AUTH_TOKEN"])
@@ -232,7 +232,7 @@ func TestMergeClaudeJSON_NewFile(t *testing.T) {
 	}
 
 	data, _ := os.ReadFile(path)
-	var result map[string]interface{}
+	var result map[string]any
 	json.Unmarshal(data, &result)
 
 	if result["hasCompletedOnboarding"] != true {
@@ -244,7 +244,7 @@ func TestMergeClaudeJSON_PreservesExisting(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".claude.json")
 
-	existing := map[string]interface{}{"someKey": "someValue"}
+	existing := map[string]any{"someKey": "someValue"}
 	data, _ := json.MarshalIndent(existing, "", "  ")
 	os.WriteFile(path, data, 0644)
 
@@ -253,7 +253,7 @@ func TestMergeClaudeJSON_PreservesExisting(t *testing.T) {
 	}
 
 	data, _ = os.ReadFile(path)
-	var result map[string]interface{}
+	var result map[string]any
 	json.Unmarshal(data, &result)
 
 	if result["someKey"] != "someValue" {
