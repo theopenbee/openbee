@@ -79,22 +79,6 @@ scoops:
     description: "RoboBee 核心服务"
     license: ""
 
-snapcrafts:
-  - id: robobee
-    name: robobee
-    summary: "RoboBee 核心服务"
-    description: |
-      RoboBee 是一个多平台机器人核心服务，支持飞书、钉钉、企业微信等平台。
-    grade: stable
-    confinement: strict
-    publish: true
-    apps:
-      robobee:
-        command: robobee
-        plugs:
-          - network
-          - network-bind
-
 nfpms:
   - id: robobee
     package_name: robobee

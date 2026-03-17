@@ -33,17 +33,6 @@ jobs:
         with:
           version: 10
 
-      - name: Set up Snapcraft
-        uses: snapcore/action-build@v1
-        id: snapcraft
-        continue-on-error: true
-
-      - name: Login to Snapcraft
-        if: steps.snapcraft.outcome == 'success'
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-        run: echo "$SNAPCRAFT_STORE_CREDENTIALS" | snapcraft login --with -
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -54,4 +43,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
