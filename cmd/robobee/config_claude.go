@@ -282,6 +282,7 @@ func configureClaudeProvider() error {
 			"深度求索（DeepSeek）",
 			"智谱清言（GLM）",
 			"稀宇科技（MiniMax）",
+			"阿里云（千问）",
 			"自定义服务商",
 		},
 	}, &provider); err != nil {
@@ -329,6 +330,23 @@ func configureClaudeProvider() error {
 		}
 		env = minimaxEnv(apiKey)
 		needClaudeJSON = true
+
+	case "阿里云（千问）":
+		var apiKey string
+		if err := survey.AskOne(&survey.Input{
+			Message: "阿里云 API Key:",
+		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+		var model string
+		if err := survey.AskOne(&survey.Select{
+			Message: "选择模型:",
+			Options: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
+			Default: "qwen3.5-plus",
+		}, &model); err != nil {
+			return handleSurveyErr(err)
+		}
+		env = aliyunEnv(apiKey, model)
 
 	case "自定义服务商":
 		var baseURL, apiKey string
