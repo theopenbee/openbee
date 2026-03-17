@@ -31,6 +31,13 @@ type TaskStore interface {
 	FailTask(ctx context.Context, taskID string) error
 }
 
+// FailureNotifier sends failure notifications to users when a worker execution
+// fails at the system level (e.g. API error, content filtering) and the worker
+// itself had no chance to call send_message.
+type FailureNotifier interface {
+	NotifyTaskFailure(ctx context.Context, messageID, reason string) error
+}
+
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
 	GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error)
@@ -50,20 +57,21 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per (SessionKey, WorkerID).
 type TaskDispatcher struct {
-	ctx          context.Context        // 由 Run 注入的生命周期上下文
-	manager      ExecutionManager       // 启动 worker 执行
-	taskStore    TaskStore              // 持久化 task 与 execution 的关联状态
-	sessionStore SessionStore           // 管理会话上下文的读写与清理
-	execStore    ExecutionQuerier       // 按 ID 查询 execution 状态
-	inCh         <-chan DispatchTask    // 入站任务通道
-	resultsCh    chan internalResult    // 内部完成信号通道，用于驱动队列调度
-	queues       map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
-	clearCh      chan string            // 接收需要清理的 sessionKey 信号
+	ctx              context.Context        // 由 Run 注入的生命周期上下文
+	manager          ExecutionManager       // 启动 worker 执行
+	taskStore        TaskStore              // 持久化 task 与 execution 的关联状态
+	sessionStore     SessionStore           // 管理会话上下文的读写与清理
+	execStore        ExecutionQuerier       // 按 ID 查询 execution 状态
+	failureNotifier  FailureNotifier        // 发送失败通知（可选）
+	inCh             <-chan DispatchTask    // 入站任务通道
+	resultsCh        chan internalResult    // 内部完成信号通道，用于驱动队列调度
+	queues           map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
+	clearCh          chan string            // 接收需要清理的 sessionKey 信号
 }
 
 // New constructs a TaskDispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask) *TaskDispatcher {
-	return &TaskDispatcher{
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, opts ...Option) *TaskDispatcher {
+	d := &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
@@ -73,6 +81,18 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		queues:       make(map[string]*queueState),
 		clearCh:      make(chan string, 8),
 	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// Option configures a TaskDispatcher.
+type Option func(*TaskDispatcher)
+
+// WithFailureNotifier sets the notifier used to inform users about task failures.
+func WithFailureNotifier(fn FailureNotifier) Option {
+	return func(d *TaskDispatcher) { d.failureNotifier = fn }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
@@ -169,6 +189,7 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 				slog.Error("fail task after execute error", "component", "taskdispatcher", "taskID", task.TaskID, "error", failErr)
 			}
 		}
+		d.notifyFailure(ctx, task.MessageID, err.Error())
 		return
 	}
 	if task.TaskID != "" {
@@ -176,7 +197,7 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 			slog.Error("set execution", "component", "taskdispatcher", "taskID", task.TaskID, "error", err)
 		}
 	}
-	d.waitForResult(ctx, exec.ID, task.TaskID, task.SessionKey, task.WorkerID)
+	d.waitForResult(ctx, exec.ID, task)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
@@ -204,7 +225,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 }
 
-func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID, sessionKey, workerID string) {
+func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	for time.Now().Before(deadline) {
@@ -221,19 +242,20 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID,
 		case model.ExecStatusCompleted:
 			// Persist session_id for future resume (only on success).
 			// Terminal task status is set by the worker via mark_task_success.
-			if sessionKey != "" && workerID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, sessionKey, workerID, exec.SessionID); err != nil {
+			if task.SessionKey != "" && task.WorkerID != "" {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
 					slog.Error("upsert session context", "component", "taskdispatcher", "error", err)
 				}
 			}
 			return
 		case model.ExecStatusFailed:
 			// Dispatcher sets terminal task status on abnormal worker exit.
-			if taskID != "" {
-				if err := d.taskStore.FailTask(ctx, taskID); err != nil {
-					slog.Error("fail task", "component", "taskdispatcher", "taskID", taskID, "error", err)
+			if task.TaskID != "" {
+				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
+					slog.Error("fail task", "component", "taskdispatcher", "taskID", task.TaskID, "error", err)
 				}
 			}
+			d.notifyFailure(ctx, task.MessageID, exec.Result)
 			return
 		}
 		select {
@@ -241,6 +263,15 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID, taskID,
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID, reason string) {
+	if d.failureNotifier == nil || messageID == "" {
+		return
+	}
+	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, reason); err != nil {
+		slog.Error("notify task failure", "component", "taskdispatcher", "messageID", messageID, "error", err)
 	}
 }
 

@@ -82,10 +82,41 @@ func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey st
 	return nil
 }
 
-func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, eq task_dispatcher.ExecutionQuerier, ss task_dispatcher.SessionStore) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask, *mockTaskStore) {
+type mockFailureNotifier struct {
+	mu        sync.Mutex
+	calls     []failureCall
+}
+
+type failureCall struct {
+	messageID string
+	reason    string
+}
+
+func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID, reason string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.calls = append(n.calls, failureCall{messageID: messageID, reason: reason})
+	return nil
+}
+
+func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n.mu.Lock()
+		count := len(n.calls)
+		n.mu.Unlock()
+		if count > 0 {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, eq task_dispatcher.ExecutionQuerier, ss task_dispatcher.SessionStore, opts ...task_dispatcher.Option) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask, *mockTaskStore) {
 	in := make(chan task_dispatcher.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task_dispatcher.New(mgr, ts, ss, eq, in)
+	d := task_dispatcher.New(mgr, ts, ss, eq, in, opts...)
 	return d, in, ts
 }
 
@@ -439,7 +470,8 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID s
 func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
 	mgr := &alwaysFailExecManager{}
 	eq := &mockExecutionQuerier{}
-	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore())
+	fn := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task_dispatcher.WithFailureNotifier(fn))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -469,9 +501,19 @@ func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
 	}
 
 	ts.mu.Lock()
-	defer ts.mu.Unlock()
 	if len(ts.failedTasks) != 1 || ts.failedTasks[0] != "task-launch-fail" {
 		t.Errorf("expected FailTask called with task-launch-fail, got %v", ts.failedTasks)
+	}
+	ts.mu.Unlock()
+
+	// Verify failure notification was sent.
+	if !fn.waitForCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskFailure to be called")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	if fn.calls[0].messageID != "msg-1" {
+		t.Errorf("expected messageID=msg-1, got %s", fn.calls[0].messageID)
 	}
 }
 
@@ -480,9 +522,10 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 		execResult: model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
 	}
 	eq := &mockExecutionQuerier{
-		result: model.WorkerExecution{ID: "exec-fail", Status: model.ExecStatusFailed},
+		result: model.WorkerExecution{ID: "exec-fail", Status: model.ExecStatusFailed, Result: "API Error: blocked"},
 	}
-	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore())
+	fn := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task_dispatcher.WithFailureNotifier(fn))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -515,8 +558,21 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	}
 
 	ts.mu.Lock()
-	defer ts.mu.Unlock()
 	if len(ts.failedTasks) != 1 || ts.failedTasks[0] != "task-fail-1" {
 		t.Errorf("expected FailTask called with task-fail-1, got %v", ts.failedTasks)
+	}
+	ts.mu.Unlock()
+
+	// Verify failure notification was sent with execution result.
+	if !fn.waitForCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskFailure to be called")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	if fn.calls[0].messageID != "msg-1" {
+		t.Errorf("expected messageID=msg-1, got %s", fn.calls[0].messageID)
+	}
+	if fn.calls[0].reason != "API Error: blocked" {
+		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].reason)
 	}
 }
