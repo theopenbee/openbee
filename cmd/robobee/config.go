@@ -72,43 +72,21 @@ func loadExistingConfig(path string) *configValues {
 		return nil
 	}
 
-	// Determine which platforms are enabled
-	var feishuEnabled, dingtalkEnabled, wecomEnabled bool
-	var feishuAppID, feishuAppSecret string
-	var dingtalkClientID, dingtalkClientSecret string
-	var wecomBotID, wecomSecret string
-
-	if cfg.Bee.Platforms.Feishu.Enabled {
-		feishuEnabled = true
-		feishuAppID = cfg.Bee.Platforms.Feishu.AppID
-		feishuAppSecret = cfg.Bee.Platforms.Feishu.AppSecret
-	}
-	if cfg.Bee.Platforms.DingTalk.Enabled {
-		dingtalkEnabled = true
-		dingtalkClientID = cfg.Bee.Platforms.DingTalk.ClientID
-		dingtalkClientSecret = cfg.Bee.Platforms.DingTalk.ClientSecret
-	}
-	if cfg.Bee.Platforms.WeCom.Enabled {
-		wecomEnabled = true
-		wecomBotID = cfg.Bee.Platforms.WeCom.BotID
-		wecomSecret = cfg.Bee.Platforms.WeCom.Secret
-	}
-
 	return &configValues{
 		ServerPort:           strconv.Itoa(cfg.Server.Port),
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
 		DBPath:               cfg.Database.Path,
 		MCPAPIKey:            cfg.Bee.MCP.APIKey,
-		FeishuEnabled:        feishuEnabled,
-		FeishuAppID:          feishuAppID,
-		FeishuAppSecret:      feishuAppSecret,
-		DingtalkEnabled:      dingtalkEnabled,
-		DingtalkClientID:     dingtalkClientID,
-		DingtalkClientSecret: dingtalkClientSecret,
-		WecomEnabled:         wecomEnabled,
-		WecomBotID:           wecomBotID,
-		WecomSecret:          wecomSecret,
+		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
+		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
+		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
+		DingtalkEnabled:      cfg.Bee.Platforms.DingTalk.Enabled,
+		DingtalkClientID:     cfg.Bee.Platforms.DingTalk.ClientID,
+		DingtalkClientSecret: cfg.Bee.Platforms.DingTalk.ClientSecret,
+		WecomEnabled:         cfg.Bee.Platforms.WeCom.Enabled,
+		WecomBotID:           cfg.Bee.Platforms.WeCom.BotID,
+		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
