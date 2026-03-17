@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 )
+
+var errInterrupted = errors.New("interrupted")
 
 //go:embed config.yaml.tmpl
 var configTemplate string
@@ -48,7 +51,13 @@ var configOutputPath string
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "交互式生成配置文件",
-	RunE:  runConfig,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := runConfig(cmd, args); errors.Is(err, errInterrupted) {
+			return nil
+		} else {
+			return err
+		}
+	},
 }
 
 func init() {
@@ -75,7 +84,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if err := survey.AskOne(&survey.Input{
 		Message: "Server 端口:",
 		Default: "8080",
-	}, &vals.ServerPort); err != nil {
+	}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
+		s, _ := val.(string)
+		if _, err := strconv.Atoi(s); err != nil {
+			return fmt.Errorf("端口必须是整数")
+		}
+		return nil
+	})); err != nil {
 		return handleSurveyErr(err)
 	}
 
@@ -255,7 +270,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 func handleSurveyErr(err error) error {
 	if errors.Is(err, terminal.InterruptErr) {
 		fmt.Println("\n已取消。")
-		os.Exit(0)
+		return errInterrupted
 	}
 	return err
 }
