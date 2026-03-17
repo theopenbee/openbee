@@ -3,7 +3,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - cmd: bash -c "cd web && pnpm install --frozen-lockfile && pnpm build"
+    - bash -c "cd web && pnpm install --frozen-lockfile && pnpm build"
 
 builds:
   - id: robobee
