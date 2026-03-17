@@ -58,7 +58,8 @@
     "id": "ID",
     "workDir": "Work Dir",
     "created": "Created",
-    "memory": "Memory"
+    "memory": "Memory",
+    "noMemory": "No memory configured"
   },
   "executionDetail": {
     "title": "Execution Detail",

@@ -42,6 +42,8 @@ export function WorkerDetail() {
 
   const [isEditingDesc, setIsEditingDesc] = useState(false)
   const [editDesc, setEditDesc] = useState("")
+  const [isEditingMemory, setIsEditingMemory] = useState(false)
+  const [editMemory, setEditMemory] = useState("")
   const updateWorker = useUpdateWorker()
 
   if (!worker) return <p>Loading...</p>
@@ -148,14 +150,51 @@ export function WorkerDetail() {
               <p><strong>{t("workerDetail.id")}:</strong> <span className="font-mono text-sm">{worker.id}</span></p>
               <p><strong>{t("workerDetail.workDir")}:</strong> {worker.work_dir}</p>
               <p><strong>{t("workerDetail.created")}:</strong> {new Date(worker.created_at).toLocaleString()}</p>
-              {worker.memory && (
-                <div>
+              <div>
+                <div className="group flex items-center gap-1">
                   <strong>{t("workerDetail.memory")}:</strong>
-                  <pre className="mt-1 whitespace-pre-wrap text-sm bg-muted p-3 rounded-md">
-                    {worker.memory}
-                  </pre>
+                  {!isEditingMemory && (
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                      onClick={() => { setEditMemory(worker.memory); setIsEditingMemory(true) }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
-              )}
+                {isEditingMemory ? (
+                  <div className="mt-1 space-y-2">
+                    <Textarea
+                      value={editMemory}
+                      onChange={(e) => setEditMemory(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") { setIsEditingMemory(false); setEditMemory(worker.memory) }
+                      }}
+                      autoFocus
+                      rows={8}
+                      className="text-sm font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={async () => {
+                        await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
+                        setIsEditingMemory(false)
+                      }}>{t("common.save")}</Button>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setIsEditingMemory(false)
+                        setEditMemory(worker.memory)
+                      }}>{t("common.cancel")}</Button>
+                    </div>
+                  </div>
+                ) : (
+                  worker.memory ? (
+                    <pre className="mt-1 whitespace-pre-wrap text-sm bg-muted p-3 rounded-md">
+                      {worker.memory}
+                    </pre>
+                  ) : (
+                    <p className="mt-1 text-muted-foreground text-sm">{t("workerDetail.noMemory")}</p>
+                  )
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
