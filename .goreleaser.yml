@@ -50,19 +50,19 @@ changelog:
 
 release:
   github:
-    owner: robobee
-    name: core
+    owner: robobeedev
+    name: robobee
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"
 
 brews:
   - repository:
-      owner: robobee
+      owner: robobeedev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: "https://github.com/robobee/core"
+    homepage: "https://github.com/robobeedev/robobee"
     description: "RoboBee 核心服务"
     license: ""
     install: |
@@ -72,10 +72,10 @@ brews:
 
 scoops:
   - repository:
-      owner: robobee
+      owner: robobeedev
       name: scoop-bucket
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
-    homepage: "https://github.com/robobee/core"
+    homepage: "https://github.com/robobeedev/robobee"
     description: "RoboBee 核心服务"
     license: ""
 
@@ -99,7 +99,7 @@ nfpms:
   - id: robobee
     package_name: robobee
     vendor: RoboBee
-    homepage: "https://github.com/robobee/core"
+    homepage: "https://github.com/robobeedev/robobee"
     maintainer: "RoboBee Team"
     description: "RoboBee 核心服务"
     license: ""
