@@ -64,6 +64,60 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
+// loadExistingConfig tries to load an existing config file and convert it to configValues
+// for use as defaults in the interactive prompts.
+func loadExistingConfig(path string) *configValues {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return nil
+	}
+
+	// Determine which platforms are enabled
+	var feishuEnabled, dingtalkEnabled, wecomEnabled bool
+	var feishuAppID, feishuAppSecret string
+	var dingtalkClientID, dingtalkClientSecret string
+	var wecomBotID, wecomSecret string
+
+	if cfg.Bee.Platforms.Feishu.Enabled {
+		feishuEnabled = true
+		feishuAppID = cfg.Bee.Platforms.Feishu.AppID
+		feishuAppSecret = cfg.Bee.Platforms.Feishu.AppSecret
+	}
+	if cfg.Bee.Platforms.DingTalk.Enabled {
+		dingtalkEnabled = true
+		dingtalkClientID = cfg.Bee.Platforms.DingTalk.ClientID
+		dingtalkClientSecret = cfg.Bee.Platforms.DingTalk.ClientSecret
+	}
+	if cfg.Bee.Platforms.WeCom.Enabled {
+		wecomEnabled = true
+		wecomBotID = cfg.Bee.Platforms.WeCom.BotID
+		wecomSecret = cfg.Bee.Platforms.WeCom.Secret
+	}
+
+	return &configValues{
+		ServerPort:           strconv.Itoa(cfg.Server.Port),
+		ServerHost:           cfg.Server.Host,
+		Debug:                cfg.Server.Debug,
+		DBPath:               cfg.Database.Path,
+		MCPAPIKey:            cfg.Bee.MCP.APIKey,
+		FeishuEnabled:        feishuEnabled,
+		FeishuAppID:          feishuAppID,
+		FeishuAppSecret:      feishuAppSecret,
+		DingtalkEnabled:      dingtalkEnabled,
+		DingtalkClientID:     dingtalkClientID,
+		DingtalkClientSecret: dingtalkClientSecret,
+		WecomEnabled:         wecomEnabled,
+		WecomBotID:           wecomBotID,
+		WecomSecret:          wecomSecret,
+		ClaudePath:           cfg.Bee.Claude.Path,
+		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
+		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
+		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
+		FFprobePath:          cfg.Bee.Media.FFprobePath,
+		FFmpegPath:           cfg.Bee.Media.FFmpegPath,
+	}
+}
+
 func runConfig(cmd *cobra.Command, args []string) error {
 	vals := configValues{
 		ServerPort:      "8080",
@@ -77,12 +131,18 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		FFmpegPath:      "ffmpeg",
 	}
 
+	// If an existing config file exists, use its values as defaults
+	if existing := loadExistingConfig(configOutputPath); existing != nil {
+		fmt.Printf("已检测到现有配置文件: %s，将使用其中的值作为默认值。\n", configOutputPath)
+		vals = *existing
+	}
+
 	// Step 1 — Basic config
 	fmt.Println("\n=== 基本配置 ===")
 
 	if err := survey.AskOne(&survey.Input{
 		Message: "Server 端口:",
-		Default: "8080",
+		Default: vals.ServerPort,
 	}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
 		s, _ := val.(string)
 		if _, err := strconv.Atoi(s); err != nil {
@@ -95,21 +155,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	if err := survey.AskOne(&survey.Input{
 		Message: "Server Host:",
-		Default: "localhost",
+		Default: vals.ServerHost,
 	}, &vals.ServerHost); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	if err := survey.AskOne(&survey.Confirm{
 		Message: "Debug 模式?",
-		Default: false,
+		Default: vals.Debug,
 	}, &vals.Debug); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	if err := survey.AskOne(&survey.Input{
 		Message: "数据库路径:",
-		Default: "./data/robobee.db",
+		Default: vals.DBPath,
 	}, &vals.DBPath); err != nil {
 		return handleSurveyErr(err)
 	}
@@ -117,8 +177,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 2 — MCP config
 	fmt.Println("\n=== MCP 配置 ===")
 
-	if err := survey.AskOne(&survey.Password{
+	mcpDefault := ""
+	if vals.MCPAPIKey != "" {
+		mcpDefault = vals.MCPAPIKey
+	}
+	if err := survey.AskOne(&survey.Input{
 		Message: "MCP API Key:",
+		Default: mcpDefault,
 	}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
 		return handleSurveyErr(err)
 	}
@@ -126,13 +191,31 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 3 — Platform config
 	fmt.Println("\n=== 平台配置 ===")
 
+	// Build default selections from existing config
+	var defaultPlatforms []string
+	if vals.FeishuEnabled {
+		defaultPlatforms = append(defaultPlatforms, "飞书")
+	}
+	if vals.DingtalkEnabled {
+		defaultPlatforms = append(defaultPlatforms, "钉钉")
+	}
+	if vals.WecomEnabled {
+		defaultPlatforms = append(defaultPlatforms, "企微")
+	}
+
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: "启用哪些平台？",
 		Options: []string{"飞书", "钉钉", "企微"},
+		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
 	}
+
+	// Reset platform flags — they'll be re-enabled based on selection
+	vals.FeishuEnabled = false
+	vals.DingtalkEnabled = false
+	vals.WecomEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -140,11 +223,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			vals.FeishuEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: "飞书 App ID:",
+				Default: vals.FeishuAppID,
 			}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Password{
+			if err := survey.AskOne(&survey.Input{
 				Message: "飞书 App Secret:",
+				Default: vals.FeishuAppSecret,
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -152,11 +237,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: "钉钉 Client ID:",
+				Default: vals.DingtalkClientID,
 			}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Password{
+			if err := survey.AskOne(&survey.Input{
 				Message: "钉钉 Client Secret:",
+				Default: vals.DingtalkClientSecret,
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -164,11 +251,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: "企微 Bot ID:",
+				Default: vals.WecomBotID,
 			}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Password{
+			if err := survey.AskOne(&survey.Input{
 				Message: "企微 Secret:",
+				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -189,42 +278,42 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if customAdvanced {
 		if err := survey.AskOne(&survey.Input{
 			Message: "Claude 可执行文件路径:",
-			Default: "claude",
+			Default: vals.ClaudePath,
 		}, &vals.ClaudePath); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "Claude 超时:",
-			Default: "30m",
+			Default: vals.ClaudeTimeout,
 		}, &vals.ClaudeTimeout); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "Feeder 超时:",
-			Default: "5m",
+			Default: vals.FeederTimeout,
 		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "消息去抖时间:",
-			Default: "3s",
+			Default: vals.MessageDebounce,
 		}, &vals.MessageDebounce); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "FFprobe 路径:",
-			Default: "ffprobe",
+			Default: vals.FFprobePath,
 		}, &vals.FFprobePath); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "FFmpeg 路径:",
-			Default: "ffmpeg",
+			Default: vals.FFmpegPath,
 		}, &vals.FFmpegPath); err != nil {
 			return handleSurveyErr(err)
 		}
@@ -234,18 +323,16 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n=== 写入配置 ===\n")
 	fmt.Printf("输出文件: %s\n", configOutputPath)
 
-	if _, err := os.Stat(configOutputPath); err == nil {
-		var overwrite bool
-		if err := survey.AskOne(&survey.Confirm{
-			Message: fmt.Sprintf("文件 %s 已存在，是否覆盖？", configOutputPath),
-			Default: false,
-		}, &overwrite); err != nil {
-			return handleSurveyErr(err)
-		}
-		if !overwrite {
-			fmt.Println("已取消写入。")
-			return nil
-		}
+	var confirmWrite bool
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "确认写入配置文件？",
+		Default: true,
+	}, &confirmWrite); err != nil {
+		return handleSurveyErr(err)
+	}
+	if !confirmWrite {
+		fmt.Println("已取消写入。")
+		return nil
 	}
 
 	tmpl, err := template.New("config").Parse(configTemplate)
