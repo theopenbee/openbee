@@ -51,6 +51,17 @@ func minimaxEnv(apiKey string) map[string]string {
 	}
 }
 
+func deepseekEnv(apiKey string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_BASE_URL":                      "https://api.deepseek.com/anthropic",
+		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
+		"ANTHROPIC_MODEL":                          "deepseek-chat",
+		"ANTHROPIC_SMALL_FAST_MODEL":               "deepseek-chat",
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"API_TIMEOUT_MS":                           "600000",
+	}
+}
+
 func customEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   baseURL,
@@ -259,6 +270,7 @@ func configureClaudeProvider() error {
 		Message: "选择模型服务商:",
 		Options: []string{
 			"月之暗面（Kimi）",
+			"深度求索（DeepSeek）",
 			"智谱清言（GLM）",
 			"稀宇科技（MiniMax）",
 			"自定义服务商",
@@ -279,6 +291,15 @@ func configureClaudeProvider() error {
 			return handleSurveyErr(err)
 		}
 		env = moonshotEnv(apiKey)
+
+	case "深度求索（DeepSeek）":
+		var apiKey string
+		if err := survey.AskOne(&survey.Input{
+			Message: "DeepSeek API Key:",
+		}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+		env = deepseekEnv(apiKey)
 
 	case "智谱清言（GLM）":
 		var apiKey string

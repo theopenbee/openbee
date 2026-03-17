@@ -43,6 +43,28 @@ func TestProviderEnvMap_MiniMax(t *testing.T) {
 	}
 }
 
+func TestProviderEnvMap_DeepSeek(t *testing.T) {
+	env := deepseekEnv("ds-key-456")
+	if env["ANTHROPIC_AUTH_TOKEN"] != "ds-key-456" {
+		t.Errorf("want ds-key-456, got %q", env["ANTHROPIC_AUTH_TOKEN"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "https://api.deepseek.com/anthropic" {
+		t.Errorf("unexpected base url: %q", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ANTHROPIC_MODEL"] != "deepseek-chat" {
+		t.Errorf("unexpected model: %q", env["ANTHROPIC_MODEL"])
+	}
+	if env["ANTHROPIC_SMALL_FAST_MODEL"] != "deepseek-chat" {
+		t.Errorf("unexpected small fast model: %q", env["ANTHROPIC_SMALL_FAST_MODEL"])
+	}
+	if env["API_TIMEOUT_MS"] != "600000" {
+		t.Errorf("unexpected timeout: %q", env["API_TIMEOUT_MS"])
+	}
+	if env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] != "1" {
+		t.Errorf("unexpected traffic flag: %q", env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"])
+	}
+}
+
 func TestProviderEnvMap_Custom(t *testing.T) {
 	env := customEnv("https://my.api/v1", "my-key")
 	if env["ANTHROPIC_BASE_URL"] != "https://my.api/v1" {
