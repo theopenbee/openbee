@@ -414,6 +414,15 @@ func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (
 	return model.WorkerExecution{ID: "exec-x"}, nil
 }
 
+type alwaysFailExecManager struct {
+	called int64
+}
+
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	atomic.AddInt64(&m.called, 1)
+	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
+}
+
 type fallbackExecManager struct {
 	freshResult model.WorkerExecution
 	freshCount  int64
@@ -425,6 +434,45 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID s
 	}
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
+}
+
+func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
+	mgr := &alwaysFailExecManager{}
+	eq := &mockExecutionQuerier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	task := task_dispatcher.DispatchTask{
+		TaskID:      "task-launch-fail",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "do something",
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: "s1"},
+		TaskType:    "countdown",
+		MessageID:   "msg-1",
+	}
+	in <- task
+
+	// Wait for FailTask to be called
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		n := len(ts.failedTasks)
+		ts.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	if len(ts.failedTasks) != 1 || ts.failedTasks[0] != "task-launch-fail" {
+		t.Errorf("expected FailTask called with task-launch-fail, got %v", ts.failedTasks)
+	}
 }
 
 func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {

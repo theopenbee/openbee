@@ -164,6 +164,11 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 	exec, err := d.resolveExecution(ctx, task, instruction)
 	if err != nil {
 		slog.Error("execute error", "component", "taskdispatcher", "error", err)
+		if task.TaskID != "" {
+			if failErr := d.taskStore.FailTask(ctx, task.TaskID); failErr != nil {
+				slog.Error("fail task after execute error", "component", "taskdispatcher", "taskID", task.TaskID, "error", failErr)
+			}
+		}
 		return
 	}
 	if task.TaskID != "" {
