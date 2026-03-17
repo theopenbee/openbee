@@ -154,7 +154,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return handleSurveyErr(err)
 	}
 
-	// Step 2 — MCP config
+	// Step 2 — Claude config
+	fmt.Println("\n=== Claude 配置 ===")
+
+	if err := configureClaudeExecutable(&vals); err != nil {
+		return err
+	}
+	if err := configureClaudeProvider(); err != nil {
+		return err
+	}
+
+	// Step 3 — MCP config
 	fmt.Println("\n=== MCP 配置 ===")
 
 	mcpKeyChoice := "随机生成"
@@ -191,7 +201,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 3 — Platform config
+	// Step 4 — Platform config
 	fmt.Println("\n=== 平台配置 ===")
 
 	// Build default selections from existing config
@@ -267,7 +277,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 4 — Advanced config
+	// Step 5 — Advanced config
 	fmt.Println("\n=== 高级配置 ===")
 
 	var customAdvanced bool
@@ -279,20 +289,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if customAdvanced {
-		if err := survey.AskOne(&survey.Input{
-			Message: "Claude 可执行文件路径:",
-			Default: vals.ClaudePath,
-		}, &vals.ClaudePath); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: "Claude 超时:",
-			Default: vals.ClaudeTimeout,
-		}, &vals.ClaudeTimeout); err != nil {
-			return handleSurveyErr(err)
-		}
-
 		if err := survey.AskOne(&survey.Input{
 			Message: "Feeder 超时:",
 			Default: vals.FeederTimeout,
@@ -322,7 +318,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 5 — Confirm write
+	// Step 6 — Confirm write
 	fmt.Printf("\n=== 写入配置 ===\n")
 	fmt.Printf("输出文件: %s\n", configOutputPath)
 
