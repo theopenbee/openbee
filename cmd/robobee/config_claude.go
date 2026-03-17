@@ -228,11 +228,16 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	destPath := filepath.Join(binDir, "claude")
+	binaryName := "claude"
+	if runtime.GOOS == "windows" {
+		binaryName = "claude.exe"
+	}
+	destPath := filepath.Join(binDir, binaryName)
 	arch := runtime.GOARCH
-	url := fmt.Sprintf("%s?arch=%s", claudeDownloadURL, arch)
+	goos := runtime.GOOS
+	url := fmt.Sprintf("%s?os=%s&arch=%s", claudeDownloadURL, goos, arch)
 
-	fmt.Printf("正在下载 Claude (%s)...\n", arch)
+	fmt.Printf("正在下载 Claude (%s/%s)...\n", goos, arch)
 
 	resp, err := http.Get(url)
 	if err != nil {
