@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -162,6 +163,47 @@ func toolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        toolnames.GetExecutionLogs,
+			Description: "查看某个执行记录的最新日志。返回执行的最后N行日志。",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"execution_id"},
+				"properties": map[string]any{
+					"execution_id": map[string]string{"type": "string", "description": "执行记录ID"},
+					"tail":         map[string]string{"type": "integer", "description": "返回最后N行日志，默认50"},
+				},
+			},
+		},
+		{
+			Name:        toolnames.GetWorkerStatus,
+			Description: "查看员工的当前状态，包括是否在工作、正在执行什么任务、待处理任务数量。",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"worker_id"},
+				"properties": map[string]any{
+					"worker_id": map[string]string{"type": "string", "description": "员工ID"},
+				},
+			},
+		},
+		{
+			Name:        toolnames.GetSystemOverview,
+			Description: "查看系统整体概况：员工状态分布、任务状态统计、最近5条执行记录。",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        toolnames.ListBeeExecutions,
+			Description: "查看 bee 自己的执行历史记录，用于自我反思和改进。",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]string{"type": "integer", "description": "返回记录数量，默认10"},
+				},
+			},
+		},
 	}
 }
 
@@ -195,6 +237,14 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolSendMessage(args)
 	case toolnames.ClearSession:
 		return s.toolClearSession(args)
+	case toolnames.GetExecutionLogs:
+		return s.toolGetExecutionLogs(args)
+	case toolnames.GetWorkerStatus:
+		return s.toolGetWorkerStatus(args)
+	case toolnames.GetSystemOverview:
+		return s.toolGetSystemOverview(args)
+	case toolnames.ListBeeExecutions:
+		return s.toolListBeeExecutions(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -563,4 +613,197 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 		"cancelled_tasks": cancelled,
 		"cleared":         true,
 	}, nil
+}
+
+func (s *MCPServer) toolGetExecutionLogs(args json.RawMessage) (any, error) {
+	var p struct {
+		ExecutionID string `json:"execution_id"`
+		Tail        int    `json:"tail"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if p.ExecutionID == "" {
+		return nil, fmt.Errorf("execution_id is required")
+	}
+	if p.Tail <= 0 {
+		p.Tail = 50
+	}
+
+	// Try live logs first
+	liveLogs := s.manager.GetExecutionLogs(p.ExecutionID)
+
+	// Fall back to DB
+	exec, err := s.executionStore.GetLogsByID(p.ExecutionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution: %w", err)
+	}
+	if exec == nil {
+		return nil, fmt.Errorf("execution %s not found", p.ExecutionID)
+	}
+
+	logs := exec.Logs
+	if liveLogs != "" {
+		logs = liveLogs
+	}
+
+	// Tail N lines
+	lines := strings.Split(logs, "\n")
+	if len(lines) > p.Tail {
+		lines = lines[len(lines)-p.Tail:]
+	}
+
+	return map[string]any{
+		"execution_id": exec.ID,
+		"worker_id":    exec.WorkerID,
+		"status":       string(exec.Status),
+		"logs":         strings.Join(lines, "\n"),
+	}, nil
+}
+
+func (s *MCPServer) toolGetWorkerStatus(args json.RawMessage) (any, error) {
+	var p struct {
+		WorkerID string `json:"worker_id"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if p.WorkerID == "" {
+		return nil, fmt.Errorf("worker_id is required")
+	}
+
+	worker, err := s.workerStore.GetByID(p.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("worker not found: %w", err)
+	}
+
+	result := map[string]any{
+		"worker_id":         worker.ID,
+		"name":              worker.Name,
+		"status":            string(worker.Status),
+		"current_execution": nil,
+	}
+
+	// Get running execution for this worker and find associated task_id
+	execs, err := s.executionStore.ListByWorkerID(worker.ID)
+	if err == nil {
+		for _, e := range execs {
+			if e.Status == "running" {
+				execInfo := map[string]any{
+					"id":          e.ID,
+					"task_id":     nil,
+					"instruction": e.TriggerInput,
+					"started_at":  e.StartedAt,
+				}
+				ctx := context.Background()
+				task, terr := s.taskStore.GetTaskByExecutionID(ctx, e.ID)
+				if terr == nil && task != nil {
+					execInfo["task_id"] = task.ID
+				}
+				result["current_execution"] = execInfo
+				break
+			}
+		}
+	}
+
+	// Count pending tasks
+	ctx := context.Background()
+	pendingCount, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
+	if err != nil {
+		pendingCount = 0
+	}
+	result["pending_tasks_count"] = pendingCount
+
+	return result, nil
+}
+
+func (s *MCPServer) toolGetSystemOverview(_ json.RawMessage) (any, error) {
+	// Worker counts
+	workerCounts, err := s.workerStore.CountByStatus()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worker counts: %w", err)
+	}
+	total := 0
+	for _, c := range workerCounts {
+		total += c
+	}
+
+	// Task counts
+	ctx := context.Background()
+	taskCounts, err := s.taskStore.CountAllByStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task counts: %w", err)
+	}
+
+	scheduledActive, _ := s.taskStore.CountScheduledActive(ctx)
+
+	recentExecs, _ := s.executionStore.ListRecent(5)
+
+	recentList := make([]map[string]any, 0, len(recentExecs))
+	for _, e := range recentExecs {
+		recentList = append(recentList, map[string]any{
+			"id":           e.ID,
+			"worker_name":  e.WorkerName,
+			"status":       string(e.Status),
+			"started_at":   e.StartedAt,
+			"completed_at": e.CompletedAt,
+		})
+	}
+
+	return map[string]any{
+		"workers": map[string]any{
+			"total":   total,
+			"idle":    workerCounts["idle"],
+			"working": workerCounts["working"],
+			"error":   workerCounts["error"],
+		},
+		"tasks": map[string]any{
+			"pending":          taskCounts["pending"],
+			"running":          taskCounts["running"],
+			"completed":        taskCounts["completed"],
+			"failed":           taskCounts["failed"],
+			"cancelled":        taskCounts["cancelled"],
+			"scheduled_active": scheduledActive,
+		},
+		"recent_executions": recentList,
+	}, nil
+}
+
+func (s *MCPServer) toolListBeeExecutions(args json.RawMessage) (any, error) {
+	var p struct {
+		Limit int `json:"limit"`
+	}
+	if args != nil {
+		json.Unmarshal(args, &p) //nolint
+	}
+	if p.Limit <= 0 {
+		p.Limit = 10
+	}
+
+	execs, err := s.executionStore.ListBeeExecutions(p.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list bee executions: %w", err)
+	}
+
+	results := make([]map[string]any, 0, len(execs))
+	for _, e := range execs {
+		triggerInput := e.TriggerInput
+		if len(triggerInput) > 200 {
+			triggerInput = triggerInput[:200]
+		}
+		result := e.Result
+		if len(result) > 200 {
+			result = result[:200]
+		}
+		results = append(results, map[string]any{
+			"id":            e.ID,
+			"trigger_input": triggerInput,
+			"status":        string(e.Status),
+			"started_at":    e.StartedAt,
+			"completed_at":  e.CompletedAt,
+			"result":        result,
+		})
+	}
+
+	return results, nil
 }

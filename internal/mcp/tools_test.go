@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/toolnames"
 	"github.com/theopenbee/openbee/internal/worker"
 )
 
@@ -345,8 +346,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 11 {
-		t.Errorf("expected 11 tool schemas, got %d", len(schemas))
+	if len(schemas) != 15 {
+		t.Errorf("expected 15 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -537,5 +538,73 @@ func TestCallTool_ClearSession_MissingSessionKey(t *testing.T) {
 	_, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing session_key")
+	}
+}
+
+func TestCallTool_GetExecutionLogs(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	// Call with non-existent execution
+	_, err := s.CallTool(toolnames.GetExecutionLogs, mustMarshal(t, map[string]any{
+		"execution_id": "nonexistent",
+	}))
+	if err == nil {
+		t.Fatal("expected error for non-existent execution")
+	}
+}
+
+func TestCallTool_GetWorkerStatus(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	// Create a worker first
+	created, err := s.CallTool(toolnames.CreateWorker, mustMarshal(t, map[string]any{
+		"name": "status-test",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := created.(model.Worker)
+
+	result, err := s.CallTool(toolnames.GetWorkerStatus, mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["worker_id"] != w.ID {
+		t.Errorf("expected worker_id %s, got %v", w.ID, m["worker_id"])
+	}
+	if m["status"] != "idle" {
+		t.Errorf("expected status idle, got %v", m["status"])
+	}
+}
+
+func TestCallTool_GetSystemOverview(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	result, err := s.CallTool(toolnames.GetSystemOverview, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["workers"] == nil {
+		t.Error("expected workers section")
+	}
+	if m["tasks"] == nil {
+		t.Error("expected tasks section")
+	}
+}
+
+func TestCallTool_ListBeeExecutions(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	result, err := s.CallTool(toolnames.ListBeeExecutions, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execs := result.([]map[string]any)
+	if len(execs) != 0 {
+		t.Errorf("expected empty list, got %d", len(execs))
 	}
 }
