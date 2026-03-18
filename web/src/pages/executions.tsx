@@ -73,12 +73,16 @@ export function Executions() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Link
-                      to={`/workers/${latest.worker_id}`}
-                      className="text-sm hover:underline"
-                    >
-                      {(latest as any).worker_name || latest.worker_id.slice(0, 8) + "..."}
-                    </Link>
+                    {latest.worker_id ? (
+                      <Link
+                        to={`/workers/${latest.worker_id}`}
+                        className="text-sm hover:underline"
+                      >
+                        {(latest as any).worker_name || latest.worker_id.slice(0, 8) + "..."}
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">{t("executions.turnCount", { count: group.length })}</TableCell>
                   <TableCell>
