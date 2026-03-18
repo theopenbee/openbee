@@ -32,8 +32,8 @@ var migrations = []migration{
 	},
 	{
 		version: 2,
-		name:    "20260312_create_table_worker_executions",
-		sql: `CREATE TABLE IF NOT EXISTS worker_executions (
+		name:    "20260312_create_table_executions",
+		sql: `CREATE TABLE IF NOT EXISTS executions (
 		id             TEXT PRIMARY KEY,
 		worker_id      TEXT NOT NULL,
 		session_id     TEXT NOT NULL,
@@ -85,13 +85,13 @@ var migrations = []migration{
 	},
 	{
 		version: 5,
-		name:    "20260312_create_index_worker_executions_worker_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_worker_executions_worker_id ON worker_executions(worker_id)`,
+		name:    "20260312_create_index_executions_worker_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_worker_id ON executions(worker_id)`,
 	},
 	{
 		version: 6,
-		name:    "20260312_create_index_worker_executions_session_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_worker_executions_session_id ON worker_executions(session_id)`,
+		name:    "20260312_create_index_executions_session_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_session_id ON executions(session_id)`,
 	},
 	{
 		version: 7,
@@ -153,31 +153,6 @@ var migrations = []migration{
 		version: 15,
 		name:    "20260315_create_index_local_replies_session_key",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON local_replies(session_key)`,
-	},
-	{
-		version: 16,
-		name:    "20260318_rename_table_worker_executions_to_executions",
-		sql:     `ALTER TABLE worker_executions RENAME TO executions`,
-	},
-	{
-		version: 17,
-		name:    "20260318_drop_index_worker_executions_worker_id",
-		sql:     `DROP INDEX idx_worker_executions_worker_id`,
-	},
-	{
-		version: 18,
-		name:    "20260318_create_index_executions_worker_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_worker_id ON executions(worker_id)`,
-	},
-	{
-		version: 19,
-		name:    "20260318_drop_index_worker_executions_session_id",
-		sql:     `DROP INDEX idx_worker_executions_session_id`,
-	},
-	{
-		version: 20,
-		name:    "20260318_create_index_executions_session_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_session_id ON executions(session_id)`,
 	},
 }
 
