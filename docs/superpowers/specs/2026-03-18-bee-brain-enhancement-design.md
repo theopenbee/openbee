@@ -35,7 +35,7 @@ Returns:
 ```
 
 - For completed executions: read from `executions.logs` column, split by newline, return last N lines.
-- For running executions: read from the active process's output buffer in memory (via WorkerManager's active process tracking).
+- For running executions: add a `GetExecutionLogs(executionID string) (string, error)` method on `worker.Manager` that reads from the in-memory output buffer of the active process. If the process is not tracked in memory, fall back to the DB `logs` column.
 
 #### 1.2 `get_worker_status`
 
@@ -54,9 +54,9 @@ Returns:
       id: string,
       task_id: string,
       instruction: string,
-      started_at: int64
+      started_at: int64 | null  // null if execution hasn't started yet
     } | null,
-    pending_tasks_count: int
+    pending_tasks_count: int   // counts tasks with status "pending" only
   }
 ```
 
@@ -83,7 +83,7 @@ Returns:
       completed: int,
       failed: int,
       cancelled: int,
-      scheduled: int
+      scheduled_active: int    // tasks with type="scheduled" and status="pending"
     },
     recent_executions: [
       {
@@ -121,6 +121,7 @@ Returns:
 ```
 
 - Queries `executions` where `worker_id IS NULL`, ordered by `started_at DESC`.
+- Note: only executions created after migration v16 (which made `worker_id` nullable) will appear.
 
 ### Part 2: Bee Self-Management
 
@@ -160,7 +161,7 @@ Parameters:
   - value (string, required) — memory content
 
 Returns:
-  { success: true }
+  { status: "saved" }
 ```
 
 Upsert semantics: creates if key doesn't exist, updates if it does.
@@ -174,7 +175,7 @@ Parameters:
 
 Returns:
   - If key provided: single memory { key, value, updated_at } or null
-  - If key omitted: array of all memories in that scope [{ key, value, updated_at }]
+  - If key omitted: array of memories in that scope [{ key, value, updated_at }], max 50 entries
 ```
 
 ##### `delete_memory`
@@ -185,8 +186,10 @@ Parameters:
   - key (string, required)
 
 Returns:
-  { success: true }
+  { status: "deleted" }
 ```
+
+Deleting a non-existent key is a no-op (still returns `{ status: "deleted" }`).
 
 ### Part 4: Bee System Rules Update
 
@@ -207,7 +210,9 @@ Add memory usage guidelines to the bee's system rules (in `claudemd.go`):
 | File | Change |
 |------|--------|
 | `internal/mcp/tools.go` | Register 7 new tool definitions |
+| `internal/mcp/server.go` | Add `ExecutionStore` and `MemoryStore` dependencies to `MCPServer` struct and `NewServer()` |
 | `internal/mcp/handler.go` | Add handler cases for new tools |
+| `internal/toolnames/toolnames.go` | Add constants for 7 new tool names |
 | `internal/store/db.go` | Add `bee_memories` table migration |
 | `internal/store/memory_store.go` | New file: CRUD operations for `bee_memories` |
 | `internal/store/execution_store.go` | Add queries: bee executions, execution logs tail |
