@@ -430,6 +430,52 @@ func TestTaskDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
 	}
 }
 
+func TestTaskDispatcher_CrossSession_SameWorker_Serialized(t *testing.T) {
+	// Two different sessions both dispatch to the same worker.
+	// They must execute sequentially — never concurrently.
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// Session s1 dispatches to worker w1
+	t1 := immediateTask("s1", "w1", "from-s1")
+	t1.TaskID = "task-s1"
+	// Session s2 also dispatches to worker w1
+	t2 := immediateTask("s2", "w1", "from-s2")
+	t2.TaskID = "task-s2"
+
+	in <- t1
+	in <- t2
+
+	// Wait for first task to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Only one execution should have started — the second must be queued
+	if atomic.LoadInt64(&mgr.started) != 1 {
+		t.Fatalf("expected exactly 1 execution started (second should be queued), got %d", atomic.LoadInt64(&mgr.started))
+	}
+
+	// Unblock the first execution
+	close(blocker)
+
+	// Both should eventually complete
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&mgr.completed) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.completed) < 2 {
+		t.Errorf("expected both tasks to complete, only %d completed", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
 func TestQueueKey_IgnoresSessionKey(t *testing.T) {
 	// Same workerID, different sessionKeys must produce the same key.
 	// This is the contract that prevents cross-session concurrent execution.
