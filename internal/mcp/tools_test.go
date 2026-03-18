@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/mcp"
-	"github.com/robobee/core/internal/model"
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/worker"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/worker"
 )
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {

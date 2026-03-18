@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
 
 // --- helpers ---

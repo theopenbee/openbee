@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 func setupSessionDB(t *testing.T) (*sql.DB, *store.SessionStore) {

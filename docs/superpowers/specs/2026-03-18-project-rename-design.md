@@ -2,13 +2,13 @@
 
 ## Overview
 
-Rename the project from `github.com/robobee/core` to `github.com/theopenbee/openbee`, including all code references, binary names, user data directories, and external service URLs.
+Rename the project from `github.com/theopenbee/openbee` to `github.com/theopenbee/openbee`, including all code references, binary names, user data directories, and external service URLs.
 
 ## Rename Mapping
 
 | Category | Old | New |
 |----------|-----|-----|
-| Go module | `github.com/robobee/core` | `github.com/theopenbee/openbee` |
+| Go module | `github.com/theopenbee/openbee` | `github.com/theopenbee/openbee` |
 | Binary | `robobee` | `openbee` |
 | Command dir | `cmd/robobee/` | `cmd/openbee/` |
 | CLI Use field | `"robobee"` | `"openbee"` |
@@ -25,7 +25,7 @@ Rename the project from `github.com/robobee/core` to `github.com/theopenbee/open
 1. Rename `go.mod` module declaration
 2. Rename directories: `cmd/robobee/` -> `cmd/openbee/`, `.robobee.md` -> `.openbee.md` (if exists)
 3. Global text replacements (longest strings first to avoid partial matches):
-   - `github.com/robobee/core` -> `github.com/theopenbee/openbee`
+   - `github.com/theopenbee/openbee` -> `github.com/theopenbee/openbee`
    - `robobeedev` -> `theopenbee`
    - `cc-download.robobee.dev` -> new domain
    - `~/.robobee` -> `~/.openbee`

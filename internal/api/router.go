@@ -8,9 +8,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/robobee/core/internal/mcp"
-	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/worker"
+	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/worker"
 )
 
 type Server struct {

@@ -1,6 +1,6 @@
 package task_dispatcher
 
-import "github.com/robobee/core/internal/platform"
+import "github.com/theopenbee/openbee/internal/platform"
 
 // DispatchTask is the unit of work sent to the TaskDispatcher by the TaskScheduler.
 type DispatchTask struct {

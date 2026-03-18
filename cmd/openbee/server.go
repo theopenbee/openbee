@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/robobee/core/internal/app"
-	"github.com/robobee/core/internal/config"
+	"github.com/theopenbee/openbee/internal/app"
+	"github.com/theopenbee/openbee/internal/config"
 	"github.com/spf13/cobra"
 )
 

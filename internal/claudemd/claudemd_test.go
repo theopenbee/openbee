@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/robobee/core/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/claudemd"
 )
 
 func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {

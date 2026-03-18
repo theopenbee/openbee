@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/task_dispatcher"
-	"github.com/robobee/core/internal/model"
-	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/task_scheduler"
+	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/task_scheduler"
 )
 
 func setupDB(t *testing.T) (*sql.DB, *store.TaskStore) {

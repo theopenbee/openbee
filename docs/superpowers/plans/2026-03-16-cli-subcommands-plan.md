@@ -32,7 +32,7 @@ go get github.com/AlecAivazis/survey/v2
 3. `buildApp` → 导出为 `BuildApp`
 4. `App` struct 及 `Run()` 方法保持导出
 5. 所有 `build*` 辅助函数（`buildStores`, `buildWorkerManager`, `buildBee`, `buildPipeline`, `buildPlatforms`, `buildAPIServer`）和 `appStores` struct 跟随迁移，保持非导出
-6. 更新所有 import 路径（`github.com/robobee/core/internal/app`）
+6. 更新所有 import 路径（`github.com/theopenbee/openbee/internal/app`）
 
 **不改变任何逻辑**，纯搬运 + 包名/导出调整。
 

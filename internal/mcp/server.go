@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/store"
-	"github.com/robobee/core/internal/worker"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/worker"
 )
 
 // JSON-RPC 2.0 types

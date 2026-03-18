@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/msgingest"
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/msgingest"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 // mockMsgStore implements msgingest.MessageStore for testing.

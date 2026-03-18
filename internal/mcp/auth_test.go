@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robobee/core/internal/mcp"
+	"github.com/theopenbee/openbee/internal/mcp"
 )
 
 func init() {

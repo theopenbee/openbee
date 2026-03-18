@@ -887,8 +887,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // mockWsConn replaces WsConn in tests — captures SendReply calls, never dials.
@@ -1088,9 +1088,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // ─── Message body types ────────────────────────────────────────────────────
@@ -2138,7 +2138,7 @@ platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk
 
 Add import at top of file:
 ```go
-"github.com/robobee/core/internal/platform/wecom"
+"github.com/theopenbee/openbee/internal/platform/wecom"
 ```
 
 - [ ] **Step 7.2: Full build**

@@ -13,7 +13,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
-	"github.com/robobee/core/internal/config"
+	"github.com/theopenbee/openbee/internal/config"
 )
 
 var errInterrupted = errors.New("interrupted")

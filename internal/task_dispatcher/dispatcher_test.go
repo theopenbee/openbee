@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/task_dispatcher"
-	"github.com/robobee/core/internal/model"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // --- Mocks ---

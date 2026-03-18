@@ -1,4 +1,4 @@
-module github.com/robobee/core
+module github.com/theopenbee/openbee
 
 go 1.25.0
 

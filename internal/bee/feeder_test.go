@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/bee"
-	"github.com/robobee/core/internal/claude"
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/bee"
+	"github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore) {

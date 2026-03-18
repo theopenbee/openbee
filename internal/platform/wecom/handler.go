@@ -17,9 +17,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // ─── Media size constants ──────────────────────────────────────────────────

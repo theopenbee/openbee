@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robobee/core/internal/platform/local"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 func TestSSEHub_SubscribeAndBroadcast(t *testing.T) {

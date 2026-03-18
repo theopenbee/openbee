@@ -22,10 +22,10 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/ffmedia"
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/ffmedia"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // DingTalkPlatform implements platform.Platform for DingTalk.

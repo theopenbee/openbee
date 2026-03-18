@@ -13,9 +13,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/platform/local"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 // LocalChatHandler handles all /api/local/* endpoints.

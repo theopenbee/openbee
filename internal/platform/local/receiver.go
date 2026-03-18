@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // LocalReceiver implements platform.PlatformReceiverAdapter.

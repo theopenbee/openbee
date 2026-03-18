@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/robobee/core/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/toolnames"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/robobee/core/internal/claude"
-	"github.com/robobee/core/internal/config"
+	"github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/config"
 )
 
 // DefaultPersona is the hardcoded bee persona content for CLAUDE.md.

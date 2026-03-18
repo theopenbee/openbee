@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
-	"github.com/robobee/core/internal/config"
+	"github.com/theopenbee/openbee/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 

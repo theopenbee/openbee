@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/platform/local"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 func setupSenderDB(t *testing.T) (*store.LocalReplyStore, *sql.DB) {

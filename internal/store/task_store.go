@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/robobee/core/internal/model"
+	"github.com/theopenbee/openbee/internal/model"
 )
 
 // TaskStore handles persistence for bee tasks.

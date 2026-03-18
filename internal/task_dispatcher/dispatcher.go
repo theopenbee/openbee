@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robobee/core/internal/model"
+	"github.com/theopenbee/openbee/internal/model"
 )
 
 const (

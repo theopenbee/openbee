@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 // PlatformFailureNotifier implements FailureNotifier by looking up the originating

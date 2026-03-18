@@ -22,10 +22,10 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
-	"github.com/robobee/core/internal/utils"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/utils"
 )
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.

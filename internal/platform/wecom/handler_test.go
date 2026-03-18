@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/robobee/core/internal/media"
-	"github.com/robobee/core/internal/platform"
+	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // mockWsConn replaces WsConn in tests — captures SendReply calls, never dials.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 func setupLocalReplyDB(t *testing.T) *store.LocalReplyStore {

@@ -1,6 +1,6 @@
 package local
 
-import "github.com/robobee/core/internal/platform"
+import "github.com/theopenbee/openbee/internal/platform"
 
 // LocalPlatform bundles LocalReceiver and LocalSender and implements platform.Platform.
 type LocalPlatform struct {

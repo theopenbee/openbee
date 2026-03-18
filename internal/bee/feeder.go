@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/robobee/core/internal/claude"
-	"github.com/robobee/core/internal/claudemd"
-	"github.com/robobee/core/internal/config"
-	"github.com/robobee/core/internal/store"
+	"github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/store"
 )
 
 // BeeRunner abstracts the bee process invocation (real or test double).

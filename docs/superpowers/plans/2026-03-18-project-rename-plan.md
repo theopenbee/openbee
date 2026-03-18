@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rename the project from `github.com/robobee/core` to `github.com/theopenbee/openbee` across all files.
+**Goal:** Rename the project from `github.com/theopenbee/openbee` to `github.com/theopenbee/openbee` across all files.
 
 **Architecture:** Sequential find-and-replace across the codebase, ordered from longest match to shortest to avoid partial replacements. Directory renames first, then text replacements, then build verification.
 
@@ -34,7 +34,7 @@ git add -A && git commit -m "refactor: rename cmd/robobee to cmd/openbee and upd
 
 ---
 
-### Task 2: Replace `github.com/robobee/core` → `github.com/theopenbee/openbee`
+### Task 2: Replace `github.com/theopenbee/openbee` → `github.com/theopenbee/openbee`
 
 This is the longest string and must be replaced first.
 
@@ -44,7 +44,7 @@ This is the longest string and must be replaced first.
 
 In `go.mod` line 1, change:
 ```
-module github.com/robobee/core
+module github.com/theopenbee/openbee
 ```
 to:
 ```
@@ -55,20 +55,20 @@ module github.com/theopenbee/openbee
 
 Run across all `.go` files:
 ```bash
-find . -name '*.go' -exec sed -i '' 's|github.com/robobee/core|github.com/theopenbee/openbee|g' {} +
+find . -name '*.go' -exec sed -i '' 's|github.com/theopenbee/openbee|github.com/theopenbee/openbee|g' {} +
 ```
 
 - [ ] **Step 3: Replace in documentation files**
 
 Run across all `.md` files:
 ```bash
-find . -name '*.md' -exec sed -i '' 's|github.com/robobee/core|github.com/theopenbee/openbee|g' {} +
+find . -name '*.md' -exec sed -i '' 's|github.com/theopenbee/openbee|github.com/theopenbee/openbee|g' {} +
 ```
 
 - [ ] **Step 4: Verify no remaining references**
 
 ```bash
-grep -r "github.com/robobee/core" --include='*.go' --include='*.md' --include='*.yml' --include='*.yaml' .
+grep -r "github.com/theopenbee/openbee" --include='*.go' --include='*.md' --include='*.yml' --include='*.yaml' .
 ```
 Expected: no output.
 
