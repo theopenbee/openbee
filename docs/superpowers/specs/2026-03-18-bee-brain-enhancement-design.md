@@ -35,7 +35,7 @@ Returns:
 ```
 
 - For completed executions: read from `executions.logs` column, split by newline, return last N lines.
-- For running executions: add a `GetExecutionLogs(executionID string) (string, error)` method on `worker.Manager` that reads from the in-memory output buffer of the active process. If the process is not tracked in memory, fall back to the DB `logs` column.
+- For running executions: add a `GetExecutionLogs(executionID string) (string, error)` method on `worker.Manager`. This requires adding a `liveLogs map[string]*strings.Builder` field to the Manager struct, populated by `monitorExecution` as it reads process output. The method reads from this buffer for active processes. If the process is not tracked in memory, fall back to the DB `logs` column.
 
 #### 1.2 `get_worker_status`
 
@@ -90,8 +90,8 @@ Returns:
         id: string,
         worker_name: string,
         status: string,
-        started_at: int64,
-        completed_at: int64
+        started_at: int64 | null,
+        completed_at: int64 | null
       }
     ]  // last 5 executions
   }
