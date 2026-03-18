@@ -3,7 +3,6 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -11,10 +10,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
 )
+
+var log = logger.With(zap.String("component", "mcp"))
 
 // JSON-RPC 2.0 types
 
@@ -117,13 +120,13 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 	s.sessions[sessionID] = ch
 	s.mu.Unlock()
 
-	slog.Info("MCP SSE connected", "session", sessionID, "client", c.ClientIP())
+	log.Info("MCP SSE connected", zap.String("session", sessionID), zap.String("client", c.ClientIP()))
 
 	defer func() {
 		s.mu.Lock()
 		delete(s.sessions, sessionID)
 		s.mu.Unlock()
-		slog.Info("MCP SSE handler exited", "session", sessionID)
+		log.Info("MCP SSE handler exited", zap.String("session", sessionID))
 	}()
 
 	c.Header("Content-Type", "text/event-stream")
@@ -141,9 +144,9 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 	}
 	endpointURL := fmt.Sprintf("/mcp/messages?%s", params.Encode())
 	n, err := fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
-	slog.Info("MCP SSE wrote endpoint event", "session", sessionID, "bytes", n, "err", err)
+	log.Info("MCP SSE wrote endpoint event", zap.String("session", sessionID), zap.Int("bytes", n), zap.Any("err", err))
 	c.Writer.Flush()
-	slog.Info("MCP SSE flushed endpoint event", "session", sessionID)
+	log.Info("MCP SSE flushed endpoint event", zap.String("session", sessionID))
 
 	ctx := c.Request.Context()
 	heartbeat := time.NewTicker(15 * time.Second)
@@ -152,19 +155,19 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("MCP SSE context done", "session", sessionID, "reason", ctx.Err())
+			log.Info("MCP SSE context done", zap.String("session", sessionID), zap.Any("reason", ctx.Err()))
 			return
 		case <-heartbeat.C:
-			slog.Info("MCP SSE sending heartbeat", "session", sessionID)
+			log.Info("MCP SSE sending heartbeat", zap.String("session", sessionID))
 			fmt.Fprintf(c.Writer, ": heartbeat\n\n")
 			c.Writer.Flush()
 		case resp, ok := <-ch:
 			if !ok {
-				slog.Info("MCP SSE channel closed", "session", sessionID)
+				log.Info("MCP SSE channel closed", zap.String("session", sessionID))
 				return
 			}
 			data, _ := json.Marshal(resp)
-			slog.Info("MCP SSE sending message event", "session", sessionID, "id", resp.ID)
+			log.Info("MCP SSE sending message event", zap.String("session", sessionID), zap.Any("id", resp.ID))
 			fmt.Fprintf(c.Writer, "event: message\ndata: %s\n\n", data)
 			c.Writer.Flush()
 		}

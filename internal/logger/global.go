@@ -1,13 +1,11 @@
 package logger
 
 import (
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -61,13 +59,6 @@ func Init(cfg Config) error {
 	zl := zap.New(core, zap.AddCaller(), zap.AddStacktrace(stackLevel))
 	globalLogger = newLogger(zl)
 	return nil
-}
-
-// SetSlogDefault routes standard-library slog calls through the ZAP backend.
-// Call this during migration to keep legacy slog call sites working.
-// Remove once all slog call sites have been migrated to internal/logger.
-func SetSlogDefault() {
-	slog.SetDefault(slog.New(zapslog.NewHandler(globalLogger.zl.Core(), nil)))
 }
 
 // SetLevel adjusts the global log level at runtime without restarting.

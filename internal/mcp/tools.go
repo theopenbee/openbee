@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
+	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/toolnames"
@@ -521,7 +521,7 @@ func (s *MCPServer) toolCancelTask(args json.RawMessage) (any, error) {
 	}
 	if task.ExecutionID != "" && s.execStopper != nil {
 		if err := s.execStopper.StopExecution(task.ExecutionID); err != nil {
-			slog.Error("stop execution", "component", "mcp", "op", "cancel_task", "executionID", task.ExecutionID, "error", err)
+			log.Error("stop execution", zap.String("op", "cancel_task"), zap.String("executionID", task.ExecutionID), zap.Error(err))
 		}
 	}
 
@@ -636,7 +636,7 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	for _, t := range runningTasks {
 		if t.ExecutionID != "" {
 			if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
-				slog.Error("stop execution", "component", "mcp", "op", "clear_session", "executionID", t.ExecutionID, "error", err)
+				log.Error("stop execution", zap.String("op", "clear_session"), zap.String("executionID", t.ExecutionID), zap.Error(err))
 			}
 		}
 	}

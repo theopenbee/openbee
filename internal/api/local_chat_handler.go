@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,10 +12,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/store"
 )
+
+var log = logger.With(zap.String("component", "api"))
 
 // LocalChatHandler handles all /api/local/* endpoints.
 type LocalChatHandler struct {
@@ -122,13 +125,13 @@ func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 
 	// Best-effort cascade: log failures but continue so the session row is always removed.
 	if err := h.msgStore.DeleteBySessionKey(ctx, sessionKey); err != nil {
-		slog.Error("deleteSession: delete messages", "sessionKey", sessionKey, "error", err)
+		log.Error("deleteSession: delete messages", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	if err := h.replyStore.DeleteBySession(ctx, sessionKey); err != nil {
-		slog.Error("deleteSession: delete replies", "sessionKey", sessionKey, "error", err)
+		log.Error("deleteSession: delete replies", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	if err := h.sessionCtx.ClearSessionContexts(ctx, sessionKey); err != nil {
-		slog.Error("deleteSession: clear session contexts", "sessionKey", sessionKey, "error", err)
+		log.Error("deleteSession: clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	if err := h.sessionStore.Delete(ctx, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

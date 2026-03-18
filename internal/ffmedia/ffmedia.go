@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
+
+	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/logger"
 )
+
+var log = logger.With(zap.String("component", "ffmedia"))
 
 // AudioDurationMs returns the audio duration in milliseconds via ffprobe.
 // Returns 0 and logs a warning if ffprobe is unavailable or fails.
@@ -53,7 +57,7 @@ func ExtractFirstFrame(ctx context.Context, videoPath, ffmpegPath string) (thumb
 	if cmdErr != nil {
 		var exitErr *exec.ExitError
 		if errors.As(cmdErr, &exitErr) || errors.Is(cmdErr, exec.ErrNotFound) {
-			slog.Warn("ffmpeg extract first frame failed", "component", "ffmedia", "error", cmdErr, "output", string(out))
+			log.Warn("ffmpeg extract first frame failed", zap.Error(cmdErr), zap.String("output", string(out)))
 		}
 		cleanup()
 		return "", func() {}, cmdErr
@@ -73,7 +77,7 @@ func probeDuration(ctx context.Context, path, ffprobePath string) (float64, erro
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) || errors.Is(err, exec.ErrNotFound) {
-			slog.Warn("ffprobe failed", "component", "ffmedia", "error", err)
+			log.Warn("ffprobe failed", zap.Error(err))
 		}
 		return 0, err
 	}

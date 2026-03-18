@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+
+	"github.com/theopenbee/openbee/internal/logger"
 )
 
 var (
@@ -28,7 +30,7 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		slog.Error("fatal", "error", err)
+		logger.Error("fatal", zap.Error(err))
 		os.Exit(1)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,8 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
+	"go.uber.org/zap"
+
 	"github.com/theopenbee/openbee/internal/bee"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/msgingest"
@@ -50,15 +52,15 @@ func (a *App) Run() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-quit
-		slog.Info("Shutting down...")
+		logger.Info("Shutting down...")
 		cancel()
 		a.db.Close()
 		os.Exit(0)
 	}()
 
-	slog.Info("OpenBee Core starting", "addr", a.addr)
+	logger.Info("OpenBee Core starting", zap.String("addr", a.addr))
 	if err := a.server.Run(a.addr); err != nil {
-		slog.Error("server error", "error", err)
+		logger.Error("server error", zap.Error(err))
 		os.Exit(1)
 	}
 }
@@ -113,7 +115,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { localIngest.Run(ctx) },
 		func(ctx context.Context) {
 			if err := localReceiver.Start(ctx, localIngest.Dispatch); err != nil {
-				slog.Error("local receiver error", "error", err)
+				logger.Error("local receiver error", zap.Error(err))
 			}
 		},
 		func(ctx context.Context) { feeder.Run(ctx) },
@@ -124,7 +126,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		recv := p.Receiver()
 		runners = append(runners, func(ctx context.Context) {
 			if err := recv.Start(ctx, ingest.Dispatch); err != nil {
-				slog.Error("platform receiver error", "error", err)
+				logger.Error("platform receiver error", zap.Error(err))
 			}
 		})
 	}

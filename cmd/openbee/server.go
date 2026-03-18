@@ -25,10 +25,6 @@ var serverCmd = &cobra.Command{
 		}); err != nil {
 			return fmt.Errorf("init logger: %w", err)
 		}
-		// Route legacy slog calls through ZAP during migration.
-		// Remove this line once all slog call sites are migrated.
-		logger.SetSlogDefault()
-
 		cfg, err := config.Load(cfgPath)
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
