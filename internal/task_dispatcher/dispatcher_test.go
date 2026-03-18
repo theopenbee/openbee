@@ -530,6 +530,69 @@ func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
 	}
 }
 
+func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
+	ss := newMockSessionStore()
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
+
+	in := make(chan task_dispatcher.DispatchTask, 8)
+	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// t1 from s1 starts executing (blocks)
+	t1 := immediateTask("s1", "w1", "s1-first")
+	t1.TaskID = "t1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // wait for t1 to start blocking
+
+	// t2 from s1 queued as pending
+	t2 := immediateTask("s1", "w1", "s1-second")
+	t2.TaskID = "t2"
+	in <- t2
+
+	// t3 from s2 (different session, same worker) queued as pending
+	t3 := immediateTask("s2", "w1", "s2-task")
+	t3.TaskID = "t3"
+	in <- t3
+
+	time.Sleep(30 * time.Millisecond) // let pending tasks register
+
+	// Clear session s1 — should remove t2 but NOT t3
+	d.ClearSession("s1")
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock t1
+	close(blocker)
+
+	// Wait for t3 to execute (s2's task should still run)
+	deadline2 := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline2) {
+		if atomic.LoadInt64(&mgr.completed) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.completed) < 2 {
+		t.Fatalf("expected 2 executions (t1 + t3), got %d", atomic.LoadInt64(&mgr.completed))
+	}
+
+	// t2 from s1 must NOT have executed
+	if atomic.LoadInt64(&mgr.started) > 2 {
+		t.Errorf("expected at most 2 executions started (t2 should be cleared), got %d", atomic.LoadInt64(&mgr.started))
+	}
+
+	// Session contexts for s1 must have been cleared
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if len(ss.cleared) == 0 || ss.cleared[0] != "s1" {
+		t.Errorf("expected ClearSessionContexts called with s1, got %v", ss.cleared)
+	}
+}
+
 func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},

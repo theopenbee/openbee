@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/model"
@@ -55,7 +54,7 @@ type internalResult struct {
 	task     DispatchTask
 }
 
-// TaskDispatcher serializes worker executions per (SessionKey, WorkerID).
+// TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
 	ctx              context.Context        // 由 Run 注入的生命周期上下文
 	manager          ExecutionManager       // 启动 worker 执行
@@ -65,7 +64,7 @@ type TaskDispatcher struct {
 	failureNotifier  FailureNotifier        // 发送失败通知（可选）
 	inCh             <-chan DispatchTask    // 入站任务通道
 	resultsCh        chan internalResult    // 内部完成信号通道，用于驱动队列调度
-	queues           map[string]*queueState // 按 sessionKey|workerID 分组的串行队列
+	queues           map[string]*queueState // 按 workerID 分组的串行队列
 	clearCh          chan string            // 接收需要清理的 sessionKey 信号
 }
 
@@ -154,9 +153,15 @@ func (d *TaskDispatcher) ClearSession(sessionKey string) {
 }
 
 func (d *TaskDispatcher) clearQueues(sessionKey string) {
-	prefix := sessionKey + "|"
-	for key := range d.queues {
-		if strings.HasPrefix(key, prefix) {
+	for key, state := range d.queues {
+		var remaining []DispatchTask
+		for _, t := range state.pendingTasks {
+			if t.SessionKey != sessionKey {
+				remaining = append(remaining, t)
+			}
+		}
+		state.pendingTasks = remaining
+		if !state.executing && len(state.pendingTasks) == 0 {
 			delete(d.queues, key)
 		}
 	}
