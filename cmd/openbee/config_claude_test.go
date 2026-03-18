@@ -154,10 +154,10 @@ func TestProviderEnvMap_MiniMax(t *testing.T) {
 	if env["ANTHROPIC_AUTH_TOKEN"] != "mm-key" {
 		t.Errorf("want mm-key, got %q", env["ANTHROPIC_AUTH_TOKEN"])
 	}
-	if env["ANTHROPIC_MODEL"] != "MiniMax-M2.5" {
+	if env["ANTHROPIC_MODEL"] != "MiniMax-M2.7" {
 		t.Errorf("unexpected model: %q", env["ANTHROPIC_MODEL"])
 	}
-	if env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] != "MiniMax-M2.5" {
+	if env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] != "MiniMax-M2.7" {
 		t.Errorf("unexpected haiku model: %q", env["ANTHROPIC_DEFAULT_HAIKU_MODEL"])
 	}
 }
