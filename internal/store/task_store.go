@@ -307,6 +307,71 @@ func (s *TaskStore) UpdateNextRunAt(ctx context.Context, taskID string, nextRunA
 	return err
 }
 
+// CountPendingByWorkerID returns the number of pending tasks for a given worker.
+func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE worker_id = ? AND status = 'pending'`,
+		workerID,
+	).Scan(&count)
+	return count, err
+}
+
+// CountAllByStatus returns a map of task status to count across all tasks.
+func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT status, COUNT(*) FROM tasks GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
+// CountScheduledActive returns the number of pending scheduled tasks.
+func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE type = 'scheduled' AND status = 'pending'`,
+	).Scan(&count)
+	return count, err
+}
+
+// GetTaskByExecutionID returns the task with the given execution_id, or nil if not found.
+func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, message_id, worker_id, instruction, type, status, scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
+		 FROM tasks WHERE execution_id = ?`,
+		executionID,
+	)
+	var t model.Task
+	var scheduledAt, nextRunAt sql.NullInt64
+	err := row.Scan(&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction, &t.Type, &t.Status,
+		&scheduledAt, &t.CronExpr, &nextRunAt, &t.ExecutionID, &t.CreatedAt, &t.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if scheduledAt.Valid {
+		t.ScheduledAt = &scheduledAt.Int64
+	}
+	if nextRunAt.Valid {
+		t.NextRunAt = &nextRunAt.Int64
+	}
+	return &t, nil
+}
+
 // scanTask scans a single task row.
 func scanTask(row *sql.Row) (model.Task, error) {
 	var t model.Task

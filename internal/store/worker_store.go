@@ -102,3 +102,23 @@ func (s *WorkerStore) Delete(id string) error {
 	_, err := s.db.Exec(`DELETE FROM workers WHERE id=?`, id)
 	return err
 }
+
+// CountByStatus returns a map of worker status to count.
+func (s *WorkerStore) CountByStatus() (map[string]int, error) {
+	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM workers GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}

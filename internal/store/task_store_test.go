@@ -505,3 +505,93 @@ func TestTaskStore_FailTask_ScheduledTask_Cancelled_NoChange(t *testing.T) {
 		t.Errorf("expected status=cancelled (preserved), got %q", got.Status)
 	}
 }
+
+func TestTaskStore_CountPendingByWorkerID(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "do something",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// Also create a completed task (should not count)
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "done",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	count, err := ts.CountPendingByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 pending task, got %d", count)
+	}
+}
+
+func TestTaskStore_CountAllByStatus(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "task1",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "task2",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	counts, err := ts.CountAllByStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts["pending"] != 2 {
+		t.Errorf("expected 2 pending, got %d", counts["pending"])
+	}
+}
+
+func TestTaskStore_GetTaskByExecutionID(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "go",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	ts.SetExecution(ctx, id, "exec-123", model.TaskStatusRunning)
+
+	task, err := ts.GetTaskByExecutionID(ctx, "exec-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task == nil {
+		t.Fatal("expected task, got nil")
+	}
+	if task.ID != id {
+		t.Errorf("expected task ID %s, got %s", id, task.ID)
+	}
+
+	// Non-existent
+	task2, err := ts.GetTaskByExecutionID(ctx, "nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task2 != nil {
+		t.Error("expected nil for non-existent execution_id")
+	}
+}
