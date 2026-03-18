@@ -28,7 +28,7 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model
 		StartedAt:    &millis,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO worker_executions (id, worker_id, session_id, trigger_input, status, result, ai_process_pid, started_at)
+		`INSERT INTO executions (id, worker_id, session_id, trigger_input, status, result, ai_process_pid, started_at)
 		 VALUES (?, ?, ?, ?, ?, '', 0, ?)`,
 		exec.ID, exec.WorkerID, exec.SessionID, exec.TriggerInput, exec.Status, millis,
 	)
@@ -41,7 +41,7 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model
 const execSelect = `
 SELECT e.id, e.worker_id, e.session_id, e.trigger_input, e.status, e.result, e.logs,
        e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
-FROM worker_executions e
+FROM executions e
 LEFT JOIN workers w ON w.id = e.worker_id`
 
 func scanExecution(scanner interface{ Scan(...any) error }) (model.WorkerExecution, error) {
@@ -123,21 +123,21 @@ func (s *ExecutionStore) ListByWorkerID(workerID string) ([]model.WorkerExecutio
 }
 
 func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) error {
-	_, err := s.db.Exec(`UPDATE worker_executions SET status=? WHERE id=?`, status, id)
+	_, err := s.db.Exec(`UPDATE executions SET status=? WHERE id=?`, status, id)
 	return err
 }
 
 func (s *ExecutionStore) UpdateLogs(id string, logs string) error {
-	_, err := s.db.Exec(`UPDATE worker_executions SET logs=? WHERE id=?`, logs, id)
+	_, err := s.db.Exec(`UPDATE executions SET logs=? WHERE id=?`, logs, id)
 	return err
 }
 
 func (s *ExecutionStore) UpdateResult(id string, result string, status model.ExecutionStatus) error {
-	_, err := s.db.Exec(`UPDATE worker_executions SET result=?, status=?, completed_at=? WHERE id=?`, result, status, time.Now().UnixMilli(), id)
+	_, err := s.db.Exec(`UPDATE executions SET result=?, status=?, completed_at=? WHERE id=?`, result, status, time.Now().UnixMilli(), id)
 	return err
 }
 
 func (s *ExecutionStore) UpdatePID(id string, pid int) error {
-	_, err := s.db.Exec(`UPDATE worker_executions SET ai_process_pid=?, status=? WHERE id=?`, pid, model.ExecStatusRunning, id)
+	_, err := s.db.Exec(`UPDATE executions SET ai_process_pid=?, status=? WHERE id=?`, pid, model.ExecStatusRunning, id)
 	return err
 }
