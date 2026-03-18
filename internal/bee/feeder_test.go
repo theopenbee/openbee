@@ -16,14 +16,14 @@ import (
 	"github.com/theopenbee/openbee/internal/store"
 )
 
-func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore) {
+func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
 		t.Fatalf("InitDB: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return db, store.NewMessageStore(db), store.NewTaskStore(db), store.NewSessionStore(db)
+	return db, store.NewMessageStore(db), store.NewTaskStore(db), store.NewSessionStore(db), store.NewExecutionStore(db)
 }
 
 func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
@@ -74,20 +74,20 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 	return append([]beeCall{}, m.calls...) // Return a copy
 }
 
-func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, runner bee.BeeRunner) *bee.Feeder {
+func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner bee.BeeRunner) *bee.Feeder {
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
-	return bee.NewFeeder(ms, ts, ss, runner, "/tmp", cfg)
+	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
 }
 
 // TestFeeder_FirstTick_UsesNewSessionID verifies that on the first message for a sessionKey,
 // bee is called with a fresh UUID sessionID and resume=false.
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
-	db, ms, ts, ss := setupFeederDB(t)
+	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
 	runner := &mockBeeRunner{}
-	f := newFeeder(ms, ts, ss, runner)
+	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -126,7 +126,7 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 // TestFeeder_SecondTick_ResumesSession verifies that after a session_id is established,
 // subsequent bee calls use resume=true with the stored sessionID.
 func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
-	db, ms, ts, ss := setupFeederDB(t)
+	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
 	// Pre-seed a session context as if a prior tick already ran
@@ -137,7 +137,7 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	insertMessage(t, db, "m1", "feishu:c:u", "follow-up")
 
 	runner := &mockBeeRunner{}
-	f := newFeeder(ms, ts, ss, runner)
+	f := newFeeder(ms, ts, ss, es, runner)
 
 	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -160,11 +160,11 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 // TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession verifies that a bee failure
 // resets messages to 'received' and does NOT write to session_contexts.
 func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
-	db, ms, ts, ss := setupFeederDB(t)
+	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
-	f := newFeeder(ms, ts, ss, runner)
+	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -186,12 +186,12 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 // TestFeeder_MultipleSessionKeys_ProcessedIndependently verifies that two sessionKeys
 // in the same batch each get their own bee invocation with independent session tracking.
 func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
-	db, ms, ts, ss := setupFeederDB(t)
+	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u1", "message from user1")
 	insertMessage(t, db, "m2", "feishu:c:u2", "message from user2")
 
 	runner := &mockBeeRunner{}
-	f := newFeeder(ms, ts, ss, runner)
+	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

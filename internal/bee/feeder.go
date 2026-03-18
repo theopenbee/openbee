@@ -27,17 +27,19 @@ type Feeder struct {
 	msgStore     *store.MessageStore
 	taskStore    *store.TaskStore
 	sessionStore *store.SessionStore
+	execStore    *store.ExecutionStore
 	runner       BeeRunner
 	workDir      string
 	cfg          config.BeeConfig
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, runner BeeRunner, workDir string, cfg config.BeeConfig) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner BeeRunner, workDir string, cfg config.BeeConfig) *Feeder {
 	return &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
 		sessionStore: ss,
+		execStore:    es,
 		runner:       runner,
 		workDir:      workDir,
 		cfg:          cfg,
