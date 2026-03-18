@@ -20,8 +20,8 @@
 | `internal/store/memory_store_test.go` | New file: tests for MemoryStore |
 | `internal/store/execution_store.go` | Add `ListBeeExecutions`, `ListRecent`, `GetLogsByID` methods |
 | `internal/store/execution_store_test.go` | New/modify: tests for new methods |
-| `internal/store/task_store.go` | Add `CountPendingByWorkerID`, `CountAllByStatus` methods |
-| `internal/store/task_store_test.go` | New/modify: tests for count methods |
+| `internal/store/task_store.go` | Add `CountPendingByWorkerID`, `CountAllByStatus`, `CountScheduledActive`, `GetTaskByExecutionID` methods |
+| `internal/store/task_store_test.go` | New/modify: tests for new methods |
 | `internal/store/worker_store.go` | Add `CountByStatus` method |
 | `internal/worker/manager.go` | Add `liveLogs` field, `GetExecutionLogs` method |
 | `internal/mcp/server.go` | Add `executionStore` and `memoryStore` fields to `MCPServer`; update `NewServer` signature |
@@ -598,7 +598,7 @@ func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string)
 }
 ```
 
-- [ ] **Step 5: Implement `CountAllByStatus` on TaskStore**
+- [ ] **Step 5: Implement `CountAllByStatus`, `CountScheduledActive`, and `GetTaskByExecutionID` on TaskStore**
 
 Add to `internal/store/task_store.go`:
 
@@ -620,6 +620,39 @@ func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error
 		counts[status] = count
 	}
 	return counts, rows.Err()
+}
+
+func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE type = 'scheduled' AND status = 'pending'`,
+	).Scan(&count)
+	return count, err
+}
+
+func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, message_id, worker_id, instruction, type, status, scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
+		 FROM tasks WHERE execution_id = ?`,
+		executionID,
+	)
+	var t model.Task
+	var scheduledAt, nextRunAt sql.NullInt64
+	err := row.Scan(&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction, &t.Type, &t.Status,
+		&scheduledAt, &t.CronExpr, &nextRunAt, &t.ExecutionID, &t.CreatedAt, &t.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if scheduledAt.Valid {
+		t.ScheduledAt = &scheduledAt.Int64
+	}
+	if nextRunAt.Valid {
+		t.NextRunAt = &nextRunAt.Int64
+	}
+	return &t, nil
 }
 ```
 
@@ -1024,14 +1057,9 @@ func (s *MCPServer) toolGetWorkerStatus(args json.RawMessage) (any, error) {
 				}
 				// Find the task associated with this execution
 				ctx := context.Background()
-				tasks, terr := s.taskStore.ListByMessageID(ctx, "", "running", "")
-				if terr == nil {
-					for _, task := range tasks {
-						if task.ExecutionID == e.ID {
-							execInfo["task_id"] = task.ID
-							break
-						}
-					}
+				task, terr := s.taskStore.GetTaskByExecutionID(ctx, e.ID)
+				if terr == nil && task != nil {
+					execInfo["task_id"] = task.ID
 				}
 				result["current_execution"] = execInfo
 				break
@@ -1072,11 +1100,8 @@ func (s *MCPServer) toolGetSystemOverview(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("failed to get task counts: %w", err)
 	}
 
-	// Scheduled active count: count tasks with type=scheduled and status=pending
-	// This requires a dedicated query since CountAllByStatus only groups by status
-	scheduledActive := 0
-	// TODO: If needed, add CountScheduledActive method. For now, this is approximated
-	// by noting that scheduled tasks cycle through pending status.
+	// Scheduled active count: tasks with type=scheduled and status=pending
+	scheduledActive, _ := s.taskStore.CountScheduledActive(ctx)
 
 	// Recent executions (all types, not just bee)
 	recentExecs, _ := s.executionStore.ListRecent(5)
@@ -1112,7 +1137,7 @@ func (s *MCPServer) toolGetSystemOverview(args json.RawMessage) (any, error) {
 }
 ```
 
-> Note: The implementation uses `CountAllByStatus()` and `ListRecent()` methods added in earlier tasks. The `scheduled_active` count may need a dedicated `CountScheduledActive` method on TaskStore if precise tracking of scheduled-type pending tasks is needed — add it during implementation if the TODO above needs resolution.
+> Note: The implementation uses `CountAllByStatus()`, `CountScheduledActive()`, and `ListRecent()` methods added in earlier tasks.
 
 - [ ] **Step 11: Implement `toolListBeeExecutions`**
 
