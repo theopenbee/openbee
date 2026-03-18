@@ -78,7 +78,7 @@ func (p *Process) Stop() error {
 // The channel is closed after the process exits; the last message is OutputDone or OutputError.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions) (*Process, <-chan Output, error) {
 	mcpConfig := fmt.Sprintf(
-		`{"mcpServers":{"robobee":{"type":"sse","url":%q}}}`,
+		`{"mcpServers":{"openbee":{"type":"sse","url":%q}}}`,
 		inv.mcpURL+"?api_key="+url.QueryEscape(inv.apiKey),
 	)
 	args := []string{

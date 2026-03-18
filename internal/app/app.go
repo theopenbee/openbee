@@ -56,7 +56,7 @@ func (a *App) Run() {
 		os.Exit(0)
 	}()
 
-	slog.Info("RoboBee Core starting", "addr", a.addr)
+	slog.Info("OpenBee Core starting", "addr", a.addr)
 	if err := a.server.Run(a.addr); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)

@@ -6,9 +6,9 @@ before:
     - bash -c "cd web && pnpm install --frozen-lockfile && pnpm build"
 
 builds:
-  - id: robobee
-    main: ./cmd/robobee/
-    binary: robobee
+  - id: openbee
+    main: ./cmd/openbee/
+    binary: openbee
     env:
       - CGO_ENABLED=0
     goos:
@@ -52,7 +52,7 @@ changelog:
 release:
   github:
     owner: theopenbee
-    name: robobee
+    name: openbee
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"
@@ -63,7 +63,7 @@ homebrew_casks:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/theopenbee/openbee"
-    description: "RoboBee 核心服务"
+    description: "OpenBee 核心服务"
     license: ""
 
 scoops:
@@ -72,16 +72,16 @@ scoops:
       name: scoop-bucket
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
     homepage: "https://github.com/theopenbee/openbee"
-    description: "RoboBee 核心服务"
+    description: "OpenBee 核心服务"
     license: ""
 
 nfpms:
-  - id: robobee
-    package_name: robobee
-    vendor: RoboBee
+  - id: openbee
+    package_name: openbee
+    vendor: OpenBee
     homepage: "https://github.com/theopenbee/openbee"
-    maintainer: "RoboBee Team"
-    description: "RoboBee 核心服务"
+    maintainer: "OpenBee Team"
+    description: "OpenBee 核心服务"
     license: ""
     formats:
       - deb
@@ -89,5 +89,5 @@ nfpms:
     bindir: /usr/bin
     contents:
       - src: config.example.yaml
-        dst: /etc/robobee/config.example.yaml
+        dst: /etc/openbee/config.example.yaml
         type: config

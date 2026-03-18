@@ -201,7 +201,7 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, sessionID string) error
 	if err != nil {
 		return fmt.Errorf("get home dir: %w", err)
 	}
-	logDir := filepath.Join(homeDir, ".robobee", "bee-logs")
+	logDir := filepath.Join(homeDir, ".openbee", "bee-logs")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir bee-logs: %w", err)
 	}

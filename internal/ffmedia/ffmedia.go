@@ -34,7 +34,7 @@ func VideoDurationSec(ctx context.Context, path, ffprobePath string) (int, error
 // Returns the temp file path and a cleanup func. Caller must call cleanup().
 // Returns an error if ffmpeg is unavailable or fails.
 func ExtractFirstFrame(ctx context.Context, videoPath, ffmpegPath string) (thumbPath string, cleanup func(), err error) {
-	tmp, err := os.CreateTemp("", "robobee-thumb-*.jpg")
+	tmp, err := os.CreateTemp("", "openbee-thumb-*.jpg")
 	if err != nil {
 		return "", func() {}, err
 	}

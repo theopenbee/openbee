@@ -1,12 +1,12 @@
 # Contributor License Agreement (CLA)
 
-## Robobee Project Contributor License Agreement
+## Openbee Project Contributor License Agreement
 
-Thank you for your interest in contributing to the Robobee project. Before submitting any contribution (including but not limited to code, documentation, designs, or suggestions), please read and agree to the following terms.
+Thank you for your interest in contributing to the Openbee project. Before submitting any contribution (including but not limited to code, documentation, designs, or suggestions), please read and agree to the following terms.
 
 ### 1. Definitions
 
-- **"Project"** refers to the Robobee open-source project and all related repositories.
+- **"Project"** refers to the Openbee open-source project and all related repositories.
 - **"Contribution"** refers to any content you submit to the Project in any form, including but not limited to source code, documentation, configuration files, design assets, Issues, Pull Requests, and suggestions in related discussions.
 - **"Maintainer"** refers to the copyright holder, Hangzhou Wanxun Technology Co., Ltd., and its authorized project managers.
 

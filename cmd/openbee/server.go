@@ -12,7 +12,7 @@ var cfgPath string
 
 var serverCmd = &cobra.Command{
 	Use:   "server",
-	Short: "启动 RoboBee 服务",
+	Short: "启动 OpenBee 服务",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(cfgPath)
 		if err != nil {

@@ -201,7 +201,7 @@ func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
 	case "initialize":
 		return okResponse(req.ID, map[string]any{
 			"protocolVersion": "2024-11-05",
-			"serverInfo":      map[string]string{"name": "robobee-mcp", "version": "1.0.0"},
+			"serverInfo":      map[string]string{"name": "openbee-mcp", "version": "1.0.0"},
 			"capabilities":    map[string]any{"tools": map[string]any{}},
 		})
 

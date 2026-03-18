@@ -18,7 +18,7 @@ export function Nav() {
     <nav className="border-b bg-background">
       <div className="container mx-auto flex h-14 items-center px-4">
         <Link to="/" className="mr-8 text-lg font-bold">
-          RoboBee
+          OpenBee
         </Link>
         <div className="flex gap-4 flex-1">
           {links.map((link) => (

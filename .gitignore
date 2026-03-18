@@ -1,13 +1,13 @@
-data/robobee.db
+data/openbee.db
 data/workers/
 *.exe
 /server
 .worktrees/
 config.yaml
 openclaw/
-.robobee.md
+.openbee.md
 .superpowers/
 wecom-openclaw-plugin-main/
 aibot-node-sdk-main/
-/robobee
+/openbee
 dist/

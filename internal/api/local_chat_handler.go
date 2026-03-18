@@ -254,5 +254,5 @@ func localUploadDir(sessionID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)
 	}
-	return filepath.Join(home, ".robobee", "local-uploads", sessionID), nil
+	return filepath.Join(home, ".openbee", "local-uploads", sessionID), nil
 }

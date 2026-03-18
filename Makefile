@@ -1,4 +1,4 @@
-BINARY  := robobee
+BINARY  := openbee
 OUTDIR  := dist
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
@@ -23,7 +23,7 @@ web: ## Build frontend assets
 
 build: ## Build binary for the current platform
 	@mkdir -p $(OUTDIR)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY) ./cmd/robobee/
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY) ./cmd/openbee/
 
 release: web ## Build binaries for all platforms
 	@mkdir -p $(OUTDIR)
@@ -33,7 +33,7 @@ release: web ## Build binaries for all platforms
 		out=$(OUTDIR)/$(BINARY)-$$os-$$arch; \
 		if [ "$$os" = "windows" ]; then out=$$out.exe; fi; \
 		echo "  Building $$out..."; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $$out ./cmd/robobee/ || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $$out ./cmd/openbee/ || exit 1; \
 	done
 	@echo "Done. Artifacts in $(OUTDIR)/"
 

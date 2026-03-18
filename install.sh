@@ -1,19 +1,19 @@
 #!/bin/sh
-# RoboBee 一键安装脚本
+# OpenBee 一键安装脚本
 # 用法:
-#   curl -fsSL https://your-cdn.com/robobee/install.sh | sh
-#   curl -fsSL https://your-cdn.com/robobee/install.sh | sh -s -- --version v1.0.0
-#   curl -fsSL https://your-cdn.com/robobee/install.sh | sh -s -- --install-dir /custom/path
+#   curl -fsSL https://your-cdn.com/openbee/install.sh | sh
+#   curl -fsSL https://your-cdn.com/openbee/install.sh | sh -s -- --version v1.0.0
+#   curl -fsSL https://your-cdn.com/openbee/install.sh | sh -s -- --install-dir /custom/path
 
 set -e
 
 # ============================================================
 # CDN 配置 — 修改此处指向你的 CDN 根地址
 # ============================================================
-CDN_BASE_URL="https://your-cdn.com/robobee"
+CDN_BASE_URL="https://your-cdn.com/openbee"
 # CDN 文件目录结构:
 #   ${CDN_BASE_URL}/releases/latest           -> 文本文件，内容为最新版本号，如 v1.0.0
-#   ${CDN_BASE_URL}/releases/${VERSION}/robobee-${VERSION}-${OS}-${ARCH}.tar.gz
+#   ${CDN_BASE_URL}/releases/${VERSION}/openbee-${VERSION}-${OS}-${ARCH}.tar.gz
 #   ${CDN_BASE_URL}/releases/${VERSION}/checksums.txt
 
 # ============================================================
@@ -178,7 +178,7 @@ install_binary() {
 
     # 去掉版本号开头的 v 以匹配 GoReleaser 的命名规则
     VERSION_NUM="${VERSION#v}"
-    ARCHIVE_NAME="robobee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
+    ARCHIVE_NAME="openbee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
     ARCHIVE_URL="${CDN_BASE_URL}/releases/${VERSION}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${CDN_BASE_URL}/releases/${VERSION}/checksums.txt"
 
@@ -204,21 +204,21 @@ install_binary() {
     tar -xzf "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" -C "${TMPDIR_INSTALL}"
 
     # 确认二进制文件存在
-    if [ ! -f "${TMPDIR_INSTALL}/robobee" ]; then
-        error "解压后未找到 robobee 二进制文件"
+    if [ ! -f "${TMPDIR_INSTALL}/openbee" ]; then
+        error "解压后未找到 openbee 二进制文件"
     fi
 
     # 安装到目标目录
     if [ -w "$INSTALL_DIR" ]; then
-        mv "${TMPDIR_INSTALL}/robobee" "${INSTALL_DIR}/robobee"
-        chmod +x "${INSTALL_DIR}/robobee"
+        mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
+        chmod +x "${INSTALL_DIR}/openbee"
     else
         info "需要 sudo 权限安装到 ${INSTALL_DIR}"
-        sudo mv "${TMPDIR_INSTALL}/robobee" "${INSTALL_DIR}/robobee"
-        sudo chmod +x "${INSTALL_DIR}/robobee"
+        sudo mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
+        sudo chmod +x "${INSTALL_DIR}/openbee"
     fi
 
-    ok "robobee ${VERSION} 已安装到 ${INSTALL_DIR}/robobee"
+    ok "openbee ${VERSION} 已安装到 ${INSTALL_DIR}/openbee"
 }
 
 # ============================================================
@@ -226,7 +226,7 @@ install_binary() {
 # ============================================================
 post_install_check() {
     # 检查是否在 PATH 中
-    if ! check_command robobee; then
+    if ! check_command openbee; then
         warn "${INSTALL_DIR} 不在 PATH 中，请手动添加:"
         echo ""
         echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
@@ -234,7 +234,7 @@ post_install_check() {
         echo "  将上面这行添加到 ~/.bashrc 或 ~/.zshrc 中以永久生效"
         echo ""
     else
-        installed_version=$("${INSTALL_DIR}/robobee" version 2>/dev/null || echo "unknown")
+        installed_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "unknown")
         ok "验证安装: ${installed_version}"
     fi
 }
@@ -243,10 +243,10 @@ post_install_check() {
 # 已安装检测
 # ============================================================
 check_existing() {
-    if [ -f "${INSTALL_DIR}/robobee" ] && [ "$FORCE" = false ]; then
-        existing_version=$("${INSTALL_DIR}/robobee" version 2>/dev/null || echo "")
+    if [ -f "${INSTALL_DIR}/openbee" ] && [ "$FORCE" = false ]; then
+        existing_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "")
         if [ -n "$existing_version" ]; then
-            info "已安装 robobee: ${existing_version}"
+            info "已安装 openbee: ${existing_version}"
             info "如需重新安装，请使用 --force"
         fi
     fi
@@ -287,7 +287,7 @@ parse_args() {
 
 usage() {
     cat <<EOF
-RoboBee 安装脚本
+OpenBee 安装脚本
 
 用法:
   curl -fsSL <url>/install.sh | sh
@@ -320,7 +320,7 @@ main() {
     parse_args "$@"
 
     echo ""
-    info "RoboBee 安装程序"
+    info "OpenBee 安装程序"
     echo ""
 
     detect_downloader
@@ -336,7 +336,7 @@ main() {
     post_install_check
 
     echo ""
-    ok "安装完成！运行 'robobee --help' 开始使用。"
+    ok "安装完成！运行 'openbee --help' 开始使用。"
     echo ""
 }
 

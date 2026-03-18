@@ -1,6 +1,6 @@
-# Contributing to RoboBee
+# Contributing to OpenBee
 
-Thank you for your interest in contributing to RoboBee! This guide will help you get started.
+Thank you for your interest in contributing to OpenBee! This guide will help you get started.
 
 ## Contributor License Agreement
 
@@ -18,7 +18,7 @@ By submitting a contribution, you agree to the terms of our [Contributor License
 
 ```bash
 git clone https://github.com/theopenbee/openbee.git
-cd robobee
+cd openbee
 
 # Build frontend assets
 make web
@@ -27,7 +27,7 @@ make web
 make build
 ```
 
-The binary will be output to `dist/robobee`.
+The binary will be output to `dist/openbee`.
 
 ### Configuration
 
@@ -91,8 +91,8 @@ docs: update configuration guide
 ## Project Structure
 
 ```
-robobee/
-├── cmd/robobee/       # CLI entry point
+openbee/
+├── cmd/openbee/       # CLI entry point
 ├── internal/
 │   ├── api/           # HTTP API handlers
 │   ├── app/           # Application lifecycle
@@ -134,4 +134,4 @@ robobee/
 
 ## License
 
-By contributing to RoboBee, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing to OpenBee, you agree that your contributions will be licensed under the [MIT License](LICENSE).

@@ -15,15 +15,15 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "robobee",
-	Short:   "RoboBee 核心服务",
+	Use:     "openbee",
+	Short:   "OpenBee 核心服务",
 	Version: version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 }
 
 func init() {
-	rootCmd.SetVersionTemplate(fmt.Sprintf("robobee %s (commit: %s, built: %s)\n", version, commit, date))
+	rootCmd.SetVersionTemplate(fmt.Sprintf("openbee %s (commit: %s, built: %s)\n", version, commit, date))
 }
 
 func main() {

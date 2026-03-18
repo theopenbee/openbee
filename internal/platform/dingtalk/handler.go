@@ -523,7 +523,7 @@ type mediaInfo struct {
 }
 
 const (
-	markdownTitle      = "RoboBee"
+	markdownTitle      = "OpenBee"
 	maxDownloadSize    = 100 * 1024 * 1024 // 100MB
 	maxUploadSize      = 20 * 1024 * 1024  // 20MB
 	maxVoiceUploadSize = 2 * 1024 * 1024   // 2MB — voice limit per DingTalk spec
