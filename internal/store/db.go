@@ -154,6 +154,25 @@ var migrations = []migration{
 		name:    "20260315_create_index_local_replies_session_key",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON local_replies(session_key)`,
 	},
+	{
+		version: 16,
+		name:    "20260318_make_executions_worker_id_nullable",
+		sql: `DROP TABLE IF EXISTS executions;
+CREATE TABLE executions (
+	id             TEXT PRIMARY KEY,
+	worker_id      TEXT,
+	session_id     TEXT NOT NULL,
+	status         TEXT NOT NULL DEFAULT 'pending',
+	ai_process_pid INTEGER NOT NULL DEFAULT 0,
+	trigger_input  TEXT NOT NULL DEFAULT '',
+	result         TEXT NOT NULL DEFAULT '',
+	logs           TEXT NOT NULL DEFAULT '',
+	started_at     INTEGER,
+	completed_at   INTEGER
+);
+CREATE INDEX idx_executions_worker_id ON executions(worker_id);
+CREATE INDEX idx_executions_session_id ON executions(session_id)`,
+	},
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {
