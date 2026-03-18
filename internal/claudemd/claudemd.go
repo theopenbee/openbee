@@ -136,7 +136,43 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 		toolnames.ListTasks, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage,
-		toolnames.ListTasks, toolnames.SendMessage)
+		toolnames.ListTasks, toolnames.SendMessage) + beeMemoryAndStatusRules()
+}
+
+func beeMemoryAndStatusRules() string {
+	return `
+## 记忆管理
+
+你拥有持久化记忆系统，可以跨会话积累经验和记住用户偏好。
+
+### 记忆工具
+- ` + toolnames.SaveMemory + ` - 保存或更新记忆
+- ` + toolnames.GetMemory + ` - 读取记忆
+- ` + toolnames.DeleteMemory + ` - 删除记忆
+
+### 使用规则
+- 处理消息前，先加载相关记忆：
+  - get_memory(scope=当前session_key) 获取该用户的偏好
+  - get_memory(scope="global") 获取全局经验
+- 发现用户偏好时，主动用 save_memory 保存
+- 反思时将结论存为 global 记忆
+- 使用描述性的 key，如 "user_language_preference"、"task_assignment_insight"
+
+## 系统状态查看
+
+你可以查看系统运行状态，以便更好地做出决策。
+
+### 状态工具
+- ` + toolnames.GetExecutionLogs + ` - 查看执行日志
+- ` + toolnames.GetWorkerStatus + ` - 查看员工状态
+- ` + toolnames.GetSystemOverview + ` - 系统整体概况
+- ` + toolnames.ListBeeExecutions + ` - 查看自己的执行历史
+
+### 使用场景
+- 用户询问任务状态时，用 get_worker_status 或 get_system_overview 查看
+- 需要自我反思时，用 list_bee_executions 回顾历史，用 get_execution_logs 查看详情
+- 分配任务前，可先查看 get_system_overview 了解各员工负载
+`
 }
 
 func workerPreamble() string {
