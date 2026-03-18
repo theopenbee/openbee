@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,12 +14,16 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+var log = logger.With(zap.String("component", "wecom"))
 
 // ─── Media size constants ──────────────────────────────────────────────────
 
@@ -209,7 +212,7 @@ func (r *WeComReceiver) Start(ctx context.Context, dispatch func(platform.Inboun
 	r.wsConn.OnMessage = func(frame WsFrame) {
 		go r.processMessage(frame, dispatch)
 	}
-	slog.Info("WeCom bot starting", "component", "wecom")
+	log.Info("WeCom bot starting")
 	return r.wsConn.Connect(ctx)
 }
 
@@ -227,7 +230,7 @@ func (r *WeComReceiver) download(ctx context.Context, url, aesKey, mediaType, fi
 func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.InboundMessage)) {
 	var body messageBody
 	if err := json.Unmarshal(frame.Body, &body); err != nil {
-		slog.Warn("wecom: failed to parse message body", "component", "wecom", "error", err)
+		log.Warn("wecom: failed to parse message body", zap.Error(err))
 		return
 	}
 
@@ -249,7 +252,7 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 		Stream:  streamItem{ID: streamID, Finish: false, Content: "<think></think>"},
 	}
 	if _, err := r.sendReplyFn(frame.Headers.ReqID, WsCmdResponse, thinking); err != nil {
-		slog.Warn("wecom: failed to send thinking message", "component", "wecom", "error", err)
+		log.Warn("wecom: failed to send thinking message", zap.Error(err))
 	}
 
 	// Store stream ID with TTL cleanup to prevent leaks when the downstream
@@ -307,7 +310,7 @@ func (r *WeComReceiver) extractContent(ctx context.Context, body *messageBody) (
 		rawText, content = r.extractMixedContent(ctx, body.Mixed.MsgItem)
 
 	default:
-		slog.Warn("wecom: skipping unsupported msgtype", "component", "wecom", "msgtype", body.MsgType)
+		log.Warn("wecom: skipping unsupported msgtype", zap.String("msgtype", body.MsgType))
 		return "", ""
 	}
 
@@ -412,35 +415,35 @@ func (r *WeComReceiver) downloadDecryptSave(ctx context.Context, url, aesKey, me
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 	if err != nil {
-		slog.Error("wecom: create download request failed", "component", "wecom", "error", err)
+		log.Error("wecom: create download request failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Error("wecom: download media failed", "component", "wecom", "url", url, "error", err)
+		log.Error("wecom: download media failed", zap.String("url", url), zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("wecom: download returned non-200", "component", "wecom", "status", resp.StatusCode)
+		log.Error("wecom: download returned non-200", zap.Int("status", resp.StatusCode))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, wecomMaxDownload+1))
 	if err != nil {
-		slog.Error("wecom: read media body failed", "component", "wecom", "error", err)
+		log.Error("wecom: read media body failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 	if len(data) > wecomMaxDownload {
-		slog.Error("wecom: download too large", "component", "wecom", "size", len(data))
+		log.Error("wecom: download too large", zap.Int("size", len(data)))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 
 	if aesKey != "" {
 		data, err = DecryptFile(data, aesKey)
 		if err != nil {
-			slog.Error("wecom: decrypt media failed", "component", "wecom", "error", err)
+			log.Error("wecom: decrypt media failed", zap.Error(err))
 			return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 		}
 	}
@@ -453,7 +456,7 @@ func (r *WeComReceiver) downloadDecryptSave(ctx context.Context, url, aesKey, me
 
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("wecom: save media failed", "component", "wecom", "error", err)
+		log.Error("wecom: save media failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", filename)
 	}
 	return r.mediaSvc.BuildPlaceholder(mediaType, path, filename)

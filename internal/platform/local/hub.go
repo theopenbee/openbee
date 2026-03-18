@@ -1,9 +1,14 @@
 package local
 
 import (
-	"log/slog"
 	"sync"
+
+	"go.uber.org/zap"
+
+	"github.com/theopenbee/openbee/internal/logger"
 )
+
+var log = logger.With(zap.String("component", "local"))
 
 // SSEHub manages Server-Sent Events subscriptions keyed by session key.
 type SSEHub struct {
@@ -49,7 +54,7 @@ func (h *SSEHub) Broadcast(sessionKey, data string) {
 		select {
 		case ch <- data:
 		default:
-			slog.Warn("sse hub: subscriber channel full, dropping", "sessionKey", sessionKey)
+			log.Warn("sse hub: subscriber channel full, dropping", zap.String("sessionKey", sessionKey))
 		}
 	}
 }

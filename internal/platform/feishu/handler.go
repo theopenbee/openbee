@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -23,10 +23,13 @@ import (
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/utils"
 )
+
+var log = logger.With(zap.String("component", "feishu"))
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
@@ -64,13 +67,13 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			if s := event.Event.Sender; s != nil && s.SenderId != nil {
 				senderOpenId = utils.DerefStr(s.SenderId.OpenId)
 			}
-			slog.Info("received event", "component", "feishu",
-				"messageId", utils.DerefStr(msg.MessageId),
-				"chatId", utils.DerefStr(msg.ChatId),
-				"chatType", utils.DerefStr(msg.ChatType),
-				"messageType", utils.DerefStr(msg.MessageType),
-				"content", utils.DerefStr(msg.Content),
-				"senderOpenId", senderOpenId,
+			log.Info("received event",
+				zap.String("messageId", utils.DerefStr(msg.MessageId)),
+				zap.String("chatId", utils.DerefStr(msg.ChatId)),
+				zap.String("chatType", utils.DerefStr(msg.ChatType)),
+				zap.String("messageType", utils.DerefStr(msg.MessageType)),
+				zap.String("content", utils.DerefStr(msg.Content)),
+				zap.String("senderOpenId", senderOpenId),
 			)
 			if msg == nil {
 				return nil
@@ -92,7 +95,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			case "post":
 				textContent = r.resolvePostContent(ctx, messageID, contentJSON)
 			default:
-				slog.Warn("skipping unsupported message type", "component", "feishu", "msgType", msgType)
+				log.Warn("skipping unsupported message type", zap.String("msgType", msgType))
 				return nil
 			}
 
@@ -101,17 +104,17 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			}
 			sender := event.Event.Sender
 			if sender == nil || sender.SenderId == nil || sender.SenderId.OpenId == nil {
-				slog.Warn("skipping message with nil sender or OpenId", "component", "feishu")
+				log.Warn("skipping message with nil sender or OpenId")
 				return nil
 			}
 			if msg.ChatId == nil {
-				slog.Warn("skipping message with nil ChatId", "component", "feishu")
+				log.Warn("skipping message with nil ChatId")
 				return nil
 			}
 			senderID := *sender.SenderId.OpenId
 			rawBytes, err := json.Marshal(event)
 			if err != nil {
-				slog.Error("failed to marshal event", "component", "feishu", "error", err)
+				log.Error("failed to marshal event", zap.Error(err))
 				return nil
 			}
 
@@ -134,7 +137,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 							Build()).
 						Build())
 				if err != nil || !resp.Success() {
-					slog.Error("add reaction error", "component", "feishu", "error", err, "resp", resp)
+					log.Error("add reaction error", zap.Error(err), zap.Any("resp", resp))
 					close(reactionCh)
 					return
 				}
@@ -163,7 +166,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 		larkws.WithLogLevel(larkcore.LogLevelInfo),
 	)
 
-	slog.Info("Feishu bot starting...")
+	log.Info("Feishu bot starting...")
 	return wsClient.Start(ctx)
 }
 
@@ -255,7 +258,7 @@ func (r *FeishuReceiver) downloadSaveAndPlaceholder(
 ) string {
 	data, err := r.downloadMessageResource(ctx, messageID, key, resType)
 	if err != nil {
-		slog.Error("download media failed", "component", "feishu", "key", key, "error", err)
+		log.Error("download media failed", zap.String("key", key), zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
 	}
 
@@ -273,7 +276,7 @@ func (r *FeishuReceiver) downloadSaveAndPlaceholder(
 
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("save media failed", "component", "feishu", "key", key, "error", err)
+		log.Error("save media failed", zap.String("key", key), zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
 	}
 
@@ -293,7 +296,7 @@ func (r *FeishuReceiver) resolveMediaContent(ctx context.Context, messageID, msg
 		key = fileKey
 	}
 	if key == "" {
-		slog.Warn("no file key found in content", "component", "feishu", "msgType", msgType)
+		log.Warn("no file key found in content", zap.String("msgType", msgType))
 		return r.mediaSvc.BuildPlaceholder(mediaTypeForMsgType(msgType), "", fileName)
 	}
 	return r.downloadSaveAndPlaceholder(ctx, messageID, key, resourceType(msgType), mediaTypeForMsgType(msgType), fileName)
@@ -303,7 +306,7 @@ func (r *FeishuReceiver) resolveMediaContent(ctx context.Context, messageID, msg
 func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, contentJSON string) string {
 	result, err := ParsePostContent(contentJSON)
 	if err != nil {
-		slog.Warn("failed to parse post content", "component", "feishu", "error", err)
+		log.Warn("failed to parse post content", zap.Error(err))
 		return "[富文本消息]"
 	}
 
@@ -428,11 +431,11 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 								Build())
 						cancel()
 						if err != nil || !resp.Success() {
-							slog.Warn("recall reaction error", "component", "feishu", "error", err, "resp", resp)
+							log.Warn("recall reaction error", zap.Error(err), zap.Any("resp", resp))
 						}
 					}
 				case <-timer.C:
-					slog.Warn("timed out waiting for reaction ID", "component", "feishu", "messageID", messageID)
+					log.Warn("timed out waiting for reaction ID", zap.String("messageID", messageID))
 				}
 			}()
 		}
@@ -489,7 +492,7 @@ func (s *FeishuSender) sendMessage(ctx context.Context, chatID, chatType, messag
 		code = resp.Code
 	}
 	if code == 230011 || code == 231003 {
-		slog.Warn("reply failed, falling back to direct send", "component", "feishu", "code", code)
+		log.Warn("reply failed, falling back to direct send", zap.Int("code", code))
 		return s.createMessage(ctx, chatID, msgType, content)
 	}
 	if err != nil {
@@ -570,4 +573,3 @@ func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileN
 var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
-

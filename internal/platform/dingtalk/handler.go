@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
@@ -24,9 +25,12 @@ import (
 
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/ffmedia"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+var log = logger.With(zap.String("component", "dingtalk"))
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
 type DingTalkPlatform struct {
@@ -62,7 +66,7 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 	if err := r.createAndStartClient(ctx, dispatch); err != nil {
 		return fmt.Errorf("initial connection failed: %w", err)
 	}
-	slog.Info("DingTalk bot started with heartbeat supervisor", "component", "dingtalk")
+	log.Info("DingTalk bot started with heartbeat supervisor")
 	r.supervisorLoop(ctx, dispatch)
 	return nil
 }
@@ -82,15 +86,15 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
 		r.lastActivityTime.Store(time.Now())
-		slog.Info("received message", "component", "dingtalk",
-			"msgId", data.MsgId,
-			"conversationId", data.ConversationId,
-			"conversationType", data.ConversationType,
-			"msgtype", data.Msgtype,
-			"senderNick", data.SenderNick,
-			"senderStaffId", data.SenderStaffId,
-			"senderCorpId", data.SenderCorpId,
-			"content", data.Text.Content,
+		log.Info("received message",
+			zap.String("msgId", data.MsgId),
+			zap.String("conversationId", data.ConversationId),
+			zap.String("conversationType", data.ConversationType),
+			zap.String("msgtype", data.Msgtype),
+			zap.String("senderNick", data.SenderNick),
+			zap.String("senderStaffId", data.SenderStaffId),
+			zap.String("senderCorpId", data.SenderCorpId),
+			zap.String("content", data.Text.Content),
 		)
 
 		msgtype := data.Msgtype
@@ -114,7 +118,7 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 		case "video":
 			textContent = r.handleDingTalkVideo(ctx, content)
 		default:
-			slog.Warn("skipping unsupported message type", "component", "dingtalk", "msgtype", msgtype)
+			log.Warn("skipping unsupported message type", zap.String("msgtype", msgtype))
 			return []byte(""), nil
 		}
 
@@ -122,13 +126,13 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 			return []byte(""), nil
 		}
 		if data.SenderStaffId == "" {
-			slog.Warn("skipping message with empty SenderStaffId", "component", "dingtalk")
+			log.Warn("skipping message with empty SenderStaffId")
 			return []byte(""), nil
 		}
 
 		rawBytes, err := json.Marshal(data)
 		if err != nil {
-			slog.Error("failed to marshal callback data", "component", "dingtalk", "error", err)
+			log.Error("failed to marshal callback data", zap.Error(err))
 			return []byte(""), nil
 		}
 
@@ -147,7 +151,7 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 		}()
 
 		dispatch(msg)
-		slog.Info("dispatched message", "component", "dingtalk", "sessionKey", msg.SessionKey)
+		log.Info("dispatched message", zap.String("sessionKey", msg.SessionKey))
 		return []byte(""), nil
 	})
 
@@ -159,7 +163,7 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 	r.cli = cli
 	r.mu.Unlock()
 
-	slog.Info("DingTalk stream client connected", "component", "dingtalk")
+	log.Info("DingTalk stream client connected")
 	return nil
 }
 
@@ -176,7 +180,7 @@ func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(pla
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("DingTalk supervisor shutting down", "component", "dingtalk")
+			log.Info("DingTalk supervisor shutting down")
 			r.mu.Lock()
 			if r.cli != nil {
 				r.cli.AutoReconnect = false
@@ -195,7 +199,7 @@ func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(pla
 				continue
 			}
 
-			slog.Warn("DingTalk heartbeat timeout, triggering reconnect", "component", "dingtalk", "elapsed", elapsed)
+			log.Warn("DingTalk heartbeat timeout, triggering reconnect", zap.Duration("elapsed", elapsed))
 
 			r.mu.Lock()
 			if r.cli != nil {
@@ -207,7 +211,7 @@ func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(pla
 
 			r.lastActivityTime.Store(time.Now())
 			if err := r.createAndStartClient(ctx, dispatch); err != nil {
-				slog.Error("DingTalk reconnect failed, retrying", "component", "dingtalk", "error", err)
+				log.Error("DingTalk reconnect failed, retrying", zap.Error(err))
 				select {
 				case <-ctx.Done():
 					return
@@ -215,12 +219,12 @@ func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(pla
 				}
 				r.lastActivityTime.Store(time.Now())
 				if err := r.createAndStartClient(ctx, dispatch); err != nil {
-					slog.Error("DingTalk reconnect retry failed", "component", "dingtalk", "error", err)
+					log.Error("DingTalk reconnect retry failed", zap.Error(err))
 				} else {
-					slog.Info("DingTalk reconnected successfully after retry", "component", "dingtalk")
+					log.Info("DingTalk reconnected successfully after retry")
 				}
 			} else {
-				slog.Info("DingTalk reconnected successfully", "component", "dingtalk")
+				log.Info("DingTalk reconnected successfully")
 			}
 		}
 	}
@@ -305,18 +309,18 @@ func (r *DingTalkReceiver) handleDingTalkPicture(ctx context.Context, content ma
 	}
 	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
 	if err != nil {
-		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		log.Error("exchange download code failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("image", "", "")
 	}
 	data, ct, err := httpDownload(ctx, dlURL)
 	if err != nil {
-		slog.Error("download image failed", "component", "dingtalk", "error", err)
+		log.Error("download image failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("image", "", "")
 	}
 	ext := r.mediaSvc.ExtensionFromMIME(ct)
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("save image failed", "component", "dingtalk", "error", err)
+		log.Error("save image failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("image", "", "")
 	}
 	return r.mediaSvc.BuildPlaceholder("image", path, "")
@@ -332,12 +336,12 @@ func (r *DingTalkReceiver) handleDingTalkVideo(ctx context.Context, content map[
 	}
 	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
 	if err != nil {
-		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		log.Error("exchange download code failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("video", "", "")
 	}
 	data, ct, err := httpDownload(ctx, dlURL)
 	if err != nil {
-		slog.Error("download video failed", "component", "dingtalk", "error", err)
+		log.Error("download video failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("video", "", "")
 	}
 	ext := r.mediaSvc.ExtensionFromMIME(ct)
@@ -350,7 +354,7 @@ func (r *DingTalkReceiver) handleDingTalkVideo(ctx context.Context, content map[
 	}
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("save video failed", "component", "dingtalk", "error", err)
+		log.Error("save video failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("video", "", "")
 	}
 	return r.mediaSvc.BuildPlaceholder("video", path, "")
@@ -381,14 +385,14 @@ func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, content m
 				defer wg.Done()
 				data, ct, err := httpDownload(ctx, url)
 				if err != nil {
-					slog.Error("download richtext image", "component", "dingtalk", "error", err)
+					log.Error("download richtext image", zap.Error(err))
 					results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
 					return
 				}
 				ext := r.mediaSvc.ExtensionFromMIME(ct)
 				path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 				if err != nil {
-					slog.Error("save richtext image", "component", "dingtalk", "error", err)
+					log.Error("save richtext image", zap.Error(err))
 					results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
 					return
 				}
@@ -405,20 +409,20 @@ func (r *DingTalkReceiver) handleDingTalkRichText(ctx context.Context, content m
 					defer wg.Done()
 					dlURL, err := exchangeDownloadCode(ctx, r.cfg, code)
 					if err != nil {
-						slog.Error("exchange richtext image download code", "component", "dingtalk", "error", err)
+						log.Error("exchange richtext image download code", zap.Error(err))
 						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
 						return
 					}
 					data, ct, err := httpDownload(ctx, dlURL)
 					if err != nil {
-						slog.Error("download richtext image", "component", "dingtalk", "error", err)
+						log.Error("download richtext image", zap.Error(err))
 						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
 						return
 					}
 					ext := r.mediaSvc.ExtensionFromMIME(ct)
 					path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 					if err != nil {
-						slog.Error("save richtext image", "component", "dingtalk", "error", err)
+						log.Error("save richtext image", zap.Error(err))
 						results[idx].image = r.mediaSvc.BuildPlaceholder("image", "", "")
 						return
 					}
@@ -452,12 +456,12 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[s
 	}
 	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
 	if err != nil {
-		slog.Error("exchange file download code", "component", "dingtalk", "error", err)
+		log.Error("exchange file download code", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
 	}
 	data, _, err := httpDownload(ctx, dlURL)
 	if err != nil {
-		slog.Error("download file", "component", "dingtalk", "error", err)
+		log.Error("download file", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
 	}
 	ext := ".bin"
@@ -468,7 +472,7 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[s
 	}
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("save file", "component", "dingtalk", "error", err)
+		log.Error("save file", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("document", "", fileName)
 	}
 	return r.mediaSvc.BuildPlaceholder("document", path, fileName)
@@ -488,12 +492,12 @@ func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[
 	}
 	dlURL, err := exchangeDownloadCode(ctx, r.cfg, downloadCode)
 	if err != nil {
-		slog.Error("exchange download code failed", "component", "dingtalk", "error", err)
+		log.Error("exchange download code failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
 	}
 	data, ct, err := httpDownload(ctx, dlURL)
 	if err != nil {
-		slog.Error("download audio failed", "component", "dingtalk", "error", err)
+		log.Error("download audio failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
 	}
 	ext := r.mediaSvc.ExtensionFromMIME(ct)
@@ -502,7 +506,7 @@ func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[
 	}
 	path, err := r.mediaSvc.SaveInbound(ctx, data, ext)
 	if err != nil {
-		slog.Error("save audio failed", "component", "dingtalk", "error", err)
+		log.Error("save audio failed", zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
 	}
 	return r.mediaSvc.BuildPlaceholder("audio", path, recognition)
@@ -532,7 +536,7 @@ const (
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var data chatbot.BotCallbackDataModel
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &data); err != nil {
-		slog.Error("failed to unmarshal raw", "component", "dingtalk", "error", err)
+		log.Error("failed to unmarshal raw", zap.Error(err))
 		return fmt.Errorf("unmarshal raw: %w", err)
 	}
 	if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
@@ -541,10 +545,9 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 
 	expired := isWebhookExpired(&data)
 	if expired {
-		slog.Info("sessionWebhook expired, using proactive API",
-			"component", "dingtalk",
-			"sessionKey", msg.ReplyTo.SessionKey,
-			"conversationType", data.ConversationType)
+		log.Info("sessionWebhook expired, using proactive API",
+			zap.String("sessionKey", msg.ReplyTo.SessionKey),
+			zap.String("conversationType", data.ConversationType))
 	}
 
 	if msg.MediaPath != "" {
@@ -555,13 +558,13 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 		case "voice":
 			durationMs, err := ffmedia.AudioDurationMs(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
 			if err != nil {
-				slog.Warn("could not probe audio duration, using 0", "component", "dingtalk", "error", err)
+				log.Warn("could not probe audio duration, using 0", zap.Error(err))
 			}
 			info.durationMs = durationMs
 		case "video":
 			durationSec, err := ffmedia.VideoDurationSec(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
 			if err != nil {
-				slog.Warn("could not probe video duration, using 0", "component", "dingtalk", "error", err)
+				log.Warn("could not probe video duration, using 0", zap.Error(err))
 			}
 			info.durationSec = durationSec
 
@@ -570,7 +573,7 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 				defer cleanup()
 				picMediaID, uploadErr := uploadMediaToDingTalk(ctx, s.cfg, thumbPath, "image")
 				if uploadErr != nil {
-					slog.Warn("could not upload video thumbnail", "component", "dingtalk", "error", uploadErr)
+					log.Warn("could not upload video thumbnail", zap.Error(uploadErr))
 				} else {
 					info.picMediaID = picMediaID
 				}
@@ -579,18 +582,18 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 
 		mediaID, err := uploadMediaToDingTalk(ctx, s.cfg, msg.MediaPath, mediaType)
 		if err != nil {
-			slog.Error("upload media failed", "component", "dingtalk", "error", err)
+			log.Error("upload media failed", zap.Error(err))
 			return fmt.Errorf("upload media: %w", err)
 		}
 		if expired {
 			if err := sendMediaProactive(ctx, s.cfg, &data, msg.MediaPath, mediaID, info); err != nil {
-				slog.Error("proactive media send failed", "component", "dingtalk", "error", err)
+				log.Error("proactive media send failed", zap.Error(err))
 				return fmt.Errorf("proactive media send: %w", err)
 			}
 			return nil
 		}
 		if err := sendMediaViaDingTalk(ctx, s.cfg, data.SessionWebhook, msg.MediaPath, mediaID, info); err != nil {
-			slog.Error("send media failed", "component", "dingtalk", "error", err)
+			log.Error("send media failed", zap.Error(err))
 			return fmt.Errorf("send media: %w", err)
 		}
 		return nil
@@ -599,20 +602,23 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 	// Text message
 	if expired {
 		if err := sendTextProactive(ctx, s.cfg, &data, msg.Content); err != nil {
-			slog.Error("proactive text send failed", "component", "dingtalk", "error", err)
+			log.Error("proactive text send failed", zap.Error(err))
 			return fmt.Errorf("proactive text send: %w", err)
 		}
-		slog.Info("proactive reply sent ok", "component", "dingtalk")
+		log.Info("proactive reply sent ok")
 		return nil
 	}
 
 	replier := chatbot.NewChatbotReplier()
-	slog.Info("sending reply", "component", "dingtalk", "sessionKey", msg.ReplyTo.SessionKey, "webhookLen", len(data.SessionWebhook), "contentLen", len(msg.Content))
+	log.Info("sending reply",
+		zap.String("sessionKey", msg.ReplyTo.SessionKey),
+		zap.Int("webhookLen", len(data.SessionWebhook)),
+		zap.Int("contentLen", len(msg.Content)))
 	if err := replier.SimpleReplyMarkdown(ctx, data.SessionWebhook, []byte(markdownTitle), []byte(msg.Content)); err != nil {
-		slog.Error("reply send error", "component", "dingtalk", "error", err)
+		log.Error("reply send error", zap.Error(err))
 		return fmt.Errorf("reply send: %w", err)
 	}
-	slog.Info("reply sent ok", "component", "dingtalk")
+	log.Info("reply sent ok")
 	return nil
 }
 
@@ -946,7 +952,7 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) {
 	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
-		slog.Warn("failed to get access token for emoji "+action, "component", "dingtalk", "error", err)
+		log.Warn("failed to get access token for emoji "+action, zap.Error(err))
 		return
 	}
 
@@ -957,7 +963,7 @@ func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbo
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		slog.Warn("failed to create emoji "+action+" request", "component", "dingtalk", "error", err)
+		log.Warn("failed to create emoji "+action+" request", zap.Error(err))
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -965,13 +971,13 @@ func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbo
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Warn("failed to "+action+" emoji reaction", "component", "dingtalk", "error", err)
+		log.Warn("failed to "+action+" emoji reaction", zap.Error(err))
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Warn("emoji "+action+" returned non-200", "component", "dingtalk", "status", resp.StatusCode)
+		log.Warn("emoji "+action+" returned non-200", zap.Int("status", resp.StatusCode))
 	}
 }
 

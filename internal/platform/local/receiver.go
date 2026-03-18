@@ -2,7 +2,8 @@ package local
 
 import (
 	"context"
-	"log/slog"
+
+	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -37,7 +38,6 @@ func (r *LocalReceiver) Enqueue(msg platform.InboundMessage) {
 	select {
 	case r.ch <- msg:
 	default:
-		slog.Warn("local receiver: channel full, dropping message",
-			"component", "local", "sessionKey", msg.SessionKey)
+		log.Warn("local receiver: channel full, dropping message", zap.String("sessionKey", msg.SessionKey))
 	}
 }

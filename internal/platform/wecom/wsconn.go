@@ -6,11 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"math"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
 )
@@ -216,7 +217,7 @@ func (c *WsConn) readLoop(ctx context.Context, conn *websocket.Conn, gen int, do
 			manual := c.isManualClose
 			c.mu.Unlock()
 			if !manual {
-				slog.Warn("wecom ws read error", "component", "wecom", "error", err)
+				log.Warn("wecom ws read error", zap.Error(err))
 			}
 			if !authSignaled {
 				authDone <- fmt.Errorf("read error before auth: %w", err)
@@ -225,7 +226,7 @@ func (c *WsConn) readLoop(ctx context.Context, conn *websocket.Conn, gen int, do
 		}
 		var frame WsFrame
 		if err := json.Unmarshal(data, &frame); err != nil {
-			slog.Warn("wecom ws parse error", "component", "wecom", "error", err)
+			log.Warn("wecom ws parse error", zap.Error(err))
 			continue
 		}
 		c.handleFrame(frame, authDone, &authSignaled)
@@ -238,14 +239,14 @@ func (c *WsConn) handleFrame(frame WsFrame, authDone chan<- error, authSignaled 
 
 	switch frame.Cmd {
 	case WsCmdCallback:
-		slog.Info("wecom message received", "component", "wecom", "reqId", reqID)
+		log.Info("wecom message received", zap.String("reqId", reqID))
 		if c.OnMessage != nil {
 			c.OnMessage(frame)
 		}
 		return
 	case WsCmdEventCallback:
 		// Event callbacks (enter_chat, template_card_event, etc.) are out of scope.
-		slog.Debug("wecom event callback dropped (out of scope)", "component", "wecom", "reqId", reqID)
+		log.Debug("wecom event callback dropped (out of scope)", zap.String("reqId", reqID))
 		return
 	}
 
@@ -258,7 +259,7 @@ func (c *WsConn) handleFrame(frame WsFrame, authDone chan<- error, authSignaled 
 				authDone <- fmt.Errorf("errcode=%d msg=%s", frame.ErrCode, frame.ErrMsg)
 				return
 			}
-			slog.Info("wecom authenticated", "component", "wecom")
+			log.Info("wecom authenticated")
 			if c.OnAuthenticated != nil {
 				c.OnAuthenticated()
 			}
@@ -266,13 +267,13 @@ func (c *WsConn) handleFrame(frame WsFrame, authDone chan<- error, authSignaled 
 		}
 	case strings.HasPrefix(reqID, WsCmdHeartbeat):
 		if frame.ErrCode != 0 {
-			slog.Warn("wecom heartbeat ack error", "component", "wecom", "errcode", frame.ErrCode)
+			log.Warn("wecom heartbeat ack error", zap.Int("errcode", frame.ErrCode))
 			return
 		}
 		c.mu.Lock()
 		c.missedPong = 0
 		c.mu.Unlock()
-		slog.Debug("wecom heartbeat ack", "component", "wecom")
+		log.Debug("wecom heartbeat ack")
 	default:
 		c.releaseReplyAck(reqID, frame)
 	}
@@ -295,7 +296,7 @@ func (c *WsConn) heartbeatLoop(ctx context.Context, conn *websocket.Conn, gen in
 			}
 			if c.missedPong >= wsMaxMissedPong {
 				c.mu.Unlock()
-				slog.Warn("wecom heartbeat timeout, force-closing", "component", "wecom", "missed", c.missedPong)
+				log.Warn("wecom heartbeat timeout, force-closing", zap.Int("missed", c.missedPong))
 				conn.Close()
 				return
 			}
@@ -307,7 +308,7 @@ func (c *WsConn) heartbeatLoop(ctx context.Context, conn *websocket.Conn, gen in
 				Cmd:     WsCmdHeartbeat,
 				Headers: WsFrameHeaders{ReqID: reqID},
 			}); err != nil {
-				slog.Warn("wecom heartbeat send failed", "component", "wecom", "error", err)
+				log.Warn("wecom heartbeat send failed", zap.Error(err))
 				conn.Close()
 				return
 			}
@@ -338,7 +339,7 @@ func (c *WsConn) scheduleReconnect(ctx context.Context) {
 	c.mu.Unlock()
 
 	if c.cfg.MaxReconnectAttempts != -1 && attempt > c.cfg.MaxReconnectAttempts {
-		slog.Error("wecom max reconnect attempts exceeded", "component", "wecom")
+		log.Error("wecom max reconnect attempts exceeded")
 		return
 	}
 
@@ -346,7 +347,7 @@ func (c *WsConn) scheduleReconnect(ctx context.Context) {
 	if delay > wsDefaultReconnectMax {
 		delay = wsDefaultReconnectMax
 	}
-	slog.Info("wecom reconnecting", "component", "wecom", "attempt", attempt, "delay", delay)
+	log.Info("wecom reconnecting", zap.Int("attempt", attempt), zap.Duration("delay", delay))
 
 	select {
 	case <-ctx.Done():
@@ -355,10 +356,10 @@ func (c *WsConn) scheduleReconnect(ctx context.Context) {
 	}
 
 	if err := c.dialAndAuth(ctx); err != nil {
-		slog.Error("wecom reconnect failed", "component", "wecom", "attempt", attempt, "error", err)
+		log.Error("wecom reconnect failed", zap.Int("attempt", attempt), zap.Error(err))
 		c.scheduleReconnect(ctx)
 	} else {
-		slog.Info("wecom reconnected", "component", "wecom", "attempt", attempt)
+		log.Info("wecom reconnected", zap.Int("attempt", attempt))
 		c.mu.Lock()
 		c.reconnectCount = 0
 		c.mu.Unlock()
@@ -474,7 +475,7 @@ func (c *WsConn) releaseReplyAck(reqID string, frame WsFrame) {
 	}
 	c.queueMu.Unlock()
 	if !ok {
-		slog.Debug("wecom unexpected ack (ignored)", "component", "wecom", "reqId", reqID)
+		log.Debug("wecom unexpected ack (ignored)", zap.String("reqId", reqID))
 		return
 	}
 	if frame.ErrCode != 0 {
