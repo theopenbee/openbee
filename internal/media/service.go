@@ -17,15 +17,15 @@ type Service struct {
 	baseDir string
 }
 
-// NewService creates a Service with baseDir at ~/.robobee/media and ensures inbound/ exists.
+// NewService creates a Service with baseDir at ~/.openbee/media and ensures inbound/ exists.
 func NewService() *Service {
 	home, _ := os.UserHomeDir()
-	baseDir := filepath.Join(home, ".robobee", "media")
+	baseDir := filepath.Join(home, ".openbee", "media")
 	os.MkdirAll(filepath.Join(baseDir, "inbound"), 0o755)
 	return &Service{baseDir: baseDir}
 }
 
-// SaveInbound writes data to ~/.robobee/media/inbound/<timestamp>-<uuid>.<ext> and returns the path.
+// SaveInbound writes data to ~/.openbee/media/inbound/<timestamp>-<uuid>.<ext> and returns the path.
 func (s *Service) SaveInbound(_ context.Context, data []byte, ext string) (string, error) {
 	if !strings.HasPrefix(ext, ".") {
 		ext = "." + ext

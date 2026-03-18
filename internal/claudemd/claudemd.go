@@ -13,7 +13,7 @@ const (
 	RoleBee    = "bee"
 	RoleWorker = "worker"
 
-	SystemRulesFile = ".robobee.md"
+	SystemRulesFile = ".openbee.md"
 	ImportLine      = "@" + SystemRulesFile
 )
 
@@ -127,7 +127,7 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 操作步骤：
 1. 读取当前 `+"`CLAUDE.md`"+` 内容
 2. 按用户要求修改名字或职责描述（第一行 "你是 XXX" 部分）
-3. 确保文件末尾保留 `+"`@.robobee.md`"+` 这一行，不要删除
+3. 确保文件末尾保留 `+"`@.openbee.md`"+` 这一行，不要删除
 4. 将修改后的内容写回 `+"`CLAUDE.md`"+`
 5. 用 `+"`%s`"+` 告知用户：配置已更新，下次对话起将使用新的名字/描述
 
@@ -225,7 +225,7 @@ func rulesForRole(role string, opts options) string {
 	}
 }
 
-// EnsureSystemRules writes .robobee.md with the latest system rules
+// EnsureSystemRules writes .openbee.md with the latest system rules
 // for the given role, and ensures CLAUDE.md contains the @import reference.
 // It does NOT create CLAUDE.md if it doesn't exist.
 func EnsureSystemRules(workDir, role string, optFns ...Option) error {
@@ -233,7 +233,7 @@ func EnsureSystemRules(workDir, role string, optFns ...Option) error {
 	for _, fn := range optFns {
 		fn(&opts)
 	}
-	// 1. Write .robobee.md (always overwrite)
+	// 1. Write .openbee.md (always overwrite)
 	rulesPath := filepath.Join(workDir, SystemRulesFile)
 	if err := os.WriteFile(rulesPath, []byte(rulesForRole(role, opts)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", SystemRulesFile, err)

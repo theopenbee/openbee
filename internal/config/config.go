@@ -13,16 +13,16 @@ import (
 //go:embed config.yaml.tmpl
 var ConfigTemplate string
 
-// DefaultBeeWorkDir returns the hardcoded bee working directory: ~/.robobee/bee
+// DefaultBeeWorkDir returns the hardcoded bee working directory: ~/.openbee/bee
 func DefaultBeeWorkDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".robobee", "bee")
+	return filepath.Join(home, ".openbee", "bee")
 }
 
-// DefaultWorkerBaseDir returns the hardcoded worker base directory: ~/.robobee/worker
+// DefaultWorkerBaseDir returns the hardcoded worker base directory: ~/.openbee/worker
 func DefaultWorkerBaseDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".robobee", "worker")
+	return filepath.Join(home, ".openbee", "worker")
 }
 
 type Config struct {

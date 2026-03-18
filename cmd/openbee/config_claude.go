@@ -322,7 +322,7 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("获取用户目录失败: %w", err)
 	}
 
-	binDir := filepath.Join(home, ".robobee", "bin")
+	binDir := filepath.Join(home, ".openbee", "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
