@@ -17,7 +17,7 @@ By submitting a contribution, you agree to the terms of our [Contributor License
 ### Clone and Build
 
 ```bash
-git clone https://github.com/robobeedev/robobee.git
+git clone https://github.com/theopenbee/openbee.git
 cd robobee
 
 # Build frontend assets
@@ -122,7 +122,7 @@ robobee/
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/robobeedev/robobee/issues) to report bugs or request features
+- Use [GitHub Issues](https://github.com/theopenbee/openbee/issues) to report bugs or request features
 - Search existing issues before creating a new one
 - Include reproduction steps, expected behavior, and actual behavior for bug reports
 
