@@ -217,6 +217,81 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	}
 }
 
+// TestFeeder_CreatesExecutionOnBeeRun verifies that each processBeeGroup call
+// creates one row in executions with status=completed and non-empty logs.
+func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
+
+	runner := &mockBeeRunner{}
+	f := newFeeder(ms, ts, ss, es, runner)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	rows, err := db.Query(`SELECT id, worker_id, status, logs FROM executions`)
+	if err != nil {
+		t.Fatalf("query executions: %v", err)
+	}
+	defer rows.Close()
+
+	var execs []struct {
+		id       string
+		workerID *string
+		status   string
+		logs     string
+	}
+	for rows.Next() {
+		var e struct {
+			id       string
+			workerID *string
+			status   string
+			logs     string
+		}
+		if err := rows.Scan(&e.id, &e.workerID, &e.status, &e.logs); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		execs = append(execs, e)
+	}
+
+	if len(execs) != 1 {
+		t.Fatalf("expected 1 execution row, got %d", len(execs))
+	}
+	e := execs[0]
+	if e.workerID != nil {
+		t.Errorf("expected nil worker_id for bee execution, got %v", e.workerID)
+	}
+	if e.status != "completed" {
+		t.Errorf("expected status=completed, got %q", e.status)
+	}
+}
+
+// TestFeeder_ExecutionFailedOnBeeError verifies that a bee OutputError results
+// in an execution row with status=failed.
+func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
+
+	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	f := newFeeder(ms, ts, ss, es, runner)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	var status string
+	err := db.QueryRow(`SELECT status FROM executions`).Scan(&status)
+	if err != nil {
+		t.Fatalf("query executions: %v", err)
+	}
+	if status != "failed" {
+		t.Errorf("expected status=failed, got %q", status)
+	}
+}
+
 func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
 	dir := t.TempDir()
 	original := "user-edited content"

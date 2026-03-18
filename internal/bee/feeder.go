@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/claudemd"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
 )
 
@@ -135,30 +136,55 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()
 
-	_, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
+	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
 	if err != nil {
 		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		f.rollback(ctx, msgs)
 		return
 	}
 
-	if _, err := f.drainBeeOutput(outputCh); err != nil {
-		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
+	// Create execution record only after process starts successfully.
+	exec, execErr := f.execStore.CreateBeeExecution(sessionID, prompt)
+	if execErr != nil {
+		slog.Error("create bee execution", "component", "feeder", "sessionKey", sessionKey, "error", execErr)
+		// non-fatal: continue without execution tracking
+	}
+	if execErr == nil && proc != nil {
+		if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
+			slog.Error("update execution pid", "component", "feeder", "error", pidErr)
+		}
+	}
+
+	logs, drainErr := f.drainBeeOutput(outputCh)
+
+	if execErr == nil {
+		if logsErr := f.execStore.UpdateLogs(exec.ID, logs); logsErr != nil {
+			slog.Error("update execution logs", "component", "feeder", "error", logsErr)
+		}
+		finalStatus := model.ExecStatusCompleted
+		resultMsg := ""
+		if drainErr != nil {
+			finalStatus = model.ExecStatusFailed
+			resultMsg = drainErr.Error()
+		}
+		if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
+			slog.Error("update execution result", "component", "feeder", "error", resErr)
+		}
+	}
+
+	if drainErr != nil {
+		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", drainErr)
 		f.rollback(ctx, msgs)
 		return
 	}
 
 	// Persist session_id before marking messages processed.
-	// If we resumed a previous session, check whether bee cleared it (e.g. via clear_session).
-	// Upserting after a clear would undo the reset.
 	if resume {
 		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 		if checkErr == nil && currentID == "" {
 			slog.Info("session cleared during bee execution, skipping context upsert",
 				"component", "feeder", "sessionKey", sessionKey)
-			// fall through to MarkBeeProcessed without upserting
 		} else {
-			// session still valid (or DB error — upsert defensively)
 			if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
 				slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
 			}
@@ -166,9 +192,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	} else {
 		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
 			slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
-			// non-fatal: messages are marked processed, but the session ID is not persisted.
-			// On the next tick, GetSessionContext returns "" and bee starts a new session,
-			// losing conversational continuity silently.
 		}
 	}
 
