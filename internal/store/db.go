@@ -173,6 +173,19 @@ CREATE TABLE executions (
 CREATE INDEX idx_executions_worker_id ON executions(worker_id);
 CREATE INDEX idx_executions_session_id ON executions(session_id)`,
 	},
+	{
+		version: 17,
+		name:    "20260318_create_bee_memories",
+		sql: `CREATE TABLE IF NOT EXISTS bee_memories (
+		id         TEXT PRIMARY KEY,
+		scope      TEXT NOT NULL,
+		key        TEXT NOT NULL,
+		value      TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		UNIQUE(scope, key)
+	)`,
+	},
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {
