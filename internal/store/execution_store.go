@@ -162,3 +162,61 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	_, err := s.db.Exec(`UPDATE executions SET ai_process_pid=?, status=? WHERE id=?`, pid, model.ExecStatusRunning, id)
 	return err
 }
+
+// ListBeeExecutions returns the bee's own execution history (worker_id IS NULL).
+func (s *ExecutionStore) ListBeeExecutions(limit int) ([]model.WorkerExecution, error) {
+	rows, err := s.db.Query(
+		execSelect+` WHERE e.worker_id IS NULL ORDER BY e.started_at DESC LIMIT ?`,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var execs []model.WorkerExecution
+	for rows.Next() {
+		e, err := scanExecution(rows)
+		if err != nil {
+			return nil, err
+		}
+		execs = append(execs, e)
+	}
+	return execs, rows.Err()
+}
+
+// ListRecent returns the most recent executions (all types).
+func (s *ExecutionStore) ListRecent(limit int) ([]model.WorkerExecution, error) {
+	rows, err := s.db.Query(
+		execSelect+` ORDER BY e.started_at DESC LIMIT ?`,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var execs []model.WorkerExecution
+	for rows.Next() {
+		e, err := scanExecution(rows)
+		if err != nil {
+			return nil, err
+		}
+		execs = append(execs, e)
+	}
+	return execs, rows.Err()
+}
+
+// GetLogsByID returns an execution's metadata and full logs.
+// Returns (nil, nil) if execution not found.
+func (s *ExecutionStore) GetLogsByID(id string) (*model.WorkerExecution, error) {
+	row := s.db.QueryRow(execSelect+` WHERE e.id = ?`, id)
+	exec, err := scanExecution(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &exec, nil
+}

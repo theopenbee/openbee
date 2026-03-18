@@ -145,6 +145,71 @@ func TestExecutionStore_GetBySessionID(t *testing.T) {
 	}
 }
 
+func TestExecutionStore_ListBeeExecutions(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db)
+
+	// Create a bee execution (worker_id = NULL)
+	bee1, err := es.CreateBeeExecution("session1", "user said hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = bee1
+
+	// Create a worker execution (should not appear)
+	db.Exec(`INSERT INTO workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
+	_, err = es.Create("w1", "worker task", "session2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := es.ListBeeExecutions(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 bee execution, got %d", len(results))
+	}
+}
+
+func TestExecutionStore_GetLogsByID(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db)
+	exec, _ := es.CreateBeeExecution("session1", "test")
+
+	// Update logs with multiline content
+	logs := "line1\nline2\nline3\nline4\nline5"
+	es.UpdateLogs(exec.ID, logs)
+
+	// Get logs
+	result, err := es.GetLogsByID(exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Logs != logs {
+		t.Errorf("expected full logs, got %q", result.Logs)
+	}
+
+	// Non-existent returns nil
+	result2, err := es.GetLogsByID("nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result2 != nil {
+		t.Error("expected nil for non-existent execution")
+	}
+}
+
 func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {
