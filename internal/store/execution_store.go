@@ -38,6 +38,27 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model
 	return exec, nil
 }
 
+func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (model.WorkerExecution, error) {
+	millis := time.Now().UnixMilli()
+	exec := model.WorkerExecution{
+		ID:           uuid.New().String(),
+		WorkerID:     nil, // bee execution — no worker
+		SessionID:    sessionID,
+		TriggerInput: triggerInput,
+		Status:       model.ExecStatusPending,
+		StartedAt:    &millis,
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO executions (id, worker_id, session_id, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, NULL, ?, ?, ?, '', 0, ?)`,
+		exec.ID, exec.SessionID, exec.TriggerInput, exec.Status, millis,
+	)
+	if err != nil {
+		return model.WorkerExecution{}, fmt.Errorf("insert bee execution: %w", err)
+	}
+	return exec, nil
+}
+
 const execSelect = `
 SELECT e.id, e.worker_id, e.session_id, e.trigger_input, e.status, e.result, e.logs,
        e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')

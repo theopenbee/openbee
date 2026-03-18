@@ -144,3 +144,40 @@ func TestExecutionStore_GetBySessionID(t *testing.T) {
 		t.Errorf("expected ID %s, got %s", exec.ID, got.ID)
 	}
 }
+
+func TestExecutionStore_CreateBeeExecution(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db)
+
+	sessionID := uuid.New().String()
+	exec, err := es.CreateBeeExecution(sessionID, "test prompt")
+	if err != nil {
+		t.Fatalf("CreateBeeExecution: %v", err)
+	}
+	if exec.ID == "" {
+		t.Error("expected non-empty ID")
+	}
+	if exec.WorkerID != nil {
+		t.Errorf("expected nil WorkerID for bee execution, got %v", exec.WorkerID)
+	}
+	if exec.Status != model.ExecStatusPending {
+		t.Errorf("expected pending, got %s", exec.Status)
+	}
+
+	// GetByID must scan NULL worker_id without error
+	got, err := es.GetByID(exec.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.WorkerID != nil {
+		t.Errorf("expected nil WorkerID from DB, got %v", got.WorkerID)
+	}
+	if got.SessionID != sessionID {
+		t.Errorf("expected session_id %s, got %s", sessionID, got.SessionID)
+	}
+}
