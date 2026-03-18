@@ -4,7 +4,7 @@ server:
   debug: false
 
 database:
-  path: ./data/robobee.db
+  path: ./data/openbee.db
 
 bee:
   claude:

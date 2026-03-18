@@ -102,7 +102,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals := configValues{
 		ServerPort:      "8080",
 		ServerHost:      "localhost",
-		DBPath:          "./data/robobee.db",
+		DBPath:          "./data/openbee.db",
 		ClaudePath:      "claude",
 		ClaudeTimeout:   "30m",
 		FeederTimeout:   "5m",
