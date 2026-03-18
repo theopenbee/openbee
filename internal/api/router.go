@@ -8,6 +8,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
@@ -92,6 +93,9 @@ func (s *Server) setupRoutes() {
 	if s.localChatHandler != nil {
 		s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
 	}
+
+	// Internal log level control — PUT /internal/log/level with JSON body {"level":"debug"}
+	s.router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
 
 	// MCP — only registered when an API key is configured
 	if s.mcpServer != nil {
