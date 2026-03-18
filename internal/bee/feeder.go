@@ -226,11 +226,14 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
 	for out := range ch {
 		switch out.Type {
 		case claude.OutputStdout:
-			fmt.Fprintf(&sb, "[stdout] %s\n", out.Content)
+			sb.WriteString(out.Content)
+			sb.WriteByte('\n')
 		case claude.OutputStderr:
-			fmt.Fprintf(&sb, "[stderr] %s\n", out.Content)
+			sb.WriteString(out.Content)
+			sb.WriteByte('\n')
 		case claude.OutputError:
-			fmt.Fprintf(&sb, "[error] %s\n", out.Content)
+			sb.WriteString(out.Content)
+			sb.WriteByte('\n')
 			return sb.String(), fmt.Errorf("bee exited with error: %s", out.Content)
 		case claude.OutputDone:
 			done = true
