@@ -34,7 +34,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		ws, es,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewServer(ws, mgr, ts, ms, senders, nil, nil)
+	return mcp.NewServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -213,7 +213,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		ws, es,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewServer(ws, mgr, ts, ms, senders, nil, nil), db
+	return mcp.NewServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db)), db
 }
 
 // --- mark_task_complete ---
@@ -455,7 +455,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewServer(ws, mgr, ts, ms, senders, stopper, clearer), db, stopper, clearer
+	return mcp.NewServer(ws, mgr, ts, ms, senders, stopper, clearer, es, store.NewMemoryStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {

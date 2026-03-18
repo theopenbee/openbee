@@ -68,6 +68,8 @@ type MCPServer struct {
 	senders        map[string]platform.PlatformSenderAdapter
 	execStopper    ExecutionStopper
 	sessionClearer SessionClearer
+	executionStore *store.ExecutionStore
+	memoryStore    *store.MemoryStore
 
 	mu       sync.Mutex
 	sessions map[string]chan rpcResponse // session_id -> response channel
@@ -82,6 +84,8 @@ func NewServer(
 	senders map[string]platform.PlatformSenderAdapter,
 	execStopper ExecutionStopper,
 	sessionClearer SessionClearer,
+	es *store.ExecutionStore,
+	memStore *store.MemoryStore,
 ) *MCPServer {
 	return &MCPServer{
 		workerStore:    ws,
@@ -91,6 +95,8 @@ func NewServer(
 		senders:        senders,
 		execStopper:    execStopper,
 		sessionClearer: sessionClearer,
+		executionStore: es,
+		memoryStore:    memStore,
 		sessions:       make(map[string]chan rpcResponse),
 	}
 }

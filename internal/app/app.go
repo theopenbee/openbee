@@ -96,7 +96,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
 	sendersByPlatform["local"] = localSender
 
-	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp)
+	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Media)
 
 	// Populate sender map before goroutines start
@@ -151,6 +151,7 @@ type appStores struct {
 	sessionStore      *store.SessionStore
 	localSessionStore *store.LocalSessionStore
 	localReplyStore   *store.LocalReplyStore
+	memoryStore       *store.MemoryStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -166,6 +167,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		sessionStore:      store.NewSessionStore(db),
 		localSessionStore: store.NewLocalSessionStore(db),
 		localReplyStore:   store.NewLocalReplyStore(db),
+		memoryStore:       store.NewMemoryStore(db),
 	}, nil
 }
 
