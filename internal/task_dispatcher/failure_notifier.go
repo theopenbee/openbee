@@ -3,7 +3,8 @@ package task_dispatcher
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
@@ -50,7 +51,7 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		},
 	}
 	if err := sender.Send(ctx, outbound); err != nil {
-		slog.Error("send failure notification", "component", "failurenotifier", "messageID", messageID, "error", err)
+		log.Error("send failure notification", zap.String("messageID", messageID), zap.Error(err))
 		return fmt.Errorf("send failure notification: %w", err)
 	}
 	return nil

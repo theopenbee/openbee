@@ -3,11 +3,15 @@ package task_dispatcher
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 )
+
+var log = logger.With(zap.String("component", "taskdispatcher"))
 
 const (
 	pollInterval = 2 * time.Second
@@ -142,13 +146,13 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	// Clear DB synchronously so feeder can detect the clear after bee exits.
 	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey); err != nil {
-		slog.Error("clear session contexts", "component", "taskdispatcher", "sessionKey", sessionKey, "error", err)
+		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	// Signal Run loop to clear in-memory queues.
 	select {
 	case d.clearCh <- sessionKey:
 	default:
-		slog.Warn("clearCh full, dropping clear", "component", "taskdispatcher", "sessionKey", sessionKey)
+		log.Warn("clearCh full, dropping clear", zap.String("sessionKey", sessionKey))
 	}
 }
 
@@ -166,7 +170,7 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 		}
 	}
 	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		slog.Error("clear session contexts", "component", "taskdispatcher", "sessionKey", sessionKey, "error", err)
+		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 }
 
@@ -191,10 +195,10 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 
 	exec, err := d.resolveExecution(ctx, task, instruction)
 	if err != nil {
-		slog.Error("execute error", "component", "taskdispatcher", "error", err)
+		log.Error("execute error", zap.Error(err))
 		if task.TaskID != "" {
 			if failErr := d.taskStore.FailTask(ctx, task.TaskID); failErr != nil {
-				slog.Error("fail task after execute error", "component", "taskdispatcher", "taskID", task.TaskID, "error", failErr)
+				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
 		d.notifyFailure(ctx, task.MessageID, err.Error())
@@ -202,7 +206,7 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 	}
 	if task.TaskID != "" {
 		if err := d.taskStore.SetExecution(ctx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
-			slog.Error("set execution", "component", "taskdispatcher", "taskID", task.TaskID, "error", err)
+			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
 	d.waitForResult(ctx, exec.ID, task)
@@ -210,25 +214,25 @@ func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task Disp
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
+		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 	}
 	sessionID, err := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
 	if err != nil {
-		slog.Error("get session context", "component", "taskdispatcher", "error", err)
+		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		slog.Info("executing worker", "component", "taskdispatcher", "workerID", task.WorkerID, "taskID", task.TaskID)
+		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 	}
-	slog.Info("resuming session", "component", "taskdispatcher", "sessionID", sessionID, "taskID", task.TaskID)
+	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
 	if err == nil {
 		return exec, nil
 	}
-	slog.Error("resume error, falling back to fresh", "component", "taskdispatcher", "error", err)
+	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-		slog.Error("clear stale session contexts", "component", "taskdispatcher", "sessionKey", task.SessionKey, "error", clearErr)
+		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
 	}
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 }
@@ -239,11 +243,11 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 	for time.Now().Before(deadline) {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
-			slog.Error("poll error", "component", "taskdispatcher", "execID", executionID, "error", err)
+			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
 			return
 		}
 		if string(exec.Status) != lastStatus {
-			slog.Info("polling execution", "component", "taskdispatcher", "execID", executionID, "status", exec.Status)
+			log.Info("polling execution", zap.String("execID", executionID), zap.Any("status", exec.Status))
 			lastStatus = string(exec.Status)
 		}
 		switch exec.Status {
@@ -252,7 +256,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			// Terminal task status is set by the worker via mark_task_success.
 			if task.SessionKey != "" && task.WorkerID != "" {
 				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
-					slog.Error("upsert session context", "component", "taskdispatcher", "error", err)
+					log.Error("upsert session context", zap.Error(err))
 				}
 			}
 			return
@@ -260,7 +264,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
-					slog.Error("fail task", "component", "taskdispatcher", "taskID", task.TaskID, "error", err)
+					log.Error("fail task", zap.String("taskID", task.TaskID), zap.Error(err))
 				}
 			}
 			d.notifyFailure(ctx, task.MessageID, exec.Result)
@@ -279,7 +283,7 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID, reason st
 		return
 	}
 	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, reason); err != nil {
-		slog.Error("notify task failure", "component", "taskdispatcher", "messageID", messageID, "error", err)
+		log.Error("notify task failure", zap.String("messageID", messageID), zap.Error(err))
 	}
 }
 

@@ -2,15 +2,19 @@ package task_scheduler
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"go.uber.org/zap"
+
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
+
+var log = logger.With(zap.String("component", "taskscheduler"))
 
 // Scheduler polls for due tasks and sends them to the TaskDispatcher.
 type Scheduler struct {
@@ -33,11 +37,11 @@ func New(taskStore *store.TaskStore, dispatchCh chan<- task_dispatcher.DispatchT
 func (s *Scheduler) RecoverRunning(ctx context.Context) {
 	n, err := s.taskStore.ResetRunningToPending(ctx)
 	if err != nil {
-		slog.Error("recover running tasks", "component", "taskscheduler", "error", err)
+		log.Error("recover running tasks", zap.Error(err))
 		return
 	}
 	if n > 0 {
-		slog.Info("reset running tasks to pending", "component", "taskscheduler", "count", n)
+		log.Info("reset running tasks to pending", zap.Int64("count", n))
 	}
 }
 
@@ -59,7 +63,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 	nowMS := time.Now().UnixMilli()
 	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS)
 	if err != nil {
-		slog.Error("claim due tasks", "component", "taskscheduler", "error", err)
+		log.Error("claim due tasks", zap.Error(err))
 		return
 	}
 
@@ -68,7 +72,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 		if ct.Type == model.TaskTypeScheduled && ct.CronExpr != "" {
 			sched, err := cron.ParseStandard(ct.CronExpr)
 			if err != nil {
-				slog.Error("invalid cron expression", "component", "taskscheduler", "cronExpr", ct.CronExpr, "taskID", ct.ID, "error", err)
+				log.Error("invalid cron expression", zap.String("cronExpr", ct.CronExpr), zap.String("taskID", ct.ID), zap.Error(err))
 				s.taskStore.SetExecution(ctx, ct.ID, "", model.TaskStatusFailed) //nolint:errcheck
 				continue
 			}

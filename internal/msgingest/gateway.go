@@ -2,14 +2,17 @@ package msgingest
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 )
+
+var log = logger.With(zap.String("component", "msgingest"))
 
 const mergedSeparator = "\n\n---\n\n"
 
@@ -69,7 +72,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 	select {
 	case g.out <- msg:
 	default:
-		slog.Warn("output channel full, dropping message", "component", "msgingest", "sessionKey", msg.SessionKey)
+		log.Warn("output channel full, dropping message", zap.String("sessionKey", msg.SessionKey))
 	}
 }
 
@@ -82,7 +85,7 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	if msg.PlatformMessageID != "" {
 		if _, dup := g.seen[msg.PlatformMessageID]; dup {
 			g.mu.Unlock()
-			slog.Info("duplicate dropped", "component", "msgingest", "platformMsgID", msg.PlatformMessageID)
+			log.Info("duplicate dropped", zap.String("platformMsgID", msg.PlatformMessageID))
 			return
 		}
 		g.seen[msg.PlatformMessageID] = struct{}{}
@@ -163,11 +166,11 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)
 	if err != nil {
-		slog.Error("CreateBatch error", "component", "msgingest", "sessionKey", sessionKey, "error", err)
+		log.Error("CreateBatch error", zap.String("sessionKey", sessionKey), zap.Error(err))
 		return
 	}
 	if inserted != int64(n) {
-		slog.Warn("CreateBatch partial insert, suppressing emit", "component", "msgingest", "sessionKey", sessionKey, "expected", n, "got", inserted)
+		log.Warn("CreateBatch partial insert, suppressing emit", zap.String("sessionKey", sessionKey), zap.Int("expected", n), zap.Int64("got", inserted))
 		return
 	}
 

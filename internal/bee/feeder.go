@@ -3,18 +3,21 @@ package bee
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/claudemd"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
 )
+
+var log = logger.With(zap.String("component", "feeder"))
 
 // BeeRunner abstracts the bee process invocation (real or test double).
 type BeeRunner interface {
@@ -51,16 +54,16 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 func (f *Feeder) RecoverFeeding(ctx context.Context) {
 	ids, err := f.msgStore.ResetFeedingToReceived(ctx)
 	if err != nil {
-		slog.Error("recover feeding", "component", "feeder", "error", err)
+		log.Error("recover feeding", zap.Error(err))
 		return
 	}
 	if len(ids) == 0 {
 		return
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
-		slog.Error("delete orphaned tasks", "component", "feeder", "error", err)
+		log.Error("delete orphaned tasks", zap.Error(err))
 	}
-	slog.Info("recovered feeding messages", "component", "feeder", "count", len(ids))
+	log.Info("recovered feeding messages", zap.Int("count", len(ids)))
 }
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
@@ -80,12 +83,12 @@ func (f *Feeder) Run(ctx context.Context) {
 func (f *Feeder) tick(ctx context.Context) {
 	count, _ := f.msgStore.CountReceived(ctx)
 	if count > QueueWarnThreshold {
-		slog.Warn("unprocessed messages in queue", "component", "feeder", "count", count, "threshold", QueueWarnThreshold)
+		log.Warn("unprocessed messages in queue", zap.Int("count", count), zap.Int("threshold", QueueWarnThreshold))
 	}
 
 	msgs, err := f.msgStore.ClaimBatch(ctx, 1)
 	if err != nil {
-		slog.Error("claim batch", "component", "feeder", "error", err)
+		log.Error("claim batch", zap.Error(err))
 		return
 	}
 	if len(msgs) == 0 {
@@ -93,12 +96,12 @@ func (f *Feeder) tick(ctx context.Context) {
 	}
 
 	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
-		slog.Error("write CLAUDE.md", "component", "feeder", "error", err)
+		log.Error("write CLAUDE.md", zap.Error(err))
 		f.rollback(ctx, msgs)
 		return
 	}
 	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
-		slog.Error("ensure system rules", "component", "feeder", "error", err)
+		log.Error("ensure system rules", zap.Error(err))
 		// non-fatal: continue even if system rules update fails
 	}
 
@@ -123,7 +126,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// Look up existing session for this sessionKey
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
-		slog.Error("get session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
+		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs)
 		return
 	}
@@ -138,7 +141,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
 	if err != nil {
-		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
+		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs)
 		return
 	}
@@ -146,12 +149,12 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// Create execution record only after process starts successfully.
 	exec, execErr := f.execStore.CreateBeeExecution(sessionID, prompt)
 	if execErr != nil {
-		slog.Error("create bee execution", "component", "feeder", "sessionKey", sessionKey, "error", execErr)
+		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(execErr))
 		// non-fatal: continue without execution tracking
 	}
 	if execErr == nil && proc != nil {
 		if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
-			slog.Error("update execution pid", "component", "feeder", "error", pidErr)
+			log.Error("update execution pid", zap.Error(pidErr))
 		}
 	}
 
@@ -159,7 +162,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if execErr == nil {
 		if logsErr := f.execStore.UpdateLogs(exec.ID, logs); logsErr != nil {
-			slog.Error("update execution logs", "component", "feeder", "error", logsErr)
+			log.Error("update execution logs", zap.Error(logsErr))
 		}
 		finalStatus := model.ExecStatusCompleted
 		resultMsg := ""
@@ -168,12 +171,12 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 			resultMsg = drainErr.Error()
 		}
 		if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
-			slog.Error("update execution result", "component", "feeder", "error", resErr)
+			log.Error("update execution result", zap.Error(resErr))
 		}
 	}
 
 	if drainErr != nil {
-		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", drainErr)
+		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
 		f.rollback(ctx, msgs)
 		return
 	}
@@ -182,16 +185,16 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if resume {
 		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 		if checkErr == nil && currentID == "" {
-			slog.Info("session cleared during bee execution, skipping context upsert",
-				"component", "feeder", "sessionKey", sessionKey)
+			log.Info("session cleared during bee execution, skipping context upsert",
+				zap.String("sessionKey", sessionKey))
 		} else {
 			if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-				slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
+				log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 			}
 		}
 	} else {
 		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-			slog.Error("upsert session context", "component", "feeder", "sessionKey", sessionKey, "error", err)
+			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
 
@@ -200,7 +203,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		msgIDs[i] = m.ID
 	}
 	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
-		slog.Error("mark bee_processed", "component", "feeder", "sessionKey", sessionKey, "error", err)
+		log.Error("mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 }
 
@@ -210,10 +213,10 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage) {
 		ids[i] = m.ID
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
-		slog.Error("rollback delete tasks", "component", "feeder", "error", err)
+		log.Error("rollback delete tasks", zap.Error(err))
 	}
 	if err := f.msgStore.ResetFeedingBatch(ctx, ids); err != nil {
-		slog.Error("rollback messages", "component", "feeder", "error", err)
+		log.Error("rollback messages", zap.Error(err))
 	}
 }
 

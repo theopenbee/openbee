@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,12 +11,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/claudemd"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
 )
+
+var log = logger.With(zap.String("component", "worker"))
 
 type claudeStreamEvent struct {
 	Type    string         `json:"type"`
@@ -88,7 +91,7 @@ func (m *Manager) CreateWorker(
 	}
 
 	if err := claudemd.EnsureSystemRules(workDir, claudemd.RoleWorker, claudemd.WithName(name), claudemd.WithDescription(description), claudemd.WithMemory(memory)); err != nil {
-		slog.Error("ensure system rules", "component", "worker", "op", "create", "error", err)
+		log.Error("ensure system rules", zap.String("op", "create"), zap.Error(err))
 	}
 
 	return m.workerStore.Create(model.Worker{
@@ -119,11 +122,11 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}
 
 	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
-		slog.Error("failed to update worker status", "component", "worker", "error", err)
+		log.Error("failed to update worker status", zap.Error(err))
 	}
 
 	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
-		slog.Error("ensure system rules", "component", "worker", "op", "execute", "error", err)
+		log.Error("ensure system rules", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.beeCfg.Claude.Timeout
 
