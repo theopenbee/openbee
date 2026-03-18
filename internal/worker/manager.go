@@ -43,6 +43,7 @@ type Manager struct {
 
 	activeProcesses map[string]*claude.Process      // execution_id -> process
 	logSubscribers  map[string][]chan claude.Output // execution_id -> subscribers
+	liveLogSnapshots map[string]string // execution_id -> latest log snapshot
 	mu              sync.RWMutex
 }
 
@@ -60,6 +61,7 @@ func NewManager(
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
 		activeProcesses: make(map[string]*claude.Process),
 		logSubscribers:  make(map[string][]chan claude.Output),
+		liveLogSnapshots: make(map[string]string),
 	}
 }
 
@@ -183,6 +185,9 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		case claude.OutputStdout:
 			rawLogsBuilder.WriteString(out.Content)
 			rawLogsBuilder.WriteByte('\n')
+			m.mu.Lock()
+			m.liveLogSnapshots[exec.ID] = rawLogsBuilder.String()
+			m.mu.Unlock()
 			// Parse stream-json to extract assistant text and result
 			line := strings.TrimSpace(out.Content)
 			if strings.HasPrefix(line, "{") {
@@ -227,6 +232,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	// Cleanup
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
+	delete(m.liveLogSnapshots, exec.ID)
 	for _, sub := range m.logSubscribers[exec.ID] {
 		close(sub)
 	}
@@ -267,4 +273,12 @@ func (m *Manager) StopExecution(executionID string) error {
 		return fmt.Errorf("no active process for execution %s", executionID)
 	}
 	return proc.Stop()
+}
+
+// GetExecutionLogs returns the current logs for a running execution.
+// Returns empty string if execution not found in memory.
+func (m *Manager) GetExecutionLogs(executionID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.liveLogSnapshots[executionID]
 }
