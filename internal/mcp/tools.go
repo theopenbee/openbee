@@ -204,6 +204,43 @@ func toolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        toolnames.SaveMemory,
+			Description: "保存或更新一条记忆。scope 为 'global' 表示全局经验，或传入 session_key 表示特定用户的偏好。",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"scope", "key", "value"},
+				"properties": map[string]any{
+					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
+					"key":   map[string]string{"type": "string", "description": "记忆标识符，如 'user_language_preference'"},
+					"value": map[string]string{"type": "string", "description": "记忆内容"},
+				},
+			},
+		},
+		{
+			Name:        toolnames.GetMemory,
+			Description: "读取记忆。传入 key 返回单条记忆，不传 key 返回该 scope 下所有记忆（最多50条）。",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"scope"},
+				"properties": map[string]any{
+					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
+					"key":   map[string]string{"type": "string", "description": "记忆标识符（可选，不传则返回该范围下所有记忆）"},
+				},
+			},
+		},
+		{
+			Name:        toolnames.DeleteMemory,
+			Description: "删除一条记忆。删除不存在的记忆不会报错。",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"scope", "key"},
+				"properties": map[string]any{
+					"scope": map[string]string{"type": "string", "description": "记忆范围"},
+					"key":   map[string]string{"type": "string", "description": "记忆标识符"},
+				},
+			},
+		},
 	}
 }
 
@@ -245,6 +282,12 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolGetSystemOverview(args)
 	case toolnames.ListBeeExecutions:
 		return s.toolListBeeExecutions(args)
+	case toolnames.SaveMemory:
+		return s.toolSaveMemory(args)
+	case toolnames.GetMemory:
+		return s.toolGetMemory(args)
+	case toolnames.DeleteMemory:
+		return s.toolDeleteMemory(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -806,4 +849,67 @@ func (s *MCPServer) toolListBeeExecutions(args json.RawMessage) (any, error) {
 	}
 
 	return results, nil
+}
+
+func (s *MCPServer) toolSaveMemory(args json.RawMessage) (any, error) {
+	var p struct {
+		Scope string `json:"scope"`
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if p.Scope == "" || p.Key == "" || p.Value == "" {
+		return nil, fmt.Errorf("scope, key, and value are required")
+	}
+	if err := s.memoryStore.Save(p.Scope, p.Key, p.Value); err != nil {
+		return nil, fmt.Errorf("failed to save memory: %w", err)
+	}
+	return map[string]string{"status": "saved"}, nil
+}
+
+func (s *MCPServer) toolGetMemory(args json.RawMessage) (any, error) {
+	var p struct {
+		Scope string `json:"scope"`
+		Key   string `json:"key"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if p.Scope == "" {
+		return nil, fmt.Errorf("scope is required")
+	}
+	if p.Key != "" {
+		mem, err := s.memoryStore.Get(p.Scope, p.Key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get memory: %w", err)
+		}
+		if mem == nil {
+			return nil, nil
+		}
+		return mem, nil
+	}
+	memories, err := s.memoryStore.ListByScope(p.Scope, 50)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list memories: %w", err)
+	}
+	return memories, nil
+}
+
+func (s *MCPServer) toolDeleteMemory(args json.RawMessage) (any, error) {
+	var p struct {
+		Scope string `json:"scope"`
+		Key   string `json:"key"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if p.Scope == "" || p.Key == "" {
+		return nil, fmt.Errorf("scope and key are required")
+	}
+	if err := s.memoryStore.Delete(p.Scope, p.Key); err != nil {
+		return nil, fmt.Errorf("failed to delete memory: %w", err)
+	}
+	return map[string]string{"status": "deleted"}, nil
 }

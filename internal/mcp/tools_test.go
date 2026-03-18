@@ -346,8 +346,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 15 {
-		t.Errorf("expected 15 tool schemas, got %d", len(schemas))
+	if len(schemas) != 18 {
+		t.Errorf("expected 18 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -606,5 +606,76 @@ func TestCallTool_ListBeeExecutions(t *testing.T) {
 	execs := result.([]map[string]any)
 	if len(execs) != 0 {
 		t.Errorf("expected empty list, got %d", len(execs))
+	}
+}
+
+func TestCallTool_SaveMemory(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	result, err := s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "test_pref",
+		"value": "user likes concise replies",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "saved" {
+		t.Errorf("expected status saved, got %q", m["status"])
+	}
+}
+
+func TestCallTool_GetMemory(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	// Save first
+	s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "pref1",
+		"value": "value1",
+	}))
+
+	// Get by key
+	result, err := s.CallTool(toolnames.GetMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "pref1",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil {
+		t.Fatal("expected memory, got nil")
+	}
+
+	// List by scope (no key)
+	result2, err := s.CallTool(toolnames.GetMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = result2
+}
+
+func TestCallTool_DeleteMemory(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "to_delete",
+		"value": "temp",
+	}))
+
+	result, err := s.CallTool(toolnames.DeleteMemory, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "to_delete",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "deleted" {
+		t.Errorf("expected status deleted, got %q", m["status"])
 	}
 }
