@@ -14,7 +14,7 @@ func TestInitDB(t *testing.T) {
 	defer db.Close()
 
 	// Verify tables exist
-	tables := []string{"workers", "worker_executions"}
+	tables := []string{"workers", "executions"}
 	for _, table := range tables {
 		var name string
 		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
