@@ -21,7 +21,7 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
-		WorkerID:     workerID,
+		WorkerID:     &workerID,
 		SessionID:    sessionID,
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,

@@ -34,8 +34,12 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
-	if got.WorkerID != w.ID {
-		t.Errorf("expected worker_id %s, got %s", w.ID, got.WorkerID)
+	if got.WorkerID == nil || *got.WorkerID != w.ID {
+		gotStr := "<nil>"
+		if got.WorkerID != nil {
+			gotStr = *got.WorkerID
+		}
+		t.Errorf("expected worker_id %s, got %s", w.ID, gotStr)
 	}
 }
 
