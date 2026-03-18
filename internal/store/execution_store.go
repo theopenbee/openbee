@@ -163,6 +163,18 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
+func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {
+	var execs []model.WorkerExecution
+	for rows.Next() {
+		e, err := scanExecution(rows)
+		if err != nil {
+			return nil, err
+		}
+		execs = append(execs, e)
+	}
+	return execs, rows.Err()
+}
+
 // ListBeeExecutions returns the bee's own execution history (worker_id IS NULL).
 func (s *ExecutionStore) ListBeeExecutions(limit int) ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(
@@ -173,16 +185,7 @@ func (s *ExecutionStore) ListBeeExecutions(limit int) ([]model.WorkerExecution, 
 		return nil, err
 	}
 	defer rows.Close()
-
-	var execs []model.WorkerExecution
-	for rows.Next() {
-		e, err := scanExecution(rows)
-		if err != nil {
-			return nil, err
-		}
-		execs = append(execs, e)
-	}
-	return execs, rows.Err()
+	return scanExecutions(rows)
 }
 
 // ListRecent returns the most recent executions (all types).
@@ -195,16 +198,7 @@ func (s *ExecutionStore) ListRecent(limit int) ([]model.WorkerExecution, error) 
 		return nil, err
 	}
 	defer rows.Close()
-
-	var execs []model.WorkerExecution
-	for rows.Next() {
-		e, err := scanExecution(rows)
-		if err != nil {
-			return nil, err
-		}
-		execs = append(execs, e)
-	}
-	return execs, rows.Err()
+	return scanExecutions(rows)
 }
 
 // GetLogsByID returns an execution's metadata and full logs.

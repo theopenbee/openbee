@@ -886,7 +886,7 @@ func (s *MCPServer) toolGetMemory(args json.RawMessage) (any, error) {
 			return nil, fmt.Errorf("failed to get memory: %w", err)
 		}
 		if mem == nil {
-			return nil, nil
+			return map[string]string{"status": "not_found"}, nil
 		}
 		return mem, nil
 	}
