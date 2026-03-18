@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -144,7 +142,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	if err := f.drainBeeOutput(outputCh, sessionID); err != nil {
+	if _, err := f.drainBeeOutput(outputCh); err != nil {
 		slog.Error("bee run failed", "component", "feeder", "sessionKey", sessionKey, "error", err)
 		f.rollback(ctx, msgs)
 		return
@@ -196,41 +194,29 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage) {
 	}
 }
 
-// drainBeeOutput consumes the output channel and writes to a log file.
-// Returns nil on success (OutputDone), error on failure (OutputError).
-func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, sessionID string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("get home dir: %w", err)
-	}
-	logDir := filepath.Join(homeDir, ".openbee", "bee-logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir bee-logs: %w", err)
-	}
-	logFileName := fmt.Sprintf("%s_%s.log", sessionID, time.Now().Format("20060102_150405"))
-	logFile, err := os.OpenFile(filepath.Join(logDir, logFileName), os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("open bee log file: %w", err)
-	}
-	defer logFile.Close()
-
+// drainBeeOutput consumes the output channel and accumulates logs in memory.
+// Returns accumulated log string (partial even on error) and nil on OutputDone,
+// or non-nil error on OutputError or channel closed without completion.
+func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
+	var sb strings.Builder
 	var done bool
 	for out := range ch {
 		switch out.Type {
 		case claude.OutputStdout:
-			fmt.Fprintf(logFile, "[stdout] %s\n", out.Content)
+			fmt.Fprintf(&sb, "[stdout] %s\n", out.Content)
 		case claude.OutputStderr:
-			fmt.Fprintf(logFile, "[stderr] %s\n", out.Content)
+			fmt.Fprintf(&sb, "[stderr] %s\n", out.Content)
 		case claude.OutputError:
-			return fmt.Errorf("bee exited with error: %s", out.Content)
+			fmt.Fprintf(&sb, "[error] %s\n", out.Content)
+			return sb.String(), fmt.Errorf("bee exited with error: %s", out.Content)
 		case claude.OutputDone:
 			done = true
 		}
 	}
 	if !done {
-		return fmt.Errorf("bee output channel closed without completion signal")
+		return sb.String(), fmt.Errorf("bee output channel closed without completion signal")
 	}
-	return nil
+	return sb.String(), nil
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
