@@ -430,6 +430,19 @@ func TestTaskDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
 	}
 }
 
+func TestQueueKey_IgnoresSessionKey(t *testing.T) {
+	// Same workerID, different sessionKeys must produce the same key.
+	// This is the contract that prevents cross-session concurrent execution.
+	k1 := task_dispatcher.ExportedQueueKey("session-a", "worker-1")
+	k2 := task_dispatcher.ExportedQueueKey("session-b", "worker-1")
+	if k1 != k2 {
+		t.Errorf("expected same key for different sessions, got %q and %q", k1, k2)
+	}
+	if k1 != "worker-1" {
+		t.Errorf("expected key to equal workerID, got %q", k1)
+	}
+}
+
 // --- Helper managers ---
 
 type blockingExecManager struct {
