@@ -13,4 +13,11 @@ const (
 	MarkTaskComplete = "mark_task_complete"
 	SendMessage     = "send_message"
 	ClearSession    = "clear_session"
+	GetExecutionLogs  = "get_execution_logs"
+	GetWorkerStatus   = "get_worker_status"
+	GetSystemOverview = "get_system_overview"
+	ListBeeExecutions = "list_bee_executions"
+	SaveMemory        = "save_memory"
+	GetMemory         = "get_memory"
+	DeleteMemory      = "delete_memory"
 )
