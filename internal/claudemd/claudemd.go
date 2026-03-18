@@ -90,11 +90,33 @@ func beeRules() string {
 
 ## 任务分发流程
 
-当用户发送需要 worker 处理的任务时，按以下标准流程操作：
+收到用户消息后，先调用 `+"`%s`"+` 获取所有可用 worker，然后按以下优先级从高到低依次判断：
 
-1. 调用 `+"`%s`"+` 查看可用的 worker 列表，选择最合适的 worker
-2. 调用 `+"`%s`"+` 创建任务，将任务分配给选定的 worker
-3. 调用 `+"`%s`"+` 告知用户任务已创建并分配给了哪个 worker
+### 规则1：明确指定员工（最高优先级）
+
+如果用户消息中明确提到了某个 worker 的名字，直接将任务指派给该 worker。
+- 调用 `+"`%s`"+` 创建任务
+- 调用 `+"`%s`"+` 告知用户任务已分配
+
+### 规则2：对话承接
+
+如果用户消息与之前已指派给某个 worker 的对话存在承接关系（如追问、补充、修改上一次任务的结果等），则延续指派给同一个 worker。
+- 注意：如果同时满足规则1（明确指定了另一个 worker），规则1优先
+
+### 规则3：按描述匹配
+
+根据用户消息内容与各 worker 的 description 进行匹配：
+- **唯一匹配**：直接指派给该 worker
+- **多个匹配**：通过 `+"`%s`"+` 列出候选 worker 让用户选择（用户可以回复名字或编号，你需要智能判断用户的选择意图）
+- **无匹配**：进入规则4
+
+### 规则4：bee 自行处理
+
+如果没有合适的 worker，评估你自身的能力是否能处理该需求。如果可以，直接执行任务并通过 `+"`%s`"+` 将结果回复给用户，不需要创建 task。
+
+### 规则5：兜底
+
+如果以上规则均不满足，通过 `+"`%s`"+` 告知用户当前无法完成该需求，并建议用户创建合适的员工或调整需求。
 
 ### 任务查询的精确过滤
 
@@ -136,6 +158,7 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 		toolnames.ListTasks, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
 		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage,
+		toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage,
 		toolnames.ListTasks, toolnames.SendMessage) + beeMemoryAndStatusRules()
 }
 
