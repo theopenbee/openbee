@@ -79,7 +79,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	}
 
 	var startedAt int64
-	err = db.QueryRow(`SELECT started_at FROM worker_executions WHERE id = ?`, exec.ID).Scan(&startedAt)
+	err = db.QueryRow(`SELECT started_at FROM executions WHERE id = ?`, exec.ID).Scan(&startedAt)
 	if err != nil {
 		t.Fatalf("scan started_at: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	}
 
 	var completedAt int64
-	err = db.QueryRow(`SELECT completed_at FROM worker_executions WHERE id = ?`, exec.ID).Scan(&completedAt)
+	err = db.QueryRow(`SELECT completed_at FROM executions WHERE id = ?`, exec.ID).Scan(&completedAt)
 	if err != nil {
 		t.Fatalf("scan completed_at: %v", err)
 	}
