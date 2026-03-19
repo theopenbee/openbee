@@ -18,7 +18,7 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:     "openbee",
-	Short:   "OpenBee 核心服务",
+	Short:   "OpenBee core service",
 	Version: version,
 	SilenceErrors: true,
 	SilenceUsage:  true,

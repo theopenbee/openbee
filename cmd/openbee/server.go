@@ -13,7 +13,7 @@ var cfgPath string
 
 var serverCmd = &cobra.Command{
 	Use:   "server",
-	Short: "启动 OpenBee 服务",
+	Short: "Start the OpenBee server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize with sensible defaults before config is available,
 		// so that any log calls during config loading are captured.
@@ -41,6 +41,6 @@ var serverCmd = &cobra.Command{
 }
 
 func init() {
-	serverCmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "配置文件路径")
+	serverCmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
 	rootCmd.AddCommand(serverCmd)
 }
