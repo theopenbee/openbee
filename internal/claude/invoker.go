@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
@@ -94,10 +95,11 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 			args = append(args, "--session-id", opts.SessionID)
 		}
 	}
-	args = append(args, "-p", prompt)
+	args = append(args, "--print")
 
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
+	cmd.Stdin = strings.NewReader(prompt)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
