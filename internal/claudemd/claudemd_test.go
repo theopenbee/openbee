@@ -67,25 +67,81 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 		t.Error("missing worker-specific rules (mark_task_complete)")
 	}
 	if strings.Contains(content, "mark_task_failed") {
-		t.Error("worker rules must not contain mark_task_failed (failure is now system-handled)")
+		t.Error("worker rules must not contain mark_task_failed")
 	}
-	if !strings.Contains(content, "task_id") {
-		t.Error("missing task_id field explanation in worker rules")
+	if !strings.Contains(content, "---") {
+		t.Error("missing frontmatter block")
 	}
-	if strings.Contains(content, "系统元数据") {
-		t.Error("old 系统元数据 section should have been removed")
+	if !strings.Contains(content, "name: 测试助手") {
+		t.Error("missing worker name in frontmatter")
 	}
-	if !strings.Contains(content, "Worker 配置") {
-		t.Error("missing worker config block")
+	if !strings.Contains(content, "description: 负责测试任务") {
+		t.Error("missing worker description in frontmatter")
 	}
-	if !strings.Contains(content, "**名称:** 测试助手") {
-		t.Error("missing worker name in config block")
+	if strings.Contains(content, "Worker 配置") {
+		t.Error("old markdown config section should not appear")
 	}
-	if !strings.Contains(content, "**职责:** 负责测试任务") {
-		t.Error("missing worker description in config block")
+	if strings.Contains(content, "**名称:**") {
+		t.Error("old bold-label format should not appear")
+	}
+	if strings.Index(content, "---") > strings.Index(content, "运行模式") {
+		t.Error("frontmatter must appear before workerPreamble content")
 	}
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
+	}
+}
+
+func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
+
+	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("小助手")); err != nil {
+		t.Fatalf("EnsureSystemRules: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	if err != nil {
+		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "---") {
+		t.Error("frontmatter block should appear when name is set")
+	}
+	if !strings.Contains(content, "name: 小助手") {
+		t.Error("missing name in frontmatter")
+	}
+	if strings.Contains(content, "description:") {
+		t.Error("description field should not appear when description is empty")
+	}
+}
+
+func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
+
+	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithMemory("用户偏好中文回复")); err != nil {
+		t.Fatalf("EnsureSystemRules: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	if err != nil {
+		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+	}
+	content := string(data)
+
+	if strings.Contains(content, "---") {
+		t.Error("frontmatter block should not appear when name and description are both empty")
+	}
+	if !strings.Contains(content, "## memory") {
+		t.Error("memory section should appear")
+	}
+	if !strings.Contains(content, "用户偏好中文回复") {
+		t.Error("memory content should appear")
+	}
+	if strings.Contains(content, "### Memory") {
+		t.Error("old ### Memory heading should not appear")
 	}
 }
 
