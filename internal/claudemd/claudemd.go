@@ -241,27 +241,37 @@ func workerRules() string {
 
 这是每个任务的最后一步，绝对不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。如果你没有调用 `+"`%s`"+`，任务将永远处于运行状态，这是严重错误。
 `,
-      toolnames.MarkTaskComplete, toolnames.SendMessage,
-      toolnames.MarkTaskComplete,
-      toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
+		toolnames.MarkTaskComplete, toolnames.SendMessage,
+		toolnames.MarkTaskComplete,
+		toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
 }
 
 func workerConfigBlock(name, description, memory string) string {
-	if name == "" && description == "" && memory == "" {
+	var block string
+
+	if name != "" || description != "" {
+		block += "---\n"
+		if name != "" {
+			block += fmt.Sprintf("name: %s\n", name)
+		}
+		if description != "" {
+			block += fmt.Sprintf("description: %s\n", description)
+		}
+		block += "---\n"
+	}
+
+	if memory != "" {
+		if block != "" {
+			block += "\n"
+		}
+		block += fmt.Sprintf("## memory\n\n%s\n", memory)
+	}
+
+	if block == "" {
 		return ""
 	}
-	block := "\n## Worker 配置\n\n"
-	if name != "" {
-		block += fmt.Sprintf("- **名称:** %s\n", name)
-	}
-	if description != "" {
-		block += fmt.Sprintf("- **职责:** %s\n", description)
-	}
-	if memory != "" {
-		block += fmt.Sprintf("\n### Memory\n\n%s\n", memory)
-	}
-	block += "\n"
-	return block
+
+	return block + "\n"
 }
 
 // rulesForRole returns the combined rules content for the given role.
@@ -270,7 +280,7 @@ func rulesForRole(role string, opts options) string {
 	case RoleBee:
 		return sharedRules() + beeRules()
 	case RoleWorker:
-		return workerPreamble() + workerConfigBlock(opts.name, opts.description, opts.memory) + sharedRules() + workerRules()
+		return workerConfigBlock(opts.name, opts.description, opts.memory) + workerPreamble() + sharedRules() + workerRules()
 	default:
 		return sharedRules()
 	}
