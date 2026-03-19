@@ -67,7 +67,7 @@ export function ExecutionDetail() {
             <CardContent className="pt-6 space-y-2">
               <p><strong>{t("executionDetail.worker")}:</strong>{" "}
                 <Link to={`/workers/${execution.worker_id}`} className="text-sm hover:underline">
-                  {(execution as any).worker_name || execution.worker_id.slice(0, 8) + "..."}
+                  {(execution as any).worker_name || (execution.worker_id?.slice(0, 8) ?? "") + "..."}
                 </Link>
               </p>
               <p><strong>{t("executionDetail.session")}:</strong>{" "}
