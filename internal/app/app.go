@@ -113,7 +113,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
 	sendersByPlatform["local"] = localSender
 
-	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore)
+	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Media)
 
 	// Populate sender map before goroutines start
