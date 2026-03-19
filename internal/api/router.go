@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 type Server struct {
 	router           *gin.Engine
+	httpServer       *http.Server
 	workerStore      *store.WorkerStore
 	executionStore   *store.ExecutionStore
 	manager          *worker.Manager
@@ -129,5 +131,16 @@ func (s *Server) setupRoutes() {
 }
 
 func (s *Server) Run(addr string) error {
-	return s.router.Run(addr)
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: s.router,
+	}
+	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.httpServer == nil {
+		return nil
+	}
+	return s.httpServer.Shutdown(ctx)
 }

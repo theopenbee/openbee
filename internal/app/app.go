@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,30 +41,43 @@ type App struct {
 	addr    string
 }
 
-// Run starts all goroutines, waits for a signal, then shuts down.
+// Run starts all goroutines, waits for a signal, then shuts down gracefully.
 func (a *App) Run() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	for _, r := range a.runners {
 		r := r
 		go r(ctx)
 	}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	serverErr := make(chan error, 1)
 	go func() {
-		<-quit
-		logger.Info("Shutting down...")
-		cancel()
-		a.db.Close()
-		os.Exit(0)
+		logger.Info("OpenBee Core starting", zap.String("addr", a.addr))
+		if err := a.server.Run(a.addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
 	}()
 
-	logger.Info("OpenBee Core starting", zap.String("addr", a.addr))
-	if err := a.server.Run(a.addr); err != nil {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-quit:
+		logger.Info("Shutting down...")
+	case err := <-serverErr:
 		logger.Error("server error", zap.Error(err))
-		os.Exit(1)
 	}
+
+	cancel()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer shutdownCancel()
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown error", zap.Error(err))
+	}
+
+	a.db.Close()
 }
 
 // BuildApp wires all components together. Returns a ready-to-run App.
