@@ -23,6 +23,7 @@ CDN_BASE_URL="https://dl.openbee.dev"
 # ============================================================
 # 默认参数
 # ============================================================
+BINARY_NAME="openbee"
 INSTALL_DIR="/usr/local/bin"
 VERSION=""
 FORCE=false
@@ -177,7 +178,7 @@ install_binary() {
     TMPDIR_INSTALL="$(mktemp -d)"
 
     VERSION_NUM="${VERSION#v}"
-    ARCHIVE_NAME="openbee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
+    ARCHIVE_NAME="${BINARY_NAME}-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
     ARCHIVE_URL="${CDN_BASE_URL}/releases/${VERSION}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${CDN_BASE_URL}/releases/${VERSION}/checksums.txt"
 
@@ -199,27 +200,27 @@ install_binary() {
     info "正在解压..."
     tar -xzf "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" -C "${TMPDIR_INSTALL}"
 
-    if [ ! -f "${TMPDIR_INSTALL}/openbee" ]; then
-        error "解压后未找到 openbee 二进制文件"
+    if [ ! -f "${TMPDIR_INSTALL}/${BINARY_NAME}" ]; then
+        error "解压后未找到 ${BINARY_NAME} 二进制文件"
     fi
 
     if [ -w "$INSTALL_DIR" ]; then
-        mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
-        chmod +x "${INSTALL_DIR}/openbee"
+        mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     else
         info "需要 sudo 权限安装到 ${INSTALL_DIR}"
-        sudo mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
-        sudo chmod +x "${INSTALL_DIR}/openbee"
+        sudo mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     fi
 
-    ok "openbee ${VERSION} 已安装到 ${INSTALL_DIR}/openbee"
+    ok "${BINARY_NAME} ${VERSION} 已安装到 ${INSTALL_DIR}/${BINARY_NAME}"
 }
 
 # ============================================================
 # 安装后检查
 # ============================================================
 post_install_check() {
-    if ! check_command openbee; then
+    if ! check_command "${BINARY_NAME}"; then
         warn "${INSTALL_DIR} 不在 PATH 中，请手动添加:"
         echo ""
         echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
@@ -227,7 +228,7 @@ post_install_check() {
         echo "  将上面这行添加到 ~/.bashrc 或 ~/.zshrc 中以永久生效"
         echo ""
     else
-        installed_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "unknown")
+        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "unknown")
         ok "验证安装: ${installed_version}"
     fi
 }
@@ -236,11 +237,12 @@ post_install_check() {
 # 已安装检测
 # ============================================================
 check_existing() {
-    if [ -f "${INSTALL_DIR}/openbee" ] && [ "$FORCE" = false ]; then
-        existing_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "")
+    if [ -f "${INSTALL_DIR}/${BINARY_NAME}" ] && [ "$FORCE" = false ]; then
+        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "")
         if [ -n "$existing_version" ]; then
             info "已安装 openbee: ${existing_version}"
             info "如需重新安装，请使用 --force"
+            exit 0
         fi
     fi
 }

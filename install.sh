@@ -17,6 +17,7 @@ GITHUB_API_URL="https://api.github.com/repos/${GITHUB_REPO}"
 # ============================================================
 # Defaults
 # ============================================================
+BINARY_NAME="openbee"
 INSTALL_DIR="/usr/local/bin"
 VERSION=""
 FORCE=false
@@ -119,10 +120,14 @@ detect_platform() {
 # ============================================================
 fetch_latest_version() {
     info "Fetching latest version..."
-    VERSION=$(download_text "${GITHUB_API_URL}/releases/latest" 2>/dev/null \
-        | grep '"tag_name"' \
-        | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/') || \
+    response=$(download_text "${GITHUB_API_URL}/releases/latest" 2>/dev/null) || \
         error "Failed to fetch latest version. Check your network connection or specify a version manually: --version v1.0.0"
+
+    if check_command jq; then
+        VERSION=$(printf '%s' "$response" | jq -r '.tag_name // empty')
+    else
+        VERSION=$(printf '%s' "$response" | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+    fi
 
     VERSION=$(echo "$VERSION" | tr -d '[:space:]')
 
@@ -174,7 +179,7 @@ install_binary() {
     TMPDIR_INSTALL="$(mktemp -d)"
 
     VERSION_NUM="${VERSION#v}"
-    ARCHIVE_NAME="openbee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
+    ARCHIVE_NAME="${BINARY_NAME}-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
     ARCHIVE_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/checksums.txt"
 
@@ -196,27 +201,27 @@ install_binary() {
     info "Extracting..."
     tar -xzf "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" -C "${TMPDIR_INSTALL}"
 
-    if [ ! -f "${TMPDIR_INSTALL}/openbee" ]; then
-        error "openbee binary not found after extraction"
+    if [ ! -f "${TMPDIR_INSTALL}/${BINARY_NAME}" ]; then
+        error "${BINARY_NAME} binary not found after extraction"
     fi
 
     if [ -w "$INSTALL_DIR" ]; then
-        mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
-        chmod +x "${INSTALL_DIR}/openbee"
+        mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     else
         info "Requesting sudo to install to ${INSTALL_DIR}"
-        sudo mv "${TMPDIR_INSTALL}/openbee" "${INSTALL_DIR}/openbee"
-        sudo chmod +x "${INSTALL_DIR}/openbee"
+        sudo mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     fi
 
-    ok "openbee ${VERSION} installed to ${INSTALL_DIR}/openbee"
+    ok "${BINARY_NAME} ${VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"
 }
 
 # ============================================================
 # Post-install check
 # ============================================================
 post_install_check() {
-    if ! check_command openbee; then
+    if ! check_command "${BINARY_NAME}"; then
         warn "${INSTALL_DIR} is not in PATH. Add it manually:"
         echo ""
         echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
@@ -224,7 +229,7 @@ post_install_check() {
         echo "  Add the above line to ~/.bashrc or ~/.zshrc to make it permanent."
         echo ""
     else
-        installed_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "unknown")
+        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "unknown")
         ok "Verified: ${installed_version}"
     fi
 }
@@ -233,11 +238,12 @@ post_install_check() {
 # Existing install check
 # ============================================================
 check_existing() {
-    if [ -f "${INSTALL_DIR}/openbee" ] && [ "$FORCE" = false ]; then
-        existing_version=$("${INSTALL_DIR}/openbee" version 2>/dev/null || echo "")
+    if [ -f "${INSTALL_DIR}/${BINARY_NAME}" ] && [ "$FORCE" = false ]; then
+        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "")
         if [ -n "$existing_version" ]; then
             info "Found existing installation: ${existing_version}"
             info "Use --force to reinstall"
+            exit 0
         fi
     fi
 }
