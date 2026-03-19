@@ -69,6 +69,13 @@ scoop install theopenbee/openbee
 
 </details>
 
+<details>
+<summary>📥 手动下载二进制</summary>
+
+前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 页面，下载对应平台的压缩包，解压后将 `openbee` 可执行文件放入 PATH 即可。
+
+</details>
+
 ### 第二步：交互式生成配置文件
 
 ```bash

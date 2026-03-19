@@ -69,6 +69,13 @@ scoop install theopenbee/openbee
 
 </details>
 
+<details>
+<summary>📥 Manual Binary Download</summary>
+
+Visit [GitHub Releases](https://github.com/theopenbee/openbee/releases), download the archive for your platform, extract it, and place the `openbee` executable in your PATH.
+
+</details>
+
 ### Step 2: Generate a config file
 
 ```bash
