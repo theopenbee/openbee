@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/claudemd"
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
+	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "feeder"))
@@ -250,11 +250,9 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "以下是 %d 条待处理用户消息，请为每条消息创建相应的任务。\n\n", len(msgs))
-	for i, m := range msgs {
-		fmt.Fprintf(&sb, "--- 消息 %d ---\n来源: %s | 会话: %s | 消息ID: %s\n内容: %s\n\n",
-			i+1, m.Platform, m.SessionKey, m.ID, m.Content)
+	for _, m := range msgs {
+		fmt.Fprintf(&sb, "消息来源: %s | 会话: %s | 消息ID: %s\n内容: %s\n",
+			m.Platform, m.SessionKey, m.ID, m.Content)
 	}
-	sb.WriteString("请使用 create_task 工具为每条消息中的每个任务指派创建任务记录。")
 	return sb.String()
 }
