@@ -1,6 +1,7 @@
 package feishu
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -113,4 +114,59 @@ func TestParsePostContent_EmptyContent(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for empty content")
 	}
+}
+
+func TestBuildPostContent(t *testing.T) {
+	t.Run("basic markdown", func(t *testing.T) {
+		got := BuildPostContent("## Hello\n- item")
+		if got == "" {
+			t.Fatal("expected non-empty output")
+		}
+		// Must be valid JSON
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(got), &raw); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		// Must have zh_cn key
+		if _, ok := raw["zh_cn"]; !ok {
+			t.Error("expected zh_cn key")
+		}
+	})
+
+	t.Run("md tag and text preserved", func(t *testing.T) {
+		markdown := "**bold** and `code`"
+		got := BuildPostContent(markdown)
+		// Verify the md tag and content are present
+		var outer map[string]map[string]any
+		if err := json.Unmarshal([]byte(got), &outer); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		lang := outer["zh_cn"]
+		paragraphs, _ := lang["content"].([]any)
+		if len(paragraphs) == 0 {
+			t.Fatal("expected at least one paragraph")
+		}
+		elems, _ := paragraphs[0].([]any)
+		if len(elems) == 0 {
+			t.Fatal("expected at least one element")
+		}
+		elem, _ := elems[0].(map[string]any)
+		if elem["tag"] != "md" {
+			t.Errorf("tag = %q, want \"md\"", elem["tag"])
+		}
+		if elem["text"] != markdown {
+			t.Errorf("text = %q, want %q", elem["text"], markdown)
+		}
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		got := BuildPostContent("")
+		if got == "" {
+			t.Fatal("expected non-empty output even for empty markdown")
+		}
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(got), &raw); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+	})
 }

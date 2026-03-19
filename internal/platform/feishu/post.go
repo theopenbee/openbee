@@ -167,6 +167,27 @@ func parsePostBody(body postBody) (*PostParseResult, error) {
 	return result, nil
 }
 
+// BuildPostContent wraps a markdown string into a Feishu post message content JSON.
+// The resulting string is suitable for use as the content field with msg_type "post".
+func BuildPostContent(markdown string) string {
+	type mdElem struct {
+		Tag  string `json:"tag"`
+		Text string `json:"text"`
+	}
+	type postLang struct {
+		Title   string      `json:"title"`
+		Content [][]mdElem  `json:"content"`
+	}
+	payload := map[string]postLang{
+		"zh_cn": {
+			Title:   "",
+			Content: [][]mdElem{{{"md", markdown}}},
+		},
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
 // applyStyles wraps text with markdown formatting based on the style array.
 func applyStyles(text string, elem map[string]any) string {
 	styles, ok := elem["style"].([]any)

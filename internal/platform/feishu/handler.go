@@ -445,9 +445,8 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return s.sendMedia(ctx, msg.MediaPath, chatID, chatType, messageID)
 	}
 
-	// Text message
-	content, _ := json.Marshal(map[string]string{"text": msg.Content})
-	return s.sendMessage(ctx, chatID, chatType, messageID, larkim.MsgTypeText, string(content))
+	// Text message: send as rich-text (post) with md tag to support Markdown rendering.
+	return s.sendMessage(ctx, chatID, chatType, messageID, "post", BuildPostContent(msg.Content))
 }
 
 func (s *FeishuSender) createMessage(ctx context.Context, chatID, msgType, content string) error {
