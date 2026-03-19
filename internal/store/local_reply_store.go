@@ -27,7 +27,7 @@ func NewLocalReplyStore(db *sql.DB) *LocalReplyStore {
 // Create inserts a new reply row.
 func (s *LocalReplyStore) Create(ctx context.Context, id, sessionKey, content string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO local_replies (id, session_key, content, created_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO bee_local_replies (id, session_key, content, created_at) VALUES (?, ?, ?, ?)`,
 		id, sessionKey, content, time.Now().UnixMilli(),
 	)
 	return err
@@ -36,7 +36,7 @@ func (s *LocalReplyStore) Create(ctx context.Context, id, sessionKey, content st
 // ListBySession returns all replies for a session key ordered by created_at.
 func (s *LocalReplyStore) ListBySession(ctx context.Context, sessionKey string) ([]LocalReply, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, session_key, content, created_at FROM local_replies
+		`SELECT id, session_key, content, created_at FROM bee_local_replies
 		 WHERE session_key = ? ORDER BY created_at ASC`,
 		sessionKey,
 	)
@@ -58,7 +58,7 @@ func (s *LocalReplyStore) ListBySession(ctx context.Context, sessionKey string) 
 // DeleteBySession removes all replies for the given session key.
 func (s *LocalReplyStore) DeleteBySession(ctx context.Context, sessionKey string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM local_replies WHERE session_key = ?`, sessionKey,
+		`DELETE FROM bee_local_replies WHERE session_key = ?`, sessionKey,
 	)
 	return err
 }

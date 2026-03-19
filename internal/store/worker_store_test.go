@@ -96,9 +96,9 @@ func TestWorkerStore_CountByStatus(t *testing.T) {
 
 	ws := NewWorkerStore(db)
 
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','a','/tmp','idle',0,0)`)
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','b','/tmp','idle',0,0)`)
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w3','c','/tmp','working',0,0)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','a','/tmp','idle',0,0)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','b','/tmp','idle',0,0)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w3','c','/tmp','working',0,0)`)
 
 	counts, err := ws.CountByStatus()
 	if err != nil {

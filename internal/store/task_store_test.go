@@ -15,8 +15,8 @@ func newTaskStoreForTest(t *testing.T) (*TaskStore, func()) {
 		t.Fatalf("InitDB: %v", err)
 	}
 	// Insert prerequisite rows matching the actual schema (raw, platform_msg_id required)
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO platform_messages
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages
         (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
         VALUES ('m1','feishu:c:u','feishu','hi','','',1,1,1)`)
 	return NewTaskStore(db), func() { db.Close() }
@@ -235,11 +235,11 @@ func newTaskStoreWithTwoSessions(t *testing.T) (*TaskStore, func()) {
 	if err != nil {
 		t.Fatalf("InitDB: %v", err)
 	}
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO platform_messages
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages
 		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
 		VALUES ('m1','session-A','feishu','hi','','',1,1,1)`)
-	db.Exec(`INSERT INTO platform_messages
+	db.Exec(`INSERT INTO bee_platform_messages
 		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
 		VALUES ('m2','session-B','feishu','bye','','',1,1,1)`)
 	return NewTaskStore(db), func() { db.Close() }

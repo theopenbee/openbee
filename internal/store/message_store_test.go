@@ -38,7 +38,7 @@ func TestMessageStore_CreateBatch(t *testing.T) {
 	// Verify merged row
 	var status, mergedInto string
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT status, merged_into FROM platform_messages WHERE id = ?`, mergedID,
+		`SELECT status, merged_into FROM bee_platform_messages WHERE id = ?`, mergedID,
 	).Scan(&status, &mergedInto); err != nil {
 		t.Fatalf("scan merged row: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestMessageStore_CreateBatch(t *testing.T) {
 
 	// Verify primary row
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT status, merged_into FROM platform_messages WHERE id = ?`, primaryID,
+		`SELECT status, merged_into FROM bee_platform_messages WHERE id = ?`, primaryID,
 	).Scan(&status, &mergedInto); err != nil {
 		t.Fatalf("scan primary row: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestMessageStore_Create(t *testing.T) {
 	}
 
 	var raw string
-	if err := s.db.QueryRowContext(ctx, `SELECT raw FROM platform_messages WHERE id = ?`, "msg-1").Scan(&raw); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT raw FROM bee_platform_messages WHERE id = ?`, "msg-1").Scan(&raw); err != nil {
 		t.Fatalf("query raw: %v", err)
 	}
 	if raw != `{"text":"hello world"}` {
@@ -217,7 +217,7 @@ func TestMessageStore_Create_ReceivedAtMillisecondPrecision(t *testing.T) {
 
 	var receivedAt int64
 	err := s.db.QueryRowContext(ctx,
-		`SELECT received_at FROM platform_messages WHERE id = ?`, "msg-ms",
+		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-ms",
 	).Scan(&receivedAt)
 	if err != nil {
 		t.Fatalf("scan received_at: %v", err)
@@ -242,7 +242,7 @@ func TestMessageStore_Create_ReceivedAt_FromMessageTime(t *testing.T) {
 
 	var receivedAt int64
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT received_at FROM platform_messages WHERE id = ?`, "msg-ts",
+		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-ts",
 	).Scan(&receivedAt); err != nil {
 		t.Fatalf("scan received_at: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestMessageStore_Create_ReceivedAt_FallbackToServerTime(t *testing.T) {
 
 	var receivedAt int64
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT received_at FROM platform_messages WHERE id = ?`, "msg-zero",
+		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-zero",
 	).Scan(&receivedAt); err != nil {
 		t.Fatalf("scan received_at: %v", err)
 	}

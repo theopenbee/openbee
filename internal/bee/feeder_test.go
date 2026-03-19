@@ -30,7 +30,7 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 	t.Helper()
 	now := time.Now().UnixMilli()
 	_, err := db.Exec(
-		`INSERT INTO platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
 		 VALUES (?, ?, 'feishu', ?, 'received', ?, ?, ?)`,
 		id, sessionKey, content, now, now, now,
 	)
@@ -117,7 +117,7 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 
 	// Message should be bee_processed
 	var status string
-	db.QueryRow(`SELECT status FROM platform_messages WHERE id='m1'`).Scan(&status)
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
 	if status != "bee_processed" {
 		t.Errorf("expected bee_processed, got %q", status)
 	}
@@ -172,7 +172,7 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	var status string
-	db.QueryRow(`SELECT status FROM platform_messages WHERE id='m1'`).Scan(&status)
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
 	if status != "received" {
 		t.Errorf("expected rollback to received, got %q", status)
 	}
@@ -231,7 +231,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	go f.Run(ctx)
 	time.Sleep(700 * time.Millisecond)
 
-	rows, err := db.Query(`SELECT id, worker_id, status, logs FROM executions`)
+	rows, err := db.Query(`SELECT id, worker_id, status, logs FROM bee_executions`)
 	if err != nil {
 		t.Fatalf("query executions: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	var status string
-	err := db.QueryRow(`SELECT status FROM executions`).Scan(&status)
+	err := db.QueryRow(`SELECT status FROM bee_executions`).Scan(&status)
 	if err != nil {
 		t.Fatalf("query executions: %v", err)
 	}

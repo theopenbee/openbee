@@ -14,7 +14,7 @@ func TestInitDB(t *testing.T) {
 	defer db.Close()
 
 	// Verify tables exist
-	tables := []string{"workers", "executions"}
+	tables := []string{"bee_workers", "bee_executions"}
 	for _, table := range tables {
 		var name string
 		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
@@ -33,7 +33,7 @@ func TestInitDB_PlatformMessagesTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`INSERT INTO platform_messages (id, session_key, platform, content, received_at, created_at, updated_at) VALUES ('x','sk','p','c',1,1,1)`)
+	_, err = db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, received_at, created_at, updated_at) VALUES ('x','sk','p','c',1,1,1)`)
 	if err != nil {
 		t.Fatalf("platform_messages table not created: %v", err)
 	}
@@ -91,10 +91,10 @@ func TestInitDB_TasksTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.Exec(`INSERT INTO workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO platform_messages (id,session_key,platform,content,received_at,created_at,updated_at) VALUES ('m1','sk','p','c',1,1,1)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,received_at,created_at,updated_at) VALUES ('m1','sk','p','c',1,1,1)`)
 
-	_, err = db.Exec(`INSERT INTO tasks
+	_, err = db.Exec(`INSERT INTO bee_tasks
 		(id, message_id, worker_id, instruction, type, created_at, updated_at)
 		VALUES ('t1','m1','w1','do it','immediate',1,1)`)
 	if err != nil {

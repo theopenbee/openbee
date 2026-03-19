@@ -26,7 +26,7 @@ func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 	id := uuid.New().String()
 	now := time.Now().UnixMilli()
 	_, err := s.db.ExecContext(ctx, `
-        INSERT INTO tasks
+        INSERT INTO bee_tasks
             (id, message_id, worker_id, instruction, type, status,
              scheduled_at, cron_expr, next_run_at, execution_id,
              created_at, updated_at)
@@ -47,7 +47,7 @@ func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) 
         SELECT id, message_id, worker_id, instruction, type, status,
                scheduled_at, cron_expr, next_run_at, execution_id,
                created_at, updated_at
-        FROM tasks WHERE id = ?`, id)
+        FROM bee_tasks WHERE id = ?`, id)
 	return scanTask(row)
 }
 
@@ -72,7 +72,7 @@ func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status, task
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
 	             t.created_at, t.updated_at
-	      FROM tasks t WHERE t.message_id = ?`
+	      FROM bee_tasks t WHERE t.message_id = ?`
 	args := []any{messageID}
 	q, args = appendCSVFilter(q, args, "status", status)
 	q, args = appendCSVFilter(q, args, "type", taskType)
@@ -90,8 +90,8 @@ func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, ta
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
 	             t.created_at, t.updated_at
-	      FROM tasks t
-	      JOIN platform_messages pm ON t.message_id = pm.id
+	      FROM bee_tasks t
+	      JOIN bee_platform_messages pm ON t.message_id = pm.id
 	      WHERE pm.session_key = ?`
 	args := []any{sessionKey}
 	q, args = appendCSVFilter(q, args, "status", status)
@@ -120,8 +120,8 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
                t.scheduled_at, t.cron_expr, t.next_run_at,
                t.execution_id, t.created_at, t.updated_at,
                pm.session_key, pm.platform
-        FROM tasks t
-        JOIN platform_messages pm ON pm.id = t.message_id
+        FROM bee_tasks t
+        JOIN bee_platform_messages pm ON pm.id = t.message_id
         WHERE t.status = 'pending'
           AND (
             t.type = 'immediate'
@@ -166,11 +166,11 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 	for i, ct := range claimed {
 		if ct.Type == model.TaskTypeScheduled {
 			_, err = tx.ExecContext(ctx,
-				`UPDATE tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
+				`UPDATE bee_tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
 				nowMS+24*60*60*1000, now, ct.ID) // +24h sentinel; overwritten by scheduler
 		} else {
 			_, err = tx.ExecContext(ctx,
-				`UPDATE tasks SET status = 'running', updated_at = ? WHERE id = ?`,
+				`UPDATE bee_tasks SET status = 'running', updated_at = ? WHERE id = ?`,
 				now, ct.ID)
 			claimed[i].Status = model.TaskStatusRunning
 		}
@@ -188,7 +188,7 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 // SetExecution writes execution_id and status back to a task.
 func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, status string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET execution_id = ?, status = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE bee_tasks SET execution_id = ?, status = ?, updated_at = ? WHERE id = ?`,
 		executionID, status, time.Now().UnixMilli(), taskID)
 	return err
 }
@@ -196,7 +196,7 @@ func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, statu
 // CancelTask sets a task status to cancelled.
 func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?`,
+		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ?`,
 		time.Now().UnixMilli(), taskID)
 	return err
 }
@@ -205,7 +205,7 @@ func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 // not touch execution_id.
 func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ?`,
 		status, time.Now().UnixMilli(), taskID)
 	return err
 }
@@ -213,7 +213,7 @@ func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) err
 // CancelByWorkerID cancels all pending/running tasks for a given worker.
 func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'cancelled', updated_at = ?
+		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
          WHERE worker_id = ? AND status IN ('pending','running')`,
 		time.Now().UnixMilli(), workerID)
 	return err
@@ -223,8 +223,8 @@ func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error
 // Returns the number of tasks cancelled.
 func (s *TaskStore) CancelBySessionKey(ctx context.Context, sessionKey string) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'cancelled', updated_at = ?
-		 WHERE message_id IN (SELECT id FROM platform_messages WHERE session_key = ?)
+		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
+		 WHERE message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)
 		   AND status IN ('pending', 'running')`,
 		time.Now().UnixMilli(), sessionKey)
 	if err != nil {
@@ -245,7 +245,7 @@ func (s *TaskStore) DeletePendingByMessageIDs(ctx context.Context, messageIDs []
 		args[i] = id
 	}
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM tasks WHERE message_id IN (`+placeholders+`) AND status = 'pending'`,
+		`DELETE FROM bee_tasks WHERE message_id IN (`+placeholders+`) AND status = 'pending'`,
 		args...)
 	return err
 }
@@ -255,14 +255,14 @@ func (s *TaskStore) ResetRunningToPending(ctx context.Context) (int64, error) {
 	now := time.Now().UnixMilli()
 	// Scheduled tasks: clear next_run_at so scheduler recomputes via cron
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'pending', next_run_at = NULL, updated_at = ?
+		`UPDATE bee_tasks SET status = 'pending', next_run_at = NULL, updated_at = ?
          WHERE status = 'running' AND type = 'scheduled'`, now)
 	if err != nil {
 		return 0, err
 	}
 	// Immediate / countdown tasks: just reset status
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'pending', updated_at = ?
+		`UPDATE bee_tasks SET status = 'pending', updated_at = ?
          WHERE status = 'running' AND type IN ('immediate','countdown')`, now)
 	if err != nil {
 		return 0, err
@@ -275,7 +275,7 @@ func (s *TaskStore) ResetRunningToPending(ctx context.Context) (int64, error) {
 // status is preserved and the method returns false.
 func (s *TaskStore) CompleteScheduledTask(ctx context.Context, taskID string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET status = 'pending', updated_at = ? WHERE id = ? AND status != 'cancelled'`,
+		`UPDATE bee_tasks SET status = 'pending', updated_at = ? WHERE id = ? AND status != 'cancelled'`,
 		time.Now().UnixMilli(), taskID)
 	if err != nil {
 		return false, err
@@ -302,7 +302,7 @@ func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
 // UpdateNextRunAt sets next_run_at for a scheduled task after dispatch.
 func (s *TaskStore) UpdateNextRunAt(ctx context.Context, taskID string, nextRunAt int64) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE bee_tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
 		nextRunAt, time.Now().UnixMilli(), taskID)
 	return err
 }
@@ -311,7 +311,7 @@ func (s *TaskStore) UpdateNextRunAt(ctx context.Context, taskID string, nextRunA
 func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks WHERE worker_id = ? AND status = 'pending'`,
+		`SELECT COUNT(*) FROM bee_tasks WHERE worker_id = ? AND status = 'pending'`,
 		workerID,
 	).Scan(&count)
 	return count, err
@@ -319,7 +319,7 @@ func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string)
 
 // CountAllByStatus returns a map of task status to count across all tasks.
 func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT status, COUNT(*) FROM tasks GROUP BY status`)
+	rows, err := s.db.QueryContext(ctx, `SELECT status, COUNT(*) FROM bee_tasks GROUP BY status`)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error
 func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks WHERE type = 'scheduled' AND status = 'pending'`,
+		`SELECT COUNT(*) FROM bee_tasks WHERE type = 'scheduled' AND status = 'pending'`,
 	).Scan(&count)
 	return count, err
 }
@@ -350,7 +350,7 @@ func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, message_id, worker_id, instruction, type, status, scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
-		 FROM tasks WHERE execution_id = ?`,
+		 FROM bee_tasks WHERE execution_id = ?`,
 		executionID,
 	)
 	var t model.Task

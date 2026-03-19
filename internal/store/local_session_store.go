@@ -28,7 +28,7 @@ func NewLocalSessionStore(db *sql.DB) *LocalSessionStore {
 func (s *LocalSessionStore) Create(ctx context.Context, id, name string) error {
 	now := time.Now().UnixMilli()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO local_sessions (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO bee_local_sessions (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
 		id, name, now, now,
 	)
 	return err
@@ -37,7 +37,7 @@ func (s *LocalSessionStore) Create(ctx context.Context, id, name string) error {
 // List returns all sessions ordered by updated_at descending.
 func (s *LocalSessionStore) List(ctx context.Context) ([]LocalSession, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, created_at, updated_at FROM local_sessions ORDER BY updated_at DESC`,
+		`SELECT id, name, created_at, updated_at FROM bee_local_sessions ORDER BY updated_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (s *LocalSessionStore) List(ctx context.Context) ([]LocalSession, error) {
 
 // Delete removes a session by ID.
 func (s *LocalSessionStore) Delete(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM local_sessions WHERE id = ?`, id)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM bee_local_sessions WHERE id = ?`, id)
 	return err
 }
 
@@ -64,7 +64,7 @@ func (s *LocalSessionStore) Delete(ctx context.Context, id string) error {
 // Called by the HTTP handler on every message send so the session list stays sorted by activity.
 func (s *LocalSessionStore) TouchUpdatedAt(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE local_sessions SET updated_at = ? WHERE id = ?`,
+		`UPDATE bee_local_sessions SET updated_at = ? WHERE id = ?`,
 		time.Now().UnixMilli(), id,
 	)
 	return err

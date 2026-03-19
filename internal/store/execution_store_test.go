@@ -83,7 +83,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	}
 
 	var startedAt int64
-	err = db.QueryRow(`SELECT started_at FROM executions WHERE id = ?`, exec.ID).Scan(&startedAt)
+	err = db.QueryRow(`SELECT started_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&startedAt)
 	if err != nil {
 		t.Fatalf("scan started_at: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	}
 
 	var completedAt int64
-	err = db.QueryRow(`SELECT completed_at FROM executions WHERE id = ?`, exec.ID).Scan(&completedAt)
+	err = db.QueryRow(`SELECT completed_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&completedAt)
 	if err != nil {
 		t.Fatalf("scan completed_at: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 	_ = bee1
 
 	// Create a worker execution (should not appear)
-	db.Exec(`INSERT INTO workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
+	db.Exec(`INSERT INTO bee_workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
 	_, err = es.Create("w1", "worker task", "session2")
 	if err != nil {
 		t.Fatal(err)

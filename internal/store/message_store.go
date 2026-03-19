@@ -21,7 +21,7 @@ type BatchMsg struct {
 	MergedInto    string // non-empty only when Status == "merged"
 }
 
-// MessageStore persists platform messages to the platform_messages table.
+// MessageStore persists platform messages to the bee_platform_messages table.
 type MessageStore struct {
 	db *sql.DB
 }
@@ -41,7 +41,7 @@ func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, con
 	}
 	now := time.Now().UnixMilli()
 	result, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO platform_messages (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
+		`INSERT OR IGNORE INTO bee_platform_messages (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, sessionKey, platform, content, raw, platformMsgID, messageTime, now, now,
 	)
@@ -58,7 +58,7 @@ func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, con
 // SetStatus updates the status of a single message.
 func (s *MessageStore) SetStatus(ctx context.Context, id, status string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE platform_messages SET status = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id = ?`,
 		status, time.Now().UnixMilli(), id,
 	)
 	return err
@@ -77,7 +77,7 @@ func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, stat
 		args = append(args, id)
 	}
 	_, err := s.db.ExecContext(ctx,
-		fmt.Sprintf(`UPDATE platform_messages SET status = ?, updated_at = ? WHERE id IN (%s)`, placeholders),
+		fmt.Sprintf(`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (%s)`, placeholders),
 		args...,
 	)
 	return err
@@ -87,13 +87,13 @@ func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, stat
 func (s *MessageStore) MarkMerged(ctx context.Context, primaryID string, mergedIDs []string) error {
 	now := time.Now().UnixMilli()
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE platform_messages SET status = 'merged', updated_at = ? WHERE id = ?`, now, primaryID,
+		`UPDATE bee_platform_messages SET status = 'merged', updated_at = ? WHERE id = ?`, now, primaryID,
 	); err != nil {
 		return err
 	}
 	for _, id := range mergedIDs {
 		if _, err := s.db.ExecContext(ctx,
-			`UPDATE platform_messages SET status = 'merged', merged_into = ?, updated_at = ? WHERE id = ?`,
+			`UPDATE bee_platform_messages SET status = 'merged', merged_into = ?, updated_at = ? WHERE id = ?`,
 			primaryID, now, id,
 		); err != nil {
 			return err
@@ -103,7 +103,7 @@ func (s *MessageStore) MarkMerged(ctx context.Context, primaryID string, mergedI
 }
 
 // CreateBatch inserts multiple message rows in a single transaction using
-// ClaimedMessage is a platform_messages row claimed by the Feeder.
+// ClaimedMessage is a bee_platform_messages row claimed by the Feeder.
 type ClaimedMessage struct {
 	ID         string
 	SessionKey string
@@ -120,7 +120,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	defer tx.Rollback() //nolint:errcheck
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content FROM platform_messages
+		`SELECT id, session_key, platform, content FROM bee_platform_messages
          WHERE status = 'received'
          ORDER BY received_at ASC LIMIT ?`, batchSize)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		args = append(args, id)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE platform_messages SET status = ?, updated_at = ? WHERE id IN (`+placeholders+`)`, args...); err != nil {
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+placeholders+`)`, args...); err != nil {
 		return nil, fmt.Errorf("update feeding: %w", err)
 	}
 	return msgs, tx.Commit()
@@ -175,7 +175,7 @@ func (s *MessageStore) ResetFeedingBatch(ctx context.Context, ids []string) erro
 // Returns the IDs of affected rows so the caller can delete orphaned pending tasks.
 func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id FROM platform_messages WHERE status = 'feeding'`)
+		`SELECT id FROM bee_platform_messages WHERE status = 'feeding'`)
 	if err != nil {
 		return nil, fmt.Errorf("select feeding: %w", err)
 	}
@@ -205,7 +205,7 @@ func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, er
 func (s *MessageStore) CountReceived(ctx context.Context) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM platform_messages WHERE status = 'received'`).Scan(&count)
+		`SELECT COUNT(*) FROM bee_platform_messages WHERE status = 'received'`).Scan(&count)
 	return count, err
 }
 
@@ -231,7 +231,7 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 	}
 
 	result, err := s.db.ExecContext(ctx,
-		fmt.Sprintf(`INSERT OR IGNORE INTO platform_messages
+		fmt.Sprintf(`INSERT OR IGNORE INTO bee_platform_messages
 			(id, session_key, platform, content, raw, platform_msg_id, received_at, status, merged_into, created_at, updated_at)
 			VALUES %s`, placeholders),
 		args...,
@@ -242,7 +242,7 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 	return result.RowsAffected()
 }
 
-// StoredMessage is the subset of platform_messages fields needed by platform senders.
+// StoredMessage is the subset of bee_platform_messages fields needed by platform senders.
 type StoredMessage struct {
 	Platform   string
 	SessionKey string
@@ -253,7 +253,7 @@ type StoredMessage struct {
 func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, error) {
 	var m StoredMessage
 	err := s.db.QueryRowContext(ctx,
-		`SELECT platform, session_key, raw FROM platform_messages WHERE id = ?`, id,
+		`SELECT platform, session_key, raw FROM bee_platform_messages WHERE id = ?`, id,
 	).Scan(&m.Platform, &m.SessionKey, &m.Raw)
 	if err != nil {
 		return StoredMessage{}, fmt.Errorf("get message %s: %w", id, err)
@@ -261,7 +261,7 @@ func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, e
 	return m, nil
 }
 
-// InboundMessage is a non-merged platform_messages row for display in chat history.
+// InboundMessage is a non-merged bee_platform_messages row for display in chat history.
 type InboundMessage struct {
 	ID         string
 	Content    string
@@ -271,7 +271,7 @@ type InboundMessage struct {
 // ListBySessionKey returns all non-merged messages for a session, ordered by received_at ASC.
 func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string) ([]InboundMessage, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, content, received_at FROM platform_messages
+		`SELECT id, content, received_at FROM bee_platform_messages
          WHERE session_key = ? AND status != 'merged'
          ORDER BY received_at ASC`,
 		sessionKey,
@@ -291,10 +291,10 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string) 
 	return msgs, rows.Err()
 }
 
-// DeleteBySessionKey removes all platform_messages for the given session key.
+// DeleteBySessionKey removes all bee_platform_messages for the given session key.
 func (s *MessageStore) DeleteBySessionKey(ctx context.Context, sessionKey string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM platform_messages WHERE session_key = ?`, sessionKey,
+		`DELETE FROM bee_platform_messages WHERE session_key = ?`, sessionKey,
 	)
 	return err
 }
