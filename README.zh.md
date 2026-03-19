@@ -98,7 +98,7 @@ openbee config -o /path/to/config.yaml
 ### 第三步：启动服务
 
 ```bash
-openbee start
+openbee server
 ```
 
 ### 第四步：开始使用
