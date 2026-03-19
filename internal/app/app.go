@@ -101,9 +101,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
 
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh)
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task_dispatcher.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
@@ -192,9 +192,10 @@ func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
 	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
 }
 
-func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask) (*bee.Feeder, *task_scheduler.Scheduler) {
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task_scheduler.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg)
-	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg)
+	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
+		bee.WithFailureNotifier(failureNotifier))
 	sched := task_scheduler.New(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }

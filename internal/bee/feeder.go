@@ -24,20 +24,35 @@ type BeeRunner interface {
 	Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error)
 }
 
+// FailureNotifier sends a notification to the user when a message is permanently failed.
+// Mirrors task_dispatcher.FailureNotifier; kept local to avoid an import cycle.
+type FailureNotifier interface {
+	NotifyTaskFailure(ctx context.Context, messageID, reason string) error
+}
+
+// Option configures a Feeder.
+type Option func(*Feeder)
+
+// WithFailureNotifier sets the notifier used to inform users when a message exhausts retries.
+func WithFailureNotifier(n FailureNotifier) Option {
+	return func(f *Feeder) { f.failureNotifier = n }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
-	msgStore     *store.MessageStore
-	taskStore    *store.TaskStore
-	sessionStore *store.SessionStore
-	execStore    *store.ExecutionStore
-	runner       BeeRunner
-	workDir      string
-	cfg          config.BeeConfig
+	msgStore        *store.MessageStore
+	taskStore       *store.TaskStore
+	sessionStore    *store.SessionStore
+	execStore       *store.ExecutionStore
+	runner          BeeRunner
+	workDir         string
+	cfg             config.BeeConfig
+	failureNotifier FailureNotifier
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner BeeRunner, workDir string, cfg config.BeeConfig) *Feeder {
-	return &Feeder{
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner BeeRunner, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
+	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
 		sessionStore: ss,
@@ -46,6 +61,10 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		workDir:      workDir,
 		cfg:          cfg,
 	}
+	for _, o := range opts {
+		o(f)
+	}
+	return f
 }
 
 // RecoverFeeding resets any messages stuck in 'feeding' status back to 'received'
@@ -97,7 +116,7 @@ func (f *Feeder) tick(ctx context.Context) {
 
 	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
 		log.Error("write CLAUDE.md", zap.Error(err))
-		f.rollback(ctx, msgs)
+		f.rollback(ctx, msgs, "内部错误：无法写入配置文件")
 		return
 	}
 	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
@@ -127,7 +146,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs)
+		f.rollback(ctx, msgs, "内部错误：无法读取会话上下文")
 		return
 	}
 	resume := sessionID != ""
@@ -142,7 +161,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs)
+		f.rollback(ctx, msgs, "AI 处理失败，请稍后重试")
 		return
 	}
 
@@ -177,7 +196,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if drainErr != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
-		f.rollback(ctx, msgs)
+		f.rollback(ctx, msgs, "AI 处理失败，请稍后重试")
 		return
 	}
 
@@ -207,16 +226,29 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 }
 
-func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage) {
+func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, userMsg string) {
 	ids := make([]string, len(msgs))
+	var failedIDs []string
 	for i, m := range msgs {
 		ids[i] = m.ID
+		if m.RetryCount+1 >= MaxRetries {
+			failedIDs = append(failedIDs, m.ID)
+		}
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
 		log.Error("rollback delete tasks", zap.Error(err))
 	}
-	if err := f.msgStore.ResetFeedingBatch(ctx, ids); err != nil {
-		log.Error("rollback messages", zap.Error(err))
+	if err := f.msgStore.RollbackWithRetry(ctx, ids, MaxRetries); err != nil {
+		log.Error("rollback with retry", zap.Error(err))
+		return
+	}
+	for _, id := range failedIDs {
+		log.Warn("message exhausted retries", zap.String("messageID", id))
+		if f.failureNotifier != nil {
+			if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, id, userMsg); notifyErr != nil {
+				log.Error("notify bee failure", zap.String("messageID", id), zap.Error(notifyErr))
+			}
+		}
 	}
 }
 
