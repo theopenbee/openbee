@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/toolnames"
 )
 
@@ -106,12 +107,13 @@ func toolSchemas() []toolSchema {
 		},
 		{
 			Name:        toolnames.ListTasks,
-			Description: "List tasks filtered by message_id or session_key (mutually exclusive), optionally filtered by status and/or type",
+			Description: "List tasks filtered by message_id, session_key, and/or worker_id. message_id and session_key are mutually exclusive; at least one of message_id, session_key, or worker_id is required.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"message_id":  map[string]string{"type": "string", "description": "Filter by message ID"},
+					"message_id":  map[string]string{"type": "string", "description": "Filter by message ID (mutually exclusive with session_key)"},
 					"session_key": map[string]string{"type": "string", "description": "Filter by session key (mutually exclusive with message_id)"},
+					"worker_id":   map[string]string{"type": "string", "description": "Filter by worker ID across all sessions; can be combined with session_key"},
 					"status":      map[string]string{"type": "string", "description": "Optional status filter, supports comma-separated values e.g. 'pending,running'"},
 					"type":        map[string]string{"type": "string", "description": "Optional type filter, supports comma-separated values e.g. 'scheduled' or 'immediate,countdown'"},
 				},
@@ -473,6 +475,7 @@ func (s *MCPServer) toolListTasks(args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID  string `json:"message_id"`
 		SessionKey string `json:"session_key"`
+		WorkerID   string `json:"worker_id"`
 		Status     string `json:"status"`
 		Type       string `json:"type"`
 	}
@@ -482,17 +485,16 @@ func (s *MCPServer) toolListTasks(args json.RawMessage) (any, error) {
 	if params.MessageID != "" && params.SessionKey != "" {
 		return nil, fmt.Errorf("message_id and session_key are mutually exclusive")
 	}
-	if params.MessageID == "" && params.SessionKey == "" {
-		return nil, fmt.Errorf("either message_id or session_key is required")
+	if params.MessageID == "" && params.SessionKey == "" && params.WorkerID == "" {
+		return nil, fmt.Errorf("at least one of message_id, session_key, or worker_id is required")
 	}
-
-	var tasks []model.Task
-	var err error
-	if params.SessionKey != "" {
-		tasks, err = s.taskStore.ListBySessionKey(context.Background(), params.SessionKey, params.Status, params.Type)
-	} else {
-		tasks, err = s.taskStore.ListByMessageID(context.Background(), params.MessageID, params.Status, params.Type)
-	}
+	tasks, err := s.taskStore.List(context.Background(), store.TaskFilter{
+		MessageID:  params.MessageID,
+		SessionKey: params.SessionKey,
+		WorkerID:   params.WorkerID,
+		Status:     params.Status,
+		Type:       params.Type,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
