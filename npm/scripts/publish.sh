@@ -17,6 +17,15 @@ MAIN_PACKAGE="cli"
 
 PACKAGES_DIR="$(dirname "$0")/../packages"
 
+# Determine npm dist-tag from version (e.g. "0.0.1-test.1" -> "--tag test")
+VERSION=$(node -p "require('$PACKAGES_DIR/cli/package.json').version")
+NPM_TAG_FLAG=""
+if [[ "$VERSION" == *"-"* ]]; then
+  PRERELEASE_ID=$(echo "$VERSION" | sed 's/.*-\([a-zA-Z][a-zA-Z0-9]*\).*/\1/')
+  NPM_TAG_FLAG="--tag $PRERELEASE_ID"
+  echo "Prerelease version detected: $VERSION (tag: $PRERELEASE_ID)"
+fi
+
 # Function to publish a package
 publish_package() {
   local pkg_name=$1
@@ -25,7 +34,8 @@ publish_package() {
   echo "Publishing @theopenbee/$pkg_name..."
 
   local output
-  output=$(npm publish "$pkg_dir" --access public --provenance 2>&1) && {
+  # shellcheck disable=SC2086
+  output=$(npm publish "$pkg_dir" --access public --provenance $NPM_TAG_FLAG 2>&1) && {
     echo "$output"
     echo "Successfully published @theopenbee/$pkg_name"
     return 0
