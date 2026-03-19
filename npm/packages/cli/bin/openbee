@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+'use strict';
+
+const { spawnSync } = require('child_process');
+const path = require('path');
+
+const PLATFORM_MAP = {
+  'linux-x64':    '@openbee/cli-linux-x64',
+  'linux-arm64':  '@openbee/cli-linux-arm64',
+  'darwin-x64':   '@openbee/cli-darwin-x64',
+  'darwin-arm64': '@openbee/cli-darwin-arm64',
+  'win32-x64':    '@openbee/cli-win32-x64',
+  'win32-arm64':  '@openbee/cli-win32-arm64',
+};
+
+const BINARY_NAME = {
+  'win32-x64':   'openbee.exe',
+  'win32-arm64': 'openbee.exe',
+};
+
+const key = `${process.platform}-${process.arch}`;
+const pkgName = PLATFORM_MAP[key];
+
+if (!pkgName) {
+  process.stderr.write(
+    `openbee: unsupported platform ${process.platform}/${process.arch}\n`
+  );
+  process.exit(1);
+}
+
+let pkgDir;
+try {
+  // require.resolve finds the package.json, giving us the package root
+  pkgDir = path.dirname(require.resolve(`${pkgName}/package.json`));
+} catch (e) {
+  process.stderr.write(
+    `openbee: optional dependency ${pkgName} is not installed.\n` +
+    `Try: npm install ${pkgName}\n`
+  );
+  process.exit(1);
+}
+
+const binaryName = BINARY_NAME[key] || 'openbee';
+const binaryPath = path.join(pkgDir, 'bin', binaryName);
+
+const result = spawnSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
+
+if (result.error) {
+  process.stderr.write(`openbee: failed to launch binary: ${result.error.message}\n`);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);

@@ -43,3 +43,55 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+
+  npm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download release binaries from GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"   # e.g. v1.2.3
+          mkdir -p dist
+          gh release download "${VERSION}" \
+            --pattern 'openbee-*-linux-amd64.tar.gz' \
+            --pattern 'openbee-*-linux-arm64.tar.gz' \
+            --pattern 'openbee-*-darwin-amd64.tar.gz' \
+            --pattern 'openbee-*-darwin-arm64.tar.gz' \
+            --pattern 'openbee-*-windows-amd64.zip' \
+            --pattern 'openbee-*-windows-arm64.zip' \
+            --dir dist/
+
+      - name: Extract binaries from archives
+        run: |
+          cd dist
+          for f in *.tar.gz; do
+            dir="${f%.tar.gz}"
+            mkdir -p "$dir"
+            tar -xzf "$f" -C "$dir"
+          done
+          for f in *.zip; do
+            dir="${f%.zip}"
+            mkdir -p "$dir"
+            unzip -o "$f" -d "$dir"
+          done
+
+      - name: Prepare npm packages
+        run: make npm-prepare
+
+      - name: Publish to NPM
+        run: bash npm/scripts/publish.sh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

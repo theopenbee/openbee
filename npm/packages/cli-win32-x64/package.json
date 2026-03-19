@@ -1,0 +1,14 @@
+{
+  "name": "@openbee/cli-win32-x64",
+  "version": "0.0.0",
+  "description": "openbee win32/x64 binary",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin/"
+  ]
+}
