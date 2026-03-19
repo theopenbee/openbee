@@ -148,5 +148,3 @@ jobs:
 
       - name: Publish to NPM
         run: bash npm/scripts/publish.sh
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
