@@ -10,15 +10,29 @@ import (
 )
 
 var cfgPath string
+var daemonMode bool
 
 var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start the OpenBee server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Initialize with sensible defaults before config is available,
-		// so that any log calls during config loading are captured.
-		// Level defaults to "info"; format to "json" for log platform compatibility.
-		// The log level can be adjusted at runtime via logger.SetLevel() or the HTTP endpoint.
+		// --- Daemon dispatch ---
+		if daemonMode && !isDaemonChild() {
+			// Parent: spawn background child and exit.
+			return daemonize(cfgPath)
+		}
+
+		if isDaemonChild() {
+			// Child: redirect stdout+stderr to log file before logger.Init,
+			// so that zap's os.Stderr sink writes to the log file.
+			if err := redirectStdio(daemonLogFile()); err != nil {
+				return fmt.Errorf("redirect stdio: %w", err)
+			}
+			// Clean up PID file on shutdown.
+			defer func() { _ = removePIDFile() }()
+		}
+
+		// --- Normal server startup ---
 		if err := logger.Init(logger.Config{
 			Level:  "info",
 			Format: "json",
@@ -42,5 +56,6 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	serverCmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	serverCmd.Flags().BoolVarP(&daemonMode, "daemon", "d", false, "run as background daemon")
 	rootCmd.AddCommand(serverCmd)
 }
