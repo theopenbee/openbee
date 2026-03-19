@@ -58,6 +58,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p dist
           gh release download "${VERSION}" \
+            --repo "${{ github.repository }}" \
             --pattern 'openbee-*-linux-amd64.tar.gz' \
             --pattern 'openbee-*-linux-arm64.tar.gz' \
             --pattern 'openbee-*-darwin-amd64.tar.gz' \
