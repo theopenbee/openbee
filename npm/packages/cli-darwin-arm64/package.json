@@ -1,5 +1,5 @@
 {
-  "name": "@openbee/cli-darwin-arm64",
+  "name": "@theopenbee/cli-darwin-arm64",
   "version": "0.0.0",
   "description": "openbee darwin/arm64 binary",
   "os": [

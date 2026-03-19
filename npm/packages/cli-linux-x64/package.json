@@ -1,5 +1,5 @@
 {
-  "name": "@openbee/cli-linux-x64",
+  "name": "@theopenbee/cli-linux-x64",
   "version": "0.0.0",
   "description": "openbee linux/x64 binary",
   "os": [

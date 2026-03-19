@@ -3,12 +3,12 @@
 const path = require('path');
 
 const PLATFORM_MAP = {
-  'linux-x64':    '@openbee/cli-linux-x64',
-  'linux-arm64':  '@openbee/cli-linux-arm64',
-  'darwin-x64':   '@openbee/cli-darwin-x64',
-  'darwin-arm64': '@openbee/cli-darwin-arm64',
-  'win32-x64':    '@openbee/cli-win32-x64',
-  'win32-arm64':  '@openbee/cli-win32-arm64',
+  'linux-x64':    '@theopenbee/cli-linux-x64',
+  'linux-arm64':  '@theopenbee/cli-linux-arm64',
+  'darwin-x64':   '@theopenbee/cli-darwin-x64',
+  'darwin-arm64': '@theopenbee/cli-darwin-arm64',
+  'win32-x64':    '@theopenbee/cli-win32-x64',
+  'win32-arm64':  '@theopenbee/cli-win32-arm64',
 };
 
 const BINARY_NAME = {

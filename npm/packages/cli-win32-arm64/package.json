@@ -1,5 +1,5 @@
 {
-  "name": "@openbee/cli-win32-arm64",
+  "name": "@theopenbee/cli-win32-arm64",
   "version": "0.0.0",
   "description": "openbee win32/arm64 binary",
   "os": [

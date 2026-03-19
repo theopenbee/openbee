@@ -8,7 +8,7 @@
 
 ## Overview
 
-Distribute the `openbee` Go CLI binary via NPM using the `optionalDependencies` multi-platform package pattern. Users can install globally (`npm install -g @openbee/cli`) or run without installing (`npx @openbee/cli`).
+Distribute the `openbee` Go CLI binary via NPM using the `optionalDependencies` multi-platform package pattern. Users can install globally (`npm install -g @theopenbee/cli`) or run without installing (`npx @theopenbee/cli`).
 
 ---
 
@@ -16,9 +16,9 @@ Distribute the `openbee` Go CLI binary via NPM using the `optionalDependencies` 
 
 | Requirement | Detail |
 |---|---|
-| Usage modes | `npm install -g @openbee/cli` + `npx @openbee/cli` |
+| Usage modes | `npm install -g @theopenbee/cli` + `npx @theopenbee/cli` |
 | Binary distribution | Bundled directly in NPM packages (no download at install time) |
-| Package name | `@openbee/cli` (scoped) |
+| Package name | `@theopenbee/cli` (scoped) |
 | Supported platforms | linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64 |
 
 ---
@@ -35,13 +35,13 @@ This is the industry-standard pattern used by esbuild, prettier, turbo, and othe
 
 | Package | Contents | Approx. Size |
 |---|---|---|
-| `@openbee/cli` | JS wrapper + bin entrypoint | ~5 KB |
-| `@openbee/cli-linux-x64` | `openbee` binary (linux/amd64) | ~20–50 MB |
-| `@openbee/cli-linux-arm64` | `openbee` binary (linux/arm64) | ~20–50 MB |
-| `@openbee/cli-darwin-x64` | `openbee` binary (darwin/amd64) | ~20–50 MB |
-| `@openbee/cli-darwin-arm64` | `openbee` binary (darwin/arm64) | ~20–50 MB |
-| `@openbee/cli-win32-x64` | `openbee.exe` binary (windows/amd64) | ~20–50 MB |
-| `@openbee/cli-win32-arm64` | `openbee.exe` binary (windows/arm64) | ~20–50 MB |
+| `@theopenbee/cli` | JS wrapper + bin entrypoint | ~5 KB |
+| `@theopenbee/cli-linux-x64` | `openbee` binary (linux/amd64) | ~20–50 MB |
+| `@theopenbee/cli-linux-arm64` | `openbee` binary (linux/arm64) | ~20–50 MB |
+| `@theopenbee/cli-darwin-x64` | `openbee` binary (darwin/amd64) | ~20–50 MB |
+| `@theopenbee/cli-darwin-arm64` | `openbee` binary (darwin/arm64) | ~20–50 MB |
+| `@theopenbee/cli-win32-x64` | `openbee.exe` binary (windows/amd64) | ~20–50 MB |
+| `@theopenbee/cli-win32-arm64` | `openbee.exe` binary (windows/arm64) | ~20–50 MB |
 
 ### Repository Directory Layout
 
@@ -50,20 +50,20 @@ New `npm/` directory added to the openbee repository root:
 ```
 npm/
 ├── packages/
-│   ├── cli/                          # @openbee/cli (main package)
+│   ├── cli/                          # @theopenbee/cli (main package)
 │   │   ├── package.json
 │   │   ├── bin/
 │   │   │   └── openbee               # Node.js wrapper script (executable, shebang: #!/usr/bin/env node)
 │   │   └── lib/
 │   │       └── index.js              # Optional programmatic API — exports getBinaryPath() for tooling that needs the binary path
-│   ├── cli-linux-x64/                # @openbee/cli-linux-x64
+│   ├── cli-linux-x64/                # @theopenbee/cli-linux-x64
 │   │   ├── package.json
 │   │   └── bin/
 │   │       └── openbee               # Binary (copied during build, chmod +x applied)
 │   ├── cli-linux-arm64/
 │   ├── cli-darwin-x64/
 │   ├── cli-darwin-arm64/
-│   ├── cli-win32-x64/                # @openbee/cli-win32-x64
+│   ├── cli-win32-x64/                # @theopenbee/cli-win32-x64
 │   │   ├── package.json
 │   │   └── bin/
 │   │       └── openbee.exe           # Binary (copied during build)
@@ -77,18 +77,18 @@ npm/
 
 ```json
 {
-  "name": "@openbee/cli",
+  "name": "@theopenbee/cli",
   "version": "0.0.0",
   "description": "openbee CLI",
   "bin": { "openbee": "./bin/openbee" },
   "files": ["bin/", "lib/"],
   "optionalDependencies": {
-    "@openbee/cli-linux-x64":    "0.0.0",
-    "@openbee/cli-linux-arm64":  "0.0.0",
-    "@openbee/cli-darwin-x64":   "0.0.0",
-    "@openbee/cli-darwin-arm64": "0.0.0",
-    "@openbee/cli-win32-x64":    "0.0.0",
-    "@openbee/cli-win32-arm64":  "0.0.0"
+    "@theopenbee/cli-linux-x64":    "0.0.0",
+    "@theopenbee/cli-linux-arm64":  "0.0.0",
+    "@theopenbee/cli-darwin-x64":   "0.0.0",
+    "@theopenbee/cli-darwin-arm64": "0.0.0",
+    "@theopenbee/cli-win32-x64":    "0.0.0",
+    "@theopenbee/cli-win32-arm64":  "0.0.0"
   },
   "engines": { "node": ">=14" }
 }
@@ -100,7 +100,7 @@ All `optionalDependencies` versions are set to **exact versions** (no `^` or `~`
 
 ```json
 {
-  "name": "@openbee/cli-linux-x64",
+  "name": "@theopenbee/cli-linux-x64",
   "version": "0.0.0",
   "description": "openbee linux/x64 binary",
   "os": ["linux"],
@@ -125,12 +125,12 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const PLATFORM_MAP = {
-  'linux-x64':    '@openbee/cli-linux-x64',
-  'linux-arm64':  '@openbee/cli-linux-arm64',
-  'darwin-x64':   '@openbee/cli-darwin-x64',
-  'darwin-arm64': '@openbee/cli-darwin-arm64',
-  'win32-x64':    '@openbee/cli-win32-x64',
-  'win32-arm64':  '@openbee/cli-win32-arm64',
+  'linux-x64':    '@theopenbee/cli-linux-x64',
+  'linux-arm64':  '@theopenbee/cli-linux-arm64',
+  'darwin-x64':   '@theopenbee/cli-darwin-x64',
+  'darwin-arm64': '@theopenbee/cli-darwin-arm64',
+  'win32-x64':    '@theopenbee/cli-win32-x64',
+  'win32-arm64':  '@theopenbee/cli-win32-arm64',
 };
 
 const BINARY_NAME = {
@@ -179,19 +179,19 @@ The `require.resolve('<pkg>/package.json')` pattern is the standard approach use
 
 | Node `platform/arch` | NPM sub-package | Binary filename |
 |---|---|---|
-| `linux/x64` | `@openbee/cli-linux-x64` | `openbee` |
-| `linux/arm64` | `@openbee/cli-linux-arm64` | `openbee` |
-| `darwin/x64` | `@openbee/cli-darwin-x64` | `openbee` |
-| `darwin/arm64` | `@openbee/cli-darwin-arm64` | `openbee` |
-| `win32/x64` | `@openbee/cli-win32-x64` | `openbee.exe` |
-| `win32/arm64` | `@openbee/cli-win32-arm64` | `openbee.exe` |
+| `linux/x64` | `@theopenbee/cli-linux-x64` | `openbee` |
+| `linux/arm64` | `@theopenbee/cli-linux-arm64` | `openbee` |
+| `darwin/x64` | `@theopenbee/cli-darwin-x64` | `openbee` |
+| `darwin/arm64` | `@theopenbee/cli-darwin-arm64` | `openbee` |
+| `win32/x64` | `@theopenbee/cli-win32-x64` | `openbee.exe` |
+| `win32/arm64` | `@theopenbee/cli-win32-arm64` | `openbee.exe` |
 
 ### `npx` User Flow
 
 ```
-npx @openbee/cli --help
+npx @theopenbee/cli --help
   │
-  ├─ npm downloads @openbee/cli (~5 KB)
+  ├─ npm downloads @theopenbee/cli (~5 KB)
   ├─ npm detects platform, downloads matching sub-package only (~30 MB)
   └─ bin/openbee wrapper runs → spawns Go binary → output to user
 ```
@@ -223,8 +223,8 @@ Behavior:
 ### `npm/scripts/publish.sh`
 
 Behavior:
-- Uses `npm publish --access public` for each package (all packages are under the `@openbee` scope which defaults to private)
-- Publishes sub-packages first (in any order), then `@openbee/cli` last
+- Uses `npm publish --access public` for each package (all packages are under the `@theopenbee` scope which defaults to private)
+- Publishes sub-packages first (in any order), then `@theopenbee/cli` last
 - If a package version is already published (npm exits with "You cannot publish over the previously published versions"), treat it as a success (idempotent, safe for reruns)
 - Fails fast on any other error
 - Expects `NODE_AUTH_TOKEN` env var to be set (used by npm's built-in auth)
@@ -342,14 +342,14 @@ GoReleaser runs in the `release` job on its own runner. Artifacts are not shared
 
 ```bash
 # Global install
-npm install -g @openbee/cli
+npm install -g @theopenbee/cli
 openbee --help
 
 # Run without installing (latest)
-npx @openbee/cli --help
+npx @theopenbee/cli --help
 
 # Pin to specific version
-npx @openbee/cli@1.2.3 --help
+npx @theopenbee/cli@1.2.3 --help
 ```
 
 ---

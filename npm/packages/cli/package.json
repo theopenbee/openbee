@@ -1,5 +1,5 @@
 {
-  "name": "@openbee/cli",
+  "name": "@theopenbee/cli",
   "version": "0.0.0",
   "description": "openbee CLI",
   "main": "./lib/index.js",
@@ -11,12 +11,12 @@
     "lib/"
   ],
   "optionalDependencies": {
-    "@openbee/cli-linux-x64": "0.0.0",
-    "@openbee/cli-linux-arm64": "0.0.0",
-    "@openbee/cli-darwin-x64": "0.0.0",
-    "@openbee/cli-darwin-arm64": "0.0.0",
-    "@openbee/cli-win32-x64": "0.0.0",
-    "@openbee/cli-win32-arm64": "0.0.0"
+    "@theopenbee/cli-linux-x64": "0.0.0",
+    "@theopenbee/cli-linux-arm64": "0.0.0",
+    "@theopenbee/cli-darwin-x64": "0.0.0",
+    "@theopenbee/cli-darwin-arm64": "0.0.0",
+    "@theopenbee/cli-win32-x64": "0.0.0",
+    "@theopenbee/cli-win32-arm64": "0.0.0"
   },
   "engines": {
     "node": ">=14"
