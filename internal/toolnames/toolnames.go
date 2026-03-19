@@ -20,4 +20,6 @@ const (
 	SaveMemory        = "save_memory"
 	GetMemory         = "get_memory"
 	DeleteMemory      = "delete_memory"
+	ListSessionContexts = "list_session_contexts"
+	ClearWorkerSession  = "clear_worker_session"
 )
