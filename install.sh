@@ -208,10 +208,17 @@ install_binary() {
     if [ -w "$INSTALL_DIR" ]; then
         mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
-    else
+    elif check_command sudo; then
         info "Requesting sudo to install to ${INSTALL_DIR}"
         sudo mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    else
+        warn "No write permission to ${INSTALL_DIR} and sudo is not available."
+        warn "Falling back to ~/.local/bin"
+        INSTALL_DIR="${HOME}/.local/bin"
+        mkdir -p "$INSTALL_DIR"
+        mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     fi
 
     ok "${BINARY_NAME} ${VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"

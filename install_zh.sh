@@ -207,10 +207,16 @@ install_binary() {
     if [ -w "$INSTALL_DIR" ]; then
         mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
-    else
+    elif check_command sudo; then
         info "需要 sudo 权限安装到 ${INSTALL_DIR}"
         sudo mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    else
+        warn "无 ${INSTALL_DIR} 写权限且 sudo 不可用，将安装到 ~/.local/bin"
+        INSTALL_DIR="${HOME}/.local/bin"
+        mkdir -p "$INSTALL_DIR"
+        mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     fi
 
     ok "${BINARY_NAME} ${VERSION} 已安装到 ${INSTALL_DIR}/${BINARY_NAME}"
