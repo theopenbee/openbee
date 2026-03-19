@@ -17,12 +17,13 @@ var serverCmd = &cobra.Command{
 	Short: "Start the OpenBee server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// --- Daemon dispatch ---
-		if daemonMode && !isDaemonChild() {
+		child := isDaemonChild()
+		if daemonMode && !child {
 			// Parent: spawn background child and exit.
 			return daemonize(cfgPath)
 		}
 
-		if isDaemonChild() {
+		if child {
 			// Child: redirect stdout+stderr to log file before logger.Init,
 			// so that zap's os.Stderr sink writes to the log file.
 			if err := redirectStdio(daemonLogFile()); err != nil {

@@ -56,7 +56,8 @@ func isAlive(pid int) bool {
 	if err := windows.GetExitCodeProcess(h, &code); err != nil {
 		return false
 	}
-	return code == 259 // STILL_ACTIVE
+	const stillActive = 259 // STILL_ACTIVE / STATUS_PENDING
+	return code == stillActive
 }
 
 // stopProcess sends CTRL_BREAK_EVENT to pid for graceful shutdown, then force-kills after 15 s.
