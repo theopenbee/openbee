@@ -67,6 +67,53 @@ func appendCSVFilter(q string, args []any, column, value string) (string, []any)
 	return q, args
 }
 
+// TaskFilter specifies filtering criteria for List.
+// message_id and session_key are mutually exclusive.
+// At least one of message_id, session_key, or worker_id must be non-empty.
+type TaskFilter struct {
+	MessageID  string
+	SessionKey string
+	WorkerID   string
+	Status     string // comma-separated, e.g. "pending,running"
+	Type       string // comma-separated, e.g. "immediate,countdown"
+}
+
+// List returns tasks matching the given filter. If session_key is set, tasks are
+// joined with bee_platform_messages to resolve the session. Results are ordered
+// by created_at DESC.
+func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
+	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
+	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.created_at, t.updated_at
+	      FROM bee_tasks t`
+	if f.SessionKey != "" {
+		q += ` JOIN bee_platform_messages pm ON t.message_id = pm.id`
+	}
+	q += ` WHERE 1=1`
+	var args []any
+	if f.MessageID != "" {
+		q += ` AND t.message_id = ?`
+		args = append(args, f.MessageID)
+	}
+	if f.SessionKey != "" {
+		q += ` AND pm.session_key = ?`
+		args = append(args, f.SessionKey)
+	}
+	if f.WorkerID != "" {
+		q += ` AND t.worker_id = ?`
+		args = append(args, f.WorkerID)
+	}
+	q, args = appendCSVFilter(q, args, "status", f.Status)
+	q, args = appendCSVFilter(q, args, "type", f.Type)
+	q += ` ORDER BY t.created_at DESC`
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks: %w", err)
+	}
+	defer rows.Close()
+	return scanTasks(rows)
+}
+
 // ListByMessageID returns tasks for a given message, optionally filtered by status and/or type.
 func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,

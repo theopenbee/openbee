@@ -245,6 +245,91 @@ func newTaskStoreWithTwoSessions(t *testing.T) (*TaskStore, func()) {
 	return NewTaskStore(db), func() { db.Close() }
 }
 
+// newTaskStoreWithTwoWorkers sets up: w1 and w2 workers; m1 (session-A) and m2 (session-B) messages.
+func newTaskStoreWithTwoWorkers(t *testing.T) (*TaskStore, func()) {
+	t.Helper()
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W1','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','W2','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages
+		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
+		VALUES ('m1','session-A','feishu','hi','','',1,1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages
+		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
+		VALUES ('m2','session-B','feishu','bye','','',1,1,1)`)
+	return NewTaskStore(db), func() { db.Close() }
+}
+
+func TestTaskStore_List_ByWorkerID(t *testing.T) {
+	ts, cleanup := newTaskStoreWithTwoWorkers(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	// w1 has tasks in session-A and session-B; w2 has a task in session-A
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "w1-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "w1-sessB", Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+
+	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1"})
+	if err != nil {
+		t.Fatalf("List by worker_id: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Errorf("expected 2 tasks for w1 across sessions, got %d", len(tasks))
+	}
+	for _, task := range tasks {
+		if task.WorkerID != "w1" {
+			t.Errorf("expected all tasks to belong to w1, got worker_id=%q", task.WorkerID)
+		}
+	}
+}
+
+func TestTaskStore_List_ByWorkerIDAndSessionKey(t *testing.T) {
+	ts, cleanup := newTaskStoreWithTwoWorkers(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "w1-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "w1-sessB", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+
+	// w1 + session-A: should return only the 1 task that is both w1 AND in session-A
+	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1", SessionKey: "session-A"})
+	if err != nil {
+		t.Fatalf("List by worker_id+session_key: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Errorf("expected 1 task for w1 in session-A, got %d", len(tasks))
+	}
+	if len(tasks) == 1 && tasks[0].Instruction != "w1-sessA" {
+		t.Errorf("expected instruction 'w1-sessA', got %q", tasks[0].Instruction)
+	}
+}
+
+func TestTaskStore_List_ByWorkerIDAndStatus(t *testing.T) {
+	ts, cleanup := newTaskStoreWithTwoWorkers(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "pending", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "completed", Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted, CreatedAt: now, UpdatedAt: now})
+	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-pending", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
+
+	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1", Status: "pending"})
+	if err != nil {
+		t.Fatalf("List by worker_id+status: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Errorf("expected 1 pending task for w1, got %d", len(tasks))
+	}
+}
+
 func TestTaskStore_ListBySessionKey(t *testing.T) {
 	ts, cleanup := newTaskStoreWithTwoSessions(t)
 	defer cleanup()
