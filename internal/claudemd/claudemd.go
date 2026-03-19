@@ -230,28 +230,20 @@ func workerRules() string {
 `, toolnames.SendMessage)
 
 	return namePrefix + "\n" + fmt.Sprintf(`
-## 系统元数据
+## 任务状态标记（强制 — 不可省略）
 
-每个任务的指令开头会包含系统元数据行，格式为：
-
-`+"```"+`
-[系统元数据] task_id=<task_id> message_id=<message_id>
-`+"```"+`
+每个任务的指令以 YAML frontmatter 开头，其中包含 task_id 和 message_id：
 
 - **task_id** — 当前任务的唯一标识，用于调用 `+"`%s`"+` 标记任务成功
-- **message_id** — 原始用户消息的标识，用于调用 `+"`%s`"+` 回复用户
-
-你必须从系统元数据中提取这些 ID 并在后续工具调用中正确使用。
-
-## 任务状态标记（强制 — 不可省略）
+- **message_id** — 原始用户消息的标识，用于调用 `+"`%s`"+` 回复用户（可能为空）
 
 无论任务执行成功还是失败，无论过程中发生了什么，你都必须调用 `+"`%s`"+` 标记任务完成。
 
 这是每个任务的最后一步，绝对不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。如果你没有调用 `+"`%s`"+`，任务将永远处于运行状态，这是严重错误。
 `,
-		toolnames.MarkTaskComplete, toolnames.SendMessage,
-		toolnames.MarkTaskComplete,
-		toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
+      toolnames.MarkTaskComplete, toolnames.SendMessage,
+      toolnames.MarkTaskComplete,
+      toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
 }
 
 func workerConfigBlock(name, description, memory string) string {
