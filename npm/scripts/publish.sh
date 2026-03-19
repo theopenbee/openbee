@@ -25,7 +25,7 @@ publish_package() {
   echo "Publishing @theopenbee/$pkg_name..."
 
   local output
-  output=$(npm publish "$pkg_dir" --access public 2>&1) && {
+  output=$(npm publish "$pkg_dir" --access public --provenance 2>&1) && {
     echo "$output"
     echo "Successfully published @theopenbee/$pkg_name"
     return 0
