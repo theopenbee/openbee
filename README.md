@@ -16,6 +16,19 @@
 
 **OpenBee** is a digital employee solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom to create workers, assign tasks, and much more — let your imagination run wild!
 
+## ✨ Features
+
+<div align="center">
+
+| | | |
+|:---:|:---:|:---:|
+| 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** |
+| Each Worker is a Claude AI agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, and WeCom — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
+| 🔧 **MCP Tool Invocation** | ⏰ **Scheduled Tasks** | 🖥️ **Web Console** |
+| Extend capabilities via MCP protocol — read files, call APIs, query databases | Cron-based scheduling for automatic, hands-free triggering | Visual interface for Worker management, task history, and real-time logs |
+
+</div>
+
 ## Installation
 
 **Option 1: npm install (recommended)**
