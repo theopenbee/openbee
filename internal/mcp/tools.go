@@ -162,6 +162,7 @@ func toolSchemas() []toolSchema {
 				"required": []string{"session_key"},
 				"properties": map[string]any{
 					"session_key": map[string]string{"type": "string", "description": "The session key to clear"},
+					"force":       map[string]any{"type": "boolean", "description": "Skip confirmation when multiple workers are linked; default false", "default": false},
 				},
 			},
 		},
@@ -645,6 +646,7 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
+		Force      bool   `json:"force"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -654,6 +656,32 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	}
 
 	ctx := context.Background()
+
+	// Two-step confirmation: if more than one worker has a session context and
+	// force is not set, return a confirmation prompt without clearing anything.
+	if !params.Force {
+		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
+		if err != nil {
+			return nil, fmt.Errorf("list session contexts: %w", err)
+		}
+		var workers []map[string]string
+		for _, a := range agents {
+			if a.AgentType == "worker" {
+				workers = append(workers, map[string]string{
+					"worker_id": a.AgentID,
+					"name":      a.Name,
+				})
+			}
+		}
+		if len(workers) > 1 {
+			return map[string]any{
+				"requires_confirmation": true,
+				"worker_count":          len(workers),
+				"linked_workers":        workers,
+				"message":               fmt.Sprintf("此会话链接了 %d 位员工，清空将重置所有员工和 bee 的对话上下文。请确认后以 force=true 重新调用。", len(workers)),
+			}, nil
+		}
+	}
 
 	// Step 1: Collect running tasks with execution IDs (before cancelling)
 	runningTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "running", "")

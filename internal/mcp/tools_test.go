@@ -797,3 +797,117 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 		t.Errorf("expected w2 context intact, got %q", w2sid)
 	}
 }
+
+// --- clear_session confirmation ---
+
+func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-conf1", "session-C", "feishu", "hi", `{}`, "", 0) //nolint
+
+	// Create two workers and seed session contexts for both.
+	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	w1 := workerResult1.(model.Worker)
+	w2 := workerResult2.(model.Worker)
+
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-C", w1.ID, "sid-w1") //nolint
+	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2") //nolint
+
+	// Call without force — should get confirmation request, NOT clear.
+	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-C",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true, got %v", m["requires_confirmation"])
+	}
+	workerCount, _ := m["worker_count"].(int)
+	if workerCount != 2 {
+		t.Errorf("expected worker_count=2, got %v", m["worker_count"])
+	}
+	linkedWorkers, _ := m["linked_workers"].([]map[string]string)
+	if len(linkedWorkers) != 2 {
+		t.Errorf("expected 2 linked_workers, got %v", m["linked_workers"])
+	}
+
+	// ClearSession must NOT have been called.
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called on confirmation prompt, got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-force1", "session-F", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	w1 := workerResult1.(model.Worker)
+	w2 := workerResult2.(model.Worker)
+
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1") //nolint
+	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2") //nolint
+
+	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-F",
+		"force":       true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true, got %v", m["cleared"])
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-F" {
+		t.Errorf("expected ClearSession(session-F), got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-one1", "session-O", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w") //nolint
+
+	// Only 1 worker — should clear without confirmation.
+	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-O",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true, got %v", m["cleared"])
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 {
+		t.Errorf("expected ClearSession called once, got %v", clearer.cleared)
+	}
+}
