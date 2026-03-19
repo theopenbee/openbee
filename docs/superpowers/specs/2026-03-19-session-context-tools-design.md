@@ -24,7 +24,7 @@ Workers write their row after completing an `immediate`-type task (dispatcher). 
 
 ## Tools
 
-### 1. `get_session_context`
+### 1. `list_session_contexts`
 
 Lists all agents with active session contexts for a session key.
 
@@ -71,9 +71,13 @@ Existing tool; adds an optional `force` parameter to support two-step confirmati
 
 **Behavior**
 
-- Count workers (`agent_id != "bee"`) in `bee_session_contexts` for `session_key`.
+- Use `s.sessionStore.ListSessionContexts(sessionKey)` to count workers (`type == "worker"`).
 - If worker count > 1 **and** `force` is false/absent → return confirmation-required response (no side effects).
-- Otherwise (worker count ≤ 1, or `force=true`) → execute existing clear logic unchanged.
+  - The threshold is `> 1` (not `>= 1`) because a single-worker session is considered low-risk; the protection targets sessions with multiple workers where a bulk reset has significant impact.
+- Otherwise (worker count ≤ 1, or `force=true`) → execute existing clear logic unchanged, which calls `s.sessionClearer.ClearSession()` for the actual clearing.
+- DB error on the count query → fail safe, return error (do not proceed with clear).
+
+**Output shape is identical to the existing implementation** — unchanged in the non-confirmation path.
 
 **Output A — confirmation required** (worker count > 1, force=false):
 
@@ -89,7 +93,7 @@ Existing tool; adds an optional `force` parameter to support two-step confirmati
 }
 ```
 
-**Output B — cleared**:
+**Output B — cleared** (same as current implementation):
 
 ```json
 {
@@ -121,8 +125,9 @@ Resets one worker's Claude session context within a session, without affecting o
 }
 ```
 
-- Idempotent: returns `cleared: true` even if no row existed.
-- Returns error if `worker_id = "bee"`: `"cannot clear bee session context with this tool, use clear_session instead"`.
+- Idempotent: returns `cleared: true` even if no session row existed for this worker.
+- `worker_name` is always resolved from `bee_workers` regardless of whether a session row existed: actual name if the worker exists, `"(deleted)"` if the worker has been deleted. This allows the caller to confirm which worker was targeted even on a no-op delete.
+- Returns error if `worker_id` is empty or equals `"bee"`: `"cannot clear bee session context with this tool, use clear_session instead"`.
 - Does **not** cancel tasks; if task cancellation is also needed, the caller combines this with `cancel_task`.
 
 ---
@@ -136,8 +141,8 @@ Add `SessionAgent` struct and two new methods.
 ```go
 type SessionAgent struct {
     AgentID   string
-    AgentType string // "bee" or "worker"
-    Name      string
+    AgentType string // "bee" or "worker"; derived in Go: BeeAgentID → "bee", else "worker"
+    Name      string // worker name from bee_workers, "bee" for bee, "(deleted)" for deleted workers
     UpdatedAt int64
 }
 
@@ -150,66 +155,72 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 func (s *SessionStore) DeleteWorkerSessionContext(ctx context.Context, sessionKey, workerID string) error
 ```
 
-SQL for `ListSessionContexts`:
+SQL for `ListSessionContexts` (name resolved in SQL via COALESCE; AgentType derived in Go):
 ```sql
-SELECT sc.agent_id, sc.updated_at, w.name
+SELECT sc.agent_id, sc.updated_at,
+       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
 FROM bee_session_contexts sc
 LEFT JOIN bee_workers w ON w.id = sc.agent_id
 WHERE sc.session_key = ?
 ORDER BY sc.updated_at DESC
 ```
 
+`AgentType` is not a DB column; set in Go after scanning: `if row.AgentID == BeeAgentID { row.AgentType = "bee" } else { row.AgentType = "worker" }`.
+
+No schema migration needed — no new tables or columns.
+
 ### `internal/toolnames/toolnames.go`
 
 ```go
-GetSessionContext    = "get_session_context"
-ClearWorkerSession   = "clear_worker_session"
+ListSessionContexts = "list_session_contexts"
+ClearWorkerSession  = "clear_worker_session"
 ```
 
 ### `internal/mcp/server.go`
 
-- Add `sessionStore *store.SessionStore` field to `MCPServer` (consistent with how `workerStore`, `taskStore`, etc. are held directly).
-- Update `NewServer` signature to accept `*store.SessionStore`.
+- Add `sessionStore *store.SessionStore` field to `MCPServer` (consistent with `workerStore`, `taskStore`, etc.).
+- Update `NewServer` signature to accept `*store.SessionStore` as a new parameter.
+- **All existing `setupMCP*` test helpers in `tools_test.go` must be updated** to pass `store.NewSessionStore(db)`.
 
 ### `internal/mcp/tools.go`
 
-- Add two new `toolSchema` entries in `toolSchemas()`.
-- Add two new handler methods: `toolGetSessionContext`, `toolClearWorkerSession`.
-- Modify `toolClearSession` to check worker count when `force` is false.
-- Add cases in `callTool` switch.
+- Add two new `toolSchema` entries in `toolSchemas()` — total schema count becomes **20** (update the count assertion in `TestToolSchemas_Count_AfterNewTools`).
+- Add two new handler methods: `toolListSessionContexts`, `toolClearWorkerSession`.
+- Modify `toolClearSession`:
+  - Parse new optional `Force bool` from args.
+  - **Update the `clear_session` JSON schema** in `toolSchemas()` to advertise the `force` boolean field so the LLM sees it in `tools/list`.
+  - If `!force`: call `s.sessionStore.ListSessionContexts(sessionKey)` to count workers. On DB error, return error. If worker count > 1, return confirmation response.
+  - Then proceed with existing logic (`s.sessionClearer.ClearSession(...)` is unchanged).
+- Add two new cases in `callTool` switch.
 
 ### `internal/task_dispatcher/dispatcher.go`
 
-Extend the local `SessionStore` interface:
-
-```go
-type SessionStore interface {
-    GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error)
-    UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID string) error
-    ClearSessionContexts(ctx context.Context, sessionKey string) error
-    ListSessionContexts(ctx context.Context, sessionKey string) ([]store.SessionAgent, error)   // new
-    DeleteWorkerSessionContext(ctx context.Context, sessionKey, workerID string) error           // new
-}
-```
+**No changes.** The dispatcher's `SessionStore` interface is a minimal interface for methods the dispatcher actually calls. The two new store methods are consumed only by MCP tool handlers (via the concrete `*store.SessionStore`), so no interface extension here.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
 | `internal/store/session_store.go` | Add `SessionAgent`, `ListSessionContexts`, `DeleteWorkerSessionContext` |
-| `internal/toolnames/toolnames.go` | Add `GetSessionContext`, `ClearWorkerSession` constants |
+| `internal/toolnames/toolnames.go` | Add `ListSessionContexts`, `ClearWorkerSession` constants |
 | `internal/mcp/server.go` | Add `sessionStore` field + update `NewServer` |
 | `internal/mcp/tools.go` | Add 2 tool schemas, 2 handlers, modify `toolClearSession` |
-| `internal/task_dispatcher/dispatcher.go` | Extend `SessionStore` interface |
+| `internal/mcp/tools_test.go` | Update 3 `setupMCP*` helpers + update schema count (18 → 20) + new tests |
 
 ## Error Handling
 
-- `get_session_context`: DB error → return tool error.
+- `list_session_contexts`: DB error → return tool error.
 - `clear_session` (confirmation path): DB error on worker count query → fail safe, return error (do not proceed with clear).
-- `clear_worker_session`: `worker_id="bee"` → return explicit error; DB error → return tool error.
+- `clear_worker_session`: empty `worker_id` or `worker_id="bee"` → return explicit error; DB error → return tool error.
 
 ## Testing
 
 - Unit tests for `ListSessionContexts` and `DeleteWorkerSessionContext` in `store/` package.
 - Unit tests for all three tool handlers in `mcp/` package (using existing fake store pattern).
-- Table-driven cases for `clear_session`: (0 workers, no force), (1 worker, no force), (2 workers, no force → confirm), (2 workers, force=true → clear).
+- Update `TestToolSchemas_Count_AfterNewTools`: expected count `18 → 20`.
+- Update all three `setupMCP*` test helpers to pass `store.NewSessionStore(db)`.
+- Table-driven cases for `clear_session`:
+  - 0 workers, no force → cleared
+  - 1 worker, no force → cleared
+  - 2 workers, no force → requires_confirmation
+  - 2 workers, force=true → cleared
