@@ -15,7 +15,7 @@ SUBPACKAGES=(
 # Main package to publish last
 MAIN_PACKAGE="cli"
 
-PACKAGES_DIR="$(dirname "$0")/../packages"
+PACKAGES_DIR="$(cd "$(dirname "$0")/../packages" && pwd)"
 
 # Determine npm dist-tag from version (e.g. "0.0.1-test.1" -> "--tag test")
 VERSION=$(node -p "require('$PACKAGES_DIR/cli/package.json').version")
