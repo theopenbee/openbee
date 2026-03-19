@@ -51,7 +51,7 @@ var configOutputPath string
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "交互式生成配置文件",
+	Short: "Interactively generate a config file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := runConfig(cmd, args); errors.Is(err, errInterrupted) {
 			return nil
@@ -62,7 +62,7 @@ var configCmd = &cobra.Command{
 }
 
 func init() {
-	configCmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", "输出配置文件路径")
+	configCmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", "output config file path")
 	rootCmd.AddCommand(configCmd)
 }
 
@@ -113,20 +113,20 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	// If an existing config file exists, use its values as defaults
 	if existing := loadExistingConfig(configOutputPath); existing != nil {
-		fmt.Printf("已检测到现有配置文件: %s，将使用其中的值作为默认值。\n", configOutputPath)
+		fmt.Printf("Found existing config at %s, using its values as defaults.\n", configOutputPath)
 		vals = *existing
 	}
 
 	// Step 1 — Basic config
-	fmt.Println("\n=== 基本配置 ===")
+	fmt.Println("\n=== Basic Configuration ===")
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "Server 端口:",
+		Message: "Server port:",
 		Default: vals.ServerPort,
 	}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
 		s, _ := val.(string)
 		if _, err := strconv.Atoi(s); err != nil {
-			return fmt.Errorf("端口必须是整数")
+			return fmt.Errorf("port must be an integer")
 		}
 		return nil
 	})); err != nil {
@@ -141,21 +141,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "Debug 模式?",
+		Message: "Debug mode?",
 		Default: vals.Debug,
 	}, &vals.Debug); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "数据库路径:",
+		Message: "Database path:",
 		Default: vals.DBPath,
 	}, &vals.DBPath); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	// Step 2 — Claude config
-	fmt.Println("\n=== Claude 配置 ===")
+	fmt.Println("\n=== Claude Configuration ===")
 
 	if err := configureClaudeExecutable(&vals); err != nil {
 		return err
@@ -165,30 +165,30 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 3 — MCP config
-	fmt.Println("\n=== MCP 配置 ===")
+	fmt.Println("\n=== MCP Configuration ===")
 
-	mcpKeyChoice := "随机生成"
+	mcpKeyChoice := "Generate randomly"
 	if vals.MCPAPIKey != "" {
-		mcpKeyChoice = "手动输入"
+		mcpKeyChoice = "Enter manually"
 	}
 	var mcpMethod string
 	if err := survey.AskOne(&survey.Select{
-		Message: "MCP API Key 设置方式:",
-		Options: []string{"随机生成", "手动输入"},
+		Message: "MCP API Key setup:",
+		Options: []string{"Generate randomly", "Enter manually"},
 		Default: mcpKeyChoice,
 	}, &mcpMethod); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	switch mcpMethod {
-	case "随机生成":
+	case "Generate randomly":
 		b := make([]byte, 12)
 		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("生成随机 key 失败: %w", err)
+			return fmt.Errorf("generate random key: %w", err)
 		}
 		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf("已生成 MCP API Key: %s\n", vals.MCPAPIKey)
-	case "手动输入":
+		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+	case "Enter manually":
 		mcpDefault := ""
 		if vals.MCPAPIKey != "" {
 			mcpDefault = vals.MCPAPIKey
@@ -202,24 +202,24 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 4 — Platform config
-	fmt.Println("\n=== 平台配置 ===")
+	fmt.Println("\n=== Platform Configuration ===")
 
 	// Build default selections from existing config
 	var defaultPlatforms []string
 	if vals.FeishuEnabled {
-		defaultPlatforms = append(defaultPlatforms, "飞书")
+		defaultPlatforms = append(defaultPlatforms, "Feishu")
 	}
 	if vals.DingtalkEnabled {
-		defaultPlatforms = append(defaultPlatforms, "钉钉")
+		defaultPlatforms = append(defaultPlatforms, "DingTalk")
 	}
 	if vals.WecomEnabled {
-		defaultPlatforms = append(defaultPlatforms, "企微")
+		defaultPlatforms = append(defaultPlatforms, "WeCom")
 	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
-		Message: "启用哪些平台？",
-		Options: []string{"飞书", "钉钉", "企微"},
+		Message: "Which platforms to enable?",
+		Options: []string{"Feishu", "DingTalk", "WeCom"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -232,44 +232,44 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	for _, p := range selectedPlatforms {
 		switch p {
-		case "飞书":
+		case "Feishu":
 			vals.FeishuEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "飞书 App ID:",
+				Message: "Feishu App ID:",
 				Default: vals.FeishuAppID,
 			}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "飞书 App Secret:",
+				Message: "Feishu App Secret:",
 				Default: vals.FeishuAppSecret,
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "钉钉":
+		case "DingTalk":
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "钉钉 Client ID:",
+				Message: "DingTalk Client ID:",
 				Default: vals.DingtalkClientID,
 			}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "钉钉 Client Secret:",
+				Message: "DingTalk Client Secret:",
 				Default: vals.DingtalkClientSecret,
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "企微":
+		case "WeCom":
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "企微 Bot ID:",
+				Message: "WeCom Bot ID:",
 				Default: vals.WecomBotID,
 			}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "企微 Secret:",
+				Message: "WeCom Secret:",
 				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -278,11 +278,11 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 5 — Advanced config
-	fmt.Println("\n=== 高级配置 ===")
+	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "是否自定义高级配置？",
+		Message: "Customize advanced settings?",
 		Default: false,
 	}, &customAdvanced); err != nil {
 		return handleSurveyErr(err)
@@ -290,28 +290,28 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	if customAdvanced {
 		if err := survey.AskOne(&survey.Input{
-			Message: "Feeder 超时:",
+			Message: "Feeder timeout:",
 			Default: vals.FeederTimeout,
 		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "消息去抖时间:",
+			Message: "Message debounce:",
 			Default: vals.MessageDebounce,
 		}, &vals.MessageDebounce); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFprobe 路径:",
+			Message: "FFprobe path:",
 			Default: vals.FFprobePath,
 		}, &vals.FFprobePath); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFmpeg 路径:",
+			Message: "FFmpeg path:",
 			Default: vals.FFmpegPath,
 		}, &vals.FFmpegPath); err != nil {
 			return handleSurveyErr(err)
@@ -319,42 +319,42 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 6 — Confirm write
-	fmt.Printf("\n=== 写入配置 ===\n")
-	fmt.Printf("输出文件: %s\n", configOutputPath)
+	fmt.Printf("\n=== Write Configuration ===\n")
+	fmt.Printf("Output file: %s\n", configOutputPath)
 
 	var confirmWrite bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "确认写入配置文件？",
+		Message: "Confirm write config file?",
 		Default: true,
 	}, &confirmWrite); err != nil {
 		return handleSurveyErr(err)
 	}
 	if !confirmWrite {
-		fmt.Println("已取消写入。")
+		fmt.Println("Write cancelled.")
 		return nil
 	}
 
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
-		return fmt.Errorf("解析模板失败: %w", err)
+		return fmt.Errorf("parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, vals); err != nil {
-		return fmt.Errorf("渲染模板失败: %w", err)
+		return fmt.Errorf("render template: %w", err)
 	}
 
 	if err := os.WriteFile(configOutputPath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("写入文件失败: %w", err)
+		return fmt.Errorf("write file: %w", err)
 	}
 
-	fmt.Printf("配置文件已生成: %s\n", configOutputPath)
+	fmt.Printf("Config file written to: %s\n", configOutputPath)
 	return nil
 }
 
 func handleSurveyErr(err error) error {
 	if errors.Is(err, terminal.InterruptErr) {
-		fmt.Println("\n已取消。")
+		fmt.Println("\nCancelled.")
 		return errInterrupted
 	}
 	return err
