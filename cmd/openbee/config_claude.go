@@ -17,14 +17,14 @@ const claudeDownloadURL = "https://cc-download.openbee.dev/claude/download"
 
 // Provider display names used in the selection menu and switch cases.
 const (
-	providerMoonshot   = "月之暗面（Kimi）"
-	providerDeepSeek   = "深度求索（DeepSeek）"
-	providerGLM        = "智谱清言（GLM）"
-	providerMiniMax    = "稀宇科技（MiniMax）"
-	providerAliyun     = "阿里云（千问）"
-	providerVolcengine = "火山引擎（豆包）"
-	providerTencent    = "腾讯云"
-	providerCustom     = "自定义服务商"
+	providerMoonshot   = "Moonshot (Kimi)"
+	providerDeepSeek   = "DeepSeek"
+	providerGLM        = "Zhipu (GLM)"
+	providerMiniMax    = "MiniMax"
+	providerAliyun     = "Alibaba Cloud (Qwen)"
+	providerVolcengine = "Volcengine (Doubao)"
+	providerTencent    = "Tencent Cloud"
+	providerCustom     = "Custom provider"
 )
 
 // promptAPIKey asks the user for an API key with the given message.
@@ -119,13 +119,13 @@ func customEnv(baseURL, apiKey string) map[string]string {
 // and writes back. Creates parent directories if needed.
 func mergeClaudeSettings(path string, env map[string]string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("创建目录失败: %w", err)
+		return fmt.Errorf("create directory: %w", err)
 	}
 
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("警告: %s JSON 格式错误，将覆盖: %v\n", path, err)
+			fmt.Printf("warning: %s has invalid JSON, overwriting: %v\n", path, err)
 		}
 	}
 
@@ -143,7 +143,7 @@ func mergeClaudeSettings(path string, env map[string]string) error {
 
 	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化 JSON 失败: %w", err)
+		return fmt.Errorf("marshal JSON: %w", err)
 	}
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
@@ -154,7 +154,7 @@ func mergeClaudeJSON(path string) error {
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("警告: %s JSON 格式错误，将覆盖: %v\n", path, err)
+			fmt.Printf("warning: %s has invalid JSON, overwriting: %v\n", path, err)
 		}
 	}
 
@@ -162,7 +162,7 @@ func mergeClaudeJSON(path string) error {
 
 	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化 JSON 失败: %w", err)
+		return fmt.Errorf("marshal JSON: %w", err)
 	}
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
@@ -174,28 +174,28 @@ func mergeClaudeJSON(path string) error {
 func configureClaudeExecutable(vals *configValues) error {
 	// Try auto-detect
 	if claudePath, err := exec.LookPath("claude"); err == nil {
-		fmt.Printf("已检测到系统安装的 Claude: %s，将自动使用。\n", claudePath)
+		fmt.Printf("Found Claude in PATH: %s, using it automatically.\n", claudePath)
 		vals.ClaudePath = claudePath
 	} else {
 		// Not found — offer choices
 		var method string
 		if err := survey.AskOne(&survey.Select{
-			Message: "未检测到 Claude，请选择获取方式:",
-			Options: []string{"手动输入路径", "下载 Claude"},
+			Message: "Claude not found, how would you like to get it?",
+			Options: []string{"Enter path manually", "Download Claude"},
 		}, &method); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch method {
-		case "手动输入路径":
+		case "Enter path manually":
 			if err := promptClaudeManualPath(vals); err != nil {
 				return err
 			}
-		case "下载 Claude":
+		case "Download Claude":
 			if err := downloadClaude(vals); err != nil {
 				// Download failed — fallback to manual
-				fmt.Printf("下载失败: %v\n", err)
-				fmt.Println("请手动输入 Claude 路径。")
+				fmt.Printf("Download failed: %v\n", err)
+				fmt.Println("Please enter the Claude path manually.")
 				if err := promptClaudeManualPath(vals); err != nil {
 					return err
 				}
@@ -205,7 +205,7 @@ func configureClaudeExecutable(vals *configValues) error {
 
 	// Claude timeout
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude 超时:",
+		Message: "Claude timeout:",
 		Default: vals.ClaudeTimeout,
 	}, &vals.ClaudeTimeout); err != nil {
 		return handleSurveyErr(err)
@@ -216,20 +216,20 @@ func configureClaudeExecutable(vals *configValues) error {
 
 func promptClaudeManualPath(vals *configValues) error {
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude 可执行文件路径:",
+		Message: "Claude executable path:",
 		Default: vals.ClaudePath,
 	}, &vals.ClaudePath, survey.WithValidator(func(val any) error {
 		path, _ := val.(string)
 		info, err := os.Stat(path)
 		if err != nil {
-			return fmt.Errorf("文件不存在: %s", path)
+			return fmt.Errorf("file not found: %s", path)
 		}
 		if info.IsDir() {
-			return fmt.Errorf("路径是目录而非文件: %s", path)
+			return fmt.Errorf("path is a directory, not a file: %s", path)
 		}
 		// Check executable bit (Unix)
 		if info.Mode()&0111 == 0 {
-			return fmt.Errorf("文件不可执行: %s", path)
+			return fmt.Errorf("file is not executable: %s", path)
 		}
 		return nil
 	})); err != nil {
@@ -310,67 +310,67 @@ func downloadClaude(vals *configValues) error {
 	platform := detectPlatform()
 	if !isSupportedPlatform(platform) {
 		return fmt.Errorf(
-			"当前系统 (%s/%s) 不支持自动下载 Claude Code。\n"+
-				"支持的平台: darwin-arm64, darwin-x64, linux-arm64, linux-x64, linux-arm64-musl, linux-x64-musl\n"+
-				"请手动安装。",
+			"current platform (%s/%s) does not support automatic Claude Code download.\n"+
+				"Supported platforms: darwin-arm64, darwin-x64, linux-arm64, linux-x64, linux-arm64-musl, linux-x64-musl\n"+
+				"Please install manually.",
 			runtime.GOOS, runtime.GOARCH,
 		)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("获取用户目录失败: %w", err)
+		return fmt.Errorf("get home directory: %w", err)
 	}
 
 	binDir := filepath.Join(home, ".openbee", "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
-		return fmt.Errorf("创建目录失败: %w", err)
+		return fmt.Errorf("create directory: %w", err)
 	}
 
 	destPath := filepath.Join(binDir, "claude")
 	url := buildClaudeDownloadURL(platform)
 
-	fmt.Printf("正在下载 Claude (%s/%s)...\n", platform.os, platform.arch)
+	fmt.Printf("Downloading Claude (%s/%s)...\n", platform.os, platform.arch)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("请求下载地址失败: %w", err)
+		return fmt.Errorf("request download URL: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
+		return fmt.Errorf("download failed with status: %d", resp.StatusCode)
 	}
 
 	// Write to temp file first, rename on success to avoid leaving corrupt binaries.
 	tmpPath := destPath + ".tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		return fmt.Errorf("创建文件失败: %w", err)
+		return fmt.Errorf("create file: %w", err)
 	}
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		return fmt.Errorf("写入文件失败: %w", err)
+		return fmt.Errorf("write file: %w", err)
 	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("关闭文件失败: %w", err)
+		return fmt.Errorf("close file: %w", err)
 	}
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("设置可执行权限失败: %w", err)
+		return fmt.Errorf("set executable permission: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("移动文件失败: %w", err)
+		return fmt.Errorf("move file: %w", err)
 	}
 
 	vals.ClaudePath = destPath
-	fmt.Printf("Claude 已下载到: %s\n", destPath)
+	fmt.Printf("Claude downloaded to: %s\n", destPath)
 	return nil
 }
 
@@ -382,7 +382,7 @@ func downloadClaude(vals *configValues) error {
 func configureClaudeProvider(vals *configValues) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("获取用户目录失败: %w", err)
+		return fmt.Errorf("get home directory: %w", err)
 	}
 
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
@@ -392,7 +392,7 @@ func configureClaudeProvider(vals *configValues) error {
 	if _, err := os.Stat(settingsPath); err == nil {
 		var skip bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "已检测到 Claude 配置文件 (~/.claude/settings.json)，是否跳过模型服务商配置？",
+			Message: "Found ~/.claude/settings.json, skip model provider setup?",
 			Default: true,
 		}, &skip); err != nil {
 			return handleSurveyErr(err)
@@ -415,7 +415,7 @@ func configureClaudeProvider(vals *configValues) error {
 	}
 	var provider string
 	if err := survey.AskOne(&survey.Select{
-		Message: "选择模型服务商:",
+		Message: "Select model provider:",
 		Options: providerOptions,
 	}, &provider); err != nil {
 		return handleSurveyErr(err)
@@ -440,7 +440,7 @@ func configureClaudeProvider(vals *configValues) error {
 		env = deepseekEnv(apiKey)
 
 	case providerGLM:
-		apiKey, err := promptAPIKey("智谱 API Key:")
+		apiKey, err := promptAPIKey("Zhipu API Key:")
 		if err != nil {
 			return err
 		}
@@ -456,13 +456,13 @@ func configureClaudeProvider(vals *configValues) error {
 		needClaudeJSON = true
 
 	case providerAliyun:
-		apiKey, err := promptAPIKey("阿里云 API Key:")
+		apiKey, err := promptAPIKey("Alibaba Cloud API Key:")
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "选择模型:",
+			Message: "Select model:",
 			Options: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
 			Default: "qwen3.5-plus",
 		}, &model); err != nil {
@@ -471,13 +471,13 @@ func configureClaudeProvider(vals *configValues) error {
 		env = aliyunEnv(apiKey, model)
 
 	case providerVolcengine:
-		apiKey, err := promptAPIKey("火山引擎 API Key:")
+		apiKey, err := promptAPIKey("Volcengine API Key:")
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "选择模型:",
+			Message: "Select model:",
 			Options: []string{
 				"doubao-seed-2.0-code",
 				"doubao-seed-2.0-pro",
@@ -496,13 +496,13 @@ func configureClaudeProvider(vals *configValues) error {
 		needClaudeJSON = true
 
 	case providerTencent:
-		apiKey, err := promptAPIKey("腾讯云 API Key:")
+		apiKey, err := promptAPIKey("Tencent Cloud API Key:")
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "选择模型:",
+			Message: "Select model:",
 			Options: []string{
 				"tc-code-latest（auto）",
 				"hunyuan-2.0-instruct",
@@ -534,16 +534,16 @@ func configureClaudeProvider(vals *configValues) error {
 
 	// Write settings.json
 	if err := mergeClaudeSettings(settingsPath, env); err != nil {
-		return fmt.Errorf("写入 settings.json 失败: %w", err)
+		return fmt.Errorf("write settings.json: %w", err)
 	}
-	fmt.Println("已写入 ~/.claude/settings.json")
+	fmt.Println("Written ~/.claude/settings.json")
 
 	// Write .claude.json if needed
 	if needClaudeJSON {
 		if err := mergeClaudeJSON(claudeJSONPath); err != nil {
-			return fmt.Errorf("写入 .claude.json 失败: %w", err)
+			return fmt.Errorf("write .claude.json: %w", err)
 		}
-		fmt.Println("已写入 ~/.claude.json")
+		fmt.Println("Written ~/.claude.json")
 	}
 
 	return nil
