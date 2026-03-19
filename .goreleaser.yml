@@ -34,7 +34,6 @@ archives:
     files:
       - LICENSE*
       - README*
-      - config.example.yaml
 
 checksum:
   name_template: "checksums.txt"
@@ -87,7 +86,4 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
-    contents:
-      - src: config.example.yaml
-        dst: /etc/openbee/config.example.yaml
-        type: config
+    contents: []

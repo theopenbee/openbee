@@ -32,10 +32,10 @@ The binary will be output to `dist/openbee`.
 ### Configuration
 
 ```bash
-cp config.example.yaml config.yaml
+./dist/openbee config
 ```
 
-Edit `config.yaml` to configure your platform credentials and other settings. See `config.example.yaml` for all available options.
+Run `openbee config` to interactively generate `config.yaml` with all available options.
 
 ### Running Tests
 
@@ -107,7 +107,6 @@ openbee/
 │   └── worker/        # Worker management
 ├── web/               # Frontend (React + TypeScript)
 ├── docs/              # Technical documentation
-├── config.example.yaml
 ├── Makefile
 └── .goreleaser.yml
 ```
