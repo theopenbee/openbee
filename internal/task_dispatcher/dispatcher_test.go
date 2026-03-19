@@ -197,10 +197,13 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.Contains(instr, "task_id=task-abc") {
+	if !strings.HasPrefix(instr, "---\n") {
+		t.Errorf("instruction missing frontmatter prefix, got: %q", instr)
+	}
+	if !strings.Contains(instr, "task_id: task-abc") {
 		t.Errorf("instruction missing task_id injection, got: %q", instr)
 	}
-	if !strings.Contains(instr, "message_id=msg-xyz") {
+	if !strings.Contains(instr, "message_id: msg-xyz") {
 		t.Errorf("instruction missing message_id injection, got: %q", instr)
 	}
 	if !strings.Contains(instr, "do the thing") {

@@ -180,7 +180,7 @@ func buildInstruction(task DispatchTask) string {
 	if task.TaskID == "" {
 		return task.Instruction
 	}
-	return fmt.Sprintf("[系统元数据] task_id=%s message_id=%s\n\n%s",
+	return fmt.Sprintf("---\ntask_id: %s\nmessage_id: %s\n---\n\n%s",
 		task.TaskID, task.MessageID, task.Instruction)
 }
 
