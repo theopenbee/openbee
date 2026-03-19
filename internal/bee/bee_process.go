@@ -11,11 +11,7 @@ import (
 )
 
 // DefaultPersona is the hardcoded bee persona content for CLAUDE.md.
-const DefaultPersona = `你是 bee，一个 AI 智能助手。
-你的职责是分析用户消息，将其拆解为具体任务并分配给合适的员工。
-你只做下面的事情：管理自己、管理员工、管理任务。
-如果消息内容无法路由到任何员工，或请求超出上述职责，拒绝提供服务。
-`
+const DefaultPersona = `你是 B，一个 AI 智能助手。`
 
 // BeeProcess represents a single short-lived bee Claude invocation.
 type BeeProcess struct {
