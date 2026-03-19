@@ -33,14 +33,28 @@
 
 ### 第一步：安装
 
+<details open>
+<summary>📦 npm（推荐）</summary>
+
 ```bash
 npm install -g @theopenbee/cli
 ```
 
 安装时会自动下载当前平台对应的二进制文件，支持 Linux / macOS / Windows（amd64 & arm64）。
 
+</details>
+
 <details>
-<summary>其他安装方式</summary>
+<summary>🔧 一键安装脚本</summary>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
+```
+
+</details>
+
+<details>
+<summary>🍺 brew（macOS）/ scoop（Windows）</summary>
 
 **macOS（Homebrew）：**
 ```bash
@@ -52,14 +66,6 @@ brew install theopenbee/tap/openbee
 scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
 scoop install theopenbee/openbee
 ```
-
-**脚本一键安装：**
-```bash
-curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
-```
-
-**手动下载二进制：**
-前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 页面，下载对应平台的压缩包，解压后将 `openbee` 可执行文件放入 PATH 即可。
 
 </details>
 

@@ -33,14 +33,28 @@
 
 ### Step 1: Install
 
+<details open>
+<summary>📦 npm (Recommended)</summary>
+
 ```bash
 npm install -g @theopenbee/cli
 ```
 
 The platform-specific binary is downloaded automatically. Supports Linux / macOS / Windows (amd64 & arm64).
 
+</details>
+
 <details>
-<summary>Other install methods</summary>
+<summary>🔧 One-click Script</summary>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
+```
+
+</details>
+
+<details>
+<summary>🍺 brew (macOS) / scoop (Windows)</summary>
 
 **macOS (Homebrew):**
 ```bash
@@ -52,14 +66,6 @@ brew install theopenbee/tap/openbee
 scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
 scoop install theopenbee/openbee
 ```
-
-**One-click script:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
-```
-
-**Manual binary download:**
-Visit [GitHub Releases](https://github.com/theopenbee/openbee/releases), download the archive for your platform, extract it, and place the `openbee` executable in your PATH.
 
 </details>
 
