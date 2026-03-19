@@ -1,43 +1,43 @@
-# Contributor License Agreement (CLA)
+# 贡献者许可协议（CLA）
 
-## Openbee Project Contributor License Agreement
+## Openbee 项目贡献者许可协议
 
-Thank you for your interest in contributing to the Openbee project. Before submitting any contribution (including but not limited to code, documentation, designs, or suggestions), please read and agree to the following terms.
+感谢你对 Openbee 项目的关注与贡献。在提交任何贡献（包括但不限于代码、文档、设计、建议等）之前，请仔细阅读并同意以下条款。
 
-### 1. Definitions
+### 1. 定义
 
-- **"Project"** refers to the Openbee open-source project and all related repositories.
-- **"Contribution"** refers to any content you submit to the Project in any form, including but not limited to source code, documentation, configuration files, design assets, Issues, Pull Requests, and suggestions in related discussions.
-- **"Maintainer"** refers to the copyright holder, Hangzhou Wanxun Technology Co., Ltd., and its authorized project managers.
+- **"项目"** 指 Openbee 开源项目及其所有相关仓库。
+- **"贡献"** 指你以任何形式提交给项目的内容，包括但不限于源代码、文档、配置文件、设计稿、Issue、Pull Request 及相关讨论中的建议。
+- **"维护者"** 指项目的版权持有人杭州万训科技有限公司及其授权的项目管理者。
 
-### 2. Grant of License
+### 2. 授权许可
 
-You hereby grant the Maintainer a perpetual, worldwide, royalty-free, irrevocable, non-exclusive license to use, copy, modify, distribute, sublicense your Contribution, and to create derivative works based on your Contribution.
+你在此授予项目维护者一项永久的、全球范围的、免费的、不可撤销的、非排他性的许可，允许维护者使用、复制、修改、分发、再许可你的贡献，以及基于你的贡献创作衍生作品。
 
-### 3. Voluntary Contribution and Waiver of Compensation
+### 3. 自愿贡献与无偿声明
 
-You acknowledge and agree that:
+你确认并同意：
 
-- Your Contribution is made entirely on a voluntary basis, and no employment, commission, or contractual relationship of any kind exists.
-- Your Contribution is made without compensation. You will not receive any financial remuneration, equity, dividends, or any other form of material benefit in connection with your Contribution.
-- You voluntarily and irrevocably waive any and all claims to future economic benefits that may arise from your Contribution, including but not limited to revenue generated from the commercialization, sale, or licensing of the Project.
+- 你的贡献完全出于自愿，不存在任何形式的雇佣、委托或合同关系。
+- 你的贡献是无偿的，你不会因贡献而获得任何经济报酬、股权、分红或其他形式的物质收益。
+- 你自愿且不可撤销地放弃因贡献而可能产生的任何未来经济收益的权利主张，包括但不限于项目商业化、出售、许可授权等所产生的收入。
 
-### 4. Originality Representation
+### 4. 原创性声明
 
-You represent and warrant that:
+你声明并保证：
 
-- Your Contribution is your original work, or you have the legal right to submit the Contribution.
-- Your Contribution does not infringe any third party's intellectual property rights, patent rights, trademark rights, or other legal rights.
-- If your Contribution contains content subject to third-party licenses, you have clearly identified such content and ensured its compatibility with the Project's license (MIT License).
+- 你的贡献是你的原创作品，或者你有合法权利提交该贡献。
+- 你的贡献不侵犯任何第三方的知识产权、专利权、商标权或其他合法权益。
+- 如果你的贡献包含受第三方许可证约束的内容，你已明确标注并确保其与项目许可证（MIT License）兼容。
 
-### 5. No Warranty
+### 5. 无担保
 
-Your Contribution is provided "as is", without any express or implied warranty. You make no guarantees regarding the suitability, correctness, or completeness of the Contribution.
+你的贡献按"原样"提供，不附带任何明示或暗示的担保。你不对贡献的适用性、正确性或完整性作任何保证。
 
-### 6. Agreement Effective Date
+### 6. 协议生效
 
-By submitting a Contribution to the Project (including but not limited to submitting a Pull Request, Issue, or Commit), you acknowledge that you have read, understood, and agreed to all terms of this Agreement.
+当你向项目提交贡献（包括但不限于提交 Pull Request、Issue 或 Commit）时，即表示你已阅读、理解并同意本协议的所有条款。
 
 ---
 
-Copyright (c) 2026 Hangzhou Wanxun Technology Co., Ltd. (杭州万训科技有限公司)
+版权所有 (c) 2026 杭州万训科技有限公司

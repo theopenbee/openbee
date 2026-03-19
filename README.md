@@ -1,6 +1,6 @@
 # 🐝 OpenBee — 数字员工（OPC）解决方案
 
-[English](README.en.md)
+[English](README_en.md)
 
 **OpenBee** 是运行在私人电脑/服务器上的数字员工解决方案。你可以通过飞书/钉钉/企业微信与它沟通，指挥它创建员工，给它发布任务等等操作，请充分发挥你的想象力！
 
@@ -74,4 +74,4 @@ OpenBee 由四个核心层构成：
 ## Community
 
 - **问题反馈 / 功能建议**：[GitHub Issues](https://github.com/theopenbee/openbee/issues)
-- **贡献代码**：请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA_zh.md)
+- **贡献代码**：请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.md)

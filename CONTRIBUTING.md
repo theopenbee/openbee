@@ -4,7 +4,7 @@ Thank you for your interest in contributing to OpenBee! This guide will help you
 
 ## Contributor License Agreement
 
-By submitting a contribution, you agree to the terms of our [Contributor License Agreement (CLA)](CLA.md) ([中文版](CLA_zh.md)).
+By submitting a contribution, you agree to the terms of our [Contributor License Agreement (CLA)](CLA_en.md) ([中文版](CLA.md)).
 
 ## Getting Started
 
