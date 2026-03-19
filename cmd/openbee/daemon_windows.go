@@ -18,6 +18,8 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open log file: %w", err)
 	}
+	// lf is closed after cmd.Start() returns; the child process inherits its own
+	// handle copy via CreateProcess, so closing the parent-side handle is safe.
 	defer lf.Close()
 
 	env := append(os.Environ(), daemonEnvKey+"=1")
