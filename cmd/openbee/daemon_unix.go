@@ -36,8 +36,10 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 
 // isAlive reports whether a process with the given PID is running.
 // Uses kill(pid, 0) — the zero-signal POSIX liveness probe.
-// Note: if a foreign process recycles the PID after the daemon dies, kill(pid,0)
-// may return EPERM; isAlive returns false in that case (correct for our purposes).
+// Note: EPERM means the process exists but is owned by another user. This can
+// happen if the daemon PID was recycled by a foreign process after the daemon died.
+// Treating EPERM as "not alive" is the conservative choice — we will never signal
+// a process we do not own, so returning false is correct here.
 func isAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
