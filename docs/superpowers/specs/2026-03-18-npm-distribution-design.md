@@ -55,7 +55,7 @@ npm/
 │   │   ├── bin/
 │   │   │   └── openbee               # Node.js wrapper script (executable, shebang: #!/usr/bin/env node)
 │   │   └── lib/
-│   │       └── index.js              # Platform detection + binary execution logic (same code as bin/openbee)
+│   │       └── index.js              # Optional programmatic API — exports getBinaryPath() for tooling that needs the binary path
 │   ├── cli-linux-x64/                # @openbee/cli-linux-x64
 │   │   ├── package.json
 │   │   └── bin/
@@ -236,6 +236,13 @@ GoReleaser archives follow the naming template `openbee-{version}-{os}-{arch}` (
 ```makefile
 npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set version
 	@VERSION=$(shell git describe --tags --always --dirty | sed 's/^v//'); \
+	mkdir -p \
+	    npm/packages/cli-linux-x64/bin \
+	    npm/packages/cli-linux-arm64/bin \
+	    npm/packages/cli-darwin-x64/bin \
+	    npm/packages/cli-darwin-arm64/bin \
+	    npm/packages/cli-win32-x64/bin \
+	    npm/packages/cli-win32-arm64/bin; \
 	cp $$(find dist -path '*/openbee*linux*amd64*' -name 'openbee') \
 	    npm/packages/cli-linux-x64/bin/openbee; \
 	cp $$(find dist -path '*/openbee*linux*arm64*' -name 'openbee') \
@@ -361,6 +368,7 @@ npx @openbee/cli@1.2.3 --help
 |---|---|
 | `npm/packages/cli/package.json` | Create |
 | `npm/packages/cli/bin/openbee` | Create (JS wrapper, chmod +x) |
+| `npm/packages/cli/lib/index.js` | Create (optional — exports `getBinaryPath()` for programmatic use) |
 | `npm/packages/cli-linux-x64/package.json` | Create |
 | `npm/packages/cli-linux-arm64/package.json` | Create |
 | `npm/packages/cli-darwin-x64/package.json` | Create |
