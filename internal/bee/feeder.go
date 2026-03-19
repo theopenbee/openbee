@@ -250,8 +250,11 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
-	for _, m := range msgs {
-		fmt.Fprintf(&sb, "消息来源: %s | 会话: %s | 消息ID: %s\n内容: %s\n",
+	for i, m := range msgs {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		fmt.Fprintf(&sb, "---\nfrom: %s\nsession_key: %s\nmessage_id: %s\n---\n\n%s\n",
 			m.Platform, m.SessionKey, m.ID, m.Content)
 	}
 	return sb.String()
