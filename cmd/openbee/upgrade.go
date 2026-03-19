@@ -35,40 +35,40 @@ var upgradeCheckOnly bool
 
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
-	Short: "升级 openbee 到最新版本",
-	Long:  "检测是否有新版本可用，如有则下载并替换当前二进制文件。",
+	Short: "Upgrade openbee to the latest version",
+	Long:  "Check for a new version and replace the current binary if one is available.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runUpgrade(upgradeCheckOnly)
 	},
 }
 
 func init() {
-	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "仅检测是否有新版本，不执行升级")
+	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "check for updates only, do not upgrade")
 	rootCmd.AddCommand(upgradeCmd)
 }
 
 func runUpgrade(checkOnly bool) error {
 	current := version
 
-	fmt.Printf("当前版本: %s\n", current)
-	fmt.Println("正在检测最新版本...")
+	fmt.Printf("Current version: %s\n", current)
+	fmt.Println("Checking for latest version...")
 
 	latest, err := fetchLatestVersion()
 	if err != nil {
-		return fmt.Errorf("获取最新版本失败: %w", err)
+		return fmt.Errorf("fetch latest version: %w", err)
 	}
 
-	fmt.Printf("最新版本: %s\n", latest)
+	fmt.Printf("Latest version: %s\n", latest)
 
 	if !isNewer(latest, current) {
-		fmt.Println("已是最新版本，无需升级。")
+		fmt.Println("Already up to date.")
 		return nil
 	}
 
-	fmt.Printf("发现新版本: %s\n", latest)
+	fmt.Printf("New version available: %s\n", latest)
 
 	if checkOnly {
-		fmt.Printf("运行 'openbee upgrade' 执行升级。\n")
+		fmt.Printf("Run 'openbee upgrade' to upgrade.\n")
 		return nil
 	}
 
@@ -84,17 +84,17 @@ func fetchLatestVersion() (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub API 返回 %d", resp.StatusCode)
+		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
 
 	var rel githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return "", fmt.Errorf("解析响应失败: %w", err)
+		return "", fmt.Errorf("parse response: %w", err)
 	}
 
 	tag := strings.TrimSpace(rel.TagName)
 	if tag == "" {
-		return "", fmt.Errorf("获取到的版本号为空")
+		return "", fmt.Errorf("empty version tag")
 	}
 	if !strings.HasPrefix(tag, "v") {
 		tag = "v" + tag
@@ -147,29 +147,29 @@ func doUpgrade(newVersion string) error {
 	archiveURL := fmt.Sprintf("%s/%s/%s", githubRelBase, newVersion, archiveName)
 	checksumURL := fmt.Sprintf("%s/%s/checksums.txt", githubRelBase, newVersion)
 
-	fmt.Printf("正在下载 %s...\n", archiveName)
+	fmt.Printf("Downloading %s...\n", archiveName)
 
 	tmpDir, err := os.MkdirTemp("", "openbee-upgrade-*")
 	if err != nil {
-		return fmt.Errorf("创建临时目录失败: %w", err)
+		return fmt.Errorf("create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	archivePath := filepath.Join(tmpDir, archiveName)
 	if err := downloadFile(archiveURL, archivePath); err != nil {
-		return fmt.Errorf("下载失败: %w", err)
+		return fmt.Errorf("download: %w", err)
 	}
 
 	// Verify checksum if available
 	checksumPath := filepath.Join(tmpDir, "checksums.txt")
 	if err := downloadFile(checksumURL, checksumPath); err != nil {
-		fmt.Printf("警告: 无法下载 checksums.txt，跳过校验 (%v)\n", err)
+		fmt.Printf("warning: failed to download checksums.txt, skipping verification (%v)\n", err)
 	} else {
-		fmt.Println("正在校验 SHA256...")
+		fmt.Println("Verifying SHA256...")
 		if err := verifyChecksum(archivePath, archiveName, checksumPath); err != nil {
-			return fmt.Errorf("校验失败: %w", err)
+			return fmt.Errorf("checksum verification: %w", err)
 		}
-		fmt.Println("SHA256 校验通过。")
+		fmt.Println("SHA256 verified.")
 	}
 
 	// Extract binary from tarball
@@ -179,17 +179,17 @@ func doUpgrade(newVersion string) error {
 	}
 	newBinPath := filepath.Join(tmpDir, binName)
 	if err := extractBinary(archivePath, newBinPath); err != nil {
-		return fmt.Errorf("解压失败: %w", err)
+		return fmt.Errorf("extract: %w", err)
 	}
 
 	// Locate the current executable
 	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("无法确定当前可执行文件路径: %w", err)
+		return fmt.Errorf("determine executable path: %w", err)
 	}
 	execPath, err = filepath.EvalSymlinks(execPath)
 	if err != nil {
-		return fmt.Errorf("解析符号链接失败: %w", err)
+		return fmt.Errorf("resolve symlink: %w", err)
 	}
 
 	// Atomic replace: write to a temp file next to the target, then rename
@@ -197,23 +197,23 @@ func doUpgrade(newVersion string) error {
 	tmpBin, err := os.CreateTemp(dir, ".openbee-new-*")
 	if err != nil {
 		// May lack write permission — try sudo-less approach with a clear message
-		return fmt.Errorf("无法在 %s 创建临时文件 (可能需要 sudo): %w", dir, err)
+		return fmt.Errorf("create temp file in %s (may need sudo): %w", dir, err)
 	}
 	tmpBinPath := tmpBin.Name()
 	tmpBin.Close()
 	defer os.Remove(tmpBinPath)
 
 	if err := copyFile(newBinPath, tmpBinPath); err != nil {
-		return fmt.Errorf("复制新二进制失败: %w", err)
+		return fmt.Errorf("copy new binary: %w", err)
 	}
 	if err := os.Chmod(tmpBinPath, 0755); err != nil {
-		return fmt.Errorf("设置权限失败: %w", err)
+		return fmt.Errorf("set permissions: %w", err)
 	}
 	if err := os.Rename(tmpBinPath, execPath); err != nil {
-		return fmt.Errorf("替换二进制失败 (可能需要 sudo): %w", err)
+		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 
-	fmt.Printf("升级成功！openbee 已更新到 %s。\n", newVersion)
+	fmt.Printf("Successfully upgraded openbee to %s.\n", newVersion)
 	return nil
 }
 
@@ -251,7 +251,7 @@ func verifyChecksum(archivePath, archiveName, checksumPath string) error {
 		}
 	}
 	if expected == "" {
-		return fmt.Errorf("checksums.txt 中未找到 %s 的校验值", archiveName)
+		return fmt.Errorf("no checksum for %s in checksums.txt", archiveName)
 	}
 
 	f, err := os.Open(archivePath)
@@ -266,7 +266,7 @@ func verifyChecksum(archivePath, archiveName, checksumPath string) error {
 	}
 	actual := fmt.Sprintf("%x", h.Sum(nil))
 	if actual != expected {
-		return fmt.Errorf("SHA256 不匹配\n  期望: %s\n  实际: %s", expected, actual)
+		return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
 	}
 	return nil
 }
@@ -306,7 +306,7 @@ func extractBinary(archivePath, destPath string) error {
 			return out.Close()
 		}
 	}
-	return fmt.Errorf("压缩包中未找到 openbee 二进制文件")
+	return fmt.Errorf("openbee binary not found in archive")
 }
 
 func copyFile(src, dst string) error {
