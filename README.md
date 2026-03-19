@@ -29,36 +29,36 @@
 
 </div>
 
-## Installation
+## 🚀 Quick Start
 
-**Option 1: npm install (recommended)**
+### Step 1: Install
 
 ```bash
 npm install -g @theopenbee/cli
 ```
 
-The platform-specific binary is downloaded automatically during installation. Supports Linux / macOS / Windows (amd64 & arm64).
+The platform-specific binary is downloaded automatically. Supports Linux / macOS / Windows (amd64 & arm64).
 
-**Option 2: One-click install via script**
+<details>
+<summary>Other install methods</summary>
 
+**One-click script:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
 ```
 
-**Option 3: Manual binary download**
+**Manual binary download:**
+Visit [GitHub Releases](https://github.com/theopenbee/openbee/releases), download the archive for your platform, extract it, and place the `openbee` executable in your PATH.
 
-Visit the [GitHub Releases](https://github.com/theopenbee/openbee/releases) page, download the archive for your platform, extract it, and place the `openbee` executable in your PATH.
+</details>
 
-## Quick Start
-
-**Step 1: Generate a config file interactively**
+### Step 2: Generate a config file
 
 ```bash
 openbee config
 ```
 
 The wizard will guide you through:
-
 - Server port / host
 - Claude executable path
 - MCP API Key (can be randomly generated)
@@ -71,13 +71,13 @@ The config file is written to `config.yaml` in the current directory by default.
 openbee config -o /path/to/config.yaml
 ```
 
-**Step 2: Start the service**
+### Step 3: Start the service
 
 ```bash
 openbee start
 ```
 
-**Step 3: Start using**
+### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured IM platform (Lark / DingTalk / WeCom) to interact with OpenBee

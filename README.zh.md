@@ -29,9 +29,9 @@
 
 </div>
 
-## 安装
+## 🚀 快速开始
 
-**方式一：npm 安装（推荐）**
+### 第一步：安装
 
 ```bash
 npm install -g @theopenbee/cli
@@ -39,26 +39,26 @@ npm install -g @theopenbee/cli
 
 安装时会自动下载当前平台对应的二进制文件，支持 Linux / macOS / Windows（amd64 & arm64）。
 
-**方式二：脚本一键安装**
+<details>
+<summary>其他安装方式</summary>
 
+**脚本一键安装：**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
 ```
 
-**方式三：手动下载二进制**
-
+**手动下载二进制：**
 前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 页面，下载对应平台的压缩包，解压后将 `openbee` 可执行文件放入 PATH 即可。
 
-## 快速开始
+</details>
 
-**第一步：交互式生成配置文件**
+### 第二步：交互式生成配置文件
 
 ```bash
 openbee config
 ```
 
 向导将引导你完成以下配置：
-
 - 服务端口 / 主机
 - Claude 可执行文件路径
 - MCP API Key（可随机生成）
@@ -71,13 +71,13 @@ openbee config
 openbee config -o /path/to/config.yaml
 ```
 
-**第二步：启动服务**
+### 第三步：启动服务
 
 ```bash
 openbee start
 ```
 
-**第三步：开始使用**
+### 第四步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 - 在已配置的 IM 平台（飞书 / 钉钉 / 企微）中直接发送消息与 OpenBee 交互
