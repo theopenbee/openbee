@@ -15,7 +15,9 @@
 | File | Role |
 |------|------|
 | `cmd/openbee/daemon.go` | Shared: file paths, PID file R/W, `isDaemonChild()`, `daemonize()`, `formatUptime()` |
-| `cmd/openbee/daemon_unix.go` | `//go:build !windows` — `spawnDaemon()`, `isAlive()`, `stopProcess()`, `redirectStdio()` |
+| `cmd/openbee/daemon_unix.go` | `//go:build !windows` — `spawnDaemon()`, `isAlive()`, `stopProcess()` |
+| `cmd/openbee/daemon_linux.go` | `//go:build linux` — `redirectStdio()` using `syscall.Dup3` (arm64-safe) |
+| `cmd/openbee/daemon_darwin.go` | `//go:build darwin` — `redirectStdio()` using `syscall.Dup2` (macOS only) |
 | `cmd/openbee/daemon_windows.go` | `//go:build windows` — same interface, Windows syscalls |
 | `cmd/openbee/daemon_test.go` | Unit tests for PID file helpers, `isDaemonChild`, `isAlive`, `formatUptime` |
 | `cmd/openbee/server.go` | Add `--daemon` / `-d` flag; dispatch to `daemonize()` or `redirectStdio()` in `RunE` |
@@ -254,10 +256,14 @@
 
 ---
 
-### Task 2: Unix platform implementation (`daemon_unix.go`)
+### Task 2: Unix platform implementation (3 files)
+
+`spawnDaemon`, `isAlive`, and `stopProcess` are identical on Linux and macOS and live in `daemon_unix.go` (`//go:build !windows`). `redirectStdio` must be split by OS because `syscall.Dup3` exists only on Linux (all arches including arm64) while macOS only has `syscall.Dup2`.
 
 **Files:**
 - Create: `cmd/openbee/daemon_unix.go`
+- Create: `cmd/openbee/daemon_linux.go`
+- Create: `cmd/openbee/daemon_darwin.go`
 
 - [ ] **Step 1: Write failing test for Unix liveness check**
 
@@ -282,7 +288,7 @@
 
   Expected: compile error.
 
-- [ ] **Step 3: Create `cmd/openbee/daemon_unix.go`**
+- [ ] **Step 3: Create `cmd/openbee/daemon_unix.go`** (shared Unix code — no `redirectStdio` here)
 
   ```go
   //go:build !windows
@@ -299,6 +305,7 @@
 
   // spawnDaemon starts exe with args as a detached background process, redirecting
   // stdout and stderr to logFile. Returns the child PID.
+  // The goroutine reap call is present for correctness; the parent exits shortly after.
   func spawnDaemon(exe string, args []string, logFile string) (int, error) {
   	lf, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
   	if err != nil {
@@ -316,16 +323,16 @@
   	if err := cmd.Start(); err != nil {
   		return 0, err
   	}
-  	// Detach — do not wait on the child.
   	go func() { _ = cmd.Wait() }()
   	return cmd.Process.Pid, nil
   }
 
   // isAlive reports whether a process with the given PID is running.
   // Uses kill(pid, 0) — the zero-signal POSIX liveness probe.
+  // Note: if a foreign process recycles the PID after the daemon dies, kill(pid,0)
+  // may return EPERM; isAlive returns false in that case (correct for our purposes).
   func isAlive(pid int) bool {
-  	err := syscall.Kill(pid, 0)
-  	return err == nil
+  	return syscall.Kill(pid, 0) == nil
   }
 
   // stopProcess sends SIGTERM to pid, waits up to 15 s, then force-kills with SIGKILL.
@@ -340,15 +347,28 @@
   			return nil
   		}
   	}
-  	// Graceful shutdown timed out — force kill.
   	_ = syscall.Kill(pid, syscall.SIGKILL)
   	return nil
   }
+  ```
+
+- [ ] **Step 4: Create `cmd/openbee/daemon_linux.go`** (Linux `redirectStdio` — uses `Dup3`, arm64-safe)
+
+  ```go
+  //go:build linux
+
+  package main
+
+  import (
+  	"fmt"
+  	"os"
+  	"syscall"
+  )
 
   // redirectStdio replaces OS file descriptors 1 and 2 with the given log file.
-  // Must be called before logger.Init so that zap's os.Stderr sink writes to the log.
-  // Uses Dup3 (not Dup2) for Linux/arm64 compatibility. Closes lf after duplicating
-  // so the daemon holds exactly one fd per standard stream (fd 1 and fd 2).
+  // Uses syscall.Dup3 (Linux-only, all arches including arm64). Closes lf after
+  // duplicating so fd 1 and fd 2 are the sole holders of the log file descriptor.
+  // Must be called before logger.Init.
   func redirectStdio(logPath string) error {
   	lf, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
   	if err != nil {
@@ -363,12 +383,47 @@
   		lf.Close()
   		return fmt.Errorf("dup3 stderr: %w", err)
   	}
-  	lf.Close() // fd 1 and fd 2 now hold the log file; release the original fd
+  	lf.Close()
   	return nil
   }
   ```
 
-- [ ] **Step 4: Run all accumulated tests (Task 1 + Task 2)**
+- [ ] **Step 5: Create `cmd/openbee/daemon_darwin.go`** (macOS `redirectStdio` — uses `Dup2`)
+
+  ```go
+  //go:build darwin
+
+  package main
+
+  import (
+  	"fmt"
+  	"os"
+  	"syscall"
+  )
+
+  // redirectStdio replaces OS file descriptors 1 and 2 with the given log file.
+  // Uses syscall.Dup2 (available on macOS). Closes lf after duplicating.
+  // Must be called before logger.Init.
+  func redirectStdio(logPath string) error {
+  	lf, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+  	if err != nil {
+  		return fmt.Errorf("open log file %s: %w", logPath, err)
+  	}
+  	fd := int(lf.Fd())
+  	if err := syscall.Dup2(fd, 1); err != nil {
+  		lf.Close()
+  		return fmt.Errorf("dup2 stdout: %w", err)
+  	}
+  	if err := syscall.Dup2(fd, 2); err != nil {
+  		lf.Close()
+  		return fmt.Errorf("dup2 stderr: %w", err)
+  	}
+  	lf.Close()
+  	return nil
+  }
+  ```
+
+- [ ] **Step 6: Run all accumulated tests (Task 1 + Task 2)**
 
   ```bash
   go test ./cmd/openbee/ -run "TestIsAlive|TestWriteReadPIDFile|TestReadPIDFileMissing|TestIsDaemonChild|TestFormatUptime" -v
@@ -376,11 +431,11 @@
 
   Expected: 5 tests PASS. This is the first time the package compiles successfully.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
   ```bash
-  git add cmd/openbee/daemon_unix.go cmd/openbee/daemon_test.go
-  git commit -m "feat: add Unix daemon spawn/signal/liveness implementation"
+  git add cmd/openbee/daemon_unix.go cmd/openbee/daemon_linux.go cmd/openbee/daemon_darwin.go cmd/openbee/daemon_test.go
+  git commit -m "feat: add Unix daemon spawn/signal/liveness/stdio implementation"
   ```
 
 ---
@@ -862,13 +917,16 @@
 
   Expected: all existing tests plus new daemon tests PASS. No regressions.
 
-- [ ] **Step 2: Cross-compile for Windows**
+- [ ] **Step 2: Cross-compile for all target platforms**
 
   ```bash
   GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/openbee/
+  GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/openbee/
+  GOOS=linux GOARCH=amd64 go build -o /dev/null ./cmd/openbee/
+  GOOS=darwin GOARCH=arm64 go build -o /dev/null ./cmd/openbee/
   ```
 
-  Expected: compiles without error.
+  Expected: all four compile without error.
 
 - [ ] **Step 3: Verify CLI help shows new commands**
 
