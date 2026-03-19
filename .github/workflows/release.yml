@@ -47,6 +47,54 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
 
+  cdn-upload:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          gh release download "${VERSION}" \
+            --pattern 'openbee-*-linux-amd64.tar.gz' \
+            --pattern 'openbee-*-linux-arm64.tar.gz' \
+            --pattern 'openbee-*-darwin-amd64.tar.gz' \
+            --pattern 'openbee-*-darwin-arm64.tar.gz' \
+            --pattern 'checksums.txt' \
+            --dir dist/
+
+      - name: Install ossutil
+        run: curl -sL https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
+
+      - name: Upload release assets to OSS
+        env:
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ossutil cp dist/ "oss://${OSS_BUCKET}/releases/${VERSION}/" \
+            --recursive \
+            -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}"
+
+      - name: Update latest version pointer
+        # 只有稳定版（无 pre-release 后缀）才更新 latest 指针
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          echo -n "${VERSION}" > /tmp/latest
+          ossutil cp /tmp/latest "oss://${OSS_BUCKET}/releases/latest" \
+            --meta "Content-Type:text/plain;Cache-Control:no-cache" \
+            -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}"
+
   npm-publish:
     needs: release
     runs-on: ubuntu-latest
