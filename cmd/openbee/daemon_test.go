@@ -29,7 +29,7 @@ func TestReadPIDFileMissing(t *testing.T) {
 }
 
 func TestIsDaemonChild(t *testing.T) {
-	os.Unsetenv("OPENBEE_DAEMON")
+	t.Setenv("OPENBEE_DAEMON", "")
 	assert.False(t, isDaemonChild())
 
 	t.Setenv("OPENBEE_DAEMON", "1")

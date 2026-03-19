@@ -37,7 +37,7 @@ func writePIDFile(pid int, startTS int64) error {
 // writePIDFileTo writes pid and start timestamp to the given path.
 func writePIDFileTo(path string, pid int, startTS int64) error {
 	content := fmt.Sprintf("%d\n%d\n", pid, startTS)
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 // readPIDFile reads pid and start timestamp from daemonPIDFile().
