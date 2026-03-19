@@ -51,35 +51,68 @@ Four badges using shields.io, themed with honey yellow `#F7C948` to match the br
 ```markdown
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![License](https://img.shields.io/github/license/theopenbee/openbee?color=F7C948)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)]()
-[![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)]()
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 ```
+
+**npm badge note:** `@theopenbee/cli` is currently at version `0.0.0` (placeholder). If the package has not yet been published to the npm registry, the dynamic npm badge will render as a red "not found" error. In that case, replace with a static badge until the package is live:
+
+```markdown
+[![npm](https://img.shields.io/badge/npm-%40theopenbee%2Fcli-F7C948?logo=npm)](https://www.npmjs.com/package/@theopenbee/cli)
+```
+
+The implementer must check whether `@theopenbee/cli` is published before choosing which form to use.
 
 ### 3. Features Section (✨ Features)
 
-3-column HTML table with emoji icons + one-line description per feature. 6 features total (2 rows × 3 columns):
+3-column HTML table with emoji icons + one-line description per feature. 6 features total (2 rows × 3 columns). The table below shows documentation shorthand — each README uses its own language only (no bilingual slash notation in the actual files):
 
 | Column 1 | Column 2 | Column 3 |
 |---|---|---|
-| 🤖 AI Workers / AI 数字员工 | 💬 Multi-IM / 多平台 IM 接入 | 🧠 Persistent Memory / 持久记忆 |
-| 🔧 MCP Tools / MCP 工具调用 | ⏰ Scheduled Tasks / 定时任务 | 🖥️ Web Console / Web 控制台 |
+| 🤖 AI Workers (EN) / AI 数字员工 (ZH) | 💬 Multi-IM Support (EN) / 多平台 IM 接入 (ZH) | 🧠 Persistent Memory (EN) / 持久记忆 (ZH) |
+| 🔧 MCP Tool Invocation (EN) / MCP 工具调用 (ZH) | ⏰ Scheduled Tasks (EN) / 定时任务 (ZH) | 🖥️ Web Console (EN) / Web 控制台 (ZH) |
+
+`README.md` uses the English label only. `README.zh.md` uses the Chinese label only. Each cell also includes a one-sentence description in its respective language.
 
 Implementation using `<div align="center">` wrapping a Markdown table for center alignment on GitHub.
 
 ### 4. Quick Start Restructure (🚀 Quick Start)
 
-Merge the current separate "Installation" and "Quick Start" sections into a single 4-step flow:
+The existing `## Installation` heading is **removed entirely**. Its content is merged into a new unified `## 🚀 Quick Start` section as a 4-step flow:
 
 1. **Install** — npm install (primary), with `<details>` collapsing alternative methods (script + manual binary)
 2. **Generate config** — `openbee config`
 3. **Start service** — `openbee start`
 4. **Use** — Web Console URL + IM platform instruction
 
-Key change: alternative installation methods move into a `<details><summary>其他安装方式 / Other install methods</summary>` block, keeping the primary flow clean.
+The `<details>` block for alternative methods:
+
+```markdown
+<details>
+<summary>Other install methods / 其他安装方式</summary>
+
+**Script (English README):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
+```
+
+**Script (Chinese README — uses install.zh.sh):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
+```
+
+**Manual binary:** [GitHub Releases](https://github.com/theopenbee/openbee/releases)
+
+</details>
+```
+
+**Important:** The script URL in the `<details>` block differs by language version:
+- `README.md` → `install.sh`
+- `README.zh.md` → `install.zh.sh`
 
 ### 5. Architecture Diagram (⚙️ How It Works)
 
-Replace plain-text 4-layer description with a Mermaid flowchart:
+Replace plain-text 4-layer description with a Mermaid flowchart followed by the existing text descriptions as a Mermaid-failure fallback and supplementary detail:
 
 ```mermaid
 graph TD
@@ -87,11 +120,15 @@ graph TD
     B --> C["📨 消息摄取 & 任务调度\nMessage Ingestion & Scheduling"]
     C --> D["🤖 Worker（数字员工）\nClaude AI Agent"]
     D --> C
-    C --> E["🖥️ Web 控制台\nWeb Console"]
-    D --> E
+    D -. "状态 / Status" .-> E["🖥️ Web 控制台\nWeb Console"]
+    C -. "日志 / Logs" .-> E
 ```
 
-The existing text descriptions of the 4 layers are retained below the diagram as supplementary detail.
+**Edge semantics:**
+- Solid arrows (`-->`) represent the request/task flow: IM message → Integration → Scheduling → Worker → back to Scheduling (for result delivery)
+- Dotted arrows (`-.->`) represent monitoring data flowing into the Web Console: Workers and Scheduler push status/logs to the Web Console. The Web Console is a read/management interface accessed directly by the operator — it is not part of the message processing pipeline.
+
+The existing 4-layer text descriptions are kept below the diagram as both supplementary detail and a fallback for Markdown viewers that do not render Mermaid (e.g., VS Code without plugins, npm package pages).
 
 ### 6. Star History (🌟 Star History)
 
@@ -99,10 +136,17 @@ Wrap existing chart in `<div align="center">` for consistent centering.
 
 ### 7. Community (🤝 Community)
 
-Add emoji prefixes to bullet items for visual hierarchy:
+Add emoji prefixes to bullet items for visual hierarchy. CLA link filenames differ by version:
 
-- 🐛 Bug reports / Feature requests → GitHub Issues
-- 🤝 Contributing → Contributing Guide + CLA link
+- `README.md` → links to `CLA.md` (English CLA, per recent rename in git history)
+- `README.zh.md` → links to `CLA.zh.md` (Chinese CLA)
+
+```markdown
+## 🤝 Community
+
+- 🐛 **Bug reports / Feature requests** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
+- 🤝 **Contributing** → [Contributing Guide](CONTRIBUTING.md) — agree to [CLA](CLA.md) before submitting
+```
 
 ---
 
@@ -114,27 +158,38 @@ Add emoji prefixes to bullet items for visual hierarchy:
 <Language Toggle>      # [中文] / [English] link
 <One-line intro>       # existing description, kept
 ## ✨ Features         # NEW: 3×2 emoji grid table
-## 🚀 Quick Start     # RESTRUCTURED: 4-step, details collapse
-## ⚙️ How It Works    # UPDATED: Mermaid diagram + text
+## 🚀 Quick Start     # RESTRUCTURED: 4-step, details collapse (replaces old ## Installation)
+## ⚙️ How It Works    # UPDATED: Mermaid diagram + text fallback
 ## 🌟 Star History    # KEPT: centered
 ## 🤝 Community       # UPDATED: emoji bullets
 ```
+
+**Removed sections:** The existing `## Installation` heading is deleted and its content merged into `## 🚀 Quick Start`.
 
 ---
 
 ## Chinese / English Parity Rules
 
-Both files maintain strict section-order parity. Same badge types, same feature count, same Mermaid diagram structure. Only natural language differs:
+Both files maintain strict section-order parity. Same badge types, same feature count, same Mermaid diagram structure. Differences are:
 
-- `README.md` → English, links to `[中文](README.zh.md)` at top
-- `README.zh.md` → Chinese, links to `[English](README.md)` at top
+| Element | `README.md` (EN) | `README.zh.md` (ZH) |
+|---|---|---|
+| Language | English | Chinese |
+| Top link | `[中文](README.zh.md)` | `[English](README.md)` |
+| Install script | `install.sh` | `install.zh.sh` |
+| CLA link | `CLA.md` | `CLA.zh.md` |
+| Feature labels | English only | Chinese only |
 
 ---
 
 ## Success Criteria
 
-- GitHub renders Banner, badges, feature table, and Mermaid diagram correctly
-- Mermaid diagram visible in GitHub's web UI (native support since 2022)
+- GitHub renders Banner, badges, feature table, and Mermaid diagram correctly in both `README.md` and `README.zh.md`
+- Mermaid diagram visible in GitHub's web UI for both language versions
+- npm badge: either dynamic (if `@theopenbee/cli` is published) or static fallback — no red "not found" badge
+- Platform and Stars badges link to `https://github.com/theopenbee/openbee` and Releases page respectively
 - Quick Start primary flow fits in a single screen without scrolling
-- Both language versions updated and content-consistent
+- Old `## Installation` section is removed; no duplicate install instructions remain
+- `README.zh.md` references `install.zh.sh` (not `install.sh`) in the collapsed block
+- CLA links correct: `CLA.md` in English README, `CLA.zh.md` in Chinese README
 - No broken links or missing badge endpoints
