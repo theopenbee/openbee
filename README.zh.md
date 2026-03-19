@@ -108,11 +108,15 @@ OpenBee 由四个核心层构成：
 **4. Web 控制台**
 提供 Worker 管理、任务执行历史、实时日志等可视化界面，方便监控和调试。
 
-## Star History
+## 🌟 Star History
+
+<div align="center">
 
 [![Star History Chart](https://api.star-history.com/svg?repos=theopenbee/openbee&type=Date)](https://star-history.com/#theopenbee/openbee&Date)
 
-## Community
+</div>
 
-- **问题反馈 / 功能建议**：[GitHub Issues](https://github.com/theopenbee/openbee/issues)
-- **贡献代码**：请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.zh.md)
+## 🤝 Community
+
+- 🐛 **问题反馈 / 功能建议** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
+- 🤝 **贡献代码** → 请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.zh.md)

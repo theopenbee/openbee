@@ -108,11 +108,15 @@ Each Worker is an intelligent agent powered by Claude AI, equipped with persiste
 **4. Web Console**
 Provides a visual interface for Worker management, task execution history, and real-time logs, making monitoring and debugging straightforward.
 
-## Star History
+## 🌟 Star History
+
+<div align="center">
 
 [![Star History Chart](https://api.star-history.com/svg?repos=theopenbee/openbee&type=Date)](https://star-history.com/#theopenbee/openbee&Date)
 
-## Community
+</div>
 
-- **Bug reports / Feature requests**: [GitHub Issues](https://github.com/theopenbee/openbee/issues)
-- **Contributing**: Please read the [Contributing Guide](CONTRIBUTING.md). You must agree to the [Contributor License Agreement (CLA)](CLA.md) before submitting.
+## 🤝 Community
+
+- 🐛 **Bug reports / Feature requests** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
+- 🤝 **Contributing** → Please read the [Contributing Guide](CONTRIBUTING.md). You must agree to the [Contributor License Agreement (CLA)](CLA.md) before submitting.
