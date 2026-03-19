@@ -76,6 +76,10 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
         run: |
+          if [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET}" ]; then
+            echo "OSS secrets not configured, skipping upload"
+            exit 0
+          fi
           VERSION="${GITHUB_REF_NAME}"
           ossutil cp dist/ "oss://${OSS_BUCKET}/releases/${VERSION}/" \
             --recursive \
@@ -90,6 +94,10 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
         run: |
+          if [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET}" ]; then
+            echo "OSS secrets not configured, skipping latest pointer update"
+            exit 0
+          fi
           VERSION="${GITHUB_REF_NAME}"
           echo -n "${VERSION}" > /tmp/latest
           ossutil cp /tmp/latest "oss://${OSS_BUCKET}/releases/latest" \
