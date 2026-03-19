@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,4 +60,23 @@ func TestStopNotRunning(t *testing.T) {
 	// File does not exist — doStop should succeed (exit 0 semantics).
 	err := doStop(pidPath)
 	assert.NoError(t, err)
+}
+
+func TestStatusOutput(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.pid")
+
+	// Not running case — missing file.
+	running, msg := daemonStatus(path)
+	assert.False(t, running)
+	assert.Contains(t, msg, "not running")
+
+	// Write a PID file for current process (definitely alive).
+	ts := time.Now().Add(-90 * time.Second).Unix() // 1m 30s ago
+	require.NoError(t, writePIDFileTo(path, os.Getpid(), ts))
+
+	running, msg = daemonStatus(path)
+	assert.True(t, running)
+	assert.Contains(t, msg, fmt.Sprintf("%d", os.Getpid()))
+	assert.Contains(t, msg, "running")
 }
