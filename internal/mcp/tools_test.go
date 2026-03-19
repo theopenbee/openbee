@@ -346,8 +346,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 19 {
-		t.Errorf("expected 19 tool schemas, got %d", len(schemas))
+	if len(schemas) != 20 {
+		t.Errorf("expected 20 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -704,5 +704,96 @@ func TestCallTool_ListSessionContexts_MissingSessionKey(t *testing.T) {
 	_, err := s.CallTool("list_session_contexts", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing session_key")
+	}
+}
+
+// --- clear_worker_session ---
+
+func TestCallTool_ClearWorkerSession_MissingSessionKey(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+		"worker_id": "some-worker",
+	}))
+	if err == nil {
+		t.Error("expected error for missing session_key")
+	}
+}
+
+func TestCallTool_ClearWorkerSession_MissingWorkerID(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+	}))
+	if err == nil {
+		t.Error("expected error for missing worker_id")
+	}
+}
+
+func TestCallTool_ClearWorkerSession_RefusesBee(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+		"worker_id":   "bee",
+	}))
+	if err == nil {
+		t.Error("expected error when worker_id is bee")
+	}
+}
+
+func TestCallTool_ClearWorkerSession_Idempotent(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	// No session row exists; should succeed without error.
+	result, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+		"worker_id":   "nonexistent-worker-id",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true, got %v", m["cleared"])
+	}
+}
+
+func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	// Create two workers
+	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	w1 := workerResult1.(model.Worker)
+	w2 := workerResult2.(model.Worker)
+
+	// Seed session contexts for both workers
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2") //nolint
+
+	// Clear only w1
+	result, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+		"worker_id":   w1.ID,
+	}))
+	if err != nil {
+		t.Fatalf("clear_worker_session: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true, got %v", m["cleared"])
+	}
+	if m["worker_name"] != "W1" {
+		t.Errorf("expected worker_name=W1, got %v", m["worker_name"])
+	}
+
+	// w1 context should be gone; w2 should remain
+	w1sid, _ := ss.GetSessionContext(ctx, "sk", w1.ID)
+	w2sid, _ := ss.GetSessionContext(ctx, "sk", w2.ID)
+	if w1sid != "" {
+		t.Errorf("expected w1 context cleared, got %q", w1sid)
+	}
+	if w2sid != "sid-w2" {
+		t.Errorf("expected w2 context intact, got %q", w2sid)
 	}
 }

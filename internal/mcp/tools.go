@@ -254,6 +254,18 @@ func toolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        toolnames.ClearWorkerSession,
+			Description: "Reset one worker's Claude session context within a session, without affecting other workers or bee. Does not cancel tasks.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"session_key", "worker_id"},
+				"properties": map[string]any{
+					"session_key": map[string]string{"type": "string", "description": "The session key"},
+					"worker_id":   map[string]string{"type": "string", "description": "Worker ID whose session context to delete"},
+				},
+			},
+		},
 	}
 }
 
@@ -303,6 +315,8 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolDeleteMemory(args)
 	case toolnames.ListSessionContexts:
 		return s.toolListSessionContexts(args)
+	case toolnames.ClearWorkerSession:
+		return s.toolClearWorkerSession(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -944,4 +958,41 @@ func (s *MCPServer) toolListSessionContexts(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("list session contexts: %w", err)
 	}
 	return agents, nil
+}
+
+func (s *MCPServer) toolClearWorkerSession(args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey string `json:"session_key"`
+		WorkerID   string `json:"worker_id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.SessionKey == "" {
+		return nil, fmt.Errorf("session_key is required")
+	}
+	if params.WorkerID == "" {
+		return nil, fmt.Errorf("worker_id is required")
+	}
+	if params.WorkerID == store.BeeAgentID {
+		return nil, fmt.Errorf("cannot clear bee session context with this tool, use clear_session instead")
+	}
+
+	ctx := context.Background()
+
+	// Resolve worker name regardless of whether a session row exists.
+	workerName := "(deleted)"
+	if w, err := s.workerStore.GetByID(params.WorkerID); err == nil {
+		workerName = w.Name
+	}
+
+	if err := s.sessionStore.DeleteWorkerSessionContext(ctx, params.SessionKey, params.WorkerID); err != nil {
+		return nil, fmt.Errorf("delete worker session context: %w", err)
+	}
+
+	return map[string]any{
+		"cleared":     true,
+		"worker_id":   params.WorkerID,
+		"worker_name": workerName,
+	}, nil
 }
