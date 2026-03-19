@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -8,6 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIsAlive(t *testing.T) {
+	// Current process must be alive.
+	assert.True(t, isAlive(os.Getpid()))
+	// An absurdly large PID that cannot exist on any platform.
+	// Note: do NOT test isAlive(0) — on Unix, kill(0, 0) signals the entire process
+	// group and returns success, so isAlive(0) would incorrectly return true.
+	assert.False(t, isAlive(999999999))
+}
 
 func TestWriteReadPIDFile(t *testing.T) {
 	dir := t.TempDir()
