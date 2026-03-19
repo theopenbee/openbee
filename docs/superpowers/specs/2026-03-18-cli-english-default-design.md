@@ -22,6 +22,8 @@ Out of scope:
 
 **Direct inline replacement.** Replace each Chinese string with its English equivalent where it appears. No new files, no structural changes.
 
+> **Important:** Several option strings (e.g. `"飞书"`, `"钉钉"`, `"随机生成"`) also appear as `switch` case labels and as default-value assignments. When an option display string is renamed, every matching `case` label and every place the same string is assigned as a default value must be updated to the identical English string, or the runtime logic will break.
+
 ## File-by-File Changes
 
 ### `cmd/openbee/main.go`
@@ -85,6 +87,9 @@ Out of scope:
 | validator | `"端口必须是整数"` | `"port must be an integer"` |
 | prompt | `"Debug 模式?"` | `"Debug mode?"` |
 | prompt | `"数据库路径:"` | `"Database path:"` |
+| prompt | `"Feeder 超时:"` | `"Feeder timeout:"` |
+| prompt | `"FFprobe 路径:"` | `"FFprobe path:"` |
+| prompt | `"FFmpeg 路径:"` | `"FFmpeg path:"` |
 | section header | `"\n=== Claude 配置 ==="` | `"\n=== Claude Configuration ==="` |
 | section header | `"\n=== MCP 配置 ==="` | `"\n=== MCP Configuration ==="` |
 | option | `"随机生成"` | `"Generate randomly"` |
@@ -135,6 +140,8 @@ Out of scope:
 
 | Location | Chinese | English |
 |----------|---------|---------|
+| prompt | `"Claude 可执行文件路径:"` | `"Claude executable path:"` |
+| prompt | `"Claude 超时:"` | `"Claude timeout:"` |
 | prompt | `"已检测到系统安装的 Claude: %s，将自动使用。\n"` | `"Found Claude in PATH: %s, using it automatically.\n"` |
 | prompt | `"未检测到 Claude，请选择获取方式:"` | `"Claude not found, how would you like to get it?"` |
 | option | `"手动输入路径"` | `"Enter path manually"` |
@@ -153,15 +160,15 @@ Out of scope:
 | stdout | `"已写入 ~/.claude/settings.json"` | `"Written ~/.claude/settings.json"` |
 | stdout | `"已写入 ~/.claude.json"` | `"Written ~/.claude.json"` |
 | stdout | `"警告: %s JSON 格式错误，将覆盖: %v\n"` | `"warning: %s has invalid JSON, overwriting: %v\n"` |
-| errors | `"创建目录失败: %w"` | `"create directory: %w"` |
-| errors | `"序列化 JSON 失败: %w"` | `"marshal JSON: %w"` |
-| errors | `"获取用户目录失败: %w"` | `"get home directory: %w"` |
+| errors | `"创建目录失败: %w"` (appears twice — in both `mergeClaudeSettings` and `downloadClaude`) | `"create directory: %w"` |
+| errors | `"序列化 JSON 失败: %w"` (appears in both `mergeClaudeSettings` and `mergeClaudeJSON` — replace both) | `"marshal JSON: %w"` |
+| errors | `"获取用户目录失败: %w"` (appears twice — in both `downloadClaude` and `configureClaudeProvider`) | `"get home directory: %w"` |
 | errors | `"写入 settings.json 失败: %w"` | `"write settings.json: %w"` |
 | errors | `"写入 .claude.json 失败: %w"` | `"write .claude.json: %w"` |
 | errors | `"文件不存在: %s"` | `"file not found: %s"` |
 | errors | `"路径是目录而非文件: %s"` | `"path is a directory, not a file: %s"` |
 | errors | `"文件不可执行: %s"` | `"file is not executable: %s"` |
-| errors | `"当前系统 (%s/%s) 不支持自动下载..."` | `"current platform (%s/%s) does not support automatic Claude Code download..."` |
+| errors | `"当前系统 (%s/%s) 不支持自动下载 Claude Code。\n支持的平台: darwin-arm64, darwin-x64, linux-arm64, linux-x64, linux-arm64-musl, linux-x64-musl\n请手动安装。"` | `"current platform (%s/%s) does not support automatic Claude Code download.\nSupported platforms: darwin-arm64, darwin-x64, linux-arm64, linux-x64, linux-arm64-musl, linux-x64-musl\nPlease install manually."` |
 | errors | `"请求下载地址失败: %w"` | `"request download URL: %w"` |
 | errors | `"下载失败，状态码: %d"` | `"download failed with status: %d"` |
 | errors | `"创建文件失败: %w"` | `"create file: %w"` |
