@@ -42,6 +42,17 @@ The platform-specific binary is downloaded automatically. Supports Linux / macOS
 <details>
 <summary>Other install methods</summary>
 
+**macOS (Homebrew):**
+```bash
+brew install theopenbee/tap/openbee
+```
+
+**Windows (Scoop):**
+```bash
+scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
+scoop install theopenbee/openbee
+```
+
 **One-click script:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash

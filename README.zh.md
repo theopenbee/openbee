@@ -42,6 +42,17 @@ npm install -g @theopenbee/cli
 <details>
 <summary>其他安装方式</summary>
 
+**macOS（Homebrew）：**
+```bash
+brew install theopenbee/tap/openbee
+```
+
+**Windows（Scoop）：**
+```bash
+scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
+scoop install theopenbee/openbee
+```
+
 **脚本一键安装：**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
