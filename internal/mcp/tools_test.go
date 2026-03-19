@@ -346,8 +346,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 18 {
-		t.Errorf("expected 18 tool schemas, got %d", len(schemas))
+	if len(schemas) != 19 {
+		t.Errorf("expected 19 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -677,5 +677,32 @@ func TestCallTool_DeleteMemory(t *testing.T) {
 	m := result.(map[string]string)
 	if m["status"] != "deleted" {
 		t.Errorf("expected status deleted, got %q", m["status"])
+	}
+}
+
+// --- list_session_contexts ---
+
+func TestCallTool_ListSessionContexts_Empty(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool("list_session_contexts", mustMarshal(t, map[string]any{
+		"session_key": "no-such-session",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	agents, ok := result.([]store.SessionAgent)
+	if !ok {
+		t.Fatalf("expected []store.SessionAgent, got %T", result)
+	}
+	if len(agents) != 0 {
+		t.Errorf("expected empty slice, got %d", len(agents))
+	}
+}
+
+func TestCallTool_ListSessionContexts_MissingSessionKey(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool("list_session_contexts", mustMarshal(t, map[string]any{}))
+	if err == nil {
+		t.Error("expected error for missing session_key")
 	}
 }

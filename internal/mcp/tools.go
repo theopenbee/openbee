@@ -243,6 +243,17 @@ func toolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        toolnames.ListSessionContexts,
+			Description: "List all agents (bee and workers) that have active session contexts for a given session key.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"session_key"},
+				"properties": map[string]any{
+					"session_key": map[string]string{"type": "string", "description": "The session key to query"},
+				},
+			},
+		},
 	}
 }
 
@@ -290,6 +301,8 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolGetMemory(args)
 	case toolnames.DeleteMemory:
 		return s.toolDeleteMemory(args)
+	case toolnames.ListSessionContexts:
+		return s.toolListSessionContexts(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -914,4 +927,21 @@ func (s *MCPServer) toolDeleteMemory(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("failed to delete memory: %w", err)
 	}
 	return map[string]string{"status": "deleted"}, nil
+}
+
+func (s *MCPServer) toolListSessionContexts(args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey string `json:"session_key"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.SessionKey == "" {
+		return nil, fmt.Errorf("session_key is required")
+	}
+	agents, err := s.sessionStore.ListSessionContexts(context.Background(), params.SessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("list session contexts: %w", err)
+	}
+	return agents, nil
 }
