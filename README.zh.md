@@ -82,7 +82,17 @@ openbee start
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 - 在已配置的 IM 平台（飞书 / 钉钉 / 企微）中直接发送消息与 OpenBee 交互
 
-## 工作原理
+## ⚙️ 工作原理
+
+```mermaid
+graph TD
+    A["💬 IM 平台\n飞书 / 钉钉 / 企微"] --> B["🔌 平台接入层\nPlatform Integration"]
+    B --> C["📨 消息摄取 & 任务调度\nMessage Ingestion & Scheduling"]
+    C --> D["🤖 Worker（数字员工）\nClaude AI Agent"]
+    D --> C
+    D -. "状态 / Status" .-> E["🖥️ Web 控制台\nWeb Console"]
+    C -. "日志 / Logs" .-> E
+```
 
 OpenBee 由四个核心层构成：
 

@@ -82,7 +82,17 @@ openbee start
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured IM platform (Lark / DingTalk / WeCom) to interact with OpenBee
 
-## How It Works
+## ⚙️ How It Works
+
+```mermaid
+graph TD
+    A["💬 IM Platforms\nLark / DingTalk / WeCom"] --> B["🔌 Platform Integration Layer"]
+    B --> C["📨 Message Ingestion & Task Scheduling"]
+    C --> D["🤖 Workers — Digital Employees\nClaude AI Agents"]
+    D --> C
+    D -. "Status" .-> E["🖥️ Web Console"]
+    C -. "Logs" .-> E
+```
 
 OpenBee consists of four core layers:
 
