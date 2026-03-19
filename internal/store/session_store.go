@@ -55,3 +55,59 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey stri
 	)
 	return err
 }
+
+// SessionAgent represents one agent's session context entry, enriched with
+// a human-readable name.
+type SessionAgent struct {
+	AgentID   string
+	AgentType string // "bee" or "worker"
+	Name      string // worker name, "bee", or "(deleted)"
+	UpdatedAt int64
+}
+
+// ListSessionContexts returns all agents with session contexts for sessionKey,
+// ordered by updated_at DESC. Worker names are resolved via LEFT JOIN; deleted
+// workers appear as "(deleted)". AgentType is derived in Go from AgentID.
+func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey string) ([]SessionAgent, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT sc.agent_id, sc.updated_at,
+		       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
+		FROM bee_session_contexts sc
+		LEFT JOIN bee_workers w ON w.id = sc.agent_id
+		WHERE sc.session_key = ?
+		ORDER BY sc.updated_at DESC`,
+		sessionKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []SessionAgent
+	for rows.Next() {
+		var a SessionAgent
+		if err := rows.Scan(&a.AgentID, &a.UpdatedAt, &a.Name); err != nil {
+			return nil, err
+		}
+		if a.AgentID == BeeAgentID {
+			a.AgentType = "bee"
+		} else {
+			a.AgentType = "worker"
+		}
+		result = append(result, a)
+	}
+	if result == nil {
+		result = []SessionAgent{}
+	}
+	return result, rows.Err()
+}
+
+// DeleteWorkerSessionContext removes the session context row for one worker.
+// Deleting a non-existent row is not an error.
+func (s *SessionStore) DeleteWorkerSessionContext(ctx context.Context, sessionKey, workerID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM bee_session_contexts WHERE session_key = ? AND agent_id = ?`,
+		sessionKey, workerID,
+	)
+	return err
+}
