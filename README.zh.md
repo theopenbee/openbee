@@ -14,7 +14,13 @@ npm install -g @theopenbee/cli
 
 安装时会自动下载当前平台对应的二进制文件，支持 Linux / macOS / Windows（amd64 & arm64）。
 
-**方式二：手动下载二进制**
+**方式二：脚本一键安装**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
+```
+
+**方式三：手动下载二进制**
 
 前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 页面，下载对应平台的压缩包，解压后将 `openbee` 可执行文件放入 PATH 即可。
 

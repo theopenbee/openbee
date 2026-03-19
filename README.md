@@ -1,5 +1,7 @@
 # 🐝 OpenBee — Digital Employee (OPC) Solution
 
+[中文](README.zh.md)
+
 **OpenBee** is a digital employee solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom to create workers, assign tasks, and much more — let your imagination run wild!
 
 ## Installation
@@ -12,7 +14,13 @@ npm install -g @theopenbee/cli
 
 The platform-specific binary is downloaded automatically during installation. Supports Linux / macOS / Windows (amd64 & arm64).
 
-**Option 2: Manual binary download**
+**Option 2: One-click install via script**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
+```
+
+**Option 3: Manual binary download**
 
 Visit the [GitHub Releases](https://github.com/theopenbee/openbee/releases) page, download the archive for your platform, extract it, and place the `openbee` executable in your PATH.
 
