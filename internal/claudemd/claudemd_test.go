@@ -69,23 +69,14 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if strings.Contains(content, "mark_task_failed") {
 		t.Error("worker rules must not contain mark_task_failed")
 	}
-	if !strings.Contains(content, "---") {
-		t.Error("missing frontmatter block")
+	if !strings.Contains(content, "姓名: 测试助手") {
+		t.Error("missing worker name")
 	}
-	if !strings.Contains(content, "name: 测试助手") {
-		t.Error("missing worker name in frontmatter")
+	if !strings.Contains(content, "描述: 负责测试任务") {
+		t.Error("missing worker description")
 	}
-	if !strings.Contains(content, "description: 负责测试任务") {
-		t.Error("missing worker description in frontmatter")
-	}
-	if strings.Contains(content, "Worker 配置") {
-		t.Error("old markdown config section should not appear")
-	}
-	if strings.Contains(content, "**名称:**") {
-		t.Error("old bold-label format should not appear")
-	}
-	if strings.Index(content, "---") > strings.Index(content, "运行模式") {
-		t.Error("frontmatter must appear before workerPreamble content")
+	if strings.Index(content, "姓名:") > strings.Index(content, "运行模式") {
+		t.Error("worker config must appear before workerPreamble content")
 	}
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
@@ -106,13 +97,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "---") {
-		t.Error("frontmatter block should appear when name is set")
+	if !strings.Contains(content, "姓名: 小助手") {
+		t.Error("missing worker name")
 	}
-	if !strings.Contains(content, "name: 小助手") {
-		t.Error("missing name in frontmatter")
-	}
-	if strings.Contains(content, "description:") {
+	if strings.Contains(content, "描述:") {
 		t.Error("description field should not appear when description is empty")
 	}
 }
@@ -134,7 +122,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	if strings.Contains(content, "---") {
 		t.Error("frontmatter block should not appear when name and description are both empty")
 	}
-	if !strings.Contains(content, "## memory") {
+	if strings.Contains(content, "描述:") {
+		t.Error("description field should not appear when name and description are both empty")
+	}
+	if !strings.Contains(content, "## 记忆约束") {
 		t.Error("memory section should appear")
 	}
 	if !strings.Contains(content, "用户偏好中文回复") {

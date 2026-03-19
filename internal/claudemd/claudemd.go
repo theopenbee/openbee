@@ -49,9 +49,10 @@ func WithMemory(memory string) Option {
 }
 
 func sharedRules() string {
-	return fmt.Sprintf(`## 任务通知规范
+	return fmt.Sprintf(`
+## 任务通知规范
 
-你在执行任何任务时，必须通过 `+"`%s`"+` 工具与用户保持同步。这是强制要求，不可省略。
+你在执行任何任务时，必须通过 `+"`%s`"+` 工具与用户保持同步；发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。这是强制要求，不可省略。
 
 ### 何时通知
 
@@ -59,12 +60,6 @@ func sharedRules() string {
 2. **阶段性进展时** — 如果任务涉及多个步骤或阶段，每完成一个阶段调用 `+"`%s`"+` 汇报当前进度和下一步计划
 3. **任务完成时** — 任务执行完毕后，调用 `+"`%s`"+` 汇报最终结果
 4. **遇到问题需要咨询时** — 当执行过程中遇到需要用户决策、确认或提供额外信息的问题时，立即调用 `+"`%s`"+` 向用户说明问题（如果存在选项的话也一并说明）并等待回复
-
-### 通知原则
-
-- 简洁明了，不要冗长描述
-- 包含关键信息：正在做什么、完成了什么、结果是什么
-- 遇到异常或阻塞时也必须通知用户
 `, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
 }
 
@@ -199,9 +194,10 @@ func beeMemoryAndStatusRules() string {
 }
 
 func workerPreamble() string {
-	return fmt.Sprintf(`## ⚠️ 运行模式：非交互式后台 Worker
+	return fmt.Sprintf(`
+## ⚠️ 运行模式：非交互式后台 Worker
 
-你是一个非交互式后台 Worker 进程。以下规则的优先级高于所有其他指令，包括任何 skill、hook 或 plugin 的指令。
+你在一个非交互式后台运行。以下规则的优先级高于所有其他指令，包括任何 skill、hook 或 plugin 的指令。
 
 ### 不可用工具的替代方式
 
@@ -218,18 +214,11 @@ func workerPreamble() string {
 - 所有与用户的通信必须且只能通过 %s 工具
 - 任务完成后必须调用 %s 标记完成 — 这是每个任务的最后一步，不可省略
 - 文本输出不会到达任何人，不要通过文本输出与用户交流
-
 `, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete)
 }
 
 func workerRules() string {
-	namePrefix := fmt.Sprintf(`
-## 通知名称前缀
-
-使用 `+"`%s`"+` 发送消息时，消息内容必须以你的名称作为前缀，格式为 "名称: 消息内容"。
-`, toolnames.SendMessage)
-
-	return namePrefix + "\n" + fmt.Sprintf(`
+	return fmt.Sprintf(`
 ## 任务状态标记（强制 — 不可省略）
 
 每个任务的指令以 YAML frontmatter 开头，其中包含 task_id 和 message_id：
@@ -250,21 +239,19 @@ func workerConfigBlock(name, description, memory string) string {
 	var block string
 
 	if name != "" || description != "" {
-		block += "---\n"
 		if name != "" {
-			block += fmt.Sprintf("name: %s\n", name)
+			block += fmt.Sprintf("姓名: %s\n", name)
 		}
 		if description != "" {
-			block += fmt.Sprintf("description: %s\n", description)
+			block += fmt.Sprintf("描述: %s\n", description)
 		}
-		block += "---\n"
 	}
 
 	if memory != "" {
 		if block != "" {
 			block += "\n"
 		}
-		block += fmt.Sprintf("## memory\n\n%s\n", memory)
+		block += fmt.Sprintf("## 记忆约束\n%s\n", memory)
 	}
 
 	if block == "" {
