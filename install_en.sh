@@ -1,27 +1,21 @@
 #!/bin/sh
-# OpenBee 一键安装脚本（中国大陆加速版）
-# 用法:
-#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_zh.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_zh.sh | sh -s -- --version v1.0.0
-#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_zh.sh | sh -s -- --install-dir /custom/path
+# OpenBee installer
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_en.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_en.sh | sh -s -- --version v1.0.0
+#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install_en.sh | sh -s -- --install-dir /custom/path
 
 set -e
 
 # ============================================================
-# CDN 配置 — 修改此处指向阿里云（或其他国内）CDN 根地址
-#
-# CDN 上需预先同步以下文件结构（由 CI 在 GoReleaser 发布后自动上传）：
-#   ${CDN_BASE_URL}/releases/latest
-#       → 纯文本文件，内容为最新版本号，如 v1.0.0
-#   ${CDN_BASE_URL}/releases/${VERSION}/openbee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz
-#       → GoReleaser 生成的二进制压缩包
-#   ${CDN_BASE_URL}/releases/${VERSION}/checksums.txt
-#       → GoReleaser 生成的 SHA256 校验文件
+# Configuration
 # ============================================================
-CDN_BASE_URL="https://dl.openbee.dev"
+GITHUB_REPO="theopenbee/openbee"
+GITHUB_BASE_URL="https://github.com/${GITHUB_REPO}"
+GITHUB_API_URL="https://api.github.com/repos/${GITHUB_REPO}"
 
 # ============================================================
-# 默认参数
+# Defaults
 # ============================================================
 BINARY_NAME="openbee"
 INSTALL_DIR="/usr/local/bin"
@@ -30,7 +24,7 @@ FORCE=false
 NO_VERIFY=false
 
 # ============================================================
-# 颜色输出
+# Colors
 # ============================================================
 setup_colors() {
     if [ -t 1 ] && [ -n "$(tput colors 2>/dev/null)" ]; then
@@ -54,7 +48,7 @@ warn()  { printf "${YELLOW}[warn]${RESET}  %s\n" "$1"; }
 error() { printf "${RED}[error]${RESET} %s\n" "$1" >&2; exit 1; }
 
 # ============================================================
-# 清理临时文件
+# Cleanup
 # ============================================================
 TMPDIR_INSTALL=""
 cleanup() {
@@ -65,7 +59,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # ============================================================
-# 依赖检查
+# Dependencies
 # ============================================================
 check_command() {
     command -v "$1" >/dev/null 2>&1
@@ -77,7 +71,7 @@ detect_downloader() {
     elif check_command wget; then
         DOWNLOADER="wget"
     else
-        error "需要 curl 或 wget，请先安装其中之一"
+        error "curl or wget is required. Please install one of them first."
     fi
 }
 
@@ -101,40 +95,47 @@ download_text() {
 }
 
 # ============================================================
-# 平台检测
+# Platform detection
 # ============================================================
 detect_platform() {
     OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
     case "$OS" in
         linux)  OS="linux" ;;
         darwin) OS="darwin" ;;
-        *)      error "不支持的操作系统: $OS（仅支持 linux 和 macOS）" ;;
+        *)      error "Unsupported OS: $OS (only linux and macOS are supported)" ;;
     esac
 
     ARCH="$(uname -m)"
     case "$ARCH" in
         x86_64|amd64)  ARCH="amd64" ;;
         aarch64|arm64) ARCH="arm64" ;;
-        *)             error "不支持的架构: $ARCH（仅支持 amd64 和 arm64）" ;;
+        *)             error "Unsupported architecture: $ARCH (only amd64 and arm64 are supported)" ;;
     esac
 
-    info "检测到平台: ${OS}/${ARCH}"
+    info "Detected platform: ${OS}/${ARCH}"
 }
 
 # ============================================================
-# 版本获取
+# Version detection
 # ============================================================
 fetch_latest_version() {
-    info "正在获取最新版本号..."
+    info "Fetching latest version..."
+    response=$(download_text "${GITHUB_API_URL}/releases/latest" 2>/dev/null) || \
+        error "Failed to fetch latest version. Check your network connection or specify a version manually: --version v1.0.0"
 
-    VERSION=$(download_text "${CDN_BASE_URL}/releases/latest" 2>/dev/null) || true
+    if check_command jq; then
+        VERSION=$(printf '%s' "$response" | jq -r '.tag_name // empty')
+    else
+        VERSION=$(printf '%s' "$response" | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+    fi
+
     VERSION=$(echo "$VERSION" | tr -d '[:space:]')
 
     if [ -z "$VERSION" ]; then
-        error "无法获取最新版本号，请检查 CDN 连接或手动指定版本: --version v1.0.0"
+        error "Retrieved version is empty. Please specify a version manually: --version v1.0.0"
     fi
 
-    # 确保版本号以 v 开头
+    # Ensure version has the v prefix
     case "$VERSION" in
         v*) ;;
         *)  VERSION="v${VERSION}" ;;
@@ -142,7 +143,7 @@ fetch_latest_version() {
 }
 
 # ============================================================
-# 校验
+# Checksum verification
 # ============================================================
 verify_checksum() {
     archive_file="$1"
@@ -151,7 +152,7 @@ verify_checksum() {
 
     expected=$(grep "${archive_name}" "$checksum_file" | awk '{print $1}')
     if [ -z "$expected" ]; then
-        warn "checksums.txt 中未找到 ${archive_name} 的校验值，跳过校验"
+        warn "No checksum found for ${archive_name} in checksums.txt, skipping"
         return 0
     fi
 
@@ -160,101 +161,102 @@ verify_checksum() {
     elif check_command shasum; then
         actual=$(shasum -a 256 "$archive_file" | awk '{print $1}')
     else
-        warn "未找到 sha256sum 或 shasum，跳过校验"
+        warn "sha256sum/shasum not found, skipping checksum verification"
         return 0
     fi
 
     if [ "$actual" != "$expected" ]; then
-        error "SHA256 校验失败！\n  期望: ${expected}\n  实际: ${actual}\n文件可能已损坏，请重试"
+        error "SHA256 checksum mismatch!\n  Expected: ${expected}\n  Actual:   ${actual}\nFile may be corrupted, please retry."
     fi
 
-    ok "SHA256 校验通过"
+    ok "SHA256 checksum verified"
 }
 
 # ============================================================
-# 安装
+# Installation
 # ============================================================
 install_binary() {
     TMPDIR_INSTALL="$(mktemp -d)"
 
     VERSION_NUM="${VERSION#v}"
     ARCHIVE_NAME="${BINARY_NAME}-${VERSION_NUM}-${OS}-${ARCH}.tar.gz"
-    ARCHIVE_URL="${CDN_BASE_URL}/releases/${VERSION}/${ARCHIVE_NAME}"
-    CHECKSUM_URL="${CDN_BASE_URL}/releases/${VERSION}/checksums.txt"
+    ARCHIVE_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/${ARCHIVE_NAME}"
+    CHECKSUM_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/checksums.txt"
 
-    info "正在下载 ${ARCHIVE_NAME}..."
+    info "Downloading ${ARCHIVE_NAME}..."
     download "$ARCHIVE_URL" "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" || \
-        error "下载失败: ${ARCHIVE_URL}\n请确认版本 ${VERSION} 存在且 CDN 地址正确（修改脚本顶部 CDN_BASE_URL 变量）"
+        error "Download failed: ${ARCHIVE_URL}\nPlease verify that version ${VERSION} exists."
 
     if [ "$NO_VERIFY" = false ]; then
-        info "正在校验文件完整性..."
+        info "Verifying checksum..."
         download "${CHECKSUM_URL}" "${TMPDIR_INSTALL}/checksums.txt" || \
-            warn "无法下载 checksums.txt，跳过校验"
+            warn "Could not download checksums.txt, skipping verification"
         if [ -f "${TMPDIR_INSTALL}/checksums.txt" ]; then
             verify_checksum "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" "${ARCHIVE_NAME}" "${TMPDIR_INSTALL}/checksums.txt"
         fi
     else
-        warn "跳过校验（--no-verify）"
+        warn "Skipping checksum verification (--no-verify)"
     fi
 
-    info "正在解压..."
+    info "Extracting..."
     tar -xzf "${TMPDIR_INSTALL}/${ARCHIVE_NAME}" -C "${TMPDIR_INSTALL}"
 
     if [ ! -f "${TMPDIR_INSTALL}/${BINARY_NAME}" ]; then
-        error "解压后未找到 ${BINARY_NAME} 二进制文件"
+        error "${BINARY_NAME} binary not found after extraction"
     fi
 
     if [ -w "$INSTALL_DIR" ]; then
         mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     elif check_command sudo; then
-        info "需要 sudo 权限安装到 ${INSTALL_DIR}"
+        info "Requesting sudo to install to ${INSTALL_DIR}"
         sudo mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     else
-        warn "无 ${INSTALL_DIR} 写权限且 sudo 不可用，将安装到 ~/.local/bin"
+        warn "No write permission to ${INSTALL_DIR} and sudo is not available."
+        warn "Falling back to ~/.local/bin"
         INSTALL_DIR="${HOME}/.local/bin"
         mkdir -p "$INSTALL_DIR"
         mv "${TMPDIR_INSTALL}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
     fi
 
-    ok "${BINARY_NAME} ${VERSION} 已安装到 ${INSTALL_DIR}/${BINARY_NAME}"
+    ok "${BINARY_NAME} ${VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"
 }
 
 # ============================================================
-# 安装后检查
+# Post-install check
 # ============================================================
 post_install_check() {
     if ! check_command "${BINARY_NAME}"; then
-        warn "${INSTALL_DIR} 不在 PATH 中，请手动添加:"
+        warn "${INSTALL_DIR} is not in PATH. Add it manually:"
         echo ""
         echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
         echo ""
-        echo "  将上面这行添加到 ~/.bashrc 或 ~/.zshrc 中以永久生效"
+        echo "  Add the above line to ~/.bashrc or ~/.zshrc to make it permanent."
         echo ""
     else
         installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "unknown")
-        ok "验证安装: ${installed_version}"
+        ok "Verified: ${installed_version}"
     fi
 }
 
 # ============================================================
-# 已安装检测
+# Existing install check
 # ============================================================
 check_existing() {
     if [ -f "${INSTALL_DIR}/${BINARY_NAME}" ] && [ "$FORCE" = false ]; then
         existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "")
         if [ -n "$existing_version" ]; then
-            info "已安装 openbee: ${existing_version}"
-            info "如需重新安装，请使用 --force"
+            info "Found existing installation: ${existing_version}"
+            info "Use --force to reinstall"
             exit 0
         fi
     fi
 }
 
 # ============================================================
-# 参数解析
+# Argument parsing
 # ============================================================
 parse_args() {
     while [ $# -gt 0 ]; do
@@ -280,7 +282,7 @@ parse_args() {
                 exit 0
                 ;;
             *)
-                error "未知参数: $1（使用 --help 查看帮助）"
+                error "Unknown option: $1 (use --help for usage)"
                 ;;
         esac
     done
@@ -288,45 +290,40 @@ parse_args() {
 
 usage() {
     cat <<EOF
-OpenBee 安装脚本（中国大陆加速版）
+OpenBee installer
 
-用法:
-  curl -fsSL <url>/install_zh.sh | sh
-  curl -fsSL <url>/install_zh.sh | sh -s -- [选项]
+Usage:
+  curl -fsSL <url>/install_en.sh | sh
+  curl -fsSL <url>/install_en.sh | sh -s -- [options]
 
-选项:
-  --version, -v <版本>        指定版本（如 v1.0.0），默认安装最新版
-  --install-dir, -d <路径>    安装目录，默认 /usr/local/bin
-  --force, -f                 强制重新安装
-  --no-verify                 跳过 SHA256 校验
-  --help, -h                  显示帮助
+Options:
+  --version, -v <version>     Specify version (e.g. v1.0.0), default: latest
+  --install-dir, -d <path>    Installation directory, default: /usr/local/bin
+  --force, -f                 Force reinstall
+  --no-verify                 Skip SHA256 checksum verification
+  --help, -h                  Show this help
 
-说明:
-  本脚本通过国内 CDN 下载，适用于中国大陆网络环境。
-  如 CDN 地址有变更，可修改脚本顶部的 CDN_BASE_URL 变量。
-  国际网络环境请使用 install.sh。
+Examples:
+  # Install latest version
+  curl -fsSL <url>/install_en.sh | sh
 
-示例:
-  # 安装最新版
-  curl -fsSL <url>/install_zh.sh | sh
+  # Install specific version
+  curl -fsSL <url>/install_en.sh | sh -s -- --version v1.0.0
 
-  # 安装指定版本
-  curl -fsSL <url>/install_zh.sh | sh -s -- --version v1.0.0
-
-  # 安装到自定义目录
-  curl -fsSL <url>/install_zh.sh | sh -s -- --install-dir ~/.local/bin
+  # Install to custom directory
+  curl -fsSL <url>/install_en.sh | sh -s -- --install-dir ~/.local/bin
 EOF
 }
 
 # ============================================================
-# 主流程
+# Main
 # ============================================================
 main() {
     setup_colors
     parse_args "$@"
 
     echo ""
-    info "OpenBee 安装程序（中国大陆加速版）"
+    info "OpenBee Installer"
     echo ""
 
     detect_downloader
@@ -335,14 +332,14 @@ main() {
     if [ -z "$VERSION" ]; then
         fetch_latest_version
     fi
-    info "目标版本: ${VERSION}"
+    info "Target version: ${VERSION}"
 
     check_existing
     install_binary
     post_install_check
 
     echo ""
-    ok "安装完成！运行 'openbee --help' 开始使用。"
+    ok "Installation complete! Run 'openbee --help' to get started."
     echo ""
 }
 
