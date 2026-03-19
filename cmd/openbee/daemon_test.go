@@ -47,6 +47,7 @@ func TestIsDaemonChild(t *testing.T) {
 }
 
 func TestFormatUptime(t *testing.T) {
+	assert.Equal(t, "0s", formatUptime(-1))
 	assert.Equal(t, "0s", formatUptime(0))
 	assert.Equal(t, "45s", formatUptime(45))
 	assert.Equal(t, "5m 3s", formatUptime(303))
@@ -60,6 +61,18 @@ func TestStopNotRunning(t *testing.T) {
 	// File does not exist — doStop should succeed (exit 0 semantics).
 	err := doStop(pidPath)
 	assert.NoError(t, err)
+}
+
+func TestStopStalePIDFile(t *testing.T) {
+	dir := t.TempDir()
+	pidPath := filepath.Join(dir, "openbee.pid")
+	// Write a PID that cannot possibly be alive (absurdly large).
+	require.NoError(t, writePIDFileTo(pidPath, 999999999, time.Now().Unix()))
+	err := doStop(pidPath)
+	assert.NoError(t, err)
+	// PID file must have been removed.
+	_, statErr := os.Stat(pidPath)
+	assert.True(t, os.IsNotExist(statErr), "stale PID file should be removed after stop")
 }
 
 func TestStatusOutput(t *testing.T) {

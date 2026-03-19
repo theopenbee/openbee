@@ -25,7 +25,11 @@ func doStop(pidFile string) error {
 	}
 
 	if !isAlive(pid) {
-		fmt.Println("openbee is not running (stale PID file removed)")
+		if isPIDForeign(pid) {
+			fmt.Fprintf(os.Stderr, "warning: PID %d is owned by another user — daemon may have exited and its PID was recycled. Removing stale PID file.\n", pid)
+		} else {
+			fmt.Println("openbee is not running (stale PID file removed)")
+		}
 		return os.Remove(pidFile)
 	}
 

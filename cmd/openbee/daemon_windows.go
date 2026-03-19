@@ -41,6 +41,10 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 	return cmd.Process.Pid, nil
 }
 
+// isPIDForeign always returns false on Windows; EPERM-style ownership checks
+// are not implemented for the Windows process model.
+func isPIDForeign(_ int) bool { return false }
+
 // isAlive reports whether a process with the given PID is running on Windows.
 func isAlive(pid int) bool {
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))

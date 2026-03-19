@@ -34,6 +34,13 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 	return cmd.Process.Pid, nil
 }
 
+// isPIDForeign reports whether a process with the given PID exists but is owned
+// by a different user (EPERM from kill(pid, 0)). This distinguishes "PID was
+// recycled by another user's process" from "process does not exist at all".
+func isPIDForeign(pid int) bool {
+	return syscall.Kill(pid, 0) == syscall.EPERM
+}
+
 // isAlive reports whether a process with the given PID is running.
 // Uses kill(pid, 0) — the zero-signal POSIX liveness probe.
 // Note: EPERM means the process exists but is owned by another user. This can

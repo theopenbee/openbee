@@ -16,7 +16,8 @@ const daemonEnvKey = "OPENBEE_DAEMON"
 func daemonPIDFile() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		panic("daemon: cannot determine home directory: " + err.Error())
+		fmt.Fprintf(os.Stderr, "fatal: cannot determine home directory: %v\n", err)
+		os.Exit(1)
 	}
 	return filepath.Join(home, ".openbee", "openbee.pid")
 }
@@ -25,7 +26,8 @@ func daemonPIDFile() string {
 func daemonLogFile() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		panic("daemon: cannot determine home directory: " + err.Error())
+		fmt.Fprintf(os.Stderr, "fatal: cannot determine home directory: %v\n", err)
+		os.Exit(1)
 	}
 	return filepath.Join(home, ".openbee", "openbee.log")
 }
@@ -83,6 +85,9 @@ func removePIDFile() error {
 
 // formatUptime formats elapsed seconds as "Xh Ym", "Xm Ys", or "Xs".
 func formatUptime(secs int64) string {
+	if secs < 0 {
+		return "0s"
+	}
 	if secs < 60 {
 		return fmt.Sprintf("%ds", secs)
 	}

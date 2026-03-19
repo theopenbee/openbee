@@ -15,7 +15,7 @@ var statusCmd = &cobra.Command{
 		running, msg := daemonStatus(daemonPIDFile())
 		fmt.Println(msg)
 		if !running {
-			os.Exit(1)
+			return &exitCodeError{code: 1}
 		}
 		return nil
 	},

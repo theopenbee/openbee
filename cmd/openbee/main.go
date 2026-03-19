@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,6 +10,13 @@ import (
 
 	"github.com/theopenbee/openbee/internal/logger"
 )
+
+// exitCodeError is a sentinel error that carries a specific exit code.
+// Commands that need a non-zero exit without printing an error message
+// (e.g. "status" when the daemon is not running) should return this.
+type exitCodeError struct{ code int }
+
+func (e *exitCodeError) Error() string { return "" }
 
 var (
 	version = "dev"
@@ -30,6 +38,10 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
+		var ece *exitCodeError
+		if errors.As(err, &ece) {
+			os.Exit(ece.code)
+		}
 		logger.Error("fatal", zap.Error(err))
 		os.Exit(1)
 	}
