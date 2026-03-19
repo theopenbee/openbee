@@ -26,5 +26,7 @@ func redirectStdio(logPath string) error {
 		return fmt.Errorf("dup2 stderr: %w", err)
 	}
 	lf.Close()
+	os.Stdout = os.NewFile(1, "/dev/stdout")
+	os.Stderr = os.NewFile(2, "/dev/stderr")
 	return nil
 }

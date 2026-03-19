@@ -14,13 +14,19 @@ const daemonEnvKey = "OPENBEE_DAEMON"
 
 // daemonPIDFile returns the path to the PID file.
 func daemonPIDFile() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("daemon: cannot determine home directory: " + err.Error())
+	}
 	return filepath.Join(home, ".openbee", "openbee.pid")
 }
 
 // daemonLogFile returns the path to the daemon log file.
 func daemonLogFile() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("daemon: cannot determine home directory: " + err.Error())
+	}
 	return filepath.Join(home, ".openbee", "openbee.log")
 }
 
