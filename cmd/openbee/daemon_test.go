@@ -52,3 +52,11 @@ func TestFormatUptime(t *testing.T) {
 	assert.Equal(t, "2h 5m", formatUptime(7530))
 	assert.Equal(t, "25h 0m", formatUptime(90000))
 }
+
+func TestStopNotRunning(t *testing.T) {
+	dir := t.TempDir()
+	pidPath := filepath.Join(dir, "openbee.pid")
+	// File does not exist — doStop should succeed (exit 0 semantics).
+	err := doStop(pidPath)
+	assert.NoError(t, err)
+}
