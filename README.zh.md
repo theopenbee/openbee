@@ -1,4 +1,16 @@
-# 🐝 OpenBee — 数字员工（OPC）解决方案
+<div align="center">
+  <h1>🐝 OpenBee</h1>
+  <p><strong>让 Claude AI 成为你的数字员工 — 通过飞书/钉钉/企微直接指挥</strong></p>
+</div>
+
+<div align="center">
+
+[![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
+[![License](https://img.shields.io/github/license/theopenbee/openbee?color=F7C948)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
+
+</div>
 
 [English](README.md)
 
