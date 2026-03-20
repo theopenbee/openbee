@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,32 +84,97 @@ func TestIsSupportedPlatform(t *testing.T) {
 }
 
 func TestBuildClaudeDownloadURL(t *testing.T) {
+	const version = "v1.2.3"
 	tests := []struct {
 		platform claudePlatform
 		want     string
 	}{
 		{
 			claudePlatform{"darwin", "arm64", ""},
-			claudeDownloadURL + "?os=darwin&arch=arm64",
+			claudeGitHubRelBase + "/v1.2.3/claude-1.2.3-darwin-arm64",
 		},
 		{
 			claudePlatform{"darwin", "x64", ""},
-			claudeDownloadURL + "?os=darwin&arch=x64",
+			claudeGitHubRelBase + "/v1.2.3/claude-1.2.3-darwin-x64",
 		},
 		{
 			claudePlatform{"linux", "x64", ""},
-			claudeDownloadURL + "?os=linux&arch=x64",
+			claudeGitHubRelBase + "/v1.2.3/claude-1.2.3-linux-x64",
 		},
 		{
 			claudePlatform{"linux", "arm64", "musl"},
-			claudeDownloadURL + "?os=linux&arch=arm64&variant=musl",
+			claudeGitHubRelBase + "/v1.2.3/claude-1.2.3-linux-arm64-musl",
 		},
 	}
 	for _, tt := range tests {
-		got := buildClaudeDownloadURL(tt.platform)
+		got := buildClaudeDownloadURL(tt.platform, version)
 		if got != tt.want {
-			t.Errorf("buildClaudeDownloadURL(%+v) = %q, want %q", tt.platform, got, tt.want)
+			t.Errorf("buildClaudeDownloadURL(%+v, %q) = %q, want %q", tt.platform, version, got, tt.want)
 		}
+	}
+}
+
+func TestFetchLatestClaudeVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		status  int
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "v-prefixed tag",
+			body:   `{"tag_name": "v1.2.3"}`,
+			status: http.StatusOK,
+			want:   "v1.2.3",
+		},
+		{
+			name:   "tag without v prefix",
+			body:   `{"tag_name": "2.0.0"}`,
+			status: http.StatusOK,
+			want:   "v2.0.0",
+		},
+		{
+			name:    "empty tag",
+			body:    `{"tag_name": ""}`,
+			status:  http.StatusOK,
+			wantErr: true,
+		},
+		{
+			name:    "non-200 status",
+			body:    `{}`,
+			status:  http.StatusNotFound,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				fmt.Fprint(w, tt.body)
+			}))
+			defer srv.Close()
+
+			// Temporarily override the API URL for testing.
+			orig := claudeGitHubAPI
+			claudeGitHubAPI = srv.URL
+			defer func() { claudeGitHubAPI = orig }()
+
+			got, err := fetchLatestClaudeVersion()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
