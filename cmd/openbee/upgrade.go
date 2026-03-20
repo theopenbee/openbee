@@ -247,7 +247,7 @@ func downloadFile(url, dest string, extra io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if n == maxDownloadBytes {
+	if n >= maxDownloadBytes {
 		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
 	}
 	return nil

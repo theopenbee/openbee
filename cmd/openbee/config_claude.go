@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 )
@@ -114,33 +115,17 @@ func customEnv(baseURL, apiKey string) map[string]string {
 	}
 }
 
-// mergeClaudeSettings reads existing ~/.claude/settings.json (if any),
-// merges the provided env map into the "env" key, preserves all other keys,
-// and writes back. Creates parent directories if needed.
-func mergeClaudeSettings(path string, env map[string]string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("create directory: %w", err)
-	}
-
+// mergeJSONFile reads the JSON file at path (if it exists) into a map,
+// calls apply to mutate the map, then writes it back with indentation.
+// If the file contains invalid JSON it is overwritten with a warning.
+func mergeJSONFile(path string, apply func(map[string]any)) error {
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
 			fmt.Printf("warning: %s has invalid JSON, overwriting: %v\n", path, err)
 		}
 	}
-
-	// Get or create the env map
-	envMap, ok := existing["env"].(map[string]any)
-	if !ok {
-		envMap = make(map[string]any)
-	}
-
-	// Merge new env values
-	for k, v := range env {
-		envMap[k] = v
-	}
-	existing["env"] = envMap
-
+	apply(existing)
 	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal JSON: %w", err)
@@ -148,23 +133,31 @@ func mergeClaudeSettings(path string, env map[string]string) error {
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
 
+// mergeClaudeSettings reads existing ~/.claude/settings.json (if any),
+// merges the provided env map into the "env" key, preserves all other keys,
+// and writes back. Creates parent directories if needed.
+func mergeClaudeSettings(path string, env map[string]string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("create directory: %w", err)
+	}
+	return mergeJSONFile(path, func(m map[string]any) {
+		envMap, ok := m["env"].(map[string]any)
+		if !ok {
+			envMap = make(map[string]any)
+		}
+		for k, v := range env {
+			envMap[k] = v
+		}
+		m["env"] = envMap
+	})
+}
+
 // mergeClaudeJSON reads existing ~/.claude.json (if any),
 // sets hasCompletedOnboarding=true, preserves all other keys, and writes back.
 func mergeClaudeJSON(path string) error {
-	existing := make(map[string]any)
-	if data, err := os.ReadFile(path); err == nil {
-		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("warning: %s has invalid JSON, overwriting: %v\n", path, err)
-		}
-	}
-
-	existing["hasCompletedOnboarding"] = true
-
-	data, err := json.MarshalIndent(existing, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal JSON: %w", err)
-	}
-	return os.WriteFile(path, append(data, '\n'), 0644)
+	return mergeJSONFile(path, func(m map[string]any) {
+		m["hasCompletedOnboarding"] = true
+	})
 }
 
 // configureClaudeExecutable handles Step 2a:
@@ -317,12 +310,7 @@ func downloadClaude(vals *configValues) error {
 		)
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("get home directory: %w", err)
-	}
-
-	binDir := filepath.Join(home, ".openbee", "bin")
+	binDir := filepath.Join(openbeeStateDir(), "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
@@ -332,7 +320,8 @@ func downloadClaude(vals *configValues) error {
 
 	fmt.Printf("Downloading Claude (%s/%s)...\n", platform.os, platform.arch)
 
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("request download URL: %w", err)
 	}
@@ -349,7 +338,8 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("create file: %w", err)
 	}
 
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	const maxClaudeBytes = 512 * 1024 * 1024 // 512 MB guard
+	if _, err := io.Copy(f, io.LimitReader(resp.Body, maxClaudeBytes)); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
 		return fmt.Errorf("write file: %w", err)
