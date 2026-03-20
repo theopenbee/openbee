@@ -189,13 +189,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals.MCPAPIKey = hex.EncodeToString(b)
 		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
 	case "Enter manually":
-		mcpDefault := ""
-		if vals.MCPAPIKey != "" {
-			mcpDefault = vals.MCPAPIKey
-		}
 		if err := survey.AskOne(&survey.Input{
 			Message: "MCP API Key:",
-			Default: mcpDefault,
+			Default: vals.MCPAPIKey,
 		}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
 			return handleSurveyErr(err)
 		}

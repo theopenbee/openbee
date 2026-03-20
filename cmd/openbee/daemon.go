@@ -91,8 +91,8 @@ func formatUptime(secs int64) string {
 // The caller should return immediately after daemonize returns nil.
 func daemonize(cfgPath string) error {
 	stateDir := openbeeStateDir()
-	pidFile := filepath.Join(stateDir, "openbee.pid")
-	logFile := filepath.Join(stateDir, "openbee.log")
+	pidFile := daemonPIDFile()
+	logFile := daemonLogFile()
 
 	// Check for an existing live daemon.
 	if pid, _, err := readPIDFileFrom(pidFile); err == nil {
