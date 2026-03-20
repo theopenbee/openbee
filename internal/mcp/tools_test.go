@@ -26,7 +26,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Cleanup(func() { db.Close() })
 
 	ws := store.NewWorkerStore(db)
-	es := store.NewExecutionStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
@@ -205,7 +205,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	t.Cleanup(func() { db.Close() })
 
 	ws := store.NewWorkerStore(db)
-	es := store.NewExecutionStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
@@ -445,7 +445,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	t.Cleanup(func() { db.Close() })
 
 	ws := store.NewWorkerStore(db)
-	es := store.NewExecutionStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(

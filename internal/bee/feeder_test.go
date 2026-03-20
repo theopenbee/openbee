@@ -23,7 +23,7 @@ func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore
 		t.Fatalf("InitDB: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return db, store.NewMessageStore(db), store.NewTaskStore(db), store.NewSessionStore(db), store.NewExecutionStore(db)
+	return db, store.NewMessageStore(db), store.NewTaskStore(db), store.NewSessionStore(db), store.NewExecutionStore(db, t.TempDir())
 }
 
 func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {

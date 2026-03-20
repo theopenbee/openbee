@@ -178,7 +178,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}
 	return db, appStores{
 		workerStore:       store.NewWorkerStore(db),
-		execStore:         store.NewExecutionStore(db),
+		execStore:         store.NewExecutionStore(db, config.DefaultLogsDir()),
 		msgStore:          store.NewMessageStore(db),
 		taskStore:         store.NewTaskStore(db),
 		sessionStore:      store.NewSessionStore(db),
