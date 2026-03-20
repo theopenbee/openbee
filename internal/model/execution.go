@@ -17,7 +17,7 @@ type WorkerExecution struct {
 	TriggerInput string          `json:"trigger_input,omitempty" db:"trigger_input"`
 	Status       ExecutionStatus `json:"status" db:"status"`
 	Result       string          `json:"result,omitempty" db:"result"`
-	Logs         string          `json:"logs,omitempty" db:"logs"`
+	LogPath      string          `json:"log_path,omitempty" db:"log_path"`
 	AIProcessPID int             `json:"ai_process_pid,omitempty" db:"ai_process_pid"`
 	StartedAt    *int64          `json:"started_at,omitempty" db:"started_at"`
 	CompletedAt  *int64          `json:"completed_at,omitempty" db:"completed_at"`
