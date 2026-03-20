@@ -186,14 +186,13 @@ func beeSystemStatusRules() string {
 你可以查看系统运行状态，以便更好地做出决策。
 
 ### 状态工具
-- ` + toolnames.GetExecutionLogs + ` - 查看执行日志
 - ` + toolnames.GetWorkerStatus + ` - 查看员工状态
 - ` + toolnames.GetSystemOverview + ` - 系统整体概况
 - ` + toolnames.ListBeeExecutions + ` - 查看自己的执行历史
 
 ### 使用场景
 - 用户询问任务状态时，用 get_worker_status 或 get_system_overview 查看
-- 需要自我反思时，用 list_bee_executions 回顾历史，用 get_execution_logs 查看详情
+- 需要自我反思时，用 list_bee_executions 回顾历史
 - 分配任务前，可先查看 get_system_overview 了解各员工负载
 `
 }

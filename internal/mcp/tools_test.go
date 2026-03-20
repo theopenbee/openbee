@@ -346,8 +346,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 20 {
-		t.Errorf("expected 20 tool schemas, got %d", len(schemas))
+	if len(schemas) != 19 {
+		t.Errorf("expected 19 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -538,18 +538,6 @@ func TestCallTool_ClearSession_MissingSessionKey(t *testing.T) {
 	_, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing session_key")
-	}
-}
-
-func TestCallTool_GetExecutionLogs(t *testing.T) {
-	s := setupMCPServerWithMessaging(t)
-
-	// Call with non-existent execution
-	_, err := s.CallTool(toolnames.GetExecutionLogs, mustMarshal(t, map[string]any{
-		"execution_id": "nonexistent",
-	}))
-	if err == nil {
-		t.Fatal("expected error for non-existent execution")
 	}
 }
 

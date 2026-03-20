@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -167,18 +166,6 @@ func toolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.GetExecutionLogs,
-			Description: "查看某个执行记录的最新日志。返回执行的最后N行日志。",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"execution_id"},
-				"properties": map[string]any{
-					"execution_id": map[string]string{"type": "string", "description": "执行记录ID"},
-					"tail":         map[string]string{"type": "integer", "description": "返回最后N行日志，默认50"},
-				},
-			},
-		},
-		{
 			Name:        toolnames.GetWorkerStatus,
 			Description: "查看员工的当前状态，包括是否在工作、正在执行什么任务、待处理任务数量。",
 			InputSchema: map[string]any{
@@ -300,8 +287,6 @@ func (s *MCPServer) callTool(name string, args json.RawMessage) (any, error) {
 		return s.toolSendMessage(args)
 	case toolnames.ClearSession:
 		return s.toolClearSession(args)
-	case toolnames.GetExecutionLogs:
-		return s.toolGetExecutionLogs(args)
 	case toolnames.GetWorkerStatus:
 		return s.toolGetWorkerStatus(args)
 	case toolnames.GetSystemOverview:
@@ -712,52 +697,6 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	return map[string]any{
 		"cancelled_tasks": cancelled,
 		"cleared":         true,
-	}, nil
-}
-
-func (s *MCPServer) toolGetExecutionLogs(args json.RawMessage) (any, error) {
-	var p struct {
-		ExecutionID string `json:"execution_id"`
-		Tail        int    `json:"tail"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
-	}
-	if p.ExecutionID == "" {
-		return nil, fmt.Errorf("execution_id is required")
-	}
-	if p.Tail <= 0 {
-		p.Tail = 50
-	}
-
-	// Try live logs first
-	liveLogs := s.manager.GetExecutionLogs(p.ExecutionID)
-
-	// Fall back to DB
-	exec, err := s.executionStore.GetLogsByID(p.ExecutionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get execution: %w", err)
-	}
-	if exec == nil {
-		return nil, fmt.Errorf("execution %s not found", p.ExecutionID)
-	}
-
-	logs := exec.Logs
-	if liveLogs != "" {
-		logs = liveLogs
-	}
-
-	// Tail N lines
-	lines := strings.Split(logs, "\n")
-	if len(lines) > p.Tail {
-		lines = lines[len(lines)-p.Tail:]
-	}
-
-	return map[string]any{
-		"execution_id": exec.ID,
-		"worker_id":    exec.WorkerID,
-		"status":       string(exec.Status),
-		"logs":         strings.Join(lines, "\n"),
 	}, nil
 }
 
