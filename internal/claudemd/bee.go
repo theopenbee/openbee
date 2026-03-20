@@ -192,7 +192,8 @@ func beeSystemStatusRules() string {
 
 ### 使用场景
 - 用户询问任务状态时，用 get_worker_status 或 get_system_overview 查看
-- 需要自我反思时，用 list_bee_executions 回顾历史
+- 需要自我反思时，用 list_bee_executions 回顾历史，直接读取 log_path 文件查看详情
 - 分配任务前，可先查看 get_system_overview 了解各员工负载
+- 查看执行日志时，从执行记录的 log_path 字段获取文件路径，然后直接读取该文件
 `
 }
