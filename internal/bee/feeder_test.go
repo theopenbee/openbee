@@ -292,6 +292,56 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	}
 }
 
+// mockFailureNotifier records NotifyTaskFailure calls.
+type mockFailureNotifier struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID, _ string) error {
+	m.mu.Lock()
+	m.msgs = append(m.msgs, messageID)
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *mockFailureNotifier) getNotified() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.msgs...)
+}
+
+// TestFeeder_ExhaustsRetries_MarksFailedAndNotifies verifies that after MaxRetries
+// failures the message is permanently marked 'failed' and the notifier is called.
+func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+
+	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	notifier := &mockFailureNotifier{}
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, bee.WithFailureNotifier(notifier))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+
+	// Wait long enough for MaxRetries (3) ticks: 3 * 500ms + buffer
+	time.Sleep(time.Duration(bee.MaxRetries+1)*bee.PollInterval + 500*time.Millisecond)
+
+	var status string
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
+	if status != "failed" {
+		t.Errorf("expected status=failed after exhausting retries, got %q", status)
+	}
+
+	notified := notifier.getNotified()
+	if len(notified) != 1 || notified[0] != "m1" {
+		t.Errorf("expected notifier called once with m1, got %v", notified)
+	}
+}
+
 func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
 	dir := t.TempDir()
 	original := "user-edited content"

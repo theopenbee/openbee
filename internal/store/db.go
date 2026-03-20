@@ -186,6 +186,11 @@ CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
 		UNIQUE(scope, key)
 	)`,
 	},
+	{
+		version: 18,
+		name:    "20260319_add_retry_count_to_platform_messages",
+		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`,
+	},
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {

@@ -300,3 +300,51 @@ func TestMessageStore_GetByID_NotFound(t *testing.T) {
 		t.Error("expected error for missing message, got nil")
 	}
 }
+
+func TestMessageStore_RollbackWithRetry_BelowLimit(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
+	// Claim it to set status=feeding
+	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding") //nolint
+
+	if err := s.RollbackWithRetry(ctx, []string{"m1"}, 3); err != nil {
+		t.Fatalf("RollbackWithRetry: %v", err)
+	}
+
+	var status string
+	var retryCount int
+	s.db.QueryRowContext(ctx,
+		`SELECT status, retry_count FROM bee_platform_messages WHERE id = 'm1'`,
+	).Scan(&status, &retryCount) //nolint
+	if status != "received" {
+		t.Errorf("expected status=received, got %q", status)
+	}
+	if retryCount != 1 {
+		t.Errorf("expected retry_count=1, got %d", retryCount)
+	}
+}
+
+func TestMessageStore_RollbackWithRetry_ExhaustsRetries(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
+
+	const maxRetries = 3
+
+	// Simulate repeated failures until exhausted
+	for i := range maxRetries {
+		s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding") //nolint
+		if err := s.RollbackWithRetry(ctx, []string{"m1"}, maxRetries); err != nil {
+			t.Fatalf("RollbackWithRetry iteration %d: %v", i, err)
+		}
+	}
+
+	var status string
+	s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = 'm1'`).Scan(&status) //nolint
+	if status != "failed" {
+		t.Errorf("expected status=failed after exhausting retries, got %q", status)
+	}
+}
