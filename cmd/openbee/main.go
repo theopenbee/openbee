@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -34,6 +35,19 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("openbee %s (commit: %s, built: %s)\n", version, commit, date))
+}
+
+// resolveExecutable returns the real path of the running binary, following symlinks.
+func resolveExecutable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable: %w", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("eval symlinks: %w", err)
+	}
+	return exe, nil
 }
 
 func main() {

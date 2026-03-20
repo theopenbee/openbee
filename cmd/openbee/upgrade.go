@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ const (
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
 	maxDownloadBytes     = 512 * 1024 * 1024 // 512 MB guard against runaway responses
+	executablePerm       = 0o755
 )
 
 type githubRelease struct {
@@ -140,10 +142,8 @@ func parseSemver(v string) []int {
 }
 
 func doUpgrade(newVersion string) error {
-	goos := runtime.GOOS
-
 	versionNum := strings.TrimPrefix(newVersion, "v")
-	archiveName := fmt.Sprintf("openbee-%s-%s-%s.tar.gz", versionNum, goos, runtime.GOARCH)
+	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", upgradeBinaryName, versionNum, runtime.GOOS, runtime.GOARCH)
 	archiveURL := fmt.Sprintf("%s/%s/%s", githubRelBase, newVersion, archiveName)
 	checksumURL := fmt.Sprintf("%s/%s/checksums.txt", githubRelBase, newVersion)
 
@@ -155,44 +155,50 @@ func doUpgrade(newVersion string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	// Download checksums first (small file), then the archive while hashing it.
+	// This avoids a second read of the archive for checksum verification.
+	checksumPath := filepath.Join(tmpDir, "checksums.txt")
+	checksumAvailable := true
+	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
+		checksumAvailable = false
+		fmt.Printf("warning: failed to download checksums.txt, skipping verification (%v)\n", err)
+	}
+
+	h := sha256.New()
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath); err != nil {
+	if err := downloadFile(archiveURL, archivePath, h); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
-	// Verify checksum if available
-	checksumPath := filepath.Join(tmpDir, "checksums.txt")
-	if err := downloadFile(checksumURL, checksumPath); err != nil {
-		fmt.Printf("warning: failed to download checksums.txt, skipping verification (%v)\n", err)
-	} else {
+	if checksumAvailable {
 		fmt.Println("Verifying SHA256...")
-		if err := verifyChecksum(archivePath, archiveName, checksumPath); err != nil {
-			return fmt.Errorf("checksum verification: %w", err)
+		data, err := os.ReadFile(checksumPath)
+		if err != nil {
+			return fmt.Errorf("read checksums: %w", err)
+		}
+		var expected string
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if parts := strings.Fields(line); len(parts) == 2 && parts[1] == archiveName {
+				expected = parts[0]
+				break
+			}
+		}
+		if expected == "" {
+			return fmt.Errorf("no checksum for %s in checksums.txt", archiveName)
+		}
+		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
+			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
 		}
 		fmt.Println("SHA256 verified.")
 	}
 
-	// Extract binary from tarball
-	binName := upgradeBinaryName
-	if goos == "windows" {
-		binName = upgradeBinaryNameWin
-	}
-	newBinPath := filepath.Join(tmpDir, binName)
-	if err := extractBinary(archivePath, newBinPath); err != nil {
-		return fmt.Errorf("extract: %w", err)
+	// Locate the current executable.
+	execPath, err := resolveExecutable()
+	if err != nil {
+		return err
 	}
 
-	// Locate the current executable
-	execPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("determine executable path: %w", err)
-	}
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return fmt.Errorf("resolve symlink: %w", err)
-	}
-
-	// Atomic replace: write to a temp file next to the target, then rename
+	// Atomic replace: extract directly into a temp file next to the target, then rename.
 	dir := filepath.Dir(execPath)
 	tmpBin, err := os.CreateTemp(dir, ".openbee-new-*")
 	if err != nil {
@@ -200,13 +206,12 @@ func doUpgrade(newVersion string) error {
 		return fmt.Errorf("create temp file in %s (may need sudo): %w", dir, err)
 	}
 	tmpBinPath := tmpBin.Name()
-	tmpBin.Close()
 	defer os.Remove(tmpBinPath)
 
-	if err := copyFile(newBinPath, tmpBinPath); err != nil {
-		return fmt.Errorf("copy new binary: %w", err)
+	if err := extractBinary(archivePath, tmpBin); err != nil {
+		return fmt.Errorf("extract: %w", err)
 	}
-	if err := os.Chmod(tmpBinPath, 0755); err != nil {
+	if err := os.Chmod(tmpBinPath, executablePerm); err != nil {
 		return fmt.Errorf("set permissions: %w", err)
 	}
 	if err := os.Rename(tmpBinPath, execPath); err != nil {
@@ -217,7 +222,9 @@ func doUpgrade(newVersion string) error {
 	return nil
 }
 
-func downloadFile(url, dest string) error {
+// downloadFile fetches url and writes the response body to dest.
+// If extra is non-nil, all downloaded bytes are also written to it (e.g. for hashing).
+func downloadFile(url, dest string, extra io.Writer) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -232,46 +239,21 @@ func downloadFile(url, dest string) error {
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, io.LimitReader(resp.Body, maxDownloadBytes))
-	return err
-}
-
-func verifyChecksum(archivePath, archiveName, checksumPath string) error {
-	data, err := os.ReadFile(checksumPath)
+	w := io.Writer(f)
+	if extra != nil {
+		w = io.MultiWriter(f, extra)
+	}
+	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDownloadBytes))
 	if err != nil {
 		return err
 	}
-
-	var expected string
-	for line := range strings.SplitSeq(string(data), "\n") {
-		parts := strings.Fields(line)
-		if len(parts) == 2 && parts[1] == archiveName {
-			expected = parts[0]
-			break
-		}
-	}
-	if expected == "" {
-		return fmt.Errorf("no checksum for %s in checksums.txt", archiveName)
-	}
-
-	f, err := os.Open(archivePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return err
-	}
-	actual := fmt.Sprintf("%x", h.Sum(nil))
-	if actual != expected {
-		return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
+	if n == maxDownloadBytes {
+		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
 	}
 	return nil
 }
 
-func extractBinary(archivePath, destPath string) error {
+func extractBinary(archivePath string, dest *os.File) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return err
@@ -293,33 +275,17 @@ func extractBinary(archivePath, destPath string) error {
 		if err != nil {
 			return err
 		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
 		name := filepath.Base(hdr.Name)
 		if name == upgradeBinaryName || name == upgradeBinaryNameWin {
-			out, err := os.Create(destPath)
-			if err != nil {
+			if _, err := io.Copy(dest, tr); err != nil {
+				dest.Close()
 				return err
 			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return err
-			}
-			return out.Close()
+			return dest.Close()
 		}
 	}
-	return fmt.Errorf("openbee binary not found in archive")
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	return fmt.Errorf("%s binary not found in archive", upgradeBinaryName)
 }
