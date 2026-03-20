@@ -29,8 +29,8 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	if !strings.Contains(content, "send_message") {
 		t.Error("missing send_message reference in shared rules")
 	}
-	if !strings.Contains(content, "清除上下文处理") {
-		t.Error("missing bee-specific rules (清除上下文处理)")
+	if !strings.Contains(content, "会话上下文管理") {
+		t.Error("missing bee-specific rules (会话上下文管理)")
 	}
 	if !strings.Contains(content, "create_task") {
 		t.Error("missing bee-specific create_task reference in 任务分发流程")
