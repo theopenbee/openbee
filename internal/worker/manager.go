@@ -44,9 +44,7 @@ type Manager struct {
 	executionStore *store.ExecutionStore
 	invoker        *claude.Invoker
 
-	activeProcesses map[string]*claude.Process      // execution_id -> process
-	logSubscribers  map[string][]chan claude.Output // execution_id -> subscribers
-	liveLogSnapshots map[string]string // execution_id -> latest log snapshot
+	activeProcesses map[string]*claude.Process // execution_id -> process
 	mu              sync.RWMutex
 }
 
@@ -63,8 +61,6 @@ func NewManager(
 		executionStore:  es,
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
 		activeProcesses: make(map[string]*claude.Process),
-		logSubscribers:  make(map[string][]chan claude.Output),
-		liveLogSnapshots: make(map[string]string),
 	}
 }
 
@@ -172,25 +168,10 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	var streamResult string
 
 	for out := range outputCh {
-		// Broadcast to WebSocket subscribers
-		m.mu.RLock()
-		subs := m.logSubscribers[exec.ID]
-		m.mu.RUnlock()
-
-		for _, sub := range subs {
-			select {
-			case sub <- out:
-			default:
-			}
-		}
-
 		switch out.Type {
 		case claude.OutputStdout:
 			rawLogsBuilder.WriteString(out.Content)
 			rawLogsBuilder.WriteByte('\n')
-			m.mu.Lock()
-			m.liveLogSnapshots[exec.ID] = rawLogsBuilder.String()
-			m.mu.Unlock()
 			// Parse stream-json to extract assistant text and result
 			line := strings.TrimSpace(out.Content)
 			if strings.HasPrefix(line, "{") {
@@ -213,7 +194,9 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		case claude.OutputDone:
 			rawLogs := rawLogsBuilder.String()
 			// Save raw stdout logs
-			m.executionStore.UpdateLogs(exec.ID, rawLogs)
+			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
+				log.Error("write execution logs", zap.Error(err))
+			}
 			// Determine result with priority: streamResult > lastAssistantText > rawLogs
 			result := rawLogs
 			if lastAssistantText != "" {
@@ -226,7 +209,9 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case claude.OutputError:
 			rawLogs := rawLogsBuilder.String()
-			m.executionStore.UpdateLogs(exec.ID, rawLogs)
+			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
+				log.Error("write execution logs", zap.Error(err))
+			}
 			m.executionStore.UpdateResult(exec.ID, rawLogs+"\nERROR: "+out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		}
@@ -235,21 +220,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	// Cleanup
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
-	delete(m.liveLogSnapshots, exec.ID)
-	for _, sub := range m.logSubscribers[exec.ID] {
-		close(sub)
-	}
-	delete(m.logSubscribers, exec.ID)
 	m.mu.Unlock()
-}
-
-func (m *Manager) SubscribeLogs(executionID string) <-chan claude.Output {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	ch := make(chan claude.Output, 100)
-	m.logSubscribers[executionID] = append(m.logSubscribers[executionID], ch)
-	return ch
 }
 
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
@@ -278,10 +249,3 @@ func (m *Manager) StopExecution(executionID string) error {
 	return proc.Stop()
 }
 
-// GetExecutionLogs returns the current logs for a running execution.
-// Returns empty string if execution not found in memory.
-func (m *Manager) GetExecutionLogs(executionID string) string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.liveLogSnapshots[executionID]
-}
