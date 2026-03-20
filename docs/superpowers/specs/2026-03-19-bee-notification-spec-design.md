@@ -13,6 +13,8 @@
 
 ### 新的 `beeNotificationRules()` 内容
 
+通知规范的前导句中，`send_message` 通过 `fmt.Sprintf` 的 `%s` 占位符引用 `toolnames.SendMessage`，与 codebase 中其他规则保持一致。
+
 ```
 ## 任务通知规范
 
@@ -26,31 +28,36 @@
 4. **元操作完成时** — bee 自行处理的操作（会话管理、配置更新、状态查询等）完成后，告知用户结果
 ```
 
+> **关于 worker 结果转达**：worker 完成任务后直接通过 `send_message` 通知用户，bee 不参与结果转达。因此不需要"worker 任务完成时"的通知时机。
+
 ### 精简 `beeContextAndDispatchRules()` 中的冗余描述
 
-将以下位置的显式 `send_message` 引用替换为"按通知规范告知用户"：
+`beeContextAndDispatchRules()` 中共有 8 个 `toolnames.SendMessage` 引用，按处理方式分为三类：
+
+**替换为"按通知规范告知用户"（6 处）：**
 
 | 位置 | 当前写法 | 改为 |
 |------|----------|------|
-| 规则1（明确指定员工） | `调用 send_message 告知用户任务已分配` | `按通知规范告知用户任务已分配` |
-| 规则3（多个匹配） | `通过 send_message 列出候选 worker` | `按通知规范列出候选员工让用户选择` |
-| 规则5（兜底） | `通过 send_message 告知用户当前无合适的员工` | `按通知规范告知用户当前无合适的员工` |
-| 自我配置完成 | `用 send_message 告知用户：配置已更新` | `按通知规范告知用户配置已更新` |
+| 清除会话完成确认（line 54） | `调用 %s 确认："已清除会话上下文。"` | `按通知规范告知用户会话已清除` |
+| 重置员工上下文完成确认（line 61） | `调用 %s 确认："已重置 [员工名]..."` | `按通知规范告知用户该员工上下文已重置` |
+| 规则1（明确指定员工，line 73） | `调用 send_message 告知用户任务已分配` | `按通知规范告知用户任务已分配` |
+| 规则3（多个匹配，line 84） | `通过 send_message 列出候选 worker` | `按通知规范列出候选员工让用户选择` |
+| 规则5（兜底，line 101） | `通过 send_message 告知用户当前无合适的员工` | `按通知规范告知用户当前无合适的员工` |
+| 自我配置完成（line 136） | `用 send_message 告知用户：配置已更新` | `按通知规范告知用户配置已更新` |
 
-保留显式 `send_message` 引用的位置（流程控制，非简单通知）：
+**保留显式 `send_message` 引用（2 处）：**
 
 | 位置 | 原因 |
 |------|------|
-| 清除会话流程中的确认对话 | 涉及多轮交互确认，是具体的流程步骤 |
-| 重置员工上下文后的确认 | 同上 |
+| 清除会话前警告用户有活跃任务（line 50） | 多轮交互确认流程的一部分，需要等待用户确认后继续 |
+| 清除会话时展示受影响员工列表（line 53） | 同上，需要用户确认后以 force=true 重新调用 |
 
 ### 代码影响
 
-- **bee.go** `beeNotificationRules()`：重写函数体，`fmt.Sprintf` 参数从 5 个 `toolnames.SendMessage` 减少为 1 个
-- **bee.go** `beeContextAndDispatchRules()`：移除 4 处 `toolnames.SendMessage` 格式化参数，对应文本改为"按通知规范告知用户"
+- **bee.go** `beeNotificationRules()`：重写函数体，`fmt.Sprintf` 保留 1 个 `toolnames.SendMessage` 参数（前导句中的工具名引用）
+- **bee.go** `beeContextAndDispatchRules()`：移除 6 处 `toolnames.SendMessage` 格式化参数，对应文本改为"按通知规范告知用户"；保留 2 处多轮交互确认中的引用
 
 ## 不变的部分
 
 - `workerNotificationRules()` 不受影响
-- `beeContextAndDispatchRules()` 中的会话管理确认流程保持不变
 - `beePreamble()` 和 `beeMemoryAndStatusRules()` 不受影响
