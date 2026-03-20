@@ -191,6 +191,35 @@ CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
 		name:    "20260319_add_retry_count_to_platform_messages",
 		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`,
 	},
+	{
+		version: 19,
+		name:    "20260320_add_log_path_to_executions",
+		sql:     `ALTER TABLE bee_executions ADD COLUMN log_path TEXT NOT NULL DEFAULT ''`,
+	},
+	{
+		version: 20,
+		name:    "20260320_drop_logs_from_executions",
+		sql: `CREATE TABLE bee_executions_new (
+	id             TEXT PRIMARY KEY,
+	worker_id      TEXT,
+	session_id     TEXT NOT NULL,
+	status         TEXT NOT NULL DEFAULT 'pending',
+	ai_process_pid INTEGER NOT NULL DEFAULT 0,
+	trigger_input  TEXT NOT NULL DEFAULT '',
+	result         TEXT NOT NULL DEFAULT '',
+	log_path       TEXT NOT NULL DEFAULT '',
+	started_at     INTEGER,
+	completed_at   INTEGER
+);
+INSERT INTO bee_executions_new
+	SELECT id, worker_id, session_id, status, ai_process_pid,
+	       trigger_input, result, log_path, started_at, completed_at
+	FROM bee_executions;
+DROP TABLE bee_executions;
+ALTER TABLE bee_executions_new RENAME TO bee_executions;
+CREATE INDEX idx_executions_worker_id ON bee_executions(worker_id);
+CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
+	},
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {
