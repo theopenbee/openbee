@@ -217,7 +217,7 @@ func InitDB(dbPath string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS bee_migrations (
 		version    INTEGER PRIMARY KEY,
 		name       TEXT NOT NULL,
 		applied_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -230,7 +230,7 @@ func migrate(db *sql.DB) error {
 func applyMigrations(db *sql.DB, migrations []migration) error {
 	for _, m := range migrations {
 		var count int
-		err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, m.version).Scan(&count)
+		err := db.QueryRow(`SELECT COUNT(*) FROM bee_migrations WHERE version = ?`, m.version).Scan(&count)
 		if err != nil {
 			return fmt.Errorf("checking migration %d: %w", m.version, err)
 		}
@@ -245,7 +245,7 @@ func applyMigrations(db *sql.DB, migrations []migration) error {
 			tx.Rollback()
 			return fmt.Errorf("migration %d %q: %w", m.version, m.name, err)
 		}
-		if _, err = tx.Exec(`INSERT INTO schema_migrations (version, name) VALUES (?, ?)`, m.version, m.name); err != nil {
+		if _, err = tx.Exec(`INSERT INTO bee_migrations (version, name) VALUES (?, ?)`, m.version, m.name); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("recording migration %d: %w", m.version, err)
 		}

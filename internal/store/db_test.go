@@ -54,8 +54,8 @@ func TestMigrations_Idempotent(t *testing.T) {
 	// Each migration version should appear exactly once
 	for _, m := range migrations {
 		var count int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, m.version).Scan(&count); err != nil {
-			t.Fatalf("querying schema_migrations for version %d: %v", m.version, err)
+		if err := db.QueryRow(`SELECT COUNT(*) FROM bee_migrations WHERE version = ?`, m.version).Scan(&count); err != nil {
+			t.Fatalf("querying bee_migrations for version %d: %v", m.version, err)
 		}
 		if count != 1 {
 			t.Errorf("migration version %d: want 1 row, got %d", m.version, count)
@@ -71,16 +71,16 @@ func TestMigrations_TableExists(t *testing.T) {
 	defer db.Close()
 
 	var name string
-	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'`).Scan(&name); err != nil {
-		t.Fatalf("schema_migrations table not found: %v", err)
+	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='bee_migrations'`).Scan(&name); err != nil {
+		t.Fatalf("bee_migrations table not found: %v", err)
 	}
 
 	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
-		t.Fatalf("counting schema_migrations rows: %v", err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_migrations`).Scan(&count); err != nil {
+		t.Fatalf("counting bee_migrations rows: %v", err)
 	}
 	if count != len(migrations) {
-		t.Errorf("schema_migrations row count: want %d, got %d", len(migrations), count)
+		t.Errorf("bee_migrations row count: want %d, got %d", len(migrations), count)
 	}
 }
 
@@ -112,8 +112,8 @@ func TestMigrations_SkipsApplied(t *testing.T) {
 
 	// Confirm version 1 was applied exactly once
 	var countBefore int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&countBefore); err != nil {
-		t.Fatalf("querying schema_migrations: %v", err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_migrations WHERE version = 1`).Scan(&countBefore); err != nil {
+		t.Fatalf("querying bee_migrations: %v", err)
 	}
 	if countBefore != 1 {
 		t.Fatalf("expected 1 row for version 1 before re-run, got %d", countBefore)
@@ -125,8 +125,8 @@ func TestMigrations_SkipsApplied(t *testing.T) {
 	}
 
 	var countAfter int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&countAfter); err != nil {
-		t.Fatalf("querying schema_migrations after re-run: %v", err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_migrations WHERE version = 1`).Scan(&countAfter); err != nil {
+		t.Fatalf("querying bee_migrations after re-run: %v", err)
 	}
 	if countAfter != 1 {
 		t.Errorf("version 1 should appear exactly once after re-run, got %d", countAfter)
