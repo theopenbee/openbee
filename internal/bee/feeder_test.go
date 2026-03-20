@@ -218,7 +218,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 }
 
 // TestFeeder_CreatesExecutionOnBeeRun verifies that each processBeeGroup call
-// creates one row in executions with status=completed and non-empty logs.
+// creates one row in executions with status=completed and non-empty log_path.
 func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
@@ -231,7 +231,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	go f.Run(ctx)
 	time.Sleep(700 * time.Millisecond)
 
-	rows, err := db.Query(`SELECT id, worker_id, status, logs FROM bee_executions`)
+	rows, err := db.Query(`SELECT id, worker_id, status, log_path FROM bee_executions`)
 	if err != nil {
 		t.Fatalf("query executions: %v", err)
 	}
@@ -241,16 +241,16 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 		id       string
 		workerID *string
 		status   string
-		logs     string
+		logPath  string
 	}
 	for rows.Next() {
 		var e struct {
 			id       string
 			workerID *string
 			status   string
-			logs     string
+			logPath  string
 		}
-		if err := rows.Scan(&e.id, &e.workerID, &e.status, &e.logs); err != nil {
+		if err := rows.Scan(&e.id, &e.workerID, &e.status, &e.logPath); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		execs = append(execs, e)

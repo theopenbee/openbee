@@ -180,8 +180,8 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	logs, drainErr := f.drainBeeOutput(outputCh)
 
 	if execErr == nil {
-		if logsErr := f.execStore.UpdateLogs(exec.ID, logs); logsErr != nil {
-			log.Error("update execution logs", zap.Error(logsErr))
+		if _, logsErr := f.execStore.WriteLog(exec.ID, exec.StartedAt, logs); logsErr != nil {
+			log.Error("write execution logs", zap.Error(logsErr))
 		}
 		finalStatus := model.ExecStatusCompleted
 		resultMsg := ""
