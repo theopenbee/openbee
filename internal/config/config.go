@@ -25,6 +25,12 @@ func DefaultWorkerBaseDir() string {
 	return filepath.Join(home, ".openbee", "worker")
 }
 
+// DefaultLogsDir returns the execution log directory: ~/.openbee/logs
+func DefaultLogsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", "logs")
+}
+
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
