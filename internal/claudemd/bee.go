@@ -51,14 +51,14 @@ func beeContextAndDispatchRules() string {
 
 2. 调用 %s（传入 session_key，默认 force=false）：
    - 若返回 requires_confirmation=true：调用 %s 向用户展示受影响的员工列表，告知"此操作将重置以上所有员工的对话上下文，请确认"，等待用户确认后，以 force=true 重新调用 %s。
-   - 若返回 cleared=true：调用 %s 确认："已清除会话上下文。"
+   - 若返回 cleared=true：按通知规范告知用户会话已清除
 
 ### 重置单个员工上下文
 
 当用户指定只想重置某一个员工的对话记忆（例如"重置 XX 的上下文"、"让 XX 忘掉之前的对话"）时：
 
 1. 识别目标员工，调用 %s，传入 session_key 和对应的 worker_id。
-2. 调用 %s 确认："已重置 [员工名] 的对话上下文，下次任务将以全新会话开始。"
+2. 按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
 
 ## 任务分发流程
 
@@ -70,7 +70,7 @@ func beeContextAndDispatchRules() string {
 
 如果用户消息中明确提到了某个 worker 的名字，直接将任务指派给该 worker。
 - 调用 `+"`%s`"+` 创建任务
-- 调用 `+"`%s`"+` 告知用户任务已分配
+- 按通知规范告知用户任务已分配
 
 ### 规则2：对话承接
 
@@ -81,7 +81,7 @@ func beeContextAndDispatchRules() string {
 
 根据用户消息内容与各 worker 的 description 进行**语义匹配**（不要求字面匹配，应基于语义理解，worker 描述中涉及的领域、技能、职责都纳入匹配考量）：
 - **唯一匹配**：直接指派给该 worker
-- **多个匹配**：通过 `+"`%s`"+` 列出候选 worker 让用户选择（用户可以回复名字或编号，你需要智能判断用户的选择意图）
+- **多个匹配**：按通知规范列出候选员工让用户选择（用户可以回复名字或编号，你需要智能判断用户的选择意图）
 - **无匹配**：进入规则4
 
 ### 规则4：bee 元操作（白名单）
@@ -98,7 +98,7 @@ func beeContextAndDispatchRules() string {
 
 ### 规则5：兜底
 
-如果没有合适的 worker 且任务不属于规则4的白名单，通过 `+"`%s`"+` 告知用户当前无合适的员工处理该需求，并建议用户创建合适的员工。
+如果没有合适的 worker 且任务不属于规则4的白名单，按通知规范告知用户当前无合适的员工处理该需求，并建议用户创建合适的员工。
 
 ### 任务查询的精确过滤
 
@@ -133,16 +133,15 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 2. 按用户要求修改名字或职责描述（第一行 "你是 XXX" 部分）
 3. 确保文件末尾保留 `+"`@.openbee.md`"+` 这一行，不要删除
 4. 将修改后的内容写回 `+"`CLAUDE.md`"+`
-5. 用 `+"`%s`"+` 告知用户：配置已更新，下次对话起将使用新的名字/描述
+5. 按通知规范告知用户：配置已更新，下次对话起将使用新的名字/描述
 
 注意：只修改用户明确要求的内容，不要改动其他部分。
 `,
 		toolnames.ListSessionContexts, toolnames.ListTasks, toolnames.SendMessage,
-		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession, toolnames.SendMessage,
-		toolnames.ClearWorkerSession, toolnames.SendMessage,
-		toolnames.ListWorkers, toolnames.CreateTask, toolnames.SendMessage,
-		toolnames.SendMessage, toolnames.SendMessage,
-		toolnames.ListTasks, toolnames.SendMessage)
+		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession,
+		toolnames.ClearWorkerSession,
+		toolnames.ListWorkers, toolnames.CreateTask,
+		toolnames.ListTasks)
 }
 
 func beeMemoryAndStatusRules() string {
