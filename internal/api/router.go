@@ -82,8 +82,6 @@ func (s *Server) setupRoutes() {
 		// Executions
 		api.GET("/executions", s.listExecutions)
 		api.GET("/executions/:id", s.getExecution)
-		// WebSocket logs
-		api.GET("/executions/:id/logs", s.streamLogs)
 
 		// Local chat
 		if s.localChatHandler != nil {
