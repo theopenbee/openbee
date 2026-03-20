@@ -104,13 +104,9 @@ func daemonize(cfgPath string) error {
 	}
 
 	// Resolve own executable (never use os.Args[0]).
-	exe, err := os.Executable()
+	exe, err := resolveExecutable()
 	if err != nil {
-		return fmt.Errorf("resolve executable: %w", err)
-	}
-	exe, err = filepath.EvalSymlinks(exe)
-	if err != nil {
-		return fmt.Errorf("eval symlinks: %w", err)
+		return err
 	}
 
 	// Ensure ~/.openbee/ exists.
