@@ -1,10 +1,10 @@
 package claudemd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/theopenbee/openbee/internal/toolnames"
 )
@@ -238,13 +238,11 @@ func workerRules() string {
 func workerConfigBlock(name, description, memory string) string {
 	var block string
 
-	if name != "" || description != "" {
-		if name != "" {
-			block += fmt.Sprintf("姓名: %s\n", name)
-		}
-		if description != "" {
-			block += fmt.Sprintf("描述: %s\n", description)
-		}
+	if name != "" {
+		block += fmt.Sprintf("姓名: %s\n", name)
+	}
+	if description != "" {
+		block += fmt.Sprintf("描述: %s\n", description)
 	}
 
 	if memory != "" {
@@ -298,7 +296,7 @@ func EnsureSystemRules(workDir, role string, optFns ...Option) error {
 	}
 
 	// 3. Append import if missing
-	if !strings.Contains(string(data), ImportLine) {
+	if !bytes.Contains(data, []byte(ImportLine)) {
 		data = append(data, []byte("\n"+ImportLine+"\n")...)
 		if err := os.WriteFile(claudePath, data, 0o644); err != nil {
 			return fmt.Errorf("update CLAUDE.md: %w", err)
