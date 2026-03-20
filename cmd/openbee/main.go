@@ -56,6 +56,7 @@ func main() {
 		if errors.As(err, &ece) {
 			os.Exit(ece.code)
 		}
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		logger.Error("fatal", zap.Error(err))
 		os.Exit(1)
 	}

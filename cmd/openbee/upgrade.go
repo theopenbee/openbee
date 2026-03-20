@@ -197,6 +197,7 @@ func doUpgrade(newVersion string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Upgrading binary at: %s\n", execPath)
 
 	// Atomic replace: extract directly into a temp file next to the target, then rename.
 	dir := filepath.Dir(execPath)
