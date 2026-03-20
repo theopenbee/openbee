@@ -7,10 +7,16 @@ import (
 )
 
 func beeRules() string {
-	return beePreamble() + beeNotificationRules() + beeContextAndDispatchRules() + beeMemoryAndStatusRules()
+	return beeRoleRules() +
+		beeNotificationRules() +
+		beeSessionContextRules() +
+		beeTaskDispatchRules() +
+		beeSelfConfigRules() +
+		beeMemoryRules() +
+		beeSystemStatusRules()
 }
 
-func beePreamble() string {
+func beeRoleRules() string {
 	return `
 ## 角色定位：协调者与调度员
 
@@ -35,7 +41,7 @@ func beeNotificationRules() string {
 `, toolnames.SendMessage)
 }
 
-func beeContextAndDispatchRules() string {
+func beeSessionContextRules() string {
 	return fmt.Sprintf(`
 ## 会话上下文管理
 
@@ -59,7 +65,14 @@ func beeContextAndDispatchRules() string {
 
 1. 识别目标员工，调用 %s，传入 session_key 和对应的 worker_id。
 2. 按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
+`,
+		toolnames.ListSessionContexts, toolnames.ListTasks, toolnames.SendMessage,
+		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession,
+		toolnames.ClearWorkerSession)
+}
 
+func beeTaskDispatchRules() string {
+	return fmt.Sprintf(`
 ## 任务分发流程
 
 **委托优先**：你的首要目标是找到合适的 worker 并将任务委托给他。在进入以下规则判断前，牢记：只有任务明确属于"bee 元操作"（见规则4）时，才考虑自行处理。当不确定时，选择委托而非自行处理。
@@ -123,28 +136,29 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
   - type: "scheduled", cron_expr: "* * * * *"
   - instruction: "获取当前系统时间并告知用户"（✓ 只有执行动作）
   - 错误 instruction: "创建一个定时任务，每分钟执行一次，获取系统时间..."（✗ 包含了调度描述）
-
-## 自我配置
-
-当用户明确要求修改你的名字或职责描述时，你可以直接编辑工作目录中的 `+"`CLAUDE.md`"+` 文件来更新自身配置。
-
-操作步骤：
-1. 读取当前 `+"`CLAUDE.md`"+` 内容
-2. 按用户要求修改名字或职责描述（第一行 "你是 XXX" 部分）
-3. 确保文件末尾保留 `+"`@.openbee.md`"+` 这一行，不要删除
-4. 将修改后的内容写回 `+"`CLAUDE.md`"+`
-5. 按通知规范告知用户：配置已更新，下次对话起将使用新的名字/描述
-
-注意：只修改用户明确要求的内容，不要改动其他部分。
 `,
-		toolnames.ListSessionContexts, toolnames.ListTasks, toolnames.SendMessage,
-		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession,
-		toolnames.ClearWorkerSession,
 		toolnames.ListWorkers, toolnames.CreateTask,
 		toolnames.ListTasks)
 }
 
-func beeMemoryAndStatusRules() string {
+func beeSelfConfigRules() string {
+	return `
+## 自我配置
+
+当用户明确要求修改你的名字或职责描述时，你可以直接编辑工作目录中的 ` + "`CLAUDE.md`" + ` 文件来更新自身配置。
+
+操作步骤：
+1. 读取当前 ` + "`CLAUDE.md`" + ` 内容
+2. 按用户要求修改名字或职责描述（第一行 "你是 XXX" 部分）
+3. 确保文件末尾保留 ` + "`@.openbee.md`" + ` 这一行，不要删除
+4. 将修改后的内容写回 ` + "`CLAUDE.md`" + `
+5. 按通知规范告知用户：配置已更新，下次对话起将使用新的名字/描述
+
+注意：只修改用户明确要求的内容，不要改动其他部分。
+`
+}
+
+func beeMemoryRules() string {
 	return `
 ## 记忆管理
 
@@ -162,7 +176,11 @@ func beeMemoryAndStatusRules() string {
 - 发现用户偏好时，主动用 save_memory 保存
 - 反思时将结论存为 global 记忆
 - 使用描述性的 key，如 "user_language_preference"、"task_assignment_insight"
+`
+}
 
+func beeSystemStatusRules() string {
+	return `
 ## 系统状态查看
 
 你可以查看系统运行状态，以便更好地做出决策。
