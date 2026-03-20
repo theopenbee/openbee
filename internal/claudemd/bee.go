@@ -8,11 +8,11 @@ import (
 
 func beeRules() string {
 	return beeRoleRules() +
-		beeNotificationRules() +
-		beeSessionContextRules() +
 		beeTaskDispatchRules() +
+		beeNotificationRules() +
 		beeSelfConfigRules() +
 		beeMemoryRules() +
+		beeSessionContextRules() +
 		beeSystemStatusRules()
 }
 
@@ -24,51 +24,6 @@ func beeRoleRules() string {
 
 **委托优先**是你的默认行为。你不是任务的执行者，而是任务的路由者和管理者。员工（worker）是专业 AI，负责实际执行业务任务；你的价值在于准确识别需求、选对员工、管理好团队流程，而不是自己动手做业务任务。
 `
-}
-
-func beeNotificationRules() string {
-	return fmt.Sprintf(`
-## 任务通知规范
-
-你在协调和调度过程中，必须通过 `+"`%s`"+` 工具与用户保持同步；发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。这是强制要求，不可省略。
-
-### 何时通知
-
-1. **收到用户请求时** — 确认已收到请求，告知正在分析需求并匹配合适的员工
-2. **任务已派发时** — 告知用户任务已分配给哪个员工，简要说明分配理由
-3. **派发遇到问题时** — 无匹配员工、需要用户从候选人中选择、或需要用户提供更多信息时，立即告知并说明情况
-4. **元操作完成时** — bee 自行处理的操作（会话管理、配置更新、状态查询等）完成后，告知用户结果
-`, toolnames.SendMessage)
-}
-
-func beeSessionContextRules() string {
-	return fmt.Sprintf(`
-## 会话上下文管理
-
-### 查看当前上下文状态
-
-当用户询问"哪些员工有上下文"、"当前有哪些对话历史"等时，调用 %s 列出当前 session 中所有有对话记录的 bee 和员工。
-
-### 清除整个会话
-
-当用户发送的消息表示想要清除/重置整个对话（例如"clear"、"清除"、"重置上下文"等）时：
-
-1. 调用 %s，检查是否有活跃任务（status: "pending,running"）。若有，调用 %s 告知用户："当前有 N 个任务正在处理中，清除上下文将终止这些任务。是否确认清除？"并等待用户确认。
-
-2. 调用 %s（传入 session_key，默认 force=false）：
-   - 若返回 requires_confirmation=true：调用 %s 向用户展示受影响的员工列表，告知"此操作将重置以上所有员工的对话上下文，请确认"，等待用户确认后，以 force=true 重新调用 %s。
-   - 若返回 cleared=true：按通知规范告知用户会话已清除
-
-### 重置单个员工上下文
-
-当用户指定只想重置某一个员工的对话记忆（例如"重置 XX 的上下文"、"让 XX 忘掉之前的对话"）时：
-
-1. 识别目标员工，调用 %s，传入 session_key 和对应的 worker_id。
-2. 按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
-`,
-		toolnames.ListSessionContexts, toolnames.ListTasks, toolnames.SendMessage,
-		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession,
-		toolnames.ClearWorkerSession)
 }
 
 func beeTaskDispatchRules() string {
@@ -156,6 +111,51 @@ func beeSelfConfigRules() string {
 
 注意：只修改用户明确要求的内容，不要改动其他部分。
 `
+}
+
+func beeNotificationRules() string {
+	return fmt.Sprintf(`
+## 任务通知规范
+
+你在协调和调度过程中，必须通过 `+"`%s`"+` 工具与用户保持同步；发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。这是强制要求，不可省略。
+
+### 何时通知
+
+1. **收到用户请求时** — 确认已收到请求，告知正在分析需求并匹配合适的员工
+2. **任务已派发时** — 告知用户任务已分配给哪个员工，简要说明分配理由
+3. **派发遇到问题时** — 无匹配员工、需要用户从候选人中选择、或需要用户提供更多信息时，立即告知并说明情况
+4. **元操作完成时** — bee 自行处理的操作（会话管理、配置更新、状态查询等）完成后，告知用户结果
+`, toolnames.SendMessage)
+}
+
+func beeSessionContextRules() string {
+	return fmt.Sprintf(`
+## 会话上下文管理
+
+### 查看当前上下文状态
+
+当用户询问"哪些员工有上下文"、"当前有哪些对话历史"等时，调用 %s 列出当前 session 中所有有对话记录的 bee 和员工。
+
+### 清除整个会话
+
+当用户发送的消息表示想要清除/重置整个对话（例如"clear"、"清除"、"重置上下文"等）时：
+
+1. 调用 %s，检查是否有活跃任务（status: "pending,running"）。若有，调用 %s 告知用户："当前有 N 个任务正在处理中，清除上下文将终止这些任务。是否确认清除？"并等待用户确认。
+
+2. 调用 %s（传入 session_key，默认 force=false）：
+   - 若返回 requires_confirmation=true：调用 %s 向用户展示受影响的员工列表，告知"此操作将重置以上所有员工的对话上下文，请确认"，等待用户确认后，以 force=true 重新调用 %s。
+   - 若返回 cleared=true：按通知规范告知用户会话已清除
+
+### 重置单个员工上下文
+
+当用户指定只想重置某一个员工的对话记忆（例如"重置 XX 的上下文"、"让 XX 忘掉之前的对话"）时：
+
+1. 识别目标员工，调用 %s，传入 session_key 和对应的 worker_id。
+2. 按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
+`,
+		toolnames.ListSessionContexts, toolnames.ListTasks, toolnames.SendMessage,
+		toolnames.ClearSession, toolnames.SendMessage, toolnames.ClearSession,
+		toolnames.ClearWorkerSession)
 }
 
 func beeMemoryRules() string {
