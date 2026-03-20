@@ -18,188 +18,22 @@ type migration struct {
 var migrations = []migration{
 	{
 		version: 1,
-		name:    "20260312_create_table_workers",
+		name:    "create_table_bee_workers",
 		sql: `CREATE TABLE IF NOT EXISTS bee_workers (
-		id          TEXT PRIMARY KEY,
-		name        TEXT NOT NULL,
-		work_dir    TEXT NOT NULL,
-		status      TEXT NOT NULL DEFAULT 'idle',
-		description TEXT NOT NULL DEFAULT '',
-		memory      TEXT NOT NULL DEFAULT '',
-		created_at  INTEGER NOT NULL,
-		updated_at  INTEGER NOT NULL
-	)`,
+	id          TEXT PRIMARY KEY,
+	name        TEXT NOT NULL,
+	work_dir    TEXT NOT NULL,
+	status      TEXT NOT NULL DEFAULT 'idle',
+	description TEXT NOT NULL DEFAULT '',
+	memory      TEXT NOT NULL DEFAULT '',
+	created_at  INTEGER NOT NULL,
+	updated_at  INTEGER NOT NULL
+)`,
 	},
 	{
 		version: 2,
-		name:    "20260312_create_table_executions",
+		name:    "create_table_bee_executions",
 		sql: `CREATE TABLE IF NOT EXISTS bee_executions (
-		id             TEXT PRIMARY KEY,
-		worker_id      TEXT NOT NULL,
-		session_id     TEXT NOT NULL,
-		status         TEXT NOT NULL DEFAULT 'pending',
-		ai_process_pid INTEGER NOT NULL DEFAULT 0,
-		trigger_input  TEXT NOT NULL DEFAULT '',
-		result         TEXT NOT NULL DEFAULT '',
-		logs           TEXT NOT NULL DEFAULT '',
-		started_at     INTEGER,
-		completed_at   INTEGER,
-		FOREIGN KEY (worker_id) REFERENCES bee_workers(id) ON DELETE CASCADE
-	)`,
-	},
-	{
-		version: 3,
-		name:    "20260312_create_table_platform_messages",
-		sql: `CREATE TABLE IF NOT EXISTS bee_platform_messages (
-		id              TEXT PRIMARY KEY,
-		session_key     TEXT NOT NULL,
-		platform        TEXT NOT NULL,
-		content         TEXT NOT NULL,
-		status          TEXT NOT NULL DEFAULT 'received',
-		merged_into     TEXT NOT NULL DEFAULT '',
-		platform_msg_id TEXT NOT NULL DEFAULT '',
-		raw             TEXT NOT NULL DEFAULT '',
-		received_at     INTEGER NOT NULL,
-		created_at      INTEGER NOT NULL,
-		updated_at      INTEGER NOT NULL
-	)`,
-	},
-	{
-		version: 4,
-		name:    "20260312_create_table_tasks",
-		sql: `CREATE TABLE IF NOT EXISTS bee_tasks (
-		id                TEXT PRIMARY KEY,
-		message_id        TEXT NOT NULL REFERENCES bee_platform_messages(id),
-		worker_id         TEXT NOT NULL REFERENCES bee_workers(id),
-		instruction       TEXT NOT NULL,
-		type              TEXT NOT NULL CHECK(type IN ('immediate','countdown','scheduled')),
-		status            TEXT NOT NULL DEFAULT 'pending'
-		                      CHECK(status IN ('pending','running','completed','failed','cancelled')),
-		scheduled_at      INTEGER,
-		cron_expr         TEXT NOT NULL DEFAULT '',
-		next_run_at       INTEGER,
-		execution_id      TEXT NOT NULL DEFAULT '',
-		created_at        INTEGER NOT NULL,
-		updated_at        INTEGER NOT NULL
-	)`,
-	},
-	{
-		version: 5,
-		name:    "20260312_create_index_executions_worker_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_worker_id ON bee_executions(worker_id)`,
-	},
-	{
-		version: 6,
-		name:    "20260312_create_index_executions_session_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_session_id ON bee_executions(session_id)`,
-	},
-	{
-		version: 7,
-		name:    "20260312_create_index_platform_messages_session",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_platform_messages_session ON bee_platform_messages(session_key, received_at DESC)`,
-	},
-	{
-		version: 8,
-		name:    "20260312_create_unique_index_platform_messages_platform_msg_id",
-		sql:     `CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_messages_platform_msg_id ON bee_platform_messages(platform_msg_id) WHERE platform_msg_id != ''`,
-	},
-	{
-		version: 9,
-		name:    "20260312_create_index_tasks_status_type",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON bee_tasks(status, type)`,
-	},
-	{
-		version: 10,
-		name:    "20260312_create_index_tasks_message_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_message_id ON bee_tasks(message_id)`,
-	},
-	{
-		version: 11,
-		name:    "20260312_create_index_tasks_worker_id",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON bee_tasks(worker_id)`,
-	},
-	{
-		version: 12,
-		name:    "20260312_create_table_session_contexts",
-		sql: `CREATE TABLE IF NOT EXISTS bee_session_contexts (
-		session_key  TEXT    NOT NULL,
-		agent_id     TEXT    NOT NULL,
-		session_id   TEXT    NOT NULL,
-		updated_at   INTEGER NOT NULL,
-		PRIMARY KEY (session_key, agent_id)
-	)`,
-	},
-	{
-		version: 13,
-		name:    "20260315_create_table_local_sessions",
-		sql: `CREATE TABLE IF NOT EXISTS bee_local_sessions (
-		id         TEXT PRIMARY KEY,
-		name       TEXT NOT NULL,
-		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL
-	)`,
-	},
-	{
-		version: 14,
-		name:    "20260315_create_table_local_replies",
-		sql: `CREATE TABLE IF NOT EXISTS bee_local_replies (
-		id          TEXT PRIMARY KEY,
-		session_key TEXT NOT NULL,
-		content     TEXT NOT NULL,
-		created_at  INTEGER NOT NULL
-	)`,
-	},
-	{
-		version: 15,
-		name:    "20260315_create_index_local_replies_session_key",
-		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON bee_local_replies(session_key)`,
-	},
-	{
-		version: 16,
-		name:    "20260318_make_executions_worker_id_nullable",
-		sql: `DROP TABLE IF EXISTS bee_executions;
-CREATE TABLE bee_executions (
-	id             TEXT PRIMARY KEY,
-	worker_id      TEXT,
-	session_id     TEXT NOT NULL,
-	status         TEXT NOT NULL DEFAULT 'pending',
-	ai_process_pid INTEGER NOT NULL DEFAULT 0,
-	trigger_input  TEXT NOT NULL DEFAULT '',
-	result         TEXT NOT NULL DEFAULT '',
-	logs           TEXT NOT NULL DEFAULT '',
-	started_at     INTEGER,
-	completed_at   INTEGER
-);
-CREATE INDEX idx_executions_worker_id ON bee_executions(worker_id);
-CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
-	},
-	{
-		version: 17,
-		name:    "20260318_create_bee_memories",
-		sql: `CREATE TABLE IF NOT EXISTS bee_memories (
-		id         TEXT PRIMARY KEY,
-		scope      TEXT NOT NULL,
-		key        TEXT NOT NULL,
-		value      TEXT NOT NULL,
-		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL,
-		UNIQUE(scope, key)
-	)`,
-	},
-	{
-		version: 18,
-		name:    "20260319_add_retry_count_to_platform_messages",
-		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`,
-	},
-	{
-		version: 19,
-		name:    "20260320_add_log_path_to_executions",
-		sql:     `ALTER TABLE bee_executions ADD COLUMN log_path TEXT NOT NULL DEFAULT ''`,
-	},
-	{
-		version: 20,
-		name:    "20260320_drop_logs_from_executions",
-		sql: `CREATE TABLE bee_executions_new (
 	id             TEXT PRIMARY KEY,
 	worker_id      TEXT,
 	session_id     TEXT NOT NULL,
@@ -210,15 +44,128 @@ CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
 	log_path       TEXT NOT NULL DEFAULT '',
 	started_at     INTEGER,
 	completed_at   INTEGER
-);
-INSERT INTO bee_executions_new
-	SELECT id, worker_id, session_id, status, ai_process_pid,
-	       trigger_input, result, log_path, started_at, completed_at
-	FROM bee_executions;
-DROP TABLE bee_executions;
-ALTER TABLE bee_executions_new RENAME TO bee_executions;
-CREATE INDEX idx_executions_worker_id ON bee_executions(worker_id);
-CREATE INDEX idx_executions_session_id ON bee_executions(session_id)`,
+)`,
+	},
+	{
+		version: 3,
+		name:    "create_table_bee_platform_messages",
+		sql: `CREATE TABLE IF NOT EXISTS bee_platform_messages (
+	id              TEXT PRIMARY KEY,
+	session_key     TEXT NOT NULL,
+	platform        TEXT NOT NULL,
+	content         TEXT NOT NULL,
+	status          TEXT NOT NULL DEFAULT 'received',
+	merged_into     TEXT NOT NULL DEFAULT '',
+	platform_msg_id TEXT NOT NULL DEFAULT '',
+	raw             TEXT NOT NULL DEFAULT '',
+	received_at     INTEGER NOT NULL,
+	created_at      INTEGER NOT NULL,
+	updated_at      INTEGER NOT NULL,
+	retry_count     INTEGER NOT NULL DEFAULT 0
+)`,
+	},
+	{
+		version: 4,
+		name:    "create_table_bee_tasks",
+		sql: `CREATE TABLE IF NOT EXISTS bee_tasks (
+	id           TEXT PRIMARY KEY,
+	message_id   TEXT NOT NULL REFERENCES bee_platform_messages(id),
+	worker_id    TEXT NOT NULL REFERENCES bee_workers(id),
+	instruction  TEXT NOT NULL,
+	type         TEXT NOT NULL CHECK(type IN ('immediate','countdown','scheduled')),
+	status       TEXT NOT NULL DEFAULT 'pending'
+	                 CHECK(status IN ('pending','running','completed','failed','cancelled')),
+	scheduled_at INTEGER,
+	cron_expr    TEXT NOT NULL DEFAULT '',
+	next_run_at  INTEGER,
+	execution_id TEXT NOT NULL DEFAULT '',
+	created_at   INTEGER NOT NULL,
+	updated_at   INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 5,
+		name:    "create_table_bee_session_contexts",
+		sql: `CREATE TABLE IF NOT EXISTS bee_session_contexts (
+	session_key  TEXT    NOT NULL,
+	agent_id     TEXT    NOT NULL,
+	session_id   TEXT    NOT NULL,
+	updated_at   INTEGER NOT NULL,
+	PRIMARY KEY (session_key, agent_id)
+)`,
+	},
+	{
+		version: 6,
+		name:    "create_table_bee_local_sessions",
+		sql: `CREATE TABLE IF NOT EXISTS bee_local_sessions (
+	id         TEXT PRIMARY KEY,
+	name       TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 7,
+		name:    "create_table_bee_local_replies",
+		sql: `CREATE TABLE IF NOT EXISTS bee_local_replies (
+	id          TEXT PRIMARY KEY,
+	session_key TEXT NOT NULL,
+	content     TEXT NOT NULL,
+	created_at  INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 8,
+		name:    "create_table_bee_memories",
+		sql: `CREATE TABLE IF NOT EXISTS bee_memories (
+	id         TEXT PRIMARY KEY,
+	scope      TEXT NOT NULL,
+	key        TEXT NOT NULL,
+	value      TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	UNIQUE(scope, key)
+)`,
+	},
+	{
+		version: 9,
+		name:    "create_index_executions_worker_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_worker_id ON bee_executions(worker_id)`,
+	},
+	{
+		version: 10,
+		name:    "create_index_executions_session_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_session_id ON bee_executions(session_id)`,
+	},
+	{
+		version: 11,
+		name:    "create_index_platform_messages_session",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_platform_messages_session ON bee_platform_messages(session_key, received_at DESC)`,
+	},
+	{
+		version: 12,
+		name:    "create_index_platform_messages_platform_msg_id",
+		sql:     `CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_messages_platform_msg_id ON bee_platform_messages(platform_msg_id) WHERE platform_msg_id != ''`,
+	},
+	{
+		version: 13,
+		name:    "create_index_tasks_status_type",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON bee_tasks(status, type)`,
+	},
+	{
+		version: 14,
+		name:    "create_index_tasks_message_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_message_id ON bee_tasks(message_id)`,
+	},
+	{
+		version: 15,
+		name:    "create_index_tasks_worker_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON bee_tasks(worker_id)`,
+	},
+	{
+		version: 16,
+		name:    "create_index_local_replies_session_key",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON bee_local_replies(session_key)`,
 	},
 }
 
