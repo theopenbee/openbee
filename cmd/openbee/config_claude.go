@@ -1,20 +1,25 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 )
 
-const claudeDownloadURL = "https://cc-download.openbee.dev/claude/download"
+// claudeGitHubAPI is a var so tests can override it with a local httptest server.
+var claudeGitHubAPI = "https://api.github.com/repos/theopenbee/cc-download/releases/latest"
+
+const claudeGitHubRelBase = "https://github.com/theopenbee/cc-download/releases/download"
 
 // Provider display names used in the selection menu and switch cases.
 const (
@@ -231,6 +236,36 @@ func promptClaudeManualPath(vals *configValues) error {
 	return nil
 }
 
+// fetchLatestClaudeVersion queries the GitHub Releases API for the latest cc-download tag.
+func fetchLatestClaudeVersion() (string, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(claudeGitHubAPI)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+	}
+
+	var rel struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return "", fmt.Errorf("parse response: %w", err)
+	}
+
+	tag := strings.TrimSpace(rel.TagName)
+	if tag == "" {
+		return "", fmt.Errorf("empty version tag")
+	}
+	if !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+	return tag, nil
+}
+
 // claudePlatform represents a target platform for Claude Code download.
 type claudePlatform struct {
 	os      string // "darwin" or "linux"
@@ -289,13 +324,15 @@ func isMusl() bool {
 	return isMuslWith(filepath.Glob)
 }
 
-// buildClaudeDownloadURL constructs the download URL for the given platform.
-func buildClaudeDownloadURL(p claudePlatform) string {
-	url := fmt.Sprintf("%s?os=%s&arch=%s", claudeDownloadURL, p.os, p.arch)
+// buildClaudeDownloadURL constructs the GitHub release asset URL for the given version and platform.
+func buildClaudeDownloadURL(p claudePlatform, version string) string {
+	versionNum := strings.TrimPrefix(version, "v")
+	platformStr := p.os + "-" + p.arch
 	if p.variant != "" {
-		url += "&variant=" + p.variant
+		platformStr += "-" + p.variant
 	}
-	return url
+	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
+	return fmt.Sprintf("%s/%s/%s", claudeGitHubRelBase, version, assetName)
 }
 
 func downloadClaude(vals *configValues) error {
@@ -315,38 +352,71 @@ func downloadClaude(vals *configValues) error {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
+	fmt.Println("Checking for latest Claude version...")
+	version, err := fetchLatestClaudeVersion()
+	if err != nil {
+		return fmt.Errorf("fetch latest Claude version: %w", err)
+	}
+	fmt.Printf("Latest Claude version: %s\n", version)
+
+	versionNum := strings.TrimPrefix(version, "v")
+	platformStr := platform.os + "-" + platform.arch
+	if platform.variant != "" {
+		platformStr += "-" + platform.variant
+	}
+
+	checksumURL := fmt.Sprintf("%s/%s/checksums-sha256.txt", claudeGitHubRelBase, version)
+	binaryURL := buildClaudeDownloadURL(platform, version)
+	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
+
+	// Temp dir for checksums file; cleaned up automatically.
+	tmpDir, err := os.MkdirTemp("", "openbee-claude-*")
+	if err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Download checksums first (small file).
+	checksumPath := filepath.Join(tmpDir, "checksums-sha256.txt")
+	checksumAvailable := true
+	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
+		checksumAvailable = false
+		fmt.Printf("warning: failed to download checksums-sha256.txt, skipping verification (%v)\n", err)
+	}
+
+	fmt.Printf("Downloading Claude %s (%s)...\n", version, platformStr)
+
+	// Download binary while computing SHA256 in one pass.
 	destPath := filepath.Join(binDir, "claude")
-	url := buildClaudeDownloadURL(platform)
-
-	fmt.Printf("Downloading Claude (%s/%s)...\n", platform.os, platform.arch)
-
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return fmt.Errorf("request download URL: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed with status: %d", resp.StatusCode)
-	}
-
-	// Write to temp file first, rename on success to avoid leaving corrupt binaries.
 	tmpPath := destPath + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("create file: %w", err)
+	h := sha256.New()
+	if err := downloadFile(binaryURL, tmpPath, h); err != nil {
+		return fmt.Errorf("download: %w", err)
 	}
 
-	const maxClaudeBytes = 512 * 1024 * 1024 // 512 MB guard
-	if _, err := io.Copy(f, io.LimitReader(resp.Body, maxClaudeBytes)); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("write file: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("close file: %w", err)
+	// Verify checksum if available.
+	if checksumAvailable {
+		fmt.Println("Verifying SHA256...")
+		data, err := os.ReadFile(checksumPath)
+		if err != nil {
+			return fmt.Errorf("read checksums: %w", err)
+		}
+		var expected string
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if parts := strings.Fields(line); len(parts) == 2 && parts[1] == assetName {
+				expected = parts[0]
+				break
+			}
+		}
+		if expected == "" {
+			os.Remove(tmpPath)
+			return fmt.Errorf("no checksum for %s in checksums-sha256.txt", assetName)
+		}
+		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
+			os.Remove(tmpPath)
+			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
+		}
+		fmt.Println("SHA256 verified.")
 	}
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
