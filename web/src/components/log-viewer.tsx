@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Streamdown } from "streamdown";
-import { config } from "@/lib/config";
+import { api } from "@/lib/api";
+import type { ExecutionStatus } from "@/lib/types";
 
 // ─── Data model ───────────────────────────────────────────────────────────────
 
@@ -247,54 +248,64 @@ function ResultCard({
 
 interface LogViewerProps {
   executionId: string;
-  status: string;
-  logs: string | null | undefined;
+  status: ExecutionStatus;
   onComplete?: () => void;
 }
 
-export function LogViewer({ executionId, status, logs, onComplete }: LogViewerProps) {
+export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
   const [entries, setEntries] = useState<ParsedEntry[]>([]);
   const toolMapRef = useRef<Map<string, number>>(new Map());
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const parsedLengthRef = useRef<number>(0);
+  const prevStatusRef = useRef<ExecutionStatus>(status);
   const { t } = useTranslation();
 
-  // Real-time WebSocket stream
+  // Reset all parsed state when switching to a different execution.
   useEffect(() => {
-    const wsBase = config.apiUrl;
-    const wsUrl =
-      wsBase.replace(/^http/, "ws") + `/executions/${executionId}/logs`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "done" || data.type === "error") {
-        onComplete?.();
-      }
-      setEntries((prev) => {
-        const next = [...prev];
-        appendEntry(data.content, data.type, next, toolMapRef.current);
-        return next;
-      });
-    };
-
-    ws.onerror = () => {};
-
-    return () => ws.close();
+    setEntries([]);
+    toolMapRef.current = new Map();
+    parsedLengthRef.current = 0;
   }, [executionId]);
 
-  // Historical logs (completed executions)
+  // Poll GET /executions/:id/logs while running; fetch once when complete.
+  // Uses incremental parsing so existing entries (and their open/close UI state)
+  // are preserved across polls — only newly arrived lines are appended.
   useEffect(() => {
-    if (status !== "running" && logs) {
-      const newEntries: ParsedEntry[] = [];
-      const newToolMap = new Map<string, number>();
-      logs
-        .split("\n")
-        .filter(Boolean)
-        .forEach((line) => appendEntry(line, "stdout", newEntries, newToolMap));
-      toolMapRef.current = newToolMap;
-      setEntries(newEntries);
+    const fetchLogs = async () => {
+      try {
+        const text = await api.executions.logs(executionId);
+        if (text.length > parsedLengthRef.current) {
+          const newContent = text.slice(parsedLengthRef.current);
+          parsedLengthRef.current = text.length;
+          setEntries((prev) => {
+            const next = [...prev];
+            newContent
+              .split("\n")
+              .filter(Boolean)
+              .forEach((line) => appendEntry(line, "stdout", next, toolMapRef.current));
+            return next;
+          });
+        }
+      } catch {
+        // ignore transient errors
+      }
+    };
+
+    fetchLogs();
+
+    if (status === "running" || status === "pending") {
+      const interval = setInterval(fetchLogs, 2000);
+      return () => clearInterval(interval);
     }
-  }, [status, logs]);
+  }, [executionId, status]);
+
+  // Notify parent when status transitions away from "running".
+  useEffect(() => {
+    if (prevStatusRef.current === "running" && status !== "running") {
+      onComplete?.();
+    }
+    prevStatusRef.current = status;
+  }, [status, onComplete]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -312,7 +323,6 @@ export function LogViewer({ executionId, status, logs, onComplete }: LogViewerPr
           return <AssistantText key={i} text={entry.text} />;
         if (entry.kind === "tool")
           return <ToolCard key={entry.id} entry={entry} />;
-        // if (entry.kind === "result") return <ResultCard key={i} entry={entry} />
         if (entry.kind === "result") return null;
         return (
           <div

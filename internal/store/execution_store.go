@@ -161,6 +161,24 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
+// ReadLog returns the log content for an execution, reading from its log file.
+// Returns an empty string (no error) when no log has been written yet.
+func (s *ExecutionStore) ReadLog(id string) (string, error) {
+	row := s.db.QueryRow(`SELECT log_path FROM bee_executions WHERE id = ?`, id)
+	var logPath string
+	if err := row.Scan(&logPath); err != nil {
+		return "", fmt.Errorf("get log_path: %w", err)
+	}
+	if logPath == "" {
+		return "", nil
+	}
+	b, err := os.ReadFile(logPath)
+	if err != nil {
+		return "", fmt.Errorf("read log file: %w", err)
+	}
+	return string(b), nil
+}
+
 // WriteLog writes content to a date-partitioned log file and records the path in the DB.
 // startedAt is used to determine the date directory; falls back to time.Now() if nil.
 func (s *ExecutionStore) WriteLog(id string, startedAt *int64, content string) (string, error) {

@@ -37,6 +37,25 @@ type claudeContent struct {
 	Text string `json:"text,omitempty"`
 }
 
+// executionLog is a thread-safe log buffer for in-flight executions.
+type executionLog struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (l *executionLog) writeLine(s string) {
+	l.mu.Lock()
+	l.buf.WriteString(s)
+	l.buf.WriteByte('\n')
+	l.mu.Unlock()
+}
+
+func (l *executionLog) string() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
 type Manager struct {
 	workerBaseDir  string
 	beeCfg         config.BeeConfig
@@ -45,6 +64,7 @@ type Manager struct {
 	invoker        *claude.Invoker
 
 	activeProcesses map[string]*claude.Process // execution_id -> process
+	activeLogs      map[string]*executionLog   // execution_id -> live log buffer
 	mu              sync.RWMutex
 }
 
@@ -61,7 +81,20 @@ func NewManager(
 		executionStore:  es,
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
 		activeProcesses: make(map[string]*claude.Process),
+		activeLogs:      make(map[string]*executionLog),
 	}
+}
+
+// GetActiveLog returns the current accumulated log content for a running execution.
+// Returns ("", false) if the execution is not currently active.
+func (m *Manager) GetActiveLog(executionID string) (string, bool) {
+	m.mu.RLock()
+	el, ok := m.activeLogs[executionID]
+	m.mu.RUnlock()
+	if !ok {
+		return "", false
+	}
+	return el.string(), true
 }
 
 func (m *Manager) CreateWorker(
@@ -152,8 +185,10 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return err
 	}
 
+	el := &executionLog{}
 	m.mu.Lock()
 	m.activeProcesses[exec.ID] = proc
+	m.activeLogs[exec.ID] = el
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, proc.PID())
@@ -163,15 +198,17 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 
 func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc) {
 	defer cancel()
-	var rawLogsBuilder strings.Builder
+	m.mu.RLock()
+	activeLog := m.activeLogs[exec.ID]
+	m.mu.RUnlock()
+
 	var lastAssistantText string
 	var streamResult string
 
 	for out := range outputCh {
 		switch out.Type {
 		case claude.OutputStdout:
-			rawLogsBuilder.WriteString(out.Content)
-			rawLogsBuilder.WriteByte('\n')
+			activeLog.writeLine(out.Content)
 			// Parse stream-json to extract assistant text and result
 			line := strings.TrimSpace(out.Content)
 			if strings.HasPrefix(line, "{") {
@@ -192,7 +229,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 				}
 			}
 		case claude.OutputDone:
-			rawLogs := rawLogsBuilder.String()
+			rawLogs := activeLog.string()
 			// Save raw stdout logs
 			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
 				log.Error("write execution logs", zap.Error(err))
@@ -208,7 +245,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case claude.OutputError:
-			rawLogs := rawLogsBuilder.String()
+			rawLogs := activeLog.string()
 			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
 				log.Error("write execution logs", zap.Error(err))
 			}
@@ -220,6 +257,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	// Cleanup
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
+	delete(m.activeLogs, exec.ID)
 	m.mu.Unlock()
 }
 

@@ -49,6 +49,13 @@ export const api = {
       return Array.isArray(executions) ? executions : []
     },
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
+    logs: async (id: string): Promise<string> => {
+      const res = await fetch(`${API_BASE}/executions/${id}/logs`, {
+        headers: { "Accept-Language": i18n.language || "en" },
+      })
+      if (!res.ok) throw new Error(res.statusText)
+      return res.text()
+    },
   },
   sessions: {
     executions: async (sessionId: string) => {
