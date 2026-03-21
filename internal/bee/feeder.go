@@ -14,6 +14,7 @@ import (
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -38,6 +39,11 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
+// WithLogRegistry injects a shared log registry so bee executions provide live logs.
+func WithLogRegistry(r *worker.ActiveLogRegistry) Option {
+	return func(f *Feeder) { f.logRegistry = r }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -48,6 +54,7 @@ type Feeder struct {
 	workDir         string
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
+	logRegistry     *worker.ActiveLogRegistry // nil if not configured
 }
 
 // NewFeeder creates a Feeder.
@@ -177,7 +184,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	logs, drainErr := f.drainBeeOutput(outputCh)
+	// Register with live log registry (only if registry is configured and execution was created).
+	var writeLine func(string)
+	if f.logRegistry != nil && execErr == nil {
+		writeLine = f.logRegistry.Register(exec.ID)
+	}
+
+	logs, drainErr := f.drainBeeOutput(outputCh, writeLine)
 
 	if execErr == nil {
 		if _, logsErr := f.execStore.WriteLog(exec.ID, exec.StartedAt, logs); logsErr != nil {
@@ -191,6 +204,10 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 		if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
 			log.Error("update execution result", zap.Error(resErr))
+		}
+		// Unregister after disk write.
+		if f.logRegistry != nil {
+			f.logRegistry.Unregister(exec.ID)
 		}
 	}
 
@@ -255,7 +272,8 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, user
 // drainBeeOutput consumes the output channel and accumulates logs in memory.
 // Returns accumulated log string (partial even on error) and nil on OutputDone,
 // or non-nil error on OutputError or channel closed without completion.
-func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
+// writeLine, if non-nil, is called for each output line (used for live log registry).
+func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, writeLine func(string)) (string, error) {
 	var sb strings.Builder
 	var done bool
 	for out := range ch {
@@ -263,12 +281,21 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output) (string, error) {
 		case claude.OutputStdout:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
+			if writeLine != nil {
+				writeLine(out.Content)
+			}
 		case claude.OutputStderr:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
+			if writeLine != nil {
+				writeLine(out.Content)
+			}
 		case claude.OutputError:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
+			if writeLine != nil {
+				writeLine(out.Content)
+			}
 			return sb.String(), fmt.Errorf("bee exited with error: %s", out.Content)
 		case claude.OutputDone:
 			done = true
