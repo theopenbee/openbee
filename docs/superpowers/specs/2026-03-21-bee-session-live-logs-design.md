@@ -62,7 +62,10 @@ type ActiveLogRegistry struct {
 func NewActiveLogRegistry() *ActiveLogRegistry
 
 // Register creates a new log buffer for the given execution ID and returns
-// a function that callers use to append lines. Panics if id already registered.
+// a function that callers use to append lines.
+// If id is already registered (e.g., duplicate call due to a bug), Register
+// logs a warning and returns a no-op function — it does NOT panic, since a
+// server panic is unacceptable for a registry operation.
 func (r *ActiveLogRegistry) Register(id string) func(line string)
 
 // Get returns the current accumulated content for id.
@@ -84,14 +87,21 @@ func (r *ActiveLogRegistry) Unregister(id string)
 - Remove `GetActiveLog(id string)` public method (API Server will use the registry directly).
 - Update `NewManager` to accept `*ActiveLogRegistry` as a parameter.
 - Update `launchRuntime`: replace direct `activeLogs` map writes with `m.logRegistry.Register(exec.ID)`.
-- Update `monitorExecution`: use the returned `writeLine` func for output; call `m.logRegistry.Unregister(exec.ID)` at the end of the goroutine (after `WriteLog` and `UpdateResult`).
+- Update `monitorExecution`:
+  - Use the returned `writeLine` func for output.
+  - In the existing cleanup block at the end of `monitorExecution` (lines 257–261 in current code), remove only `delete(m.activeLogs, exec.ID)` and replace it with `m.logRegistry.Unregister(exec.ID)`. The `delete(m.activeProcesses, exec.ID)` line remains unchanged.
+  - `logRegistry.Unregister` must be called inside **both** the `OutputDone` and `OutputError` case branches (after `WriteLog` and `UpdateResult`), not only in the loop-exit cleanup block, to ensure the registry is updated as soon as the execution completes.
 
-Execution lifecycle in `monitorExecution` (updated order):
+Execution lifecycle in `monitorExecution` (updated order, for each terminal case):
 ```
-OutputDone/OutputError received:
-  1. WriteLog(exec.ID, ...)          ← persist to disk first
-  2. UpdateResult(exec.ID, ...)      ← update status
+OutputDone or OutputError received:
+  1. WriteLog(exec.ID, ...)           ← persist to disk first
+  2. UpdateResult(exec.ID, ...)       ← update DB status
   3. logRegistry.Unregister(exec.ID) ← remove from live registry last
+
+After loop exits (cleanup block):
+  4. delete(m.activeProcesses, exec.ID)  ← unchanged, still needed
+  (m.activeLogs map is gone; no delete needed here)
 ```
 
 ---
@@ -113,11 +123,14 @@ Update `processBeeGroup` to register/unregister with the registry when available
 // After CreateBeeExecution succeeds:
 var writeLine func(string)
 if f.logRegistry != nil && execErr == nil {
+    // execErr == nil means CreateBeeExecution succeeded, so exec.ID is valid
+    // and Register was not previously called for this id.
     writeLine = f.logRegistry.Register(exec.ID)
 }
 
 // After WriteLog + UpdateResult:
 if f.logRegistry != nil && execErr == nil {
+    // Mirror the condition above: only unregister if Register was called.
     f.logRegistry.Unregister(exec.ID)
 }
 ```
@@ -141,17 +154,20 @@ case claude.OutputStdout, claude.OutputStderr:
 
 When no registry is configured (`writeLine == nil`), behavior is identical to today.
 
+**Known limitation — early-line drop window:** The bee process is started by `runner.Run` before `CreateBeeExecution` is called (the current code starts the process first to avoid creating a record for a failed start). Lines emitted by the bee process between `runner.Run` and the `Register` call are captured by `drainBeeOutput`'s `strings.Builder` accumulator and will appear in the final persisted log, but they will **not** appear in the live registry view. This is an acceptable trade-off: live logs may be missing the first few lines, but the complete log is always available after completion. Addressing this gap is out of scope for this change.
+
 **Order of operations in `processBeeGroup` (complete):**
 ```
-1. CreateBeeExecution(sessionID, prompt)
-2. logRegistry.Register(exec.ID)         ← start live log
-3. UpdatePID(exec.ID, proc.PID())
-4. drainBeeOutput(outputCh, writeLine)   ← stream output to registry + buffer
-5. WriteLog(exec.ID, ...)                ← persist to disk
-6. UpdateResult(exec.ID, ...)            ← mark complete/failed
-7. logRegistry.Unregister(exec.ID)       ← stop live log AFTER disk write
-8. UpsertSessionContext(...)
-9. MarkBeeProcessed(...)
+1. runner.Run(...)                        ← start bee process
+2. CreateBeeExecution(sessionID, prompt)  ← create DB record (exec.ID now valid)
+3. logRegistry.Register(exec.ID)          ← start live log (execErr == nil guard)
+4. UpdatePID(exec.ID, proc.PID())
+5. drainBeeOutput(outputCh, writeLine)    ← stream output to registry + buffer
+6. WriteLog(exec.ID, ...)                 ← persist to disk
+7. UpdateResult(exec.ID, ...)             ← mark complete/failed
+8. logRegistry.Unregister(exec.ID)        ← stop live log AFTER disk write (execErr == nil guard)
+9. UpsertSessionContext(...)
+10. MarkBeeProcessed(...)
 ```
 
 ---
@@ -223,26 +239,45 @@ if (isLoading) return <p>Loading...</p>
 if (!error && executions.length === 0) return <p>{t("sessionDetail.noExecutions")}</p>
 ```
 
+**React Query `isLoading` semantics note:** `isLoading` is `true` only on the initial fetch (no cached data). On subsequent visits to a cached session, `isLoading` is `false` immediately (stale data is shown while a background refetch runs). This is correct — the user sees the previously cached executions list at once, which is the desired behavior.
+
 Add `sessionDetail.noExecutions` to i18n translation files.
 
 ---
 
-### 7. `main.go` (modified)
+### 7. `internal/app/app.go` (modified)
+
+The actual wiring of `NewManager`, `NewFeeder`, and `NewServer` happens in `buildWorkerManager`, `buildBee`, and `buildAPIServer` in `internal/app/app.go` — **not** in `cmd/openbee/main.go`, which only invokes `BuildApp`.
 
 ```go
-// Create shared registry — single instance for the process lifetime.
+// In BuildApp (or a new helper):
 logRegistry := worker.NewActiveLogRegistry()
 
-mgr := worker.NewManager(workerBaseDir, beeCfg, workerStore, execStore, logRegistry)
+// buildWorkerManager — pass logRegistry:
+func buildWorkerManager(bc config.BeeConfig, s appStores, logRegistry *worker.ActiveLogRegistry) *worker.Manager {
+    return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, logRegistry)
+}
 
-feeder := bee.NewFeeder(
-    msgStore, taskStore, sessionStore, execStore, beeProcess, beeWorkDir, beeCfg,
-    bee.WithLogRegistry(logRegistry),
-    // ... other options
-)
+// buildBee — pass logRegistry via option:
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask,
+    failureNotifier bee.FailureNotifier, logRegistry *worker.ActiveLogRegistry) (*bee.Feeder, *task_scheduler.Scheduler) {
+    beeProcess := bee.NewBeeProcess(cfg)
+    feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess,
+        config.DefaultBeeWorkDir(), cfg,
+        bee.WithFailureNotifier(failureNotifier),
+        bee.WithLogRegistry(logRegistry),
+    )
+    // ...
+}
 
-srv := api.NewServer(workerStore, execStore, mgr, logRegistry, mcpServer, mcpAPIKey, staticFS, localChat)
+// buildAPIServer — pass logRegistry:
+func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager,
+    logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
+    return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, mcpSrv, cfg.APIKey, webui.DistFS, localChat)
+}
 ```
+
+The `logRegistry` instance is created once in `BuildApp` and threaded through all three helpers.
 
 ---
 
@@ -261,6 +296,7 @@ srv := api.NewServer(workerStore, execStore, mgr, logRegistry, mcpServer, mcpAPI
 - **Worker log streaming to frontend (SSE/WebSocket)**: The existing poll-based approach is retained. Real-time delivery improvement is out of scope.
 - **Log rotation or size limits**: Not addressed in this change.
 - **Bee execution stop/cancel via UI**: Out of scope.
+- **Eliminating the early-line drop window for bee live logs**: The first few lines emitted before `Register` is called will be missing from the live view (but present in the final persisted log). Fixing this requires starting the process after creating the DB record, which changes error-handling semantics and is out of scope.
 
 ---
 
@@ -273,6 +309,7 @@ srv := api.NewServer(workerStore, execStore, mgr, logRegistry, mcpServer, mcpAPI
 | `internal/bee/feeder.go` | `WithLogRegistry` option; update `drainBeeOutput` |
 | `internal/api/router.go` | Add `logRegistry` to `Server` struct and `NewServer` |
 | `internal/api/execution_handler.go` | Use `logRegistry.Get`; fix Cache-Control |
-| `main.go` | Wire registry into Manager, Feeder, and Server |
+| `internal/app/app.go` | Wire registry into `buildWorkerManager`, `buildBee`, `buildAPIServer` |
 | `web/src/pages/session-detail.tsx` | Fix loading/empty state |
-| `web/src/locales/*.json` | Add `sessionDetail.noExecutions` key |
+| `web/src/locales/en.json` | Add `sessionDetail.noExecutions` key |
+| `web/src/locales/zh.json` | Add `sessionDetail.noExecutions` key |
