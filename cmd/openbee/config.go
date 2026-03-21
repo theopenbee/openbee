@@ -39,6 +39,9 @@ type configValues struct {
 	WecomBotID   string
 	WecomSecret  string
 
+	TelegramEnabled bool
+	TelegramToken   string
+
 	ClaudePath      string
 	ClaudeTimeout   string
 	FeederTimeout   string
@@ -89,6 +92,8 @@ func loadExistingConfig(path string) *configValues {
 		WecomEnabled:         cfg.Bee.Platforms.WeCom.Enabled,
 		WecomBotID:           cfg.Bee.Platforms.WeCom.BotID,
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
+		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
+		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
@@ -211,11 +216,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.WecomEnabled {
 		defaultPlatforms = append(defaultPlatforms, "WeCom")
 	}
+	if vals.TelegramEnabled {
+		defaultPlatforms = append(defaultPlatforms, "Telegram")
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: "Which platforms to enable?",
-		Options: []string{"Feishu", "DingTalk", "WeCom"},
+		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -225,6 +233,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.FeishuEnabled = false
 	vals.DingtalkEnabled = false
 	vals.WecomEnabled = false
+	vals.TelegramEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -268,6 +277,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				Message: "WeCom Secret:",
 				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+		case "Telegram":
+			vals.TelegramEnabled = true
+			if err := survey.AskOne(&survey.Password{
+				Message: "Telegram Bot Token:",
+				Help:    "Get a token from @BotFather on Telegram",
+			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 		}
