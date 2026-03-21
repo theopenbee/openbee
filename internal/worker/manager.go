@@ -167,6 +167,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 
 func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc, writeLine func(string)) {
 	defer cancel()
+	defer m.logRegistry.Unregister(exec.ID) // safety net: clean up even if channel closes without Done/Error
 
 	var rawLog strings.Builder
 	var lastAssistantText string
@@ -211,7 +212,6 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
-			m.logRegistry.Unregister(exec.ID) // after disk write — prevents Cache-Control caching
 		case claude.OutputError:
 			logs := rawLog.String()
 			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, logs); err != nil {
@@ -219,11 +219,9 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			}
 			m.executionStore.UpdateResult(exec.ID, logs+"\nERROR: "+out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
-			m.logRegistry.Unregister(exec.ID) // after disk write
 		}
 	}
 
-	// Cleanup: process tracking only (logRegistry already cleaned up in terminal cases above)
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
 	m.mu.Unlock()

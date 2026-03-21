@@ -185,7 +185,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	// Register with live log registry (only if registry is configured and execution was created).
-	var writeLine func(string)
+	writeLine := func(string) {}
 	if f.logRegistry != nil && execErr == nil {
 		writeLine = f.logRegistry.Register(exec.ID)
 	}
@@ -272,7 +272,7 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, user
 // drainBeeOutput consumes the output channel and accumulates logs in memory.
 // Returns accumulated log string (partial even on error) and nil on OutputDone,
 // or non-nil error on OutputError or channel closed without completion.
-// writeLine, if non-nil, is called for each output line (used for live log registry).
+// writeLine is called for each output line; use a no-op func to disable live logging.
 func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, writeLine func(string)) (string, error) {
 	var sb strings.Builder
 	var done bool
@@ -281,21 +281,15 @@ func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, writeLine func(string))
 		case claude.OutputStdout:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
-			if writeLine != nil {
-				writeLine(out.Content)
-			}
+			writeLine(out.Content)
 		case claude.OutputStderr:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
-			if writeLine != nil {
-				writeLine(out.Content)
-			}
+			writeLine(out.Content)
 		case claude.OutputError:
 			sb.WriteString(out.Content)
 			sb.WriteByte('\n')
-			if writeLine != nil {
-				writeLine(out.Content)
-			}
+			writeLine(out.Content)
 			return sb.String(), fmt.Errorf("bee exited with error: %s", out.Content)
 		case claude.OutputDone:
 			done = true
