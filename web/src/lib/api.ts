@@ -53,7 +53,10 @@ export const api = {
       const res = await fetch(`${API_BASE}/executions/${id}/logs`, {
         headers: { "Accept-Language": i18n.language || "en" },
       })
-      if (!res.ok) throw new Error(res.statusText)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error || res.statusText)
+      }
       return res.text()
     },
   },

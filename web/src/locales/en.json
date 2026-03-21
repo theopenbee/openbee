@@ -77,7 +77,8 @@
   "sessionDetail": {
     "session": "Session",
     "worker": "Worker",
-    "turn": "Turn {{index}}"
+    "turn": "Turn {{index}}",
+    "noExecutions": "No executions found for this session."
   },
   "logViewer": {
     "waiting": "Waiting for output...",

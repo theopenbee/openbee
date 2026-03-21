@@ -13,7 +13,9 @@ import (
 	"github.com/theopenbee/openbee/internal/bee"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/worker"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
@@ -41,9 +43,10 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 
 // mockBeeRunner records all Run calls.
 type mockBeeRunner struct {
-	mu    sync.Mutex
-	calls []beeCall
-	err   error
+	mu          sync.Mutex
+	calls       []beeCall
+	err         error
+	outputLines []claude.Output // if nil, defaults based on m.err (existing behavior)
 }
 
 type beeCall struct {
@@ -55,16 +58,25 @@ type beeCall struct {
 func (m *mockBeeRunner) Run(_ context.Context, _, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, sessionID: sessionID, resume: resume})
+	customLines := m.outputLines
 	m.mu.Unlock()
 
-	ch := make(chan claude.Output, 1)
-	if m.err != nil {
-		ch <- claude.Output{Type: claude.OutputError, Content: m.err.Error()}
+	// If outputLines is set, use them directly (new behavior for custom tests).
+	// Otherwise preserve the original behavior: err → OutputError channel, nil → OutputDone.
+	var lines []claude.Output
+	if customLines != nil {
+		lines = customLines
+	} else if m.err != nil {
+		lines = []claude.Output{{Type: claude.OutputError, Content: m.err.Error()}}
 	} else {
-		ch <- claude.Output{Type: claude.OutputDone}
+		lines = []claude.Output{{Type: claude.OutputDone}}
+	}
+
+	ch := make(chan claude.Output, len(lines))
+	for _, l := range lines {
+		ch <- l
 	}
 	close(ch)
-
 	return &claude.Process{}, ch, nil
 }
 
@@ -370,5 +382,60 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 	if string(data) != bee.DefaultPersona {
 		t.Errorf("unexpected content: %q", string(data))
+	}
+}
+
+func TestFeeder_LiveLogRegistry_PopulatedAndUnregisteredAfterCompletion(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+
+	registry := worker.NewActiveLogRegistry()
+
+	runner := &mockBeeRunner{
+		outputLines: []claude.Output{
+			{Type: claude.OutputStdout, Content: "live-line-1"},
+			{Type: claude.OutputStdout, Content: "live-line-2"},
+			{Type: claude.OutputDone},
+		},
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	f := bee.NewFeeder(ms, ts, ss, es, runner, t.TempDir(), cfg,
+		bee.WithLogRegistry(registry))
+
+	insertMessage(t, db, "msg-live", "sk-live", "hello")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// After completion, registry must be empty (Unregister was called after WriteLog).
+	execs, err := es.ListBeeExecutions(10)
+	if err != nil {
+		t.Fatalf("ListBeeExecutions: %v", err)
+	}
+	if len(execs) == 0 {
+		t.Fatal("expected at least one bee execution in DB")
+	}
+	exec := execs[0]
+
+	if exec.Status != model.ExecStatusCompleted {
+		t.Errorf("expected completed status, got %s", exec.Status)
+	}
+
+	// Registry must be empty — execution was unregistered after log write.
+	_, ok := registry.Get(exec.ID)
+	if ok {
+		t.Error("expected registry empty after completion (Unregister should have been called)")
+	}
+
+	// Log must have been persisted to disk.
+	logContent, err := es.ReadLog(exec.ID)
+	if err != nil {
+		t.Fatalf("ReadLog: %v", err)
+	}
+	if logContent == "" {
+		t.Error("expected non-empty log after completion")
 	}
 }

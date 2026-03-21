@@ -47,19 +47,19 @@ func (s *Server) listSessionExecutions(c *gin.Context) {
 func (s *Server) getExecutionLogs(c *gin.Context) {
 	id := c.Param("id")
 
-	// If the execution is actively running, return the live in-memory content.
-	if content, ok := s.manager.GetActiveLog(id); ok {
+	if content, ok := s.logRegistry.Get(id); ok {
 		c.String(http.StatusOK, content)
 		return
 	}
 
-	// Execution is complete: read from the persisted log file.
 	content, err := s.executionStore.ReadLog(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// Log files are write-once; allow browsers to cache them.
-	c.Header("Cache-Control", "public, max-age=3600")
+	// Only cache non-empty logs — an empty body means the file isn't written yet.
+	if content != "" {
+		c.Header("Cache-Control", "public, max-age=3600")
+	}
 	c.String(http.StatusOK, content)
 }
