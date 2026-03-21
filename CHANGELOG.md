@@ -5,15 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.5] - 2026-03-21
 
 ### Added
 
-- `logs`: real-time log streaming for session executions
+- `telegram`: Telegram platform support — TelegramPlatform receiver and sender, TelegramConfig, config template section, and config wizard integration
+- `worker`: ActiveLogRegistry for shared live log access across workers
+- `logs`: real-time log streaming for bee session executions via ActiveLogRegistry
 
 ### Fixed
 
 - `bee`: recognize address pattern to prevent worker name misrouting
+- `frontend`: session detail page loading state; add noExecutions empty state
+- `api`: only set Cache-Control header when log content is non-empty
 
 ## [0.0.4] - 2026-03-20
 

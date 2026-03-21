@@ -1,6 +1,6 @@
 {
   "name": "@theopenbee/cli-darwin-x64",
-  "version": "0.0.0",
+  "version": "0.0.5",
   "description": "openbee darwin/x64 binary",
   "os": [
     "darwin"
