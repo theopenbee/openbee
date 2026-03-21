@@ -82,6 +82,7 @@ func (s *Server) setupRoutes() {
 		// Executions
 		api.GET("/executions", s.listExecutions)
 		api.GET("/executions/:id", s.getExecution)
+		api.GET("/executions/:id/logs", s.getExecutionLogs)
 
 		// Local chat
 		if s.localChatHandler != nil {

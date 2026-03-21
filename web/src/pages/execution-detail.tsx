@@ -47,7 +47,6 @@ export function ExecutionDetail() {
           <LogViewer
             executionId={execution.id}
             status={execution.status}
-            logs={execution.logs}
             onComplete={refetch}
           />
         </TabsContent>
