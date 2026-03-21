@@ -77,7 +77,8 @@
   "sessionDetail": {
     "session": "会话",
     "worker": "工作者",
-    "turn": "第 {{index}} 轮"
+    "turn": "第 {{index}} 轮",
+    "noExecutions": "该会话暂无执行记录。"
   },
   "logViewer": {
     "waiting": "等待输出...",

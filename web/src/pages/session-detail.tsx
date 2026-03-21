@@ -17,11 +17,12 @@ export function SessionDetail() {
   const { t } = useTranslation()
   const { sessionId } = useParams<{ sessionId: string }>()
   const queryClient = useQueryClient()
-  const { data: executions = [], error } = useSessionExecutions(sessionId!)
+  const { data: executions = [], error, isLoading } = useSessionExecutions(sessionId!)
 
   const workerId = executions[0]?.worker_id
 
-  if (executions.length === 0 && !error) return <p>Loading...</p>
+  if (isLoading) return <p>Loading...</p>
+  if (!error && executions.length === 0) return <p className="text-muted-foreground">{t("sessionDetail.noExecutions")}</p>
 
   return (
     <div>
