@@ -30,6 +30,10 @@ bee:
       bot_id: "{{.WecomBotID}}"
       secret: "{{.WecomSecret}}"
       # websocket_url: wss://openws.work.weixin.qq.com  # optional, this is the default
+    telegram:
+      enabled: {{.TelegramEnabled}}
+      token: "{{.TelegramToken}}"
+      # max_media_size: 52428800  # 50MB default
   feeder:
     timeout: {{.FeederTimeout}}
   media:
