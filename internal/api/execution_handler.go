@@ -59,7 +59,11 @@ func (s *Server) getExecutionLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// Log files are write-once; allow browsers to cache them.
-	c.Header("Cache-Control", "public, max-age=3600")
+	// Cache-Control fix: only cache when content is non-empty.
+	// An empty response means the log file doesn't exist yet; caching it would
+	// hide logs after the execution completes.
+	if content != "" {
+		c.Header("Cache-Control", "public, max-age=3600")
+	}
 	c.String(http.StatusOK, content)
 }
