@@ -21,6 +21,7 @@ type Server struct {
 	workerStore      *store.WorkerStore
 	executionStore   *store.ExecutionStore
 	manager          *worker.Manager
+	logRegistry      *worker.ActiveLogRegistry
 	mcpServer        *mcp.MCPServer
 	mcpAPIKey        string
 	staticFS         fs.FS
@@ -31,6 +32,7 @@ func NewServer(
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
 	mgr *worker.Manager,
+	logRegistry *worker.ActiveLogRegistry,
 	mcpSrv *mcp.MCPServer,
 	mcpAPIKey string,
 	staticFS fs.FS,
@@ -54,6 +56,7 @@ func NewServer(
 		workerStore:      ws,
 		executionStore:   es,
 		manager:          mgr,
+		logRegistry:      logRegistry,
 		mcpServer:        mcpSrv,
 		mcpAPIKey:        mcpAPIKey,
 		staticFS:         staticFS,

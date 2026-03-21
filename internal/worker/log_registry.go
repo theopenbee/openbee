@@ -1,10 +1,30 @@
 package worker
 
 import (
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
 )
+
+// executionLog is a thread-safe log buffer for in-flight executions.
+type executionLog struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (l *executionLog) writeLine(s string) {
+	l.mu.Lock()
+	l.buf.WriteString(s)
+	l.buf.WriteByte('\n')
+	l.mu.Unlock()
+}
+
+func (l *executionLog) string() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
 
 // ActiveLogRegistry manages live log buffers for all running executions.
 // Both Manager (worker executions) and Feeder (bee executions) write to it.

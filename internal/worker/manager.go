@@ -37,25 +37,6 @@ type claudeContent struct {
 	Text string `json:"text,omitempty"`
 }
 
-// executionLog is a thread-safe log buffer for in-flight executions.
-type executionLog struct {
-	mu  sync.Mutex
-	buf strings.Builder
-}
-
-func (l *executionLog) writeLine(s string) {
-	l.mu.Lock()
-	l.buf.WriteString(s)
-	l.buf.WriteByte('\n')
-	l.mu.Unlock()
-}
-
-func (l *executionLog) string() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.buf.String()
-}
-
 type Manager struct {
 	workerBaseDir  string
 	beeCfg         config.BeeConfig
@@ -64,7 +45,7 @@ type Manager struct {
 	invoker        *claude.Invoker
 
 	activeProcesses map[string]*claude.Process // execution_id -> process
-	activeLogs      map[string]*executionLog   // execution_id -> live log buffer
+	logRegistry     *ActiveLogRegistry
 	mu              sync.RWMutex
 }
 
@@ -73,6 +54,7 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
+	logRegistry *ActiveLogRegistry,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
@@ -81,20 +63,8 @@ func NewManager(
 		executionStore:  es,
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
 		activeProcesses: make(map[string]*claude.Process),
-		activeLogs:      make(map[string]*executionLog),
+		logRegistry:     logRegistry,
 	}
-}
-
-// GetActiveLog returns the current accumulated log content for a running execution.
-// Returns ("", false) if the execution is not currently active.
-func (m *Manager) GetActiveLog(executionID string) (string, bool) {
-	m.mu.RLock()
-	el, ok := m.activeLogs[executionID]
-	m.mu.RUnlock()
-	if !ok {
-		return "", false
-	}
-	return el.string(), true
 }
 
 func (m *Manager) CreateWorker(
@@ -185,30 +155,29 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return err
 	}
 
-	el := &executionLog{}
+	writeLine := m.logRegistry.Register(exec.ID)
 	m.mu.Lock()
 	m.activeProcesses[exec.ID] = proc
-	m.activeLogs[exec.ID] = el
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, proc.PID())
-	go m.monitorExecution(exec, worker, outputCh, cancel)
+	go m.monitorExecution(exec, worker, outputCh, cancel, writeLine)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc, writeLine func(string)) {
 	defer cancel()
-	m.mu.RLock()
-	activeLog := m.activeLogs[exec.ID]
-	m.mu.RUnlock()
 
+	var rawLog strings.Builder
 	var lastAssistantText string
 	var streamResult string
 
 	for out := range outputCh {
 		switch out.Type {
 		case claude.OutputStdout:
-			activeLog.writeLine(out.Content)
+			writeLine(out.Content)          // live registry
+			rawLog.WriteString(out.Content) // local snapshot for disk write
+			rawLog.WriteByte('\n')
 			// Parse stream-json to extract assistant text and result
 			line := strings.TrimSpace(out.Content)
 			if strings.HasPrefix(line, "{") {
@@ -229,13 +198,11 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 				}
 			}
 		case claude.OutputDone:
-			rawLogs := activeLog.string()
-			// Save raw stdout logs
-			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
+			logs := rawLog.String()
+			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, logs); err != nil {
 				log.Error("write execution logs", zap.Error(err))
 			}
-			// Determine result with priority: streamResult > lastAssistantText > rawLogs
-			result := rawLogs
+			result := logs
 			if lastAssistantText != "" {
 				result = lastAssistantText
 			}
@@ -244,20 +211,21 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
+			m.logRegistry.Unregister(exec.ID) // after disk write — prevents Cache-Control caching
 		case claude.OutputError:
-			rawLogs := activeLog.string()
-			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, rawLogs); err != nil {
+			logs := rawLog.String()
+			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, logs); err != nil {
 				log.Error("write execution logs", zap.Error(err))
 			}
-			m.executionStore.UpdateResult(exec.ID, rawLogs+"\nERROR: "+out.Content, model.ExecStatusFailed)
+			m.executionStore.UpdateResult(exec.ID, logs+"\nERROR: "+out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+			m.logRegistry.Unregister(exec.ID) // after disk write
 		}
 	}
 
-	// Cleanup
+	// Cleanup: process tracking only (logRegistry already cleaned up in terminal cases above)
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
-	delete(m.activeLogs, exec.ID)
 	m.mu.Unlock()
 }
 

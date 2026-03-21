@@ -48,7 +48,7 @@ func (s *Server) getExecutionLogs(c *gin.Context) {
 	id := c.Param("id")
 
 	// If the execution is actively running, return the live in-memory content.
-	if content, ok := s.manager.GetActiveLog(id); ok {
+	if content, ok := s.logRegistry.Get(id); ok {
 		c.String(http.StatusOK, content)
 		return
 	}

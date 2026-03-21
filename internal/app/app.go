@@ -96,7 +96,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	mgr := buildWorkerManager(cfg.Bee, s)
+	logRegistry := worker.NewActiveLogRegistry()
+	mgr := buildWorkerManager(cfg.Bee, s, logRegistry)
 
 	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
 
@@ -153,7 +154,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv := buildAPIServer(cfg.Bee.MCP, s, mgr, mcpSrv, localChatHandler)
+	srv := buildAPIServer(cfg.Bee.MCP, s, mgr, logRegistry, mcpSrv, localChatHandler)
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
@@ -189,8 +190,8 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
+func buildWorkerManager(bc config.BeeConfig, s appStores, logRegistry *worker.ActiveLogRegistry) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, logRegistry)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task_scheduler.Scheduler) {
@@ -231,6 +232,6 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
-	return api.NewServer(s.workerStore, s.execStore, mgr, mcpSrv, cfg.APIKey, webui.DistFS, localChat)
+func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
+	return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, mcpSrv, cfg.APIKey, webui.DistFS, localChat)
 }
