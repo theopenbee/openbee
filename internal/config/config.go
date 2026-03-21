@@ -63,6 +63,7 @@ type PlatformsConfig struct {
 	Feishu   FeishuConfig   `yaml:"feishu"`
 	DingTalk DingTalkConfig `yaml:"dingtalk"`
 	WeCom    WeComConfig    `yaml:"wecom"`
+	Telegram TelegramConfig `yaml:"telegram"`
 }
 
 type FeederConfig struct {
@@ -87,6 +88,12 @@ type WeComConfig struct {
 	BotID        string `yaml:"bot_id"`
 	Secret       string `yaml:"secret"`
 	WebSocketURL string `yaml:"websocket_url"`
+}
+
+type TelegramConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	Token        string `yaml:"token"`
+	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 50MB
 }
 
 type MCPConfig struct {
@@ -142,6 +149,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.WeCom.WebSocketURL == "" {
 		cfg.Bee.Platforms.WeCom.WebSocketURL = "wss://openws.work.weixin.qq.com"
+	}
+	if cfg.Bee.Platforms.Telegram.MaxMediaSize == 0 {
+		cfg.Bee.Platforms.Telegram.MaxMediaSize = 50 * 1024 * 1024 // 50MB
 	}
 	return nil
 }
