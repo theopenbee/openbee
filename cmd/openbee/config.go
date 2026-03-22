@@ -42,6 +42,12 @@ type configValues struct {
 	TelegramEnabled bool
 	TelegramToken   string
 
+	WeixinEnabled    bool
+	WeixinToken      string
+	WeixinBaseURL    string
+	WeixinCDNBaseURL string
+	WeixinUserID     string
+
 	ClaudePath      string
 	ClaudeTimeout   string
 	FeederTimeout   string
@@ -94,6 +100,11 @@ func loadExistingConfig(path string) *configValues {
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
+		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
+		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
+		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
+		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
+		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
@@ -219,11 +230,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.TelegramEnabled {
 		defaultPlatforms = append(defaultPlatforms, "Telegram")
 	}
+	if vals.WeixinEnabled {
+		defaultPlatforms = append(defaultPlatforms, "Weixin")
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: "Which platforms to enable?",
-		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram"},
+		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "Weixin"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -234,6 +248,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.DingtalkEnabled = false
 	vals.WecomEnabled = false
 	vals.TelegramEnabled = false
+	vals.WeixinEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -287,6 +302,38 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
+		case "Weixin":
+			vals.WeixinEnabled = true
+			fmt.Println("\n--- Weixin QR Code Login ---")
+			fmt.Println("Fetching QR code...")
+
+			token, userID, baseURL, err := runWeixinQRLogin()
+			if err != nil {
+				fmt.Printf("QR login failed: %v\n", err)
+				fmt.Println("Falling back to manual token entry.")
+				if err := survey.AskOne(&survey.Password{
+					Message: "Weixin Bot Token:",
+				}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
+					return handleSurveyErr(err)
+				}
+				if err := survey.AskOne(&survey.Input{
+					Message: "Weixin User ID:",
+					Default: vals.WeixinUserID,
+				}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
+					return handleSurveyErr(err)
+				}
+			} else {
+				vals.WeixinToken = token
+				vals.WeixinUserID = userID
+				if baseURL != "" {
+					vals.WeixinBaseURL = baseURL
+				}
+				fmt.Println("Weixin login successful!")
+			}
+			if vals.WeixinBaseURL == "" {
+				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
+			}
+			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 		}
 	}
 
