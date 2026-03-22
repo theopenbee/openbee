@@ -6,6 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -401,8 +405,121 @@ func (s *WeixinSender) sendText(ctx context.Context, raw weixinRaw, text string)
 }
 
 func (s *WeixinSender) sendMedia(ctx context.Context, raw weixinRaw, mediaPath string) error {
-	// Will be implemented in Task 5
-	return fmt.Errorf("weixin: media send not yet implemented")
+	data, err := os.ReadFile(mediaPath)
+	if err != nil {
+		return fmt.Errorf("weixin: read media file: %w", err)
+	}
+	if len(data) > s.cfg.MaxMediaSize {
+		return fmt.Errorf("weixin: file too large: %d bytes (max %d)", len(data), s.cfg.MaxMediaSize)
+	}
+
+	mime := http.DetectContentType(data)
+	mediaType := mediaTypeFromMIME(mime)
+
+	aesKey := generateAesKey()
+	fileKey := generateFileKey()
+	rawSize := len(data)
+	rawMD5 := fileMD5(data)
+	encSize := aesEcbPaddedSize(rawSize)
+
+	uploadReq := getUploadURLReq{
+		FileKey:    fileKey,
+		MediaType:  mediaType,
+		ToUserID:   raw.FromUserID,
+		RawSize:    strconv.Itoa(rawSize),
+		RawFileMD5: rawMD5,
+		FileSize:   strconv.Itoa(encSize),
+		AesKey:     hex.EncodeToString(aesKey),
+	}
+
+	// Retry up to 3 times for 5xx
+	var uploadResp *getUploadURLResp
+	for attempt := 0; attempt < 3; attempt++ {
+		uploadResp, err = s.client.getUploadURL(ctx, uploadReq)
+		if err == nil {
+			break
+		}
+		log.Warn("getUploadURL failed, retrying", zap.Int("attempt", attempt+1), zap.Error(err))
+		time.Sleep(2 * time.Second)
+	}
+	if err != nil {
+		return fmt.Errorf("weixin: getUploadURL: %w", err)
+	}
+
+	// Upload to CDN with retry (only 5xx; 4xx fails immediately)
+	var downloadParam string
+	for attempt := 0; attempt < 3; attempt++ {
+		downloadParam, err = s.client.uploadToCDN(ctx, uploadResp.UploadParam, data, aesKey)
+		if err == nil {
+			break
+		}
+		if !isRetryable(err) {
+			return fmt.Errorf("weixin: CDN upload (non-retryable): %w", err)
+		}
+		log.Warn("CDN upload 5xx, retrying", zap.Int("attempt", attempt+1), zap.Error(err))
+		time.Sleep(2 * time.Second)
+	}
+	if err != nil {
+		return fmt.Errorf("weixin: CDN upload: %w", err)
+	}
+
+	cdnRef := &cdnMedia{
+		EncryptQueryParam: downloadParam,
+		AesKey:            base64.StdEncoding.EncodeToString(aesKey),
+	}
+
+	item := buildMediaItem(mediaType, cdnRef, aesKey, data, mediaPath)
+
+	outMsg := weixinMessage{
+		ToUserID:     raw.FromUserID,
+		ContextToken: raw.ContextToken,
+		MessageType:  2,
+		ItemList:     []messageItem{item},
+	}
+	return s.client.sendMessage(ctx, outMsg)
+}
+
+func mediaTypeFromMIME(mime string) int {
+	switch {
+	case strings.HasPrefix(mime, "video/"):
+		return 2
+	case strings.HasPrefix(mime, "image/"):
+		return 1
+	default:
+		return 3
+	}
+}
+
+func buildMediaItem(mediaType int, cdn *cdnMedia, rawAesKey, data []byte, path string) messageItem {
+	switch mediaType {
+	case 1: // image
+		return messageItem{
+			Type: 2,
+			ImageItem: &imageItem{
+				Media:  cdn,
+				AesKey: hex.EncodeToString(rawAesKey), // hex-encoded raw 16-byte key
+			},
+		}
+	case 2: // video
+		return messageItem{
+			Type: 5,
+			VideoItem: &videoItem{
+				Media:    cdn,
+				VideoMD5: fileMD5(data),
+			},
+		}
+	default: // file
+		fileName := filepath.Base(path)
+		return messageItem{
+			Type: 4,
+			FileItem: &fileItem{
+				Media:    cdn,
+				FileName: platform.SanitizeFileName(fileName),
+				MD5:      fileMD5(data),
+				Len:      strconv.Itoa(len(data)),
+			},
+		}
+	}
 }
 
 // Interface compliance guards.
