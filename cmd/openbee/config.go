@@ -133,44 +133,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals = *existing
 	}
 
-	// Step 1 — Basic config
-	fmt.Println("\n=== Basic Configuration ===")
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Server port:",
-		Default: vals.ServerPort,
-	}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
-		s, _ := val.(string)
-		if _, err := strconv.Atoi(s); err != nil {
-			return fmt.Errorf("port must be an integer")
-		}
-		return nil
-	})); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Server Host:",
-		Default: vals.ServerHost,
-	}, &vals.ServerHost); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Confirm{
-		Message: "Debug mode?",
-		Default: vals.Debug,
-	}, &vals.Debug); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Database path:",
-		Default: vals.DBPath,
-	}, &vals.DBPath); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	// Step 2 — Claude config
+	// Step 1 — Claude config
 	fmt.Println("\n=== Claude Configuration ===")
 
 	if err := configureClaudeExecutable(&vals); err != nil {
@@ -180,40 +143,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Step 3 — MCP config
-	fmt.Println("\n=== MCP Configuration ===")
-
-	mcpKeyChoice := "Generate randomly"
-	if vals.MCPAPIKey != "" {
-		mcpKeyChoice = "Enter manually"
-	}
-	var mcpMethod string
-	if err := survey.AskOne(&survey.Select{
-		Message: "MCP API Key setup:",
-		Options: []string{"Generate randomly", "Enter manually"},
-		Default: mcpKeyChoice,
-	}, &mcpMethod); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	switch mcpMethod {
-	case "Generate randomly":
-		b := make([]byte, 12)
-		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("generate random key: %w", err)
-		}
-		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
-	case "Enter manually":
-		if err := survey.AskOne(&survey.Input{
-			Message: "MCP API Key:",
-			Default: vals.MCPAPIKey,
-		}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-	}
-
-	// Step 4 — Platform config
+	// Step 2 — Platform config
 	fmt.Println("\n=== Platform Configuration ===")
 
 	// Build default selections from existing config
@@ -337,7 +267,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 5 — Advanced config
+	// Step 3 — Advanced config
 	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool
@@ -349,6 +279,70 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if customAdvanced {
+		if err := survey.AskOne(&survey.Input{
+			Message: "Server port:",
+			Default: vals.ServerPort,
+		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
+			s, _ := val.(string)
+			if _, err := strconv.Atoi(s); err != nil {
+				return fmt.Errorf("port must be an integer")
+			}
+			return nil
+		})); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Input{
+			Message: "Server Host:",
+			Default: vals.ServerHost,
+		}, &vals.ServerHost); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Confirm{
+			Message: "Debug mode?",
+			Default: vals.Debug,
+		}, &vals.Debug); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Input{
+			Message: "Database path:",
+			Default: vals.DBPath,
+		}, &vals.DBPath); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		mcpKeyChoice := "Generate randomly"
+		if vals.MCPAPIKey != "" {
+			mcpKeyChoice = "Enter manually"
+		}
+		var mcpMethod string
+		if err := survey.AskOne(&survey.Select{
+			Message: "MCP API Key setup:",
+			Options: []string{"Generate randomly", "Enter manually"},
+			Default: mcpKeyChoice,
+		}, &mcpMethod); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		switch mcpMethod {
+		case "Generate randomly":
+			b := make([]byte, 12)
+			if _, err := rand.Read(b); err != nil {
+				return fmt.Errorf("generate random key: %w", err)
+			}
+			vals.MCPAPIKey = hex.EncodeToString(b)
+			fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+		case "Enter manually":
+			if err := survey.AskOne(&survey.Input{
+				Message: "MCP API Key:",
+				Default: vals.MCPAPIKey,
+			}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+		}
+
 		if err := survey.AskOne(&survey.Input{
 			Message: "Feeder timeout:",
 			Default: vals.FeederTimeout,
@@ -378,7 +372,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 6 — Confirm write
+	// Auto-generate MCP API Key if not set
+	if vals.MCPAPIKey == "" {
+		b := make([]byte, 12)
+		if _, err := rand.Read(b); err != nil {
+			return fmt.Errorf("generate random key: %w", err)
+		}
+		vals.MCPAPIKey = hex.EncodeToString(b)
+		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+	}
+
+	// Step 4 — Confirm write
 	fmt.Printf("\n=== Write Configuration ===\n")
 	fmt.Printf("Output file: %s\n", configOutputPath)
 
