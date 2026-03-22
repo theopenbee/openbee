@@ -34,6 +34,13 @@ bee:
       enabled: {{.TelegramEnabled}}
       token: "{{.TelegramToken}}"
       # max_media_size: 52428800  # 50MB default
+    weixin:
+      enabled: {{.WeixinEnabled}}
+      token: "{{.WeixinToken}}"
+      user_id: "{{.WeixinUserID}}"
+      # base_url: https://ilinkai.weixin.qq.com  # default
+      # cdn_base_url: https://novac2c.cdn.weixin.qq.com/c2c  # default
+      # max_media_size: 52428800  # 50MB default
   feeder:
     timeout: {{.FeederTimeout}}
   media:
