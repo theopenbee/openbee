@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -317,9 +318,53 @@ func (r *WeixinReceiver) downloadMedia(ctx context.Context, m *cdnMedia, hexAesK
 }
 
 func (r *WeixinReceiver) downloadVoice(ctx context.Context, v *voiceItem) string {
-	placeholder := r.downloadMedia(ctx, v.Media, "", "audio", "voice.silk")
-	// TODO: Task 6 adds SILK→WAV transcoding here
-	return placeholder
+	if v.Media == nil || v.Media.EncryptQueryParam == "" {
+		return r.mediaSvc.BuildPlaceholder("audio", "", "voice.silk")
+	}
+
+	aesKeyB64 := v.Media.AesKey
+	if aesKeyB64 == "" {
+		log.Error("no aes key for voice download")
+		return r.mediaSvc.BuildPlaceholder("audio", "", "voice.silk")
+	}
+
+	data, err := r.client.downloadFromCDN(ctx, v.Media.EncryptQueryParam, aesKeyB64, r.cfg.MaxMediaSize)
+	if err != nil {
+		log.Error("download voice from CDN", zap.Error(err))
+		return r.mediaSvc.BuildPlaceholder("audio", "", "voice.silk")
+	}
+
+	// Save raw SILK file first
+	silkPath, err := r.mediaSvc.SaveInbound(ctx, data, ".silk")
+	if err != nil {
+		log.Error("save voice file", zap.Error(err))
+		return r.mediaSvc.BuildPlaceholder("audio", "", "voice.silk")
+	}
+
+	// Try SILK→WAV transcoding via FFmpeg
+	wavPath, err := r.transcodeSilkToWav(ctx, silkPath)
+	if err != nil {
+		log.Warn("SILK to WAV transcoding failed, using raw SILK file",
+			zap.Error(err), zap.String("silk_path", silkPath))
+		return r.mediaSvc.BuildPlaceholder("audio", silkPath, "voice.silk")
+	}
+
+	return r.mediaSvc.BuildPlaceholder("audio", wavPath, "voice.wav")
+}
+
+func (r *WeixinReceiver) transcodeSilkToWav(ctx context.Context, silkPath string) (string, error) {
+	wavPath := strings.TrimSuffix(silkPath, filepath.Ext(silkPath)) + ".wav"
+	cmd := exec.CommandContext(ctx, r.mc.FFmpegPath,
+		"-i", silkPath,
+		"-ar", "16000",
+		"-ac", "1",
+		"-y", wavPath,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("ffmpeg: %w: %s", err, string(out))
+	}
+	return wavPath, nil
 }
 
 func (r *WeixinReceiver) sendTypingAction(ctx context.Context) {
