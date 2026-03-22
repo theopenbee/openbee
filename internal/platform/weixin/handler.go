@@ -106,6 +106,7 @@ func (r *WeixinReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 		if resp.ErrCode == -14 {
 			log.Warn("session timeout (errcode -14), pausing for 1 hour. Consider re-running 'openbee config' to re-login.")
 			r.session.pause()
+			consecutiveFailures = 0
 			continue
 		}
 
@@ -333,8 +334,22 @@ func (s *WeixinSender) sendMedia(ctx context.Context, toUserID, contextToken, me
 		return fmt.Errorf("weixin: get upload url: %w", err)
 	}
 
-	// Upload ciphertext to CDN (with retries)
-	dlParam, uploadErr := doUploadWithRetry(ctx, uploadResp.UploadParam, ciphertext)
+	// Upload ciphertext to CDN with retries
+	var dlParam string
+	var uploadErr error
+	for attempt := range 3 {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * 2 * time.Second):
+			}
+		}
+		dlParam, uploadErr = doUpload(ctx, uploadResp.UploadParam, ciphertext)
+		if uploadErr == nil {
+			break
+		}
+	}
 	if uploadErr != nil {
 		log.Warn("CDN upload failed, falling back to text", zap.Error(uploadErr))
 		return s.sendTextMessage(ctx, toUserID, contextToken, markdownToPlainText(caption))
@@ -374,25 +389,6 @@ func (s *WeixinSender) sendMedia(ctx context.Context, toUserID, contextToken, me
 	}
 
 	return s.client.SendMessage(ctx, weixinMsg)
-}
-
-func doUploadWithRetry(ctx context.Context, uploadURL string, data []byte) (string, error) {
-	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-time.After(time.Duration(attempt) * 2 * time.Second):
-			}
-		}
-		dlParam, err := doUpload(ctx, uploadURL, data)
-		if err == nil {
-			return dlParam, nil
-		}
-		lastErr = err
-	}
-	return "", lastErr
 }
 
 // cryptoRandRead wraps crypto/rand.Read for testability.

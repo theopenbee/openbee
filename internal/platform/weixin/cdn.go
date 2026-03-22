@@ -43,7 +43,7 @@ func downloadAndDecrypt(ctx context.Context, cdnBaseUrl, encryptQueryParam, aesK
 }
 
 // encryptAndUpload encrypts data, uploads to CDN, returns download param and hex-encoded AES key.
-func encryptAndUpload(ctx context.Context, data []byte, uploadURL, filekey, cdnBaseUrl string) (downloadParam string, aesKeyHex string, err error) {
+func encryptAndUpload(ctx context.Context, data []byte, uploadURL string) (downloadParam string, aesKeyHex string, err error) {
 	// Generate random AES-128 key
 	key := make([]byte, 16)
 	if _, err := rand.Read(key); err != nil {

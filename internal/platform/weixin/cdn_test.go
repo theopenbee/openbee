@@ -44,7 +44,7 @@ func TestEncryptAndUpload(t *testing.T) {
 	defer srv.Close()
 
 	plaintext := []byte("upload test data")
-	dlParam, aesKeyHex, err := encryptAndUpload(context.Background(), plaintext, fmt.Sprintf("%s?upload=1", srv.URL), "filekey-1", srv.URL)
+	dlParam, aesKeyHex, err := encryptAndUpload(context.Background(), plaintext, fmt.Sprintf("%s?upload=1", srv.URL))
 	if err != nil {
 		t.Fatalf("encryptAndUpload: %v", err)
 	}
