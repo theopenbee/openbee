@@ -28,6 +28,26 @@ const (
 	TypingStatusCancel = 2
 )
 
+// CDN media type constants.
+const (
+	CDNMediaTypeImage = 1
+	CDNMediaTypeVideo = 2
+	CDNMediaTypeFile  = 3
+	CDNMediaTypeVoice = 4
+)
+
+// QR code scan status constants.
+const (
+	QRStatusPending   = 0
+	QRStatusScanned   = 1
+	QRStatusConfirmed = 2
+)
+
+// Error code constants.
+const (
+	ErrCodeSessionTimeout = -14
+)
+
 // WeixinMessage represents a message in the WeChat protocol.
 type WeixinMessage struct {
 	Seq          int64         `json:"seq,omitempty"`

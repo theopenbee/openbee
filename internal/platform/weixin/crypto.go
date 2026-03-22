@@ -8,17 +8,17 @@ import (
 // encryptAES128ECB encrypts plaintext using AES-128-ECB with PKCS#7 padding.
 // Note: ECB mode is inherently insecure for multi-block data; this is dictated
 // by the WeChat CDN protocol, not a design choice.
-func encryptAES128ECB(plaintext []byte, key []byte) []byte {
+func encryptAES128ECB(plaintext []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(fmt.Sprintf("weixin: invalid AES key: %v", err))
+		return nil, fmt.Errorf("weixin: invalid AES key: %w", err)
 	}
 	padded := pkcs7Pad(plaintext, aes.BlockSize)
 	ciphertext := make([]byte, len(padded))
 	for i := 0; i < len(padded); i += aes.BlockSize {
 		block.Encrypt(ciphertext[i:i+aes.BlockSize], padded[i:i+aes.BlockSize])
 	}
-	return ciphertext
+	return ciphertext, nil
 }
 
 // decryptAES128ECB decrypts AES-128-ECB ciphertext and removes PKCS#7 padding.

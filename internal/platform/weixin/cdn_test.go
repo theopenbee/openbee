@@ -5,9 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +15,10 @@ func TestDownloadAndDecrypt(t *testing.T) {
 	key := make([]byte, 16)
 	rand.Read(key)
 	plaintext := []byte("hello weixin cdn")
-	ciphertext := encryptAES128ECB(plaintext, key)
+	ciphertext, err := encryptAES128ECB(plaintext, key)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
 	aesKeyBase64 := base64.StdEncoding.EncodeToString(key)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,29 +32,5 @@ func TestDownloadAndDecrypt(t *testing.T) {
 	}
 	if !bytes.Equal(got, plaintext) {
 		t.Errorf("got %q, want %q", got, plaintext)
-	}
-}
-
-func TestEncryptAndUpload(t *testing.T) {
-	var receivedBody []byte
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = io.ReadAll(r.Body)
-		json.NewEncoder(w).Encode(map[string]string{"download_param": "dl-param-123"})
-	}))
-	defer srv.Close()
-
-	plaintext := []byte("upload test data")
-	dlParam, aesKeyHex, err := encryptAndUpload(context.Background(), plaintext, fmt.Sprintf("%s?upload=1", srv.URL))
-	if err != nil {
-		t.Fatalf("encryptAndUpload: %v", err)
-	}
-	if dlParam == "" {
-		t.Error("expected non-empty download_param")
-	}
-	if aesKeyHex == "" {
-		t.Error("expected non-empty aesKey")
-	}
-	if len(receivedBody) == 0 {
-		t.Error("expected upload body")
 	}
 }

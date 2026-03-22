@@ -53,7 +53,7 @@ func QRLogin(ctx context.Context, baseUrl string) (*QRLoginResult, error) {
 			// Timeout is expected for long-poll, retry
 			continue
 		}
-		if statusResp.Status == 2 { // confirmed
+		if statusResp.Status == QRStatusConfirmed {
 			return &QRLoginResult{
 				Token:   statusResp.BotToken,
 				BotID:   statusResp.BotID,
@@ -61,7 +61,7 @@ func QRLogin(ctx context.Context, baseUrl string) (*QRLoginResult, error) {
 				UserID:  statusResp.UserID,
 			}, nil
 		}
-		if statusResp.Status == 1 {
+		if statusResp.Status == QRStatusScanned {
 			fmt.Println("QR code scanned, waiting for confirmation...")
 		}
 	}

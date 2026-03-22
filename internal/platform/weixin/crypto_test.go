@@ -52,7 +52,10 @@ func TestEncryptDecryptAES128ECBRoundtrip(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cipher := encryptAES128ECB(tt.plain, key)
+			cipher, err := encryptAES128ECB(tt.plain, key)
+			if err != nil {
+				t.Fatalf("encrypt: %v", err)
+			}
 			if len(cipher)%16 != 0 {
 				t.Fatalf("ciphertext length %d not multiple of 16", len(cipher))
 			}
@@ -74,11 +77,14 @@ func TestDecryptAES128ECBInvalidPadding(t *testing.T) {
 	}
 	// Create a ciphertext with corrupted padding
 	plain := []byte("test data 12345")
-	cipher := encryptAES128ECB(plain, key)
+	cipher, err := encryptAES128ECB(plain, key)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
 	// Corrupt last byte
 	cipher[len(cipher)-1] ^= 0xFF
 
-	_, err := decryptAES128ECB(cipher, key)
+	_, err = decryptAES128ECB(cipher, key)
 	if err == nil {
 		t.Error("expected error for corrupted padding")
 	}

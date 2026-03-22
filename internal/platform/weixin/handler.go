@@ -103,7 +103,7 @@ func (r *WeixinReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 		}
 
 		// Check for session timeout
-		if resp.ErrCode == -14 {
+		if resp.ErrCode == ErrCodeSessionTimeout {
 			log.Warn("session timeout (errcode -14), pausing for 1 hour. Consider re-running 'openbee config' to re-login.")
 			r.session.pause()
 			consecutiveFailures = 0
@@ -112,8 +112,8 @@ func (r *WeixinReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 
 		consecutiveFailures = 0
 
-		// Persist sync cursor
-		if resp.GetUpdatesBuf != "" {
+		// Persist sync cursor (only write when changed)
+		if resp.GetUpdatesBuf != "" && resp.GetUpdatesBuf != syncBuf {
 			syncBuf = resp.GetUpdatesBuf
 			saveSyncBuf(syncBuf)
 		}
@@ -298,13 +298,17 @@ func (s *WeixinSender) sendTextMessage(ctx context.Context, toUserID, contextTok
 }
 
 func (s *WeixinSender) sendMedia(ctx context.Context, toUserID, contextToken, mediaPath, caption string) error {
+	fi, err := os.Stat(mediaPath)
+	if err != nil {
+		return fmt.Errorf("weixin: stat media: %w", err)
+	}
+	if fi.Size() > int64(s.cfg.MaxMediaSize) {
+		log.Warn("media too large, sending text only", zap.Int64("size_bytes", fi.Size()), zap.Int("max_bytes", s.cfg.MaxMediaSize))
+		return s.sendTextMessage(ctx, toUserID, contextToken, markdownToPlainText(caption))
+	}
 	data, err := os.ReadFile(mediaPath)
 	if err != nil {
 		return fmt.Errorf("weixin: read media: %w", err)
-	}
-	if len(data) > s.cfg.MaxMediaSize {
-		log.Warn("media too large, sending text only", zap.Int("size", len(data)), zap.Int("max", s.cfg.MaxMediaSize))
-		return s.sendTextMessage(ctx, toUserID, contextToken, markdownToPlainText(caption))
 	}
 
 	contentType := s.media.DetectMIME(data, filepath.Base(mediaPath))
@@ -315,7 +319,10 @@ func (s *WeixinSender) sendMedia(ctx context.Context, toUserID, contextToken, me
 	if _, err := cryptoRandRead(key); err != nil {
 		return fmt.Errorf("weixin: generate key: %w", err)
 	}
-	ciphertext := encryptAES128ECB(data, key)
+	ciphertext, err := encryptAES128ECB(data, key)
+	if err != nil {
+		return fmt.Errorf("weixin: encrypt media: %w", err)
+	}
 	aesKeyHex := fmt.Sprintf("%x", key)
 
 	// Get upload URL
@@ -363,13 +370,13 @@ func (s *WeixinSender) sendMedia(ctx context.Context, toUserID, contextToken, me
 
 	var item MessageItem
 	switch cdnType {
-	case 1: // image
+	case CDNMediaTypeImage:
 		item = MessageItem{Type: MessageItemTypeImage, ImageItem: &ImageItem{CDNMedia: cdnMedia}}
-	case 2: // video
+	case CDNMediaTypeVideo:
 		item = MessageItem{Type: MessageItemTypeVideo, VideoItem: &VideoItem{CDNMedia: cdnMedia}}
-	case 4: // voice
+	case CDNMediaTypeVoice:
 		item = MessageItem{Type: MessageItemTypeVoice, VoiceItem: &VoiceItem{CDNMedia: cdnMedia}}
-	default: // file
+	default:
 		item = MessageItem{Type: MessageItemTypeFile, FileItem: &FileItem{CDNMedia: cdnMedia, FileName: filepath.Base(mediaPath), FileSize: int64(len(data))}}
 	}
 

@@ -138,6 +138,8 @@ func (c *WeixinAPIClient) doRequest(ctx context.Context, client *http.Client, pa
 // randomWechatUin generates a random 4-byte value encoded as base64, per SDK convention.
 func randomWechatUin() string {
 	var buf [4]byte
-	rand.Read(buf[:])
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "AAAAAAA=" // fallback: non-random but valid base64
+	}
 	return base64.StdEncoding.EncodeToString(buf[:])
 }
