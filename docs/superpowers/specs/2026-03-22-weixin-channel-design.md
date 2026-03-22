@@ -54,7 +54,7 @@ type WeixinConfig struct {
    - 响应返回新 cursor，持久化到内存
 2. 遍历 `msgs` 数组，逐条处理：
    - 过滤：只处理 `message_type=1`(USER) 且 `message_state=2`(FINISH)
-   - 保存 `context_token` 到内存 map（key: `fromUserID`）
+   - `context_token` 随原始消息 JSON 存入 `InboundMessage.Raw`（Sender 通过 Raw 解析获取）
    - 提取 `item_list` 内容：
      - TextItem → 直接取 text
      - ImageItem → 下载解密 → `mediaSvc.SaveInbound` → `BuildPlaceholder`
