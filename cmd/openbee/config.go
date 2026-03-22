@@ -304,18 +304,35 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 		case "Weixin":
 			vals.WeixinEnabled = true
-			if err := survey.AskOne(&survey.Password{
-				Message: "Weixin Bot Token:",
-			}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
+			fmt.Println("\n--- Weixin QR Code Login ---")
+			fmt.Println("Fetching QR code...")
+
+			token, userID, baseURL, err := runWeixinQRLogin()
+			if err != nil {
+				fmt.Printf("QR login failed: %v\n", err)
+				fmt.Println("Falling back to manual token entry.")
+				if err := survey.AskOne(&survey.Password{
+					Message: "Weixin Bot Token:",
+				}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
+					return handleSurveyErr(err)
+				}
+				if err := survey.AskOne(&survey.Input{
+					Message: "Weixin User ID:",
+					Default: vals.WeixinUserID,
+				}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
+					return handleSurveyErr(err)
+				}
+			} else {
+				vals.WeixinToken = token
+				vals.WeixinUserID = userID
+				if baseURL != "" {
+					vals.WeixinBaseURL = baseURL
+				}
+				fmt.Println("Weixin login successful!")
 			}
-			if err := survey.AskOne(&survey.Input{
-				Message: "Weixin User ID:",
-				Default: vals.WeixinUserID,
-			}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
+			if vals.WeixinBaseURL == "" {
+				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
 			}
-			vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
 			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 		}
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
+	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 	"github.com/theopenbee/openbee/internal/task_scheduler"
@@ -116,7 +117,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform["local"] = localSender
 
 	mcpSrv := mcp.NewServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore)
-	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Media)
+	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
 
 	// Populate sender map before goroutines start
 	for _, p := range platforms {
@@ -215,7 +216,7 @@ func buildPipeline(
 	return ingest, disp
 }
 
-func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, mc config.MediaConfig) []platform.Platform {
+func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, wxc config.WeixinConfig, mc config.MediaConfig) []platform.Platform {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
@@ -229,6 +230,9 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	}
 	if tc.Enabled {
 		result = append(result, telegram.NewPlatform(tc, mediaSvc))
+	}
+	if wxc.Enabled {
+		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	return result
 }
