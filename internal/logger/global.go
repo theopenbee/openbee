@@ -69,8 +69,9 @@ func SetLevel(level zapcore.Level) { atomicLevel.SetLevel(level) }
 // Mount at an internal route, e.g.: router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
 func LevelHandler() http.Handler { return atomicLevel }
 
-// With returns a child Logger with pre-attached fields (e.g. component name).
-func With(fields ...zap.Field) *Logger { return globalLogger.With(fields...) }
+// With returns a deferred child Logger with pre-attached fields (e.g. component name).
+// Safe to call before Init() — the real logger is resolved at log time.
+func With(fields ...zap.Field) *Logger { return &Logger{fields: fields} }
 
 // Info logs at INFO level on the global logger.
 func Info(msg string, fields ...zap.Field) { globalLogger.Info(msg, fields...) }
