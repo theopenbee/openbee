@@ -45,7 +45,15 @@ func (p *WeixinPlatform) Receiver() platform.PlatformReceiverAdapter
 func (p *WeixinPlatform) Sender() platform.PlatformSenderAdapter
 ```
 
-**Session Key Format:** `"weixin:{from_user_id}"`
+**Compile-time interface assertions:**
+
+```go
+var _ platform.Platform = (*WeixinPlatform)(nil)
+var _ platform.PlatformReceiverAdapter = (*WeixinReceiver)(nil)
+var _ platform.PlatformSenderAdapter = (*WeixinSender)(nil)
+```
+
+**Session Key Format:** `"weixin:{from_user_id}:{from_user_id}"` (3-segment format consistent with all other platforms; WeChat personal agent is always 1:1, so chat scope and sender are the same)
 
 ## API Client
 
@@ -72,8 +80,9 @@ type WeixinAPIClient struct {
 
 **Common request pattern:**
 - HTTP POST + JSON body
-- Headers: `Authorization: Bearer {token}`, `X-WECHAT-UIN: {random base64}`
+- Headers: `Authorization: Bearer {token}`, `X-WECHAT-UIN: {random base64 of 4 bytes (uint32)}` — random per request, as per SDK `randomWechatUin()` in `src/api/api.ts`
 - Response: check `ret` and `errcode` fields
+- All requests use `http.NewRequestWithContext` for graceful shutdown cancellation
 
 ## Authentication & Token Management
 
@@ -86,10 +95,14 @@ In Step 4 (Platform Configuration), "微信" is added to the multi-select list. 
    - No token → proceed to QR scan
 2. **QR scan flow:**
    - Call `GetBotQRCode(botType="3")`
-   - Render QR code in terminal
-   - Long-poll `GetQRCodeStatus` until scanned (35s timeout, loop)
+   - Render QR code in terminal using `github.com/mdp/qrterminal` (or similar Go library)
+   - Long-poll `GetQRCodeStatus` until scanned (35s timeout per attempt, loop up to 5 minutes total)
+   - User can Ctrl+C to cancel (handled via `handleSurveyErr` pattern)
    - On success: receive `bot_token`, `ilink_bot_id`, `base_url`
+   - On timeout: display error message, allow retry or skip
 3. **Write to config.yaml** under `platforms.weixin`
+
+**Note:** The token from QR login cannot be regenerated from a developer portal. Users should back up `config.yaml` after successful login.
 
 ### Platform startup
 
@@ -170,9 +183,12 @@ Start(ctx, dispatch)
             │    └─ FILE → CDN download+decrypt → placeholder
             ├─ Build InboundMessage:
             │    ├─ Platform: "weixin"
-            │    ├─ SessionKey: "weixin:{from_user_id}"
+            │    ├─ SenderID: from_user_id
+            │    ├─ SessionKey: "weixin:{from_user_id}:{from_user_id}"
             │    ├─ Content: text + media placeholders
+            │    ├─ RawContent: text only (no media placeholders)
             │    ├─ Raw: JSON marshal of WeixinMessage (includes context_token)
+            │    ├─ PlatformMessageID: strconv.FormatInt(message_id, 10)
             │    └─ MessageTime: create_time_ms
             ├─ sendTyping(TYPING)
             └─ dispatch(inboundMsg)
@@ -209,6 +225,7 @@ func encryptAndUpload(data []byte, uploadParam, filekey, cdnBaseUrl string) (dow
 - PKCS#7 padding to 16-byte blocks
 - Manual ECB mode using Go `crypto/aes` (block-by-block)
 - Upload retries: up to 3 times with exponential backoff
+- **Note:** ECB mode is inherently insecure for multi-block data; this is dictated by the WeChat protocol, not a design choice
 
 ### Comparison with WeCom
 
@@ -242,6 +259,36 @@ func markdownToPlainText(text string) string
 | Tables | Keep as-is (pipe chars are readable) |
 
 Regex-based sequential replacement, no AST parsing.
+
+## Sync Buffer Persistence
+
+Long-polling cursor persisted to `~/.openbee/weixin/sync.json` for resume after restart:
+- Load on startup; if missing or corrupted, start fresh (empty cursor = full sync)
+- Save after each successful `getUpdates` response
+- Not configurable (internal state file)
+
+## Voice Transcoding
+
+SILK-to-WAV transcoding reuses the existing `internal/ffmedia` package (already used by DingTalk) rather than reimplementing. Falls back to raw SILK + STT text if ffmpeg is unavailable.
+
+## Testing
+
+| Area | Strategy |
+|------|----------|
+| `markdownToPlainText` | Unit tests with table-driven cases |
+| AES-128-ECB encrypt/decrypt | Unit tests: roundtrip, known vectors, padding edge cases |
+| Message filtering | Unit tests: message_type/message_state combinations |
+| Receiver long-poll | Integration test with mock HTTP server |
+| CDN upload/download | Unit tests with mock HTTP + known ciphertext |
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `internal/config/config.go` | Add `WeixinConfig` struct, add `Weixin` field to `PlatformsConfig`, add defaults in `applyDefaults()` |
+| `internal/config/config.yaml.tmpl` | Add `weixin` section template |
+| `internal/app/app.go` | Add weixin platform construction in `buildPlatforms` |
+| `cmd/openbee/config.go` | Add "微信" to platform multi-select, implement QR scan flow |
 
 ## Protocol Types (types.go)
 
