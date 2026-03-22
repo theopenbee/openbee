@@ -32,7 +32,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 
 	// Step 2: Display QR code in terminal
 	fmt.Println("\nScan this QR code with WeChat:")
-	qrterminal.GenerateWithConfig(qrResp.QRCode, qrterminal.Config{
+	qrterminal.GenerateWithConfig(qrResp.QRCodeImgContent, qrterminal.Config{
 		Level:     qrterminal.L,
 		Writer:    os.Stdout,
 		BlackChar: qrterminal.BLACK,
