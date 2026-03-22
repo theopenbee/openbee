@@ -76,7 +76,7 @@ type WeixinConfig struct {
 4. AES-128-ECB 解密 + PKCS7 去填充
 5. `mediaSvc.SaveInbound()` 保存明文
 
-**Typing 状态：** 收到消息后立即在 goroutine 中发送 `sendtyping(status=1)`，需先通过 `getconfig` 获取 `typing_ticket`（缓存 24h）。
+**Typing 状态：** 收到消息后立即在 goroutine 中发送 `sendtyping(status=1)`，其中 `ilink_user_id` 使用 bot 自身的 `config.UserID`（非消息发送者 ID）。需先通过 `getconfig` 获取 `typing_ticket`（缓存 24h）。
 
 ---
 
@@ -84,10 +84,9 @@ type WeixinConfig struct {
 
 **WeixinSender.Send() 流程：**
 
-1. 从 `msg.ReplyTo.Raw` 解析出 `toUserID`（原始消息的 `fromUserID`）
-2. 从内存 map 获取 `context_token`（key: toUserID）
-3. 纯文本 → 直接 `sendmessage`，`item_list` 包含 TextItem
-4. 有 MediaPath → 媒体上传后 `sendmessage`
+1. 从 `msg.ReplyTo.Raw` 解析 weixinRaw，获取 `toUserID`（原消息 fromUserID）和 `context_token`
+2. 纯文本 → 直接 `sendmessage`，`item_list` 包含 TextItem
+3. 有 MediaPath → 媒体上传后 `sendmessage`
 
 **媒体上传流程：**
 1. 读取文件，检测 MIME 类型
@@ -168,8 +167,8 @@ func aesEcbPaddedSize(plaintextSize int) int {
 - 轮询主循环检查，到期后自动恢复
 
 **Context Token：**
-- `sync.Map`，key=fromUserID, value=contextToken
-- 每条入站消息更新，发送时读取，缺失时 warn 但不阻塞
+- 通过 Raw JSON 传递（Receiver 存入 InboundMessage.Raw → Sender 从 ReplyTo.Raw 解析）
+- 与现有通道的 Raw 传递模式一致，无需额外内存存储
 
 **Typing Ticket 缓存：**
 - 内存缓存，24h TTL
@@ -211,7 +210,31 @@ func aesEcbPaddedSize(plaintextSize int) int {
 
 ---
 
-## API 端点参考
+## API 客户端约定
+
+**公共请求头（所有已认证请求）：**
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `AuthorizationType` | `ilink_bot_token` |
+| `Authorization` | `Bearer {token}` |
+| `X-WECHAT-UIN` | 随机 uint32 → string → base64 |
+| `SKRouteTag` | `{routeTag}`（可选，仅配置了 RouteTag 时添加） |
+
+**公共请求体字段：** 所有 POST 请求 body 必须包含 `"base_info": { "channel_version": "1.0.2" }`。
+
+**sendmessage 请求体结构：**
+```json
+{
+  "msg": { /* WeixinMessage，包含 item_list, to_user_id, context_token 等 */ },
+  "base_info": { "channel_version": "1.0.2" }
+}
+```
+
+**getuploadurl 中 aeskey 编码：** `aeskey` 字段使用 32 字符 hex 编码（16 字节 key 的 hex 表示）。注意区别于消息中 CDNMedia 的 `aes_key` 字段使用 base64 编码。
+
+**API 端点参考：**
 
 | 端点 | 用途 | 超时 |
 |------|------|------|
@@ -225,12 +248,34 @@ func aesEcbPaddedSize(plaintextSize int) int {
 | `PUT {cdn}/upload` | CDN 文件上传 | 120s |
 | `GET {cdn}/download` | CDN 文件下载 | 120s |
 
-## 公共请求头
+---
 
-| Header | Value |
-|--------|-------|
-| `Content-Type` | `application/json` |
-| `AuthorizationType` | `ilink_bot_token` |
-| `Authorization` | `Bearer {token}` |
-| `X-WECHAT-UIN` | 随机 uint32 → string → base64 |
-| `SKRouteTag` | `{routeTag}`（可选） |
+## 边界情况与设计决策
+
+**群消息：** v1 不支持群消息。收到 `group_id` 非空的消息时跳过（日志 debug 记录），后续版本可扩展。
+
+**消息去重：** `PlatformMessageID` 设为 `{seq}:{messageID}`，下游 `msgingest.Gateway` 已内置去重逻辑，无需在 weixin 层额外处理。重连后如果 cursor 过期可能收到重复消息，由 Gateway 过滤。
+
+**空/未知 item_list：** `item_list` 为空或 nil 时跳过该消息（不 dispatch）。遇到未知 item type 时日志 warn 并跳过该 item，继续处理同消息中的其他 item。
+
+**Context Token 获取方式：** 统一通过 Raw JSON 获取（Sender 从 `msg.ReplyTo.Raw` 解析），与现有通道模式一致。去掉独立的 `sync.Map` 存储，避免冗余。Raw 中已包含 `context_token` 和 `from_user_id`（即回复目标）。
+
+**SILK→WAV 转码：** 需要 `MediaConfig` 中的 `FFmpegPath`。WeixinReceiver 构造时接收 `config.MediaConfig`。FFmpeg 命令：`ffmpeg -i input.silk -ar 16000 -ac 1 output.wav`。转码失败时仍保存原始 SILK 文件，日志 warn。
+
+**Typing 中的 ilink_user_id：** 使用 `config.WeixinConfig.UserID`（bot 自身的 user_id，扫码登录时获取），不是消息发送者的 ID。
+
+**Sync cursor 持久化：** v1 仅在内存中保存。进程重启后从空 cursor 开始，可能收到已处理的消息，由 Gateway 去重。已知 trade-off，v2 可持久化到磁盘。
+
+**CDN 下载大小限制：** 使用 `io.LimitReader(resp.Body, MaxMediaSize+1)` 流式读取，超过 MaxMediaSize 时跳过并返回 placeholder（与 Telegram 一致）。
+
+**接口合规检查：**
+```go
+var _ platform.Platform                = (*WeixinPlatform)(nil)
+var _ platform.PlatformReceiverAdapter = (*WeixinReceiver)(nil)
+var _ platform.PlatformSenderAdapter   = (*WeixinSender)(nil)
+```
+
+**NewPlatform 签名：**
+```go
+func NewPlatform(cfg config.WeixinConfig, mc config.MediaConfig, mediaSvc *media.Service) platform.Platform
+```
