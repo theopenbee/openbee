@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/platform/weixin"
 )
 
 var errInterrupted = errors.New("interrupted")
@@ -41,6 +43,10 @@ type configValues struct {
 
 	TelegramEnabled bool
 	TelegramToken   string
+
+	WeixinEnabled bool
+	WeixinToken   string
+	WeixinUserID  string
 
 	ClaudePath      string
 	ClaudeTimeout   string
@@ -94,6 +100,9 @@ func loadExistingConfig(path string) *configValues {
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
+		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
+		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
+		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
@@ -219,11 +228,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.TelegramEnabled {
 		defaultPlatforms = append(defaultPlatforms, "Telegram")
 	}
+	if vals.WeixinEnabled {
+		defaultPlatforms = append(defaultPlatforms, "微信")
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: "Which platforms to enable?",
-		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram"},
+		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "微信"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -234,6 +246,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.DingtalkEnabled = false
 	vals.WecomEnabled = false
 	vals.TelegramEnabled = false
+	vals.WeixinEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -287,6 +300,33 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
+		case "微信":
+			vals.WeixinEnabled = true
+			if vals.WeixinToken != "" {
+				var action string
+				if err := survey.AskOne(&survey.Select{
+					Message: "WeChat token already configured. What would you like to do?",
+					Options: []string{"Skip (use existing token)", "Re-login with QR code"},
+				}, &action); err != nil {
+					return handleSurveyErr(err)
+				}
+				if action == "Skip (use existing token)" {
+					break
+				}
+			}
+			// QR login flow
+			fmt.Println("\nStarting WeChat QR login...")
+			baseUrl := "https://ilinkai.weixin.qq.com"
+			result, err := weixin.QRLogin(context.Background(), baseUrl)
+			if err != nil {
+				fmt.Printf("WeChat login failed: %v\n", err)
+				fmt.Println("You can retry later with 'openbee config'")
+				vals.WeixinEnabled = false
+				break
+			}
+			vals.WeixinToken = result.Token
+			vals.WeixinUserID = result.UserID
+			fmt.Println("WeChat login successful!")
 		}
 	}
 
