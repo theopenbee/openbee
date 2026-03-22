@@ -42,11 +42,11 @@ type configValues struct {
 	TelegramEnabled bool
 	TelegramToken   string
 
-	WeixinEnabled   bool
-	WeixinToken     string
-	WeixinBaseURL   string
+	WeixinEnabled    bool
+	WeixinToken      string
+	WeixinBaseURL    string
 	WeixinCDNBaseURL string
-	WeixinUserID    string
+	WeixinUserID     string
 
 	ClaudePath      string
 	ClaudeTimeout   string

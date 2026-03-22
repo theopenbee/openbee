@@ -104,7 +104,7 @@ type WeixinConfig struct {
 	CDNBaseURL   string `yaml:"cdn_base_url"`
 	RouteTag     int    `yaml:"route_tag"`
 	UserID       string `yaml:"user_id"`
-	MaxMediaSize int    `yaml:"max_media_size"`
+	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 100MB
 }
 
 type MCPConfig struct {
