@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -44,7 +45,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 	deadline := time.Now().Add(5 * time.Minute)
 	for attempt := 0; attempt < 3 && time.Now().Before(deadline); attempt++ {
 		req, _ := http.NewRequest(http.MethodGet,
-			fmt.Sprintf("%s/ilink/bot/get_qrcode_status?qrcode=%s", defaultBase, qrResp.QRCode), nil)
+			fmt.Sprintf("%s/ilink/bot/get_qrcode_status?qrcode=%s", defaultBase, url.QueryEscape(qrResp.QRCode)), nil)
 		req.Header.Set("iLink-App-ClientVersion", "1")
 
 		pollResp, err := pollClient.Do(req)
@@ -60,7 +61,11 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 			BaseURL     string `json:"baseurl"`
 			ILinkUserID string `json:"ilink_user_id"`
 		}
-		json.NewDecoder(pollResp.Body).Decode(&statusResp)
+		if err := json.NewDecoder(pollResp.Body).Decode(&statusResp); err != nil {
+			pollResp.Body.Close()
+			fmt.Printf("  poll attempt %d: invalid response: %v\n", attempt+1, err)
+			continue
+		}
 		pollResp.Body.Close()
 
 		switch statusResp.Status {
@@ -68,7 +73,8 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 			return statusResp.BotToken, statusResp.ILinkUserID, statusResp.BaseURL, nil
 		case "scaned":
 			fmt.Println("  Scanned! Please confirm on your phone...")
-			attempt-- // don't count scanned as a failed attempt
+			attempt--           // don't count scanned as a failed attempt
+			time.Sleep(time.Second) // prevent tight loop if server responds instantly
 		case "expired":
 			return "", "", "", fmt.Errorf("QR code expired")
 		case "wait":

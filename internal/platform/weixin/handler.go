@@ -167,8 +167,9 @@ func (r *WeixinReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			continue
 		}
 
-		if resp.Ret != 0 && resp.Ret != -14 {
+		if resp.Ret != 0 {
 			log.Warn("getUpdates non-zero ret", zap.Int("ret", resp.Ret))
+			continue
 		}
 
 		// Update cursor
