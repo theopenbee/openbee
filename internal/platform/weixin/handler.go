@@ -429,6 +429,12 @@ func (s *WeixinSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return fmt.Errorf("parse reply context: %w", err)
 	}
 
+	if raw.ContextToken == "" {
+		log.Warn("weixin send: context_token is empty, reply may not be delivered",
+			zap.String("from_user_id", raw.FromUserID),
+			zap.String("session_id", raw.SessionID))
+	}
+
 	if msg.MediaPath != "" {
 		return s.sendMedia(ctx, raw, msg.MediaPath)
 	}
@@ -438,8 +444,11 @@ func (s *WeixinSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 func (s *WeixinSender) sendText(ctx context.Context, raw weixinRaw, text string) error {
 	outMsg := weixinMessage{
 		ToUserID:     raw.FromUserID,
+		SessionID:    raw.SessionID,
 		ContextToken: raw.ContextToken,
 		MessageType:  2, // BOT
+		MessageState: messageStateFinish,
+		ClientID:     generateClientID(),
 		ItemList: []messageItem{
 			{
 				Type:     1,
@@ -518,8 +527,11 @@ func (s *WeixinSender) sendMedia(ctx context.Context, raw weixinRaw, mediaPath s
 
 	outMsg := weixinMessage{
 		ToUserID:     raw.FromUserID,
+		SessionID:    raw.SessionID,
 		ContextToken: raw.ContextToken,
 		MessageType:  2,
+		MessageState: messageStateFinish,
+		ClientID:     generateClientID(),
 		ItemList:     []messageItem{item},
 	}
 	return s.client.sendMessage(ctx, outMsg)

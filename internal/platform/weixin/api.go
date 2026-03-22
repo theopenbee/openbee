@@ -132,7 +132,8 @@ type sendMessageReq struct {
 }
 
 type sendMessageResp struct {
-	Ret int `json:"ret"`
+	Ret    int    `json:"ret"`
+	ErrMsg string `json:"errmsg"`
 }
 
 type getUploadURLReq struct {
@@ -232,12 +233,26 @@ func (c *apiClient) sendMessage(ctx context.Context, msg weixinMessage) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
+	log.Info("sendMessage request",
+		zap.String("to_user_id", msg.ToUserID),
+		zap.String("session_id", msg.SessionID),
+		zap.Bool("has_context_token", msg.ContextToken != ""),
+		zap.Int("message_type", msg.MessageType),
+		zap.Int("message_state", msg.MessageState),
+		zap.String("client_id", msg.ClientID),
+		zap.Int("item_count", len(msg.ItemList)))
+
 	var resp sendMessageResp
 	if err := c.doPost(reqCtx, "ilink/bot/sendmessage", body, &resp); err != nil {
 		return err
 	}
+
+	log.Info("sendMessage response",
+		zap.Int("ret", resp.Ret),
+		zap.String("errmsg", resp.ErrMsg))
+
 	if resp.Ret != 0 {
-		return fmt.Errorf("weixin sendmessage ret=%d", resp.Ret)
+		return fmt.Errorf("weixin sendmessage ret=%d errmsg=%s", resp.Ret, resp.ErrMsg)
 	}
 	return nil
 }
@@ -419,6 +434,12 @@ func generateAesKey() []byte {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return b
+}
+
+func generateClientID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func fileMD5(data []byte) string {
