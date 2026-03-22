@@ -9,6 +9,7 @@ import {
 } from "@/hooks/use-local-chat"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 
 export function LocalChatDetail() {
@@ -26,19 +27,16 @@ export function LocalChatDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Sync history into local state when it loads/refetches
   useEffect(() => {
     setLocalMessages(history)
   }, [history])
 
-  // SSE: append new replies as they arrive
   const handleReply = useCallback((msg: ChatMessage) => {
     setLocalMessages((prev) => [...prev, msg])
     setIsProcessing(false)
   }, [])
   useLocalChatStream(sessionId, handleReply)
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [localMessages, isProcessing])
@@ -66,9 +64,13 @@ export function LocalChatDetail() {
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <Link to="/local-chat" className="text-sm text-muted-foreground hover:underline">
-          ← {t("localChat.title")}
+      <div className="flex items-center gap-2 mb-4">
+        <Link
+          to="/local-chat"
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t("localChat.title")}
         </Link>
       </div>
 
@@ -83,14 +85,14 @@ export function LocalChatDetail() {
               className={`max-w-[70%] rounded-xl px-4 py-2 text-sm ${
                 msg.role === "user"
                   ? "whitespace-pre-wrap bg-primary text-primary-foreground rounded-br-sm"
-                  : "bg-muted rounded-bl-sm"
+                  : "bg-card ring-1 ring-foreground/10 rounded-bl-sm"
               }`}
             >
               {msg.role === "bee" && (
-                <p className="text-xs text-muted-foreground mb-1">🤖 bee</p>
+                <p className="text-xs text-muted-foreground mb-1">🐝 bee</p>
               )}
               {msg.role === "bee" ? (
-                <div className="prose prose-sm max-w-none">
+                <div className="prose prose-sm prose-invert max-w-none">
                   <Streamdown mode="static">{msg.content}</Streamdown>
                 </div>
               ) : (
@@ -102,8 +104,12 @@ export function LocalChatDetail() {
 
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="bg-muted rounded-xl px-4 py-2 text-sm text-muted-foreground">
-              {t("localChat.processing")}
+            <div className="bg-card ring-1 ring-foreground/10 rounded-xl px-4 py-3">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
+              </div>
             </div>
           </div>
         )}
@@ -111,15 +117,15 @@ export function LocalChatDetail() {
       </div>
 
       {/* Input */}
-      <div className="border-t pt-3">
+      <div className="border-t border-border pt-3">
         {pendingMediaPath && (
-          <p className="text-xs text-muted-foreground mb-1 truncate">
+          <p className="text-xs text-muted-foreground mb-1 truncate font-mono">
             📎 {pendingMediaPath}
           </p>
         )}
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-end bg-card rounded-xl ring-1 ring-foreground/10 p-2">
           <textarea
-            className="flex-1 min-h-[40px] max-h-[120px] resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex-1 min-h-[40px] max-h-[120px] resize-none bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none"
             placeholder={t("localChat.inputPlaceholder")}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -136,11 +142,16 @@ export function LocalChatDetail() {
             className="hidden"
             onChange={handleFileChange}
           />
-          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
-            📎
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-primary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="h-4 w-4" />
           </Button>
-          <Button onClick={handleSend} disabled={sendMessage.isPending}>
-            {t("localChat.send")}
+          <Button size="icon" onClick={handleSend} disabled={sendMessage.isPending}>
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </div>

@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
+import { X } from "lucide-react"
+import { PageHeader } from "@/components/page-header"
+import { FadeIn } from "@/components/fade-in"
+import { EmptyState } from "@/components/empty-state"
+import { SkeletonLine } from "@/components/skeleton-loader"
 
 export function LocalChat() {
   const { t } = useTranslation()
@@ -24,41 +29,57 @@ export function LocalChat() {
     navigate(`/local-chat/${session.id}`)
   }
 
-  if (isLoading) return <p>Loading...</p>
-
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">{t("localChat.title")}</h1>
-        <Button onClick={() => setDialogOpen(true)}>{t("localChat.newChat")}</Button>
-      </div>
+    <FadeIn>
+      <PageHeader
+        title={t("localChat.title")}
+        actions={
+          <Button onClick={() => setDialogOpen(true)}>{t("localChat.newChat")}</Button>
+        }
+      />
 
-      {sessions.length === 0 ? (
-        <p className="text-muted-foreground">{t("localChat.emptyState")}</p>
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl bg-card ring-1 ring-foreground/5 p-4">
+              <SkeletonLine className="w-48" />
+              <SkeletonLine className="w-32 mt-2" />
+            </div>
+          ))}
+        </div>
+      ) : sessions.length === 0 ? (
+        <EmptyState
+          title={t("emptyState.noSessions")}
+          description={t("emptyState.noSessionsDesc")}
+          action={
+            <Button onClick={() => setDialogOpen(true)}>{t("localChat.newChat")}</Button>
+          }
+        />
       ) : (
         <div className="space-y-2">
           {sessions.map((sess) => (
             <Card
               key={sess.id}
-              className="cursor-pointer hover:bg-accent transition-colors"
+              className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all duration-200"
               onClick={() => navigate(`/local-chat/${sess.id}`)}
             >
               <CardContent className="py-3 px-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium">{sess.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground font-mono">
                     {new Date(sess.updated_at).toLocaleString()}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon-xs"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   onClick={(e) => {
                     e.stopPropagation()
                     deleteSession.mutate(sess.id)
                   }}
                 >
-                  ✕
+                  <X className="h-4 w-4" />
                 </Button>
               </CardContent>
             </Card>
@@ -81,6 +102,6 @@ export function LocalChat() {
           </Button>
         </DialogContent>
       </Dialog>
-    </div>
+    </FadeIn>
   )
 }

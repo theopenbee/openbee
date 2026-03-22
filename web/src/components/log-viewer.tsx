@@ -178,7 +178,7 @@ function appendEntry(
 
 function AssistantText({ text }: { text: string }) {
   return (
-    <div className="border-l-2 border-blue-400 pl-3 my-2 text-sm text-gray-700 prose prose-sm max-w-none">
+    <div className="border-l-2 border-primary pl-3 my-2 text-sm prose prose-sm prose-invert max-w-none">
       <Streamdown mode="static">{text}</Streamdown>
     </div>
   );
@@ -195,31 +195,31 @@ function ToolCard({
   const summary = meta.summary(entry.input);
 
   return (
-    <div className="my-1 border border-gray-200 rounded text-xs">
+    <div className="my-1 bg-secondary ring-1 ring-foreground/5 rounded-lg text-xs">
       <button
-        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-foreground/5 transition-colors rounded-lg"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="font-mono text-yellow-600">{meta.icon}</span>
-        <span className="font-semibold text-yellow-700">{entry.name}</span>
-        <span className="text-gray-500 font-mono truncate flex-1">
+        <span className="font-mono text-primary">{meta.icon}</span>
+        <span className="font-semibold text-primary">{entry.name}</span>
+        <span className="text-muted-foreground font-mono truncate flex-1">
           {summary}
         </span>
-        <span className="text-gray-400 shrink-0">{open ? "▲" : "▼"}</span>
+        <span className="text-muted-foreground shrink-0">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
-        <div className="border-t border-gray-200 px-3 py-2 space-y-2">
+        <div className="border-t border-border px-3 py-2 space-y-2">
           <div>
-            <div className="text-gray-400 mb-1">{t("logViewer.input")}</div>
-            <pre className="text-gray-700 overflow-x-auto">
+            <div className="text-muted-foreground mb-1">{t("logViewer.input")}</div>
+            <pre className="text-foreground/80 overflow-x-auto bg-background rounded p-3 text-xs">
               {JSON.stringify(entry.input, null, 2)}
             </pre>
           </div>
           {entry.result !== undefined && (
             <div>
-              <div className="text-gray-400 mb-1">{t("logViewer.output")}</div>
+              <div className="text-muted-foreground mb-1">{t("logViewer.output")}</div>
               <pre
-                className={`overflow-x-auto ${entry.isError ? "text-red-600" : "text-green-600"}`}
+                className={`overflow-x-auto bg-background rounded p-3 text-xs ${entry.isError ? "text-destructive" : "text-green-400"}`}
               >
                 {entry.result}
               </pre>
@@ -237,8 +237,8 @@ function ResultCard({
   entry: Extract<ParsedEntry, { kind: "result" }>;
 }) {
   return (
-    <div className="my-2 bg-green-50 border border-green-300 rounded px-3 py-2 text-sm text-green-700">
-      <span className="font-semibold text-green-600 mr-2">✓ Result</span>
+    <div className="my-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-sm text-primary">
+      <span className="font-semibold mr-2">✓ Result</span>
       {entry.text}
     </div>
   );
@@ -260,16 +260,12 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
   const prevStatusRef = useRef<ExecutionStatus>(status);
   const { t } = useTranslation();
 
-  // Reset all parsed state when switching to a different execution.
   useEffect(() => {
     setEntries([]);
     toolMapRef.current = new Map();
     parsedLengthRef.current = 0;
   }, [executionId]);
 
-  // Poll GET /executions/:id/logs while running; fetch once when complete.
-  // Uses incremental parsing so existing entries (and their open/close UI state)
-  // are preserved across polls — only newly arrived lines are appended.
   useEffect(() => {
     const fetchLogs = async () => {
       try {
@@ -299,7 +295,6 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
     }
   }, [executionId, status]);
 
-  // Notify parent when status transitions away from "running".
   useEffect(() => {
     if (prevStatusRef.current === "running" && status !== "running") {
       onComplete?.();
@@ -312,10 +307,17 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
   }, [entries]);
 
   return (
-    <div className="bg-white text-gray-800 font-mono text-sm rounded-lg">
+    <div className="bg-secondary/30 rounded-lg p-4 font-mono text-sm">
       {entries.length === 0 && (
-        <p className="text-gray-400">
-          {status === "running" ? t("logViewer.waiting") : t("logViewer.noLogs")}
+        <p className="text-muted-foreground">
+          {status === "running" ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-amber" />
+              {t("logViewer.waiting")}
+            </span>
+          ) : (
+            t("logViewer.noLogs")
+          )}
         </p>
       )}
       {entries.map((entry, i) => {
@@ -329,10 +331,10 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
             key={i}
             className={
               entry.logType === "stderr"
-                ? "text-red-500"
+                ? "text-destructive"
                 : entry.logType === "error"
-                  ? "text-red-700 font-bold"
-                  : "text-green-700"
+                  ? "text-destructive font-bold"
+                  : "text-muted-foreground"
             }
           >
             {entry.content}

@@ -17,7 +17,10 @@
   "dashboard": {
     "title": "Dashboard",
     "noWorkers": "No workers yet.",
-    "createOne": "Create one"
+    "createOne": "Create one",
+    "summary_one": "{{count}} worker active",
+    "summary_other": "{{count}} workers active",
+    "summaryNone": "No active workers"
   },
   "workers": {
     "title": "Workers",
@@ -96,5 +99,13 @@
     "processing": "Processing...",
     "deleteSession": "Delete session",
     "emptyState": "No sessions yet. Click \"New Chat\" to start."
+  },
+  "emptyState": {
+    "noWorkers": "No workers in the hive yet",
+    "noWorkersDesc": "Create your first AI worker to get started",
+    "noExecutions": "No executions recorded",
+    "noExecutionsDesc": "Executions will appear here when workers run tasks",
+    "noSessions": "No chat sessions",
+    "noSessionsDesc": "Start a new conversation with your AI workers"
   }
 }

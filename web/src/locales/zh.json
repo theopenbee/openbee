@@ -17,7 +17,10 @@
   "dashboard": {
     "title": "仪表板",
     "noWorkers": "还没有工作者。",
-    "createOne": "创建一个"
+    "createOne": "创建一个",
+    "summary_one": "{{count}} 个工作者活跃中",
+    "summary_other": "{{count}} 个工作者活跃中",
+    "summaryNone": "暂无活跃工作者"
   },
   "workers": {
     "title": "工作者",
@@ -96,5 +99,13 @@
     "processing": "处理中...",
     "deleteSession": "删除对话",
     "emptyState": "暂无对话，点击「新建对话」开始"
+  },
+  "emptyState": {
+    "noWorkers": "蜂巢中还没有工作者",
+    "noWorkersDesc": "创建你的第一个 AI 工作者开始使用",
+    "noExecutions": "暂无执行记录",
+    "noExecutionsDesc": "当工作者执行任务时，记录会显示在这里",
+    "noSessions": "暂无对话",
+    "noSessionsDesc": "开始与你的 AI 工作者对话"
   }
 }

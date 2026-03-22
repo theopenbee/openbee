@@ -21,9 +21,9 @@ export function LanguageSwitcher() {
           key={lang.code}
           onClick={() => handleChange(lang.code)}
           className={cn(
-            "px-2 py-1 text-sm rounded transition-colors",
+            "px-2 py-1 text-sm rounded-md transition-colors",
             i18n.language === lang.code
-              ? "text-foreground font-medium"
+              ? "text-primary font-medium"
               : "text-muted-foreground hover:text-foreground"
           )}
         >

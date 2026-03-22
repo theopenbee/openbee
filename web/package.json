@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
+    "@fontsource-variable/dm-sans": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@tanstack/react-query": "^5.64.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
