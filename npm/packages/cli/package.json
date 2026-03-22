@@ -8,7 +8,8 @@
   },
   "files": [
     "bin/",
-    "lib/"
+    "lib/",
+    "README.md"
   ],
   "optionalDependencies": {
     "@theopenbee/cli-linux-x64": "0.0.5",
