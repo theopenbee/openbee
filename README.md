@@ -114,7 +114,6 @@ graph TD
     B --> C["🧠 Central Brain\nClaude Code"]
     C --> D["📨 Task Assignment"]
     D --> E["🤖 Workers — Digital Employees\nClaude Code Agents"]
-    E -. "Report Results" .-> C
     E -. "Status" .-> F["🖥️ Web Console"]
     C -. "Logs" .-> F
 ```
@@ -125,13 +124,13 @@ OpenBee consists of five core layers:
 Connects to IM platforms such as Lark, DingTalk, WeCom, WeChat, and Telegram to receive user messages in real time and reply with results in the same conversation.
 
 **2. Central Brain (Claude Code)**
-The central brain receives all incoming messages, understands user intent, and decides how to break down and assign tasks. It coordinates the overall workflow and aggregates results from Workers.
+The central brain receives all incoming messages, understands user intent, and decides how to break down and assign tasks. It coordinates the overall workflow.
 
 **3. Task Assignment**
 The central brain dispatches tasks to the appropriate Workers based on their capabilities and configuration. Scheduled tasks are also supported for automatic, time-based triggering.
 
 **4. Workers (Digital Employees)**
-Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and report results back to the central brain — just like real employees.
+Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously — just like real employees.
 
 **5. Web Console**
 Provides a visual interface for Worker management, task execution history, and real-time logs, making monitoring and debugging straightforward.
