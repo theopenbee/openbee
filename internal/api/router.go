@@ -88,7 +88,13 @@ func (s *Server) setupRoutes() error {
 		api.GET("/executions", s.listExecutions)
 		api.GET("/executions/:id", s.getExecution)
 		api.GET("/executions/:id/logs", s.getExecutionLogs)
-		s.localChatHandler.RegisterRoutes(api)
+		api.POST("/local/sessions", s.localChatHandler.createSession)
+		api.GET("/local/sessions", s.localChatHandler.listSessions)
+		api.DELETE("/local/sessions/:id", s.localChatHandler.deleteSession)
+		api.POST("/local/sessions/:id/messages", s.localChatHandler.sendMessage)
+		api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
+		api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
+		api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
 	}
 
 	s.router.Handle("PUT", "/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
