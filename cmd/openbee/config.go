@@ -21,15 +21,15 @@ var errInterrupted = errors.New("interrupted")
 var configTemplate = config.ConfigTemplate
 
 type configValues struct {
-	ServerPort   string
-	ServerHost   string
-	Debug        bool
-	DBPath       string
-	MCPAPIKey    string
+	ServerPort string
+	ServerHost string
+	Debug      bool
+	DBPath     string
+	MCPAPIKey  string
 
-	FeishuEnabled    bool
-	FeishuAppID      string
-	FeishuAppSecret  string
+	FeishuEnabled   bool
+	FeishuAppID     string
+	FeishuAppSecret string
 
 	DingtalkEnabled      bool
 	DingtalkClientID     string
@@ -39,8 +39,9 @@ type configValues struct {
 	WecomBotID   string
 	WecomSecret  string
 
-	TelegramEnabled bool
-	TelegramToken   string
+	TelegramEnabled  bool
+	TelegramToken    string
+	TelegramAuthCode string
 
 	WeixinEnabled    bool
 	WeixinToken      string
@@ -100,6 +101,7 @@ func loadExistingConfig(path string) *configValues {
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
+		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
 		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
 		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
@@ -230,6 +232,19 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				Message: "Telegram Bot Token:",
 				Help:    "Get a token from @BotFather on Telegram",
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+			authCodeDefault := vals.TelegramAuthCode
+			if authCodeDefault == "" {
+				b := make([]byte, 8)
+				rand.Read(b)
+				authCodeDefault = hex.EncodeToString(b)
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: "Telegram Auth Code (empty to disable auth):",
+				Default: authCodeDefault,
+				Help:    "Users must send /auth <code> to use the bot; leave empty to allow all",
+			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
 		case "Weixin":

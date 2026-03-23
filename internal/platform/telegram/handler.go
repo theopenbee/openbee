@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -35,8 +37,15 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 	if err != nil {
 		panic(fmt.Sprintf("telegram: invalid token: %v", err))
 	}
+	var authStore *AuthStore
+	if cfg.AuthCode != "" {
+		authStore = newAuthStore()
+	}
 	p := &TelegramPlatform{}
-	p.receiver = &TelegramReceiver{cfg: cfg, mediaSvc: mediaSvc, bot: bot}
+	p.receiver = &TelegramReceiver{
+		cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore,
+		unauthReplyLast: make(map[string]time.Time),
+	}
 	p.sender = &TelegramSender{cfg: cfg, bot: bot}
 	return p
 }
@@ -98,9 +107,14 @@ func mediaTypeFromTelegram(msgType string) string {
 // ─── Receiver ─────────────────────────────────────────────────────────────────
 
 type TelegramReceiver struct {
-	cfg      config.TelegramConfig
-	mediaSvc *media.Service
-	bot      *tgbotapi.BotAPI
+	cfg       config.TelegramConfig
+	mediaSvc  *media.Service
+	bot       *tgbotapi.BotAPI
+	authStore *AuthStore // nil when auth_code is empty (no auth required)
+
+	// Rate-limit unauthorized reply: at most one per sender per 60s.
+	unauthReplyMu   sync.Mutex
+	unauthReplyLast map[string]time.Time
 }
 
 func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
@@ -133,6 +147,14 @@ func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 				continue
 			}
 
+			// Handle auth if enabled.
+			if r.authStore != nil && update.Message.From != nil {
+				senderID := strconv.FormatInt(int64(update.Message.From.ID), 10)
+				if r.handleAuth(bot, update.Message, senderID) {
+					continue
+				}
+			}
+
 			go func(chatID int64) {
 				action := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
 				if _, err := bot.Send(action); err != nil {
@@ -146,6 +168,61 @@ func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			}
 			dispatch(*msg)
 		}
+	}
+}
+
+// handleAuth processes auth commands and blocks unauthorized users.
+// Returns true if the message was consumed (either an auth command or unauthorized).
+func (r *TelegramReceiver) handleAuth(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) bool {
+	parts := strings.Fields(strings.TrimSpace(m.Text))
+
+	// Match "/auth" exactly (also handles Telegram's "/auth@botname" form).
+	if len(parts) > 0 && (parts[0] == "/auth" || strings.HasPrefix(parts[0], "/auth@")) {
+		if len(parts) < 2 {
+			replyText(bot, m, "Usage: /auth <code>")
+			return true
+		}
+		if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(r.cfg.AuthCode)) == 1 {
+			r.authStore.Authorize(senderID)
+			replyText(bot, m, "✅ Authorization successful.")
+			log.Info("user authorized", zap.String("senderID", senderID))
+		} else {
+			replyText(bot, m, "❌ Invalid authorization code.")
+			log.Warn("auth failed: invalid code", zap.String("senderID", senderID))
+		}
+		return true
+	}
+
+	if !r.authStore.IsAuthorized(senderID) {
+		r.replyUnauthorized(bot, m, senderID)
+		return true
+	}
+
+	return false
+}
+
+const unauthReplyCooldown = 60 * time.Second
+
+// replyUnauthorized sends an unauthorized hint at most once per sender per cooldown period.
+func (r *TelegramReceiver) replyUnauthorized(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) {
+	r.unauthReplyMu.Lock()
+	last := r.unauthReplyLast[senderID]
+	now := time.Now()
+	if now.Sub(last) < unauthReplyCooldown {
+		r.unauthReplyMu.Unlock()
+		return
+	}
+	r.unauthReplyLast[senderID] = now
+	r.unauthReplyMu.Unlock()
+
+	replyText(bot, m, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
+}
+
+func replyText(bot *tgbotapi.BotAPI, m *tgbotapi.Message, text string) {
+	reply := tgbotapi.NewMessage(m.Chat.ID, text)
+	reply.ReplyToMessageID = m.MessageID
+	if _, err := bot.Send(reply); err != nil {
+		log.Warn("send auth reply failed", zap.Error(err))
 	}
 }
 

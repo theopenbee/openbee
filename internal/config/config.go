@@ -95,6 +95,7 @@ type TelegramConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	Token        string `yaml:"token"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 50MB
+	AuthCode     string `yaml:"auth_code"`      // passcode for user authorization; empty = no auth required
 }
 
 type WeixinConfig struct {
