@@ -79,7 +79,7 @@ type MCPServer struct {
 	sessions map[string]chan rpcResponse // session_id -> response channel
 }
 
-// NewServer creates an MCPServer. Call RegisterRoutes to attach it to a Gin router group.
+// NewServer creates an MCPServer.
 func NewServer(
 	ws *store.WorkerStore,
 	mgr *worker.Manager,
@@ -107,15 +107,8 @@ func NewServer(
 	}
 }
 
-// RegisterRoutes attaches auth middleware, /sse, and /messages to the provided router group.
-func (s *MCPServer) RegisterRoutes(rg *gin.RouterGroup, apiKey string) {
-	rg.Use(APIKeyMiddleware(apiKey))
-	rg.GET("/sse", s.handleSSE)
-	rg.POST("/messages", s.handleMessages)
-}
-
-// handleSSE establishes the SSE connection, creates a session, and streams responses.
-func (s *MCPServer) handleSSE(c *gin.Context) {
+// HandleSSE establishes the SSE connection, creates a session, and streams responses.
+func (s *MCPServer) HandleSSE(c *gin.Context) {
 	sessionID := uuid.New().String()
 	ch := make(chan rpcResponse, 16)
 
@@ -178,7 +171,7 @@ func (s *MCPServer) handleSSE(c *gin.Context) {
 }
 
 // handleMessages receives a JSON-RPC request and pushes the response to the SSE channel.
-func (s *MCPServer) handleMessages(c *gin.Context) {
+func (s *MCPServer) HandleMessages(c *gin.Context) {
 	sessionID := c.Query("session_id")
 
 	s.mu.Lock()

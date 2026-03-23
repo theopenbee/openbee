@@ -10,7 +10,6 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/auth"
-	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
@@ -80,16 +79,13 @@ func (s *Server) setupRoutes() error {
 		s.registerLocalChatRoutes(api)
 	}
 
-	s.router.Handle("PUT", "/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
-
-	s.mcpServer.RegisterRoutes(s.router.Group("/mcp"), s.mcpAPIKey)
+	s.registerMCPRoutes()
 
 	return s.registerStaticRoutes()
 }
 
 func (s *Server) registerAuthRoutes() {
 	auth := s.router.Group("/api/auth")
-	auth.GET("/status", s.authHandler.Status)
 	auth.POST("/login", s.authHandler.Login)
 	auth.POST("/refresh", s.authHandler.Refresh)
 }
@@ -118,6 +114,13 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 	api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
 	api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
 	api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+}
+
+func (s *Server) registerMCPRoutes() {
+	mcpGroup := s.router.Group("/mcp")
+	mcpGroup.Use(mcp.APIKeyMiddleware(s.mcpAPIKey))
+	mcpGroup.GET("/sse", s.mcpServer.HandleSSE)
+	mcpGroup.POST("/messages", s.mcpServer.HandleMessages)
 }
 
 func (s *Server) registerStaticRoutes() error {
