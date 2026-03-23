@@ -41,6 +41,9 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 	if cfg.AuthCode != "" {
 		authStore = newAuthStore()
 	}
+
+	setupBotCommands(bot)
+
 	p := &TelegramPlatform{}
 	p.receiver = &TelegramReceiver{
 		cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore,
@@ -48,6 +51,18 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 	}
 	p.sender = &TelegramSender{cfg: cfg, bot: bot}
 	return p
+}
+
+// setupBotCommands registers the bot's menu commands with Telegram.
+func setupBotCommands(bot *tgbotapi.BotAPI) {
+	commands := []tgbotapi.BotCommand{
+		{Command: "clear", Description: "Clear conversation history"},
+	}
+	if err := bot.SetMyCommands(commands); err != nil {
+		log.Error("failed to set bot commands", zap.Error(err))
+		return
+	}
+	log.Info("bot menu commands registered", zap.Int("count", len(commands)))
 }
 
 func (p *TelegramPlatform) ID() string                                  { return "telegram" }
