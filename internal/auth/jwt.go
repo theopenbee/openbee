@@ -8,27 +8,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// Claims is the JWT payload used for both access and refresh tokens.
+const (
+	tokenTypeAccess  = "access"
+	tokenTypeRefresh = "refresh"
+)
+
 type Claims struct {
-	Type string `json:"type"` // "access" or "refresh"
+	Type string `json:"type"`
 	jwt.RegisteredClaims
 }
 
-// TokenPair holds the tokens returned after a successful login.
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"` // seconds until access_token expires
 }
 
-// JWTService signs and validates JWT tokens using HMAC-SHA256.
 type JWTService struct {
 	secret          []byte
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 }
 
-// NewJWTService creates a new JWTService.
 func NewJWTService(secret string, accessTTL, refreshTTL time.Duration) *JWTService {
 	return &JWTService{
 		secret:          []byte(secret),
@@ -37,16 +38,15 @@ func NewJWTService(secret string, accessTTL, refreshTTL time.Duration) *JWTServi
 	}
 }
 
-// GenerateTokenPair creates both an access token and a refresh token.
 func (s *JWTService) GenerateTokenPair() (*TokenPair, error) {
 	now := time.Now()
 
-	accessToken, err := s.signToken("access", now, s.accessTokenTTL)
+	accessToken, err := s.signToken(tokenTypeAccess, now, s.accessTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("sign access token: %w", err)
 	}
 
-	refreshToken, err := s.signToken("refresh", now, s.refreshTokenTTL)
+	refreshToken, err := s.signToken(tokenTypeRefresh, now, s.refreshTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("sign refresh token: %w", err)
 	}
@@ -58,23 +58,20 @@ func (s *JWTService) GenerateTokenPair() (*TokenPair, error) {
 	}, nil
 }
 
-// GenerateAccessToken creates only an access token (used during refresh).
 func (s *JWTService) GenerateAccessToken() (string, int64, error) {
-	token, err := s.signToken("access", time.Now(), s.accessTokenTTL)
+	token, err := s.signToken(tokenTypeAccess, time.Now(), s.accessTokenTTL)
 	if err != nil {
 		return "", 0, fmt.Errorf("sign access token: %w", err)
 	}
 	return token, int64(s.accessTokenTTL.Seconds()), nil
 }
 
-// ValidateAccessToken parses and validates an access token string.
 func (s *JWTService) ValidateAccessToken(tokenStr string) error {
-	return s.validateToken(tokenStr, "access")
+	return s.validateToken(tokenStr, tokenTypeAccess)
 }
 
-// ValidateRefreshToken parses and validates a refresh token string.
 func (s *JWTService) ValidateRefreshToken(tokenStr string) error {
-	return s.validateToken(tokenStr, "refresh")
+	return s.validateToken(tokenStr, tokenTypeRefresh)
 }
 
 func (s *JWTService) signToken(tokenType string, now time.Time, ttl time.Duration) (string, error) {

@@ -125,19 +125,11 @@ func (s *Server) setupRoutes() {
 
 	// SSE stream for local chat — registered outside gzip middleware but still JWT-protected
 	if s.localChatHandler != nil {
-		if s.jwtMiddleware != nil {
-			s.router.GET("/api/local/sessions/:id/stream", s.jwtMiddleware, s.localChatHandler.StreamReplies)
-		} else {
-			s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
-		}
+		s.registerProtected("GET", "/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
 	}
 
 	// Internal log level control — also JWT-protected
-	if s.jwtMiddleware != nil {
-		s.router.PUT("/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
-	} else {
-		s.router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
-	}
+	s.registerProtected("PUT", "/internal/log/level", gin.WrapH(logger.LevelHandler()))
 
 	// MCP — only registered when an API key is configured
 	if s.mcpServer != nil {
@@ -167,6 +159,15 @@ func (s *Server) setupRoutes() {
 			// causing an infinite redirect loop.
 			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
 		})
+	}
+}
+
+// registerProtected registers a route with JWT middleware when auth is enabled.
+func (s *Server) registerProtected(method, path string, handler gin.HandlerFunc) {
+	if s.jwtMiddleware != nil {
+		s.router.Handle(method, path, s.jwtMiddleware, handler)
+	} else {
+		s.router.Handle(method, path, handler)
 	}
 }
 

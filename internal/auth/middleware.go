@@ -7,8 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// JWTMiddleware returns a Gin middleware that validates JWT access tokens.
-// Tokens are read from the Authorization header (Bearer scheme) or the "token" query parameter.
 func JWTMiddleware(jwtSvc *JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractBearerToken(c)

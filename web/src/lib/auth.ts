@@ -56,12 +56,16 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
+let authRequiredCache: boolean | null = null
+
 export async function checkAuthRequired(): Promise<boolean> {
+  if (authRequiredCache !== null) return authRequiredCache
   try {
     const res = await fetch(`${API_BASE}/auth/status`)
     if (!res.ok) return false
     const data = await res.json()
-    return data.auth_required === true
+    authRequiredCache = data.auth_required === true
+    return authRequiredCache
   } catch {
     return false
   }
@@ -69,7 +73,6 @@ export async function checkAuthRequired(): Promise<boolean> {
 
 export interface LoginResult {
   success: boolean
-  error?: string
   status?: number
 }
 
@@ -81,22 +84,14 @@ export async function login(username: string, password: string): Promise<LoginRe
       body: JSON.stringify({ username, password }),
     })
 
-    if (res.status === 429) {
-      return { success: false, error: "Too many attempts, please try again later", status: 429 }
-    }
-
-    if (res.status === 401) {
-      return { success: false, error: "Invalid username or password", status: 401 }
-    }
-
     if (!res.ok) {
-      return { success: false, error: "Login failed", status: res.status }
+      return { success: false, status: res.status }
     }
 
     const data = await res.json()
     saveTokens(data.access_token, data.refresh_token)
     return { success: true }
   } catch {
-    return { success: false, error: "Network error" }
+    return { success: false }
   }
 }

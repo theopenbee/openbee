@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthHandler handles login, token refresh, and auth status endpoints.
 type AuthHandler struct {
 	username    string
 	password    string
@@ -15,7 +14,6 @@ type AuthHandler struct {
 	rateLimiter *LoginRateLimiter
 }
 
-// NewAuthHandler creates a new AuthHandler.
 func NewAuthHandler(username, password string, jwtSvc *JWTService, rateLimiter *LoginRateLimiter) *AuthHandler {
 	return &AuthHandler{
 		username:    username,
@@ -30,8 +28,6 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-// Login validates credentials and returns a token pair.
-// POST /api/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
 	if !h.rateLimiter.Allow(c.ClientIP()) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many attempts, please try again later"})
@@ -69,8 +65,6 @@ type refreshResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
-// Refresh validates a refresh token and returns a new access token.
-// POST /api/auth/refresh
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -95,13 +89,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
-// Status reports whether authentication is required.
-// GET /api/auth/status
 func (h *AuthHandler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"auth_required": true})
 }
 
-// StatusDisabled returns a handler that always reports auth is not required.
 func StatusDisabled() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"auth_required": false})

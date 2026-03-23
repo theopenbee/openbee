@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// LoginRateLimiter tracks login attempts per IP address using a sliding window.
 type LoginRateLimiter struct {
 	maxAttempts int
 	window      time.Duration
@@ -13,7 +12,6 @@ type LoginRateLimiter struct {
 	mu          sync.Mutex
 }
 
-// NewLoginRateLimiter creates a rate limiter that allows maxAttempts per window per IP.
 func NewLoginRateLimiter(maxAttempts int, window time.Duration) *LoginRateLimiter {
 	return &LoginRateLimiter{
 		maxAttempts: maxAttempts,
@@ -22,7 +20,6 @@ func NewLoginRateLimiter(maxAttempts int, window time.Duration) *LoginRateLimite
 	}
 }
 
-// Allow returns true if the IP has not exceeded the rate limit.
 func (l *LoginRateLimiter) Allow(ip string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -30,12 +27,15 @@ func (l *LoginRateLimiter) Allow(ip string) bool {
 	now := time.Now()
 	cutoff := now.Add(-l.window)
 
-	// Remove expired entries
 	recent := l.attempts[ip][:0]
 	for _, t := range l.attempts[ip] {
 		if t.After(cutoff) {
 			recent = append(recent, t)
 		}
+	}
+
+	if len(recent) == 0 {
+		delete(l.attempts, ip)
 	}
 
 	if len(recent) >= l.maxAttempts {
