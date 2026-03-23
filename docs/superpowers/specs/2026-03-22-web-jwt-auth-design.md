@@ -36,8 +36,8 @@
 
 #### 登录
 1. 用户访问前端，检测到无有效 token，跳转登录页
-2. 用户输入密码，POST `/api/auth/login`
-3. 后端验证密码（速率限制：每 IP 每分钟最多 5 次），签发 access_token（短期）和 refresh_token（长期）
+2. 用户输入用户名和密码，POST `/api/auth/login`
+3. 后端验证用户名和密码（速率限制：每 IP 每分钟最多 5 次），签发 access_token（短期）和 refresh_token（长期）
 4. 前端存储 tokens 到 localStorage
 
 #### 请求鉴权
@@ -58,6 +58,7 @@
 
 ```go
 type AuthConfig struct {
+    Username        string        `yaml:"username"`         // 登录用户名，默认 "admin"
     Password        string        `yaml:"password"`         // 登录密码，空则跳过鉴权
     JWTSecret       string        `yaml:"jwt_secret"`       // JWT 签名密钥，为空时自动生成
     AccessTokenTTL  time.Duration `yaml:"access_token_ttl"` // access_token 有效期，默认 2h
@@ -79,6 +80,7 @@ server:
   host: localhost
   debug: false
   auth:
+    username: "admin"                # 登录用户名，默认 admin
     password: "your-password"        # 登录密码，留空则不启用鉴权
     jwt_secret: ""                   # JWT 密钥，留空则自动生成（重启后 token 失效）
     access_token_ttl: 2h
@@ -87,8 +89,9 @@ server:
 
 **设计决策：**
 - `password` 为空时，不启用鉴权（向后兼容，方便本地开发）
+- `username` 默认为 `admin`，可自定义
 - `jwt_secret` 为空时，启动时自动生成随机密钥（重启后所有 token 失效，安全但需重新登录）
-- 单用户模型，无需用户表，密码直接配置
+- 单用户模型（账号+密码），无需用户表，凭证直接配置
 
 #### 2.3.2 JWT 工具模块
 
@@ -174,15 +177,16 @@ func (l *LoginRateLimiter) Allow(ip string) bool
 
 ```go
 type AuthHandler struct {
+    username    string
     password    string
     jwtSvc      *JWTService
     rateLimiter *LoginRateLimiter
 }
 
 // POST /api/auth/login
-// Body: {"password": "xxx"}
+// Body: {"username": "admin", "password": "xxx"}
 // Response: {"access_token": "...", "refresh_token": "...", "expires_in": 7200}
-// 密码错误返回 401，速率限制返回 429
+// 用户名或密码错误返回 401，速率限制返回 429
 func (h *AuthHandler) Login(c *gin.Context)
 
 // POST /api/auth/refresh
@@ -279,6 +283,10 @@ func buildAPIServer(cfg config.ServerConfig, mcpCfg config.MCPConfig, s appStore
     var jwtMiddleware gin.HandlerFunc
 
     if cfg.Auth.Password != "" {
+        username := cfg.Auth.Username
+        if username == "" {
+            username = "admin"
+        }
         secret := cfg.Auth.JWTSecret
         if secret == "" {
             // 自动生成随机密钥
@@ -289,7 +297,7 @@ func buildAPIServer(cfg config.ServerConfig, mcpCfg config.MCPConfig, s appStore
         }
         jwtSvc := auth.NewJWTService(secret, cfg.Auth.AccessTokenTTL, cfg.Auth.RefreshTokenTTL)
         rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
-        authHandler = auth.NewAuthHandler(cfg.Auth.Password, jwtSvc, rateLimiter)
+        authHandler = auth.NewAuthHandler(username, cfg.Auth.Password, jwtSvc, rateLimiter)
         jwtMiddleware = auth.JWTMiddleware(jwtSvc)
     }
 
@@ -415,10 +423,10 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
 #### 2.4.5 登录页面 (`login.tsx`)
 
-- 简洁的密码输入表单（居中卡片样式）
-- 调用 `POST /api/auth/login`
+- 简洁的用户名+密码输入表单（居中卡片样式）
+- 调用 `POST /api/auth/login` 提交 username + password
 - 成功后存储 tokens 并跳转到首页
-- 失败显示错误信息（429 时提示"尝试过于频繁"）
+- 失败显示错误信息（401 用户名或密码错误，429 尝试过于频繁）
 
 #### 2.4.6 App.tsx 路由改造
 
@@ -445,7 +453,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
 ### 2.6 不在本次范围内
 
-- 多用户支持（仅单密码模式）
+- 多用户支持（仅单账号模式）
 - RBAC 权限控制
 - OAuth / 第三方登录
 - 密码修改 API（直接改配置文件）

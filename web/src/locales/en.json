@@ -100,6 +100,15 @@
     "deleteSession": "Delete session",
     "emptyState": "No sessions yet. Click \"New Chat\" to start."
   },
+  "login": {
+    "title": "Sign In",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign In",
+    "error401": "Invalid username or password",
+    "error429": "Too many attempts, please try again later",
+    "errorGeneric": "Login failed"
+  },
   "emptyState": {
     "noWorkers": "No workers in the hive yet",
     "noWorkersDesc": "Create your first AI worker to get started",

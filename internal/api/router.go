@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/store"
@@ -26,6 +27,8 @@ type Server struct {
 	mcpAPIKey        string
 	staticFS         fs.FS
 	localChatHandler *LocalChatHandler
+	authHandler      *auth.AuthHandler
+	jwtMiddleware    gin.HandlerFunc
 }
 
 func NewServer(
@@ -37,6 +40,8 @@ func NewServer(
 	mcpAPIKey string,
 	staticFS fs.FS,
 	localChat *LocalChatHandler,
+	authHandler *auth.AuthHandler,
+	jwtMiddleware gin.HandlerFunc,
 ) *Server {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
@@ -44,13 +49,22 @@ func NewServer(
 		"/mcp/sse",
 		"/mcp/messages",
 	})))
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept-Language", "X-API-Key"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: false,
-	}))
+
+	authEnabled := authHandler != nil
+	corsConfig := cors.Config{
+		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization", "Accept-Language", "X-API-Key"},
+		ExposeHeaders: []string{"Content-Length"},
+	}
+	if authEnabled {
+		corsConfig.AllowOriginFunc = func(origin string) bool { return true }
+		corsConfig.AllowCredentials = true
+	} else {
+		corsConfig.AllowOrigins = []string{"*"}
+		corsConfig.AllowCredentials = false
+	}
+	router.Use(cors.New(corsConfig))
+
 	s := &Server{
 		router:           router,
 		workerStore:      ws,
@@ -61,13 +75,29 @@ func NewServer(
 		mcpAPIKey:        mcpAPIKey,
 		staticFS:         staticFS,
 		localChatHandler: localChat,
+		authHandler:      authHandler,
+		jwtMiddleware:    jwtMiddleware,
 	}
 	s.setupRoutes()
 	return s
 }
 
 func (s *Server) setupRoutes() {
+	// Auth routes — always registered, never behind JWT
+	authGroup := s.router.Group("/api/auth")
+	if s.authHandler != nil {
+		authGroup.GET("/status", s.authHandler.Status)
+		authGroup.POST("/login", s.authHandler.Login)
+		authGroup.POST("/refresh", s.authHandler.Refresh)
+	} else {
+		authGroup.GET("/status", auth.StatusDisabled())
+	}
+
+	// API routes — protected by JWT when auth is enabled
 	api := s.router.Group("/api")
+	if s.jwtMiddleware != nil {
+		api.Use(s.jwtMiddleware)
+	}
 	{
 		// Workers
 		api.POST("/workers", s.createWorker)
@@ -93,13 +123,21 @@ func (s *Server) setupRoutes() {
 		}
 	}
 
-	// SSE stream for local chat — registered outside gzip middleware
+	// SSE stream for local chat — registered outside gzip middleware but still JWT-protected
 	if s.localChatHandler != nil {
-		s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+		if s.jwtMiddleware != nil {
+			s.router.GET("/api/local/sessions/:id/stream", s.jwtMiddleware, s.localChatHandler.StreamReplies)
+		} else {
+			s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+		}
 	}
 
-	// Internal log level control — PUT /internal/log/level with JSON body {"level":"debug"}
-	s.router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
+	// Internal log level control — also JWT-protected
+	if s.jwtMiddleware != nil {
+		s.router.PUT("/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
+	} else {
+		s.router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
+	}
 
 	// MCP — only registered when an API key is configured
 	if s.mcpServer != nil {

@@ -1,16 +1,46 @@
 import type { Worker, WorkerExecution, LocalChatSession, ChatMessage } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
+import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
 
 const API_BASE = config.apiUrl
 
+function authHeaders(): Record<string, string> {
+  const token = getAccessToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function redirectToLogin() {
+  clearTokens()
+  window.location.hash = "#/login"
+}
+
+async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  let res = await fetch(url, init)
+
+  if (res.status === 401 && getRefreshToken()) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      const headers = new Headers(init?.headers)
+      headers.set("Authorization", `Bearer ${newToken}`)
+      res = await fetch(url, { ...init, headers })
+    } else {
+      redirectToLogin()
+      throw new Error("unauthorized")
+    }
+  }
+
+  return res
+}
+
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, ...restOptions } = options ?? {}
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       "Accept-Language": i18n.language || "en",
-      ...extraHeaders,
+      ...authHeaders(),
+      ...(extraHeaders as Record<string, string>),
     },
     ...restOptions,
   })
@@ -50,8 +80,11 @@ export const api = {
     },
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {
-      const res = await fetch(`${API_BASE}/executions/${id}/logs`, {
-        headers: { "Accept-Language": i18n.language || "en" },
+      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
+        headers: {
+          "Accept-Language": i18n.language || "en",
+          ...authHeaders(),
+        },
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -90,8 +123,9 @@ export const api = {
     uploadMedia: async (sessionId: string, file: File) => {
       const form = new FormData()
       form.append("file", file)
-      const res = await fetch(`${API_BASE}/local/sessions/${sessionId}/media`, {
+      const res = await fetchWithAuth(`${API_BASE}/local/sessions/${sessionId}/media`, {
         method: "POST",
+        headers: authHeaders(),
         body: form,
       })
       if (!res.ok) throw new Error(await res.text())

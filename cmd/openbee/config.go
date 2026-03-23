@@ -55,6 +55,12 @@ type configValues struct {
 	MessageDebounce string
 	FFprobePath     string
 	FFmpegPath      string
+
+	AuthUsername   string
+	AuthPassword   string
+	AuthJWTSecret  string
+	AuthAccessTTL  string
+	AuthRefreshTTL string
 }
 
 var configOutputPath string
@@ -113,6 +119,11 @@ func loadExistingConfig(path string) *configValues {
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
 		FFmpegPath:           cfg.Bee.Media.FFmpegPath,
+		AuthUsername:         cfg.Server.Auth.Username,
+		AuthPassword:         cfg.Server.Auth.Password,
+		AuthJWTSecret:        cfg.Server.Auth.JWTSecret,
+		AuthAccessTTL:        cfg.Server.Auth.AccessTokenTTL.String(),
+		AuthRefreshTTL:       cfg.Server.Auth.RefreshTokenTTL.String(),
 	}
 }
 
@@ -127,6 +138,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		MessageDebounce: "3s",
 		FFprobePath:     "ffprobe",
 		FFmpegPath:      "ffmpeg",
+		AuthUsername:    "admin",
+		AuthAccessTTL:  "2h",
+		AuthRefreshTTL: "168h",
 	}
 
 	// If an existing config file exists, use its values as defaults
@@ -301,7 +315,35 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 3 — Advanced config
+	// Step 3 — Web Authentication
+	fmt.Println("\n=== Web Authentication ===")
+
+	var enableAuth bool
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "Enable web authentication (username/password)?",
+		Default: vals.AuthPassword != "",
+	}, &enableAuth); err != nil {
+		return handleSurveyErr(err)
+	}
+
+	if enableAuth {
+		if err := survey.AskOne(&survey.Input{
+			Message: "Username:",
+			Default: vals.AuthUsername,
+		}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Password{
+			Message: "Password:",
+		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+	} else {
+		vals.AuthPassword = ""
+	}
+
+	// Step 4 — Advanced config
 	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool

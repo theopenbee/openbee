@@ -5,6 +5,12 @@ server:
   port: {{.ServerPort}}
   host: {{.ServerHost}}
   debug: {{.Debug}}
+  auth:
+    username: "{{.AuthUsername}}"           # login username; default "admin"
+    password: "{{.AuthPassword}}"           # login password; empty = no auth
+    jwt_secret: "{{.AuthJWTSecret}}"        # HMAC secret; empty = auto-generated on startup
+    access_token_ttl: {{.AuthAccessTTL}}
+    refresh_token_ttl: {{.AuthRefreshTTL}}
 
 database:
   path: {{.DBPath}}
