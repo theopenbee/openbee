@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>Run Claude AI as your digital employee — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
+  <p><strong>Run Claude Code as your digital employee — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
 </div>
 
 <div align="center">
@@ -23,7 +23,7 @@
 | | | |
 |:---:|:---:|:---:|
 | 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** |
-| Each Worker is a Claude AI agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
+| Each Worker is a Claude Code agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
 | 🔧 **MCP Tool Invocation** | ⏰ **Scheduled Tasks** | 🖥️ **Web Console** |
 | Extend capabilities via MCP protocol — read files, call APIs, query databases | Cron-based scheduling for automatic, hands-free triggering | Visual interface for Worker management, task history, and real-time logs |
 
@@ -111,25 +111,29 @@ openbee server -d
 ```mermaid
 graph TD
     A["💬 IM Platforms\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🔌 Platform Integration Layer"]
-    B --> C["📨 Message Ingestion & Task Scheduling"]
-    C --> D["🤖 Workers — Digital Employees\nClaude AI Agents"]
-    D --> C
-    D -. "Status" .-> E["🖥️ Web Console"]
-    C -. "Logs" .-> E
+    B --> C["🧠 Central Brain\nClaude Code"]
+    C --> D["📨 Task Assignment"]
+    D --> E["🤖 Workers — Digital Employees\nClaude Code Agents"]
+    E -. "Report Results" .-> C
+    E -. "Status" .-> F["🖥️ Web Console"]
+    C -. "Logs" .-> F
 ```
 
-OpenBee consists of four core layers:
+OpenBee consists of five core layers:
 
 **1. Platform Integration Layer**
 Connects to IM platforms such as Lark, DingTalk, WeCom, WeChat, and Telegram to receive user messages in real time and reply with results in the same conversation.
 
-**2. Message Ingestion & Task Scheduling**
-Debounces and aggregates incoming messages, then routes them to the appropriate Worker for execution. Scheduled tasks are also supported for automatic, time-based triggering.
+**2. Central Brain (Claude Code)**
+The central brain receives all incoming messages, understands user intent, and decides how to break down and assign tasks. It coordinates the overall workflow and aggregates results from Workers.
 
-**3. Workers (Digital Employees)**
-Each Worker is an intelligent agent powered by Claude AI, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers can be created, configured, and assigned tasks to complete independently — just like real employees.
+**3. Task Assignment**
+The central brain dispatches tasks to the appropriate Workers based on their capabilities and configuration. Scheduled tasks are also supported for automatic, time-based triggering.
 
-**4. Web Console**
+**4. Workers (Digital Employees)**
+Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and report results back to the central brain — just like real employees.
+
+**5. Web Console**
 Provides a visual interface for Worker management, task execution history, and real-time logs, making monitoring and debugging straightforward.
 
 ## 🌟 Star History

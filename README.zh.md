@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>让 Claude AI 成为你的数字员工 — 通过飞书/钉钉/企微/微信/Telegram 直接指挥</strong></p>
+  <p><strong>让 Claude Code 成为你的数字员工 — 通过飞书/钉钉/企微/微信/Telegram 直接指挥</strong></p>
 </div>
 
 <div align="center">
@@ -23,7 +23,7 @@
 | | | |
 |:---:|:---:|:---:|
 | 🤖 **AI 数字员工** | 💬 **多平台 IM 接入** | 🧠 **持久记忆** |
-| 每个 Worker 由 Claude AI 驱动，可独立规划和执行多步骤任务 | 原生支持飞书、钉钉、企业微信、微信、Telegram，消息收发零配置 | Worker 拥有跨会话的长期记忆，像真实员工一样了解上下文 |
+| 每个 Worker 由 Claude Code 驱动，可独立规划和执行多步骤任务 | 原生支持飞书、钉钉、企业微信、微信、Telegram，消息收发零配置 | Worker 拥有跨会话的长期记忆，像真实员工一样了解上下文 |
 | 🔧 **MCP 工具调用** | ⏰ **定时任务** | 🖥️ **Web 控制台** |
 | 通过 MCP 协议扩展任意工具能力，读文件、调 API、操作数据库 | 支持 cron 表达式定时触发，自动化无需人工干预 | 可视化管理 Worker、查看任务历史和实时日志 |
 
@@ -111,25 +111,29 @@ openbee server -d
 ```mermaid
 graph TD
     A["💬 IM 平台\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🔌 平台接入层\nPlatform Integration"]
-    B --> C["📨 消息摄取 & 任务调度\nMessage Ingestion & Scheduling"]
-    C --> D["🤖 Worker（数字员工）\nClaude AI Agent"]
-    D --> C
-    D -. "状态 / Status" .-> E["🖥️ Web 控制台\nWeb Console"]
-    C -. "日志 / Logs" .-> E
+    B --> C["🧠 中央大脑\nClaude Code"]
+    C --> D["📨 任务分配\nTask Assignment"]
+    D --> E["🤖 Worker（数字员工）\nClaude Code Agent"]
+    E -. "汇报结果" .-> C
+    E -. "状态 / Status" .-> F["🖥️ Web 控制台\nWeb Console"]
+    C -. "日志 / Logs" .-> F
 ```
 
-OpenBee 由四个核心层构成：
+OpenBee 由五个核心层构成：
 
 **1. 平台接入层**
 连接飞书、钉钉、企微、微信、Telegram 等 IM 平台，实时接收用户消息，并将结果回复到对话中。
 
-**2. 消息摄取 & 任务调度**
-对输入消息进行去抖、聚合后，路由给对应的 Worker 执行；同时支持定时任务，可按计划自动触发。
+**2. 中央大脑（Claude Code）**
+中央大脑接收所有消息，理解用户意图，决定如何拆解和分配任务。它协调整体工作流程，并汇总 Worker 的执行结果。
 
-**3. Worker（数字员工）**
-每个 Worker 是一个由 Claude AI 驱动的智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 可以被创建、配置、指派任务，像真实员工一样独立完成工作。
+**3. 任务分配**
+中央大脑根据 Worker 的能力和配置，将任务分派给合适的 Worker 执行；同时支持定时任务，可按计划自动触发。
 
-**4. Web 控制台**
+**4. Worker（数字员工）**
+每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，并将结果汇报给中央大脑——像真实员工一样独立完成工作。
+
+**5. Web 控制台**
 提供 Worker 管理、任务执行历史、实时日志等可视化界面，方便监控和调试。
 
 ## 🌟 Star History
