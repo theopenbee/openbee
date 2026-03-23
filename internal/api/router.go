@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/auth"
@@ -49,21 +48,6 @@ func NewServer(
 		"/mcp/sse",
 		"/mcp/messages",
 	})))
-
-	authEnabled := authHandler != nil
-	corsConfig := cors.Config{
-		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization", "Accept-Language", "X-API-Key"},
-		ExposeHeaders: []string{"Content-Length"},
-	}
-	if authEnabled {
-		corsConfig.AllowOriginFunc = func(origin string) bool { return true }
-		corsConfig.AllowCredentials = true
-	} else {
-		corsConfig.AllowOrigins = []string{"*"}
-		corsConfig.AllowCredentials = false
-	}
-	router.Use(cors.New(corsConfig))
 
 	s := &Server{
 		router:           router,

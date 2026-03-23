@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/gzip v1.2.5
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-telegram-bot-api/telegram-bot-api v5.0.1+incompatible
