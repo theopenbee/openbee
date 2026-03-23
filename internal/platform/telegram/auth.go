@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"go.uber.org/zap"
@@ -69,6 +70,7 @@ func (s *AuthStore) save() {
 	for id := range s.users {
 		ids = append(ids, id)
 	}
+	sort.Strings(ids)
 	data, err := json.MarshalIndent(ids, "", "  ")
 	if err != nil {
 		log.Error("marshal auth store", zap.Error(err))

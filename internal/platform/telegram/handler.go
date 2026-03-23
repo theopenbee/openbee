@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -40,7 +42,10 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 		authStore = newAuthStore()
 	}
 	p := &TelegramPlatform{}
-	p.receiver = &TelegramReceiver{cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore}
+	p.receiver = &TelegramReceiver{
+		cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore,
+		unauthReplyLast: make(map[string]time.Time),
+	}
 	p.sender = &TelegramSender{cfg: cfg, bot: bot}
 	return p
 }
@@ -106,6 +111,10 @@ type TelegramReceiver struct {
 	mediaSvc  *media.Service
 	bot       *tgbotapi.BotAPI
 	authStore *AuthStore // nil when auth_code is empty (no auth required)
+
+	// Rate-limit unauthorized reply: at most one per sender per 60s.
+	unauthReplyMu   sync.Mutex
+	unauthReplyLast map[string]time.Time
 }
 
 func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
@@ -165,42 +174,56 @@ func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 // handleAuth processes auth commands and blocks unauthorized users.
 // Returns true if the message was consumed (either an auth command or unauthorized).
 func (r *TelegramReceiver) handleAuth(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) bool {
-	text := strings.TrimSpace(m.Text)
+	parts := strings.Fields(strings.TrimSpace(m.Text))
 
-	// Check for /auth command.
-	if strings.HasPrefix(text, "/auth") {
-		parts := strings.Fields(text)
+	// Match "/auth" exactly (also handles Telegram's "/auth@botname" form).
+	if len(parts) > 0 && (parts[0] == "/auth" || strings.HasPrefix(parts[0], "/auth@")) {
 		if len(parts) < 2 {
-			reply := tgbotapi.NewMessage(m.Chat.ID, "Usage: /auth <code>")
-			reply.ReplyToMessageID = m.MessageID
-			bot.Send(reply)
+			replyText(bot, m, "Usage: /auth <code>")
 			return true
 		}
-		code := parts[1]
-		if code == r.cfg.AuthCode {
+		if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(r.cfg.AuthCode)) == 1 {
 			r.authStore.Authorize(senderID)
-			reply := tgbotapi.NewMessage(m.Chat.ID, "✅ Authorization successful.")
-			reply.ReplyToMessageID = m.MessageID
-			bot.Send(reply)
+			replyText(bot, m, "✅ Authorization successful.")
 			log.Info("user authorized", zap.String("senderID", senderID))
 		} else {
-			reply := tgbotapi.NewMessage(m.Chat.ID, "❌ Invalid authorization code.")
-			reply.ReplyToMessageID = m.MessageID
-			bot.Send(reply)
+			replyText(bot, m, "❌ Invalid authorization code.")
 			log.Warn("auth failed: invalid code", zap.String("senderID", senderID))
 		}
 		return true
 	}
 
-	// Block unauthorized users.
 	if !r.authStore.IsAuthorized(senderID) {
-		reply := tgbotapi.NewMessage(m.Chat.ID, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
-		reply.ReplyToMessageID = m.MessageID
-		bot.Send(reply)
+		r.replyUnauthorized(bot, m, senderID)
 		return true
 	}
 
 	return false
+}
+
+const unauthReplyCooldown = 60 * time.Second
+
+// replyUnauthorized sends an unauthorized hint at most once per sender per cooldown period.
+func (r *TelegramReceiver) replyUnauthorized(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) {
+	r.unauthReplyMu.Lock()
+	last := r.unauthReplyLast[senderID]
+	now := time.Now()
+	if now.Sub(last) < unauthReplyCooldown {
+		r.unauthReplyMu.Unlock()
+		return
+	}
+	r.unauthReplyLast[senderID] = now
+	r.unauthReplyMu.Unlock()
+
+	replyText(bot, m, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
+}
+
+func replyText(bot *tgbotapi.BotAPI, m *tgbotapi.Message, text string) {
+	reply := tgbotapi.NewMessage(m.Chat.ID, text)
+	reply.ReplyToMessageID = m.MessageID
+	if _, err := bot.Send(reply); err != nil {
+		log.Warn("send auth reply failed", zap.Error(err))
+	}
 }
 
 func (r *TelegramReceiver) buildInboundMessage(
