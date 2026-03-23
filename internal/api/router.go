@@ -96,48 +96,40 @@ func (s *Server) setupRoutes() {
 		api.GET("/executions/:id/logs", s.getExecutionLogs)
 
 		// Local chat
-		if s.localChatHandler != nil {
-			s.localChatHandler.RegisterRoutes(api)
-		}
+		s.localChatHandler.RegisterRoutes(api)
 	}
 
 	// SSE stream for local chat — registered outside gzip middleware but still JWT-protected
-	if s.localChatHandler != nil {
-		s.registerProtected("GET", "/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
-	}
+	s.registerProtected("GET", "/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
 
 	// Internal log level control — also JWT-protected
 	s.registerProtected("PUT", "/internal/log/level", gin.WrapH(logger.LevelHandler()))
 
-	// MCP — only registered when an API key is configured
-	if s.mcpServer != nil {
-		mcpGroup := s.router.Group("/mcp")
-		s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
-	}
+	// MCP
+	mcpGroup := s.router.Group("/mcp")
+	s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
 
-	if s.staticFS != nil {
-		sub, _ := fs.Sub(s.staticFS, "dist")
-		httpFS := http.FS(sub)
+	sub, _ := fs.Sub(s.staticFS, "dist")
+	httpFS := http.FS(sub)
 
-		// Read index.html once at startup for the SPA fallback
-		indexHTML, _ := fs.ReadFile(sub, "index.html")
+	// Read index.html once at startup for the SPA fallback
+	indexHTML, _ := fs.ReadFile(sub, "index.html")
 
-		s.router.NoRoute(func(c *gin.Context) {
-			path := strings.TrimPrefix(c.Request.URL.Path, "/")
-			if path != "" {
-				f, err := sub.Open(path)
-				if err == nil {
-					f.Close()
-					c.FileFromFS(path, httpFS)
-					return
-				}
+	s.router.NoRoute(func(c *gin.Context) {
+		path := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if path != "" {
+			f, err := sub.Open(path)
+			if err == nil {
+				f.Close()
+				c.FileFromFS(path, httpFS)
+				return
 			}
-			// Serve index.html directly — must NOT use c.FileFromFS("index.html", ...)
-			// because http.FileServer redirects any URL ending in /index.html to ./,
-			// causing an infinite redirect loop.
-			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
-		})
-	}
+		}
+		// Serve index.html directly — must NOT use c.FileFromFS("index.html", ...)
+		// because http.FileServer redirects any URL ending in /index.html to ./,
+		// causing an infinite redirect loop.
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	})
 }
 
 // registerProtected registers a route with JWT middleware.
