@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8] - 2026-03-22
+
+### Added
+
+- `web`: JWT authentication for web API and frontend
+- `web`: login/refresh/status auth endpoints with Bearer token and query param support
+- `web`: login rate limiter (5 attempts/min per IP)
+- `web`: React auth guard and login page with i18n support
+- `config`: auth configuration (username/password/jwt_secret/ttl) in config wizard
+
+### Changed
+
+- `web`: CORS updated to support credentials when auth is enabled
+- `web`: all API, SSE stream, and internal endpoints protected by JWT middleware
+
 ## [0.0.7] - 2026-03-22
 
 ### Added
