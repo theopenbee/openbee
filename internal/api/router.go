@@ -91,8 +91,6 @@ func (s *Server) setupRoutes() error {
 		s.localChatHandler.RegisterRoutes(api)
 	}
 
-	// Registered outside gzip middleware — SSE streams must not be compressed
-	s.router.Handle("GET", "/api/local/sessions/:id/stream", s.jwtMiddleware, s.localChatHandler.StreamReplies)
 	s.router.Handle("PUT", "/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
 
 	mcpGroup := s.router.Group("/mcp")

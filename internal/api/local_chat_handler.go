@@ -50,7 +50,8 @@ func NewLocalChatHandler(
 	}
 }
 
-// RegisterRoutes registers all non-SSE routes on the given router group.
+// RegisterRoutes registers all local-chat routes on the given router group.
+// The SSE stream route is excluded from gzip via WithExcludedPathsRegexs.
 func (h *LocalChatHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/local/sessions", h.createSession)
 	rg.GET("/local/sessions", h.listSessions)
@@ -58,9 +59,10 @@ func (h *LocalChatHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/local/sessions/:id/messages", h.sendMessage)
 	rg.GET("/local/sessions/:id/messages", h.getMessages)
 	rg.POST("/local/sessions/:id/media", h.uploadMedia)
+	rg.GET("/local/sessions/:id/stream", h.StreamReplies)
 }
 
-// StreamReplies is registered separately on the raw router to bypass gzip middleware.
+// StreamReplies streams SSE replies for a local chat session.
 func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	sessionID := c.Param("id")
 	sessionKey := "local:" + sessionID
