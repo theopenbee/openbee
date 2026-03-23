@@ -13,12 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `web`: login/refresh/status auth endpoints with Bearer token and query param support
 - `web`: login rate limiter (5 attempts/min per IP)
 - `web`: React auth guard and login page with i18n support
-- `config`: auth configuration (username/password/jwt_secret/ttl) in config wizard
-
-### Changed
-
-- `web`: CORS updated to support credentials when auth is enabled
 - `web`: all API, SSE stream, and internal endpoints protected by JWT middleware
+- `config`: auth configuration (username/password/jwt_secret/ttl) in config wizard
 
 ## [0.0.7] - 2026-03-22
 
