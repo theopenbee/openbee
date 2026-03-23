@@ -114,6 +114,7 @@ graph TD
     B --> C["🧠 Central Brain\nClaude Code"]
     C --> D["📨 Task Assignment"]
     D --> E["🤖 Workers — Digital Employees\nClaude Code Agents"]
+    E -. "Reply Results" .-> A
     E -. "Status" .-> F["🖥️ Web Console"]
     C -. "Logs" .-> F
 ```
@@ -130,7 +131,7 @@ The central brain receives all incoming messages, understands user intent, and d
 The central brain dispatches tasks to the appropriate Workers based on their capabilities and configuration. Scheduled tasks are also supported for automatic, time-based triggering.
 
 **4. Workers (Digital Employees)**
-Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously — just like real employees.
+Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM platform — just like real employees.
 
 **5. Web Console**
 Provides a visual interface for Worker management, task execution history, and real-time logs, making monitoring and debugging straightforward.

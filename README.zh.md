@@ -114,6 +114,7 @@ graph TD
     B --> C["🧠 中央大脑\nClaude Code"]
     C --> D["📨 任务分配\nTask Assignment"]
     D --> E["🤖 Worker（数字员工）\nClaude Code Agent"]
+    E -. "回复结果" .-> A
     E -. "状态 / Status" .-> F["🖥️ Web 控制台\nWeb Console"]
     C -. "日志 / Logs" .-> F
 ```
@@ -130,7 +131,7 @@ OpenBee 由五个核心层构成：
 中央大脑根据 Worker 的能力和配置，将任务分派给合适的 Worker 执行；同时支持定时任务，可按计划自动触发。
 
 **4. Worker（数字员工）**
-每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，像真实员工一样独立完成工作。
+每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到 IM 平台——像真实员工一样独立完成工作。
 
 **5. Web 控制台**
 提供 Worker 管理、任务执行历史、实时日志等可视化界面，方便监控和调试。
