@@ -318,29 +318,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 3 — Web Authentication
 	fmt.Println("\n=== Web Authentication ===")
 
-	var enableAuth bool
-	if err := survey.AskOne(&survey.Confirm{
-		Message: "Enable web authentication (username/password)?",
-		Default: vals.AuthPassword != "",
-	}, &enableAuth); err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "Username:",
+		Default: vals.AuthUsername,
+	}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
 		return handleSurveyErr(err)
 	}
 
-	if enableAuth {
-		if err := survey.AskOne(&survey.Input{
-			Message: "Username:",
-			Default: vals.AuthUsername,
-		}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Password{
-			Message: "Password:",
-		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-	} else {
-		vals.AuthPassword = ""
+	if err := survey.AskOne(&survey.Password{
+		Message: "Password:",
+	}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
+		return handleSurveyErr(err)
 	}
 
 	// Step 4 — Advanced config
