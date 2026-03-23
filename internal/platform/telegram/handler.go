@@ -57,7 +57,6 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 func setupBotCommands(bot *tgbotapi.BotAPI) {
 	commands := []tgbotapi.BotCommand{
 		{Command: "clear", Description: "Clear conversation history"},
-		{Command: "auth", Description: "Authenticate with the bot"},
 	}
 	if err := bot.SetMyCommands(commands); err != nil {
 		log.Error("failed to set bot commands", zap.Error(err))
