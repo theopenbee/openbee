@@ -35,8 +35,12 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 	if err != nil {
 		panic(fmt.Sprintf("telegram: invalid token: %v", err))
 	}
+	var authStore *AuthStore
+	if cfg.AuthCode != "" {
+		authStore = newAuthStore()
+	}
 	p := &TelegramPlatform{}
-	p.receiver = &TelegramReceiver{cfg: cfg, mediaSvc: mediaSvc, bot: bot}
+	p.receiver = &TelegramReceiver{cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore}
 	p.sender = &TelegramSender{cfg: cfg, bot: bot}
 	return p
 }
@@ -98,9 +102,10 @@ func mediaTypeFromTelegram(msgType string) string {
 // ─── Receiver ─────────────────────────────────────────────────────────────────
 
 type TelegramReceiver struct {
-	cfg      config.TelegramConfig
-	mediaSvc *media.Service
-	bot      *tgbotapi.BotAPI
+	cfg       config.TelegramConfig
+	mediaSvc  *media.Service
+	bot       *tgbotapi.BotAPI
+	authStore *AuthStore // nil when auth_code is empty (no auth required)
 }
 
 func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
@@ -133,6 +138,14 @@ func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 				continue
 			}
 
+			// Handle auth if enabled.
+			if r.authStore != nil && update.Message.From != nil {
+				senderID := strconv.FormatInt(int64(update.Message.From.ID), 10)
+				if r.handleAuth(bot, update.Message, senderID) {
+					continue
+				}
+			}
+
 			go func(chatID int64) {
 				action := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
 				if _, err := bot.Send(action); err != nil {
@@ -147,6 +160,47 @@ func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			dispatch(*msg)
 		}
 	}
+}
+
+// handleAuth processes auth commands and blocks unauthorized users.
+// Returns true if the message was consumed (either an auth command or unauthorized).
+func (r *TelegramReceiver) handleAuth(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) bool {
+	text := strings.TrimSpace(m.Text)
+
+	// Check for /auth command.
+	if strings.HasPrefix(text, "/auth") {
+		parts := strings.Fields(text)
+		if len(parts) < 2 {
+			reply := tgbotapi.NewMessage(m.Chat.ID, "Usage: /auth <code>")
+			reply.ReplyToMessageID = m.MessageID
+			bot.Send(reply)
+			return true
+		}
+		code := parts[1]
+		if code == r.cfg.AuthCode {
+			r.authStore.Authorize(senderID)
+			reply := tgbotapi.NewMessage(m.Chat.ID, "✅ Authorization successful.")
+			reply.ReplyToMessageID = m.MessageID
+			bot.Send(reply)
+			log.Info("user authorized", zap.String("senderID", senderID))
+		} else {
+			reply := tgbotapi.NewMessage(m.Chat.ID, "❌ Invalid authorization code.")
+			reply.ReplyToMessageID = m.MessageID
+			bot.Send(reply)
+			log.Warn("auth failed: invalid code", zap.String("senderID", senderID))
+		}
+		return true
+	}
+
+	// Block unauthorized users.
+	if !r.authStore.IsAuthorized(senderID) {
+		reply := tgbotapi.NewMessage(m.Chat.ID, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
+		reply.ReplyToMessageID = m.MessageID
+		bot.Send(reply)
+		return true
+	}
+
+	return false
 }
 
 func (r *TelegramReceiver) buildInboundMessage(

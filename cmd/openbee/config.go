@@ -39,8 +39,9 @@ type configValues struct {
 	WecomBotID   string
 	WecomSecret  string
 
-	TelegramEnabled bool
-	TelegramToken   string
+	TelegramEnabled  bool
+	TelegramToken    string
+	TelegramAuthCode string
 
 	ClaudePath      string
 	ClaudeTimeout   string
@@ -94,6 +95,7 @@ func loadExistingConfig(path string) *configValues {
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
+		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
@@ -285,6 +287,19 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				Message: "Telegram Bot Token:",
 				Help:    "Get a token from @BotFather on Telegram",
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+			authCodeDefault := vals.TelegramAuthCode
+			if authCodeDefault == "" {
+				b := make([]byte, 8)
+				rand.Read(b)
+				authCodeDefault = hex.EncodeToString(b)
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: "Telegram Auth Code (empty to disable auth):",
+				Default: authCodeDefault,
+				Help:    "Users must send /auth <code> to use the bot; leave empty to allow all",
+			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
 		}
