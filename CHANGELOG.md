@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `telegram`: user authorization via `/auth <code>` command with persistent auth store
+- `telegram`: bot menu commands setup (`/start`, `/auth`)
+- `telegram`: `auth_code` config option with auto-generation in config wizard
+- `telegram`: rate-limited replies for unauthorized users (one per sender per 60s)
+
 ## [0.0.6] - 2026-03-22
 
 ### Added
