@@ -325,10 +325,44 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return handleSurveyErr(err)
 	}
 
-	if err := survey.AskOne(&survey.Password{
-		Message: "Password:",
-	}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
+	if vals.AuthPassword != "" {
+		var changePassword bool
+		if err := survey.AskOne(&survey.Confirm{
+			Message: "Password already configured. Change it?",
+			Default: false,
+		}, &changePassword); err != nil {
+			return handleSurveyErr(err)
+		}
+		if changePassword {
+			if err := promptPassword(&vals); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := promptPassword(&vals); err != nil {
+			return err
+		}
+	}
+
+	if vals.AuthJWTSecret != "" {
+		var regenerate bool
+		if err := survey.AskOne(&survey.Confirm{
+			Message: "JWT secret already exists. Regenerate?",
+			Default: false,
+		}, &regenerate); err != nil {
+			return handleSurveyErr(err)
+		}
+		if regenerate {
+			b := make([]byte, 32)
+			rand.Read(b)
+			vals.AuthJWTSecret = hex.EncodeToString(b)
+			fmt.Println("JWT secret regenerated.")
+		}
+	} else {
+		b := make([]byte, 32)
+		rand.Read(b)
+		vals.AuthJWTSecret = hex.EncodeToString(b)
+		fmt.Println("JWT secret generated.")
 	}
 
 	// Step 4 — Advanced config
@@ -477,6 +511,30 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Config file written to: %s\n", configOutputPath)
+	return nil
+}
+
+func promptPassword(vals *configValues) error {
+	var method string
+	if err := survey.AskOne(&survey.Select{
+		Message: "Password setup:",
+		Options: []string{"Enter manually", "Generate randomly"},
+	}, &method); err != nil {
+		return handleSurveyErr(err)
+	}
+	switch method {
+	case "Enter manually":
+		if err := survey.AskOne(&survey.Password{
+			Message: "Password:",
+		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
+			return handleSurveyErr(err)
+		}
+	case "Generate randomly":
+		b := make([]byte, 16)
+		rand.Read(b)
+		vals.AuthPassword = hex.EncodeToString(b)
+		fmt.Printf("Generated password: %s\n", vals.AuthPassword)
+	}
 	return nil
 }
 
