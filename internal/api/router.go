@@ -70,38 +70,57 @@ func NewServer(
 }
 
 func (s *Server) setupRoutes() error {
-	authGroup := s.router.Group("/api/auth")
-	authGroup.GET("/status", s.authHandler.Status)
-	authGroup.POST("/login", s.authHandler.Login)
-	authGroup.POST("/refresh", s.authHandler.Refresh)
+	s.registerAuthRoutes()
 
 	api := s.router.Group("/api")
 	api.Use(s.jwtMiddleware)
 	{
-		api.POST("/workers", s.createWorker)
-		api.GET("/workers", s.listWorkers)
-		api.GET("/workers/:id", s.getWorker)
-		api.PUT("/workers/:id", s.updateWorker)
-		api.DELETE("/workers/:id", s.deleteWorker)
-		api.GET("/workers/:id/executions", s.listWorkerExecutions)
-		api.GET("/sessions/:sessionId/executions", s.listSessionExecutions)
-		api.GET("/executions", s.listExecutions)
-		api.GET("/executions/:id", s.getExecution)
-		api.GET("/executions/:id/logs", s.getExecutionLogs)
-		api.POST("/local/sessions", s.localChatHandler.createSession)
-		api.GET("/local/sessions", s.localChatHandler.listSessions)
-		api.DELETE("/local/sessions/:id", s.localChatHandler.deleteSession)
-		api.POST("/local/sessions/:id/messages", s.localChatHandler.sendMessage)
-		api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
-		api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
-		api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+		s.registerWorkerRoutes(api)
+		s.registerExecutionRoutes(api)
+		s.registerLocalChatRoutes(api)
 	}
 
 	s.router.Handle("PUT", "/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
 
-	mcpGroup := s.router.Group("/mcp")
-	s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
+	s.mcpServer.RegisterRoutes(s.router.Group("/mcp"), s.mcpAPIKey)
 
+	return s.registerStaticRoutes()
+}
+
+func (s *Server) registerAuthRoutes() {
+	auth := s.router.Group("/api/auth")
+	auth.GET("/status", s.authHandler.Status)
+	auth.POST("/login", s.authHandler.Login)
+	auth.POST("/refresh", s.authHandler.Refresh)
+}
+
+func (s *Server) registerWorkerRoutes(api *gin.RouterGroup) {
+	api.POST("/workers", s.createWorker)
+	api.GET("/workers", s.listWorkers)
+	api.GET("/workers/:id", s.getWorker)
+	api.PUT("/workers/:id", s.updateWorker)
+	api.DELETE("/workers/:id", s.deleteWorker)
+}
+
+func (s *Server) registerExecutionRoutes(api *gin.RouterGroup) {
+	api.GET("/workers/:id/executions", s.listWorkerExecutions)
+	api.GET("/sessions/:sessionId/executions", s.listSessionExecutions)
+	api.GET("/executions", s.listExecutions)
+	api.GET("/executions/:id", s.getExecution)
+	api.GET("/executions/:id/logs", s.getExecutionLogs)
+}
+
+func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
+	api.POST("/local/sessions", s.localChatHandler.createSession)
+	api.GET("/local/sessions", s.localChatHandler.listSessions)
+	api.DELETE("/local/sessions/:id", s.localChatHandler.deleteSession)
+	api.POST("/local/sessions/:id/messages", s.localChatHandler.sendMessage)
+	api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
+	api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
+	api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+}
+
+func (s *Server) registerStaticRoutes() error {
 	sub, err := fs.Sub(s.staticFS, "dist")
 	if err != nil {
 		return fmt.Errorf("static assets: %w", err)
