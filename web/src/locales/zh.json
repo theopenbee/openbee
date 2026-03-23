@@ -100,6 +100,15 @@
     "deleteSession": "删除对话",
     "emptyState": "暂无对话，点击「新建对话」开始"
   },
+  "login": {
+    "title": "登录",
+    "username": "用户名",
+    "password": "密码",
+    "submit": "登录",
+    "error401": "用户名或密码错误",
+    "error429": "尝试次数过多，请稍后再试",
+    "errorGeneric": "登录失败"
+  },
   "emptyState": {
     "noWorkers": "蜂巢中还没有工作者",
     "noWorkersDesc": "创建你的第一个 AI 工作者开始使用",

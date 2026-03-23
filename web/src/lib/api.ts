@@ -1,16 +1,45 @@
 import type { Worker, WorkerExecution, LocalChatSession, ChatMessage } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
+import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
 
 const API_BASE = config.apiUrl
 
+function redirectToLogin() {
+  clearTokens()
+  window.location.hash = "#/login"
+}
+
+async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers)
+  const token = getAccessToken()
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
+
+  let res = await fetch(url, { ...init, headers })
+
+  if (res.status === 401 && getRefreshToken()) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      headers.set("Authorization", `Bearer ${newToken}`)
+      res = await fetch(url, { ...init, headers })
+    } else {
+      redirectToLogin()
+      throw new Error("unauthorized")
+    }
+  }
+
+  return res
+}
+
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, ...restOptions } = options ?? {}
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithAuth(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       "Accept-Language": i18n.language || "en",
-      ...extraHeaders,
+      ...(extraHeaders as Record<string, string>),
     },
     ...restOptions,
   })
@@ -50,7 +79,7 @@ export const api = {
     },
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {
-      const res = await fetch(`${API_BASE}/executions/${id}/logs`, {
+      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
         headers: { "Accept-Language": i18n.language || "en" },
       })
       if (!res.ok) {
@@ -90,7 +119,7 @@ export const api = {
     uploadMedia: async (sessionId: string, file: File) => {
       const form = new FormData()
       form.append("file", file)
-      const res = await fetch(`${API_BASE}/local/sessions/${sessionId}/media`, {
+      const res = await fetchWithAuth(`${API_BASE}/local/sessions/${sessionId}/media`, {
         method: "POST",
         body: form,
       })

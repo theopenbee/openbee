@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
+	"github.com/theopenbee/openbee/internal/auth"
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/bee"
@@ -155,7 +156,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv := buildAPIServer(cfg.Bee.MCP, s, mgr, logRegistry, mcpSrv, localChatHandler)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, logRegistry, mcpSrv, localChatHandler)
+	if err != nil {
+		return nil, fmt.Errorf("building API server: %w", err)
+	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
@@ -237,6 +241,13 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(cfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
-	return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, mcpSrv, cfg.APIKey, webui.DistFS, localChat)
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
+	password := serverCfg.Auth.Password
+	secret := serverCfg.Auth.JWTSecret
+	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
+	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
+	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
+	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
+
+	return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, mcpSrv, mcpCfg.APIKey, webui.DistFS, localChat, authHandler, jwtMiddleware)
 }

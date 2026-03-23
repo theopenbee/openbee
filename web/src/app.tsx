@@ -2,7 +2,9 @@ import { lazy, Suspense } from "react"
 import { HashRouter, Routes, Route } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
+import { AuthGuard } from "@/components/auth-guard"
 
+const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m.Dashboard })))
 const Workers = lazy(() => import("@/pages/workers").then(m => ({ default: m.Workers })))
 const WorkerDetail = lazy(() => import("@/pages/worker-detail").then(m => ({ default: m.WorkerDetail })))
@@ -27,7 +29,8 @@ export function App() {
       <HashRouter>
         <Suspense fallback={null}>
           <Routes>
-            <Route element={<Layout />}>
+            <Route path="/login" element={<Login />} />
+            <Route element={<AuthGuard><Layout /></AuthGuard>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/workers" element={<Workers />} />
               <Route path="/workers/:id" element={<WorkerDetail />} />

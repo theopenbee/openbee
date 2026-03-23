@@ -2,14 +2,14 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"strings"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
@@ -26,6 +26,8 @@ type Server struct {
 	mcpAPIKey        string
 	staticFS         fs.FS
 	localChatHandler *LocalChatHandler
+	authHandler      *auth.AuthHandler
+	jwtMiddleware    gin.HandlerFunc
 }
 
 func NewServer(
@@ -37,20 +39,16 @@ func NewServer(
 	mcpAPIKey string,
 	staticFS fs.FS,
 	localChat *LocalChatHandler,
-) *Server {
+	authHandler *auth.AuthHandler,
+	jwtMiddleware gin.HandlerFunc,
+) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/sessions/.+/stream",
 		"/mcp/sse",
 		"/mcp/messages",
 	})))
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept-Language", "X-API-Key"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: false,
-	}))
+
 	s := &Server{
 		router:           router,
 		workerStore:      ws,
@@ -61,75 +59,98 @@ func NewServer(
 		mcpAPIKey:        mcpAPIKey,
 		staticFS:         staticFS,
 		localChatHandler: localChat,
+		authHandler:      authHandler,
+		jwtMiddleware:    jwtMiddleware,
 	}
-	s.setupRoutes()
-	return s
+	if err := s.setupRoutes(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
-func (s *Server) setupRoutes() {
+func (s *Server) setupRoutes() error {
+	s.registerAuthRoutes()
+
 	api := s.router.Group("/api")
+	api.Use(s.jwtMiddleware)
 	{
-		// Workers
-		api.POST("/workers", s.createWorker)
-		api.GET("/workers", s.listWorkers)
-		api.GET("/workers/:id", s.getWorker)
-		api.PUT("/workers/:id", s.updateWorker)
-		api.DELETE("/workers/:id", s.deleteWorker)
-
-		// Worker executions
-		api.GET("/workers/:id/executions", s.listWorkerExecutions)
-
-		// Sessions
-		api.GET("/sessions/:sessionId/executions", s.listSessionExecutions)
-
-		// Executions
-		api.GET("/executions", s.listExecutions)
-		api.GET("/executions/:id", s.getExecution)
-		api.GET("/executions/:id/logs", s.getExecutionLogs)
-
-		// Local chat
-		if s.localChatHandler != nil {
-			s.localChatHandler.RegisterRoutes(api)
-		}
+		s.registerWorkerRoutes(api)
+		s.registerExecutionRoutes(api)
+		s.registerLocalChatRoutes(api)
 	}
 
-	// SSE stream for local chat — registered outside gzip middleware
-	if s.localChatHandler != nil {
-		s.router.GET("/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+	s.registerMCPRoutes()
+
+	return s.registerStaticRoutes()
+}
+
+func (s *Server) registerAuthRoutes() {
+	auth := s.router.Group("/api/auth")
+	auth.POST("/login", s.authHandler.Login)
+	auth.POST("/refresh", s.authHandler.Refresh)
+}
+
+func (s *Server) registerWorkerRoutes(api *gin.RouterGroup) {
+	api.POST("/workers", s.createWorker)
+	api.GET("/workers", s.listWorkers)
+	api.GET("/workers/:id", s.getWorker)
+	api.PUT("/workers/:id", s.updateWorker)
+	api.DELETE("/workers/:id", s.deleteWorker)
+}
+
+func (s *Server) registerExecutionRoutes(api *gin.RouterGroup) {
+	api.GET("/workers/:id/executions", s.listWorkerExecutions)
+	api.GET("/sessions/:sessionId/executions", s.listSessionExecutions)
+	api.GET("/executions", s.listExecutions)
+	api.GET("/executions/:id", s.getExecution)
+	api.GET("/executions/:id/logs", s.getExecutionLogs)
+}
+
+func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
+	api.POST("/local/sessions", s.localChatHandler.createSession)
+	api.GET("/local/sessions", s.localChatHandler.listSessions)
+	api.DELETE("/local/sessions/:id", s.localChatHandler.deleteSession)
+	api.POST("/local/sessions/:id/messages", s.localChatHandler.sendMessage)
+	api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
+	api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
+	api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+}
+
+func (s *Server) registerMCPRoutes() {
+	mcpGroup := s.router.Group("/mcp")
+	mcpGroup.Use(mcp.APIKeyMiddleware(s.mcpAPIKey))
+	mcpGroup.GET("/sse", s.mcpServer.HandleSSE)
+	mcpGroup.POST("/messages", s.mcpServer.HandleMessages)
+}
+
+func (s *Server) registerStaticRoutes() error {
+	sub, err := fs.Sub(s.staticFS, "dist")
+	if err != nil {
+		return fmt.Errorf("static assets: %w", err)
+	}
+	httpFS := http.FS(sub)
+
+	indexHTML, err := fs.ReadFile(sub, "index.html")
+	if err != nil {
+		return fmt.Errorf("reading index.html: %w", err)
 	}
 
-	// Internal log level control — PUT /internal/log/level with JSON body {"level":"debug"}
-	s.router.PUT("/internal/log/level", gin.WrapH(logger.LevelHandler()))
-
-	// MCP — only registered when an API key is configured
-	if s.mcpServer != nil {
-		mcpGroup := s.router.Group("/mcp")
-		s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
-	}
-
-	if s.staticFS != nil {
-		sub, _ := fs.Sub(s.staticFS, "dist")
-		httpFS := http.FS(sub)
-
-		// Read index.html once at startup for the SPA fallback
-		indexHTML, _ := fs.ReadFile(sub, "index.html")
-
-		s.router.NoRoute(func(c *gin.Context) {
-			path := strings.TrimPrefix(c.Request.URL.Path, "/")
-			if path != "" {
-				f, err := sub.Open(path)
-				if err == nil {
-					f.Close()
-					c.FileFromFS(path, httpFS)
-					return
-				}
+	s.router.NoRoute(func(c *gin.Context) {
+		path := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if path != "" {
+			f, err := sub.Open(path)
+			if err == nil {
+				f.Close()
+				c.FileFromFS(path, httpFS)
+				return
 			}
-			// Serve index.html directly — must NOT use c.FileFromFS("index.html", ...)
-			// because http.FileServer redirects any URL ending in /index.html to ./,
-			// causing an infinite redirect loop.
-			c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
-		})
-	}
+		}
+		// Serve index.html directly — must NOT use c.FileFromFS("index.html", ...)
+		// because http.FileServer redirects any URL ending in /index.html to ./,
+		// causing an infinite redirect loop.
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	})
+	return nil
 }
 
 func (s *Server) Run(addr string) error {
