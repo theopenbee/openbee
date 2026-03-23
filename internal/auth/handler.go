@@ -93,8 +93,3 @@ func (h *AuthHandler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"auth_required": true})
 }
 
-func StatusDisabled() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"auth_required": false})
-	}
-}

@@ -241,23 +241,26 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
-	var authHandler *auth.AuthHandler
-	var jwtMiddleware gin.HandlerFunc
-
-	if serverCfg.Auth.Password != "" {
-		secret := serverCfg.Auth.JWTSecret
-		if secret == "" {
-			b := make([]byte, 32)
-			rand.Read(b)
-			secret = hex.EncodeToString(b)
-			logger.Info("JWT secret auto-generated (tokens will expire on restart)")
-		}
-		jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
-		rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
-		authHandler = auth.NewAuthHandler(serverCfg.Auth.Username, serverCfg.Auth.Password, jwtSvc, rateLimiter)
-		jwtMiddleware = auth.JWTMiddleware(jwtSvc)
-		logger.Info("Web authentication enabled", zap.String("username", serverCfg.Auth.Username))
+	password := serverCfg.Auth.Password
+	if password == "" {
+		b := make([]byte, 16)
+		rand.Read(b)
+		password = hex.EncodeToString(b)
+		logger.Warn("No auth password configured, generated random password", zap.String("password", password))
 	}
+
+	secret := serverCfg.Auth.JWTSecret
+	if secret == "" {
+		b := make([]byte, 32)
+		rand.Read(b)
+		secret = hex.EncodeToString(b)
+		logger.Info("JWT secret auto-generated (tokens will expire on restart)")
+	}
+	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
+	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
+	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
+	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
+	logger.Info("Web authentication enabled", zap.String("username", serverCfg.Auth.Username))
 
 	return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, mcpSrv, mcpCfg.APIKey, webui.DistFS, localChat, authHandler, jwtMiddleware)
 }

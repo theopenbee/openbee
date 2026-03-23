@@ -85,19 +85,13 @@ func NewServer(
 func (s *Server) setupRoutes() {
 	// Auth routes — always registered, never behind JWT
 	authGroup := s.router.Group("/api/auth")
-	if s.authHandler != nil {
-		authGroup.GET("/status", s.authHandler.Status)
-		authGroup.POST("/login", s.authHandler.Login)
-		authGroup.POST("/refresh", s.authHandler.Refresh)
-	} else {
-		authGroup.GET("/status", auth.StatusDisabled())
-	}
+	authGroup.GET("/status", s.authHandler.Status)
+	authGroup.POST("/login", s.authHandler.Login)
+	authGroup.POST("/refresh", s.authHandler.Refresh)
 
-	// API routes — protected by JWT when auth is enabled
+	// API routes — protected by JWT
 	api := s.router.Group("/api")
-	if s.jwtMiddleware != nil {
-		api.Use(s.jwtMiddleware)
-	}
+	api.Use(s.jwtMiddleware)
 	{
 		// Workers
 		api.POST("/workers", s.createWorker)
@@ -162,13 +156,9 @@ func (s *Server) setupRoutes() {
 	}
 }
 
-// registerProtected registers a route with JWT middleware when auth is enabled.
+// registerProtected registers a route with JWT middleware.
 func (s *Server) registerProtected(method, path string, handler gin.HandlerFunc) {
-	if s.jwtMiddleware != nil {
-		s.router.Handle(method, path, s.jwtMiddleware, handler)
-	} else {
-		s.router.Handle(method, path, handler)
-	}
+	s.router.Handle(method, path, s.jwtMiddleware, handler)
 }
 
 func (s *Server) Run(addr string) error {

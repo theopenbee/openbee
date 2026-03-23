@@ -56,21 +56,6 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
-let authRequiredCache: boolean | null = null
-
-export async function checkAuthRequired(): Promise<boolean> {
-  if (authRequiredCache !== null) return authRequiredCache
-  try {
-    const res = await fetch(`${API_BASE}/auth/status`)
-    if (!res.ok) return false
-    const data = await res.json()
-    authRequiredCache = data.auth_required === true
-    return authRequiredCache
-  } catch {
-    return false
-  }
-}
-
 export interface LoginResult {
   success: boolean
   status?: number

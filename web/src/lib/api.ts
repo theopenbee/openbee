@@ -5,23 +5,23 @@ import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from
 
 const API_BASE = config.apiUrl
 
-function authHeaders(): Record<string, string> {
-  const token = getAccessToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 function redirectToLogin() {
   clearTokens()
   window.location.hash = "#/login"
 }
 
 async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
-  let res = await fetch(url, init)
+  const headers = new Headers(init?.headers)
+  const token = getAccessToken()
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
+
+  let res = await fetch(url, { ...init, headers })
 
   if (res.status === 401 && getRefreshToken()) {
     const newToken = await refreshAccessToken()
     if (newToken) {
-      const headers = new Headers(init?.headers)
       headers.set("Authorization", `Bearer ${newToken}`)
       res = await fetch(url, { ...init, headers })
     } else {
@@ -39,7 +39,6 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     headers: {
       "Content-Type": "application/json",
       "Accept-Language": i18n.language || "en",
-      ...authHeaders(),
       ...(extraHeaders as Record<string, string>),
     },
     ...restOptions,
@@ -81,10 +80,7 @@ export const api = {
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {
       const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
-        headers: {
-          "Accept-Language": i18n.language || "en",
-          ...authHeaders(),
-        },
+        headers: { "Accept-Language": i18n.language || "en" },
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -125,7 +121,6 @@ export const api = {
       form.append("file", file)
       const res = await fetchWithAuth(`${API_BASE}/local/sessions/${sessionId}/media`, {
         method: "POST",
-        headers: authHeaders(),
         body: form,
       })
       if (!res.ok) throw new Error(await res.text())
