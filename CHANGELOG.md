@@ -5,13 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.6] - 2026-03-21
+## [0.0.6] - 2026-03-22
+
+### Added
+
+- `weixin`: WeChat platform support — WeixinPlatform receiver and sender, QR code login flow, media upload with CDN encryption, SILK to WAV voice transcoding, AES-128-ECB crypto, config wizard integration
 
 ### Changed
 
 - `frontend`: redesign UI with DM Sans and JetBrains Mono typography
 - `frontend`: extract reusable components — EmptyState, FadeIn, PageHeader, SkeletonLoader, StatusBadge
 - `frontend`: refine all pages with consistent layout, loading states, and styling
+- `config`: move port/host/debug/dbpath/mcpkey into advanced configuration section
+
+### Fixed
+
+- `weixin`: allow skipping QR login when token already exists
+- `bee`: include merged message content in trigger_input
+- `logger`: defer logger.With() resolution so component loggers work after Init()
 
 ## [0.0.5] - 2026-03-21
 

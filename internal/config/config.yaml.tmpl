@@ -35,6 +35,14 @@ bee:
       token: "{{.TelegramToken}}"
       # max_media_size: 52428800  # 50MB default
       auth_code: "{{.TelegramAuthCode}}"  # passcode for /auth command; empty = no auth required
+    weixin:
+      enabled: {{.WeixinEnabled}}
+      token: "{{.WeixinToken}}"
+      base_url: "{{.WeixinBaseURL}}"
+      cdn_base_url: "{{.WeixinCDNBaseURL}}"
+      user_id: "{{.WeixinUserID}}"
+      # route_tag: 0  # optional
+      # max_media_size: 104857600  # 100MB default
   feeder:
     timeout: {{.FeederTimeout}}
   media:

@@ -66,7 +66,8 @@ npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set ver
 	    npm/packages/cli-linux-arm64/bin/openbee \
 	    npm/packages/cli-darwin-x64/bin/openbee \
 	    npm/packages/cli-darwin-arm64/bin/openbee; \
-	node npm/scripts/set-version.js $$VERSION
+	node npm/scripts/set-version.js $$VERSION; \
+	cp README.md npm/packages/cli/README.md
 
 npm-publish: npm-prepare  ## Publish all npm packages to registry
 	bash npm/scripts/publish.sh

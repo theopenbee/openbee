@@ -102,6 +102,28 @@ func (s *MessageStore) MarkMerged(ctx context.Context, primaryID string, mergedI
 	return nil
 }
 
+// FetchMergedContent returns the content of all messages merged into the given primary ID,
+// ordered by received_at ASC (chronological arrival order).
+func (s *MessageStore) FetchMergedContent(ctx context.Context, primaryID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT content FROM bee_platform_messages
+         WHERE merged_into = ? AND status = 'merged'
+         ORDER BY received_at ASC`, primaryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var contents []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		contents = append(contents, c)
+	}
+	return contents, rows.Err()
+}
+
 // CreateBatch inserts multiple message rows in a single transaction using
 // ClaimedMessage is a bee_platform_messages row claimed by the Feeder.
 type ClaimedMessage struct {

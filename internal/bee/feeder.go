@@ -161,6 +161,17 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		sessionID = uuid.New().String()
 	}
 
+	for i, m := range msgs {
+		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
+		if err != nil {
+			log.Error("fetch merged content", zap.String("msgID", m.ID), zap.Error(err))
+			continue
+		}
+		if len(merged) > 0 {
+			msgs[i].Content = strings.Join(merged, "\n\n---\n\n") + "\n\n---\n\n" + m.Content
+		}
+	}
+
 	prompt := buildPrompt(msgs)
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()

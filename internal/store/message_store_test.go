@@ -168,6 +168,59 @@ func TestMessageStore_MarkMerged(t *testing.T) {
 	}
 }
 
+func TestMessageStore_FetchMergedContent(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	primaryID := "primary-1"
+
+	msgs := []BatchMsg{
+		{
+			ID: "merged-a", SessionKey: "s1", Platform: "test",
+			Content: "image content", Raw: "", PlatformMsgID: "pmsg-a",
+			MessageTime: now, Status: "merged", MergedInto: primaryID,
+		},
+		{
+			ID: "merged-b", SessionKey: "s1", Platform: "test",
+			Content: "second merged", Raw: "", PlatformMsgID: "pmsg-b",
+			MessageTime: now + 1, Status: "merged", MergedInto: primaryID,
+		},
+		{
+			ID: primaryID, SessionKey: "s1", Platform: "test",
+			Content: "primary text", Raw: "", PlatformMsgID: "pmsg-c",
+			MessageTime: now + 2, Status: "received", MergedInto: "",
+		},
+	}
+
+	if _, err := s.CreateBatch(ctx, msgs); err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+
+	contents, err := s.FetchMergedContent(ctx, primaryID)
+	if err != nil {
+		t.Fatalf("FetchMergedContent: %v", err)
+	}
+	if len(contents) != 2 {
+		t.Fatalf("expected 2 merged contents, got %d", len(contents))
+	}
+	if contents[0] != "image content" {
+		t.Errorf("contents[0]: want %q, got %q", "image content", contents[0])
+	}
+	if contents[1] != "second merged" {
+		t.Errorf("contents[1]: want %q, got %q", "second merged", contents[1])
+	}
+
+	// No merged content for a message without merges
+	contents, err = s.FetchMergedContent(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("FetchMergedContent(nonexistent): %v", err)
+	}
+	if len(contents) != 0 {
+		t.Errorf("expected 0 merged contents for nonexistent, got %d", len(contents))
+	}
+}
+
 func TestMessageStore_Create_Dedup_FirstInsertReturnsTrue(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()

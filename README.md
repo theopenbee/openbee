@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>Run Claude AI as your digital employee — command via Lark, DingTalk, or WeCom</strong></p>
+  <p><strong>Run Claude AI as your digital employee — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
 </div>
 
 <div align="center">
@@ -14,7 +14,7 @@
 
 [中文](README.zh.md)
 
-**OpenBee** is a digital employee solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom to create workers, assign tasks, and much more — let your imagination run wild!
+**OpenBee** is a digital employee solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom / WeChat / Telegram to create workers, assign tasks, and much more — let your imagination run wild!
 
 ## ✨ Features
 
@@ -23,7 +23,7 @@
 | | | |
 |:---:|:---:|:---:|
 | 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** |
-| Each Worker is a Claude AI agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, and WeCom — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
+| Each Worker is a Claude AI agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
 | 🔧 **MCP Tool Invocation** | ⏰ **Scheduled Tasks** | 🖥️ **Web Console** |
 | Extend capabilities via MCP protocol — read files, call APIs, query databases | Cron-based scheduling for automatic, hands-free triggering | Visual interface for Worker management, task history, and real-time logs |
 
@@ -86,7 +86,7 @@ The wizard will guide you through:
 - Server port / host
 - Claude executable path
 - MCP API Key (can be randomly generated)
-- IM platform(s) to enable (Lark / DingTalk / WeCom) and their credentials
+- IM platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram) and their credentials
 - Advanced options (can be skipped to use defaults)
 
 The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
@@ -104,13 +104,13 @@ openbee server -d
 ### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
-- Send messages directly in any configured IM platform (Lark / DingTalk / WeCom) to interact with OpenBee
+- Send messages directly in any configured IM platform (Lark / DingTalk / WeCom / WeChat / Telegram) to interact with OpenBee
 
 ## ⚙️ How It Works
 
 ```mermaid
 graph TD
-    A["💬 IM Platforms\nLark / DingTalk / WeCom"] --> B["🔌 Platform Integration Layer"]
+    A["💬 IM Platforms\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🔌 Platform Integration Layer"]
     B --> C["📨 Message Ingestion & Task Scheduling"]
     C --> D["🤖 Workers — Digital Employees\nClaude AI Agents"]
     D --> C
@@ -121,7 +121,7 @@ graph TD
 OpenBee consists of four core layers:
 
 **1. Platform Integration Layer**
-Connects to IM platforms such as Lark, DingTalk, and WeCom to receive user messages in real time and reply with results in the same conversation.
+Connects to IM platforms such as Lark, DingTalk, WeCom, WeChat, and Telegram to receive user messages in real time and reply with results in the same conversation.
 
 **2. Message Ingestion & Task Scheduling**
 Debounces and aggregates incoming messages, then routes them to the appropriate Worker for execution. Scheduled tasks are also supported for automatic, time-based triggering.

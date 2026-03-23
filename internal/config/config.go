@@ -64,6 +64,7 @@ type PlatformsConfig struct {
 	DingTalk DingTalkConfig `yaml:"dingtalk"`
 	WeCom    WeComConfig    `yaml:"wecom"`
 	Telegram TelegramConfig `yaml:"telegram"`
+	Weixin   WeixinConfig   `yaml:"weixin"`
 }
 
 type FeederConfig struct {
@@ -95,6 +96,16 @@ type TelegramConfig struct {
 	Token        string `yaml:"token"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 50MB
 	AuthCode     string `yaml:"auth_code"`      // passcode for user authorization; empty = no auth required
+}
+
+type WeixinConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	Token        string `yaml:"token"`
+	BaseURL      string `yaml:"base_url"`
+	CDNBaseURL   string `yaml:"cdn_base_url"`
+	RouteTag     int    `yaml:"route_tag"`
+	UserID       string `yaml:"user_id"`
+	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 100MB
 }
 
 type MCPConfig struct {
@@ -153,6 +164,15 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.Telegram.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Telegram.MaxMediaSize = 50 * 1024 * 1024 // 50MB
+	}
+	if cfg.Bee.Platforms.Weixin.BaseURL == "" {
+		cfg.Bee.Platforms.Weixin.BaseURL = "https://ilinkai.weixin.qq.com"
+	}
+	if cfg.Bee.Platforms.Weixin.CDNBaseURL == "" {
+		cfg.Bee.Platforms.Weixin.CDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
+	}
+	if cfg.Bee.Platforms.Weixin.MaxMediaSize == 0 {
+		cfg.Bee.Platforms.Weixin.MaxMediaSize = 100 * 1024 * 1024 // 100MB
 	}
 	return nil
 }

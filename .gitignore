@@ -11,3 +11,4 @@ wecom-openclaw-plugin-main/
 aibot-node-sdk-main/
 /openbee
 dist/
+npm/packages/cli/README.md

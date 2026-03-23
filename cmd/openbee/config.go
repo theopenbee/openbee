@@ -21,15 +21,15 @@ var errInterrupted = errors.New("interrupted")
 var configTemplate = config.ConfigTemplate
 
 type configValues struct {
-	ServerPort   string
-	ServerHost   string
-	Debug        bool
-	DBPath       string
-	MCPAPIKey    string
+	ServerPort string
+	ServerHost string
+	Debug      bool
+	DBPath     string
+	MCPAPIKey  string
 
-	FeishuEnabled    bool
-	FeishuAppID      string
-	FeishuAppSecret  string
+	FeishuEnabled   bool
+	FeishuAppID     string
+	FeishuAppSecret string
 
 	DingtalkEnabled      bool
 	DingtalkClientID     string
@@ -42,6 +42,12 @@ type configValues struct {
 	TelegramEnabled  bool
 	TelegramToken    string
 	TelegramAuthCode string
+
+	WeixinEnabled    bool
+	WeixinToken      string
+	WeixinBaseURL    string
+	WeixinCDNBaseURL string
+	WeixinUserID     string
 
 	ClaudePath      string
 	ClaudeTimeout   string
@@ -96,6 +102,11 @@ func loadExistingConfig(path string) *configValues {
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
 		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
+		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
+		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
+		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
+		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
+		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
@@ -124,44 +135,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals = *existing
 	}
 
-	// Step 1 — Basic config
-	fmt.Println("\n=== Basic Configuration ===")
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Server port:",
-		Default: vals.ServerPort,
-	}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
-		s, _ := val.(string)
-		if _, err := strconv.Atoi(s); err != nil {
-			return fmt.Errorf("port must be an integer")
-		}
-		return nil
-	})); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Server Host:",
-		Default: vals.ServerHost,
-	}, &vals.ServerHost); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Confirm{
-		Message: "Debug mode?",
-		Default: vals.Debug,
-	}, &vals.Debug); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Database path:",
-		Default: vals.DBPath,
-	}, &vals.DBPath); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	// Step 2 — Claude config
+	// Step 1 — Claude config
 	fmt.Println("\n=== Claude Configuration ===")
 
 	if err := configureClaudeExecutable(&vals); err != nil {
@@ -171,40 +145,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Step 3 — MCP config
-	fmt.Println("\n=== MCP Configuration ===")
-
-	mcpKeyChoice := "Generate randomly"
-	if vals.MCPAPIKey != "" {
-		mcpKeyChoice = "Enter manually"
-	}
-	var mcpMethod string
-	if err := survey.AskOne(&survey.Select{
-		Message: "MCP API Key setup:",
-		Options: []string{"Generate randomly", "Enter manually"},
-		Default: mcpKeyChoice,
-	}, &mcpMethod); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	switch mcpMethod {
-	case "Generate randomly":
-		b := make([]byte, 12)
-		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("generate random key: %w", err)
-		}
-		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
-	case "Enter manually":
-		if err := survey.AskOne(&survey.Input{
-			Message: "MCP API Key:",
-			Default: vals.MCPAPIKey,
-		}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-	}
-
-	// Step 4 — Platform config
+	// Step 2 — Platform config
 	fmt.Println("\n=== Platform Configuration ===")
 
 	// Build default selections from existing config
@@ -221,11 +162,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.TelegramEnabled {
 		defaultPlatforms = append(defaultPlatforms, "Telegram")
 	}
+	if vals.WeixinEnabled {
+		defaultPlatforms = append(defaultPlatforms, "Weixin")
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: "Which platforms to enable?",
-		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram"},
+		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "Weixin"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -236,6 +180,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.DingtalkEnabled = false
 	vals.WecomEnabled = false
 	vals.TelegramEnabled = false
+	vals.WeixinEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -302,10 +247,61 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
+		case "Weixin":
+			vals.WeixinEnabled = true
+
+			needQRLogin := true
+			if vals.WeixinToken != "" {
+				masked := vals.WeixinToken
+				if len(masked) > 6 {
+					masked = masked[:6] + "***"
+				}
+				var reacquire bool
+				if err := survey.AskOne(&survey.Confirm{
+					Message: fmt.Sprintf("Existing Weixin token found (%s). Re-acquire via QR code?", masked),
+					Default: false,
+				}, &reacquire); err != nil {
+					return handleSurveyErr(err)
+				}
+				needQRLogin = reacquire
+			}
+
+			if needQRLogin {
+				fmt.Println("\n--- Weixin QR Code Login ---")
+				fmt.Println("Fetching QR code...")
+
+				token, userID, baseURL, err := runWeixinQRLogin()
+				if err != nil {
+					fmt.Printf("QR login failed: %v\n", err)
+					fmt.Println("Falling back to manual token entry.")
+					if err := survey.AskOne(&survey.Password{
+						Message: "Weixin Bot Token:",
+					}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
+						return handleSurveyErr(err)
+					}
+					if err := survey.AskOne(&survey.Input{
+						Message: "Weixin User ID:",
+						Default: vals.WeixinUserID,
+					}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
+						return handleSurveyErr(err)
+					}
+				} else {
+					vals.WeixinToken = token
+					vals.WeixinUserID = userID
+					if baseURL != "" {
+						vals.WeixinBaseURL = baseURL
+					}
+					fmt.Println("Weixin login successful!")
+				}
+			}
+			if vals.WeixinBaseURL == "" {
+				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
+			}
+			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 		}
 	}
 
-	// Step 5 — Advanced config
+	// Step 3 — Advanced config
 	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool
@@ -317,6 +313,70 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if customAdvanced {
+		if err := survey.AskOne(&survey.Input{
+			Message: "Server port:",
+			Default: vals.ServerPort,
+		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
+			s, _ := val.(string)
+			if _, err := strconv.Atoi(s); err != nil {
+				return fmt.Errorf("port must be an integer")
+			}
+			return nil
+		})); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Input{
+			Message: "Server Host:",
+			Default: vals.ServerHost,
+		}, &vals.ServerHost); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Confirm{
+			Message: "Debug mode?",
+			Default: vals.Debug,
+		}, &vals.Debug); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		if err := survey.AskOne(&survey.Input{
+			Message: "Database path:",
+			Default: vals.DBPath,
+		}, &vals.DBPath); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		mcpKeyChoice := "Generate randomly"
+		if vals.MCPAPIKey != "" {
+			mcpKeyChoice = "Enter manually"
+		}
+		var mcpMethod string
+		if err := survey.AskOne(&survey.Select{
+			Message: "MCP API Key setup:",
+			Options: []string{"Generate randomly", "Enter manually"},
+			Default: mcpKeyChoice,
+		}, &mcpMethod); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		switch mcpMethod {
+		case "Generate randomly":
+			b := make([]byte, 12)
+			if _, err := rand.Read(b); err != nil {
+				return fmt.Errorf("generate random key: %w", err)
+			}
+			vals.MCPAPIKey = hex.EncodeToString(b)
+			fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+		case "Enter manually":
+			if err := survey.AskOne(&survey.Input{
+				Message: "MCP API Key:",
+				Default: vals.MCPAPIKey,
+			}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+		}
+
 		if err := survey.AskOne(&survey.Input{
 			Message: "Feeder timeout:",
 			Default: vals.FeederTimeout,
@@ -346,7 +406,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 6 — Confirm write
+	// Auto-generate MCP API Key if not set
+	if vals.MCPAPIKey == "" {
+		b := make([]byte, 12)
+		if _, err := rand.Read(b); err != nil {
+			return fmt.Errorf("generate random key: %w", err)
+		}
+		vals.MCPAPIKey = hex.EncodeToString(b)
+		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+	}
+
+	// Step 4 — Confirm write
 	fmt.Printf("\n=== Write Configuration ===\n")
 	fmt.Printf("Output file: %s\n", configOutputPath)
 
