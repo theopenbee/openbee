@@ -158,7 +158,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, logRegistry, mcpSrv, localChatHandler)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, logRegistry, mcpSrv, localChatHandler)
+	if err != nil {
+		return nil, fmt.Errorf("building API server: %w", err)
+	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
 	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
@@ -240,7 +243,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) *api.Server {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, mcpSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	if password == "" {
 		b := make([]byte, 16)

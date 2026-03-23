@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -41,7 +42,7 @@ func NewServer(
 	localChat *LocalChatHandler,
 	authHandler *auth.AuthHandler,
 	jwtMiddleware gin.HandlerFunc,
-) *Server {
+) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/sessions/.+/stream",
@@ -62,58 +63,51 @@ func NewServer(
 		authHandler:      authHandler,
 		jwtMiddleware:    jwtMiddleware,
 	}
-	s.setupRoutes()
-	return s
+	if err := s.setupRoutes(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
-func (s *Server) setupRoutes() {
-	// Auth routes — always registered, never behind JWT
+func (s *Server) setupRoutes() error {
 	authGroup := s.router.Group("/api/auth")
 	authGroup.GET("/status", s.authHandler.Status)
 	authGroup.POST("/login", s.authHandler.Login)
 	authGroup.POST("/refresh", s.authHandler.Refresh)
 
-	// API routes — protected by JWT
 	api := s.router.Group("/api")
 	api.Use(s.jwtMiddleware)
 	{
-		// Workers
 		api.POST("/workers", s.createWorker)
 		api.GET("/workers", s.listWorkers)
 		api.GET("/workers/:id", s.getWorker)
 		api.PUT("/workers/:id", s.updateWorker)
 		api.DELETE("/workers/:id", s.deleteWorker)
-
-		// Worker executions
 		api.GET("/workers/:id/executions", s.listWorkerExecutions)
-
-		// Sessions
 		api.GET("/sessions/:sessionId/executions", s.listSessionExecutions)
-
-		// Executions
 		api.GET("/executions", s.listExecutions)
 		api.GET("/executions/:id", s.getExecution)
 		api.GET("/executions/:id/logs", s.getExecutionLogs)
-
-		// Local chat
 		s.localChatHandler.RegisterRoutes(api)
 	}
 
-	// SSE stream for local chat — registered outside gzip middleware but still JWT-protected
-	s.registerProtected("GET", "/api/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+	// Registered outside gzip middleware — SSE streams must not be compressed
+	s.router.Handle("GET", "/api/local/sessions/:id/stream", s.jwtMiddleware, s.localChatHandler.StreamReplies)
+	s.router.Handle("PUT", "/internal/log/level", s.jwtMiddleware, gin.WrapH(logger.LevelHandler()))
 
-	// Internal log level control — also JWT-protected
-	s.registerProtected("PUT", "/internal/log/level", gin.WrapH(logger.LevelHandler()))
-
-	// MCP
 	mcpGroup := s.router.Group("/mcp")
 	s.mcpServer.RegisterRoutes(mcpGroup, s.mcpAPIKey)
 
-	sub, _ := fs.Sub(s.staticFS, "dist")
+	sub, err := fs.Sub(s.staticFS, "dist")
+	if err != nil {
+		return fmt.Errorf("static assets: %w", err)
+	}
 	httpFS := http.FS(sub)
 
-	// Read index.html once at startup for the SPA fallback
-	indexHTML, _ := fs.ReadFile(sub, "index.html")
+	indexHTML, err := fs.ReadFile(sub, "index.html")
+	if err != nil {
+		return fmt.Errorf("reading index.html: %w", err)
+	}
 
 	s.router.NoRoute(func(c *gin.Context) {
 		path := strings.TrimPrefix(c.Request.URL.Path, "/")
@@ -130,11 +124,7 @@ func (s *Server) setupRoutes() {
 		// causing an infinite redirect loop.
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
 	})
-}
-
-// registerProtected registers a route with JWT middleware.
-func (s *Server) registerProtected(method, path string, handler gin.HandlerFunc) {
-	s.router.Handle(method, path, s.jwtMiddleware, handler)
+	return nil
 }
 
 func (s *Server) Run(addr string) error {
