@@ -40,11 +40,12 @@ type Invoker struct {
 	apiKey string
 }
 
-// NewInvoker creates an Invoker. mcpBaseURL is joined with "/mcp/sse".
-func NewInvoker(binary, mcpBaseURL, apiKey string) *Invoker {
+// NewInvoker creates an Invoker. mcpBasePath should include the full MCP base
+// path (e.g. "http://host:port/mcp/bee"); "/sse" is appended automatically.
+func NewInvoker(binary, mcpBasePath, apiKey string) *Invoker {
 	return &Invoker{
 		binary: binary,
-		mcpURL: mcpBaseURL + "/mcp/sse",
+		mcpURL: mcpBasePath + "/sse",
 		apiKey: apiKey,
 	}
 }

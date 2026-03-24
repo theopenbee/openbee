@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `mcp`: tool permission isolation — split single MCP server into Bee server (full 19-tool access) and Worker server (restricted to 5 tools: send_message, mark_task_complete, save/get/delete_memory), each with its own API key and route group (`/mcp/bee`, `/mcp/worker`)
+- `config`: add MCP Worker API Key prompt in config subcommand advanced settings (generate randomly / enter manually)
+
+### Changed
+
+- `mcp`: deduplicate tool schemas and dispatch logic — worker tools derived from bee tools via allowlist filter instead of duplication
+- `mcp`: remove legacy MCP routes (`/mcp/sse`, `/mcp/messages`) — all callers now use `/mcp/bee` and `/mcp/worker` paths
+- `mcp`: replace NewServer 12-positional-param constructor with self-documenting ServerParams struct
+
 ### Fixed
 
 - `config`: clean stale provider env keys when switching model provider — previously, switching from MiniMax to GLM left MiniMax's model name in settings.json, causing the new provider to fail
+- `config`: generate worker_api_key in config subcommand when not explicitly set
 - `api`: allow clearing worker description — use pointer types in updateWorker handler so empty string values are properly saved instead of silently skipped
 - `web`: prevent browser translate prompt — add `translate="no"` attribute and `<meta name="google" content="notranslate" />` to suppress browser translation prompts
 - `web`: dynamically update HTML `lang` attribute on i18n language change to correctly reflect the current page language
