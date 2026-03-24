@@ -253,5 +253,18 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
 
-	return api.NewServer(s.workerStore, s.execStore, mgr, logRegistry, beeMCPSrv, workerMCPSrv, mcpCfg.APIKey, mcpCfg.WorkerAPIKey, webui.DistFS, localChat, authHandler, jwtMiddleware)
+	return api.NewServer(api.ServerParams{
+		WorkerStore:      s.workerStore,
+		ExecutionStore:   s.execStore,
+		Manager:          mgr,
+		LogRegistry:      logRegistry,
+		BeeMCPServer:     beeMCPSrv,
+		WorkerMCPServer:  workerMCPSrv,
+		BeeAPIKey:        mcpCfg.APIKey,
+		WorkerAPIKey:     mcpCfg.WorkerAPIKey,
+		StaticFS:         webui.DistFS,
+		LocalChatHandler: localChat,
+		AuthHandler:      authHandler,
+		JWTMiddleware:    jwtMiddleware,
+	})
 }

@@ -8,7 +8,7 @@ import (
 
 func (s *Server) listWorkerExecutions(c *gin.Context) {
 	workerID := c.Param("id")
-	execs, err := s.executionStore.ListByWorkerID(workerID)
+	execs, err := s.ExecutionStore.ListByWorkerID(workerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -17,7 +17,7 @@ func (s *Server) listWorkerExecutions(c *gin.Context) {
 }
 
 func (s *Server) listExecutions(c *gin.Context) {
-	execs, err := s.executionStore.List()
+	execs, err := s.ExecutionStore.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -26,7 +26,7 @@ func (s *Server) listExecutions(c *gin.Context) {
 }
 
 func (s *Server) getExecution(c *gin.Context) {
-	exec, err := s.executionStore.GetByID(c.Param("id"))
+	exec, err := s.ExecutionStore.GetByID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "execution not found"})
 		return
@@ -36,7 +36,7 @@ func (s *Server) getExecution(c *gin.Context) {
 
 func (s *Server) listSessionExecutions(c *gin.Context) {
 	sessionID := c.Param("sessionId")
-	execs, err := s.executionStore.ListBySessionID(sessionID)
+	execs, err := s.ExecutionStore.ListBySessionID(sessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -47,12 +47,12 @@ func (s *Server) listSessionExecutions(c *gin.Context) {
 func (s *Server) getExecutionLogs(c *gin.Context) {
 	id := c.Param("id")
 
-	if content, ok := s.logRegistry.Get(id); ok {
+	if content, ok := s.LogRegistry.Get(id); ok {
 		c.String(http.StatusOK, content)
 		return
 	}
 
-	content, err := s.executionStore.ReadLog(id)
+	content, err := s.ExecutionStore.ReadLog(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

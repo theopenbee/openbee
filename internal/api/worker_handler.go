@@ -20,7 +20,7 @@ func (s *Server) createWorker(c *gin.Context) {
 		return
 	}
 
-	w, err := s.manager.CreateWorker(
+	w, err := s.Manager.CreateWorker(
 		req.Name, req.Description, req.Memory, req.WorkDir,
 	)
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *Server) createWorker(c *gin.Context) {
 }
 
 func (s *Server) listWorkers(c *gin.Context) {
-	workers, err := s.workerStore.List()
+	workers, err := s.WorkerStore.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -41,7 +41,7 @@ func (s *Server) listWorkers(c *gin.Context) {
 }
 
 func (s *Server) getWorker(c *gin.Context) {
-	w, err := s.workerStore.GetByID(c.Param("id"))
+	w, err := s.WorkerStore.GetByID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
@@ -50,7 +50,7 @@ func (s *Server) getWorker(c *gin.Context) {
 }
 
 func (s *Server) updateWorker(c *gin.Context) {
-	w, err := s.workerStore.GetByID(c.Param("id"))
+	w, err := s.WorkerStore.GetByID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
@@ -76,7 +76,7 @@ func (s *Server) updateWorker(c *gin.Context) {
 		w.Memory = req.Memory
 	}
 
-	updated, err := s.workerStore.Update(w)
+	updated, err := s.WorkerStore.Update(w)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,7 +88,7 @@ func (s *Server) updateWorker(c *gin.Context) {
 func (s *Server) deleteWorker(c *gin.Context) {
 	id := c.Param("id")
 	deleteWorkDir := c.Query("delete_work_dir") == "true"
-	if err := s.manager.DeleteWorker(id, deleteWorkDir); err != nil {
+	if err := s.Manager.DeleteWorker(id, deleteWorkDir); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -16,37 +16,28 @@ import (
 	"github.com/theopenbee/openbee/internal/worker"
 )
 
-type Server struct {
-	router           *gin.Engine
-	httpServer       *http.Server
-	workerStore      *store.WorkerStore
-	executionStore   *store.ExecutionStore
-	manager          *worker.Manager
-	logRegistry      *worker.ActiveLogRegistry
-	beeMCPServer     *mcp.MCPServer
-	workerMCPServer  *mcp.MCPServer
-	beeAPIKey        string
-	workerAPIKey     string
-	staticFS         fs.FS
-	localChatHandler *LocalChatHandler
-	authHandler      *auth.AuthHandler
-	jwtMiddleware    gin.HandlerFunc
+type ServerParams struct {
+	WorkerStore      *store.WorkerStore
+	ExecutionStore   *store.ExecutionStore
+	Manager          *worker.Manager
+	LogRegistry      *worker.ActiveLogRegistry
+	BeeMCPServer     *mcp.MCPServer
+	WorkerMCPServer  *mcp.MCPServer
+	BeeAPIKey        string
+	WorkerAPIKey     string
+	StaticFS         fs.FS
+	LocalChatHandler *LocalChatHandler
+	AuthHandler      *auth.AuthHandler
+	JWTMiddleware    gin.HandlerFunc
 }
 
-func NewServer(
-	ws *store.WorkerStore,
-	es *store.ExecutionStore,
-	mgr *worker.Manager,
-	logRegistry *worker.ActiveLogRegistry,
-	beeMCPSrv *mcp.MCPServer,
-	workerMCPSrv *mcp.MCPServer,
-	beeAPIKey string,
-	workerAPIKey string,
-	staticFS fs.FS,
-	localChat *LocalChatHandler,
-	authHandler *auth.AuthHandler,
-	jwtMiddleware gin.HandlerFunc,
-) (*Server, error) {
+type Server struct {
+	router *gin.Engine
+	httpServer *http.Server
+	ServerParams
+}
+
+func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/sessions/.+/stream",
@@ -55,19 +46,8 @@ func NewServer(
 	})))
 
 	s := &Server{
-		router:           router,
-		workerStore:      ws,
-		executionStore:   es,
-		manager:          mgr,
-		logRegistry:      logRegistry,
-		beeMCPServer:     beeMCPSrv,
-		workerMCPServer:  workerMCPSrv,
-		beeAPIKey:        beeAPIKey,
-		workerAPIKey:     workerAPIKey,
-		staticFS:         staticFS,
-		localChatHandler: localChat,
-		authHandler:      authHandler,
-		jwtMiddleware:    jwtMiddleware,
+		router:       router,
+		ServerParams: p,
 	}
 	if err := s.setupRoutes(); err != nil {
 		return nil, err
@@ -79,7 +59,7 @@ func (s *Server) setupRoutes() error {
 	s.registerAuthRoutes()
 
 	api := s.router.Group("/api")
-	api.Use(s.jwtMiddleware)
+	api.Use(s.JWTMiddleware)
 	{
 		s.registerWorkerRoutes(api)
 		s.registerExecutionRoutes(api)
@@ -93,8 +73,8 @@ func (s *Server) setupRoutes() error {
 
 func (s *Server) registerAuthRoutes() {
 	auth := s.router.Group("/api/auth")
-	auth.POST("/login", s.authHandler.Login)
-	auth.POST("/refresh", s.authHandler.Refresh)
+	auth.POST("/login", s.AuthHandler.Login)
+	auth.POST("/refresh", s.AuthHandler.Refresh)
 }
 
 func (s *Server) registerWorkerRoutes(api *gin.RouterGroup) {
@@ -114,30 +94,30 @@ func (s *Server) registerExecutionRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
-	api.POST("/local/sessions", s.localChatHandler.createSession)
-	api.GET("/local/sessions", s.localChatHandler.listSessions)
-	api.DELETE("/local/sessions/:id", s.localChatHandler.deleteSession)
-	api.POST("/local/sessions/:id/messages", s.localChatHandler.sendMessage)
-	api.GET("/local/sessions/:id/messages", s.localChatHandler.getMessages)
-	api.POST("/local/sessions/:id/media", s.localChatHandler.uploadMedia)
-	api.GET("/local/sessions/:id/stream", s.localChatHandler.StreamReplies)
+	api.POST("/local/sessions", s.LocalChatHandler.createSession)
+	api.GET("/local/sessions", s.LocalChatHandler.listSessions)
+	api.DELETE("/local/sessions/:id", s.LocalChatHandler.deleteSession)
+	api.POST("/local/sessions/:id/messages", s.LocalChatHandler.sendMessage)
+	api.GET("/local/sessions/:id/messages", s.LocalChatHandler.getMessages)
+	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
+	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
 }
 
 func (s *Server) registerMCPRoutes() {
 	beeGroup := s.router.Group(config.MCPBeeBasePath)
-	beeGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
-	beeGroup.GET("/sse", s.beeMCPServer.HandleSSE)
-	beeGroup.POST("/messages", s.beeMCPServer.HandleMessages)
+	beeGroup.Use(mcp.APIKeyMiddleware(s.BeeAPIKey))
+	beeGroup.GET("/sse", s.BeeMCPServer.HandleSSE)
+	beeGroup.POST("/messages", s.BeeMCPServer.HandleMessages)
 
 	workerGroup := s.router.Group(config.MCPWorkerBasePath)
-	workerGroup.Use(mcp.APIKeyMiddleware(s.workerAPIKey))
-	workerGroup.GET("/sse", s.workerMCPServer.HandleSSE)
-	workerGroup.POST("/messages", s.workerMCPServer.HandleMessages)
+	workerGroup.Use(mcp.APIKeyMiddleware(s.WorkerAPIKey))
+	workerGroup.GET("/sse", s.WorkerMCPServer.HandleSSE)
+	workerGroup.POST("/messages", s.WorkerMCPServer.HandleMessages)
 
 }
 
 func (s *Server) registerStaticRoutes() error {
-	sub, err := fs.Sub(s.staticFS, "dist")
+	sub, err := fs.Sub(s.StaticFS, "dist")
 	if err != nil {
 		return fmt.Errorf("static assets: %w", err)
 	}
