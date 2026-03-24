@@ -110,6 +110,32 @@ func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 	return execs, rows.Err()
 }
 
+// CountSessions returns the total number of distinct sessions.
+func (s *ExecutionStore) CountSessions() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(DISTINCT session_id) FROM bee_executions`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count sessions: %w", err)
+	}
+	return count, nil
+}
+
+// ListPaginated returns executions grouped by session with pagination at the session level.
+func (s *ExecutionStore) ListPaginated(limit, offset int) ([]model.WorkerExecution, error) {
+	query := execSelect + ` WHERE e.session_id IN (
+		SELECT session_id FROM bee_executions
+		GROUP BY session_id
+		ORDER BY MAX(started_at) DESC
+		LIMIT ? OFFSET ?
+	) ORDER BY e.started_at DESC`
+	rows, err := s.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list paginated executions: %w", err)
+	}
+	defer rows.Close()
+	return scanExecutions(rows)
+}
+
 func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(execSelect+` WHERE e.session_id = ? ORDER BY e.started_at ASC`, sessionID)
 	if err != nil {

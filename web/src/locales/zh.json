@@ -53,6 +53,11 @@
       "latestStatus": "最新状态",
       "started": "开始时间",
       "lastCompleted": "最后完成"
+    },
+    "pagination": {
+      "page": "第 {{page}} / {{totalPages}} 页",
+      "previous": "上一页",
+      "next": "下一页"
     }
   },
   "workerDetail": {

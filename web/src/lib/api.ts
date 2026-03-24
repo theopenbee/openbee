@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, LocalChatSession, ChatMessage } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -73,9 +73,10 @@ export const api = {
     },
   },
   executions: {
-    list: async () => {
-      const executions = await fetchAPI<WorkerExecution[] | null>("/executions")
-      return Array.isArray(executions) ? executions : []
+    list: async (page: number = 1, pageSize: number = 20) => {
+      return fetchAPI<PaginatedResponse<WorkerExecution>>(
+        `/executions?page=${page}&page_size=${pageSize}`
+      )
     },
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {

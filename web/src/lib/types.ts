@@ -15,6 +15,7 @@ export interface Worker {
 export interface WorkerExecution {
   id: string
   worker_id?: string
+  worker_name?: string
   session_id: string
   trigger_input: string
   status: ExecutionStatus
@@ -23,6 +24,13 @@ export interface WorkerExecution {
   ai_process_pid: number
   started_at: number | null
   completed_at: number | null
+}
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export interface LocalChatSession {
