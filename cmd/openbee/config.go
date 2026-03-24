@@ -443,6 +443,36 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		workerKeyChoice := "Generate randomly"
+		if vals.WorkerAPIKey != "" {
+			workerKeyChoice = "Enter manually"
+		}
+		var workerKeyMethod string
+		if err := survey.AskOne(&survey.Select{
+			Message: "MCP Worker API Key setup:",
+			Options: []string{"Generate randomly", "Enter manually"},
+			Default: workerKeyChoice,
+		}, &workerKeyMethod); err != nil {
+			return handleSurveyErr(err)
+		}
+
+		switch workerKeyMethod {
+		case "Generate randomly":
+			b := make([]byte, 12)
+			if _, err := rand.Read(b); err != nil {
+				return fmt.Errorf("generate random worker key: %w", err)
+			}
+			vals.WorkerAPIKey = hex.EncodeToString(b)
+			fmt.Printf("Generated MCP Worker API Key: %s\n", vals.WorkerAPIKey)
+		case "Enter manually":
+			if err := survey.AskOne(&survey.Input{
+				Message: "MCP Worker API Key:",
+				Default: vals.WorkerAPIKey,
+			}, &vals.WorkerAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+		}
+
 		if err := survey.AskOne(&survey.Input{
 			Message: "Feeder timeout:",
 			Default: vals.FeederTimeout,
