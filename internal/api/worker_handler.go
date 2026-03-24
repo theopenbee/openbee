@@ -57,23 +57,23 @@ func (s *Server) updateWorker(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Memory      string `json:"memory"`
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+		Memory      *string `json:"memory"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if req.Name != "" {
-		w.Name = req.Name
+	if req.Name != nil {
+		w.Name = *req.Name
 	}
-	if req.Description != "" {
-		w.Description = req.Description
+	if req.Description != nil {
+		w.Description = *req.Description
 	}
-	if req.Memory != "" {
-		w.Memory = req.Memory
+	if req.Memory != nil {
+		w.Memory = *req.Memory
 	}
 
 	updated, err := s.workerStore.Update(w)
