@@ -6,18 +6,24 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil } from "lucide-react"
+import { Pencil, ChevronLeft, ChevronRight } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 
+const PAGE_SIZE = 20
+
 export function WorkerDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError } = useWorker(id!)
-  const { data: executions = [] } = useWorkerExecutions(id!)
+  const [page, setPage] = useState(1)
+  const { data } = useWorkerExecutions(id!, page, PAGE_SIZE)
+
+  const executions = data?.items ?? []
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, typeof executions>()
@@ -132,6 +138,34 @@ export function WorkerDetail() {
               )
             })}
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-sm text-muted-foreground">
+                {t("executions.pagination.page", { page, totalPages })}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-4" />
+                  {t("executions.pagination.previous")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  {t("executions.pagination.next")}
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="info" className="mt-6">

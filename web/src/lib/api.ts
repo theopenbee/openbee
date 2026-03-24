@@ -67,9 +67,10 @@ export const api = {
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
-    executions: async (id: string) => {
-      const execs = await fetchAPI<WorkerExecution[] | null>(`/workers/${id}/executions`)
-      return Array.isArray(execs) ? execs : []
+    executions: async (id: string, page: number = 1, pageSize: number = 20) => {
+      return fetchAPI<PaginatedResponse<WorkerExecution>>(
+        `/workers/${id}/executions?page=${page}&page_size=${pageSize}`
+      )
     },
   },
   executions: {
