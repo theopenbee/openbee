@@ -121,11 +121,11 @@ func (s *ExecutionStore) CountSessions() (int, error) {
 }
 
 // ListPaginated returns executions grouped by session with pagination at the session level.
-// It first selects the target page of session_ids, then fetches all executions for those sessions.
 func (s *ExecutionStore) ListPaginated(limit, offset int) ([]model.WorkerExecution, error) {
 	query := execSelect + ` WHERE e.session_id IN (
-		SELECT DISTINCT session_id FROM bee_executions
-		ORDER BY MAX(started_at) OVER (PARTITION BY session_id) DESC
+		SELECT session_id FROM bee_executions
+		GROUP BY session_id
+		ORDER BY MAX(started_at) DESC
 		LIMIT ? OFFSET ?
 	) ORDER BY e.started_at DESC`
 	rows, err := s.db.Query(query, limit, offset)
