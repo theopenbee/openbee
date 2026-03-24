@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `config`: clean stale provider env keys when switching model provider — previously, switching from MiniMax to GLM left MiniMax's model name in settings.json, causing the new provider to fail
 - `config`: generate worker_api_key in config subcommand when not explicitly set
+- `api`: allow clearing worker description — use pointer types in updateWorker handler so empty string values are properly saved instead of silently skipped
+- `web`: prevent browser translate prompt — add `translate="no"` attribute and `<meta name="google" content="notranslate" />` to suppress browser translation prompts
+- `web`: dynamically update HTML `lang` attribute on i18n language change to correctly reflect the current page language
 
 ## [0.0.9] - 2026-03-23
 

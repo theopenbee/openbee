@@ -19,4 +19,11 @@ i18n
     },
   })
 
+function updateHtmlLang(lng: string) {
+  document.documentElement.lang = lng === "zh" ? "zh-CN" : lng
+}
+
+updateHtmlLang(savedLanguage)
+i18n.on("languageChanged", updateHtmlLang)
+
 export default i18n
