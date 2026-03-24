@@ -9,12 +9,12 @@ import (
 )
 
 func TestNewInvoker(t *testing.T) {
-	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080", "test-key")
+	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080/mcp/bee", "test-key")
 	if inv.binary != "/usr/bin/claude" {
 		t.Errorf("binary: want /usr/bin/claude, got %s", inv.binary)
 	}
-	if inv.mcpURL != "http://localhost:8080/mcp/sse" {
-		t.Errorf("mcpURL: want http://localhost:8080/mcp/sse, got %s", inv.mcpURL)
+	if inv.mcpURL != "http://localhost:8080/mcp/bee/sse" {
+		t.Errorf("mcpURL: want http://localhost:8080/mcp/bee/sse, got %s", inv.mcpURL)
 	}
 	if inv.apiKey != "test-key" {
 		t.Errorf("apiKey: want test-key, got %s", inv.apiKey)

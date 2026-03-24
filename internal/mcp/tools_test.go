@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
@@ -900,5 +901,83 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	defer clearer.mu.Unlock()
 	if len(clearer.cleared) != 1 {
 		t.Errorf("expected ClearSession called once, got %v", clearer.cleared)
+	}
+}
+
+// --- Worker server permission isolation ---
+
+func setupWorkerMCPServer(t *testing.T) *mcp.MCPServer {
+	t.Helper()
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	ts := store.NewTaskStore(db)
+	ms := store.NewMessageStore(db)
+	senders := make(map[string]platform.PlatformSenderAdapter)
+	memStore := store.NewMemoryStore(db)
+	return mcp.NewWorkerServer(ts, ms, senders, memStore)
+}
+
+func TestBeeToolSchemasCount(t *testing.T) {
+	schemas := mcp.ToolSchemas()
+	if len(schemas) != 19 {
+		t.Errorf("bee tool schemas: want 19 got %d", len(schemas))
+	}
+}
+
+func TestWorkerToolSchemasCount(t *testing.T) {
+	schemas := mcp.WorkerToolSchemas()
+	if len(schemas) != 5 {
+		t.Errorf("worker tool schemas: want 5 got %d", len(schemas))
+	}
+}
+
+func TestWorkerCannotCallBeeTools(t *testing.T) {
+	s := setupWorkerMCPServer(t)
+	beeOnlyTools := []string{
+		toolnames.ListWorkers,
+		toolnames.GetWorker,
+		toolnames.CreateWorker,
+		toolnames.UpdateWorker,
+		toolnames.DeleteWorker,
+		toolnames.CreateTask,
+		toolnames.ListTasks,
+		toolnames.CancelTask,
+		toolnames.ClearSession,
+		toolnames.GetWorkerStatus,
+		toolnames.GetSystemOverview,
+		toolnames.ListBeeExecutions,
+		toolnames.ListSessionContexts,
+		toolnames.ClearWorkerSession,
+	}
+	for _, tool := range beeOnlyTools {
+		_, err := s.CallTool(tool, mustMarshal(t, map[string]any{}))
+		if err == nil {
+			t.Errorf("worker should not be able to call %s", tool)
+		}
+		if !strings.Contains(err.Error(), "unknown tool") {
+			t.Errorf("CallTool(%s): want 'unknown tool' error, got: %v", tool, err)
+		}
+	}
+}
+
+func TestWorkerCanCallAllowedTools(t *testing.T) {
+	s := setupWorkerMCPServer(t)
+	workerTools := []string{
+		toolnames.MarkTaskComplete,
+		toolnames.SendMessage,
+		toolnames.SaveMemory,
+		toolnames.GetMemory,
+		toolnames.DeleteMemory,
+	}
+	for _, tool := range workerTools {
+		// Calls may fail due to missing params, but should NOT return "unknown tool"
+		_, err := s.CallTool(tool, mustMarshal(t, map[string]any{}))
+		if err != nil && strings.Contains(err.Error(), "unknown tool") {
+			t.Errorf("worker should be able to call %s, got unknown tool error", tool)
+		}
 	}
 }

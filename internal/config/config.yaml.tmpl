@@ -21,6 +21,7 @@ bee:
     timeout: {{.ClaudeTimeout}}
   mcp:
     api_key: "{{.MCPAPIKey}}"
+    worker_api_key: ""  # Worker 专用 API Key；留空则启动时自动生成
   platforms:
     feishu:
       enabled: {{.FeishuEnabled}}

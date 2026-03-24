@@ -61,7 +61,7 @@ func NewManager(
 		beeCfg:          bc,
 		workerStore:     ws,
 		executionStore:  es,
-		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, bc.MCP.APIKey),
+		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL+"/mcp/worker", bc.MCP.WorkerAPIKey),
 		activeProcesses: make(map[string]*claude.Process),
 		logRegistry:     logRegistry,
 	}

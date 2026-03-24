@@ -64,6 +64,14 @@ type SessionClearer interface {
 
 // MCPServer manages SSE sessions and dispatches JSON-RPC tool calls.
 type MCPServer struct {
+	// Tool dispatch — set by constructor
+	schemasFn  func() []toolSchema
+	callToolFn func(name string, args json.RawMessage) (any, error)
+
+	// Base path for SSE endpoint URL generation
+	basePath string // e.g. "/mcp/bee" or "/mcp/worker" or "/mcp"
+
+	// Dependencies
 	workerStore    *store.WorkerStore
 	manager        *worker.Manager
 	taskStore      *store.TaskStore
@@ -79,8 +87,8 @@ type MCPServer struct {
 	sessions map[string]chan rpcResponse // session_id -> response channel
 }
 
-// NewServer creates an MCPServer.
-func NewServer(
+// NewBeeServer creates a Bee MCP Server with all 19 tools.
+func NewBeeServer(
 	ws *store.WorkerStore,
 	mgr *worker.Manager,
 	ts *store.TaskStore,
@@ -92,7 +100,8 @@ func NewServer(
 	memStore *store.MemoryStore,
 	sessionStore *store.SessionStore,
 ) *MCPServer {
-	return &MCPServer{
+	s := &MCPServer{
+		basePath:       "/mcp/bee",
 		workerStore:    ws,
 		manager:        mgr,
 		taskStore:      ts,
@@ -105,6 +114,45 @@ func NewServer(
 		sessionStore:   sessionStore,
 		sessions:       make(map[string]chan rpcResponse),
 	}
+	s.schemasFn = beeToolSchemas
+	s.callToolFn = s.beeCallTool
+	return s
+}
+
+// NewWorkerServer creates a Worker MCP Server with only 5 worker tools.
+func NewWorkerServer(
+	ts *store.TaskStore,
+	ms *store.MessageStore,
+	senders map[string]platform.PlatformSenderAdapter,
+	memStore *store.MemoryStore,
+) *MCPServer {
+	s := &MCPServer{
+		basePath:     "/mcp/worker",
+		taskStore:    ts,
+		messageStore: ms,
+		senders:      senders,
+		memoryStore:  memStore,
+		sessions:     make(map[string]chan rpcResponse),
+	}
+	s.schemasFn = workerToolSchemas
+	s.callToolFn = s.workerCallTool
+	return s
+}
+
+// NewServer creates a Bee MCP Server (backward-compatible alias for NewBeeServer).
+func NewServer(
+	ws *store.WorkerStore,
+	mgr *worker.Manager,
+	ts *store.TaskStore,
+	ms *store.MessageStore,
+	senders map[string]platform.PlatformSenderAdapter,
+	execStopper ExecutionStopper,
+	sessionClearer SessionClearer,
+	es *store.ExecutionStore,
+	memStore *store.MemoryStore,
+	sessionStore *store.SessionStore,
+) *MCPServer {
+	return NewBeeServer(ws, mgr, ts, ms, senders, execStopper, sessionClearer, es, memStore, sessionStore)
 }
 
 // HandleSSE establishes the SSE connection, creates a session, and streams responses.
@@ -138,7 +186,7 @@ func (s *MCPServer) HandleSSE(c *gin.Context) {
 	if apiKey != "" {
 		params.Set("api_key", apiKey)
 	}
-	endpointURL := fmt.Sprintf("/mcp/messages?%s", params.Encode())
+	endpointURL := fmt.Sprintf("%s/messages?%s", s.basePath, params.Encode())
 	n, err := fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
 	log.Info("MCP SSE wrote endpoint event", zap.String("session", sessionID), zap.Int("bytes", n), zap.Any("err", err))
 	c.Writer.Flush()
@@ -222,7 +270,7 @@ func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
 		return rpcResponse{}
 
 	case "tools/list":
-		return okResponse(req.ID, map[string]any{"tools": toolSchemas()})
+		return okResponse(req.ID, map[string]any{"tools": s.schemasFn()})
 
 	case "tools/call":
 		return s.handleToolCall(req)
@@ -242,7 +290,7 @@ func (s *MCPServer) handleToolCall(req rpcRequest) rpcResponse {
 		return errResponse(req.ID, -32602, "invalid params: "+err.Error())
 	}
 
-	result, err := s.callTool(params.Name, params.Arguments)
+	result, err := s.callToolFn(params.Name, params.Arguments)
 	if err != nil {
 		// Tool execution errors are returned as tool results with isError flag,
 		// not as JSON-RPC errors. This lets the LLM client distinguish between

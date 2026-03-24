@@ -22,8 +22,10 @@ type Server struct {
 	executionStore   *store.ExecutionStore
 	manager          *worker.Manager
 	logRegistry      *worker.ActiveLogRegistry
-	mcpServer        *mcp.MCPServer
-	mcpAPIKey        string
+	beeMCPServer     *mcp.MCPServer
+	workerMCPServer  *mcp.MCPServer
+	beeAPIKey        string
+	workerAPIKey     string
 	staticFS         fs.FS
 	localChatHandler *LocalChatHandler
 	authHandler      *auth.AuthHandler
@@ -35,8 +37,10 @@ func NewServer(
 	es *store.ExecutionStore,
 	mgr *worker.Manager,
 	logRegistry *worker.ActiveLogRegistry,
-	mcpSrv *mcp.MCPServer,
-	mcpAPIKey string,
+	beeMCPSrv *mcp.MCPServer,
+	workerMCPSrv *mcp.MCPServer,
+	beeAPIKey string,
+	workerAPIKey string,
 	staticFS fs.FS,
 	localChat *LocalChatHandler,
 	authHandler *auth.AuthHandler,
@@ -45,6 +49,8 @@ func NewServer(
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/sessions/.+/stream",
+		"/mcp/.*/sse",
+		"/mcp/.*/messages",
 		"/mcp/sse",
 		"/mcp/messages",
 	})))
@@ -55,8 +61,10 @@ func NewServer(
 		executionStore:   es,
 		manager:          mgr,
 		logRegistry:      logRegistry,
-		mcpServer:        mcpSrv,
-		mcpAPIKey:        mcpAPIKey,
+		beeMCPServer:     beeMCPSrv,
+		workerMCPServer:  workerMCPSrv,
+		beeAPIKey:        beeAPIKey,
+		workerAPIKey:     workerAPIKey,
 		staticFS:         staticFS,
 		localChatHandler: localChat,
 		authHandler:      authHandler,
@@ -117,10 +125,23 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerMCPRoutes() {
-	mcpGroup := s.router.Group("/mcp")
-	mcpGroup.Use(mcp.APIKeyMiddleware(s.mcpAPIKey))
-	mcpGroup.GET("/sse", s.mcpServer.HandleSSE)
-	mcpGroup.POST("/messages", s.mcpServer.HandleMessages)
+	// Bee MCP endpoints
+	beeGroup := s.router.Group("/mcp/bee")
+	beeGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
+	beeGroup.GET("/sse", s.beeMCPServer.HandleSSE)
+	beeGroup.POST("/messages", s.beeMCPServer.HandleMessages)
+
+	// Worker MCP endpoints
+	workerGroup := s.router.Group("/mcp/worker")
+	workerGroup.Use(mcp.APIKeyMiddleware(s.workerAPIKey))
+	workerGroup.GET("/sse", s.workerMCPServer.HandleSSE)
+	workerGroup.POST("/messages", s.workerMCPServer.HandleMessages)
+
+	// Backward-compatible: legacy /mcp/* routes → Bee server
+	legacyGroup := s.router.Group("/mcp")
+	legacyGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
+	legacyGroup.GET("/sse", s.beeMCPServer.HandleSSE)
+	legacyGroup.POST("/messages", s.beeMCPServer.HandleMessages)
 }
 
 func (s *Server) registerStaticRoutes() error {

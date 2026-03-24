@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/rand"
 	_ "embed"
 	"fmt"
 	"os"
@@ -109,7 +110,8 @@ type WeixinConfig struct {
 }
 
 type MCPConfig struct {
-	APIKey string `yaml:"api_key"`
+	APIKey       string `yaml:"api_key"`
+	WorkerAPIKey string `yaml:"worker_api_key"`
 }
 
 
@@ -194,5 +196,17 @@ func applyDefaults(cfg *Config) error {
 			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 		}
 	}
+	// Auto-generate Worker API Key
+	if cfg.Bee.MCP.WorkerAPIKey == "" && cfg.Bee.MCP.APIKey != "" {
+		cfg.Bee.MCP.WorkerAPIKey = generateRandomKey()
+	}
 	return nil
+}
+
+func generateRandomKey() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
+	return fmt.Sprintf("%x", b)
 }
