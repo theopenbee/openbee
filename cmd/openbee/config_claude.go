@@ -138,9 +138,25 @@ func mergeJSONFile(path string, apply func(map[string]any)) error {
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
 
+// providerEnvKeys lists all environment variable keys that any provider may
+// write. These are cleared before writing new provider settings so that stale
+// keys from a previous provider do not linger after switching.
+var providerEnvKeys = []string{
+	"ANTHROPIC_AUTH_TOKEN",
+	"ANTHROPIC_BASE_URL",
+	"ANTHROPIC_MODEL",
+	"ANTHROPIC_SMALL_FAST_MODEL",
+	"ANTHROPIC_DEFAULT_SONNET_MODEL",
+	"ANTHROPIC_DEFAULT_OPUS_MODEL",
+	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	"API_TIMEOUT_MS",
+	"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+}
+
 // mergeClaudeSettings reads existing ~/.claude/settings.json (if any),
-// merges the provided env map into the "env" key, preserves all other keys,
-// and writes back. Creates parent directories if needed.
+// removes all known provider env keys, merges the provided env map into
+// the "env" key, preserves all other keys, and writes back.
+// Creates parent directories if needed.
 func mergeClaudeSettings(path string, env map[string]string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
@@ -149,6 +165,11 @@ func mergeClaudeSettings(path string, env map[string]string) error {
 		envMap, ok := m["env"].(map[string]any)
 		if !ok {
 			envMap = make(map[string]any)
+		}
+		// Remove all known provider keys to avoid stale values from
+		// a previously configured provider.
+		for _, k := range providerEnvKeys {
+			delete(envMap, k)
 		}
 		for k, v := range env {
 			envMap[k] = v
