@@ -18,22 +18,8 @@ func (s *Server) listWorkerExecutions(c *gin.Context) {
 }
 
 func (s *Server) listExecutions(c *gin.Context) {
-	pageStr := c.Query("page")
-	pageSizeStr := c.Query("page_size")
-
-	// If no pagination params, return all (backward compatible).
-	if pageStr == "" && pageSizeStr == "" {
-		execs, err := s.ExecutionStore.List()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, execs)
-		return
-	}
-
-	page, _ := strconv.Atoi(pageStr)
-	pageSize, _ := strconv.Atoi(pageSizeStr)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
 		page = 1
 	}

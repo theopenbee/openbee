@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useExecutions } from "@/hooks/use-executions"
-import type { WorkerExecution, PaginatedResponse } from "@/lib/types"
+import type { WorkerExecution } from "@/lib/types"
 import {
   Table,
   TableBody,
@@ -26,10 +26,8 @@ export function Executions() {
   const [page, setPage] = useState(1)
   const { data, error, isLoading } = useExecutions(page, PAGE_SIZE)
 
-  const paginatedData = data as PaginatedResponse<WorkerExecution> | undefined
-  const executions = paginatedData?.items ?? []
-  const total = paginatedData?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const executions = data?.items ?? []
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, WorkerExecution[]>()
@@ -91,7 +89,7 @@ export function Executions() {
                             to={`/workers/${latest.worker_id}`}
                             className="text-sm hover:text-primary transition-colors"
                           >
-                            {(latest as any).worker_name || latest.worker_id.slice(0, 8) + "..."}
+                            {latest.worker_name || latest.worker_id.slice(0, 8) + "..."}
                           </Link>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>

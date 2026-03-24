@@ -73,20 +73,10 @@ export const api = {
     },
   },
   executions: {
-    list: async (page?: number, pageSize?: number) => {
-      if (page != null && pageSize != null) {
-        const data = await fetchAPI<PaginatedResponse<WorkerExecution>>(
-          `/executions?page=${page}&page_size=${pageSize}`
-        )
-        return {
-          items: Array.isArray(data.items) ? data.items : [],
-          total: data.total,
-          page: data.page,
-          page_size: data.page_size,
-        }
-      }
-      const executions = await fetchAPI<WorkerExecution[] | null>("/executions")
-      return Array.isArray(executions) ? executions : []
+    list: async (page: number = 1, pageSize: number = 20) => {
+      return fetchAPI<PaginatedResponse<WorkerExecution>>(
+        `/executions?page=${page}&page_size=${pageSize}`
+      )
     },
     get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {

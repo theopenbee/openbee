@@ -15,6 +15,7 @@ export interface Worker {
 export interface WorkerExecution {
   id: string
   worker_id?: string
+  worker_name?: string
   session_id: string
   trigger_input: string
   status: ExecutionStatus
