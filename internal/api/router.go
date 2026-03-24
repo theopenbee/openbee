@@ -10,6 +10,7 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/auth"
+	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
@@ -125,20 +126,18 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerMCPRoutes() {
-	// Bee MCP endpoints
-	beeGroup := s.router.Group("/mcp/bee")
+	beeGroup := s.router.Group(config.MCPBeeBasePath)
 	beeGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
 	beeGroup.GET("/sse", s.beeMCPServer.HandleSSE)
 	beeGroup.POST("/messages", s.beeMCPServer.HandleMessages)
 
-	// Worker MCP endpoints
-	workerGroup := s.router.Group("/mcp/worker")
+	workerGroup := s.router.Group(config.MCPWorkerBasePath)
 	workerGroup.Use(mcp.APIKeyMiddleware(s.workerAPIKey))
 	workerGroup.GET("/sse", s.workerMCPServer.HandleSSE)
 	workerGroup.POST("/messages", s.workerMCPServer.HandleMessages)
 
-	// Backward-compatible: legacy /mcp/* routes → Bee server
-	legacyGroup := s.router.Group("/mcp")
+	// Backward-compatible legacy routes
+	legacyGroup := s.router.Group(config.MCPLegacyBasePath)
 	legacyGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
 	legacyGroup.GET("/sse", s.beeMCPServer.HandleSSE)
 	legacyGroup.POST("/messages", s.beeMCPServer.HandleMessages)

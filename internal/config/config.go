@@ -11,6 +11,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// MCP endpoint path prefixes.
+const (
+	MCPBeeBasePath    = "/mcp/bee"
+	MCPWorkerBasePath = "/mcp/worker"
+	MCPLegacyBasePath = "/mcp"
+)
+
 //go:embed config.yaml.tmpl
 var ConfigTemplate string
 

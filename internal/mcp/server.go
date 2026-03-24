@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
@@ -18,6 +19,7 @@ import (
 )
 
 var log = logger.With(zap.String("component", "mcp"))
+
 
 // JSON-RPC 2.0 types
 
@@ -64,14 +66,10 @@ type SessionClearer interface {
 
 // MCPServer manages SSE sessions and dispatches JSON-RPC tool calls.
 type MCPServer struct {
-	// Tool dispatch — set by constructor
 	schemasFn  func() []toolSchema
 	callToolFn func(name string, args json.RawMessage) (any, error)
+	basePath   string // SSE endpoint URL prefix, e.g. "/mcp/bee"
 
-	// Base path for SSE endpoint URL generation
-	basePath string // e.g. "/mcp/bee" or "/mcp/worker" or "/mcp"
-
-	// Dependencies
 	workerStore    *store.WorkerStore
 	manager        *worker.Manager
 	taskStore      *store.TaskStore
@@ -87,7 +85,7 @@ type MCPServer struct {
 	sessions map[string]chan rpcResponse // session_id -> response channel
 }
 
-// NewBeeServer creates a Bee MCP Server with all 19 tools.
+// NewBeeServer creates a Bee MCP Server with all tools.
 func NewBeeServer(
 	ws *store.WorkerStore,
 	mgr *worker.Manager,
@@ -101,7 +99,7 @@ func NewBeeServer(
 	sessionStore *store.SessionStore,
 ) *MCPServer {
 	s := &MCPServer{
-		basePath:       "/mcp/bee",
+		basePath:       config.MCPBeeBasePath,
 		workerStore:    ws,
 		manager:        mgr,
 		taskStore:      ts,
@@ -119,7 +117,7 @@ func NewBeeServer(
 	return s
 }
 
-// NewWorkerServer creates a Worker MCP Server with only 5 worker tools.
+// NewWorkerServer creates a Worker MCP Server with a restricted tool set.
 func NewWorkerServer(
 	ts *store.TaskStore,
 	ms *store.MessageStore,
@@ -127,7 +125,7 @@ func NewWorkerServer(
 	memStore *store.MemoryStore,
 ) *MCPServer {
 	s := &MCPServer{
-		basePath:     "/mcp/worker",
+		basePath:     config.MCPWorkerBasePath,
 		taskStore:    ts,
 		messageStore: ms,
 		senders:      senders,
@@ -137,22 +135,6 @@ func NewWorkerServer(
 	s.schemasFn = workerToolSchemas
 	s.callToolFn = s.workerCallTool
 	return s
-}
-
-// NewServer creates a Bee MCP Server (backward-compatible alias for NewBeeServer).
-func NewServer(
-	ws *store.WorkerStore,
-	mgr *worker.Manager,
-	ts *store.TaskStore,
-	ms *store.MessageStore,
-	senders map[string]platform.PlatformSenderAdapter,
-	execStopper ExecutionStopper,
-	sessionClearer SessionClearer,
-	es *store.ExecutionStore,
-	memStore *store.MemoryStore,
-	sessionStore *store.SessionStore,
-) *MCPServer {
-	return NewBeeServer(ws, mgr, ts, ms, senders, execStopper, sessionClearer, es, memStore, sessionStore)
 }
 
 // HandleSSE establishes the SSE connection, creates a session, and streams responses.

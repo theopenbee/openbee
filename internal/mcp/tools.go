@@ -260,70 +260,24 @@ func beeToolSchemas() []toolSchema {
 	}
 }
 
+// workerToolNames is the allowlist of tools exposed to workers.
+var workerToolNames = map[string]bool{
+	toolnames.MarkTaskComplete: true,
+	toolnames.SendMessage:      true,
+	toolnames.SaveMemory:       true,
+	toolnames.GetMemory:        true,
+	toolnames.DeleteMemory:     true,
+}
+
 func workerToolSchemas() []toolSchema {
-	return []toolSchema{
-		{
-			Name:        toolnames.MarkTaskComplete,
-			Description: "Mark a task as successfully completed",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"task_id"},
-				"properties": map[string]any{
-					"task_id": map[string]string{"type": "string", "description": "Task ID to mark as completed"},
-				},
-			},
-		},
-		{
-			Name:        toolnames.SendMessage,
-			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target. Supports sending media files (images, documents, audio, video) by providing a local file path.",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"message_id"},
-				"properties": map[string]any{
-					"message_id": map[string]string{"type": "string", "description": "ID of the originating platform message (resolves platform and reply context)"},
-					"content":    map[string]string{"type": "string", "description": "Text content to send (required unless media_path is provided)"},
-					"media_path": map[string]string{"type": "string", "description": "Local file path to upload and send as media (image, file, audio, or video)"},
-				},
-			},
-		},
-		{
-			Name:        toolnames.SaveMemory,
-			Description: "保存或更新一条记忆。scope 为 'global' 表示全局经验，或传入 session_key 表示特定用户的偏好。",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"scope", "key", "value"},
-				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符，如 'user_language_preference'"},
-					"value": map[string]string{"type": "string", "description": "记忆内容"},
-				},
-			},
-		},
-		{
-			Name:        toolnames.GetMemory,
-			Description: "读取记忆。传入 key 返回单条记忆，不传 key 返回该 scope 下所有记忆（最多50条）。",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"scope"},
-				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符（可选，不传则返回该范围下所有记忆）"},
-				},
-			},
-		},
-		{
-			Name:        toolnames.DeleteMemory,
-			Description: "删除一条记忆。删除不存在的记忆不会报错。",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"scope", "key"},
-				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符"},
-				},
-			},
-		},
+	all := beeToolSchemas()
+	out := make([]toolSchema, 0, len(workerToolNames))
+	for _, s := range all {
+		if workerToolNames[s.Name] {
+			out = append(out, s)
+		}
 	}
+	return out
 }
 
 // CallTool is exported for testing. Production code uses callToolFn via handleToolCall.
@@ -331,7 +285,7 @@ func (s *MCPServer) CallTool(name string, args json.RawMessage) (any, error) {
 	return s.callToolFn(name, args)
 }
 
-// beeCallTool dispatches to the named tool handler and returns the result (all 19 tools).
+// beeCallTool dispatches to the named tool handler and returns the result.
 func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) {
 	switch name {
 	case toolnames.ListWorkers:
@@ -377,22 +331,12 @@ func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) 
 	}
 }
 
-// workerCallTool dispatches to worker-only tool handlers (5 tools).
+// workerCallTool delegates to beeCallTool after checking the worker allowlist.
 func (s *MCPServer) workerCallTool(name string, args json.RawMessage) (any, error) {
-	switch name {
-	case toolnames.MarkTaskComplete:
-		return s.toolMarkTaskComplete(args)
-	case toolnames.SendMessage:
-		return s.toolSendMessage(args)
-	case toolnames.SaveMemory:
-		return s.toolSaveMemory(args)
-	case toolnames.GetMemory:
-		return s.toolGetMemory(args)
-	case toolnames.DeleteMemory:
-		return s.toolDeleteMemory(args)
-	default:
+	if !workerToolNames[name] {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
+	return s.beeCallTool(name, args)
 }
 
 func (s *MCPServer) toolListWorkers(_ json.RawMessage) (any, error) {
