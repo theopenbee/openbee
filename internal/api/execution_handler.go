@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,12 +18,48 @@ func (s *Server) listWorkerExecutions(c *gin.Context) {
 }
 
 func (s *Server) listExecutions(c *gin.Context) {
-	execs, err := s.ExecutionStore.List()
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+
+	// If no pagination params, return all (backward compatible).
+	if pageStr == "" && pageSizeStr == "" {
+		execs, err := s.ExecutionStore.List()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, execs)
+		return
+	}
+
+	page, _ := strconv.Atoi(pageStr)
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	total, err := s.ExecutionStore.CountSessions()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, execs)
+
+	offset := (page - 1) * pageSize
+	execs, err := s.ExecutionStore.ListPaginated(pageSize, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items":     execs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 func (s *Server) getExecution(c *gin.Context) {

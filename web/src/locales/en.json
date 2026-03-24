@@ -53,6 +53,11 @@
       "latestStatus": "Latest Status",
       "started": "Started",
       "lastCompleted": "Last Completed"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{totalPages}}",
+      "previous": "Previous",
+      "next": "Next"
     }
   },
   "workerDetail": {

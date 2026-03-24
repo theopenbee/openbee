@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, keepPreviousData } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
-export function useExecutions() {
+export function useExecutions(page: number = 1, pageSize: number = 20) {
   return useQuery({
-    queryKey: ["executions"],
-    queryFn: api.executions.list,
+    queryKey: ["executions", page, pageSize],
+    queryFn: () => api.executions.list(page, pageSize),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -34,4 +35,3 @@ export function useSessionExecutions(sessionId: string) {
     },
   })
 }
-

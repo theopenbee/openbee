@@ -25,6 +25,13 @@ export interface WorkerExecution {
   completed_at: number | null
 }
 
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface LocalChatSession {
   id: string
   name: string
