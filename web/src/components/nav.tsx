@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { LayoutDashboard, Bot, Activity, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LanguageSwitcher } from "./language-switcher"
+import { ThemeSwitcher } from "./theme-switcher"
 
 export function Nav() {
   const { pathname } = useLocation()
@@ -58,6 +59,7 @@ export function Nav() {
           })}
         </div>
 
+        <ThemeSwitcher />
         <LanguageSwitcher />
       </div>
     </nav>

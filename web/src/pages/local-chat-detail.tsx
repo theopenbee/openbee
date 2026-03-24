@@ -92,7 +92,7 @@ export function LocalChatDetail() {
                 <p className="text-xs text-muted-foreground mb-1">🐝 bee</p>
               )}
               {msg.role === "bee" ? (
-                <div className="prose prose-sm prose-invert max-w-none">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
                   <Streamdown mode="static">{msg.content}</Streamdown>
                 </div>
               ) : (

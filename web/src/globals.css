@@ -52,7 +52,8 @@
 }
 
 /* Dark honeycomb theme (default) */
-:root {
+:root,
+.dark {
   --background: oklch(0.13 0.01 250);
   --foreground: oklch(0.93 0.01 90);
   --card: oklch(0.17 0.01 250);
