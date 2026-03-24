@@ -52,8 +52,6 @@ func NewServer(
 		"/api/local/sessions/.+/stream",
 		"/mcp/.*/sse",
 		"/mcp/.*/messages",
-		"/mcp/sse",
-		"/mcp/messages",
 	})))
 
 	s := &Server{
@@ -136,11 +134,6 @@ func (s *Server) registerMCPRoutes() {
 	workerGroup.GET("/sse", s.workerMCPServer.HandleSSE)
 	workerGroup.POST("/messages", s.workerMCPServer.HandleMessages)
 
-	// Backward-compatible legacy routes
-	legacyGroup := s.router.Group(config.MCPLegacyBasePath)
-	legacyGroup.Use(mcp.APIKeyMiddleware(s.beeAPIKey))
-	legacyGroup.GET("/sse", s.beeMCPServer.HandleSSE)
-	legacyGroup.POST("/messages", s.beeMCPServer.HandleMessages)
 }
 
 func (s *Server) registerStaticRoutes() error {

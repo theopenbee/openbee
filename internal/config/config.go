@@ -15,7 +15,6 @@ import (
 const (
 	MCPBeeBasePath    = "/mcp/bee"
 	MCPWorkerBasePath = "/mcp/worker"
-	MCPLegacyBasePath = "/mcp"
 )
 
 //go:embed config.yaml.tmpl
