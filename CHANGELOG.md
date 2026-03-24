@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `web`: pagination for executions page — server-side session-level pagination with page/page_size query params, frontend pagination controls with previous/next navigation and i18n support (zh/en)
 - `mcp`: tool permission isolation — split single MCP server into Bee server (full 19-tool access) and Worker server (restricted to 5 tools: send_message, mark_task_complete, save/get/delete_memory), each with its own API key and route group (`/mcp/bee`, `/mcp/worker`)
 - `config`: add MCP Worker API Key prompt in config subcommand advanced settings (generate randomly / enter manually)
 
