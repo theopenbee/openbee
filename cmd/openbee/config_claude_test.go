@@ -449,3 +449,72 @@ func TestMergeClaudeJSON_PreservesExisting(t *testing.T) {
 		t.Error("hasCompletedOnboarding not set")
 	}
 }
+
+func TestMergeSettingsJSON_CleansOldProviderKeys(t *testing.T) {
+	dir := t.TempDir()
+	claudeDir := filepath.Join(dir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+	path := filepath.Join(claudeDir, "settings.json")
+
+	// Simulate existing MiniMax config
+	existing := map[string]any{
+		"allowedTools": []string{"Read", "Write"},
+		"env": map[string]any{
+			"ANTHROPIC_AUTH_TOKEN":                     "minimax-key",
+			"ANTHROPIC_BASE_URL":                       "https://api.minimaxi.com/anthropic",
+			"ANTHROPIC_MODEL":                          "MiniMax-M2.7",
+			"ANTHROPIC_SMALL_FAST_MODEL":               "MiniMax-M2.7",
+			"ANTHROPIC_DEFAULT_SONNET_MODEL":           "MiniMax-M2.7",
+			"ANTHROPIC_DEFAULT_OPUS_MODEL":             "MiniMax-M2.7",
+			"ANTHROPIC_DEFAULT_HAIKU_MODEL":            "MiniMax-M2.7",
+			"API_TIMEOUT_MS":                           "3000000",
+			"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+			"SOME_CUSTOM_VAR":                          "keep-me",
+		},
+	}
+	data, _ := json.MarshalIndent(existing, "", "  ")
+	os.WriteFile(path, data, 0644)
+
+	// Switch to GLM (which does not set any model keys)
+	env := glmEnv("glm-key")
+	if err := mergeClaudeSettings(path, env); err != nil {
+		t.Fatalf("mergeClaudeSettings: %v", err)
+	}
+
+	data, _ = os.ReadFile(path)
+	var result map[string]any
+	json.Unmarshal(data, &result)
+
+	// allowedTools preserved
+	if result["allowedTools"] == nil {
+		t.Error("allowedTools was lost during merge")
+	}
+
+	envMap := result["env"].(map[string]any)
+
+	// GLM keys written correctly
+	if envMap["ANTHROPIC_AUTH_TOKEN"] != "glm-key" {
+		t.Errorf("want glm-key, got %v", envMap["ANTHROPIC_AUTH_TOKEN"])
+	}
+	if envMap["ANTHROPIC_BASE_URL"] != "https://open.bigmodel.cn/api/anthropic" {
+		t.Errorf("want GLM base URL, got %v", envMap["ANTHROPIC_BASE_URL"])
+	}
+
+	// MiniMax model keys must be gone
+	for _, key := range []string{
+		"ANTHROPIC_MODEL",
+		"ANTHROPIC_SMALL_FAST_MODEL",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	} {
+		if _, exists := envMap[key]; exists {
+			t.Errorf("stale key %s should have been removed after switching to GLM", key)
+		}
+	}
+
+	// Non-provider custom var preserved
+	if envMap["SOME_CUSTOM_VAR"] != "keep-me" {
+		t.Errorf("SOME_CUSTOM_VAR was lost during merge")
+	}
+}
