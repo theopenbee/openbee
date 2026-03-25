@@ -52,7 +52,12 @@ func moonshotEnv(apiKey string) map[string]string {
 		"ANTHROPIC_AUTH_TOKEN":                     apiKey,
 		"ANTHROPIC_MODEL":                          "kimi-k2.5",
 		"ANTHROPIC_SMALL_FAST_MODEL":               "kimi-k2.5",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL":             "kimi-k2.5",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL":           "kimi-k2.5",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL":            "kimi-k2.5",
+		"CLAUDE_CODE_SUBAGENT_MODEL":               "kimi-k2.5",
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"ENABLE_TOOL_SEARCH":                       "false",
 		"API_TIMEOUT_MS":                           "600000",
 	}
 }
@@ -149,6 +154,8 @@ var providerEnvKeys = []string{
 	"ANTHROPIC_DEFAULT_SONNET_MODEL",
 	"ANTHROPIC_DEFAULT_OPUS_MODEL",
 	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	"CLAUDE_CODE_SUBAGENT_MODEL",
+	"ENABLE_TOOL_SEARCH",
 	"API_TIMEOUT_MS",
 	"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
 }
