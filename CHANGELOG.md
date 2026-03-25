@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `web`: light theme with theme switcher — adds a system-aware light/dark toggle in the top nav, persisted to localStorage; UI adapts fully across all pages
 - `web`: pagination for executions page — server-side session-level pagination with page/page_size query params, frontend pagination controls with previous/next navigation and i18n support (zh/en)
 - `mcp`: tool permission isolation — split single MCP server into Bee server (full 19-tool access) and Worker server (restricted to 5 tools: send_message, mark_task_complete, save/get/delete_memory), each with its own API key and route group (`/mcp/bee`, `/mcp/worker`)
 - `config`: add MCP Worker API Key prompt in config subcommand advanced settings (generate randomly / enter manually)
 
 ### Changed
 
+- `web`: simplify theme switcher — remove redundant wrapper component, inline toggle directly in nav; deduplicate StatusBadge styles using a shared variant map
 - `mcp`: deduplicate tool schemas and dispatch logic — worker tools derived from bee tools via allowlist filter instead of duplication
 - `mcp`: remove legacy MCP routes (`/mcp/sse`, `/mcp/messages`) — all callers now use `/mcp/bee` and `/mcp/worker` paths
 - `mcp`: replace NewServer 12-positional-param constructor with self-documenting ServerParams struct
