@@ -98,16 +98,7 @@ func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 		return nil, fmt.Errorf("list executions: %w", err)
 	}
 	defer rows.Close()
-
-	var execs []model.WorkerExecution
-	for rows.Next() {
-		e, err := scanExecution(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan execution: %w", err)
-		}
-		execs = append(execs, e)
-	}
-	return execs, rows.Err()
+	return scanExecutions(rows)
 }
 
 // CountSessions returns the total number of distinct sessions.
@@ -142,16 +133,7 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 		return nil, fmt.Errorf("list executions by session: %w", err)
 	}
 	defer rows.Close()
-
-	var execs []model.WorkerExecution
-	for rows.Next() {
-		e, err := scanExecution(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan execution: %w", err)
-		}
-		execs = append(execs, e)
-	}
-	return execs, rows.Err()
+	return scanExecutions(rows)
 }
 
 func (s *ExecutionStore) ListByWorkerID(workerID string) ([]model.WorkerExecution, error) {
@@ -160,16 +142,7 @@ func (s *ExecutionStore) ListByWorkerID(workerID string) ([]model.WorkerExecutio
 		return nil, fmt.Errorf("list executions by worker: %w", err)
 	}
 	defer rows.Close()
-
-	var execs []model.WorkerExecution
-	for rows.Next() {
-		e, err := scanExecution(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan execution: %w", err)
-		}
-		execs = append(execs, e)
-	}
-	return execs, rows.Err()
+	return scanExecutions(rows)
 }
 
 // CountSessionsByWorkerID returns the total number of distinct sessions for a worker.
@@ -196,6 +169,19 @@ func (s *ExecutionStore) ListPaginatedByWorkerID(workerID string, limit, offset 
 	}
 	defer rows.Close()
 	return scanExecutions(rows)
+}
+
+// GetRunningByWorkerID returns the currently running execution for a worker, or nil if none.
+func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExecution, error) {
+	row := s.db.QueryRow(execSelect+` WHERE e.worker_id = ? AND e.status = 'running' LIMIT 1`, workerID)
+	e, err := scanExecution(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get running execution by worker: %w", err)
+	}
+	return &e, nil
 }
 
 func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) error {

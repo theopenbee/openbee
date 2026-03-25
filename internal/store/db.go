@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -167,6 +168,15 @@ var migrations = []migration{
 		name:    "create_index_local_replies_session_key",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON bee_local_replies(session_key)`,
 	},
+}
+
+// inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".
+func inPlaceholders(n int) string {
+	if n == 0 {
+		return ""
+	}
+	ph := strings.Repeat("?,", n)
+	return ph[:len(ph)-1]
 }
 
 func InitDB(dbPath string) (*sql.DB, error) {

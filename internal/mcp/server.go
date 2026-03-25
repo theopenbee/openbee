@@ -20,9 +20,6 @@ import (
 
 var log = logger.With(zap.String("component", "mcp"))
 
-
-// JSON-RPC 2.0 types
-
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      any             `json:"id"`

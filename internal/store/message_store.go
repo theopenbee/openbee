@@ -69,15 +69,13 @@ func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, stat
 	if len(ids) == 0 {
 		return nil
 	}
-	placeholders := strings.Repeat("?,", len(ids))
-	placeholders = placeholders[:len(placeholders)-1]
 	args := make([]any, 0, len(ids)+2)
 	args = append(args, status, time.Now().UnixMilli())
 	for _, id := range ids {
 		args = append(args, id)
 	}
 	_, err := s.db.ExecContext(ctx,
-		fmt.Sprintf(`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (%s)`, placeholders),
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
 		args...,
 	)
 	return err
@@ -170,15 +168,13 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	placeholders := strings.Repeat("?,", len(ids))
-	placeholders = placeholders[:len(placeholders)-1]
 	args := make([]any, 0, len(ids)+2)
 	args = append(args, "feeding", time.Now().UnixMilli())
 	for _, id := range ids {
 		args = append(args, id)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+placeholders+`)`, args...); err != nil {
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`, args...); err != nil {
 		return nil, fmt.Errorf("update feeding: %w", err)
 	}
 	return msgs, tx.Commit()
@@ -203,21 +199,17 @@ func (s *MessageStore) RollbackWithRetry(ctx context.Context, ids []string, maxR
 		return nil
 	}
 	now := time.Now().UnixMilli()
-	ph := strings.Repeat("?,", len(ids))
-	ph = ph[:len(ph)-1]
-
 	args := make([]any, 0, 2+len(ids))
 	args = append(args, maxRetries, now)
 	for _, id := range ids {
 		args = append(args, id)
 	}
-
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`
+	_, err := s.db.ExecContext(ctx, `
 		UPDATE bee_platform_messages
 		SET retry_count = retry_count + 1,
 		    status = CASE WHEN retry_count + 1 >= ? THEN 'failed' ELSE 'received' END,
 		    updated_at = ?
-		WHERE id IN (%s)`, ph), args...)
+		WHERE id IN (`+inPlaceholders(len(ids))+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("rollback with retry: %w", err)
 	}
