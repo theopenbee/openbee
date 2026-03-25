@@ -7,25 +7,49 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *Server) listWorkerExecutions(c *gin.Context) {
-	workerID := c.Param("id")
-	execs, err := s.ExecutionStore.ListByWorkerID(workerID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, execs)
-}
-
-func (s *Server) listExecutions(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+func parsePagination(c *gin.Context) (page, pageSize, offset int) {
+	page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ = strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
+	offset = (page - 1) * pageSize
+	return
+}
+
+func paginatedResponse(items any, total, page, pageSize int) gin.H {
+	return gin.H{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}
+}
+
+func (s *Server) listWorkerExecutions(c *gin.Context) {
+	workerID := c.Param("id")
+	page, pageSize, offset := parsePagination(c)
+
+	total, err := s.ExecutionStore.CountSessionsByWorkerID(workerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	execs, err := s.ExecutionStore.ListPaginatedByWorkerID(workerID, pageSize, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
+}
+
+func (s *Server) listExecutions(c *gin.Context) {
+	page, pageSize, offset := parsePagination(c)
 
 	total, err := s.ExecutionStore.CountSessions()
 	if err != nil {
@@ -33,19 +57,13 @@ func (s *Server) listExecutions(c *gin.Context) {
 		return
 	}
 
-	offset := (page - 1) * pageSize
 	execs, err := s.ExecutionStore.ListPaginated(pageSize, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"items":     execs,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
 }
 
 func (s *Server) getExecution(c *gin.Context) {

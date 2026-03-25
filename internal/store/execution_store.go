@@ -172,6 +172,32 @@ func (s *ExecutionStore) ListByWorkerID(workerID string) ([]model.WorkerExecutio
 	return execs, rows.Err()
 }
 
+// CountSessionsByWorkerID returns the total number of distinct sessions for a worker.
+func (s *ExecutionStore) CountSessionsByWorkerID(workerID string) (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(DISTINCT session_id) FROM bee_executions WHERE worker_id = ?`, workerID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count sessions by worker: %w", err)
+	}
+	return count, nil
+}
+
+// ListPaginatedByWorkerID returns executions for a worker grouped by session with pagination at the session level.
+func (s *ExecutionStore) ListPaginatedByWorkerID(workerID string, limit, offset int) ([]model.WorkerExecution, error) {
+	query := execSelect + ` WHERE e.worker_id = ? AND e.session_id IN (
+		SELECT session_id FROM bee_executions WHERE worker_id = ?
+		GROUP BY session_id
+		ORDER BY MAX(started_at) DESC
+		LIMIT ? OFFSET ?
+	) ORDER BY e.started_at DESC`
+	rows, err := s.db.Query(query, workerID, workerID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list paginated executions by worker: %w", err)
+	}
+	defer rows.Close()
+	return scanExecutions(rows)
+}
+
 func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_executions SET status=? WHERE id=?`, status, id)
 	return err

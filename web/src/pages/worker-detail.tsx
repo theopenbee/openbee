@@ -12,12 +12,19 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
+import { PaginationControls } from "@/components/pagination-controls"
+
+const PAGE_SIZE = 20
 
 export function WorkerDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError } = useWorker(id!)
-  const { data: executions = [] } = useWorkerExecutions(id!)
+  const [page, setPage] = useState(1)
+  const { data } = useWorkerExecutions(id!, page, PAGE_SIZE)
+
+  const executions = data?.items ?? []
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, typeof executions>()
@@ -132,6 +139,8 @@ export function WorkerDetail() {
               )
             })}
           </div>
+
+          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         </TabsContent>
 
         <TabsContent value="info" className="mt-6">
