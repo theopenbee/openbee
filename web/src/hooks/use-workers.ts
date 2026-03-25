@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
 export function useWorkers() {
@@ -52,9 +52,10 @@ export function useUpdateWorker() {
   })
 }
 
-export function useWorkerExecutions(workerId: string) {
+export function useWorkerExecutions(workerId: string, page: number = 1, pageSize: number = 20) {
   return useQuery({
-    queryKey: ["workers", workerId, "executions"],
-    queryFn: () => api.workers.executions(workerId),
+    queryKey: ["workers", workerId, "executions", page, pageSize],
+    queryFn: () => api.workers.executions(workerId, page, pageSize),
+    placeholderData: keepPreviousData,
   })
 }
