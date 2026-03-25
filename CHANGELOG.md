@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-03-24
+
 ### Added
 
 - `claudemd`: add non-interactive mode rules for bee — new `beeNonInteractiveRules()` section at highest priority, defines tool substitution patterns (`AskUserQuestion` → `send_message`, `EnterPlanMode` → inline thinking) and enforces `send_message`-only communication for bee coordinator
