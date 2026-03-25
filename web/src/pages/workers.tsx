@@ -21,7 +21,6 @@ import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonCard } from "@/components/skeleton-loader"
-import { Clock } from "lucide-react"
 
 export function Workers() {
   const { t } = useTranslation()
@@ -156,10 +155,6 @@ export function Workers() {
                 <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                   {w.description || t("common.noDescription")}
                 </p>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
-                  <Clock className="h-3 w-3" />
-                  {t("common.onDemand")}
-                </div>
                 <div className="flex gap-2 pt-2 border-t border-border">
                   <Link to={`/workers/${w.id}`}>
                     <Button variant="outline" size="sm">

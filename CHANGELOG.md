@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `web`: remove on-demand label from worker cards — Clock icon and "On-demand" badge removed from both dashboard and workers list pages; unused i18n key `common.onDemand` removed
 - `web`: simplify theme switcher — remove redundant wrapper component, inline toggle directly in nav; deduplicate StatusBadge styles using a shared variant map
 - `api`: extract `parsePagination`/`paginatedResponse` helpers in Go API handler — shared by executions and worker-detail routes
 - `web`: extract `PaginationControls` React component shared by executions and worker-detail pages

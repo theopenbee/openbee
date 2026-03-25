@@ -11,8 +11,7 @@
     "view": "View",
     "create": "Create",
     "send": "Send",
-    "noDescription": "No description",
-    "onDemand": "On-demand"
+    "noDescription": "No description"
   },
   "dashboard": {
     "title": "Dashboard",
