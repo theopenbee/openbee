@@ -747,6 +747,7 @@ func (s *MCPServer) toolGetWorkerStatus(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
 
+	ctx := context.Background()
 	result := map[string]any{
 		"worker_id":         worker.ID,
 		"name":              worker.Name,
@@ -754,30 +755,21 @@ func (s *MCPServer) toolGetWorkerStatus(args json.RawMessage) (any, error) {
 		"current_execution": nil,
 	}
 
-	// Get running execution for this worker and find associated task_id
-	execs, err := s.executionStore.ListByWorkerID(worker.ID)
-	if err == nil {
-		for _, e := range execs {
-			if e.Status == "running" {
-				execInfo := map[string]any{
-					"id":          e.ID,
-					"task_id":     nil,
-					"instruction": e.TriggerInput,
-					"started_at":  e.StartedAt,
-				}
-				ctx := context.Background()
-				task, terr := s.taskStore.GetTaskByExecutionID(ctx, e.ID)
-				if terr == nil && task != nil {
-					execInfo["task_id"] = task.ID
-				}
-				result["current_execution"] = execInfo
-				break
-			}
+	runningExec, err := s.executionStore.GetRunningByWorkerID(worker.ID)
+	if err == nil && runningExec != nil {
+		execInfo := map[string]any{
+			"id":          runningExec.ID,
+			"task_id":     nil,
+			"instruction": runningExec.TriggerInput,
+			"started_at":  runningExec.StartedAt,
 		}
+		task, terr := s.taskStore.GetTaskByExecutionID(ctx, runningExec.ID)
+		if terr == nil && task != nil {
+			execInfo["task_id"] = task.ID
+		}
+		result["current_execution"] = execInfo
 	}
 
-	// Count pending tasks
-	ctx := context.Background()
 	pendingCount, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
 	if err != nil {
 		pendingCount = 0

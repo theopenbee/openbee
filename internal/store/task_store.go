@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -57,14 +58,28 @@ func appendCSVFilter(q string, args []any, column, value string) (string, []any)
 	if value == "" {
 		return q, args
 	}
-	values := strings.Split(value, ",")
-	placeholders := strings.Repeat("?,", len(values))
-	placeholders = placeholders[:len(placeholders)-1]
-	q += " AND t." + column + " IN (" + placeholders + ")"
+	values := splitTrimmed(value)
+	q += " AND t." + column + " IN (" + inPlaceholders(len(values)) + ")"
 	for _, v := range values {
-		args = append(args, strings.TrimSpace(v))
+		args = append(args, v)
 	}
 	return q, args
+}
+
+// splitTrimmed splits a comma-separated string and trims whitespace from each element.
+func splitTrimmed(s string) []string {
+	parts := make([]string, 0)
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == ',' {
+			v := strings.TrimSpace(s[start:i])
+			if v != "" {
+				parts = append(parts, v)
+			}
+			start = i + 1
+		}
+	}
+	return parts
 }
 
 // TaskFilter specifies filtering criteria for List.
@@ -194,14 +209,8 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 			rows.Close()
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
-		if scheduledAt.Valid {
-			v := scheduledAt.Int64
-			ct.ScheduledAt = &v
-		}
-		if nextRunAt.Valid {
-			v := nextRunAt.Int64
-			ct.NextRunAt = &v
-		}
+		ct.ScheduledAt = nullInt64Ptr(scheduledAt)
+		ct.NextRunAt = nullInt64Ptr(nextRunAt)
 		claimed = append(claimed, ct)
 	}
 	rows.Close()
@@ -285,14 +294,12 @@ func (s *TaskStore) DeletePendingByMessageIDs(ctx context.Context, messageIDs []
 	if len(messageIDs) == 0 {
 		return nil
 	}
-	placeholders := strings.Repeat("?,", len(messageIDs))
-	placeholders = placeholders[:len(placeholders)-1]
 	args := make([]any, len(messageIDs))
 	for i, id := range messageIDs {
 		args[i] = id
 	}
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_tasks WHERE message_id IN (`+placeholders+`) AND status = 'pending'`,
+		`DELETE FROM bee_tasks WHERE message_id IN (`+inPlaceholders(len(messageIDs))+`) AND status = 'pending'`,
 		args...)
 	return err
 }
@@ -396,27 +403,28 @@ func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 // GetTaskByExecutionID returns the task with the given execution_id, or nil if not found.
 func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, message_id, worker_id, instruction, type, status, scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
+		`SELECT id, message_id, worker_id, instruction, type, status,
+		        scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
 		 FROM bee_tasks WHERE execution_id = ?`,
 		executionID,
 	)
-	var t model.Task
-	var scheduledAt, nextRunAt sql.NullInt64
-	err := row.Scan(&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction, &t.Type, &t.Status,
-		&scheduledAt, &t.CronExpr, &nextRunAt, &t.ExecutionID, &t.CreatedAt, &t.UpdatedAt)
-	if err == sql.ErrNoRows {
+	t, err := scanTask(row)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if scheduledAt.Valid {
-		t.ScheduledAt = &scheduledAt.Int64
-	}
-	if nextRunAt.Valid {
-		t.NextRunAt = &nextRunAt.Int64
-	}
 	return &t, nil
+}
+
+// nullInt64Ptr converts a sql.NullInt64 to a *int64; returns nil if not valid.
+func nullInt64Ptr(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64
+	return &v
 }
 
 // scanTask scans a single task row.
@@ -432,14 +440,8 @@ func scanTask(row *sql.Row) (model.Task, error) {
 	if err != nil {
 		return model.Task{}, fmt.Errorf("scan task: %w", err)
 	}
-	if scheduledAt.Valid {
-		v := scheduledAt.Int64
-		t.ScheduledAt = &v
-	}
-	if nextRunAt.Valid {
-		v := nextRunAt.Int64
-		t.NextRunAt = &v
-	}
+	t.ScheduledAt = nullInt64Ptr(scheduledAt)
+	t.NextRunAt = nullInt64Ptr(nextRunAt)
 	return t, nil
 }
 
@@ -457,14 +459,8 @@ func scanTasks(rows *sql.Rows) ([]model.Task, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scan task row: %w", err)
 		}
-		if scheduledAt.Valid {
-			v := scheduledAt.Int64
-			t.ScheduledAt = &v
-		}
-		if nextRunAt.Valid {
-			v := nextRunAt.Int64
-			t.NextRunAt = &v
-		}
+		t.ScheduledAt = nullInt64Ptr(scheduledAt)
+		t.NextRunAt = nullInt64Ptr(nextRunAt)
 		result = append(result, t)
 	}
 	return result, rows.Err()
