@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `claudemd`: add non-interactive mode rules for bee — new `beeNonInteractiveRules()` section at highest priority, defines tool substitution patterns (`AskUserQuestion` → `send_message`, `EnterPlanMode` → inline thinking) and enforces `send_message`-only communication for bee coordinator
+- `claudemd`: simplify bee notification rules — remove redundant "禁止直接输出文本" block (now covered by non-interactive mode section), replace with concise message format requirement
+
 - `web`: light theme with theme switcher — adds a system-aware light/dark toggle in the top nav, persisted to localStorage; UI adapts fully across all pages
 - `web`: pagination for executions page — server-side session-level pagination with page/page_size query params, frontend pagination controls with previous/next navigation and i18n support (zh/en)
 - `web`: pagination for worker detail sessions — server-side pagination for the sessions list on the worker detail page, consistent with executions page pattern
