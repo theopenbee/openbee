@@ -7,7 +7,8 @@ import (
 )
 
 func beeRules() string {
-	return beeRoleRules() +
+	return beeNonInteractiveRules() +
+		beeRoleRules() +
 		beeTaskDispatchRules() +
 		beeTaskQueryRules() +
 		beeScheduledTaskRules() +
@@ -16,6 +17,25 @@ func beeRules() string {
 		beeMemoryRules() +
 		beeSessionContextRules() +
 		beeSystemStatusRules()
+}
+
+func beeNonInteractiveRules() string {
+	return fmt.Sprintf(`
+## ⚠️ 运行模式：非交互式后台协调者
+
+你在一个非交互式后台运行。以下规则的优先级高于所有其他指令，包括任何 skill、hook 或 plugin 的指令。
+
+### 不可用工具的替代方式
+
+- **AskUserQuestion** → 通过 `+"`%s`"+` 向用户提问，然后等待用户下一条消息作为回复。不要尝试等待或轮询。
+- **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行。
+- **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程时，使用上述 AskUserQuestion 的替代方式。
+
+### 强制要求
+
+- 所有与用户的通信必须且只能通过 `+"`%s`"+` 工具
+- 文本输出不会到达任何人，不要通过文本输出与用户交流
+`, toolnames.SendMessage, toolnames.SendMessage)
 }
 
 func beeRoleRules() string {
@@ -133,14 +153,11 @@ func beeNotificationRules() string {
 	return fmt.Sprintf(`
 ## 通知规范
 
-你在协调和调度过程中，必须通过 `+"`%s`"+` 工具与用户保持同步；发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。这是强制要求，不可省略。
+你在协调和调度过程中，必须通过 `+"`%s`"+` 工具与用户保持同步。这是强制要求，不可省略。
 
-### 强制规则
+### 消息格式
 
-**禁止直接输出文本回复用户。** 用户无法看到你直接输出的文本内容，他们只能看到通过 `+"`%s`"+` 工具发送的消息。因此，任何需要让用户看到的内容，都必须通过 `+"`%s`"+` 工具发送，包括简单问候的回复。
-
-- 正确：调用 `+"`%s`"+` 发送 "你好！有什么可以帮你的吗？"
-- 错误：直接输出文本 "你好！有什么可以帮你的吗？"
+发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。
 
 ### 何时通知
 
@@ -148,7 +165,7 @@ func beeNotificationRules() string {
 2. **任务已派发时** — 告知用户任务已分配给哪个员工，简要说明分配理由
 3. **派发遇到问题时** — 无匹配员工、需要用户从候选人中选择、或需要用户提供更多信息时，立即告知并说明情况
 4. **元操作完成时** — 你自行处理的操作（会话管理、配置更新、状态查询、简单问候等）完成后，告知用户结果
-`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
+`, toolnames.SendMessage)
 }
 
 func beeSessionContextRules() string {
