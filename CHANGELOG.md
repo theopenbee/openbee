@@ -7,6 +7,12 @@
 - `store`: add `inPlaceholders` / `nullInt64Ptr` helpers; unify scan loops in execution/task stores
 - `mcp`: `toolGetWorkerStatus` uses targeted `GetRunningByWorkerID` query instead of full history scan
 
+### Fixed
+
+- `api`: extract `localSessionKey` helper to deduplicate session key construction across local chat handlers
+- `api`: sanitize upload filename with `filepath.Base` to prevent path traversal
+- `api`: remove redundant "what" comments; annotate suppressed `errcheck` with reason
+
 ## [0.0.12] - 2026-03-24
 
 ### Added

@@ -113,7 +113,6 @@ func (s *Server) registerMCPRoutes() {
 	workerGroup.Use(mcp.APIKeyMiddleware(s.WorkerAPIKey))
 	workerGroup.GET("/sse", s.WorkerMCPServer.HandleSSE)
 	workerGroup.POST("/messages", s.WorkerMCPServer.HandleMessages)
-
 }
 
 func (s *Server) registerStaticRoutes() error {
