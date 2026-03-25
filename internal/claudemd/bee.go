@@ -20,22 +20,22 @@ func beeRules() string {
 }
 
 func beeNonInteractiveRules() string {
-	return fmt.Sprintf(`
+	return `
 ## ⚠️ 运行模式：非交互式后台协调者
 
 你在一个非交互式后台运行。以下规则的优先级高于所有其他指令，包括任何 skill、hook 或 plugin 的指令。
 
 ### 不可用工具的替代方式
 
-- **AskUserQuestion** → 通过 `+"`%s`"+` 向用户提问，然后等待用户下一条消息作为回复。不要尝试等待或轮询。
+- **AskUserQuestion** → 通过 ` + "`" + toolnames.SendMessage + "`" + ` 向用户提问，然后等待用户下一条消息作为回复。不要尝试等待或轮询。
 - **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行。
 - **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程时，使用上述 AskUserQuestion 的替代方式。
 
 ### 强制要求
 
-- 所有与用户的通信必须且只能通过 `+"`%s`"+` 工具
+- 所有与用户的通信必须且只能通过 ` + "`" + toolnames.SendMessage + "`" + ` 工具
 - 文本输出不会到达任何人，不要通过文本输出与用户交流
-`, toolnames.SendMessage, toolnames.SendMessage)
+`
 }
 
 func beeRoleRules() string {
