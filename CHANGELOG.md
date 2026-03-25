@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `config`: add missing model env vars and subagent/tool-search settings to Kimi (Moonshot) provider — `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, and `ENABLE_TOOL_SEARCH` are now included in `moonshotEnv` and registered in `providerEnvKeys` so they are cleaned up when switching providers
+
 ## [0.0.11] - 2026-03-24
 
 ### Added
