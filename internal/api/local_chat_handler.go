@@ -21,7 +21,6 @@ import (
 
 var log = logger.With(zap.String("component", "api"))
 
-// LocalChatHandler handles all /api/local/* endpoints.
 type LocalChatHandler struct {
 	receiver     *local.LocalReceiver
 	hub          *local.SSEHub
@@ -31,7 +30,6 @@ type LocalChatHandler struct {
 	sessionCtx   *store.SessionStore
 }
 
-// NewLocalChatHandler constructs a LocalChatHandler.
 func NewLocalChatHandler(
 	receiver *local.LocalReceiver,
 	hub *local.SSEHub,
@@ -50,10 +48,9 @@ func NewLocalChatHandler(
 	}
 }
 
-// StreamReplies streams SSE replies for a local chat session.
 func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	sessionID := c.Param("id")
-	sessionKey := "local:" + sessionID
+	sessionKey := localSessionKey(sessionID)
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -110,7 +107,7 @@ func (h *LocalChatHandler) listSessions(c *gin.Context) {
 
 func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 	id := c.Param("id")
-	sessionKey := "local:" + id
+	sessionKey := localSessionKey(id)
 	ctx := c.Request.Context()
 
 	// Best-effort cascade: log failures but continue so the session row is always removed.
@@ -132,7 +129,7 @@ func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 
 func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	id := c.Param("id")
-	sessionKey := "local:" + id
+	sessionKey := localSessionKey(id)
 
 	var body struct {
 		Content   string `json:"content" binding:"required"`
@@ -167,7 +164,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 		MessageTime: time.Now().UnixMilli(),
 	})
 
-	h.sessionStore.TouchUpdatedAt(c.Request.Context(), id) //nolint:errcheck
+	h.sessionStore.TouchUpdatedAt(c.Request.Context(), id) //nolint:errcheck — best-effort UI timestamp update
 
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
@@ -180,7 +177,7 @@ type chatMessage struct {
 
 func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	id := c.Param("id")
-	sessionKey := "local:" + id
+	sessionKey := localSessionKey(id)
 	ctx := c.Request.Context()
 
 	inbound, err := h.msgStore.ListBySessionKey(ctx, sessionKey)
@@ -226,7 +223,7 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	destPath := filepath.Join(uploadDir, header.Filename)
+	destPath := filepath.Join(uploadDir, filepath.Base(header.Filename))
 	dest, err := os.Create(destPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -240,6 +237,10 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"path": destPath})
+}
+
+func localSessionKey(id string) string {
+	return "local:" + id
 }
 
 func localUploadDir(sessionID string) (string, error) {

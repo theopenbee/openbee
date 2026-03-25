@@ -88,5 +88,3 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		ExpiresIn:   expiresIn,
 	})
 }
-
-
