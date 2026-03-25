@@ -178,7 +178,7 @@ function appendEntry(
 
 function AssistantText({ text }: { text: string }) {
   return (
-    <div className="border-l-2 border-primary pl-3 my-2 text-sm prose prose-sm prose-invert max-w-none">
+    <div className="border-l-2 border-primary pl-3 my-2 text-sm prose prose-sm dark:prose-invert max-w-none">
       <Streamdown mode="static">{text}</Streamdown>
     </div>
   );
@@ -219,7 +219,7 @@ function ToolCard({
             <div>
               <div className="text-muted-foreground mb-1">{t("logViewer.output")}</div>
               <pre
-                className={`overflow-x-auto bg-background rounded p-3 text-xs ${entry.isError ? "text-destructive" : "text-green-400"}`}
+                className={`overflow-x-auto bg-background rounded p-3 text-xs ${entry.isError ? "text-destructive" : "text-green-600 dark:text-green-400"}`}
               >
                 {entry.result}
               </pre>
