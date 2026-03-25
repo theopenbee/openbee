@@ -11,8 +11,7 @@
     "view": "查看",
     "create": "创建",
     "send": "发送",
-    "noDescription": "无描述",
-    "onDemand": "按需触发"
+    "noDescription": "无描述"
   },
   "dashboard": {
     "title": "仪表板",

@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonCard } from "@/components/skeleton-loader"
 import { Button } from "@/components/ui/button"
-import { Clock } from "lucide-react"
 
 export function Dashboard() {
   const { data: workers = [], error, isLoading } = useWorkers()
@@ -62,10 +61,6 @@ export function Dashboard() {
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                     {w.description || t("common.noDescription")}
                   </p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {t("common.onDemand")}
-                  </div>
                 </CardContent>
               </Card>
             </Link>
