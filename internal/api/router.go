@@ -111,6 +111,7 @@ func (s *Server) registerSkillRoutes(api *gin.RouterGroup) {
 	api.GET("/skills/:name", s.getSkill)
 	api.DELETE("/skills/:name", s.deleteSkill)
 	api.POST("/skills/:name/versions", s.createSkillVersion)
+	api.GET("/skills/:name/versions/:version", s.getSkillVersionContent)
 	api.PUT("/skills/:name/global-version", s.setGlobalVersion)
 	api.POST("/skills/:name/adopt", s.adoptSkill)
 

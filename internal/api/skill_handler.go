@@ -79,6 +79,17 @@ func (s *Server) createSkillVersion(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"latest_version": version})
 }
 
+func (s *Server) getSkillVersionContent(c *gin.Context) {
+	name := c.Param("name")
+	version := c.Param("version")
+	content, err := s.SkillManager.ReadVersion(name, version)
+	if err != nil {
+		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"content": content})
+}
+
 type setVersionRequest struct {
 	Version string `json:"version" binding:"required"`
 }
