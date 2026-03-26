@@ -53,6 +53,7 @@ func (s *Store) Save(cfg SkillsConfig) error {
 		return err
 	}
 	tmp := s.path + ".tmp"
+	defer func() { _ = os.Remove(tmp) }()
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}

@@ -45,4 +45,6 @@ func TestStore_SaveLoad(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Brainstorm", loaded.Skills["brainstorming"].Description)
 	assert.Equal(t, "v1", loaded.Skills["brainstorming"].GlobalVersion)
+	assert.Equal(t, "v1", loaded.Skills["brainstorming"].LatestVersion)
+	assert.NotNil(t, loaded.WorkerOverrides)
 }
