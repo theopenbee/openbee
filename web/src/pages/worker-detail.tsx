@@ -2,8 +2,12 @@ import { useState, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { useWorkerSkills, useSkill, useSetWorkerSkillVersion, useRemoveWorkerOverride } from "@/hooks/use-skills"
+import type { ScannedSkill } from "@/lib/types"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Pencil } from "lucide-react"
@@ -15,6 +19,67 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 
 const PAGE_SIZE = 20
+
+function WorkerSkillRow({
+  skill,
+  workerId,
+}: {
+  skill: ScannedSkill
+  workerId: string
+}) {
+  const { t } = useTranslation()
+  const { data: skillEntry } = useSkill(skill.source === "managed" ? skill.name : "")
+  const setVersion = useSetWorkerSkillVersion(workerId)
+  const removeOverride = useRemoveWorkerOverride(workerId)
+
+  const versions = skillEntry ? Object.keys(skillEntry.versions).sort((a, b) => {
+    const na = parseInt(a.replace("v", ""), 10)
+    const nb = parseInt(b.replace("v", ""), 10)
+    return nb - na
+  }) : []
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">{skill.name}</span>
+        <Badge variant={skill.source === "managed" ? "default" : "secondary"}>
+          {t(`skills.source.${skill.source}`)}
+        </Badge>
+        {skill.is_override && (
+          <Badge variant="outline">{t("skills.override")}</Badge>
+        )}
+        <span className="text-xs font-mono text-muted-foreground">{skill.active_version}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {skill.source === "managed" && versions.length > 0 && (
+          <Select
+            value={skill.active_version}
+            onValueChange={(v) => v && setVersion.mutate({ name: skill.name, version: v })}
+          >
+            <SelectTrigger className="h-7 w-24 text-xs" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map((v) => (
+                <SelectItem key={v} value={v}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {skill.is_override && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => removeOverride.mutate(skill.name)}
+            disabled={removeOverride.isPending}
+          >
+            {t("skills.resetToGlobal")}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function WorkerDetail() {
   const { t } = useTranslation()
@@ -43,6 +108,7 @@ export function WorkerDetail() {
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
   const updateWorker = useUpdateWorker()
+  const { data: workerSkills = [] } = useWorkerSkills(id!)
 
   if (!worker) return <SkeletonPage />
 
@@ -99,6 +165,7 @@ export function WorkerDetail() {
         <TabsList variant="line">
           <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
           <TabsTrigger value="info">{t("executionDetail.info")}</TabsTrigger>
+          <TabsTrigger value="skills">{t("workerDetail.skills")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sessions" className="mt-6">
@@ -205,6 +272,20 @@ export function WorkerDetail() {
                   )
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="skills" className="mt-6">
+          <Card>
+            <CardContent className="py-4 px-6">
+              {workerSkills.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t("skills.noSkills")}</p>
+              ) : (
+                workerSkills.map((skill) => (
+                  <WorkerSkillRow key={skill.name} skill={skill} workerId={id!} />
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>
