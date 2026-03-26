@@ -38,12 +38,12 @@ type SkillsConfig struct {
 
 // ScannedSkill represents one skill found during a directory scan.
 type ScannedSkill struct {
-	Name          string
-	Source        SkillSource
-	ActiveVersion string // set for managed skills; empty for external
-	IsOverride    bool   // true when a worker skill overrides a global one
-	Scope         string // "global" or worker ID
-	LinkTarget    string // resolved symlink target (empty if real directory)
+	Name          string      `json:"name"`
+	Source        SkillSource `json:"source"`
+	ActiveVersion string      `json:"active_version"`
+	IsOverride    bool        `json:"is_override"`
+	Scope         string      `json:"scope"`
+	LinkTarget    string      `json:"link_target"`
 }
 
 // now returns the current UTC time truncated to seconds.
