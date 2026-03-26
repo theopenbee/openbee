@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/theopenbee/openbee/internal/skill"
 )
 
 // listSkills GET /api/skills
@@ -55,7 +58,7 @@ func (s *Server) getSkill(c *gin.Context) {
 // deleteSkill DELETE /api/skills/:name
 func (s *Server) deleteSkill(c *gin.Context) {
 	if err := s.SkillManager.Delete(c.Param("name")); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -73,10 +76,14 @@ func (s *Server) createSkillVersion(c *gin.Context) {
 		return
 	}
 	if err := s.SkillManager.Edit(c.Param("name"), req.Content); err != nil {
+		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	cfg, err := s.SkillManager.LoadConfig()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	cfg, _ := s.SkillManager.LoadConfig()
 	entry := cfg.Skills[c.Param("name")]
 	c.JSON(http.StatusCreated, gin.H{"latest_version": entry.LatestVersion})
 }
@@ -93,7 +100,7 @@ func (s *Server) setGlobalVersion(c *gin.Context) {
 		return
 	}
 	if err := s.SkillManager.UseGlobal(c.Param("name"), req.Version); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"global_version": req.Version})
@@ -159,3 +166,10 @@ func (s *Server) deleteWorkerSkillOverride(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "override removed"})
 }
 
+// skillHTTPStatus returns 404 for skill-not-found errors, 500 otherwise.
+func skillHTTPStatus(err error) int {
+	if errors.Is(err, skill.ErrSkillNotFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
+}

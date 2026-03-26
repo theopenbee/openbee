@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 )
 
+// ErrSkillNotFound is returned when a requested skill does not exist.
+var ErrSkillNotFound = fmt.Errorf("skill not found")
+
 // Manager orchestrates all skill operations.
 type Manager struct {
 	store    *Store
@@ -66,7 +69,7 @@ func (m *Manager) Edit(name, content string) error {
 	}
 	entry, ok := cfg.Skills[name]
 	if !ok {
-		return fmt.Errorf("skill %q not found", name)
+		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 
 	versionDir, err := m.registry.CreateVersion(name, content)
@@ -89,7 +92,7 @@ func (m *Manager) UseGlobal(name, version string) error {
 	}
 	entry, ok := cfg.Skills[name]
 	if !ok {
-		return fmt.Errorf("skill %q not found", name)
+		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 	if _, ok := entry.Versions[version]; !ok {
 		return fmt.Errorf("version %q not found for skill %q", version, name)
@@ -150,7 +153,7 @@ func (m *Manager) Delete(name string) error {
 		return err
 	}
 	if _, ok := cfg.Skills[name]; !ok {
-		return fmt.Errorf("skill %q not found", name)
+		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 	// Check for worker references.
 	var refWorkers []string
@@ -181,7 +184,7 @@ func (m *Manager) Versions(name string) (map[string]VersionEntry, error) {
 	}
 	entry, ok := cfg.Skills[name]
 	if !ok {
-		return nil, fmt.Errorf("skill %q not found", name)
+		return nil, fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 	return entry.Versions, nil
 }
