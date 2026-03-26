@@ -45,3 +45,22 @@ export interface ChatMessage {
   content: string
   ts: number
 }
+
+export interface SkillVersion {
+  created_at: string
+}
+
+export interface SkillEntry {
+  description: string
+  latest_version: string
+  global_version: string
+  versions: Record<string, SkillVersion>
+}
+
+export interface ScannedSkill {
+  name: string
+  source: "managed" | "external"
+  active_version: string
+  is_override: boolean
+  scope: string
+}

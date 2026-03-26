@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage, SkillEntry, ScannedSkill } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -128,5 +128,43 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
+  },
+  skills: {
+    list: async () => {
+      const skills = await fetchAPI<ScannedSkill[] | null>("/skills")
+      return Array.isArray(skills) ? skills : []
+    },
+    get: (name: string) => fetchAPI<SkillEntry>(`/skills/${name}`),
+    create: (data: { name: string; description: string; content: string }) =>
+      fetchAPI<{ name: string; version: string }>("/skills", { method: "POST", body: JSON.stringify(data) }),
+    delete: (name: string) =>
+      fetchAPI(`/skills/${name}`, { method: "DELETE" }),
+    createVersion: (name: string, content: string) =>
+      fetchAPI<{ latest_version: string }>(`/skills/${name}/versions`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      }),
+    setGlobalVersion: (name: string, version: string) =>
+      fetchAPI(`/skills/${name}/global-version`, {
+        method: "PUT",
+        body: JSON.stringify({ version }),
+      }),
+    adopt: (name: string) =>
+      fetchAPI(`/skills/${name}/adopt`, { method: "POST" }),
+    getVersionContent: (name: string, version: string) =>
+      fetchAPI<{ content: string }>(`/skills/${name}/versions/${version}`),
+  },
+  workerSkills: {
+    list: async (workerId: string) => {
+      const skills = await fetchAPI<ScannedSkill[] | null>(`/workers/${workerId}/skills`)
+      return Array.isArray(skills) ? skills : []
+    },
+    setVersion: (workerId: string, name: string, version: string) =>
+      fetchAPI(`/workers/${workerId}/skills/${name}`, {
+        method: "PUT",
+        body: JSON.stringify({ version }),
+      }),
+    removeOverride: (workerId: string, name: string) =>
+      fetchAPI(`/workers/${workerId}/skills/${name}`, { method: "DELETE" }),
   },
 }
