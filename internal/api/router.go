@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/skill"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/worker"
 )
@@ -28,6 +29,7 @@ type ServerParams struct {
 	LocalChatHandler *LocalChatHandler
 	AuthHandler      *auth.AuthHandler
 	JWTMiddleware    gin.HandlerFunc
+	SkillManager     *skill.Manager
 }
 
 type Server struct {
@@ -63,6 +65,7 @@ func (s *Server) setupRoutes() error {
 		s.registerWorkerRoutes(api)
 		s.registerExecutionRoutes(api)
 		s.registerLocalChatRoutes(api)
+		s.registerSkillRoutes(api)
 	}
 
 	s.registerMCPRoutes()
@@ -100,6 +103,20 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 	api.GET("/local/sessions/:id/messages", s.LocalChatHandler.getMessages)
 	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
 	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
+}
+
+func (s *Server) registerSkillRoutes(api *gin.RouterGroup) {
+	api.GET("/skills", s.listSkills)
+	api.POST("/skills", s.createSkill)
+	api.GET("/skills/:name", s.getSkill)
+	api.DELETE("/skills/:name", s.deleteSkill)
+	api.POST("/skills/:name/versions", s.createSkillVersion)
+	api.PUT("/skills/:name/global-version", s.setGlobalVersion)
+	api.POST("/skills/:name/adopt", s.adoptSkill)
+
+	api.GET("/workers/:id/skills", s.listWorkerSkills)
+	api.PUT("/workers/:id/skills/:name", s.setWorkerSkillVersion)
+	api.DELETE("/workers/:id/skills/:name", s.deleteWorkerSkillOverride)
 }
 
 func (s *Server) registerMCPRoutes() {

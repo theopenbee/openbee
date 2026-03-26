@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
+	"github.com/theopenbee/openbee/internal/skill"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 	"github.com/theopenbee/openbee/internal/task_scheduler"
@@ -251,6 +253,10 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
 
+	home, _ := os.UserHomeDir()
+	globalSkillsDir := filepath.Join(home, ".claude", "skills")
+	skillMgr := skill.NewManager(filepath.Join(home, ".openbee"), globalSkillsDir)
+
 	return api.NewServer(api.ServerParams{
 		WorkerStore:      s.workerStore,
 		ExecutionStore:   s.execStore,
@@ -263,5 +269,6 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		LocalChatHandler: localChat,
 		AuthHandler:      authHandler,
 		JWTMiddleware:    jwtMiddleware,
+		SkillManager:     skillMgr,
 	})
 }
