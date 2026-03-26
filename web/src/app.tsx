@@ -14,6 +14,7 @@ const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ d
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const LocalChatDetail = lazy(() => import("@/pages/local-chat-detail").then(m => ({ default: m.LocalChatDetail })))
 const Skills = lazy(() => import("@/pages/skills").then(m => ({ default: m.Skills })))
+const SkillDetail = lazy(() => import("@/pages/skill-detail").then(m => ({ default: m.SkillDetail })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,7 @@ export function App() {
               <Route path="/local-chat" element={<LocalChat />} />
               <Route path="/local-chat/:id" element={<LocalChatDetail />} />
               <Route path="/skills" element={<Skills />} />
+              <Route path="/skills/:name" element={<SkillDetail />} />
             </Route>
           </Routes>
         </Suspense>
