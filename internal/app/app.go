@@ -103,7 +103,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	mgr := buildWorkerManager(cfg.Bee, s)
+	skillMgr := buildSkillManager()
+	mgr := buildWorkerManager(cfg.Bee, s, skillMgr)
 
 	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
 
@@ -161,7 +162,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler, skillMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -200,8 +201,16 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
+func buildSkillManager() *skill.Manager {
+	home, _ := os.UserHomeDir()
+	return skill.NewManager(
+		filepath.Join(home, ".openbee"),
+		filepath.Join(home, ".claude", "skills"),
+	)
+}
+
+func buildWorkerManager(bc config.BeeConfig, s appStores, sc worker.SkillCleaner) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, sc)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task_scheduler.Scheduler) {
@@ -245,17 +254,13 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, skillMgr *skill.Manager) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
 	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
-
-	home, _ := os.UserHomeDir()
-	globalSkillsDir := filepath.Join(home, ".claude", "skills")
-	skillMgr := skill.NewManager(filepath.Join(home, ".openbee"), globalSkillsDir)
 
 	return api.NewServer(api.ServerParams{
 		WorkerStore:      s.workerStore,

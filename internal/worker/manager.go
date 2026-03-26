@@ -22,6 +22,11 @@ import (
 
 var log = logger.With(zap.String("component", "worker"))
 
+// SkillCleaner is the subset of skill.Manager used by worker teardown.
+type SkillCleaner interface {
+	CleanupWorkerLinks(workerID, workDir string) error
+}
+
 type claudeStreamEvent struct {
 	Type    string         `json:"type"`
 	Message *claudeMessage `json:"message,omitempty"`
@@ -43,6 +48,7 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	invoker        *claude.Invoker
+	skillManager   SkillCleaner // nil if skill management not configured
 
 	activeProcesses map[string]*claude.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -53,6 +59,7 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
+	sc SkillCleaner,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
@@ -61,6 +68,7 @@ func NewManager(
 		executionStore:  es,
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL+config.MCPWorkerBasePath, bc.MCP.WorkerAPIKey),
 		activeProcesses: make(map[string]*claude.Process),
+		skillManager:    sc,
 	}
 }
 
@@ -222,15 +230,20 @@ func extractResultFromLog(logPath string) string {
 }
 
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
+	worker, err := m.workerStore.GetByID(id)
+	if err != nil {
+		return fmt.Errorf("get worker: %w", err)
+	}
 	if deleteWorkDir {
-		worker, err := m.workerStore.GetByID(id)
-		if err != nil {
-			return fmt.Errorf("get worker: %w", err)
-		}
 		if worker.WorkDir != "" {
 			if err := os.RemoveAll(worker.WorkDir); err != nil {
 				return fmt.Errorf("remove work dir: %w", err)
 			}
+		}
+	} else if worker.WorkDir != "" && m.skillManager != nil {
+		// Clean up managed symlinks without deleting the workdir.
+		if err := m.skillManager.CleanupWorkerLinks(id, worker.WorkDir); err != nil {
+			log.Warn("cleanup worker skill links", zap.Error(err))
 		}
 	}
 	return m.workerStore.Delete(id)
