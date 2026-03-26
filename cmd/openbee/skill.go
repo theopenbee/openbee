@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -108,7 +111,7 @@ var skillEditCmd = &cobra.Command{
 		newCfg, _ := m.LoadConfig()
 		fmt.Printf("Skill %q saved as %s. Global still uses %s.\n",
 			name, newCfg.Skills[name].LatestVersion, newCfg.Skills[name].GlobalVersion)
-		fmt.Printf("To promote: openbee skill use %s %s\n", name, newCfg.Skills[name].LatestVersion)
+		fmt.Printf("To promote: openbee skill use %s %s --global\n", name, newCfg.Skills[name].LatestVersion)
 		return nil
 	},
 }
@@ -139,7 +142,18 @@ var skillVersionsCmd = &cobra.Command{
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "VERSION\tCREATED AT")
-		for v, e := range versions {
+		// Collect and sort version keys numerically.
+		keys := make([]string, 0, len(versions))
+		for v := range versions {
+			keys = append(keys, v)
+		}
+		slices.SortFunc(keys, func(a, b string) int {
+			na, _ := strconv.Atoi(strings.TrimPrefix(a, "v"))
+			nb, _ := strconv.Atoi(strings.TrimPrefix(b, "v"))
+			return na - nb
+		})
+		for _, v := range keys {
+			e := versions[v]
 			fmt.Fprintf(w, "%s\t%s\n", v, e.CreatedAt.Format("2006-01-02 15:04:05"))
 		}
 		return w.Flush()
@@ -147,6 +161,7 @@ var skillVersionsCmd = &cobra.Command{
 }
 
 var skillUseWorker string
+var skillUseGlobal bool
 
 var skillUseCmd = &cobra.Command{
 	Use:   "use <name> <version>",
@@ -184,6 +199,7 @@ func init() {
 	skillCreateCmd.Flags().StringVar(&skillCreateDesc, "description", "", "Skill description")
 	skillCreateCmd.Flags().StringVar(&skillCreateContent, "content", "", "Initial SKILL.md content (default: generated template)")
 	skillUseCmd.Flags().StringVar(&skillUseWorker, "worker", "", "Worker ID for worker-scoped version switch")
+	skillUseCmd.Flags().BoolVar(&skillUseGlobal, "global", true, "Switch global version (default)")
 
 	skillCmd.AddCommand(skillListCmd)
 	skillCmd.AddCommand(skillCreateCmd)
