@@ -147,7 +147,6 @@ export function Skills() {
         ))}
       </div>
 
-      {/* Delete confirm dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
         <DialogContent>
           <DialogHeader>

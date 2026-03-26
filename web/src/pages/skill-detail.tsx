@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useSkill, useSkillVersionContent, useSetGlobalVersion } from "@/hooks/use-skills"
+import { sortVersionsDescending } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,11 +21,9 @@ export function SkillDetail() {
 
   if (isLoading || !skill) return <SkeletonPage />
 
-  const versions = Object.entries(skill.versions).sort((a, b) => {
-    const na = parseInt(a[0].replace("v", ""), 10)
-    const nb = parseInt(b[0].replace("v", ""), 10)
-    return nb - na
-  })
+  const versions = sortVersionsDescending(Object.keys(skill.versions)).map(
+    (v) => [v, skill.versions[v]] as const
+  )
 
   return (
     <FadeIn>
@@ -43,7 +42,6 @@ export function SkillDetail() {
       )}
 
       <div className="space-y-6">
-        {/* Current content */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">
@@ -62,7 +60,6 @@ export function SkillDetail() {
           </CardContent>
         </Card>
 
-        {/* Version history */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">{t("skills.versions")}</CardTitle>

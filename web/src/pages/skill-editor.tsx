@@ -31,7 +31,6 @@ export function SkillEditor() {
       className="-mx-6 -mt-8 flex flex-col border-t border-border"
       style={{ height: "calc(100vh - 64px)" }}
     >
-      {/* Header bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0">
         <h1 className="text-sm font-medium">
           {t("skills.editor.title", { name })}
@@ -50,7 +49,6 @@ export function SkillEditor() {
         <p className="text-destructive px-6 py-2 text-sm shrink-0">{createVersion.error.message}</p>
       )}
 
-      {/* Editor area */}
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}

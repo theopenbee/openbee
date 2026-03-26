@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { useWorkerSkills, useSkill, useSetWorkerSkillVersion, useRemoveWorkerOverride } from "@/hooks/use-skills"
+import { sortVersionsDescending } from "@/lib/utils"
 import type { ScannedSkill } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,11 +33,7 @@ function WorkerSkillRow({
   const setVersion = useSetWorkerSkillVersion(workerId)
   const removeOverride = useRemoveWorkerOverride(workerId)
 
-  const versions = skillEntry ? Object.keys(skillEntry.versions).sort((a, b) => {
-    const na = parseInt(a.replace("v", ""), 10)
-    const nb = parseInt(b.replace("v", ""), 10)
-    return nb - na
-  }) : []
+  const versions = skillEntry ? sortVersionsDescending(Object.keys(skillEntry.versions)) : []
 
   return (
     <div className="flex items-center justify-between py-3 border-b last:border-0">
