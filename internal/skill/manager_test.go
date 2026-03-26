@@ -150,6 +150,22 @@ func TestManager_CleanupWorkerLinks(t *testing.T) {
 	assert.False(t, hasOverrides)
 }
 
+func TestManager_CreateRejectsInvalidName(t *testing.T) {
+	m, _, _ := newTestManager(t)
+
+	err := m.Create("../evil", "Evil", "content")
+	assert.Error(t, err)
+
+	err = m.Create("skill/with/slash", "Bad", "content")
+	assert.Error(t, err)
+
+	err = m.Create("superpowers:brainstorm", "Valid with colon", "content")
+	assert.NoError(t, err)
+
+	err = m.Create("my-skill", "Valid with dash", "content")
+	assert.NoError(t, err)
+}
+
 func TestManager_Adopt(t *testing.T) {
 	m, stateDir, globalDir := newTestManager(t)
 

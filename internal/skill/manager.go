@@ -5,7 +5,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sync"
 )
+
+var validSkillName = regexp.MustCompile(`^[a-zA-Z0-9_:-]+$`)
+
+// validateName returns an error if name contains characters that are unsafe
+// for use as a filesystem directory name within the registry.
+func validateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("skill name cannot be empty")
+	}
+	if !validSkillName.MatchString(name) {
+		return fmt.Errorf("skill name %q contains invalid characters (allowed: a-z, A-Z, 0-9, _, :, -)", name)
+	}
+	return nil
+}
 
 // ErrSkillNotFound is returned when a requested skill does not exist.
 var ErrSkillNotFound = fmt.Errorf("skill not found")
@@ -16,6 +32,7 @@ type Manager struct {
 	registry *Registry
 	links    *LinkManager
 	scanner  *Scanner
+	mu       sync.Mutex
 }
 
 // NewManager creates a Manager.
@@ -38,6 +55,11 @@ func (m *Manager) LoadConfig() (SkillsConfig, error) {
 
 // Create creates a new managed skill at v1 and sets it as the global version.
 func (m *Manager) Create(name, description, content string) error {
+	if err := validateName(name); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -63,6 +85,8 @@ func (m *Manager) Create(name, description, content string) error {
 
 // Edit saves new content as the next version. Does NOT update global_version.
 func (m *Manager) Edit(name, content string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -86,6 +110,8 @@ func (m *Manager) Edit(name, content string) error {
 
 // UseGlobal switches the global symlink to the given version.
 func (m *Manager) UseGlobal(name, version string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -107,6 +133,8 @@ func (m *Manager) UseGlobal(name, version string) error {
 
 // UseWorker sets a worker-scoped version override.
 func (m *Manager) UseWorker(workerID, workDir, name, version string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -130,6 +158,8 @@ func (m *Manager) UseWorker(workerID, workDir, name, version string) error {
 
 // RemoveWorkerOverride removes a worker-scoped version override (reverts to global).
 func (m *Manager) RemoveWorkerOverride(workerID, workDir, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -148,6 +178,8 @@ func (m *Manager) RemoveWorkerOverride(workerID, workDir, name string) error {
 
 // Delete removes a skill entirely. Fails if any worker has an override referencing it.
 func (m *Manager) Delete(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -201,6 +233,8 @@ func (m *Manager) ListWorker(workerID, workDir string) ([]ScannedSkill, error) {
 
 // AdoptGlobal converts an externally-placed global skill into an openbee-managed one.
 func (m *Manager) AdoptGlobal(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.adopt(name, m.links.globalSkillsDir, func(version string) error {
 		return m.links.SetGlobal(name, version)
 	}, func(cfg *SkillsConfig, entry SkillEntry) {
@@ -210,6 +244,8 @@ func (m *Manager) AdoptGlobal(name string) error {
 
 // AdoptWorker converts an externally-placed worker skill into an openbee-managed one.
 func (m *Manager) AdoptWorker(workerID, workDir, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	skillsDir := filepath.Join(workDir, ".claude", "skills")
 	return m.adopt(name, skillsDir, func(version string) error {
 		return m.links.SetWorker(workDir, name, version)
@@ -225,6 +261,8 @@ func (m *Manager) AdoptWorker(workerID, workDir, name string) error {
 // CleanupWorkerLinks removes all openbee-managed symlinks from a worker's skill dir.
 // Called during worker deletion when deleteWorkDir is false.
 func (m *Manager) CleanupWorkerLinks(workerID, workDir string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
 		return err
@@ -238,6 +276,9 @@ func (m *Manager) CleanupWorkerLinks(workerID, workDir string) error {
 
 // adopt is the shared logic for AdoptGlobal and AdoptWorker.
 func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, updateCfg func(*SkillsConfig, SkillEntry)) error {
+	if err := validateName(name); err != nil {
+		return err
+	}
 	target := filepath.Join(skillsDir, name)
 	info, err := os.Lstat(target)
 	if err != nil {
@@ -283,20 +324,26 @@ func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, upda
 		_ = os.Rename(backup, target)
 		return fmt.Errorf("set link: %w", err)
 	}
-	// Symlink created successfully — remove backup.
-	if err := os.RemoveAll(backup); err != nil {
-		// Non-fatal: backup can be cleaned up manually.
-		_ = err
-	}
-
-	// Update state.
+	// setLink succeeded — now persist state.
 	cfg, err := m.store.Load()
 	if err != nil {
+		// Restore backup.
+		_ = os.Rename(backup, target)
 		return err
 	}
 	entry := newSkillEntry("", version, version)
 	updateCfg(&cfg, entry)
-	return m.store.Save(cfg)
+	if err := m.store.Save(cfg); err != nil {
+		// Restore backup.
+		_ = os.Rename(backup, target)
+		return err
+	}
+	// All succeeded — remove backup.
+	if err := os.RemoveAll(backup); err != nil {
+		// Non-fatal: backup can be cleaned up manually.
+		_ = err
+	}
+	return nil
 }
 
 // --- helpers ---
