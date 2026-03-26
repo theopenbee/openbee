@@ -2,10 +2,10 @@
 package claude
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -76,9 +76,10 @@ func (p *Process) Stop() error {
 	return nil
 }
 
-// Run starts a Claude CLI process and returns a Process handle and an output channel.
-// The channel is closed after the process exits; the last message is OutputDone or OutputError.
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions) (*Process, <-chan Output, error) {
+// Run starts a Claude CLI process, redirecting its stdout and stderr to logPath.
+// The returned channel carries only lifecycle events: OutputDone on success,
+// OutputError on failure. The channel is closed after the process exits.
+func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
 	mcpConfig := fmt.Sprintf(
 		`{"mcpServers":{"openbee":{"type":"sse","url":%q}}}`,
 		inv.mcpURL+"?api_key="+url.QueryEscape(inv.apiKey),
@@ -98,51 +99,28 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	}
 	args = append(args, "--print")
 
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open log file: %w", err)
+	}
+
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stdin = strings.NewReader(prompt)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("stderr pipe: %w", err)
-	}
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 
 	if err := cmd.Start(); err != nil {
+		logFile.Close()
 		return nil, nil, fmt.Errorf("start claude: %w", err)
 	}
 
 	proc := &Process{cmd: cmd}
-	ch := make(chan Output, 100)
+	ch := make(chan Output, 1)
 
 	go func() {
 		defer close(ch)
-
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			scanner := bufio.NewScanner(stdout)
-			scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-			for scanner.Scan() {
-				ch <- Output{Type: OutputStdout, Content: scanner.Text()}
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			scanner := bufio.NewScanner(stderr)
-			scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-			for scanner.Scan() {
-				ch <- Output{Type: OutputStderr, Content: scanner.Text()}
-			}
-		}()
-
-		wg.Wait()
+		defer logFile.Close()
 
 		if err := cmd.Wait(); err != nil {
 			ch <- Output{Type: OutputError, Content: err.Error()}

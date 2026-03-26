@@ -3,6 +3,8 @@ package claude
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,12 +23,13 @@ func TestNewInvoker(t *testing.T) {
 	}
 }
 
-func TestInvoker_Run_WithEcho(t *testing.T) {
+func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
 	inv := NewInvoker("echo", "", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	proc, ch, err := inv.Run(ctx, t.TempDir(), "hello", RunOptions{})
+	logPath := filepath.Join(t.TempDir(), "test.log")
+	proc, ch, err := inv.Run(ctx, t.TempDir(), "hello", RunOptions{}, logPath)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -34,21 +37,22 @@ func TestInvoker_Run_WithEcho(t *testing.T) {
 		t.Error("expected non-zero PID")
 	}
 
-	var gotStdout bool
 	var gotDone bool
 	for out := range ch {
-		switch out.Type {
-		case OutputStdout:
-			gotStdout = true
-		case OutputDone:
+		if out.Type == OutputDone {
 			gotDone = true
 		}
 	}
-	if !gotStdout {
-		t.Error("expected stdout output")
-	}
 	if !gotDone {
 		t.Error("expected done signal")
+	}
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("expected non-empty log file after echo")
 	}
 }
 
@@ -56,28 +60,26 @@ func TestInvoker_Run_SessionFlags(t *testing.T) {
 	inv := NewInvoker("echo", "", "")
 	ctx := context.Background()
 
-	// Test --session-id
-	_, ch, _ := inv.Run(ctx, t.TempDir(), "test", RunOptions{SessionID: "s1"})
-	var output string
-	for out := range ch {
-		if out.Type == OutputStdout {
-			output += out.Content
-		}
+	// Test --session-id flag written to log file
+	logPath1 := filepath.Join(t.TempDir(), "s1.log")
+	_, ch, _ := inv.Run(ctx, t.TempDir(), "test", RunOptions{SessionID: "s1"}, logPath1)
+	for range ch {
 	}
+	data, _ := os.ReadFile(logPath1)
+	output := string(data)
 	if !strings.Contains(output, "--session-id") || !strings.Contains(output, "s1") {
-		t.Errorf("expected --session-id s1 in output, got: %s", output)
+		t.Errorf("expected --session-id s1 in log file, got: %s", output)
 	}
 
-	// Test --resume
-	_, ch2, _ := inv.Run(ctx, t.TempDir(), "test", RunOptions{SessionID: "s2", Resume: true})
-	var output2 string
-	for out := range ch2 {
-		if out.Type == OutputStdout {
-			output2 += out.Content
-		}
+	// Test --resume flag written to log file
+	logPath2 := filepath.Join(t.TempDir(), "s2.log")
+	_, ch2, _ := inv.Run(ctx, t.TempDir(), "test", RunOptions{SessionID: "s2", Resume: true}, logPath2)
+	for range ch2 {
 	}
+	data2, _ := os.ReadFile(logPath2)
+	output2 := string(data2)
 	if !strings.Contains(output2, "--resume") || !strings.Contains(output2, "s2") {
-		t.Errorf("expected --resume s2 in output, got: %s", output2)
+		t.Errorf("expected --resume s2 in log file, got: %s", output2)
 	}
 }
 
@@ -85,7 +87,8 @@ func TestProcess_Stop(t *testing.T) {
 	inv := NewInvoker("sleep", "", "")
 	ctx := context.Background()
 
-	proc, ch, err := inv.Run(ctx, t.TempDir(), "60", RunOptions{})
+	logPath := filepath.Join(t.TempDir(), "stop.log")
+	proc, ch, err := inv.Run(ctx, t.TempDir(), "60", RunOptions{}, logPath)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -94,7 +97,7 @@ func TestProcess_Stop(t *testing.T) {
 		t.Fatalf("Stop: %v", err)
 	}
 
-	// Drain channel — should get an error since process was killed
+	// Drain channel — should get OutputError since process was killed
 	for range ch {
 	}
 }
@@ -103,11 +106,14 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 	inv := NewInvoker("echo", "", "")
 	ctx := context.Background()
 
-	proc1, ch1, err1 := inv.Run(ctx, t.TempDir(), "one", RunOptions{SessionID: "s1"})
+	logPath1 := filepath.Join(t.TempDir(), "one.log")
+	logPath2 := filepath.Join(t.TempDir(), "two.log")
+
+	proc1, ch1, err1 := inv.Run(ctx, t.TempDir(), "one", RunOptions{SessionID: "s1"}, logPath1)
 	if err1 != nil {
 		t.Fatalf("Run 1: %v", err1)
 	}
-	proc2, ch2, err2 := inv.Run(ctx, t.TempDir(), "two", RunOptions{SessionID: "s2"})
+	proc2, ch2, err2 := inv.Run(ctx, t.TempDir(), "two", RunOptions{SessionID: "s2"}, logPath2)
 	if err2 != nil {
 		t.Fatalf("Run 2: %v", err2)
 	}
