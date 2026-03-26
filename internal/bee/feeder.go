@@ -22,7 +22,7 @@ var log = logger.With(zap.String("component", "feeder"))
 
 // BeeRunner abstracts the bee process invocation (real or test double).
 type BeeRunner interface {
-	Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error)
+	Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error)
 }
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.

@@ -38,12 +38,7 @@ func WriteCLAUDEMD(workDir, persona string) error {
 	return os.WriteFile(path, []byte(persona), 0o644)
 }
 
-// Run spawns the bee process with the given prompt and returns a Process handle and output channel.
-// If sessionID is non-empty and resume is true, passes --resume <sessionID>.
-// If sessionID is non-empty and resume is false, passes --session-id <sessionID>.
-func (p *BeeProcess) Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error) {
-	return p.invoker.Run(ctx, workDir, prompt, claude.RunOptions{
-		SessionID: sessionID,
-		Resume:    resume,
-	})
+// Run spawns the bee process, redirecting output to logPath.
+func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
+	return p.invoker.Run(ctx, workDir, prompt, opts, logPath)
 }
