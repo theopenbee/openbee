@@ -33,6 +33,8 @@ func (s *Scanner) ScanGlobal() ([]ScannedSkill, error) {
 
 // ScanWorker scans {workDir}/.claude/skills and classifies each entry.
 // workerID is stored in ScannedSkill.Scope.
+// Note: ScannedSkill.IsOverride is not populated; callers must determine overrides
+// by comparing worker results against global skills.
 func (s *Scanner) ScanWorker(workerID, workDir string) ([]ScannedSkill, error) {
 	return s.scanDir(workerID, filepath.Join(workDir, ".claude", "skills"))
 }
@@ -60,10 +62,12 @@ func (s *Scanner) scanDir(scope, dir string) ([]ScannedSkill, error) {
 			if isManagedLink(link, s.registryRoot) {
 				sk.Source = SkillSourceManaged
 				// Extract version from target path: <registry>/<name>/<version>
-				rel, _ := filepath.Rel(filepath.Join(s.registryRoot, e.Name()), target)
-				parts := strings.Split(rel, string(filepath.Separator))
-				if len(parts) == 1 {
-					sk.ActiveVersion = parts[0]
+				rel, err := filepath.Rel(filepath.Join(s.registryRoot, e.Name()), target)
+				if err == nil && !strings.HasPrefix(rel, "..") {
+					parts := strings.Split(rel, string(filepath.Separator))
+					if len(parts) == 1 {
+						sk.ActiveVersion = parts[0]
+					}
 				}
 			} else {
 				sk.Source = SkillSourceExternal

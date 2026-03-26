@@ -72,3 +72,14 @@ func TestScanner_WorkerSkill(t *testing.T) {
 	assert.Equal(t, "v2", results[0].ActiveVersion)
 	assert.Equal(t, "worker1", results[0].Scope)
 }
+
+func TestScanner_MissingSkillsDir(t *testing.T) {
+	registryDir := t.TempDir()
+	globalSkillsDir := t.TempDir()
+	workDir := t.TempDir() // no .claude/skills created
+
+	sc := skill.NewScanner(registryDir, globalSkillsDir)
+	results, err := sc.ScanWorker("worker1", workDir)
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
