@@ -51,6 +51,10 @@ func now() time.Time {
 	return time.Now().UTC().Truncate(time.Second)
 }
 
+func newVersionEntry() VersionEntry {
+	return VersionEntry{CreatedAt: now()}
+}
+
 // CompareVersions compares vN version strings numerically (e.g. "v2" < "v10").
 func CompareVersions(a, b string) int {
 	na, _ := strconv.Atoi(strings.TrimPrefix(a, "v"))

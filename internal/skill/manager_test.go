@@ -21,7 +21,7 @@ func newTestManager(t *testing.T) (*skill.Manager, string, string) {
 func TestManager_CreateAndList(t *testing.T) {
 	m, _, globalDir := newTestManager(t)
 
-	err := m.Create("brainstorm", "Brainstorm discussions", "---\nname: brainstorm\n---\nThink!")
+	_, err := m.Create("brainstorm", "Brainstorm discussions", "---\nname: brainstorm\n---\nThink!")
 	require.NoError(t, err)
 
 	// Global symlink should exist.
@@ -39,9 +39,10 @@ func TestManager_CreateAndList(t *testing.T) {
 
 func TestManager_EditCreatesNewVersion(t *testing.T) {
 	m, stateDir, _ := newTestManager(t)
-	require.NoError(t, m.Create("commit", "Commit", "v1 content"))
+	_, err := m.Create("commit", "Commit", "v1 content")
+	require.NoError(t, err)
 
-	_, err := m.Edit("commit", "v2 content")
+	_, err = m.Edit("commit", "v2 content")
 	require.NoError(t, err)
 
 	// v2 should exist in registry.
@@ -57,8 +58,9 @@ func TestManager_EditCreatesNewVersion(t *testing.T) {
 
 func TestManager_UseGlobal(t *testing.T) {
 	m, _, globalDir := newTestManager(t)
-	require.NoError(t, m.Create("deploy", "Deploy", "deploy v1"))
-	_, err := m.Edit("deploy", "deploy v2")
+	_, err := m.Create("deploy", "Deploy", "deploy v1")
+	require.NoError(t, err)
+	_, err = m.Edit("deploy", "deploy v2")
 	require.NoError(t, err)
 
 	require.NoError(t, m.UseGlobal("deploy", "v2"))
@@ -76,8 +78,9 @@ func TestManager_UseWorker(t *testing.T) {
 	m, _, _ := newTestManager(t)
 	workDir := t.TempDir()
 
-	require.NoError(t, m.Create("review", "Review", "review v1"))
-	_, err := m.Edit("review", "review v2")
+	_, err := m.Create("review", "Review", "review v1")
+	require.NoError(t, err)
+	_, err = m.Edit("review", "review v2")
 	require.NoError(t, err)
 	require.NoError(t, m.UseWorker("worker1", workDir, "review", "v1"))
 
@@ -91,16 +94,18 @@ func TestManager_DeleteRefusedWithReferences(t *testing.T) {
 	m, _, _ := newTestManager(t)
 	workDir := t.TempDir()
 
-	require.NoError(t, m.Create("shared", "Shared", "content"))
+	_, err := m.Create("shared", "Shared", "content")
+	require.NoError(t, err)
 	require.NoError(t, m.UseWorker("worker1", workDir, "shared", "v1"))
 
-	err := m.Delete("shared")
+	err = m.Delete("shared")
 	assert.Error(t, err) // must refuse because worker1 references it
 }
 
 func TestManager_DeleteSucceeds(t *testing.T) {
 	m, _, globalDir := newTestManager(t)
-	require.NoError(t, m.Create("temp", "Temp", "content"))
+	_, err := m.Create("temp", "Temp", "content")
+	require.NoError(t, err)
 
 	require.NoError(t, m.Delete("temp"))
 
@@ -111,12 +116,13 @@ func TestManager_RemoveWorkerOverride(t *testing.T) {
 	m, _, _ := newTestManager(t)
 	workDir := t.TempDir()
 
-	require.NoError(t, m.Create("myskill", "MySkill", "content"))
+	_, err := m.Create("myskill", "MySkill", "content")
+	require.NoError(t, err)
 	require.NoError(t, m.UseWorker("worker1", workDir, "myskill", "v1"))
 
 	// Override exists — symlink in worker dir.
 	link := filepath.Join(workDir, ".claude", "skills", "myskill")
-	_, err := os.Lstat(link)
+	_, err = os.Lstat(link)
 	require.NoError(t, err)
 
 	require.NoError(t, m.RemoveWorkerOverride("worker1", workDir, "myskill"))
@@ -135,8 +141,10 @@ func TestManager_CleanupWorkerLinks(t *testing.T) {
 	m, _, _ := newTestManager(t)
 	workDir := t.TempDir()
 
-	require.NoError(t, m.Create("skill-a", "A", "content a"))
-	require.NoError(t, m.Create("skill-b", "B", "content b"))
+	_, err := m.Create("skill-a", "A", "content a")
+	require.NoError(t, err)
+	_, err = m.Create("skill-b", "B", "content b")
+	require.NoError(t, err)
 	require.NoError(t, m.UseWorker("worker1", workDir, "skill-a", "v1"))
 	require.NoError(t, m.UseWorker("worker1", workDir, "skill-b", "v1"))
 
@@ -156,16 +164,16 @@ func TestManager_CleanupWorkerLinks(t *testing.T) {
 func TestManager_CreateRejectsInvalidName(t *testing.T) {
 	m, _, _ := newTestManager(t)
 
-	err := m.Create("../evil", "Evil", "content")
+	_, err := m.Create("../evil", "Evil", "content")
 	assert.Error(t, err)
 
-	err = m.Create("skill/with/slash", "Bad", "content")
+	_, err = m.Create("skill/with/slash", "Bad", "content")
 	assert.Error(t, err)
 
-	err = m.Create("superpowers:brainstorm", "Valid with colon", "content")
+	_, err = m.Create("superpowers:brainstorm", "Valid with colon", "content")
 	assert.NoError(t, err)
 
-	err = m.Create("my-skill", "Valid with dash", "content")
+	_, err = m.Create("my-skill", "Valid with dash", "content")
 	assert.NoError(t, err)
 }
 
@@ -177,7 +185,8 @@ func TestManager_Adopt(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extSkill, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(extSkill, "SKILL.md"), []byte("legacy content"), 0o644))
 
-	require.NoError(t, m.AdoptGlobal("legacy"))
+	_, err := m.AdoptGlobal("legacy")
+	require.NoError(t, err)
 
 	// Original path should now be a symlink.
 	target, err := os.Readlink(filepath.Join(globalDir, "legacy"))

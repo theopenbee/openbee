@@ -61,10 +61,11 @@ var skillCreateCmd = &cobra.Command{
 			content = fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\n# %s\n", name, skillCreateDesc, name)
 		}
 		m := newSkillManager()
-		if err := m.Create(name, skillCreateDesc, content); err != nil {
+		version, err := m.Create(name, skillCreateDesc, content)
+		if err != nil {
 			return err
 		}
-		fmt.Printf("Skill %q created (v1).\n", name)
+		fmt.Printf("Skill %q created (%s).\n", name, version)
 		return nil
 	},
 }
@@ -172,10 +173,11 @@ var skillAdoptCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		m := newSkillManager()
-		if err := m.AdoptGlobal(args[0]); err != nil {
+		version, err := m.AdoptGlobal(args[0])
+		if err != nil {
 			return err
 		}
-		fmt.Printf("Skill %q is now managed by openbee (v1).\n", args[0])
+		fmt.Printf("Skill %q is now managed by openbee (%s).\n", args[0], version)
 		return nil
 	},
 }

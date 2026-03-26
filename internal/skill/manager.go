@@ -54,33 +54,34 @@ func (m *Manager) LoadConfig() (SkillsConfig, error) {
 }
 
 // Create creates a new managed skill at v1 and sets it as the global version.
-func (m *Manager) Create(name, description, content string) error {
+// Returns the created version ID.
+func (m *Manager) Create(name, description, content string) (string, error) {
 	if err := validateName(name); err != nil {
-		return err
+		return "", err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if _, exists := cfg.Skills[name]; exists {
-		return fmt.Errorf("skill %q already exists", name)
+		return "", fmt.Errorf("skill %q already exists", name)
 	}
 
 	versionDir, err := m.registry.CreateVersion(name, content)
 	if err != nil {
-		return fmt.Errorf("create version: %w", err)
+		return "", fmt.Errorf("create version: %w", err)
 	}
 	version := filepath.Base(versionDir)
 
 	if err := m.links.SetGlobal(name, version); err != nil {
-		return fmt.Errorf("set global link: %w", err)
+		return "", fmt.Errorf("set global link: %w", err)
 	}
 
 	entry := newSkillEntry(description, version, version)
 	cfg.Skills[name] = entry
-	return m.store.Save(cfg)
+	return version, m.store.Save(cfg)
 }
 
 // Edit saves new content as the next version. Does NOT update global_version.
@@ -104,7 +105,7 @@ func (m *Manager) Edit(name, content string) (string, error) {
 	version := filepath.Base(versionDir)
 
 	entry.LatestVersion = version
-	entry.Versions[version] = VersionEntry{CreatedAt: now()}
+	entry.Versions[version] = newVersionEntry()
 	cfg.Skills[name] = entry
 	return version, m.store.Save(cfg)
 }
@@ -193,7 +194,6 @@ func (m *Manager) Delete(name string) error {
 	if _, ok := cfg.Skills[name]; !ok {
 		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
-	// Check for worker references.
 	var refWorkers []string
 	for wid, overrides := range cfg.WorkerOverrides {
 		if _, ok := overrides[name]; ok {
@@ -238,7 +238,8 @@ func (m *Manager) ListWorker(workerID, workDir string) ([]ScannedSkill, error) {
 }
 
 // AdoptGlobal converts an externally-placed global skill into an openbee-managed one.
-func (m *Manager) AdoptGlobal(name string) error {
+// Returns the created version ID.
+func (m *Manager) AdoptGlobal(name string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.adopt(name, m.links.globalSkillsDir, func(version string) error {
@@ -249,7 +250,8 @@ func (m *Manager) AdoptGlobal(name string) error {
 }
 
 // AdoptWorker converts an externally-placed worker skill into an openbee-managed one.
-func (m *Manager) AdoptWorker(workerID, workDir, name string) error {
+// Returns the created version ID.
+func (m *Manager) AdoptWorker(workerID, workDir, name string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	skillsDir := filepath.Join(workDir, ".claude", "skills")
@@ -281,75 +283,73 @@ func (m *Manager) CleanupWorkerLinks(workerID, workDir string) error {
 }
 
 // adopt is the shared logic for AdoptGlobal and AdoptWorker.
-func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, updateCfg func(*SkillsConfig, SkillEntry)) error {
+// Returns the created version ID.
+func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, updateCfg func(*SkillsConfig, SkillEntry)) (string, error) {
 	if err := validateName(name); err != nil {
-		return err
+		return "", err
 	}
 	cfg, err := m.store.Load()
 	if err != nil {
-		return err
+		return "", err
 	}
 	target := filepath.Join(skillsDir, name)
 	info, err := os.Lstat(target)
 	if err != nil {
-		return fmt.Errorf("skill %q not found at %s: %w", name, skillsDir, err)
+		return "", fmt.Errorf("skill %q not found at %s: %w", name, skillsDir, err)
 	}
 
-	// Resolve real content path.
 	var contentDir string
 	if info.Mode()&os.ModeSymlink != 0 {
-		resolved, err := filepath.EvalSymlinks(target)
+		rawTarget, err := os.Readlink(target)
 		if err != nil {
-			return fmt.Errorf("resolve symlink: %w", err)
+			return "", fmt.Errorf("resolve symlink: %w", err)
 		}
 		// If it already points into our registry, it's already managed.
-		if isManagedLink(target, m.registry.root) {
-			return fmt.Errorf("skill %q is already managed by openbee", name)
+		if isManagedTarget(rawTarget, m.registry.root) {
+			return "", fmt.Errorf("skill %q is already managed by openbee", name)
+		}
+		resolved, err := filepath.EvalSymlinks(target)
+		if err != nil {
+			return "", fmt.Errorf("resolve symlink: %w", err)
 		}
 		contentDir = resolved
 	} else {
 		contentDir = target
 	}
 
-	// Read SKILL.md.
 	content, err := os.ReadFile(filepath.Join(contentDir, "SKILL.md"))
 	if err != nil {
-		return fmt.Errorf("read SKILL.md: %w", err)
+		return "", fmt.Errorf("read SKILL.md: %w", err)
 	}
 
-	// Write to registry as v1.
 	versionDir, err := m.registry.CreateVersion(name, string(content))
 	if err != nil {
-		return fmt.Errorf("create registry version: %w", err)
+		return "", fmt.Errorf("create registry version: %w", err)
 	}
 	version := filepath.Base(versionDir)
 
-	// Move original aside (backup) before replacing with symlink.
 	backup := target + ".backup"
 	if err := os.Rename(target, backup); err != nil {
-		return fmt.Errorf("backup original: %w", err)
+		return "", fmt.Errorf("backup original: %w", err)
 	}
 	if err := setLink(version); err != nil {
 		// Restore backup on failure.
 		_ = os.Rename(backup, target)
-		return fmt.Errorf("set link: %w", err)
+		return "", fmt.Errorf("set link: %w", err)
 	}
 	entry := newSkillEntry("", version, version)
 	updateCfg(&cfg, entry)
 	if err := m.store.Save(cfg); err != nil {
 		// Restore backup.
 		_ = os.Rename(backup, target)
-		return err
+		return "", err
 	}
-	// All succeeded — remove backup.
 	if err := os.RemoveAll(backup); err != nil {
 		// Non-fatal: backup can be cleaned up manually.
-		_ = err
+		fmt.Fprintf(os.Stderr, "warning: could not remove backup %s: %v\n", backup, err)
 	}
-	return nil
+	return version, nil
 }
-
-// --- helpers ---
 
 func newSkillEntry(description, latestVersion, globalVersion string) SkillEntry {
 	return SkillEntry{
@@ -357,7 +357,7 @@ func newSkillEntry(description, latestVersion, globalVersion string) SkillEntry 
 		LatestVersion: latestVersion,
 		GlobalVersion: globalVersion,
 		Versions: map[string]VersionEntry{
-			latestVersion: {CreatedAt: now()},
+			latestVersion: newVersionEntry(),
 		},
 	}
 }

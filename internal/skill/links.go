@@ -76,6 +76,9 @@ func (lm *LinkManager) RemoveAllWorkerLinks(workDir string) error {
 		return err
 	}
 	for _, e := range entries {
+		if e.Type()&os.ModeSymlink == 0 {
+			continue
+		}
 		link := filepath.Join(skillsDir, e.Name())
 		if isManagedLink(link, lm.registryRoot) {
 			if err := removeLink(link); err != nil {

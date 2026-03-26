@@ -30,11 +30,12 @@ func (s *Server) createSkill(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := s.SkillManager.Create(req.Name, req.Description, req.Content); err != nil {
+	version, err := s.SkillManager.Create(req.Name, req.Description, req.Content)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"name": req.Name, "version": "v1"})
+	c.JSON(http.StatusCreated, gin.H{"name": req.Name, "version": version})
 }
 
 func (s *Server) getSkill(c *gin.Context) {
@@ -96,15 +97,14 @@ func (s *Server) setGlobalVersion(c *gin.Context) {
 }
 
 func (s *Server) adoptSkill(c *gin.Context) {
-	if err := s.SkillManager.AdoptGlobal(c.Param("name")); err != nil {
+	version, err := s.SkillManager.AdoptGlobal(c.Param("name"))
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "adopted", "version": "v1"})
+	c.JSON(http.StatusOK, gin.H{"status": "adopted", "version": version})
 }
 
-// resolveWorkerDir looks up a worker by ID and writes a 404 on failure.
-// Returns (workDir, true) on success, ("", false) if the handler should stop.
 func (s *Server) resolveWorkerDir(c *gin.Context, workerID string) (string, bool) {
 	w, err := s.WorkerStore.GetByID(workerID)
 	if err != nil {
