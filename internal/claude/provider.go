@@ -26,7 +26,10 @@ const (
 	ProviderCustom     = "Custom provider"
 )
 
-func handleSurveyErr(err error) error {
+// HandleSurveyErr converts a survey interrupt into ErrInterrupted and passes
+// other errors through unchanged. It is exported so that cmd-layer code can
+// share the same sentinel error without duplicating the check.
+func HandleSurveyErr(err error) error {
 	if errors.Is(err, terminal.InterruptErr) {
 		fmt.Println("\nCancelled.")
 		return ErrInterrupted
@@ -39,7 +42,7 @@ func promptAPIKey(message string) (string, error) {
 	if err := survey.AskOne(&survey.Input{
 		Message: message,
 	}, &apiKey, survey.WithValidator(survey.Required)); err != nil {
-		return "", handleSurveyErr(err)
+		return "", HandleSurveyErr(err)
 	}
 	return apiKey, nil
 }
@@ -205,7 +208,7 @@ func ConfigureProvider() error {
 			Message: "Found ~/.claude/settings.json, skip model provider setup?",
 			Default: true,
 		}, &skip); err != nil {
-			return handleSurveyErr(err)
+			return HandleSurveyErr(err)
 		}
 		if skip {
 			return nil
@@ -227,7 +230,7 @@ func ConfigureProvider() error {
 		Message: "Select model provider:",
 		Options: providerOptions,
 	}, &provider); err != nil {
-		return handleSurveyErr(err)
+		return HandleSurveyErr(err)
 	}
 
 	var env map[string]string
@@ -275,7 +278,7 @@ func ConfigureProvider() error {
 			Options: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
 			Default: "qwen3.5-plus",
 		}, &model); err != nil {
-			return handleSurveyErr(err)
+			return HandleSurveyErr(err)
 		}
 		env = aliyunEnv(apiKey, model)
 
@@ -299,7 +302,7 @@ func ConfigureProvider() error {
 			},
 			Default: "doubao-seed-2.0-code",
 		}, &model); err != nil {
-			return handleSurveyErr(err)
+			return HandleSurveyErr(err)
 		}
 		env = volcengineEnv(apiKey, model)
 		needClaudeJSON = true
@@ -324,7 +327,7 @@ func ConfigureProvider() error {
 			},
 			Default: "tc-code-latest（auto）",
 		}, &model); err != nil {
-			return handleSurveyErr(err)
+			return HandleSurveyErr(err)
 		}
 		env = tencentEnv(apiKey, model)
 		needClaudeJSON = true

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -81,9 +80,6 @@ func promptClaudeManualPath(vals *configValues) error {
 
 func configureClaudeProvider(_ *configValues) error {
 	if err := claude.ConfigureProvider(); err != nil {
-		if errors.Is(err, claude.ErrInterrupted) {
-			return errInterrupted
-		}
 		return err
 	}
 	return nil
