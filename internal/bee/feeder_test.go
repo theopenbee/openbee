@@ -264,7 +264,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	if e.workerID != nil {
 		t.Errorf("expected nil worker_id for bee execution, got %v", e.workerID)
 	}
-	if e.status != "completed" {
+	if e.status != string(model.ExecStatusCompleted) {
 		t.Errorf("expected status=completed, got %q", e.status)
 	}
 	if e.logPath == "" {
@@ -401,5 +401,3 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 }
 
-// Suppress unused import of model package — used by TestFeeder_CreatesExecutionOnBeeRun
-var _ = model.ExecStatusCompleted
