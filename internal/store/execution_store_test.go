@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -178,68 +179,6 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 	}
 }
 
-func TestExecutionStore_WriteLog(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	logsDir := t.TempDir()
-	es := NewExecutionStore(db, logsDir)
-
-	exec, _ := es.CreateBeeExecution("session1", "test prompt")
-
-	content := "line1\nline2\nline3"
-	logPath, err := es.WriteLog(exec.ID, exec.StartedAt, content)
-	if err != nil {
-		t.Fatalf("WriteLog: %v", err)
-	}
-	if logPath == "" {
-		t.Fatal("expected non-empty logPath")
-	}
-
-	// File must exist and contain the content
-	got, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log file: %v", err)
-	}
-	if string(got) != content {
-		t.Errorf("expected %q, got %q", content, string(got))
-	}
-
-	// DB must have log_path set
-	updated, err := es.GetByID(exec.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.LogPath != logPath {
-		t.Errorf("expected LogPath %q, got %q", logPath, updated.LogPath)
-	}
-}
-
-func TestExecutionStore_WriteLog_NilStartedAt(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	logsDir := t.TempDir()
-	es := NewExecutionStore(db, logsDir)
-
-	exec, _ := es.CreateBeeExecution("session2", "test")
-
-	// Pass nil startedAt — must not panic, must write file
-	logPath, err := es.WriteLog(exec.ID, nil, "content")
-	if err != nil {
-		t.Fatalf("WriteLog with nil startedAt: %v", err)
-	}
-	if logPath == "" {
-		t.Fatal("expected non-empty logPath")
-	}
-}
-
 func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -274,5 +213,40 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	}
 	if got.SessionID != sessionID {
 		t.Errorf("expected session_id %s, got %s", sessionID, got.SessionID)
+	}
+}
+
+func TestExecutionStore_PrepareLogPath(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	logsDir := t.TempDir()
+	es := NewExecutionStore(db, logsDir)
+
+	exec, _ := es.CreateBeeExecution("session1", "test prompt")
+
+	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
+	if err != nil {
+		t.Fatalf("PrepareLogPath: %v", err)
+	}
+	if logPath == "" {
+		t.Fatal("expected non-empty logPath")
+	}
+
+	// Directory must exist
+	if _, err := os.Stat(filepath.Dir(logPath)); err != nil {
+		t.Errorf("log directory should exist: %v", err)
+	}
+
+	// DB must have log_path set
+	got, err := es.GetByID(exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LogPath != logPath {
+		t.Errorf("DB log_path mismatch: want %q got %q", logPath, got.LogPath)
 	}
 }

@@ -199,8 +199,8 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
-// ReadLog returns the log content for an execution, reading from its log file.
-// Returns an empty string (no error) when no log has been written yet.
+// ReadLog returns the log content for an execution.
+// Returns empty string (no error) when no log path is set or the file does not yet exist.
 func (s *ExecutionStore) ReadLog(id string) (string, error) {
 	row := s.db.QueryRow(`SELECT log_path FROM bee_executions WHERE id = ?`, id)
 	var logPath string
@@ -212,14 +212,19 @@ func (s *ExecutionStore) ReadLog(id string) (string, error) {
 	}
 	b, err := os.ReadFile(logPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
 		return "", fmt.Errorf("read log file: %w", err)
 	}
 	return string(b), nil
 }
 
-// WriteLog writes content to a date-partitioned log file and records the path in the DB.
-// startedAt is used to determine the date directory; falls back to time.Now() if nil.
-func (s *ExecutionStore) WriteLog(id string, startedAt *int64, content string) (string, error) {
+// PrepareLogPath creates the date-partitioned log directory, records the log path in
+// the DB, and returns the path. Must be called before launching the process so that
+// the invoker can redirect stdout/stderr to the file.
+// startedAt is used for date partitioning; falls back to time.Now() if nil.
+func (s *ExecutionStore) PrepareLogPath(id string, startedAt *int64) (string, error) {
 	var t time.Time
 	if startedAt != nil {
 		t = time.UnixMilli(*startedAt)
@@ -231,11 +236,8 @@ func (s *ExecutionStore) WriteLog(id string, startedAt *int64, content string) (
 		return "", fmt.Errorf("create log dir: %w", err)
 	}
 	logPath := filepath.Join(dateDir, id+".log")
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		return "", fmt.Errorf("write log file: %w", err)
-	}
 	if _, err := s.db.Exec(`UPDATE bee_executions SET log_path=? WHERE id=?`, logPath, id); err != nil {
-		return "", fmt.Errorf("update log_path: %w", err)
+		return "", fmt.Errorf("set log_path: %w", err)
 	}
 	return logPath, nil
 }
