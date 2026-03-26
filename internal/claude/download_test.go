@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -185,5 +184,3 @@ func TestDetectPlatform(t *testing.T) {
 	}
 }
 
-// Ensure TestFetchLatestClaudeVersion uses json import
-var _ = json.Marshal

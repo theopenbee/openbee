@@ -339,6 +339,8 @@ func ConfigureProvider() error {
 			return err
 		}
 		env = customEnv(baseURL, apiKey)
+	default:
+		return fmt.Errorf("unknown provider: %s", provider)
 	}
 
 	if err := mergeClaudeSettings(settingsPath, env); err != nil {

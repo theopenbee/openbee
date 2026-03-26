@@ -200,8 +200,10 @@ func Download(stateDir string, force bool) (string, error) {
 	fmt.Printf("Downloading Claude %s (%s)...\n", version, platformStr)
 
 	tmpPath := destPath + ".tmp"
+	os.Remove(tmpPath) // clean up any stale partial download from a previous interrupted run
 	h := sha256.New()
 	if err := downloadFile(binaryURL, tmpPath, h); err != nil {
+		os.Remove(tmpPath)
 		return "", fmt.Errorf("download: %w", err)
 	}
 
@@ -209,6 +211,7 @@ func Download(stateDir string, force bool) (string, error) {
 		fmt.Println("Verifying SHA256...")
 		data, err := os.ReadFile(checksumPath)
 		if err != nil {
+			os.Remove(tmpPath)
 			return "", fmt.Errorf("read checksums: %w", err)
 		}
 		var expected string
