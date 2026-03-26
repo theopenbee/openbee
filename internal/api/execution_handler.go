@@ -86,19 +86,11 @@ func (s *Server) listSessionExecutions(c *gin.Context) {
 }
 
 func (s *Server) getExecutionLogs(c *gin.Context) {
-	id := c.Param("id")
-
-	if content, ok := s.LogRegistry.Get(id); ok {
-		c.String(http.StatusOK, content)
-		return
-	}
-
-	content, err := s.ExecutionStore.ReadLog(id)
+	content, err := s.ExecutionStore.ReadLog(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// Only cache non-empty logs — an empty body means the file isn't written yet.
 	if content != "" {
 		c.Header("Cache-Control", "public, max-age=3600")
 	}

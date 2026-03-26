@@ -101,7 +101,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	logRegistry := worker.NewActiveLogRegistry()
 	mgr := buildWorkerManager(cfg.Bee, s)
 
 	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
@@ -160,7 +159,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, logRegistry, beeMCPSrv, workerMCPSrv, localChatHandler)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -244,7 +243,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, logRegistry *worker.ActiveLogRegistry, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
@@ -256,7 +255,6 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		WorkerStore:      s.workerStore,
 		ExecutionStore:   s.execStore,
 		Manager:          mgr,
-		LogRegistry:      logRegistry,
 		BeeMCPServer:     beeMCPSrv,
 		WorkerMCPServer:  workerMCPSrv,
 		BeeAPIKey:        mcpCfg.APIKey,
