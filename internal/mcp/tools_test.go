@@ -34,7 +34,6 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
-		worker.NewActiveLogRegistry(),
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db))
@@ -214,7 +213,6 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
-		worker.NewActiveLogRegistry(),
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db)), db
@@ -455,7 +453,6 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
-		worker.NewActiveLogRegistry(),
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}

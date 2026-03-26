@@ -14,7 +14,6 @@ import (
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
-	"github.com/theopenbee/openbee/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -22,11 +21,10 @@ var log = logger.With(zap.String("component", "feeder"))
 
 // BeeRunner abstracts the bee process invocation (real or test double).
 type BeeRunner interface {
-	Run(ctx context.Context, workDir, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error)
+	Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error)
 }
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
-// Mirrors task_dispatcher.FailureNotifier; kept local to avoid an import cycle.
 type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID, reason string) error
 }
@@ -39,11 +37,6 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-// WithLogRegistry injects a shared log registry so bee executions provide live logs.
-func WithLogRegistry(r *worker.ActiveLogRegistry) Option {
-	return func(f *Feeder) { f.logRegistry = r }
-}
-
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -54,7 +47,6 @@ type Feeder struct {
 	workDir         string
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
-	logRegistry     *worker.ActiveLogRegistry // nil if not configured
 }
 
 // NewFeeder creates a Feeder.
@@ -76,7 +68,6 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 
 // RecoverFeeding resets any messages stuck in 'feeding' status back to 'received'
 // and deletes their associated pending tasks.
-// Must be called synchronously at startup BEFORE TaskScheduler.RecoverRunning.
 func (f *Feeder) RecoverFeeding(ctx context.Context) {
 	ids, err := f.msgStore.ResetFeedingToReceived(ctx)
 	if err != nil {
@@ -128,7 +119,6 @@ func (f *Feeder) tick(ctx context.Context) {
 	}
 	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
 		log.Error("ensure system rules", zap.Error(err))
-		// non-fatal: continue even if system rules update fails
 	}
 
 	groups := make(map[string][]store.ClaimedMessage)
@@ -149,7 +139,6 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
-	// Look up existing session for this sessionKey
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -173,53 +162,49 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	prompt := buildPrompt(msgs)
+
+	// Create execution record first — we need exec.ID before launching the process
+	// so we can prepare the log path (which is based on the ID).
+	exec, err := f.execStore.CreateBeeExecution(sessionID, prompt)
+	if err != nil {
+		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(err))
+		f.rollback(ctx, msgs, "内部错误：无法创建执行记录")
+		return
+	}
+
+	logPath, err := f.execStore.PrepareLogPath(exec.ID, exec.StartedAt)
+	if err != nil {
+		log.Error("prepare log path", zap.String("execID", exec.ID), zap.Error(err))
+		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		f.rollback(ctx, msgs, "内部错误：无法创建日志文件")
+		return
+	}
+
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()
 
-	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, sessionID, resume)
+	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, claude.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
+		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		f.rollback(ctx, msgs, "AI 处理失败，请稍后重试")
 		return
 	}
 
-	// Create execution record only after process starts successfully.
-	exec, execErr := f.execStore.CreateBeeExecution(sessionID, prompt)
-	if execErr != nil {
-		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(execErr))
-		// non-fatal: continue without execution tracking
-	}
-	if execErr == nil && proc != nil {
-		if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
-			log.Error("update execution pid", zap.Error(pidErr))
-		}
+	if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
+		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	// Register with live log registry (only if registry is configured and execution was created).
-	writeLine := func(string) {}
-	if f.logRegistry != nil && execErr == nil {
-		writeLine = f.logRegistry.Register(exec.ID)
+	drainErr := f.waitBeeOutput(outputCh)
+
+	finalStatus := model.ExecStatusCompleted
+	resultMsg := ""
+	if drainErr != nil {
+		finalStatus = model.ExecStatusFailed
+		resultMsg = drainErr.Error()
 	}
-
-	logs, drainErr := f.drainBeeOutput(outputCh, writeLine)
-
-	if execErr == nil {
-		if _, logsErr := f.execStore.WriteLog(exec.ID, exec.StartedAt, logs); logsErr != nil {
-			log.Error("write execution logs", zap.Error(logsErr))
-		}
-		finalStatus := model.ExecStatusCompleted
-		resultMsg := ""
-		if drainErr != nil {
-			finalStatus = model.ExecStatusFailed
-			resultMsg = drainErr.Error()
-		}
-		if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
-			log.Error("update execution result", zap.Error(resErr))
-		}
-		// Unregister after disk write.
-		if f.logRegistry != nil {
-			f.logRegistry.Unregister(exec.ID)
-		}
+	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
+		log.Error("update execution result", zap.Error(resErr))
 	}
 
 	if drainErr != nil {
@@ -280,36 +265,18 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, user
 	}
 }
 
-// drainBeeOutput consumes the output channel and accumulates logs in memory.
-// Returns accumulated log string (partial even on error) and nil on OutputDone,
-// or non-nil error on OutputError or channel closed without completion.
-// writeLine is called for each output line; use a no-op func to disable live logging.
-func (f *Feeder) drainBeeOutput(ch <-chan claude.Output, writeLine func(string)) (string, error) {
-	var sb strings.Builder
-	var done bool
+// waitBeeOutput consumes the output channel and waits for a lifecycle signal.
+// Returns nil on OutputDone, non-nil error on OutputError or unexpected channel close.
+func (f *Feeder) waitBeeOutput(ch <-chan claude.Output) error {
 	for out := range ch {
 		switch out.Type {
-		case claude.OutputStdout:
-			sb.WriteString(out.Content)
-			sb.WriteByte('\n')
-			writeLine(out.Content)
-		case claude.OutputStderr:
-			sb.WriteString(out.Content)
-			sb.WriteByte('\n')
-			writeLine(out.Content)
-		case claude.OutputError:
-			sb.WriteString(out.Content)
-			sb.WriteByte('\n')
-			writeLine(out.Content)
-			return sb.String(), fmt.Errorf("bee exited with error: %s", out.Content)
 		case claude.OutputDone:
-			done = true
+			return nil
+		case claude.OutputError:
+			return fmt.Errorf("bee exited with error: %s", out.Content)
 		}
 	}
-	if !done {
-		return sb.String(), fmt.Errorf("bee output channel closed without completion signal")
-	}
-	return sb.String(), nil
+	return fmt.Errorf("bee output channel closed without completion signal")
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {

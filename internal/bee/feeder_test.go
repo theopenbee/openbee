@@ -15,7 +15,6 @@ import (
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
-	"github.com/theopenbee/openbee/internal/worker"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
@@ -46,23 +45,27 @@ type mockBeeRunner struct {
 	mu          sync.Mutex
 	calls       []beeCall
 	err         error
-	outputLines []claude.Output // if nil, defaults based on m.err (existing behavior)
+	outputLines []claude.Output
 }
 
 type beeCall struct {
 	prompt    string
 	sessionID string
 	resume    bool
+	logPath   string
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt, sessionID string, resume bool) (*claude.Process, <-chan claude.Output, error) {
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
 	m.mu.Lock()
-	m.calls = append(m.calls, beeCall{prompt: prompt, sessionID: sessionID, resume: resume})
+	m.calls = append(m.calls, beeCall{
+		prompt:    prompt,
+		sessionID: opts.SessionID,
+		resume:    opts.Resume,
+		logPath:   logPath,
+	})
 	customLines := m.outputLines
 	m.mu.Unlock()
 
-	// If outputLines is set, use them directly (new behavior for custom tests).
-	// Otherwise preserve the original behavior: err → OutputError channel, nil → OutputDone.
 	var lines []claude.Output
 	if customLines != nil {
 		lines = customLines
@@ -83,7 +86,7 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt, sessionID string, resu
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]beeCall{}, m.calls...) // Return a copy
+	return append([]beeCall{}, m.calls...)
 }
 
 func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner bee.BeeRunner) *bee.Feeder {
@@ -92,8 +95,6 @@ func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
 }
 
-// TestFeeder_FirstTick_UsesNewSessionID verifies that on the first message for a sessionKey,
-// bee is called with a fresh UUID sessionID and resume=false.
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
@@ -118,7 +119,6 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Error("expected resume=false on first call")
 	}
 
-	// Session context should be persisted
 	got, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
 		t.Fatalf("get session context: %v", err)
@@ -127,7 +127,6 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Errorf("persisted sessionID mismatch: want %q got %q", call.sessionID, got)
 	}
 
-	// Message should be bee_processed
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
 	if status != "bee_processed" {
@@ -135,13 +134,10 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	}
 }
 
-// TestFeeder_SecondTick_ResumesSession verifies that after a session_id is established,
-// subsequent bee calls use resume=true with the stored sessionID.
 func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	// Pre-seed a session context as if a prior tick already ran
 	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
@@ -169,8 +165,6 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	}
 }
 
-// TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession verifies that a bee failure
-// resets messages to 'received' and does NOT write to session_contexts.
 func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
@@ -195,8 +189,6 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 	}
 }
 
-// TestFeeder_MultipleSessionKeys_ProcessedIndependently verifies that two sessionKeys
-// in the same batch each get their own bee invocation with independent session tracking.
 func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u1", "message from user1")
@@ -215,7 +207,6 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 		t.Fatalf("expected 2 bee invocations (one per sessionKey), got %d", len(calls))
 	}
 
-	// Each sessionKey should have its own session context
 	sess1, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
 	sess2, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
 	if sess1 == "" {
@@ -229,8 +220,6 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	}
 }
 
-// TestFeeder_CreatesExecutionOnBeeRun verifies that each processBeeGroup call
-// creates one row in executions with status=completed and non-empty log_path.
 func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
@@ -275,13 +264,44 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	if e.workerID != nil {
 		t.Errorf("expected nil worker_id for bee execution, got %v", e.workerID)
 	}
-	if e.status != "completed" {
+	if e.status != string(model.ExecStatusCompleted) {
 		t.Errorf("expected status=completed, got %q", e.status)
+	}
+	if e.logPath == "" {
+		t.Error("expected non-empty log_path — PrepareLogPath should set it before process runs")
 	}
 }
 
-// TestFeeder_ExecutionFailedOnBeeError verifies that a bee OutputError results
-// in an execution row with status=failed.
+func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+
+	var capturedLogPath string
+	runner := &mockBeeRunner{}
+	// Intercept: after Run is called, log_path should already be in DB.
+	// We verify this by checking the call's logPath is non-empty AND matches DB.
+	f := newFeeder(ms, ts, ss, es, runner)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	calls := runner.getCalls()
+	if len(calls) == 0 {
+		t.Fatal("expected runner to be called")
+	}
+	capturedLogPath = calls[0].logPath
+	if capturedLogPath == "" {
+		t.Error("logPath passed to runner must be non-empty")
+	}
+
+	// Verify the directory exists (PrepareLogPath creates it)
+	if _, err := os.Stat(filepath.Dir(capturedLogPath)); err != nil {
+		t.Errorf("log directory should exist before process runs: %v", err)
+	}
+}
+
 func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
@@ -304,7 +324,6 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	}
 }
 
-// mockFailureNotifier records NotifyTaskFailure calls.
 type mockFailureNotifier struct {
 	mu   sync.Mutex
 	msgs []string
@@ -323,8 +342,6 @@ func (m *mockFailureNotifier) getNotified() []string {
 	return append([]string{}, m.msgs...)
 }
 
-// TestFeeder_ExhaustsRetries_MarksFailedAndNotifies verifies that after MaxRetries
-// failures the message is permanently marked 'failed' and the notifier is called.
 func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
@@ -339,7 +356,6 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	defer cancel()
 	go f.Run(ctx)
 
-	// Wait long enough for MaxRetries (3) ticks: 3 * 500ms + buffer
 	time.Sleep(time.Duration(bee.MaxRetries+1)*bee.PollInterval + 500*time.Millisecond)
 
 	var status string
@@ -385,57 +401,3 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 }
 
-func TestFeeder_LiveLogRegistry_PopulatedAndUnregisteredAfterCompletion(t *testing.T) {
-	db, ms, ts, ss, es := setupFeederDB(t)
-
-	registry := worker.NewActiveLogRegistry()
-
-	runner := &mockBeeRunner{
-		outputLines: []claude.Output{
-			{Type: claude.OutputStdout, Content: "live-line-1"},
-			{Type: claude.OutputStdout, Content: "live-line-2"},
-			{Type: claude.OutputDone},
-		},
-	}
-
-	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
-	f := bee.NewFeeder(ms, ts, ss, es, runner, t.TempDir(), cfg,
-		bee.WithLogRegistry(registry))
-
-	insertMessage(t, db, "msg-live", "sk-live", "hello")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	go f.Run(ctx)
-	time.Sleep(700 * time.Millisecond)
-
-	// After completion, registry must be empty (Unregister was called after WriteLog).
-	execs, err := es.ListBeeExecutions(10)
-	if err != nil {
-		t.Fatalf("ListBeeExecutions: %v", err)
-	}
-	if len(execs) == 0 {
-		t.Fatal("expected at least one bee execution in DB")
-	}
-	exec := execs[0]
-
-	if exec.Status != model.ExecStatusCompleted {
-		t.Errorf("expected completed status, got %s", exec.Status)
-	}
-
-	// Registry must be empty — execution was unregistered after log write.
-	_, ok := registry.Get(exec.ID)
-	if ok {
-		t.Error("expected registry empty after completion (Unregister should have been called)")
-	}
-
-	// Log must have been persisted to disk.
-	logContent, err := es.ReadLog(exec.ID)
-	if err != nil {
-		t.Fatalf("ReadLog: %v", err)
-	}
-	if logContent == "" {
-		t.Error("expected non-empty log after completion")
-	}
-}

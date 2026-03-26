@@ -45,7 +45,6 @@ type Manager struct {
 	invoker        *claude.Invoker
 
 	activeProcesses map[string]*claude.Process // execution_id -> process
-	logRegistry     *ActiveLogRegistry
 	mu              sync.RWMutex
 }
 
@@ -54,7 +53,6 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
-	logRegistry *ActiveLogRegistry,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
@@ -63,7 +61,6 @@ func NewManager(
 		executionStore:  es,
 		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL+config.MCPWorkerBasePath, bc.MCP.WorkerAPIKey),
 		activeProcesses: make(map[string]*claude.Process),
-		logRegistry:     logRegistry,
 	}
 }
 
@@ -80,7 +77,6 @@ func (m *Manager) CreateWorker(
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	// Initialize CLAUDE.md only if it doesn't already exist
 	claudeMD := filepath.Join(workDir, "CLAUDE.md")
 	if _, err := os.Stat(claudeMD); os.IsNotExist(err) {
 		initialContent := claudemd.ImportLine + "\n"
@@ -138,9 +134,14 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
-// launchRuntime applies timeout, starts the invoker, registers the process, updates PID, and launches monitoring.
-// The execution context is always derived from context.Background() to decouple from the caller's request.
+// launchRuntime applies timeout, prepares the log path, starts the invoker,
+// registers the process, updates PID, and launches monitoring.
 func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, timeout time.Duration, prompt string, resume bool) error {
+	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
+	if err != nil {
+		return fmt.Errorf("prepare log path: %w", err)
+	}
+
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -149,75 +150,32 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume})
+	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume}, logPath)
 	if err != nil {
 		cancel()
 		return err
 	}
 
-	writeLine := m.logRegistry.Register(exec.ID)
 	m.mu.Lock()
 	m.activeProcesses[exec.ID] = proc
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, proc.PID())
-	go m.monitorExecution(exec, worker, outputCh, cancel, writeLine)
+	go m.monitorExecution(exec, worker, outputCh, cancel, logPath)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc, writeLine func(string)) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc, logPath string) {
 	defer cancel()
-	defer m.logRegistry.Unregister(exec.ID) // safety net: clean up even if channel closes without Done/Error
-
-	var rawLog strings.Builder
-	var lastAssistantText string
-	var streamResult string
 
 	for out := range outputCh {
 		switch out.Type {
-		case claude.OutputStdout:
-			writeLine(out.Content)          // live registry
-			rawLog.WriteString(out.Content) // local snapshot for disk write
-			rawLog.WriteByte('\n')
-			// Parse stream-json to extract assistant text and result
-			line := strings.TrimSpace(out.Content)
-			if strings.HasPrefix(line, "{") {
-				var event claudeStreamEvent
-				if err := json.Unmarshal([]byte(line), &event); err == nil {
-					switch event.Type {
-					case "assistant":
-						if event.Message != nil && len(event.Message.Content) > 0 {
-							if event.Message.Content[0].Type == "text" && event.Message.Content[0].Text != "" {
-								lastAssistantText = event.Message.Content[0].Text
-							}
-						}
-					case "result":
-						if event.Result != "" {
-							streamResult = event.Result
-						}
-					}
-				}
-			}
 		case claude.OutputDone:
-			logs := rawLog.String()
-			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, logs); err != nil {
-				log.Error("write execution logs", zap.Error(err))
-			}
-			result := logs
-			if lastAssistantText != "" {
-				result = lastAssistantText
-			}
-			if streamResult != "" {
-				result = streamResult
-			}
+			result := extractResultFromLog(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case claude.OutputError:
-			logs := rawLog.String()
-			if _, err := m.executionStore.WriteLog(exec.ID, exec.StartedAt, logs); err != nil {
-				log.Error("write execution logs", zap.Error(err))
-			}
-			m.executionStore.UpdateResult(exec.ID, logs+"\nERROR: "+out.Content, model.ExecStatusFailed)
+			m.executionStore.UpdateResult(exec.ID, out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		}
 	}
@@ -225,6 +183,42 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
 	m.mu.Unlock()
+}
+
+// extractResultFromLog scans the log file for stream-json events and returns
+// the best result string: prefers {"type":"result"} over the last assistant text.
+func extractResultFromLog(logPath string) string {
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return ""
+	}
+	var lastAssistantText, streamResult string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var event claudeStreamEvent
+		if json.Unmarshal([]byte(line), &event) != nil {
+			continue
+		}
+		switch event.Type {
+		case "assistant":
+			if event.Message != nil && len(event.Message.Content) > 0 {
+				if event.Message.Content[0].Type == "text" && event.Message.Content[0].Text != "" {
+					lastAssistantText = event.Message.Content[0].Text
+				}
+			}
+		case "result":
+			if event.Result != "" {
+				streamResult = event.Result
+			}
+		}
+	}
+	if streamResult != "" {
+		return streamResult
+	}
+	return lastAssistantText
 }
 
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
@@ -252,4 +246,3 @@ func (m *Manager) StopExecution(executionID string) error {
 	}
 	return proc.Stop()
 }
-

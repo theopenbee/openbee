@@ -20,7 +20,6 @@ type ServerParams struct {
 	WorkerStore      *store.WorkerStore
 	ExecutionStore   *store.ExecutionStore
 	Manager          *worker.Manager
-	LogRegistry      *worker.ActiveLogRegistry
 	BeeMCPServer     *mcp.MCPServer
 	WorkerMCPServer  *mcp.MCPServer
 	BeeAPIKey        string
