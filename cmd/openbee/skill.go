@@ -1,4 +1,3 @@
-// cmd/openbee/skill.go
 package main
 
 import (
@@ -194,7 +193,6 @@ func init() {
 	rootCmd.AddCommand(skillCmd)
 }
 
-// openInEditor writes content to a temp file, opens $EDITOR, and returns the modified content.
 func openInEditor(content string) (string, error) {
 	f, err := os.CreateTemp("", "openbee-skill-*.md")
 	if err != nil {

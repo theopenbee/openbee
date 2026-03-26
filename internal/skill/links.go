@@ -36,11 +36,7 @@ func (lm *LinkManager) SetGlobal(skillName, version string) error {
 
 // RemoveGlobal removes the global symlink for skillName.
 func (lm *LinkManager) RemoveGlobal(skillName string) error {
-	err := os.Remove(filepath.Join(lm.globalSkillsDir, skillName))
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
+	return removeLink(filepath.Join(lm.globalSkillsDir, skillName))
 }
 
 // SetWorker creates or updates the worker-scoped symlink for skillName.
@@ -56,7 +52,12 @@ func (lm *LinkManager) SetWorker(workDir, skillName, version string) error {
 
 // RemoveWorker removes the worker-scoped symlink for skillName.
 func (lm *LinkManager) RemoveWorker(workDir, skillName string) error {
-	err := os.Remove(filepath.Join(workDir, ".claude", "skills", skillName))
+	return removeLink(filepath.Join(workDir, ".claude", "skills", skillName))
+}
+
+// removeLink removes a symlink, ignoring not-exist errors.
+func removeLink(path string) error {
+	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -77,7 +78,7 @@ func (lm *LinkManager) RemoveAllWorkerLinks(workDir string) error {
 	for _, e := range entries {
 		link := filepath.Join(skillsDir, e.Name())
 		if isManagedLink(link, lm.registryRoot) {
-			if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+			if err := removeLink(link); err != nil {
 				return err
 			}
 		}

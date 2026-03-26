@@ -1,4 +1,3 @@
-// cmd/openbee/skill_editor.go
 package main
 
 import (

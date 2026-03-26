@@ -24,7 +24,7 @@ func validateName(name string) error {
 }
 
 // ErrSkillNotFound is returned when a requested skill does not exist.
-var ErrSkillNotFound = fmt.Errorf("skill not found")
+var ErrSkillNotFound = errors.New("skill not found")
 
 // Manager orchestrates all skill operations.
 type Manager struct {
@@ -285,6 +285,10 @@ func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, upda
 	if err := validateName(name); err != nil {
 		return err
 	}
+	cfg, err := m.store.Load()
+	if err != nil {
+		return err
+	}
 	target := filepath.Join(skillsDir, name)
 	info, err := os.Lstat(target)
 	if err != nil {
@@ -329,13 +333,6 @@ func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, upda
 		// Restore backup on failure.
 		_ = os.Rename(backup, target)
 		return fmt.Errorf("set link: %w", err)
-	}
-	// setLink succeeded — now persist state.
-	cfg, err := m.store.Load()
-	if err != nil {
-		// Restore backup.
-		_ = os.Rename(backup, target)
-		return err
 	}
 	entry := newSkillEntry("", version, version)
 	updateCfg(&cfg, entry)

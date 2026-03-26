@@ -84,7 +84,7 @@ func (r *Registry) DeleteVersion(name, version string) error {
 	if len(versions) <= 1 {
 		return ErrLastVersion
 	}
-	if _, err := os.Stat(r.VersionPath(name, version)); os.IsNotExist(err) {
+	if !slices.Contains(versions, version) {
 		return fmt.Errorf("version %q not found for skill %q", version, name)
 	}
 	return os.RemoveAll(r.VersionPath(name, version))
@@ -104,13 +104,6 @@ func (r *Registry) nextVersionID(name string) (string, error) {
 	if len(versions) == 0 {
 		return "v1", nil
 	}
-	// Find the highest version number.
-	max := 0
-	for _, v := range versions {
-		n, err := strconv.Atoi(strings.TrimPrefix(v, "v"))
-		if err == nil && n > max {
-			max = n
-		}
-	}
-	return fmt.Sprintf("v%d", max+1), nil
+	n, _ := strconv.Atoi(strings.TrimPrefix(versions[len(versions)-1], "v"))
+	return fmt.Sprintf("v%d", n+1), nil
 }
