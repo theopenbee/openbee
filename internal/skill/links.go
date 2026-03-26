@@ -15,6 +15,12 @@ type LinkManager struct {
 // registryRoot is where versioned skill dirs live (e.g. ~/.openbee/skills).
 // globalSkillsDir is ~/.claude/skills.
 func NewLinkManager(registryRoot, globalSkillsDir string) *LinkManager {
+	if abs, err := filepath.Abs(registryRoot); err == nil {
+		registryRoot = abs
+	}
+	if abs, err := filepath.Abs(globalSkillsDir); err == nil {
+		globalSkillsDir = abs
+	}
 	return &LinkManager{
 		registryRoot:    registryRoot,
 		globalSkillsDir: globalSkillsDir,
@@ -30,7 +36,11 @@ func (lm *LinkManager) SetGlobal(skillName, version string) error {
 
 // RemoveGlobal removes the global symlink for skillName.
 func (lm *LinkManager) RemoveGlobal(skillName string) error {
-	return os.Remove(filepath.Join(lm.globalSkillsDir, skillName))
+	err := os.Remove(filepath.Join(lm.globalSkillsDir, skillName))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // SetWorker creates or updates the worker-scoped symlink for skillName.
@@ -46,7 +56,11 @@ func (lm *LinkManager) SetWorker(workDir, skillName, version string) error {
 
 // RemoveWorker removes the worker-scoped symlink for skillName.
 func (lm *LinkManager) RemoveWorker(workDir, skillName string) error {
-	return os.Remove(filepath.Join(workDir, ".claude", "skills", skillName))
+	err := os.Remove(filepath.Join(workDir, ".claude", "skills", skillName))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // RemoveAllWorkerLinks removes all openbee-managed symlinks from a worker's skill dir.

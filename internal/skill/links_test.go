@@ -72,3 +72,27 @@ func TestLinks_RemoveWorker(t *testing.T) {
 
 	assert.NoFileExists(t, filepath.Join(workDir, ".claude", "skills", "myskill"))
 }
+
+func TestLinks_RemoveAllWorkerLinks(t *testing.T) {
+	registryDir := t.TempDir()
+	workDir := t.TempDir()
+	globalSkillsDir := t.TempDir()
+
+	// Create a managed skill in registry and set worker link.
+	versionDir := filepath.Join(registryDir, "managed-skill", "v1")
+	require.NoError(t, os.MkdirAll(versionDir, 0o755))
+
+	lm := skill.NewLinkManager(registryDir, globalSkillsDir)
+	require.NoError(t, lm.SetWorker(workDir, "managed-skill", "v1"))
+
+	// Also place an external (non-managed) real directory in worker skills.
+	extSkillDir := filepath.Join(workDir, ".claude", "skills", "external-skill")
+	require.NoError(t, os.MkdirAll(extSkillDir, 0o755))
+
+	require.NoError(t, lm.RemoveAllWorkerLinks(workDir))
+
+	// Managed symlink should be gone.
+	assert.NoFileExists(t, filepath.Join(workDir, ".claude", "skills", "managed-skill"))
+	// External real directory should remain.
+	assert.DirExists(t, extSkillDir)
+}
