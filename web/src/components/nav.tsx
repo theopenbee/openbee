@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboard, Bot, Activity, MessageCircle } from "lucide-react"
+import { LayoutDashboard, Bot, Activity, MessageCircle, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LanguageSwitcher } from "./language-switcher"
 import { ThemeSwitcher } from "./theme-switcher"
@@ -14,6 +14,7 @@ export function Nav() {
     { href: "/workers", label: t("nav.workers"), icon: Bot },
     { href: "/executions", label: t("nav.executions"), icon: Activity },
     { href: "/local-chat", label: t("localChat.title"), icon: MessageCircle },
+    { href: "/skills", label: t("nav.skills"), icon: BookOpen },
   ]
 
   const isActive = (href: string) =>
