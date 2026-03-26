@@ -149,6 +149,9 @@ func (m *Manager) Delete(name string) error {
 	if err != nil {
 		return err
 	}
+	if _, ok := cfg.Skills[name]; !ok {
+		return fmt.Errorf("skill %q not found", name)
+	}
 	// Check for worker references.
 	var refWorkers []string
 	for wid, overrides := range cfg.WorkerOverrides {
@@ -267,12 +270,20 @@ func (m *Manager) adopt(name, skillsDir string, setLink func(string) error, upda
 	}
 	version := filepath.Base(versionDir)
 
-	// Remove the original and create managed symlink.
-	if err := os.RemoveAll(target); err != nil {
-		return fmt.Errorf("remove original: %w", err)
+	// Move original aside (backup) before replacing with symlink.
+	backup := target + ".backup"
+	if err := os.Rename(target, backup); err != nil {
+		return fmt.Errorf("backup original: %w", err)
 	}
 	if err := setLink(version); err != nil {
+		// Restore backup on failure.
+		_ = os.Rename(backup, target)
 		return fmt.Errorf("set link: %w", err)
+	}
+	// Symlink created successfully — remove backup.
+	if err := os.RemoveAll(backup); err != nil {
+		// Non-fatal: backup can be cleaned up manually.
+		_ = err
 	}
 
 	// Update state.

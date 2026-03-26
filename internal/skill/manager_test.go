@@ -104,6 +104,52 @@ func TestManager_DeleteSucceeds(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(globalDir, "temp"))
 }
 
+func TestManager_RemoveWorkerOverride(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	workDir := t.TempDir()
+
+	require.NoError(t, m.Create("myskill", "MySkill", "content"))
+	require.NoError(t, m.UseWorker("worker1", workDir, "myskill", "v1"))
+
+	// Override exists — symlink in worker dir.
+	link := filepath.Join(workDir, ".claude", "skills", "myskill")
+	_, err := os.Lstat(link)
+	require.NoError(t, err)
+
+	require.NoError(t, m.RemoveWorkerOverride("worker1", workDir, "myskill"))
+
+	// Symlink should be gone.
+	assert.NoFileExists(t, link)
+
+	// Config should have no override for worker1.
+	cfg, err := m.LoadConfig()
+	require.NoError(t, err)
+	_, hasOverride := cfg.WorkerOverrides["worker1"]
+	assert.False(t, hasOverride)
+}
+
+func TestManager_CleanupWorkerLinks(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	workDir := t.TempDir()
+
+	require.NoError(t, m.Create("skill-a", "A", "content a"))
+	require.NoError(t, m.Create("skill-b", "B", "content b"))
+	require.NoError(t, m.UseWorker("worker1", workDir, "skill-a", "v1"))
+	require.NoError(t, m.UseWorker("worker1", workDir, "skill-b", "v1"))
+
+	require.NoError(t, m.CleanupWorkerLinks("worker1", workDir))
+
+	// Both symlinks should be gone.
+	assert.NoFileExists(t, filepath.Join(workDir, ".claude", "skills", "skill-a"))
+	assert.NoFileExists(t, filepath.Join(workDir, ".claude", "skills", "skill-b"))
+
+	// Worker overrides cleared in config.
+	cfg, err := m.LoadConfig()
+	require.NoError(t, err)
+	_, hasOverrides := cfg.WorkerOverrides["worker1"]
+	assert.False(t, hasOverrides)
+}
+
 func TestManager_Adopt(t *testing.T) {
 	m, stateDir, globalDir := newTestManager(t)
 
