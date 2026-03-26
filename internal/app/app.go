@@ -102,7 +102,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	logRegistry := worker.NewActiveLogRegistry()
-	mgr := buildWorkerManager(cfg.Bee, s, logRegistry)
+	mgr := buildWorkerManager(cfg.Bee, s)
 
 	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
 
@@ -199,8 +199,8 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, logRegistry *worker.ActiveLogRegistry) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, logRegistry)
+func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask, failureNotifier bee.FailureNotifier, logRegistry *worker.ActiveLogRegistry) (*bee.Feeder, *task_scheduler.Scheduler) {
