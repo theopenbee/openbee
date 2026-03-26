@@ -41,7 +41,8 @@ func TestManager_EditCreatesNewVersion(t *testing.T) {
 	m, stateDir, _ := newTestManager(t)
 	require.NoError(t, m.Create("commit", "Commit", "v1 content"))
 
-	require.NoError(t, m.Edit("commit", "v2 content"))
+	_, err := m.Edit("commit", "v2 content")
+	require.NoError(t, err)
 
 	// v2 should exist in registry.
 	v2Dir := filepath.Join(stateDir, "skills", "commit", "v2")
@@ -57,7 +58,8 @@ func TestManager_EditCreatesNewVersion(t *testing.T) {
 func TestManager_UseGlobal(t *testing.T) {
 	m, _, globalDir := newTestManager(t)
 	require.NoError(t, m.Create("deploy", "Deploy", "deploy v1"))
-	require.NoError(t, m.Edit("deploy", "deploy v2"))
+	_, err := m.Edit("deploy", "deploy v2")
+	require.NoError(t, err)
 
 	require.NoError(t, m.UseGlobal("deploy", "v2"))
 
@@ -75,7 +77,8 @@ func TestManager_UseWorker(t *testing.T) {
 	workDir := t.TempDir()
 
 	require.NoError(t, m.Create("review", "Review", "review v1"))
-	require.NoError(t, m.Edit("review", "review v2"))
+	_, err := m.Edit("review", "review v2")
+	require.NoError(t, err)
 	require.NoError(t, m.UseWorker("worker1", workDir, "review", "v1"))
 
 	link := filepath.Join(workDir, ".claude", "skills", "review")

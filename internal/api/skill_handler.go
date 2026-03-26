@@ -75,17 +75,12 @@ func (s *Server) createSkillVersion(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := s.SkillManager.Edit(c.Param("name"), req.Content); err != nil {
+	version, err := s.SkillManager.Edit(c.Param("name"), req.Content)
+	if err != nil {
 		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	cfg, err := s.SkillManager.LoadConfig()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	entry := cfg.Skills[c.Param("name")]
-	c.JSON(http.StatusCreated, gin.H{"latest_version": entry.LatestVersion})
+	c.JSON(http.StatusCreated, gin.H{"latest_version": version})
 }
 
 type setVersionRequest struct {
@@ -115,15 +110,25 @@ func (s *Server) adoptSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "adopted", "version": "v1"})
 }
 
-// listWorkerSkills GET /api/workers/:id/skills
-func (s *Server) listWorkerSkills(c *gin.Context) {
-	workerID := c.Param("id")
+// resolveWorkerDir looks up a worker by ID and writes a 404 on failure.
+// Returns (workDir, true) on success, ("", false) if the handler should stop.
+func (s *Server) resolveWorkerDir(c *gin.Context, workerID string) (string, bool) {
 	w, err := s.WorkerStore.GetByID(workerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+		return "", false
+	}
+	return w.WorkDir, true
+}
+
+// listWorkerSkills GET /api/workers/:id/skills
+func (s *Server) listWorkerSkills(c *gin.Context) {
+	workerID := c.Param("id")
+	workDir, ok := s.resolveWorkerDir(c, workerID)
+	if !ok {
 		return
 	}
-	skills, err := s.SkillManager.ListWorker(workerID, w.WorkDir)
+	skills, err := s.SkillManager.ListWorker(workerID, workDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -139,13 +144,12 @@ func (s *Server) setWorkerSkillVersion(c *gin.Context) {
 		return
 	}
 	workerID := c.Param("id")
-	w, err := s.WorkerStore.GetByID(workerID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+	workDir, ok := s.resolveWorkerDir(c, workerID)
+	if !ok {
 		return
 	}
-	if err := s.SkillManager.UseWorker(workerID, w.WorkDir, c.Param("name"), req.Version); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := s.SkillManager.UseWorker(workerID, workDir, c.Param("name"), req.Version); err != nil {
+		c.JSON(skillHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"version": req.Version})
@@ -154,12 +158,11 @@ func (s *Server) setWorkerSkillVersion(c *gin.Context) {
 // deleteWorkerSkillOverride DELETE /api/workers/:id/skills/:name
 func (s *Server) deleteWorkerSkillOverride(c *gin.Context) {
 	workerID := c.Param("id")
-	w, err := s.WorkerStore.GetByID(workerID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+	workDir, ok := s.resolveWorkerDir(c, workerID)
+	if !ok {
 		return
 	}
-	if err := s.SkillManager.RemoveWorkerOverride(workerID, w.WorkDir, c.Param("name")); err != nil {
+	if err := s.SkillManager.RemoveWorkerOverride(workerID, workDir, c.Param("name")); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

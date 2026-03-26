@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -70,12 +70,7 @@ func (r *Registry) ListVersions(name string) ([]string, error) {
 			versions = append(versions, e.Name())
 		}
 	}
-	// Sort versions numerically (v1, v2, ..., v10 instead of v1, v10, v2, ...)
-	sort.Slice(versions, func(i, j int) bool {
-		ni, _ := strconv.Atoi(strings.TrimPrefix(versions[i], "v"))
-		nj, _ := strconv.Atoi(strings.TrimPrefix(versions[j], "v"))
-		return ni < nj
-	})
+	slices.SortFunc(versions, CompareVersions)
 	return versions, nil
 }
 
@@ -89,15 +84,7 @@ func (r *Registry) DeleteVersion(name, version string) error {
 	if len(versions) <= 1 {
 		return ErrLastVersion
 	}
-	// Check if the target version exists
-	found := false
-	for _, v := range versions {
-		if v == version {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if _, err := os.Stat(r.VersionPath(name, version)); os.IsNotExist(err) {
 		return fmt.Errorf("version %q not found for skill %q", version, name)
 	}
 	return os.RemoveAll(r.VersionPath(name, version))

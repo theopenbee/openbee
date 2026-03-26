@@ -59,7 +59,7 @@ func (s *Scanner) scanDir(scope, dir string) ([]ScannedSkill, error) {
 			sk.Source = SkillSourceExternal
 		} else {
 			sk.LinkTarget = target
-			if isManagedLink(link, s.registryRoot) {
+			if isManagedTarget(target, s.registryRoot) {
 				sk.Source = SkillSourceManaged
 				// Extract version from target path: <registry>/<name>/<version>
 				rel, err := filepath.Rel(filepath.Join(s.registryRoot, e.Name()), target)

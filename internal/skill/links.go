@@ -104,6 +104,12 @@ func isManagedLink(link, registryRoot string) bool {
 	if err != nil {
 		return false
 	}
+	return isManagedTarget(target, registryRoot)
+}
+
+// isManagedTarget returns true if a resolved symlink target is under registryRoot.
+// Use this when the target has already been read via os.Readlink to avoid a second syscall.
+func isManagedTarget(target, registryRoot string) bool {
 	rel, err := filepath.Rel(registryRoot, target)
 	if err != nil {
 		return false

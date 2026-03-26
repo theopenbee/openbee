@@ -1,6 +1,10 @@
 package skill
 
-import "time"
+import (
+	"strconv"
+	"strings"
+	"time"
+)
 
 // SkillSource identifies whether a skill is openbee-managed or externally placed.
 type SkillSource string
@@ -43,7 +47,13 @@ type ScannedSkill struct {
 }
 
 // now returns the current UTC time truncated to seconds.
-// Used by skill manager operations.
 func now() time.Time {
 	return time.Now().UTC().Truncate(time.Second)
+}
+
+// CompareVersions compares vN version strings numerically (e.g. "v2" < "v10").
+func CompareVersions(a, b string) int {
+	na, _ := strconv.Atoi(strings.TrimPrefix(a, "v"))
+	nb, _ := strconv.Atoi(strings.TrimPrefix(b, "v"))
+	return na - nb
 }

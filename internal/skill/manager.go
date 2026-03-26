@@ -84,28 +84,34 @@ func (m *Manager) Create(name, description, content string) error {
 }
 
 // Edit saves new content as the next version. Does NOT update global_version.
-func (m *Manager) Edit(name, content string) error {
+// Returns the new version ID (e.g. "v2").
+func (m *Manager) Edit(name, content string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cfg, err := m.store.Load()
 	if err != nil {
-		return err
+		return "", err
 	}
 	entry, ok := cfg.Skills[name]
 	if !ok {
-		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
+		return "", fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 
 	versionDir, err := m.registry.CreateVersion(name, content)
 	if err != nil {
-		return fmt.Errorf("create version: %w", err)
+		return "", fmt.Errorf("create version: %w", err)
 	}
 	version := filepath.Base(versionDir)
 
 	entry.LatestVersion = version
 	entry.Versions[version] = VersionEntry{CreatedAt: now()}
 	cfg.Skills[name] = entry
-	return m.store.Save(cfg)
+	return version, m.store.Save(cfg)
+}
+
+// ReadVersion returns the SKILL.md content for the given skill and version.
+func (m *Manager) ReadVersion(name, version string) (string, error) {
+	return m.registry.ReadVersion(name, version)
 }
 
 // UseGlobal switches the global symlink to the given version.
@@ -141,7 +147,7 @@ func (m *Manager) UseWorker(workerID, workDir, name, version string) error {
 	}
 	entry, ok := cfg.Skills[name]
 	if !ok {
-		return fmt.Errorf("skill %q not found", name)
+		return fmt.Errorf("skill %q: %w", name, ErrSkillNotFound)
 	}
 	if _, ok := entry.Versions[version]; !ok {
 		return fmt.Errorf("version %q not found for skill %q", version, name)

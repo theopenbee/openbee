@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -89,9 +87,7 @@ var skillEditCmd = &cobra.Command{
 			return fmt.Errorf("skill %q not found", name)
 		}
 
-		// Read current latest version content.
-		registryRoot := filepath.Join(openbeeStateDir(), "skills")
-		current, err := os.ReadFile(filepath.Join(registryRoot, name, entry.LatestVersion, "SKILL.md"))
+		current, err := m.ReadVersion(name, entry.LatestVersion)
 		if err != nil {
 			return fmt.Errorf("read current content: %w", err)
 		}
@@ -100,18 +96,18 @@ var skillEditCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if string(newContent) == string(current) {
+		if newContent == current {
 			fmt.Println("No changes made.")
 			return nil
 		}
 
-		if err := m.Edit(name, string(newContent)); err != nil {
+		newVersion, err := m.Edit(name, newContent)
+		if err != nil {
 			return err
 		}
-		newCfg, _ := m.LoadConfig()
 		fmt.Printf("Skill %q saved as %s. Global still uses %s.\n",
-			name, newCfg.Skills[name].LatestVersion, newCfg.Skills[name].GlobalVersion)
-		fmt.Printf("To promote: openbee skill use %s %s --global\n", name, newCfg.Skills[name].LatestVersion)
+			name, newVersion, entry.GlobalVersion)
+		fmt.Printf("To promote: openbee skill use %s %s\n", name, newVersion)
 		return nil
 	},
 }
@@ -147,11 +143,7 @@ var skillVersionsCmd = &cobra.Command{
 		for v := range versions {
 			keys = append(keys, v)
 		}
-		slices.SortFunc(keys, func(a, b string) int {
-			na, _ := strconv.Atoi(strings.TrimPrefix(a, "v"))
-			nb, _ := strconv.Atoi(strings.TrimPrefix(b, "v"))
-			return na - nb
-		})
+		slices.SortFunc(keys, skill.CompareVersions)
 		for _, v := range keys {
 			e := versions[v]
 			fmt.Fprintf(w, "%s\t%s\n", v, e.CreatedAt.Format("2006-01-02 15:04:05"))
@@ -160,19 +152,13 @@ var skillVersionsCmd = &cobra.Command{
 	},
 }
 
-var skillUseWorker string
-var skillUseGlobal bool
-
 var skillUseCmd = &cobra.Command{
 	Use:   "use <name> <version>",
-	Short: "Switch active version (default: global)",
+	Short: "Switch global active version",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, version := args[0], args[1]
 		m := newSkillManager()
-		if skillUseWorker != "" {
-			return fmt.Errorf("--worker requires running with a config file; use the API instead")
-		}
 		if err := m.UseGlobal(name, version); err != nil {
 			return err
 		}
@@ -198,9 +184,6 @@ var skillAdoptCmd = &cobra.Command{
 func init() {
 	skillCreateCmd.Flags().StringVar(&skillCreateDesc, "description", "", "Skill description")
 	skillCreateCmd.Flags().StringVar(&skillCreateContent, "content", "", "Initial SKILL.md content (default: generated template)")
-	skillUseCmd.Flags().StringVar(&skillUseWorker, "worker", "", "Worker ID for worker-scoped version switch")
-	skillUseCmd.Flags().BoolVar(&skillUseGlobal, "global", true, "Switch global version (default)")
-
 	skillCmd.AddCommand(skillListCmd)
 	skillCmd.AddCommand(skillCreateCmd)
 	skillCmd.AddCommand(skillEditCmd)
@@ -212,15 +195,15 @@ func init() {
 }
 
 // openInEditor writes content to a temp file, opens $EDITOR, and returns the modified content.
-func openInEditor(content []byte) ([]byte, error) {
+func openInEditor(content string) (string, error) {
 	f, err := os.CreateTemp("", "openbee-skill-*.md")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer os.Remove(f.Name())
-	if _, err := f.Write(content); err != nil {
+	if _, err := f.WriteString(content); err != nil {
 		f.Close()
-		return nil, err
+		return "", err
 	}
 	f.Close()
 
@@ -229,5 +212,9 @@ func openInEditor(content []byte) ([]byte, error) {
 		editor = "vi"
 	}
 
-	return runEditor(editor, f.Name())
+	data, err := runEditor(editor, f.Name())
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
