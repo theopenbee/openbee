@@ -11,10 +11,12 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
 )
+
+var errInterrupted = errors.New("interrupted")
 
 var configTemplate = config.ConfigTemplate
 
@@ -68,7 +70,7 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactively generate a config file",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := runConfig(cmd, args); errors.Is(err, claude.ErrInterrupted) {
+		if err := runConfig(cmd, args); errors.Is(err, errInterrupted) {
 			return nil
 		} else {
 			return err
@@ -579,5 +581,9 @@ func promptPassword(vals *configValues) error {
 }
 
 func handleSurveyErr(err error) error {
-	return claude.HandleSurveyErr(err)
+	if errors.Is(err, terminal.InterruptErr) {
+		fmt.Println("\nCancelled.")
+		return errInterrupted
+	}
+	return err
 }
