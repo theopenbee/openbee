@@ -2,7 +2,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "workers": "Workers",
-    "executions": "Executions"
+    "executions": "Executions",
+    "skills": "Skills"
   },
   "common": {
     "save": "Save",
@@ -66,7 +67,8 @@
     "workDir": "Work Dir",
     "created": "Created",
     "memory": "Memory",
-    "noMemory": "No memory configured"
+    "noMemory": "No memory configured",
+    "skills": "Skills"
   },
   "executionDetail": {
     "title": "Execution Detail",
@@ -112,6 +114,31 @@
     "error401": "Invalid username or password",
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"
+  },
+  "skills": {
+    "title": "Skills",
+    "createSkill": "Create Skill",
+    "newVersion": "New Version",
+    "setGlobal": "Set Global",
+    "adopt": "Adopt",
+    "source": {
+      "managed": "Managed",
+      "external": "External"
+    },
+    "override": "Override",
+    "resetToGlobal": "Reset to Global",
+    "versions": "Versions",
+    "globalVersion": "Global Version",
+    "noSkills": "No skills yet.",
+    "currentContent": "Current Content",
+    "deleteDialog": {
+      "title": "Delete Skill",
+      "confirm": "Are you sure you want to delete <strong>{{name}}</strong>? This action cannot be undone."
+    },
+    "editor": {
+      "title": "New Version: {{name}}",
+      "placeholder": "Enter SKILL.md content..."
+    }
   },
   "emptyState": {
     "noWorkers": "No workers in the hive yet",

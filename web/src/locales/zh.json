@@ -2,7 +2,8 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "工作者",
-    "executions": "执行记录"
+    "executions": "执行记录",
+    "skills": "技能"
   },
   "common": {
     "save": "保存",
@@ -66,7 +67,8 @@
     "workDir": "工作目录",
     "created": "创建时间",
     "memory": "记忆",
-    "noMemory": "未配置记忆"
+    "noMemory": "未配置记忆",
+    "skills": "技能"
   },
   "executionDetail": {
     "title": "执行详情",
@@ -112,6 +114,31 @@
     "error401": "用户名或密码错误",
     "error429": "尝试次数过多，请稍后再试",
     "errorGeneric": "登录失败"
+  },
+  "skills": {
+    "title": "技能",
+    "createSkill": "创建技能",
+    "newVersion": "新建版本",
+    "setGlobal": "设为全局版本",
+    "adopt": "纳管",
+    "source": {
+      "managed": "托管",
+      "external": "外部"
+    },
+    "override": "覆盖",
+    "resetToGlobal": "恢复全局版本",
+    "versions": "版本历史",
+    "globalVersion": "全局版本",
+    "noSkills": "暂无技能",
+    "currentContent": "当前内容",
+    "deleteDialog": {
+      "title": "删除技能",
+      "confirm": "确认删除技能 <strong>{{name}}</strong> 吗？此操作无法撤销。"
+    },
+    "editor": {
+      "title": "新建版本：{{name}}",
+      "placeholder": "输入 SKILL.md 内容..."
+    }
   },
   "emptyState": {
     "noWorkers": "蜂巢中还没有工作者",
