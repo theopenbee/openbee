@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/model"
 )
 
 func parsePagination(c *gin.Context) (page, pageSize, offset int) {
@@ -86,12 +87,14 @@ func (s *Server) listSessionExecutions(c *gin.Context) {
 }
 
 func (s *Server) getExecutionLogs(c *gin.Context) {
-	content, err := s.ExecutionStore.ReadLog(c.Param("id"))
+	id := c.Param("id")
+	content, err := s.ExecutionStore.ReadLog(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if content != "" {
+	exec, err := s.ExecutionStore.GetByID(id)
+	if err == nil && (exec.Status == model.ExecStatusCompleted || exec.Status == model.ExecStatusFailed) {
 		c.Header("Cache-Control", "public, max-age=3600")
 	}
 	c.String(http.StatusOK, content)
