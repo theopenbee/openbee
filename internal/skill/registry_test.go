@@ -1,6 +1,7 @@
 package skill_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,4 +78,34 @@ func TestRegistry_DeleteSkill(t *testing.T) {
 
 	require.NoError(t, r.DeleteSkill("todelete"))
 	assert.NoDirExists(t, filepath.Join(dir, "todelete"))
+}
+
+func TestRegistry_ListVersions_NumericalOrder(t *testing.T) {
+	dir := t.TempDir()
+	r := skill.NewRegistry(dir)
+
+	// Create 10 versions to expose alphabetical-vs-numeric ordering bug.
+	for i := 0; i < 10; i++ {
+		_, err := r.CreateVersion("ordered", fmt.Sprintf("content v%d", i+1))
+		require.NoError(t, err)
+	}
+
+	versions, err := r.ListVersions("ordered")
+	require.NoError(t, err)
+	require.Len(t, versions, 10)
+	assert.Equal(t, "v1", versions[0])
+	assert.Equal(t, "v10", versions[9])
+}
+
+func TestRegistry_DeleteVersion_NonExistent(t *testing.T) {
+	dir := t.TempDir()
+	r := skill.NewRegistry(dir)
+
+	_, err := r.CreateVersion("myskill", "content v1")
+	require.NoError(t, err)
+	_, err = r.CreateVersion("myskill", "content v2")
+	require.NoError(t, err)
+
+	err = r.DeleteVersion("myskill", "v99")
+	assert.Error(t, err)
 }
