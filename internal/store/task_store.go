@@ -241,6 +241,25 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 	return claimed, nil
 }
 
+// PeekDueScheduledTasks returns all pending scheduled tasks whose next_run_at
+// is at or before nowMS (or NULL). Read-only — no updates, no locking.
+// Used by Scheduler.poll to compute real next_run_at values before claiming.
+func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, message_id, worker_id, instruction, type, status,
+		       scheduled_at, cron_expr, next_run_at, execution_id,
+		       created_at, updated_at
+		FROM bee_tasks
+		WHERE type = 'scheduled'
+		  AND status = 'pending'
+		  AND (next_run_at IS NULL OR next_run_at <= ?)`, nowMS)
+	if err != nil {
+		return nil, fmt.Errorf("peek due scheduled tasks: %w", err)
+	}
+	defer rows.Close()
+	return scanTasks(rows)
+}
+
 // SetExecution writes execution_id and status back to a task.
 func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, status string) error {
 	_, err := s.db.ExecContext(ctx,

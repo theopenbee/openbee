@@ -646,6 +646,51 @@ func TestTaskStore_CountAllByStatus(t *testing.T) {
 	}
 }
 
+func TestTaskStore_PeekDueScheduledTasks_ReturnsDueOnly(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	pastRun := now - 1000
+	futureRun := now + 60_000
+	expr := "0 * * * *"
+
+	// Due: next_run_at in the past
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "due",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr, NextRunAt: &pastRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// Not due: next_run_at in the future
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "future",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr, NextRunAt: &futureRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// Due: next_run_at IS NULL
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "null-run-at",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	tasks, err := ts.PeekDueScheduledTasks(context.Background(), now)
+	if err != nil {
+		t.Fatalf("PeekDueScheduledTasks: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 due scheduled tasks, got %d", len(tasks))
+	}
+	for _, task := range tasks {
+		if task.CronExpr != expr {
+			t.Errorf("expected cron_expr %q, got %q", expr, task.CronExpr)
+		}
+	}
+}
+
 func TestTaskStore_GetTaskByExecutionID(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()
