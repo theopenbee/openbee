@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `bee`: parallel session dispatch — each session now runs in its own goroutine, bounded by a semaphore (`max_concurrent_bee`, default 5)
+
 ### Changed
 
 - `store`: add `inPlaceholders` / `nullInt64Ptr` helpers; unify scan loops in execution/task stores

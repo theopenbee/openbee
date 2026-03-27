@@ -75,7 +75,8 @@ type PlatformsConfig struct {
 }
 
 type FeederConfig struct {
-	Timeout time.Duration `yaml:"timeout"`
+	Timeout          time.Duration `yaml:"timeout"`
+	MaxConcurrentBee int           `yaml:"max_concurrent_bee"`
 }
 
 type FeishuConfig struct {
@@ -163,6 +164,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Feeder.Timeout == 0 {
 		cfg.Bee.Feeder.Timeout = 5 * time.Minute
+	}
+	if cfg.Bee.Feeder.MaxConcurrentBee == 0 {
+		cfg.Bee.Feeder.MaxConcurrentBee = 5
 	}
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"

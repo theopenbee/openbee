@@ -48,10 +48,11 @@ type configValues struct {
 	WeixinCDNBaseURL string
 	WeixinUserID     string
 
-	ClaudePath      string
-	ClaudeTimeout   string
-	FeederTimeout   string
-	MessageDebounce string
+	ClaudePath             string
+	ClaudeTimeout          string
+	FeederTimeout          string
+	FeederMaxConcurrentBee int
+	MessageDebounce        string
 	FFprobePath     string
 	FFmpegPath      string
 
@@ -115,7 +116,8 @@ func loadExistingConfig(path string) *configValues {
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
-		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
+		FeederTimeout:          cfg.Bee.Feeder.Timeout.String(),
+		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
 		FFmpegPath:           cfg.Bee.Media.FFmpegPath,
@@ -134,7 +136,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		DBPath:          "./data/openbee.db",
 		ClaudePath:      "claude",
 		ClaudeTimeout:   "30m",
-		FeederTimeout:   "5m",
+		FeederTimeout:          "5m",
+		FeederMaxConcurrentBee: 5,
 		MessageDebounce: "3s",
 		FFprobePath:     "ffprobe",
 		FFmpegPath:      "ffmpeg",
@@ -477,6 +480,22 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
 		}
+
+		var concurrentBeeStr string
+		if err := survey.AskOne(&survey.Input{
+			Message: "Max concurrent bee processes:",
+			Default: strconv.Itoa(vals.FeederMaxConcurrentBee),
+		}, &concurrentBeeStr, survey.WithValidator(func(ans interface{}) error {
+			s, _ := ans.(string)
+			n, err := strconv.Atoi(s)
+			if err != nil || n <= 0 {
+				return fmt.Errorf("must be a positive integer")
+			}
+			return nil
+		})); err != nil {
+			return handleSurveyErr(err)
+		}
+		vals.FeederMaxConcurrentBee, _ = strconv.Atoi(concurrentBeeStr)
 
 		if err := survey.AskOne(&survey.Input{
 			Message: "Message debounce:",

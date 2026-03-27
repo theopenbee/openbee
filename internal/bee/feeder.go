@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +46,7 @@ type Feeder struct {
 	workDir         string
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
+	sem             chan struct{} // bounds concurrent bee processes
 }
 
 // NewFeeder creates a Feeder.
@@ -59,6 +59,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		runner:       runner,
 		workDir:      workDir,
 		cfg:          cfg,
+		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
 	}
 	for _, o := range opts {
 		o(f)
@@ -103,7 +104,14 @@ func (f *Feeder) tick(ctx context.Context) {
 		log.Warn("unprocessed messages in queue", zap.Int("count", count), zap.Int("threshold", QueueWarnThreshold))
 	}
 
-	msgs, err := f.msgStore.ClaimBatch(ctx, 1)
+	// Only claim as many messages as there are available semaphore slots,
+	// so every claimed message can be dispatched immediately without blocking.
+	available := cap(f.sem) - len(f.sem)
+	if available == 0 {
+		return
+	}
+
+	msgs, err := f.msgStore.ClaimBatch(ctx, available)
 	if err != nil {
 		log.Error("claim batch", zap.Error(err))
 		return
@@ -121,20 +129,13 @@ func (f *Feeder) tick(ctx context.Context) {
 		log.Error("ensure system rules", zap.Error(err))
 	}
 
-	groups := make(map[string][]store.ClaimedMessage)
 	for _, m := range msgs {
-		groups[m.SessionKey] = append(groups[m.SessionKey], m)
+		f.sem <- struct{}{} // always succeeds: len(msgs) <= available slots
+		go func() {
+			defer func() { <-f.sem }()
+			f.processBeeGroup(ctx, m.SessionKey, []store.ClaimedMessage{m})
+		}()
 	}
-
-	var wg sync.WaitGroup
-	for sessionKey, group := range groups {
-		wg.Add(1)
-		go func(sessionKey string, group []store.ClaimedMessage) {
-			defer wg.Done()
-			f.processBeeGroup(ctx, sessionKey, group)
-		}(sessionKey, group)
-	}
-	wg.Wait()
 }
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
