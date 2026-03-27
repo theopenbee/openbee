@@ -21,6 +21,7 @@ const (
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
 	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
+	CancelExecution(ctx context.Context, executionID string) error
 }
 
 // ExecutionQuerier retrieves execution state by ID.
@@ -32,6 +33,7 @@ type ExecutionQuerier interface {
 type TaskStore interface {
 	SetExecution(ctx context.Context, taskID, executionID, status string) error
 	FailTask(ctx context.Context, taskID string) error
+	CancelTask(ctx context.Context, taskID string) error
 }
 
 // FailureNotifier sends failure notifications to users when a worker execution
@@ -60,16 +62,18 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx              context.Context        // 由 Run 注入的生命周期上下文
-	manager          ExecutionManager       // 启动 worker 执行
-	taskStore        TaskStore              // 持久化 task 与 execution 的关联状态
-	sessionStore     SessionStore           // 管理会话上下文的读写与清理
-	execStore        ExecutionQuerier       // 按 ID 查询 execution 状态
-	failureNotifier  FailureNotifier        // 发送失败通知（可选）
-	inCh             <-chan DispatchTask    // 入站任务通道
-	resultsCh        chan internalResult    // 内部完成信号通道，用于驱动队列调度
-	queues           map[string]*queueState // 按 workerID 分组的串行队列
-	clearCh          chan string            // 接收需要清理的 sessionKey 信号
+	ctx              context.Context                  // 由 Run 注入的生命周期上下文
+	manager          ExecutionManager                 // 启动 worker 执行
+	taskStore        TaskStore                        // 持久化 task 与 execution 的关联状态
+	sessionStore     SessionStore                     // 管理会话上下文的读写与清理
+	execStore        ExecutionQuerier                 // 按 ID 查询 execution 状态
+	failureNotifier  FailureNotifier                  // 发送失败通知（可选）
+	inCh             <-chan DispatchTask              // 入站任务通道
+	resultsCh        chan internalResult              // 内部完成信号通道，用于驱动队列调度
+	queues           map[string]*queueState           // 按 workerID 分组的串行队列
+	clearCh          chan string                      // 接收需要清理的 sessionKey 信号
+	cancelFuncs      map[string]context.CancelFunc   // taskID → cancel func; owned by Run loop
+	cancelCh         chan string                      // receives taskID cancel requests
 }
 
 // New constructs a TaskDispatcher.
@@ -83,6 +87,8 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
 		clearCh:      make(chan string, 8),
+		cancelFuncs:  make(map[string]context.CancelFunc),
+		cancelCh:     make(chan string, 16),
 	}
 	for _, o := range opts {
 		o(d)
@@ -112,6 +118,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 			d.handleResult(res)
 		case sessionKey := <-d.clearCh:
 			d.clearQueues(sessionKey)
+		case taskID := <-d.cancelCh:
+			d.handleCancel(taskID)
 		case <-ctx.Done():
 			return
 		}
@@ -135,10 +143,18 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 
 	if !state.executing {
 		state.executing = true
-		go d.executeAsync(d.ctx, key, task)
+		d.startTask(key, task)
 	} else {
 		state.pendingTasks = append(state.pendingTasks, task)
 	}
+}
+
+func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
+	taskCtx, cancel := context.WithCancel(d.ctx)
+	if task.TaskID != "" {
+		d.cancelFuncs[task.TaskID] = cancel
+	}
+	go d.executeAsync(taskCtx, cancel, key, task)
 }
 
 // ClearSession removes all queued tasks for the given session and clears session contexts.
@@ -154,6 +170,42 @@ func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	default:
 		log.Warn("clearCh full, dropping clear", zap.String("sessionKey", sessionKey))
 	}
+}
+
+func (d *TaskDispatcher) handleCancel(taskID string) {
+	// Remove from any pending queue
+	for key, state := range d.queues {
+		var remaining []DispatchTask
+		for _, t := range state.pendingTasks {
+			if t.TaskID != taskID {
+				remaining = append(remaining, t)
+			}
+		}
+		state.pendingTasks = remaining
+		if !state.executing && len(state.pendingTasks) == 0 {
+			delete(d.queues, key)
+		}
+	}
+	// Interrupt executing goroutine if present
+	if cancel, ok := d.cancelFuncs[taskID]; ok {
+		cancel()
+		delete(d.cancelFuncs, taskID)
+	}
+}
+
+// CancelTask marks the task cancelled in DB and signals the Run loop to
+// remove it from the in-memory queue or interrupt its executing goroutine.
+// Best-effort: returns once DB is updated; goroutine interruption is async.
+func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
+	if err := d.taskStore.CancelTask(ctx, taskID); err != nil {
+		return err
+	}
+	select {
+	case d.cancelCh <- taskID:
+	default:
+		log.Warn("cancelCh full, in-memory cancel dropped", zap.String("taskID", taskID))
+	}
+	return nil
 }
 
 func (d *TaskDispatcher) clearQueues(sessionKey string) {
@@ -184,36 +236,45 @@ func buildInstruction(task DispatchTask) string {
 		task.TaskID, task.MessageID, task.Instruction)
 }
 
-func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task DispatchTask) {
-	instruction := buildInstruction(task)
+func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {
+	defer cancel() // always release the cancel func's resources
 	defer func() {
 		select {
 		case d.resultsCh <- internalResult{queueKey: key, task: task}:
-		case <-ctx.Done():
+		case <-d.ctx.Done():
 		}
 	}()
 
-	exec, err := d.resolveExecution(ctx, task, instruction)
+	instruction := buildInstruction(task)
+	exec, err := d.resolveExecution(taskCtx, task, instruction)
 	if err != nil {
 		log.Error("execute error", zap.Error(err))
 		if task.TaskID != "" {
-			if failErr := d.taskStore.FailTask(ctx, task.TaskID); failErr != nil {
+			if failErr := d.taskStore.FailTask(taskCtx, task.TaskID); failErr != nil {
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
-		d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
+		d.notifyFailure(taskCtx, task.MessageID, model.FailureInfo{
 			Reason:     err.Error(),
 			WorkerName: task.WorkerID,
 			RetryCount: -1,
 		})
 		return
 	}
+
+	// Cancellation may have arrived while resolveExecution was in-flight; kill the
+	// just-launched worker before entering waitForResult.
+	if taskCtx.Err() != nil {
+		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
+		return
+	}
+
 	if task.TaskID != "" {
-		if err := d.taskStore.SetExecution(ctx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
+		if err := d.taskStore.SetExecution(taskCtx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
 			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
-	d.waitForResult(ctx, exec.ID, task)
+	d.waitForResult(taskCtx, exec.ID, task)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
@@ -281,6 +342,8 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		select {
 		case <-time.After(pollInterval):
 		case <-ctx.Done():
+			// Task was cancelled — kill the worker process.
+			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			return
 		}
 	}
@@ -303,6 +366,8 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, in
 }
 
 func (d *TaskDispatcher) handleResult(res internalResult) {
+	delete(d.cancelFuncs, res.task.TaskID)
+
 	state, ok := d.queues[res.queueKey]
 	if !ok {
 		return
@@ -311,7 +376,7 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 	if len(state.pendingTasks) > 0 {
 		next := state.pendingTasks[0]
 		state.pendingTasks = state.pendingTasks[1:]
-		go d.executeAsync(d.ctx, res.queueKey, next)
+		d.startTask(res.queueKey, next)
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)

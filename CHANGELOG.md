@@ -4,10 +4,12 @@
 
 ### Added
 
+- Support canceling running tasks (`CancelTask`) to prevent tasks from being stuck indefinitely
 - `bee`: parallel session dispatch — each session now runs in its own goroutine, bounded by a semaphore (`max_concurrent_bee`, default 5)
 
 ### Changed
 
+- Scheduler computes `next_run_at` before claiming a task, eliminating the temporary 24-hour placeholder written to the database so `next_run_at` always reflects true scheduling intent
 - `store`: add `inPlaceholders` / `nullInt64Ptr` helpers; unify scan loops in execution/task stores
 - `mcp`: `toolGetWorkerStatus` uses targeted `GetRunningByWorkerID` query instead of full history scan
 

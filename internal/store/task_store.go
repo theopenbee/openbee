@@ -168,9 +168,10 @@ func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, ta
 }
 
 // ClaimDueTasks atomically selects all pending tasks that are due at or before nowMS,
-// marks them running (immediate/countdown) or advances their next_run_at (scheduled),
-// and returns them joined with their source platform_message data.
-func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.ClaimedTask, error) {
+// marks immediate/countdown tasks as running, and sets scheduled tasks' next_run_at
+// to the pre-computed value from scheduledNextRuns (keyed by task ID).
+// scheduledNextRuns may be nil if there are no due scheduled tasks.
+func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.ClaimedTask, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -221,9 +222,14 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 	now := time.Now().UnixMilli()
 	for i, ct := range claimed {
 		if ct.Type == model.TaskTypeScheduled {
+			nextRun, ok := scheduledNextRuns[ct.ID]
+			if !ok {
+				// Fallback: keep next_run_at unchanged (will be re-evaluated next poll)
+				continue
+			}
 			_, err = tx.ExecContext(ctx,
 				`UPDATE bee_tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
-				nowMS+24*60*60*1000, now, ct.ID) // +24h sentinel; overwritten by scheduler
+				nextRun, now, ct.ID)
 		} else {
 			_, err = tx.ExecContext(ctx,
 				`UPDATE bee_tasks SET status = 'running', updated_at = ? WHERE id = ?`,
@@ -239,6 +245,25 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64) ([]model.Cla
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 	return claimed, nil
+}
+
+// PeekDueScheduledTasks returns all pending scheduled tasks whose next_run_at
+// is at or before nowMS (or NULL). Read-only — no updates, no locking.
+// Used by Scheduler.poll to compute real next_run_at values before claiming.
+func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, message_id, worker_id, instruction, type, status,
+		       scheduled_at, cron_expr, next_run_at, execution_id,
+		       created_at, updated_at
+		FROM bee_tasks
+		WHERE type = 'scheduled'
+		  AND status = 'pending'
+		  AND (next_run_at IS NULL OR next_run_at <= ?)`, nowMS)
+	if err != nil {
+		return nil, fmt.Errorf("peek due scheduled tasks: %w", err)
+	}
+	defer rows.Close()
+	return scanTasks(rows)
 }
 
 // SetExecution writes execution_id and status back to a task.
@@ -351,14 +376,6 @@ func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
 		return err
 	}
 	return s.UpdateStatus(ctx, taskID, model.TaskStatusFailed)
-}
-
-// UpdateNextRunAt sets next_run_at for a scheduled task after dispatch.
-func (s *TaskStore) UpdateNextRunAt(ctx context.Context, taskID string, nextRunAt int64) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
-		nextRunAt, time.Now().UnixMilli(), taskID)
-	return err
 }
 
 // CountPendingByWorkerID returns the number of pending tasks for a given worker.

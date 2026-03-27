@@ -10,21 +10,27 @@ import (
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
 
 var log = logger.With(zap.String("component", "taskscheduler"))
 
+type schedulerStore interface {
+	PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error)
+	ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.ClaimedTask, error)
+	ResetRunningToPending(ctx context.Context) (int64, error)
+	SetExecution(ctx context.Context, taskID, executionID, status string) error
+}
+
 // Scheduler polls for due tasks and sends them to the TaskDispatcher.
 type Scheduler struct {
-	taskStore    *store.TaskStore
+	taskStore    schedulerStore
 	dispatchCh   chan<- task_dispatcher.DispatchTask
 	pollInterval time.Duration
 }
 
 // New creates a Scheduler.
-func New(taskStore *store.TaskStore, dispatchCh chan<- task_dispatcher.DispatchTask, pollInterval time.Duration) *Scheduler {
+func New(taskStore schedulerStore, dispatchCh chan<- task_dispatcher.DispatchTask, pollInterval time.Duration) *Scheduler {
 	return &Scheduler{
 		taskStore:    taskStore,
 		dispatchCh:   dispatchCh,
@@ -61,27 +67,43 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 func (s *Scheduler) poll(ctx context.Context) {
 	nowMS := time.Now().UnixMilli()
-	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS)
+
+	// Step 1: read-only peek at due scheduled tasks to compute real next_run_at values.
+	peeked, err := s.taskStore.PeekDueScheduledTasks(ctx, nowMS)
+	if err != nil {
+		log.Error("peek due scheduled tasks", zap.Error(err))
+		return
+	}
+	scheduledNextRuns := make(map[string]int64, len(peeked))
+	for _, t := range peeked {
+		if t.CronExpr == "" {
+			continue
+		}
+		sched, err := cron.ParseStandard(t.CronExpr)
+		if err != nil {
+			log.Error("invalid cron expression", zap.String("cronExpr", t.CronExpr), zap.String("taskID", t.ID), zap.Error(err))
+			continue
+		}
+		scheduledNextRuns[t.ID] = sched.Next(time.Now()).UnixMilli()
+	}
+
+	// Step 2: claim all due tasks atomically, writing real next_run_at in the same transaction.
+	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS, scheduledNextRuns)
 	if err != nil {
 		log.Error("claim due tasks", zap.Error(err))
 		return
 	}
 
 	for _, ct := range tasks {
-		// For scheduled tasks, compute the real next_run_at and update.
+		// Scheduled tasks with invalid cron were skipped in peek; skip dispatch too.
 		if ct.Type == model.TaskTypeScheduled && ct.CronExpr != "" {
-			sched, err := cron.ParseStandard(ct.CronExpr)
-			if err != nil {
-				log.Error("invalid cron expression", zap.String("cronExpr", ct.CronExpr), zap.String("taskID", ct.ID), zap.Error(err))
+			if _, ok := scheduledNextRuns[ct.ID]; !ok {
 				s.taskStore.SetExecution(ctx, ct.ID, "", model.TaskStatusFailed) //nolint:errcheck
 				continue
 			}
-			next := sched.Next(time.Now()).UnixMilli()
-			s.taskStore.UpdateNextRunAt(ctx, ct.ID, next) //nolint:errcheck
 		}
 
 		sessionKey := ct.MessageSessionKey
-
 		dt := task_dispatcher.DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
@@ -91,7 +113,6 @@ func (s *Scheduler) poll(ctx context.Context) {
 			TaskType:    ct.Type,
 			MessageID:   ct.MessageID,
 		}
-
 		select {
 		case s.dispatchCh <- dt:
 		case <-ctx.Done():
