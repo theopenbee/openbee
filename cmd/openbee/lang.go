@@ -14,8 +14,8 @@ func parseLangFlag(args []string) string {
 		if arg == "--lang" && i+1 < len(args) {
 			return args[i+1]
 		}
-		if strings.HasPrefix(arg, "--lang=") {
-			return strings.TrimPrefix(arg, "--lang=")
+		if val, ok := strings.CutPrefix(arg, "--lang="); ok {
+			return val
 		}
 	}
 	return ""
