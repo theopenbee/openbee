@@ -160,7 +160,7 @@ func Load(path string) (Config, error) {
 
 func applyDefaults(cfg *Config) error {
 	if cfg.Bee.MessageDebounce == 0 {
-		cfg.Bee.MessageDebounce = 3 * time.Second
+		cfg.Bee.MessageDebounce = 300 * time.Millisecond
 	}
 	if cfg.Bee.Feeder.Timeout == 0 {
 		cfg.Bee.Feeder.Timeout = 5 * time.Minute

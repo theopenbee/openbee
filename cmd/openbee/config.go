@@ -138,7 +138,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		ClaudeTimeout:   "30m",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
-		MessageDebounce: "3s",
+		MessageDebounce: "300ms",
 		FFprobePath:     "ffprobe",
 		FFmpegPath:      "ffmpeg",
 		AuthUsername:    "admin",
