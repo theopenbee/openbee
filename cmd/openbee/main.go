@@ -84,7 +84,22 @@ func applyTranslations() {
 	statusCmd.Short = m.Cmd.Status.Short
 	upgradeCmd.Short = m.Cmd.Upgrade.Short
 	upgradeCmd.Long = m.Cmd.Upgrade.Long
+	backupCmd.Short = m.Cmd.Backup.Short
+	restoreCmd.Short = m.Cmd.Restore.Short
 	claudeCmd.Short = m.Cmd.Claude.Short
 	claudeDownloadCmd.Short = m.Cmd.ClaudeDownload.Short
 	claudeEnvCmd.Short = m.Cmd.ClaudeEnv.Short
+
+	// Flag descriptions
+	serverCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
+	serverCmd.Flags().Lookup("daemon").Usage = m.Flag.ServerDaemon
+	configCmd.Flags().Lookup("output").Usage = m.Flag.ConfigOutput
+	backupCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
+	backupCmd.Flags().Lookup("password").Usage = m.Flag.BackupPassword
+	restoreCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
+	restoreCmd.Flags().Lookup("password").Usage = m.Flag.RestorePassword
+	restoreCmd.Flags().Lookup("force").Usage = m.Flag.RestoreForce
+	restartCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
+	upgradeCmd.Flags().Lookup("check").Usage = m.Flag.UpgradeCheck
+	claudeDownloadCmd.Flags().Lookup("force").Usage = m.Flag.ClaudeDownloadForce
 }

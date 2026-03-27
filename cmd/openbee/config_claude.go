@@ -16,7 +16,7 @@ import (
 // 3. Prompt for timeout
 func configureClaudeExecutable(vals *configValues) error {
 	if claudePath, err := exec.LookPath("claude"); err == nil {
-		fmt.Printf("Found Claude in PATH: %s, using it automatically.\n", claudePath)
+		fmt.Printf(i18n.M.Output.Config.ClaudeFound+"\n", claudePath)
 		vals.ClaudePath = claudePath
 	} else {
 		var method string
@@ -35,8 +35,8 @@ func configureClaudeExecutable(vals *configValues) error {
 		case "Download Claude":
 			path, err := claude.Download(openbeeStateDir(), false)
 			if err != nil {
-				fmt.Printf("Download failed: %v\n", err)
-				fmt.Println("Please enter the Claude path manually.")
+				fmt.Printf(i18n.M.Output.Config.ClaudeDownloadFailed+"\n", err)
+				fmt.Println(i18n.M.Output.Config.ClaudeManualEntry)
 				if err := promptClaudeManualPath(vals); err != nil {
 					return err
 				}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var statusCmd = &cobra.Command{
@@ -26,16 +27,16 @@ var statusCmd = &cobra.Command{
 func daemonStatus(pidFilePath string) (running bool, msg string) {
 	pid, startTS, err := readPIDFileFrom(pidFilePath)
 	if err != nil {
-		return false, "○ openbee is not running"
+		return false, i18n.M.Output.Status.NotRunning
 	}
 
 	if !isAlive(pid) {
 		_ = os.Remove(pidFilePath) // clean up stale file
-		return false, "○ openbee is not running (stale PID file removed)"
+		return false, i18n.M.Output.Status.NotRunningStale
 	}
 
 	uptime := time.Now().Unix() - startTS
-	return true, fmt.Sprintf("● openbee is running   (PID: %d, uptime: %s)", pid, formatUptime(uptime))
+	return true, fmt.Sprintf(i18n.M.Output.Status.Running, pid, formatUptime(uptime))
 }
 
 func init() {

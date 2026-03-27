@@ -5,6 +5,8 @@ package i18n
 type Messages struct {
 	Cmd    CmdMessages    `yaml:"cmd"`
 	Prompt PromptMessages `yaml:"prompt"`
+	Flag   FlagMessages   `yaml:"flag"`
+	Output OutputMessages `yaml:"output"`
 }
 
 // CmdEntry holds the Short and optional Long description for a cobra command.
@@ -22,6 +24,8 @@ type CmdMessages struct {
 	Restart        CmdEntry `yaml:"restart"`
 	Status         CmdEntry `yaml:"status"`
 	Upgrade        CmdEntry `yaml:"upgrade"`
+	Backup         CmdEntry `yaml:"backup"`
+	Restore        CmdEntry `yaml:"restore"`
 	Claude         CmdEntry `yaml:"claude"`
 	ClaudeDownload CmdEntry `yaml:"claude_download"`
 	ClaudeEnv      CmdEntry `yaml:"claude_env"`
@@ -69,4 +73,113 @@ type PromptMessages struct {
 	FFmpegPath           string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
+}
+
+// FlagMessages 对应所有 cobra flag 的 Usage 说明。
+type FlagMessages struct {
+	ConfigPath          string `yaml:"config_path"`
+	ServerDaemon        string `yaml:"server_daemon"`
+	ConfigOutput        string `yaml:"config_output"`
+	BackupPassword      string `yaml:"backup_password"`
+	RestorePassword     string `yaml:"restore_password"`
+	RestoreForce        string `yaml:"restore_force"`
+	UpgradeCheck        string `yaml:"upgrade_check"`
+	ClaudeDownloadForce string `yaml:"claude_download_force"`
+}
+
+// OutputMessages 对应所有命令的运行时输出文本。
+type OutputMessages struct {
+	Stop    StopOutput    `yaml:"stop"`
+	Status  StatusOutput  `yaml:"status"`
+	Upgrade UpgradeOutput `yaml:"upgrade"`
+	Backup  BackupOutput  `yaml:"backup"`
+	Restore RestoreOutput `yaml:"restore"`
+	Config  ConfigOutput  `yaml:"config"`
+	Claude  ClaudeOutput  `yaml:"claude"`
+	Weixin  WeixinOutput  `yaml:"weixin"`
+}
+
+// StopOutput 对应 stop 命令的运行时输出。
+type StopOutput struct {
+	NotRunning string `yaml:"not_running"`
+	Stale      string `yaml:"stale"`
+	ForeignPID string `yaml:"foreign_pid"` // contains %d
+	Stopping   string `yaml:"stopping"`    // contains %d
+	Stopped    string `yaml:"stopped"`
+}
+
+// StatusOutput 对应 status 命令的运行时输出。
+type StatusOutput struct {
+	NotRunning      string `yaml:"not_running"`
+	NotRunningStale string `yaml:"not_running_stale"`
+	Running         string `yaml:"running"` // contains %d, %s
+}
+
+// UpgradeOutput 对应 upgrade 命令的运行时输出。
+type UpgradeOutput struct {
+	CurrentVersion  string `yaml:"current_version"`  // contains %s
+	Checking        string `yaml:"checking"`
+	LatestVersion   string `yaml:"latest_version"`   // contains %s
+	UpToDate        string `yaml:"up_to_date"`
+	NewVersion      string `yaml:"new_version"`      // contains %s
+	RunCmd          string `yaml:"run_cmd"`
+	Downloading     string `yaml:"downloading"`      // contains %s
+	ChecksumWarning string `yaml:"checksum_warning"` // contains %v
+	Verifying       string `yaml:"verifying"`
+	Verified        string `yaml:"verified"`
+	BinaryAt        string `yaml:"binary_at"` // contains %s
+	Success         string `yaml:"success"`   // contains %s
+}
+
+// BackupOutput 对应 backup 命令的运行时输出。
+type BackupOutput struct {
+	Created string `yaml:"created"` // contains %s
+}
+
+// RestoreOutput 对应 restore 命令的运行时输出。
+type RestoreOutput struct {
+	Complete string `yaml:"complete"`
+}
+
+// ConfigOutput 对应 config 及 config_claude 的运行时输出。
+type ConfigOutput struct {
+	FoundExisting        string `yaml:"found_existing"`         // contains %s
+	SectionClaude        string `yaml:"section_claude"`
+	SectionPlatform      string `yaml:"section_platform"`
+	SectionAuth          string `yaml:"section_auth"`
+	SectionAdvanced      string `yaml:"section_advanced"`
+	SectionWrite         string `yaml:"section_write"`
+	OutputFile           string `yaml:"output_file"`            // contains %s
+	WriteCancelled       string `yaml:"write_cancelled"`
+	Written              string `yaml:"written"`                // contains %s
+	JWTRegenerated       string `yaml:"jwt_regenerated"`
+	JWTGenerated         string `yaml:"jwt_generated"`
+	MCPKeyGenerated      string `yaml:"mcp_key_generated"`      // contains %s
+	WorkerKeyGenerated   string `yaml:"worker_key_generated"`   // contains %s
+	PasswordGenerated    string `yaml:"password_generated"`     // contains %s
+	WeixinQRLogin        string `yaml:"weixin_qr_login"`
+	FetchingQR           string `yaml:"fetching_qr"`
+	QRFailed             string `yaml:"qr_failed"`              // contains %v
+	QRFallback           string `yaml:"qr_fallback"`
+	WeixinSuccess        string `yaml:"weixin_success"`
+	ClaudeFound          string `yaml:"claude_found"`           // contains %s
+	ClaudeDownloadFailed string `yaml:"claude_download_failed"` // contains %v
+	ClaudeManualEntry    string `yaml:"claude_manual_entry"`
+}
+
+// ClaudeOutput 对应 claude 子命令的运行时输出。
+type ClaudeOutput struct {
+	AlreadyInstalled string `yaml:"already_installed"` // contains %s
+	UseForce         string `yaml:"use_force"`
+	InstalledAt      string `yaml:"installed_at"` // contains %s
+}
+
+// WeixinOutput 对应微信扫码登录流程的运行时输出。
+type WeixinOutput struct {
+	ScanQR       string `yaml:"scan_qr"`
+	Waiting      string `yaml:"waiting"`
+	PollFailed   string `yaml:"poll_failed"`   // contains %d, %v
+	PollInvalid  string `yaml:"poll_invalid"`  // contains %d, %v
+	Scanned      string `yaml:"scanned"`
+	StillWaiting string `yaml:"still_waiting"`
 }

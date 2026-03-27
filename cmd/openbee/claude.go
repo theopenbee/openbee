@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	claude "github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var claudeCmd = &cobra.Command{
@@ -25,8 +26,8 @@ var claudeDownloadCmd = &cobra.Command{
 		destPath := filepath.Join(stateDir, "bin", "claude")
 		if !claudeDownloadForce {
 			if _, err := os.Stat(destPath); err == nil {
-				fmt.Printf("Claude is already installed at %s\n", destPath)
-				fmt.Println("Use --force to re-download.")
+				fmt.Printf(i18n.M.Output.Claude.AlreadyInstalled+"\n", destPath)
+				fmt.Println(i18n.M.Output.Claude.UseForce)
 				return nil
 			}
 		}
@@ -34,7 +35,7 @@ var claudeDownloadCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Claude installed at: %s\n", path)
+		fmt.Printf(i18n.M.Output.Claude.InstalledAt+"\n", path)
 		return nil
 	},
 }

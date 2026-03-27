@@ -149,12 +149,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	// If an existing config file exists, use its values as defaults
 	if existing := loadExistingConfig(configOutputPath); existing != nil {
-		fmt.Printf("Found existing config at %s, using its values as defaults.\n", configOutputPath)
+		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
 		vals = *existing
 	}
 
 	// Step 1 — Claude config
-	fmt.Println("\n=== Claude Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionClaude)
 
 	if err := configureClaudeExecutable(&vals); err != nil {
 		return err
@@ -164,7 +164,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 2 — Platform config
-	fmt.Println("\n=== Platform Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionPlatform)
 
 	// Build default selections from existing config
 	var defaultPlatforms []string
@@ -285,13 +285,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 
 			if needQRLogin {
-				fmt.Println("\n--- Weixin QR Code Login ---")
-				fmt.Println("Fetching QR code...")
+				fmt.Println(i18n.M.Output.Config.WeixinQRLogin)
+				fmt.Println(i18n.M.Output.Config.FetchingQR)
 
 				token, userID, baseURL, err := runWeixinQRLogin()
 				if err != nil {
-					fmt.Printf("QR login failed: %v\n", err)
-					fmt.Println("Falling back to manual token entry.")
+					fmt.Printf(i18n.M.Output.Config.QRFailed+"\n", err)
+					fmt.Println(i18n.M.Output.Config.QRFallback)
 					if err := survey.AskOne(&survey.Password{
 						Message: i18n.M.Prompt.WeixinBotToken,
 					}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
@@ -309,7 +309,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 					if baseURL != "" {
 						vals.WeixinBaseURL = baseURL
 					}
-					fmt.Println("Weixin login successful!")
+					fmt.Println(i18n.M.Output.Config.WeixinSuccess)
 				}
 			}
 			if vals.WeixinBaseURL == "" {
@@ -320,7 +320,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 3 — Web Authentication
-	fmt.Println("\n=== Web Authentication ===")
+	fmt.Println(i18n.M.Output.Config.SectionAuth)
 
 	if err := survey.AskOne(&survey.Input{
 		Message: i18n.M.Prompt.Username,
@@ -360,17 +360,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			b := make([]byte, 32)
 			rand.Read(b)
 			vals.AuthJWTSecret = hex.EncodeToString(b)
-			fmt.Println("JWT secret regenerated.")
+			fmt.Println(i18n.M.Output.Config.JWTRegenerated)
 		}
 	} else {
 		b := make([]byte, 32)
 		rand.Read(b)
 		vals.AuthJWTSecret = hex.EncodeToString(b)
-		fmt.Println("JWT secret generated.")
+		fmt.Println(i18n.M.Output.Config.JWTGenerated)
 	}
 
 	// Step 4 — Advanced config
-	fmt.Println("\n=== Advanced Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
 
 	var customAdvanced bool
 	if err := survey.AskOne(&survey.Confirm{
@@ -435,7 +435,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("generate random key: %w", err)
 			}
 			vals.MCPAPIKey = hex.EncodeToString(b)
-			fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+			fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
 		case "Enter manually":
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.MCPAPIKey,
@@ -465,7 +465,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("generate random worker key: %w", err)
 			}
 			vals.WorkerAPIKey = hex.EncodeToString(b)
-			fmt.Printf("Generated MCP Worker API Key: %s\n", vals.WorkerAPIKey)
+			fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
 		case "Enter manually":
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.MCPWorkerAPIKey,
@@ -527,7 +527,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("generate random key: %w", err)
 		}
 		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+		fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
 	}
 
 	// Auto-generate Worker API Key if not set
@@ -537,12 +537,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("generate random worker key: %w", err)
 		}
 		vals.WorkerAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated Worker API Key: %s\n", vals.WorkerAPIKey)
+		fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
 	}
 
 	// Step 4 — Confirm write
-	fmt.Printf("\n=== Write Configuration ===\n")
-	fmt.Printf("Output file: %s\n", configOutputPath)
+	fmt.Println(i18n.M.Output.Config.SectionWrite)
+	fmt.Printf(i18n.M.Output.Config.OutputFile+"\n", configOutputPath)
 
 	var confirmWrite bool
 	if err := survey.AskOne(&survey.Confirm{
@@ -552,7 +552,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return handleSurveyErr(err)
 	}
 	if !confirmWrite {
-		fmt.Println("Write cancelled.")
+		fmt.Println(i18n.M.Output.Config.WriteCancelled)
 		return nil
 	}
 
@@ -570,7 +570,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write file: %w", err)
 	}
 
-	fmt.Printf("Config file written to: %s\n", configOutputPath)
+	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
 	return nil
 }
 
@@ -593,7 +593,7 @@ func promptPassword(vals *configValues) error {
 		b := make([]byte, 16)
 		rand.Read(b)
 		vals.AuthPassword = hex.EncodeToString(b)
-		fmt.Printf("Generated password: %s\n", vals.AuthPassword)
+		fmt.Printf(i18n.M.Output.Config.PasswordGenerated+"\n", vals.AuthPassword)
 	}
 	return nil
 }

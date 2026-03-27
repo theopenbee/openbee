@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 const (
@@ -52,25 +53,25 @@ func init() {
 func runUpgrade(checkOnly bool) error {
 	current := version
 
-	fmt.Printf("Current version: %s\n", current)
-	fmt.Println("Checking for latest version...")
+	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
+	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
 	latest, err := fetchLatestVersion()
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
 
-	fmt.Printf("Latest version: %s\n", latest)
+	fmt.Printf(i18n.M.Output.Upgrade.LatestVersion+"\n", latest)
 
 	if !isNewer(latest, current) {
-		fmt.Println("Already up to date.")
+		fmt.Println(i18n.M.Output.Upgrade.UpToDate)
 		return nil
 	}
 
-	fmt.Printf("New version available: %s\n", latest)
+	fmt.Printf(i18n.M.Output.Upgrade.NewVersion+"\n", latest)
 
 	if checkOnly {
-		fmt.Printf("Run 'openbee upgrade' to upgrade.\n")
+		fmt.Println(i18n.M.Output.Upgrade.RunCmd)
 		return nil
 	}
 
@@ -147,7 +148,7 @@ func doUpgrade(newVersion string) error {
 	archiveURL := fmt.Sprintf("%s/%s/%s", githubRelBase, newVersion, archiveName)
 	checksumURL := fmt.Sprintf("%s/%s/checksums.txt", githubRelBase, newVersion)
 
-	fmt.Printf("Downloading %s...\n", archiveName)
+	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
 	tmpDir, err := os.MkdirTemp("", "openbee-upgrade-*")
 	if err != nil {
@@ -161,7 +162,7 @@ func doUpgrade(newVersion string) error {
 	checksumAvailable := true
 	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
-		fmt.Printf("warning: failed to download checksums.txt, skipping verification (%v)\n", err)
+		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
 	}
 
 	h := sha256.New()
@@ -171,7 +172,7 @@ func doUpgrade(newVersion string) error {
 	}
 
 	if checksumAvailable {
-		fmt.Println("Verifying SHA256...")
+		fmt.Println(i18n.M.Output.Upgrade.Verifying)
 		data, err := os.ReadFile(checksumPath)
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
@@ -189,7 +190,7 @@ func doUpgrade(newVersion string) error {
 		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
 			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
 		}
-		fmt.Println("SHA256 verified.")
+		fmt.Println(i18n.M.Output.Upgrade.Verified)
 	}
 
 	// Locate the current executable.
@@ -197,7 +198,7 @@ func doUpgrade(newVersion string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Upgrading binary at: %s\n", execPath)
+	fmt.Printf(i18n.M.Output.Upgrade.BinaryAt+"\n", execPath)
 
 	// Atomic replace: extract directly into a temp file next to the target, then rename.
 	dir := filepath.Dir(execPath)
@@ -219,7 +220,7 @@ func doUpgrade(newVersion string) error {
 		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 
-	fmt.Printf("Successfully upgraded openbee to %s.\n", newVersion)
+	fmt.Printf(i18n.M.Output.Upgrade.Success+"\n", newVersion)
 	return nil
 }
 

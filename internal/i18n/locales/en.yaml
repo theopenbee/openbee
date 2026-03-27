@@ -14,6 +14,10 @@ cmd:
   upgrade:
     short: "Upgrade openbee to the latest version"
     long: "Check for a new version and replace the current binary if one is available."
+  backup:
+    short: "Create a backup archive of the openbee database, config, and state"
+  restore:
+    short: "Restore openbee data from a backup archive"
   claude:
     short: "Manage Claude Code installation and provider configuration"
   claude_download:
@@ -56,3 +60,74 @@ prompt:
   ffprobe_path: "FFprobe path:"
   ffmpeg_path: "FFmpeg path:"
   confirm_write: "Confirm write config file?"
+flag:
+  config_path: "path to config file"
+  server_daemon: "run as background daemon"
+  config_output: "output config file path"
+  backup_password: "encrypt the backup with this password"
+  restore_password: "password to decrypt the backup archive"
+  restore_force: "overwrite existing data"
+  upgrade_check: "check for updates only, do not upgrade"
+  claude_download_force: "Force re-download even if already installed"
+output:
+  stop:
+    not_running: "openbee is not running"
+    stale: "openbee is not running (stale PID file removed)"
+    foreign_pid: "warning: PID %d is owned by another user — daemon may have exited and its PID was recycled. Removing stale PID file."
+    stopping: "Stopping openbee (PID: %d)..."
+    stopped: "openbee stopped"
+  status:
+    not_running: "○ openbee is not running"
+    not_running_stale: "○ openbee is not running (stale PID file removed)"
+    running: "● openbee is running   (PID: %d, uptime: %s)"
+  upgrade:
+    current_version: "Current version: %s"
+    checking: "Checking for latest version..."
+    latest_version: "Latest version: %s"
+    up_to_date: "Already up to date."
+    new_version: "New version available: %s"
+    run_cmd: "Run 'openbee upgrade' to upgrade."
+    downloading: "Downloading %s..."
+    checksum_warning: "warning: failed to download checksums.txt, skipping verification (%v)"
+    verifying: "Verifying SHA256..."
+    verified: "SHA256 verified."
+    binary_at: "Upgrading binary at: %s"
+    success: "Successfully upgraded openbee to %s."
+  backup:
+    created: "Backup created: %s"
+  restore:
+    complete: "Restore complete."
+  config:
+    found_existing: "Found existing config at %s, using its values as defaults."
+    section_claude: "\n=== Claude Configuration ==="
+    section_platform: "\n=== Platform Configuration ==="
+    section_auth: "\n=== Web Authentication ==="
+    section_advanced: "\n=== Advanced Configuration ==="
+    section_write: "\n=== Write Configuration ==="
+    output_file: "Output file: %s"
+    write_cancelled: "Write cancelled."
+    written: "Config file written to: %s"
+    jwt_regenerated: "JWT secret regenerated."
+    jwt_generated: "JWT secret generated."
+    mcp_key_generated: "Generated MCP API Key: %s"
+    worker_key_generated: "Generated MCP Worker API Key: %s"
+    password_generated: "Generated password: %s"
+    weixin_qr_login: "\n--- Weixin QR Code Login ---"
+    fetching_qr: "Fetching QR code..."
+    qr_failed: "QR login failed: %v"
+    qr_fallback: "Falling back to manual token entry."
+    weixin_success: "Weixin login successful!"
+    claude_found: "Found Claude in PATH: %s, using it automatically."
+    claude_download_failed: "Download failed: %v"
+    claude_manual_entry: "Please enter the Claude path manually."
+  claude:
+    already_installed: "Claude is already installed at %s"
+    use_force: "Use --force to re-download."
+    installed_at: "Claude installed at: %s"
+  weixin:
+    scan_qr: "\nScan this QR code with WeChat:"
+    waiting: "\nWaiting for scan..."
+    poll_failed: "  poll attempt %d failed: %v"
+    poll_invalid: "  poll attempt %d: invalid response: %v"
+    scanned: "  Scanned! Please confirm on your phone..."
+    still_waiting: "  Still waiting for scan..."

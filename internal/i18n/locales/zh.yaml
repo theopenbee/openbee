@@ -14,6 +14,10 @@ cmd:
   upgrade:
     short: "升级 openbee 至最新版本"
     long: "检查是否有新版本，如有则替换当前二进制文件。"
+  backup:
+    short: "备份 openbee 数据库、配置及状态"
+  restore:
+    short: "从备份文件恢复 openbee 数据"
   claude:
     short: "管理 Claude Code 安装及 AI 提供商配置"
   claude_download:
@@ -56,3 +60,74 @@ prompt:
   ffprobe_path: "FFprobe 路径："
   ffmpeg_path: "FFmpeg 路径："
   confirm_write: "确认写入配置文件？"
+flag:
+  config_path: "配置文件路径"
+  server_daemon: "以后台守护进程方式运行"
+  config_output: "输出配置文件路径"
+  backup_password: "使用此密码加密备份文件"
+  restore_password: "用于解密备份文件的密码"
+  restore_force: "覆盖已有数据"
+  upgrade_check: "仅检查更新，不执行升级"
+  claude_download_force: "即使已安装也强制重新下载"
+output:
+  stop:
+    not_running: "openbee 未运行"
+    stale: "openbee 未运行（已清理残留 PID 文件）"
+    foreign_pid: "警告：PID %d 属于其他用户 — 守护进程可能已退出且 PID 被复用，正在清理残留 PID 文件。"
+    stopping: "正在停止 openbee（PID: %d）..."
+    stopped: "openbee 已停止"
+  status:
+    not_running: "○ openbee 未运行"
+    not_running_stale: "○ openbee 未运行（已清理残留 PID 文件）"
+    running: "● openbee 运行中   （PID: %d，已运行: %s）"
+  upgrade:
+    current_version: "当前版本：%s"
+    checking: "正在检查最新版本..."
+    latest_version: "最新版本：%s"
+    up_to_date: "已是最新版本。"
+    new_version: "发现新版本：%s"
+    run_cmd: "运行 'openbee upgrade' 以升级。"
+    downloading: "正在下载 %s..."
+    checksum_warning: "警告：无法下载 checksums.txt，跳过校验（%v）"
+    verifying: "正在验证 SHA256..."
+    verified: "SHA256 验证通过。"
+    binary_at: "正在升级二进制文件：%s"
+    success: "openbee 已成功升级至 %s。"
+  backup:
+    created: "备份已创建：%s"
+  restore:
+    complete: "恢复完成。"
+  config:
+    found_existing: "发现已有配置文件 %s，将以其内容作为默认值。"
+    section_claude: "\n=== Claude 配置 ==="
+    section_platform: "\n=== 平台配置 ==="
+    section_auth: "\n=== Web 认证 ==="
+    section_advanced: "\n=== 高级配置 ==="
+    section_write: "\n=== 写入配置 ==="
+    output_file: "输出文件：%s"
+    write_cancelled: "已取消写入。"
+    written: "配置文件已写入：%s"
+    jwt_regenerated: "JWT 密钥已重新生成。"
+    jwt_generated: "JWT 密钥已生成。"
+    mcp_key_generated: "已生成 MCP API Key：%s"
+    worker_key_generated: "已生成 MCP Worker API Key：%s"
+    password_generated: "已生成密码：%s"
+    weixin_qr_login: "\n--- 微信扫码登录 ---"
+    fetching_qr: "正在获取二维码..."
+    qr_failed: "扫码登录失败：%v"
+    qr_fallback: "切换为手动输入 token。"
+    weixin_success: "微信登录成功！"
+    claude_found: "在 PATH 中找到 Claude：%s，将自动使用。"
+    claude_download_failed: "下载失败：%v"
+    claude_manual_entry: "请手动输入 Claude 路径。"
+  claude:
+    already_installed: "Claude 已安装在 %s"
+    use_force: "使用 --force 重新下载。"
+    installed_at: "Claude 已安装至：%s"
+  weixin:
+    scan_qr: "\n请使用微信扫描以下二维码："
+    waiting: "\n等待扫码..."
+    poll_failed: "  第 %d 次轮询失败：%v"
+    poll_invalid: "  第 %d 次轮询：响应无效：%v"
+    scanned: "  已扫码！请在手机上确认..."
+    still_waiting: "  仍在等待扫码..."

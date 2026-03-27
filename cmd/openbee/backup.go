@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/backup"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var backupPassword string
@@ -40,7 +41,7 @@ var backupCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Backup created: %s\n", archivePath)
+		fmt.Printf(i18n.M.Output.Backup.Created+"\n", archivePath)
 		return nil
 	},
 }
