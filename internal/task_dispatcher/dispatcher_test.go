@@ -55,6 +55,7 @@ func (s *mockTaskStore) FailTask(_ context.Context, taskID string) error {
 	s.failedTasks = append(s.failedTasks, taskID)
 	return nil
 }
+func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { return nil }
 
 type mockSessionStore struct {
 	mu      sync.Mutex
@@ -647,6 +648,113 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	defer ss.mu.Unlock()
 	if len(ss.cleared) == 0 || ss.cleared[0] != "s1" {
 		t.Errorf("expected ClearSessionContexts called with s1, got %v", ss.cleared)
+	}
+}
+
+// cancellingExecManager blocks until either the context is cancelled or the blocker is closed.
+type cancellingExecManager struct {
+	started int64
+}
+
+func (m *cancellingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	atomic.AddInt64(&m.started, 1)
+	<-ctx.Done() // blocks until context is cancelled
+	return model.WorkerExecution{ID: "exec-cancel"}, nil
+}
+
+func (m *cancellingExecManager) CancelExecution(_ context.Context, _ string) error {
+	return nil
+}
+
+// cancelTrackingExecManager blocks forever on ExecuteWorker (context-aware),
+// and tracks CancelExecution calls.
+type cancelTrackingExecManager struct {
+	cancelCount *int64
+}
+
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	<-ctx.Done()
+	return model.WorkerExecution{ID: "exec-tracked"}, nil
+}
+
+func (m *cancelTrackingExecManager) CancelExecution(_ context.Context, _ string) error {
+	atomic.AddInt64(m.cancelCount, 1)
+	return nil
+}
+
+func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
+	// A pending (not yet executing) task should be removed from the queue.
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
+
+	in := make(chan task_dispatcher.DispatchTask, 4)
+	ts := &mockTaskStore{}
+	d := task_dispatcher.New(mgr, ts, newMockSessionStore(), eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// t1 blocks the worker queue
+	t1 := immediateTask("s1", "w1", "first")
+	t1.TaskID = "task-1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // t1 now executing
+
+	// t2 is pending in queue
+	t2 := immediateTask("s1", "w1", "second")
+	t2.TaskID = "task-2"
+	in <- t2
+	time.Sleep(20 * time.Millisecond)
+
+	// Cancel t2 while it's pending
+	if err := d.CancelTask(context.Background(), "task-2"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock t1
+	close(blocker)
+	time.Sleep(100 * time.Millisecond)
+
+	// t2 should NOT have executed
+	if atomic.LoadInt64(&mgr.completed) > 1 {
+		t.Errorf("task-2 should not have executed after cancel, completed=%d", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
+func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
+	var cancelCalled int64
+	mgr := &cancelTrackingExecManager{cancelCount: &cancelCalled}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
+
+	in := make(chan task_dispatcher.DispatchTask, 4)
+	ts := &mockTaskStore{}
+	d := task_dispatcher.New(mgr, ts, newMockSessionStore(), eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "long task")
+	t1.TaskID = "task-exec-1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // executing
+
+	if err := d.CancelTask(context.Background(), "task-exec-1"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&cancelCalled) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&cancelCalled) == 0 {
+		t.Error("expected CancelExecution to be called on the manager")
 	}
 }
 
