@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- `bee`: parallel session dispatch — each session now runs in its own goroutine, bounded by a semaphore (`max_concurrent_bee`, default 5)
+- `store`: `ClaimBatch` selects at most one message per session key and skips sessions already in `feeding` status (FIFO within session)
+- `config`: `max_concurrent_bee` field in `FeederConfig`; exposed in config template and interactive wizard
+
 ### Changed
 
 - `store`: add `inPlaceholders` / `nullInt64Ptr` helpers; unify scan loops in execution/task stores
