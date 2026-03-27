@@ -272,10 +272,10 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				}
 			}
 			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
-			Reason:     exec.Result,
-			WorkerName: exec.WorkerName,
-			RetryCount: -1,
-		})
+				Reason:     exec.Result,
+				WorkerName: workerName(exec.WorkerName, task.WorkerID),
+				RetryCount: -1,
+			})
 			return
 		}
 		select {
@@ -284,6 +284,14 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		}
 	}
+}
+
+// workerName returns primary if non-empty, otherwise fallback.
+func workerName(primary, fallback string) string {
+	if primary != "" {
+		return primary
+	}
+	return fallback
 }
 
 func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, info model.FailureInfo) {
