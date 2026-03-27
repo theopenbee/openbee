@@ -59,3 +59,31 @@ func TestArchiveRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "bbb", string(got))
 }
+
+func TestEncryptDecryptRoundTrip(t *testing.T) {
+	plain := filepath.Join(t.TempDir(), "plain.tar.gz")
+	enc := filepath.Join(t.TempDir(), "plain.tar.gz.enc")
+	decrypted := filepath.Join(t.TempDir(), "decrypted.tar.gz")
+
+	require.NoError(t, os.WriteFile(plain, []byte("secret data"), 0644))
+
+	require.NoError(t, backup.EncryptFile(plain, enc, "hunter2"))
+	require.NoError(t, backup.DecryptFile(enc, decrypted, "hunter2"))
+
+	got, err := os.ReadFile(decrypted)
+	require.NoError(t, err)
+	require.Equal(t, "secret data", string(got))
+}
+
+func TestDecryptWrongPassword(t *testing.T) {
+	plain := filepath.Join(t.TempDir(), "plain.tar.gz")
+	enc := filepath.Join(t.TempDir(), "plain.tar.gz.enc")
+	decrypted := filepath.Join(t.TempDir(), "decrypted.tar.gz")
+
+	require.NoError(t, os.WriteFile(plain, []byte("secret"), 0644))
+	require.NoError(t, backup.EncryptFile(plain, enc, "correct"))
+
+	err := backup.DecryptFile(enc, decrypted, "wrong")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "incorrect password or corrupted file")
+}
