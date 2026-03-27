@@ -286,7 +286,6 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 	}
 }
 
-// workerName returns primary if non-empty, otherwise fallback.
 func workerName(primary, fallback string) string {
 	if primary != "" {
 		return primary
