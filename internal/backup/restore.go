@@ -65,7 +65,7 @@ func Restore(opts RestoreOptions) error {
 		return fmt.Errorf("read manifest: %w", err)
 	}
 	if m.OpenbeeVersion != opts.AppVersion {
-		fmt.Printf("warning: backup was created with openbee %s, current version is %s\n",
+		fmt.Fprintf(os.Stderr, "warning: backup was created with openbee %s, current version is %s\n",
 			m.OpenbeeVersion, opts.AppVersion)
 	}
 
