@@ -130,14 +130,12 @@ func (f *Feeder) tick(ctx context.Context) {
 	}
 
 	for _, m := range msgs {
-		m := m
 		f.sem <- struct{}{} // always succeeds: len(msgs) <= available slots
 		go func() {
 			defer func() { <-f.sem }()
 			f.processBeeGroup(ctx, m.SessionKey, []store.ClaimedMessage{m})
 		}()
 	}
-	// tick returns immediately; goroutines run independently
 }
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.

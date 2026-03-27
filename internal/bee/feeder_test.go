@@ -435,7 +435,7 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 
 	// Insert 6 messages from 6 different sessions — more than MaxConcurrentBee.
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		insertMessage(t, db, fmt.Sprintf("m%d", i), fmt.Sprintf("feishu:c:u%d", i), "msg")
 	}
 
@@ -489,7 +489,7 @@ type callbackBeeRunner struct {
 	fn func()
 }
 
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, opts claude.RunOptions, _ string) (*claude.Process, <-chan claude.Output, error) {
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ claude.RunOptions, _ string) (*claude.Process, <-chan claude.Output, error) {
 	ch := make(chan claude.Output, 1)
 	go func() {
 		if r.fn != nil {
