@@ -3,6 +3,7 @@ package backup_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -86,4 +87,58 @@ func TestDecryptWrongPassword(t *testing.T) {
 	err := backup.DecryptFile(enc, decrypted, "wrong")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "incorrect password or corrupted file")
+}
+
+func TestBackupCreatesArchive(t *testing.T) {
+	// Create fake source files
+	dbPath := filepath.Join(t.TempDir(), "openbee.db")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	stateDir := filepath.Join(t.TempDir(), "dot-openbee")
+
+	require.NoError(t, os.WriteFile(dbPath, []byte("fake-db"), 0644))
+	require.NoError(t, os.WriteFile(cfgPath, []byte("server:\n  port: 8080\n"), 0644))
+	require.NoError(t, os.MkdirAll(stateDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stateDir, "openbee.log"), []byte("log"), 0644))
+
+	outDir := t.TempDir()
+	archivePath, err := backup.Backup(backup.BackupOptions{
+		DBPath:      dbPath,
+		ConfigPath:  cfgPath,
+		StateDir:    stateDir,
+		OutputDir:   outDir,
+		AppVersion:  "0.5.0",
+	})
+	require.NoError(t, err)
+	require.FileExists(t, archivePath)
+	require.True(t, strings.HasSuffix(archivePath, ".tar.gz"), "expected .tar.gz, got %s", archivePath)
+
+	// Verify archive contains manifest + all expected files
+	extractDir := t.TempDir()
+	require.NoError(t, backup.UnpackTarGz(archivePath, extractDir))
+	require.FileExists(t, filepath.Join(extractDir, "manifest.json"))
+	require.FileExists(t, filepath.Join(extractDir, "openbee.db"))
+	require.FileExists(t, filepath.Join(extractDir, "config.yaml"))
+	require.FileExists(t, filepath.Join(extractDir, "dot-openbee", "openbee.log"))
+}
+
+func TestBackupEncrypted(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "openbee.db")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	stateDir := filepath.Join(t.TempDir(), "dot-openbee")
+
+	require.NoError(t, os.WriteFile(dbPath, []byte("fake-db"), 0644))
+	require.NoError(t, os.WriteFile(cfgPath, []byte("server:\n  port: 8080\n"), 0644))
+	require.NoError(t, os.MkdirAll(stateDir, 0755))
+
+	outDir := t.TempDir()
+	archivePath, err := backup.Backup(backup.BackupOptions{
+		DBPath:     dbPath,
+		ConfigPath: cfgPath,
+		StateDir:   stateDir,
+		OutputDir:  outDir,
+		AppVersion: "0.5.0",
+		Password:   "secret",
+	})
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(archivePath, ".tar.gz.enc"), "expected .tar.gz.enc, got %s", archivePath)
 }
