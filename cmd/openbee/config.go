@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var configTemplate = config.ConfigTemplate
@@ -185,7 +186,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
-		Message: "Which platforms to enable?",
+		Message: i18n.M.Prompt.PlatformSelect,
 		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "Weixin"},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
@@ -204,13 +205,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		case "Feishu":
 			vals.FeishuEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "Feishu App ID:",
+				Message: i18n.M.Prompt.FeishuAppID,
 				Default: vals.FeishuAppID,
 			}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "Feishu App Secret:",
+				Message: i18n.M.Prompt.FeishuAppSecret,
 				Default: vals.FeishuAppSecret,
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -218,13 +219,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		case "DingTalk":
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "DingTalk Client ID:",
+				Message: i18n.M.Prompt.DingtalkClientID,
 				Default: vals.DingtalkClientID,
 			}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "DingTalk Client Secret:",
+				Message: i18n.M.Prompt.DingtalkClientSecret,
 				Default: vals.DingtalkClientSecret,
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -232,13 +233,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		case "WeCom":
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "WeCom Bot ID:",
+				Message: i18n.M.Prompt.WecomBotID,
 				Default: vals.WecomBotID,
 			}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "WeCom Secret:",
+				Message: i18n.M.Prompt.WecomSecret,
 				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -246,7 +247,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		case "Telegram":
 			vals.TelegramEnabled = true
 			if err := survey.AskOne(&survey.Password{
-				Message: "Telegram Bot Token:",
+				Message: i18n.M.Prompt.TelegramToken,
 				Help:    "Get a token from @BotFather on Telegram",
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -258,7 +259,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				authCodeDefault = hex.EncodeToString(b)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "Telegram Auth Code (empty to disable auth):",
+				Message: i18n.M.Prompt.TelegramAuthCode,
 				Default: authCodeDefault,
 				Help:    "Users must send /auth <code> to use the bot; leave empty to allow all",
 			}, &vals.TelegramAuthCode); err != nil {
@@ -275,7 +276,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				}
 				var reacquire bool
 				if err := survey.AskOne(&survey.Confirm{
-					Message: fmt.Sprintf("Existing Weixin token found (%s). Re-acquire via QR code?", masked),
+					Message: fmt.Sprintf(i18n.M.Prompt.WeixinReacquire, masked),
 					Default: false,
 				}, &reacquire); err != nil {
 					return handleSurveyErr(err)
@@ -322,7 +323,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println("\n=== Web Authentication ===")
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "Username:",
+		Message: i18n.M.Prompt.Username,
 		Default: vals.AuthUsername,
 	}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
 		return handleSurveyErr(err)
@@ -331,7 +332,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.AuthPassword != "" {
 		var changePassword bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "Password already configured. Change it?",
+			Message: i18n.M.Prompt.PasswordChangeConfirm,
 			Default: false,
 		}, &changePassword); err != nil {
 			return handleSurveyErr(err)
@@ -350,7 +351,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.AuthJWTSecret != "" {
 		var regenerate bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "JWT secret already exists. Regenerate?",
+			Message: i18n.M.Prompt.JWTRegenConfirm,
 			Default: false,
 		}, &regenerate); err != nil {
 			return handleSurveyErr(err)
@@ -373,7 +374,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	var customAdvanced bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "Customize advanced settings?",
+		Message: i18n.M.Prompt.AdvancedConfirm,
 		Default: false,
 	}, &customAdvanced); err != nil {
 		return handleSurveyErr(err)
@@ -381,7 +382,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	if customAdvanced {
 		if err := survey.AskOne(&survey.Input{
-			Message: "Server port:",
+			Message: i18n.M.Prompt.ServerPort,
 			Default: vals.ServerPort,
 		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
 			s, _ := val.(string)
@@ -394,21 +395,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Server Host:",
+			Message: i18n.M.Prompt.ServerHost,
 			Default: vals.ServerHost,
 		}, &vals.ServerHost); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "Debug mode?",
+			Message: i18n.M.Prompt.DebugMode,
 			Default: vals.Debug,
 		}, &vals.Debug); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Database path:",
+			Message: i18n.M.Prompt.DBPath,
 			Default: vals.DBPath,
 		}, &vals.DBPath); err != nil {
 			return handleSurveyErr(err)
@@ -420,7 +421,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 		var mcpMethod string
 		if err := survey.AskOne(&survey.Select{
-			Message: "MCP API Key setup:",
+			Message: i18n.M.Prompt.MCPAPIKeySetup,
 			Options: []string{"Generate randomly", "Enter manually"},
 			Default: mcpKeyChoice,
 		}, &mcpMethod); err != nil {
@@ -437,7 +438,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
 		case "Enter manually":
 			if err := survey.AskOne(&survey.Input{
-				Message: "MCP API Key:",
+				Message: i18n.M.Prompt.MCPAPIKey,
 				Default: vals.MCPAPIKey,
 			}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -450,7 +451,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 		var workerKeyMethod string
 		if err := survey.AskOne(&survey.Select{
-			Message: "MCP Worker API Key setup:",
+			Message: i18n.M.Prompt.MCPWorkerAPIKeySetup,
 			Options: []string{"Generate randomly", "Enter manually"},
 			Default: workerKeyChoice,
 		}, &workerKeyMethod); err != nil {
@@ -467,7 +468,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Generated MCP Worker API Key: %s\n", vals.WorkerAPIKey)
 		case "Enter manually":
 			if err := survey.AskOne(&survey.Input{
-				Message: "MCP Worker API Key:",
+				Message: i18n.M.Prompt.MCPWorkerAPIKey,
 				Default: vals.WorkerAPIKey,
 			}, &vals.WorkerAPIKey, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -475,7 +476,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Feeder timeout:",
+			Message: i18n.M.Prompt.FeederTimeout,
 			Default: vals.FeederTimeout,
 		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
@@ -483,7 +484,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 		var concurrentBeeStr string
 		if err := survey.AskOne(&survey.Input{
-			Message: "Max concurrent bee processes:",
+			Message: i18n.M.Prompt.MaxConcurrentBee,
 			Default: strconv.Itoa(vals.FeederMaxConcurrentBee),
 		}, &concurrentBeeStr, survey.WithValidator(func(ans interface{}) error {
 			s, _ := ans.(string)
@@ -498,21 +499,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals.FeederMaxConcurrentBee, _ = strconv.Atoi(concurrentBeeStr)
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Message debounce:",
+			Message: i18n.M.Prompt.MessageDebounce,
 			Default: vals.MessageDebounce,
 		}, &vals.MessageDebounce); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFprobe path:",
+			Message: i18n.M.Prompt.FFprobePath,
 			Default: vals.FFprobePath,
 		}, &vals.FFprobePath); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFmpeg path:",
+			Message: i18n.M.Prompt.FFmpegPath,
 			Default: vals.FFmpegPath,
 		}, &vals.FFmpegPath); err != nil {
 			return handleSurveyErr(err)
@@ -545,7 +546,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	var confirmWrite bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "Confirm write config file?",
+		Message: i18n.M.Prompt.ConfirmWrite,
 		Default: true,
 	}, &confirmWrite); err != nil {
 		return handleSurveyErr(err)
@@ -576,7 +577,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 func promptPassword(vals *configValues) error {
 	var method string
 	if err := survey.AskOne(&survey.Select{
-		Message: "Password setup:",
+		Message: i18n.M.Prompt.PasswordSetup,
 		Options: []string{"Enter manually", "Generate randomly"},
 	}, &method); err != nil {
 		return handleSurveyErr(err)
@@ -584,7 +585,7 @@ func promptPassword(vals *configValues) error {
 	switch method {
 	case "Enter manually":
 		if err := survey.AskOne(&survey.Password{
-			Message: "Password:",
+			Message: i18n.M.Prompt.Password,
 		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
 			return handleSurveyErr(err)
 		}
