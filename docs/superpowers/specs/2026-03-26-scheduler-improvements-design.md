@@ -35,12 +35,14 @@ The cron-parsing logic (`robfig/cron`) lives in `task_scheduler`, not in `store`
 
 ### Proposed fix
 
-Compute `next_run_at` **before** calling `ClaimDueTasks`, and pass the computed values into the transaction. Concretely:
+Split claim into two steps: a read-only pre-scan to gather cron expressions, followed by a single transactional claim that writes the real `next_run_at` values atomically.
 
-1. `Scheduler.poll()` fetches due scheduled tasks in a read-only pre-scan (or accepts the claimed list from the store).
-2. For each scheduled task, parse the cron expression and compute the real `next_run_at`.
-3. Pass a `map[taskID]nextRunAt` into `ClaimDueTasks` (or a new dedicated method).
-4. The transaction writes the real value atomically — no sentinel, no second update.
+1. Add `PeekDueScheduledTasks(ctx, nowMS) ([]model.Task, error)` to `TaskStore` — a read-only query returning ID + CronExpr for scheduled tasks that are due (`next_run_at IS NULL OR next_run_at <= nowMS`). No locking, no update.
+2. `Scheduler.poll()` calls `PeekDueScheduledTasks`, parses each cron expression, and builds a `map[taskID]int64` of computed `next_run_at` values.
+3. Pass the map into `ClaimDueTasks` (signature updated to accept `scheduledNextRuns map[string]int64`). The transaction uses the pre-computed values directly — no sentinel.
+4. `ClaimDueTasks` still atomically marks immediate/countdown tasks as `running` in the same transaction.
+
+The pre-scan and the claim are separate DB calls, so there is a brief window where another process could observe the same due tasks. In practice openbee runs as a single process, so this is not a concern. The transaction still provides atomicity: if the process crashes after the pre-scan but before the commit, `next_run_at` is unchanged and the task will be claimed on the next poll.
 
 This eliminates the crash-recovery gap entirely. The 24h sentinel code in `ClaimDueTasks` and the `UpdateNextRunAt` call in `poll()` are both removed.
 
@@ -170,7 +172,22 @@ d.taskStore.SetExecution(taskCtx, task.TaskID, exec.ID, model.TaskStatusRunning)
 d.waitForResult(taskCtx, exec.ID, task)
 ```
 
-`waitForResult`'s `time.After` select already responds to `ctx.Done()` — no changes needed there.
+`waitForResult` needs one addition: when it exits due to `ctx.Done()` (i.e. the task was cancelled), it must call `CancelExecution` so the worker process is killed. Without this, the goroutine exits cleanly but the worker keeps running.
+
+```go
+func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {
+    // ... existing poll loop ...
+    select {
+    case <-time.After(pollInterval):
+    case <-ctx.Done():
+        // Task was cancelled — kill the worker process
+        d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+        return
+    }
+}
+```
+
+Method Y (the check after `resolveExecution`) and this `waitForResult` change together ensure `CancelExecution` is called regardless of when the cancel arrives.
 
 ---
 
@@ -183,7 +200,7 @@ d.waitForResult(taskCtx, exec.ID, task)
 `handleCancel` iterates queues (nothing found), checks `cancelFuncs` (nothing found), and exits silently. The DB update in `CancelTask` is the authoritative record.
 
 **`cancelCh` is full (burst of cancellations):**
-The DB is updated synchronously before the channel send — the task won't be re-dispatched even if the in-memory signal is dropped. The worst case is the goroutine runs slightly longer until `waitForResult` polls and sees `ExecStatusFailed` or the parent context closes.
+The DB is updated synchronously before the channel send. The Scheduler will not re-claim the task from DB (status is `cancelled`). However, if the in-memory signal is dropped, a task already sitting in a Dispatcher pending queue will still be dispatched. In practice `cancelCh` has capacity 8 and bursts beyond that are unlikely; if tighter guarantees are needed the capacity can be raised. This is an accepted trade-off of the best-effort cancellation model.
 
 ---
 
@@ -192,9 +209,11 @@ The DB is updated synchronously before the channel send — the task won't be re
 | Component | Change |
 |---|---|
 | `ExecutionManager` interface | Add `CancelExecution(ctx, executionID) error` |
-| `TaskStore.ClaimDueTasks` | Remove 24h sentinel; accept computed `next_run_at` values |
-| `Scheduler.poll` | Compute real `next_run_at` before/during claim; remove `UpdateNextRunAt` call |
+| `TaskStore` | Add `PeekDueScheduledTasks(ctx, nowMS)` read-only query |
+| `TaskStore.ClaimDueTasks` | Remove 24h sentinel; accept pre-computed `scheduledNextRuns map[string]int64` |
+| `Scheduler.poll` | Pre-scan cron tasks, compute `next_run_at`, pass into claim; remove `UpdateNextRunAt` call |
 | `TaskDispatcher` | Add `cancelFuncs map`, `cancelCh`, `CancelTask` method, `handleCancel` |
 | `TaskDispatcher.handleInbound` | Create per-task cancel context before launching goroutine |
 | `TaskDispatcher.handleResult` | Delete cancel func on task completion; create new one for next pending task |
 | `TaskDispatcher.executeAsync` | Accept `taskCtx`; apply Method Y after `resolveExecution` |
+| `TaskDispatcher.waitForResult` | Call `CancelExecution` on `ctx.Done()` exit |
