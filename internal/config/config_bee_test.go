@@ -170,7 +170,10 @@ bee:
 }
 
 func TestGetLang_fromFile(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
+	f, err := os.CreateTemp("", "*.yaml")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
 	f.WriteString(`language: en`)
 	f.Close()
 	defer os.Remove(f.Name())
@@ -187,7 +190,10 @@ func TestGetLang_missing(t *testing.T) {
 }
 
 func TestGetLang_notSet(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
+	f, err := os.CreateTemp("", "*.yaml")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
 	f.WriteString(`server:
   port: 8080`)
 	f.Close()
