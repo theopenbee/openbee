@@ -40,7 +40,7 @@ type TaskStore interface {
 // fails at the system level (e.g. API error, content filtering) and the worker
 // itself had no chance to call send_message.
 type FailureNotifier interface {
-	NotifyTaskFailure(ctx context.Context, messageID, reason string) error
+	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
@@ -254,7 +254,11 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
-		d.notifyFailure(taskCtx, task.MessageID, err.Error())
+		d.notifyFailure(taskCtx, task.MessageID, model.FailureInfo{
+			Reason:     err.Error(),
+			WorkerName: task.WorkerID,
+			RetryCount: -1,
+		})
 		return
 	}
 
@@ -328,7 +332,11 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 					log.Error("fail task", zap.String("taskID", task.TaskID), zap.Error(err))
 				}
 			}
-			d.notifyFailure(ctx, task.MessageID, exec.Result)
+			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
+				Reason:     exec.Result,
+				WorkerName: workerName(exec.WorkerName, task.WorkerID),
+				RetryCount: -1,
+			})
 			return
 		}
 		select {
@@ -341,11 +349,18 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 	}
 }
 
-func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID, reason string) {
+func workerName(primary, fallback string) string {
+	if primary != "" {
+		return primary
+	}
+	return fallback
+}
+
+func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, info model.FailureInfo) {
 	if d.failureNotifier == nil || messageID == "" {
 		return
 	}
-	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, reason); err != nil {
+	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, info); err != nil {
 		log.Error("notify task failure", zap.String("messageID", messageID), zap.Error(err))
 	}
 }

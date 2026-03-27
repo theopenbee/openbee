@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 )
@@ -22,7 +23,7 @@ func NewPlatformFailureNotifier(msgStore *store.MessageStore, senders map[string
 	return &PlatformFailureNotifier{msgStore: msgStore, senders: senders}
 }
 
-func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, messageID, reason string) error {
+func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error {
 	stored, err := n.msgStore.GetByID(ctx, messageID)
 	if err != nil {
 		return fmt.Errorf("get message for failure notification: %w", err)
@@ -33,7 +34,14 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		return fmt.Errorf("no sender for platform %q", stored.Platform)
 	}
 
-	content := fmt.Sprintf("[系统通知] 任务执行失败：%s", reason)
+	var content string
+	if info.RetryCount >= 0 {
+		content = fmt.Sprintf("❌ 任务执行失败\nWorker：%s\n已重试：%d/%d 次\n错误：%s",
+			info.WorkerName, info.RetryCount, info.MaxRetries, info.Reason)
+	} else {
+		content = fmt.Sprintf("❌ 任务执行失败\nWorker：%s\n错误：%s",
+			info.WorkerName, info.Reason)
+	}
 	// Truncate very long error messages to avoid exceeding platform limits.
 	// Use rune slice to avoid splitting multi-byte UTF-8 characters.
 	const maxRunes = 500

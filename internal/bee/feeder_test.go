@@ -325,22 +325,27 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	}
 }
 
-type mockFailureNotifier struct {
-	mu   sync.Mutex
-	msgs []string
+type failureNotifyCall struct {
+	messageID string
+	info      model.FailureInfo
 }
 
-func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID, _ string) error {
+type mockFailureNotifier struct {
+	mu    sync.Mutex
+	calls []failureNotifyCall
+}
+
+func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
 	m.mu.Lock()
-	m.msgs = append(m.msgs, messageID)
+	m.calls = append(m.calls, failureNotifyCall{messageID: messageID, info: info})
 	m.mu.Unlock()
 	return nil
 }
 
-func (m *mockFailureNotifier) getNotified() []string {
+func (m *mockFailureNotifier) getCalls() []failureNotifyCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]string{}, m.msgs...)
+	return append([]failureNotifyCall{}, m.calls...)
 }
 
 func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
@@ -366,9 +371,21 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 		t.Errorf("expected status=failed after exhausting retries, got %q", status)
 	}
 
-	notified := notifier.getNotified()
-	if len(notified) != 1 || notified[0] != "m1" {
-		t.Errorf("expected notifier called once with m1, got %v", notified)
+	calls := notifier.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected notifier called once, got %d calls", len(calls))
+	}
+	if calls[0].messageID != "m1" {
+		t.Errorf("expected notifier called with messageID m1, got %q", calls[0].messageID)
+	}
+	if calls[0].info.Reason == "" {
+		t.Error("expected non-empty Reason in FailureInfo")
+	}
+	if calls[0].info.RetryCount != bee.MaxRetries {
+		t.Errorf("expected RetryCount=%d, got %d", bee.MaxRetries, calls[0].info.RetryCount)
+	}
+	if calls[0].info.MaxRetries != bee.MaxRetries {
+		t.Errorf("expected MaxRetries=%d, got %d", bee.MaxRetries, calls[0].info.MaxRetries)
 	}
 }
 

@@ -86,19 +86,19 @@ func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey st
 }
 
 type mockFailureNotifier struct {
-	mu        sync.Mutex
-	calls     []failureCall
+	mu    sync.Mutex
+	calls []failureCall
 }
 
 type failureCall struct {
 	messageID string
-	reason    string
+	info      model.FailureInfo
 }
 
-func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID, reason string) error {
+func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.calls = append(n.calls, failureCall{messageID: messageID, reason: reason})
+	n.calls = append(n.calls, failureCall{messageID: messageID, info: info})
 	return nil
 }
 
@@ -798,7 +798,7 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	if fn.calls[0].messageID != "msg-1" {
 		t.Errorf("expected messageID=msg-1, got %s", fn.calls[0].messageID)
 	}
-	if fn.calls[0].reason != "API Error: blocked" {
-		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].reason)
+	if fn.calls[0].info.Reason != "API Error: blocked" {
+		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].info.Reason)
 	}
 }
