@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -399,5 +400,93 @@ func TestMessageStore_RollbackWithRetry_ExhaustsRetries(t *testing.T) {
 	s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = 'm1'`).Scan(&status) //nolint
 	if status != "failed" {
 		t.Errorf("expected status=failed after exhausting retries, got %q", status)
+	}
+}
+
+func TestMessageStore_ClaimBatch_SkipsFeedingSession(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := NewMessageStore(db)
+	ctx := context.Background()
+
+	// Insert two messages for the same session; mark the first as feeding.
+	now := time.Now().UnixMilli()
+	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+              VALUES ('m1', 'sk1', 'feishu', 'msg1', 'feeding', ?, ?, ?)`, now, now, now)
+	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+              VALUES ('m2', 'sk1', 'feishu', 'msg2', 'received', ?, ?, ?)`, now+1, now, now)
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Errorf("expected 0 messages (session already feeding), got %d", len(msgs))
+	}
+}
+
+func TestMessageStore_ClaimBatch_OnePerSession(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := NewMessageStore(db)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	// Two messages for sk1 (different times), one for sk2.
+	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+              VALUES ('m1', 'sk1', 'feishu', 'first', 'received', ?, ?, ?)`, now, now, now)
+	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+              VALUES ('m2', 'sk1', 'feishu', 'second', 'received', ?, ?, ?)`, now+1, now, now)
+	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+              VALUES ('m3', 'sk2', 'feishu', 'other', 'received', ?, ?, ?)`, now, now, now)
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages (one per session), got %d", len(msgs))
+	}
+	ids := map[string]bool{}
+	for _, m := range msgs {
+		ids[m.ID] = true
+	}
+	if !ids["m1"] {
+		t.Error("expected m1 (earliest for sk1) to be claimed, not m2")
+	}
+	if !ids["m3"] {
+		t.Error("expected m3 (sk2) to be claimed")
+	}
+}
+
+func TestMessageStore_ClaimBatch_RespectsLimit(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := NewMessageStore(db)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	for i := 0; i < 5; i++ {
+		sk := fmt.Sprintf("sk%d", i)
+		id := fmt.Sprintf("m%d", i)
+		db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+                  VALUES (?, ?, 'feishu', 'msg', 'received', ?, ?, ?)`, id, sk, now+int64(i), now, now)
+	}
+
+	msgs, err := s.ClaimBatch(ctx, 3)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Errorf("expected 3 messages (limit), got %d", len(msgs))
 	}
 }
