@@ -4,11 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
@@ -61,27 +59,14 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 func (s *Scheduler) poll(ctx context.Context) {
 	nowMS := time.Now().UnixMilli()
-	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS)
+	tasks, err := s.taskStore.ClaimDueTasks(ctx, nowMS, nil) // will be fixed in Task 3
 	if err != nil {
 		log.Error("claim due tasks", zap.Error(err))
 		return
 	}
 
 	for _, ct := range tasks {
-		// For scheduled tasks, compute the real next_run_at and update.
-		if ct.Type == model.TaskTypeScheduled && ct.CronExpr != "" {
-			sched, err := cron.ParseStandard(ct.CronExpr)
-			if err != nil {
-				log.Error("invalid cron expression", zap.String("cronExpr", ct.CronExpr), zap.String("taskID", ct.ID), zap.Error(err))
-				s.taskStore.SetExecution(ctx, ct.ID, "", model.TaskStatusFailed) //nolint:errcheck
-				continue
-			}
-			next := sched.Next(time.Now()).UnixMilli()
-			s.taskStore.UpdateNextRunAt(ctx, ct.ID, next) //nolint:errcheck
-		}
-
 		sessionKey := ct.MessageSessionKey
-
 		dt := task_dispatcher.DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
@@ -91,7 +76,6 @@ func (s *Scheduler) poll(ctx context.Context) {
 			TaskType:    ct.Type,
 			MessageID:   ct.MessageID,
 		}
-
 		select {
 		case s.dispatchCh <- dt:
 		case <-ctx.Done():
