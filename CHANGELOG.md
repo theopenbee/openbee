@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added backup and restore commands
+
 ## [0.0.13] - 2026-03-27
 
 ### Added
