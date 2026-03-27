@@ -261,7 +261,6 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 		if f.failureNotifier != nil {
 			info := model.FailureInfo{
 				Reason:     reason,
-				WorkerName: m.SessionKey,
 				RetryCount: m.RetryCount + 1,
 				MaxRetries: MaxRetries,
 			}
