@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/logger"
 )
 
@@ -35,6 +36,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("openbee %s (commit: %s, built: %s)\n", version, commit, date))
+	rootCmd.PersistentFlags().String("lang", "", "UI language (zh, en). Overrides OPENBEE_LANG and config.yaml language field")
 }
 
 // resolveExecutable returns the real path of the running binary, following symlinks.
@@ -51,6 +53,14 @@ func resolveExecutable() (string, error) {
 }
 
 func main() {
+	// Detect and load language before Execute() so cobra Short/Long fields
+	// (set in init()) can be overridden by applyTranslations().
+	lang := detectLang(parseLangFlag(os.Args))
+	if err := i18n.Load(lang); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: i18n load failed: %v\n", err)
+	}
+	applyTranslations()
+
 	if err := rootCmd.Execute(); err != nil {
 		var ece *exitCodeError
 		if errors.As(err, &ece) {
@@ -60,4 +70,21 @@ func main() {
 		logger.Error("fatal", zap.Error(err))
 		os.Exit(1)
 	}
+}
+
+// applyTranslations overwrites cobra command Short/Long fields with the
+// loaded locale. Must be called after i18n.Load() and before Execute().
+func applyTranslations() {
+	m := i18n.M
+	rootCmd.Short = m.Cmd.Root.Short
+	configCmd.Short = m.Cmd.Config.Short
+	serverCmd.Short = m.Cmd.Server.Short
+	stopCmd.Short = m.Cmd.Stop.Short
+	restartCmd.Short = m.Cmd.Restart.Short
+	statusCmd.Short = m.Cmd.Status.Short
+	upgradeCmd.Short = m.Cmd.Upgrade.Short
+	upgradeCmd.Long = m.Cmd.Upgrade.Long
+	claudeCmd.Short = m.Cmd.Claude.Short
+	claudeDownloadCmd.Short = m.Cmd.ClaudeDownload.Short
+	claudeEnvCmd.Short = m.Cmd.ClaudeEnv.Short
 }
