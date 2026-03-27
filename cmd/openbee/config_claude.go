@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	claude "github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 // configureClaudeExecutable handles Step 2a:
@@ -20,7 +21,7 @@ func configureClaudeExecutable(vals *configValues) error {
 	} else {
 		var method string
 		if err := survey.AskOne(&survey.Select{
-			Message: "Claude not found, how would you like to get it?",
+			Message: i18n.M.Prompt.ClaudeNotFound,
 			Options: []string{"Enter path manually", "Download Claude"},
 		}, &method); err != nil {
 			return handleSurveyErr(err)
@@ -46,7 +47,7 @@ func configureClaudeExecutable(vals *configValues) error {
 	}
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude timeout:",
+		Message: i18n.M.Prompt.ClaudeTimeout,
 		Default: vals.ClaudeTimeout,
 	}, &vals.ClaudeTimeout); err != nil {
 		return handleSurveyErr(err)
@@ -57,7 +58,7 @@ func configureClaudeExecutable(vals *configValues) error {
 
 func promptClaudeManualPath(vals *configValues) error {
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude executable path:",
+		Message: i18n.M.Prompt.ClaudePath,
 		Default: vals.ClaudePath,
 	}, &vals.ClaudePath, survey.WithValidator(func(val any) error {
 		path, _ := val.(string)
