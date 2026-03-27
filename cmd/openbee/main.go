@@ -36,7 +36,6 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("openbee %s (commit: %s, built: %s)\n", version, commit, date))
-	rootCmd.PersistentFlags().String("lang", "", "UI language (zh, en). Overrides OPENBEE_LANG and config.yaml language field")
 }
 
 // resolveExecutable returns the real path of the running binary, following symlinks.
@@ -55,7 +54,7 @@ func resolveExecutable() (string, error) {
 func main() {
 	// Detect and load language before Execute() so cobra Short/Long fields
 	// (set in init()) can be overridden by applyTranslations().
-	lang := detectLang(parseLangFlag(os.Args))
+	lang := detectLang()
 	if err := i18n.Load(lang); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: i18n load failed: %v\n", err)
 	}
