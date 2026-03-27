@@ -378,14 +378,6 @@ func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
 	return s.UpdateStatus(ctx, taskID, model.TaskStatusFailed)
 }
 
-// UpdateNextRunAt sets next_run_at for a scheduled task after dispatch.
-func (s *TaskStore) UpdateNextRunAt(ctx context.Context, taskID string, nextRunAt int64) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET next_run_at = ?, updated_at = ? WHERE id = ?`,
-		nextRunAt, time.Now().UnixMilli(), taskID)
-	return err
-}
-
 // CountPendingByWorkerID returns the number of pending tasks for a given worker.
 func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string) (int, error) {
 	var count int

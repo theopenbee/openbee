@@ -651,21 +651,6 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	}
 }
 
-// cancellingExecManager blocks until either the context is cancelled or the blocker is closed.
-type cancellingExecManager struct {
-	started int64
-}
-
-func (m *cancellingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string) (model.WorkerExecution, error) {
-	atomic.AddInt64(&m.started, 1)
-	<-ctx.Done() // blocks until context is cancelled
-	return model.WorkerExecution{ID: "exec-cancel"}, nil
-}
-
-func (m *cancellingExecManager) CancelExecution(_ context.Context, _ string) error {
-	return nil
-}
-
 // cancelTrackingExecManager blocks forever on ExecuteWorker (context-aware),
 // and tracks CancelExecution calls.
 type cancelTrackingExecManager struct {
