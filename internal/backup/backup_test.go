@@ -36,3 +36,26 @@ func TestManifestRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, m, got)
 }
+
+func TestArchiveRoundTrip(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+
+	// create source tree
+	require.NoError(t, os.WriteFile(filepath.Join(src, "a.txt"), []byte("aaa"), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(src, "sub"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "sub", "b.txt"), []byte("bbb"), 0644))
+
+	archive := filepath.Join(t.TempDir(), "test.tar.gz")
+	require.NoError(t, backup.PackTarGz(archive, src))
+
+	require.NoError(t, backup.UnpackTarGz(archive, dst))
+
+	got, err := os.ReadFile(filepath.Join(dst, "a.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "aaa", string(got))
+
+	got, err = os.ReadFile(filepath.Join(dst, "sub", "b.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "bbb", string(got))
+}
