@@ -13,6 +13,7 @@ var localesFS embed.FS
 // M 是全局翻译实例，在 main() 最早阶段通过 Load() 初始化，之后只读。
 var M = &Messages{}
 
+// SupportedLangs 列出所有支持的语言代码。
 var SupportedLangs = []string{"zh", "en"}
 
 // Load 加载指定语言的翻译文件并设置 M。

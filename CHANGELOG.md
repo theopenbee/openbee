@@ -4,6 +4,12 @@
 
 ### Added
 
+- Added backup and restore commands
+
+## [0.0.13] - 2026-03-27
+
+### Added
+
 - Support canceling running tasks (`CancelTask`) to prevent tasks from being stuck indefinitely
 - `bee`: parallel session dispatch — each session now runs in its own goroutine, bounded by a semaphore (`max_concurrent_bee`, default 5)
 
