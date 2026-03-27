@@ -330,7 +330,7 @@ type mockFailureNotifier struct {
 	msgs []string
 }
 
-func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID, _ string) error {
+func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, _ model.FailureInfo) error {
 	m.mu.Lock()
 	m.msgs = append(m.msgs, messageID)
 	m.mu.Unlock()

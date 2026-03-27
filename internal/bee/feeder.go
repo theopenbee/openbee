@@ -25,7 +25,7 @@ type BeeRunner interface {
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
 type FailureNotifier interface {
-	NotifyTaskFailure(ctx context.Context, messageID, reason string) error
+	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
 // Option configures a Feeder.
@@ -122,7 +122,7 @@ func (f *Feeder) tick(ctx context.Context) {
 
 	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
 		log.Error("write CLAUDE.md", zap.Error(err))
-		f.rollback(ctx, msgs, "内部错误：无法写入配置文件")
+		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
@@ -143,7 +143,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs, "内部错误：无法读取会话上下文")
+		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 	resume := sessionID != ""
@@ -169,7 +169,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	exec, err := f.execStore.CreateBeeExecution(sessionID, prompt)
 	if err != nil {
 		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs, "内部错误：无法创建执行记录")
+		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 
@@ -177,7 +177,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err != nil {
 		log.Error("prepare log path", zap.String("execID", exec.ID), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		f.rollback(ctx, msgs, "内部错误：无法创建日志文件")
+		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 
@@ -188,7 +188,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		f.rollback(ctx, msgs, "AI 处理失败，请稍后重试")
+		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 
@@ -210,7 +210,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if drainErr != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
-		f.rollback(ctx, msgs, "AI 处理失败，请稍后重试")
+		f.rollback(ctx, msgs, drainErr.Error())
 		return
 	}
 
@@ -240,13 +240,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 }
 
-func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, userMsg string) {
+func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
 	ids := make([]string, len(msgs))
-	var failedIDs []string
+	var failedMsgs []store.ClaimedMessage
 	for i, m := range msgs {
 		ids[i] = m.ID
 		if m.RetryCount+1 >= MaxRetries {
-			failedIDs = append(failedIDs, m.ID)
+			failedMsgs = append(failedMsgs, m)
 		}
 	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
@@ -256,11 +256,17 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, user
 		log.Error("rollback with retry", zap.Error(err))
 		return
 	}
-	for _, id := range failedIDs {
-		log.Warn("message exhausted retries", zap.String("messageID", id))
+	for _, m := range failedMsgs {
+		log.Warn("message exhausted retries", zap.String("messageID", m.ID))
 		if f.failureNotifier != nil {
-			if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, id, userMsg); notifyErr != nil {
-				log.Error("notify bee failure", zap.String("messageID", id), zap.Error(notifyErr))
+			info := model.FailureInfo{
+				Reason:     reason,
+				WorkerName: m.SessionKey,
+				RetryCount: m.RetryCount + 1,
+				MaxRetries: MaxRetries,
+			}
+			if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, info); notifyErr != nil {
+				log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 			}
 		}
 	}
