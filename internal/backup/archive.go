@@ -35,6 +35,20 @@ func PackTarGz(archivePath, srcDir string) error {
 			return nil
 		}
 
+		// Handle symlinks: read the link target and write a symlink entry.
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			hdr, err := tar.FileInfoHeader(info, target)
+			if err != nil {
+				return err
+			}
+			hdr.Name = filepath.ToSlash(rel)
+			return tw.WriteHeader(hdr)
+		}
+
 		hdr, err := tar.FileInfoHeader(info, "")
 		if err != nil {
 			return err
@@ -106,6 +120,16 @@ func UnpackTarGz(archivePath, dstDir string) error {
 		}
 		if hdr.Typeflag == tar.TypeDir {
 			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if hdr.Typeflag == tar.TypeSymlink {
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			if err := os.Symlink(hdr.Linkname, target); err != nil {
 				return err
 			}
 			continue
