@@ -68,7 +68,7 @@ func TestTaskStore_ClaimDueTasks_ImmediateOnly(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ClaimDueTasks(context.Background(), now)
+	tasks, err := ts.ClaimDueTasks(context.Background(), now, nil)
 	if err != nil {
 		t.Fatalf("ClaimDueTasks: %v", err)
 	}
@@ -91,8 +91,8 @@ func TestTaskStore_ClaimDueTasks_Idempotent(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks1, _ := ts.ClaimDueTasks(context.Background(), now)
-	tasks2, _ := ts.ClaimDueTasks(context.Background(), now)
+	tasks1, _ := ts.ClaimDueTasks(context.Background(), now, nil)
+	tasks2, _ := ts.ClaimDueTasks(context.Background(), now, nil)
 	if len(tasks1) != 1 {
 		t.Errorf("first claim: want 1, got %d", len(tasks1))
 	}
@@ -143,7 +143,7 @@ func TestTaskStore_DeleteByMessageIDs(t *testing.T) {
 	}
 
 	// Verify no pending tasks remain
-	tasks, _ := ts.ClaimDueTasks(context.Background(), now)
+	tasks, _ := ts.ClaimDueTasks(context.Background(), now, nil)
 	if len(tasks) != 0 {
 		t.Errorf("expected 0 tasks after delete, got %d", len(tasks))
 	}
@@ -643,6 +643,114 @@ func TestTaskStore_CountAllByStatus(t *testing.T) {
 	}
 	if counts["pending"] != 2 {
 		t.Errorf("expected 2 pending, got %d", counts["pending"])
+	}
+}
+
+func TestTaskStore_PeekDueScheduledTasks_ReturnsDueOnly(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	pastRun := now - 1000
+	futureRun := now + 60_000
+	expr := "0 * * * *"
+
+	// Due: next_run_at in the past
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "due",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr, NextRunAt: &pastRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// Not due: next_run_at in the future
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "future",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr, NextRunAt: &futureRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// Due: next_run_at IS NULL
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "null-run-at",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: expr,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	tasks, err := ts.PeekDueScheduledTasks(context.Background(), now)
+	if err != nil {
+		t.Fatalf("PeekDueScheduledTasks: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 due scheduled tasks, got %d", len(tasks))
+	}
+	for _, task := range tasks {
+		if task.CronExpr != expr {
+			t.Errorf("expected cron_expr %q, got %q", expr, task.CronExpr)
+		}
+	}
+}
+
+func TestTaskStore_ClaimDueTasks_ScheduledUsesProvidedNextRunAt(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	pastRun := now - 1000
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "recurring",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: "0 * * * *", NextRunAt: &pastRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	// Peek to get the task ID
+	peeked, err := ts.PeekDueScheduledTasks(context.Background(), now)
+	if err != nil || len(peeked) != 1 {
+		t.Fatalf("peek: %v, got %d tasks", err, len(peeked))
+	}
+	taskID := peeked[0].ID
+	realNext := now + 3600_000 // 1h from now
+
+	tasks, err := ts.ClaimDueTasks(context.Background(), now, map[string]int64{taskID: realNext})
+	if err != nil {
+		t.Fatalf("ClaimDueTasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 claimed task, got %d", len(tasks))
+	}
+
+	// next_run_at should be the provided value, NOT +24h
+	got, err := ts.GetByID(context.Background(), taskID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.NextRunAt == nil || *got.NextRunAt != realNext {
+		t.Errorf("expected next_run_at=%d, got %v", realNext, got.NextRunAt)
+	}
+	// status should still be pending (scheduled tasks stay pending)
+	if got.Status != model.TaskStatusPending {
+		t.Errorf("scheduled task should remain pending, got %q", got.Status)
+	}
+}
+
+func TestTaskStore_ClaimDueTasks_ImmediateUnaffectedByScheduledMap(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "now",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	tasks, err := ts.ClaimDueTasks(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("ClaimDueTasks: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].Status != model.TaskStatusRunning {
+		t.Fatalf("expected 1 running immediate task, got %+v", tasks)
 	}
 }
 
