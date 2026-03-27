@@ -1,0 +1,56 @@
+cmd:
+  root:
+    short: "OpenBee 核心服务"
+  config:
+    short: "交互式生成配置文件"
+  server:
+    short: "启动 OpenBee 服务器"
+  stop:
+    short: "停止运行中的 OpenBee 守护进程"
+  restart:
+    short: "重启 OpenBee 守护进程"
+  status:
+    short: "查看 OpenBee 守护进程状态"
+  upgrade:
+    short: "升级 openbee 至最新版本"
+    long: "检查是否有新版本，如有则替换当前二进制文件。"
+  claude:
+    short: "管理 Claude Code 安装及 AI 提供商配置"
+  claude_download:
+    short: "下载 Claude Code 二进制文件至 ~/.openbee/bin/claude"
+  claude_env:
+    short: "配置 Claude Code 提供商及环境设置"
+prompt:
+  claude_not_found: "未找到 Claude，请选择获取方式："
+  claude_path: "Claude 可执行文件路径："
+  claude_timeout: "Claude 超时时间："
+  platform_select: "选择要启用的平台："
+  feishu_app_id: "飞书 App ID："
+  feishu_app_secret: "飞书 App Secret："
+  dingtalk_client_id: "钉钉 Client ID："
+  dingtalk_client_secret: "钉钉 Client Secret："
+  wecom_bot_id: "企业微信 Bot ID："
+  wecom_secret: "企业微信 Secret："
+  telegram_token: "Telegram Bot Token："
+  telegram_auth_code: "Telegram 授权码（留空则不限制用户）："
+  weixin_reacquire: "已有微信 token（%s）。是否重新扫码登录？"
+  username: "用户名："
+  password_change_confirm: "已配置密码，是否修改？"
+  password_setup: "密码设置方式："
+  password: "密码："
+  jwt_regen_confirm: "JWT 密钥已存在，是否重新生成？"
+  advanced_confirm: "是否自定义高级设置？"
+  server_port: "服务端口："
+  server_host: "服务地址："
+  debug_mode: "开启调试模式？"
+  db_path: "数据库路径："
+  mcp_api_key_setup: "MCP API Key 设置方式："
+  mcp_api_key: "MCP API Key："
+  mcp_worker_api_key_setup: "MCP Worker API Key 设置方式："
+  mcp_worker_api_key: "MCP Worker API Key："
+  feeder_timeout: "Feeder 超时时间："
+  max_concurrent_bee: "最大并发 bee 数量："
+  message_debounce: "消息防抖时间："
+  ffprobe_path: "FFprobe 路径："
+  ffmpeg_path: "FFmpeg 路径："
+  confirm_write: "确认写入配置文件？"

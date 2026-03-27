@@ -1,0 +1,56 @@
+cmd:
+  root:
+    short: "OpenBee core service"
+  config:
+    short: "Interactively generate a config file"
+  server:
+    short: "Start the OpenBee server"
+  stop:
+    short: "Stop the running OpenBee daemon"
+  restart:
+    short: "Restart the OpenBee daemon"
+  status:
+    short: "Show the status of the OpenBee daemon"
+  upgrade:
+    short: "Upgrade openbee to the latest version"
+    long: "Check for a new version and replace the current binary if one is available."
+  claude:
+    short: "Manage Claude Code installation and provider configuration"
+  claude_download:
+    short: "Download Claude Code binary to ~/.openbee/bin/claude"
+  claude_env:
+    short: "Configure Claude Code provider and environment settings"
+prompt:
+  claude_not_found: "Claude not found, how would you like to get it?"
+  claude_path: "Claude executable path:"
+  claude_timeout: "Claude timeout:"
+  platform_select: "Which platforms to enable?"
+  feishu_app_id: "Feishu App ID:"
+  feishu_app_secret: "Feishu App Secret:"
+  dingtalk_client_id: "DingTalk Client ID:"
+  dingtalk_client_secret: "DingTalk Client Secret:"
+  wecom_bot_id: "WeCom Bot ID:"
+  wecom_secret: "WeCom Secret:"
+  telegram_token: "Telegram Bot Token:"
+  telegram_auth_code: "Telegram Auth Code (empty to disable auth):"
+  weixin_reacquire: "Existing Weixin token found (%s). Re-acquire via QR code?"
+  username: "Username:"
+  password_change_confirm: "Password already configured. Change it?"
+  password_setup: "Password setup:"
+  password: "Password:"
+  jwt_regen_confirm: "JWT secret already exists. Regenerate?"
+  advanced_confirm: "Customize advanced settings?"
+  server_port: "Server port:"
+  server_host: "Server Host:"
+  debug_mode: "Debug mode?"
+  db_path: "Database path:"
+  mcp_api_key_setup: "MCP API Key setup:"
+  mcp_api_key: "MCP API Key:"
+  mcp_worker_api_key_setup: "MCP Worker API Key setup:"
+  mcp_worker_api_key: "MCP Worker API Key:"
+  feeder_timeout: "Feeder timeout:"
+  max_concurrent_bee: "Max concurrent bee processes:"
+  message_debounce: "Message debounce:"
+  ffprobe_path: "FFprobe path:"
+  ffmpeg_path: "FFmpeg path:"
+  confirm_write: "Confirm write config file?"
