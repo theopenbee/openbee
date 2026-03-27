@@ -52,6 +52,7 @@ bee:
       # max_media_size: 104857600  # 100MB default
   feeder:
     timeout: {{.FeederTimeout}}
+    max_concurrent_bee: {{.FeederMaxConcurrentBee}}  # max number of concurrent bee processes; default 5
   media:
     ffprobe_path: {{.FFprobePath}}  # defaults to ffprobe on PATH
     ffmpeg_path: {{.FFmpegPath}}    # defaults to ffmpeg on PATH
