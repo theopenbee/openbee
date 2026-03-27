@@ -22,3 +22,11 @@ type WorkerExecution struct {
 	StartedAt    *int64          `json:"started_at,omitempty" db:"started_at"`
 	CompletedAt  *int64          `json:"completed_at,omitempty" db:"completed_at"`
 }
+
+// FailureInfo carries context for a task failure notification sent to the user.
+type FailureInfo struct {
+	Reason     string // raw error (exec.Result or err.Error())
+	WorkerName string // worker or bee name for identification
+	RetryCount int    // retries attempted; -1 means no retry mechanism (omit retry line)
+	MaxRetries int    // max retry limit; ignored when RetryCount < 0
+}
