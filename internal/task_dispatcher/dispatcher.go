@@ -143,7 +143,11 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 
 	if !state.executing {
 		state.executing = true
-		go d.executeAsync(d.ctx, key, task)
+		taskCtx, cancel := context.WithCancel(d.ctx)
+		if task.TaskID != "" {
+			d.cancelFuncs[task.TaskID] = cancel
+		}
+		go d.executeAsync(taskCtx, cancel, key, task)
 	} else {
 		state.pendingTasks = append(state.pendingTasks, task)
 	}
@@ -228,32 +232,41 @@ func buildInstruction(task DispatchTask) string {
 		task.TaskID, task.MessageID, task.Instruction)
 }
 
-func (d *TaskDispatcher) executeAsync(ctx context.Context, key string, task DispatchTask) {
-	instruction := buildInstruction(task)
+func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {
+	defer cancel() // always release the cancel func's resources
 	defer func() {
 		select {
 		case d.resultsCh <- internalResult{queueKey: key, task: task}:
-		case <-ctx.Done():
+		case <-d.ctx.Done():
 		}
 	}()
 
-	exec, err := d.resolveExecution(ctx, task, instruction)
+	instruction := buildInstruction(task)
+	exec, err := d.resolveExecution(taskCtx, task, instruction)
 	if err != nil {
 		log.Error("execute error", zap.Error(err))
 		if task.TaskID != "" {
-			if failErr := d.taskStore.FailTask(ctx, task.TaskID); failErr != nil {
+			if failErr := d.taskStore.FailTask(taskCtx, task.TaskID); failErr != nil {
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
-		d.notifyFailure(ctx, task.MessageID, err.Error())
+		d.notifyFailure(taskCtx, task.MessageID, err.Error())
 		return
 	}
+
+	// Method Y: if context was cancelled while resolveExecution was in-flight, kill the
+	// worker process that was just launched before entering waitForResult.
+	if taskCtx.Err() != nil {
+		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
+		return
+	}
+
 	if task.TaskID != "" {
-		if err := d.taskStore.SetExecution(ctx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
+		if err := d.taskStore.SetExecution(taskCtx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
 			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
-	d.waitForResult(ctx, exec.ID, task)
+	d.waitForResult(taskCtx, exec.ID, task)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
@@ -317,6 +330,8 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		select {
 		case <-time.After(pollInterval):
 		case <-ctx.Done():
+			// Task was cancelled — kill the worker process.
+			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			return
 		}
 	}
@@ -332,6 +347,9 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID, reason st
 }
 
 func (d *TaskDispatcher) handleResult(res internalResult) {
+	// Clean up cancel func for the completed task
+	delete(d.cancelFuncs, res.task.TaskID)
+
 	state, ok := d.queues[res.queueKey]
 	if !ok {
 		return
@@ -340,7 +358,11 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 	if len(state.pendingTasks) > 0 {
 		next := state.pendingTasks[0]
 		state.pendingTasks = state.pendingTasks[1:]
-		go d.executeAsync(d.ctx, res.queueKey, next)
+		taskCtx, cancel := context.WithCancel(d.ctx)
+		if next.TaskID != "" {
+			d.cancelFuncs[next.TaskID] = cancel
+		}
+		go d.executeAsync(taskCtx, cancel, res.queueKey, next)
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)
