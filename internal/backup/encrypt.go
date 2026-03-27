@@ -71,7 +71,7 @@ func DecryptFile(src, dst, password string) error {
 	if err != nil {
 		return fmt.Errorf("read encrypted file: %w", err)
 	}
-	if len(data) < saltSize+12 { // 12 = minimum nonce size
+	if len(data) < saltSize+12 {
 		return fmt.Errorf("incorrect password or corrupted file")
 	}
 

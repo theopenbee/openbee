@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // BackupOptions configures a Backup call.
@@ -29,22 +31,29 @@ func Backup(opts BackupOptions) (string, error) {
 	}
 	defer os.RemoveAll(tmp)
 
-	// 1. Copy database.
-	if err := copyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
-		return "", fmt.Errorf("copy database: %w", err)
+	var eg errgroup.Group
+	eg.Go(func() error {
+		if err := copyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
+			return fmt.Errorf("copy database: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		if err := copyFile(opts.ConfigPath, filepath.Join(tmp, "config.yaml")); err != nil {
+			return fmt.Errorf("copy config: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee")); err != nil {
+			return fmt.Errorf("copy state dir: %w", err)
+		}
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
+		return "", err
 	}
 
-	// 2. Copy config.
-	if err := copyFile(opts.ConfigPath, filepath.Join(tmp, "config.yaml")); err != nil {
-		return "", fmt.Errorf("copy config: %w", err)
-	}
-
-	// 3. Copy state directory.
-	if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee")); err != nil {
-		return "", fmt.Errorf("copy state dir: %w", err)
-	}
-
-	// 4. Compute checksums and write manifest.
 	entries, err := hashDir(tmp)
 	if err != nil {
 		return "", fmt.Errorf("hash files: %w", err)
@@ -59,7 +68,6 @@ func Backup(opts BackupOptions) (string, error) {
 		return "", fmt.Errorf("write manifest: %w", err)
 	}
 
-	// 5. Pack into tar.gz.
 	ts := now.Format("20060102-150405")
 	baseName := fmt.Sprintf("openbee-backup-%s.tar.gz", ts)
 	tarPath := filepath.Join(os.TempDir(), baseName)
@@ -68,10 +76,9 @@ func Backup(opts BackupOptions) (string, error) {
 		return "", fmt.Errorf("pack archive: %w", err)
 	}
 
-	// 6. Optionally encrypt.
 	var finalName string
 	if opts.Password != "" {
-		encName := baseName + ".enc"
+		encName := baseName + encExt
 		encPath := filepath.Join(opts.OutputDir, encName)
 		if err := EncryptFile(tarPath, encPath, opts.Password); err != nil {
 			os.Remove(tarPath)

@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const encExt = ".enc"
+
 // RestoreOptions configures a Restore call.
 type RestoreOptions struct {
 	ArchivePath string // path to .tar.gz or .tar.gz.enc
@@ -22,16 +24,14 @@ type RestoreOptions struct {
 // It returns an error if data already exists at the destinations and Force is false,
 // or if the archive is encrypted and Password is empty/wrong.
 func Restore(opts RestoreOptions) error {
-	// 1. Check existing data.
 	if !opts.Force {
 		if _, err := os.Stat(opts.DBPath); err == nil {
 			return fmt.Errorf("destination database %s already exists; use --force to overwrite", opts.DBPath)
 		}
 	}
 
-	// 2. Decrypt if needed.
 	tarPath := opts.ArchivePath
-	if strings.HasSuffix(opts.ArchivePath, ".enc") {
+	if strings.HasSuffix(opts.ArchivePath, encExt) {
 		if opts.Password == "" {
 			return fmt.Errorf("archive is encrypted; provide --password")
 		}
@@ -48,7 +48,6 @@ func Restore(opts RestoreOptions) error {
 		}
 	}
 
-	// 3. Unpack to a temp dir.
 	extractDir, err := os.MkdirTemp("", "openbee-restore-extract-*")
 	if err != nil {
 		return fmt.Errorf("create extract dir: %w", err)
@@ -59,7 +58,6 @@ func Restore(opts RestoreOptions) error {
 		return fmt.Errorf("unpack archive: %w", err)
 	}
 
-	// 4. Read and validate manifest.
 	m, err := ReadManifest(filepath.Join(extractDir, "manifest.json"))
 	if err != nil {
 		return fmt.Errorf("read manifest: %w", err)
@@ -81,7 +79,6 @@ func Restore(opts RestoreOptions) error {
 		}
 	}
 
-	// 5. Restore files.
 	if err := os.MkdirAll(filepath.Dir(opts.DBPath), 0755); err != nil {
 		return fmt.Errorf("create db dir: %w", err)
 	}
