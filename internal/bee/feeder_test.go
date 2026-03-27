@@ -92,6 +92,7 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner bee.BeeRunner) *bee.Feeder {
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
 }
 
@@ -350,6 +351,7 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	notifier := &mockFailureNotifier{}
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, bee.WithFailureNotifier(notifier))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -368,6 +370,135 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	if len(notified) != 1 || notified[0] != "m1" {
 		t.Errorf("expected notifier called once with m1, got %v", notified)
 	}
+}
+
+func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+
+	// Insert 3 messages from 3 different sessions.
+	insertMessage(t, db, "m1", "feishu:c:u1", "msg1")
+	insertMessage(t, db, "m2", "feishu:c:u2", "msg2")
+	insertMessage(t, db, "m3", "feishu:c:u3", "msg3")
+
+	var (
+		mu         sync.Mutex
+		startTimes []time.Time
+	)
+	// Runner records when each call starts; simulate 200ms bee execution.
+	slowRunner := &callbackBeeRunner{
+		fn: func() {
+			mu.Lock()
+			startTimes = append(startTimes, time.Now())
+			mu.Unlock()
+			time.Sleep(200 * time.Millisecond)
+		},
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+
+	// Wait long enough for one tick + concurrent bee runs to complete.
+	time.Sleep(800 * time.Millisecond)
+
+	mu.Lock()
+	n := len(startTimes)
+	mu.Unlock()
+
+	if n != 3 {
+		t.Fatalf("expected 3 concurrent bee invocations, got %d", n)
+	}
+
+	// All 3 should have started within a short window (concurrent, not serial).
+	mu.Lock()
+	first, last := startTimes[0], startTimes[0]
+	for _, ts := range startTimes[1:] {
+		if ts.Before(first) {
+			first = ts
+		}
+		if ts.After(last) {
+			last = ts
+		}
+	}
+	mu.Unlock()
+	if last.Sub(first) > 100*time.Millisecond {
+		t.Errorf("bee invocations should start nearly simultaneously (concurrent), spread was %v", last.Sub(first))
+	}
+}
+
+func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+
+	// Insert 6 messages from 6 different sessions — more than MaxConcurrentBee.
+	for i := 0; i < 6; i++ {
+		insertMessage(t, db, fmt.Sprintf("m%d", i), fmt.Sprintf("feishu:c:u%d", i), "msg")
+	}
+
+	var (
+		mu            sync.Mutex
+		maxActive     int
+		currentActive int
+	)
+	slowRunner := &callbackBeeRunner{
+		fn: func() {
+			mu.Lock()
+			currentActive++
+			if currentActive > maxActive {
+				maxActive = currentActive
+			}
+			mu.Unlock()
+			time.Sleep(300 * time.Millisecond)
+			mu.Lock()
+			currentActive--
+			mu.Unlock()
+		},
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 3 // deliberately small
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(2 * time.Second)
+
+	mu.Lock()
+	peak := maxActive
+	mu.Unlock()
+
+	if peak > 3 {
+		t.Errorf("semaphore should cap concurrent bee at 3, peak was %d", peak)
+	}
+	// All 6 messages should eventually be processed.
+	var processed int
+	db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages WHERE status = 'bee_processed'`).Scan(&processed)
+	if processed != 6 {
+		t.Errorf("expected all 6 messages processed, got %d", processed)
+	}
+}
+
+// callbackBeeRunner invokes fn synchronously inside Run, then signals done.
+type callbackBeeRunner struct {
+	fn func()
+}
+
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, opts claude.RunOptions, _ string) (*claude.Process, <-chan claude.Output, error) {
+	ch := make(chan claude.Output, 1)
+	go func() {
+		if r.fn != nil {
+			r.fn()
+		}
+		ch <- claude.Output{Type: claude.OutputDone}
+		close(ch)
+	}()
+	return &claude.Process{}, ch, nil
 }
 
 func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
