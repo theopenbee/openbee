@@ -21,6 +21,7 @@ const (
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
 	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
+	CancelExecution(ctx context.Context, executionID string) error
 }
 
 // ExecutionQuerier retrieves execution state by ID.

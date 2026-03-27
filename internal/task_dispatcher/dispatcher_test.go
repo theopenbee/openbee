@@ -33,6 +33,8 @@ func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessi
 	return m.execResult, nil
 }
 
+func (m *mockExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
 type mockExecutionQuerier struct {
 	result model.WorkerExecution
 }
@@ -507,6 +509,8 @@ func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (
 	return model.WorkerExecution{ID: "exec-x"}, nil
 }
 
+func (m *blockingExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
 type alwaysFailExecManager struct {
 	called int64
 }
@@ -515,6 +519,8 @@ func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string)
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
+
+func (m *alwaysFailExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
 
 type fallbackExecManager struct {
 	freshResult model.WorkerExecution
@@ -528,6 +534,8 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID s
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
 }
+
+func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
 
 func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
 	mgr := &alwaysFailExecManager{}
