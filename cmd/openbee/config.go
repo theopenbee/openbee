@@ -481,6 +481,22 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
+		var concurrentBeeStr string
+		if err := survey.AskOne(&survey.Input{
+			Message: "Max concurrent bee processes:",
+			Default: strconv.Itoa(vals.FeederMaxConcurrentBee),
+		}, &concurrentBeeStr, survey.WithValidator(func(ans interface{}) error {
+			s, _ := ans.(string)
+			n, err := strconv.Atoi(s)
+			if err != nil || n <= 0 {
+				return fmt.Errorf("must be a positive integer")
+			}
+			return nil
+		})); err != nil {
+			return handleSurveyErr(err)
+		}
+		vals.FeederMaxConcurrentBee, _ = strconv.Atoi(concurrentBeeStr)
+
 		if err := survey.AskOne(&survey.Input{
 			Message: "Message debounce:",
 			Default: vals.MessageDebounce,
