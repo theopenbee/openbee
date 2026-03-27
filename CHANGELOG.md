@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- 支持取消正在运行的任务（`CancelTask`），避免任务长时间卡住无法中断
+
 ### Changed
+
+- 调度器在认领任务前即计算好下次运行时间，消除数据库中临时写入的 24 小时占位值，使 `next_run_at` 始终反映真实调度意图
 
 - `store`: add `inPlaceholders` / `nullInt64Ptr` helpers; unify scan loops in execution/task stores
 - `mcp`: `toolGetWorkerStatus` uses targeted `GetRunningByWorkerID` query instead of full history scan
