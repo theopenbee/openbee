@@ -143,14 +143,18 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 
 	if !state.executing {
 		state.executing = true
-		taskCtx, cancel := context.WithCancel(d.ctx)
-		if task.TaskID != "" {
-			d.cancelFuncs[task.TaskID] = cancel
-		}
-		go d.executeAsync(taskCtx, cancel, key, task)
+		d.startTask(key, task)
 	} else {
 		state.pendingTasks = append(state.pendingTasks, task)
 	}
+}
+
+func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
+	taskCtx, cancel := context.WithCancel(d.ctx)
+	if task.TaskID != "" {
+		d.cancelFuncs[task.TaskID] = cancel
+	}
+	go d.executeAsync(taskCtx, cancel, key, task)
 }
 
 // ClearSession removes all queued tasks for the given session and clears session contexts.
@@ -254,8 +258,8 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 		return
 	}
 
-	// Method Y: if context was cancelled while resolveExecution was in-flight, kill the
-	// worker process that was just launched before entering waitForResult.
+	// Cancellation may have arrived while resolveExecution was in-flight; kill the
+	// just-launched worker before entering waitForResult.
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
 		return
@@ -347,7 +351,6 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID, reason st
 }
 
 func (d *TaskDispatcher) handleResult(res internalResult) {
-	// Clean up cancel func for the completed task
 	delete(d.cancelFuncs, res.task.TaskID)
 
 	state, ok := d.queues[res.queueKey]
@@ -358,11 +361,7 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 	if len(state.pendingTasks) > 0 {
 		next := state.pendingTasks[0]
 		state.pendingTasks = state.pendingTasks[1:]
-		taskCtx, cancel := context.WithCancel(d.ctx)
-		if next.TaskID != "" {
-			d.cancelFuncs[next.TaskID] = cancel
-		}
-		go d.executeAsync(taskCtx, cancel, res.queueKey, next)
+		d.startTask(res.queueKey, next)
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)
