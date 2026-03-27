@@ -153,7 +153,7 @@ func copyDir(srcDir, dstDir string) error {
 func hashDir(dir string) ([]FileEntry, error) {
 	var entries []FileEntry
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil || info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return err
 		}
 		rel, err := filepath.Rel(dir, path)
