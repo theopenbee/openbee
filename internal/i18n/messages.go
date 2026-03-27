@@ -7,39 +7,24 @@ type Messages struct {
 	Prompt PromptMessages `yaml:"prompt"`
 }
 
+// CmdEntry holds the Short and optional Long description for a cobra command.
+type CmdEntry struct {
+	Short string `yaml:"short"`
+	Long  string `yaml:"long"`
+}
+
 // CmdMessages 对应所有 cobra 命令的 Short/Long 描述。
 type CmdMessages struct {
-	Root struct {
-		Short string `yaml:"short"`
-	} `yaml:"root"`
-	Config struct {
-		Short string `yaml:"short"`
-	} `yaml:"config"`
-	Server struct {
-		Short string `yaml:"short"`
-	} `yaml:"server"`
-	Stop struct {
-		Short string `yaml:"short"`
-	} `yaml:"stop"`
-	Restart struct {
-		Short string `yaml:"short"`
-	} `yaml:"restart"`
-	Status struct {
-		Short string `yaml:"short"`
-	} `yaml:"status"`
-	Upgrade struct {
-		Short string `yaml:"short"`
-		Long  string `yaml:"long"`
-	} `yaml:"upgrade"`
-	Claude struct {
-		Short string `yaml:"short"`
-	} `yaml:"claude"`
-	ClaudeDownload struct {
-		Short string `yaml:"short"`
-	} `yaml:"claude_download"`
-	ClaudeEnv struct {
-		Short string `yaml:"short"`
-	} `yaml:"claude_env"`
+	Root           CmdEntry `yaml:"root"`
+	Config         CmdEntry `yaml:"config"`
+	Server         CmdEntry `yaml:"server"`
+	Stop           CmdEntry `yaml:"stop"`
+	Restart        CmdEntry `yaml:"restart"`
+	Status         CmdEntry `yaml:"status"`
+	Upgrade        CmdEntry `yaml:"upgrade"`
+	Claude         CmdEntry `yaml:"claude"`
+	ClaudeDownload CmdEntry `yaml:"claude_download"`
+	ClaudeEnv      CmdEntry `yaml:"claude_env"`
 }
 
 // PromptMessages 对应所有 survey 交互提示的 Message 字段。
