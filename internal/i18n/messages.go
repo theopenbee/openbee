@@ -59,6 +59,8 @@ type PromptMessages struct {
 	TelegramToken        string `yaml:"telegram_token"`
 	TelegramAuthCode     string `yaml:"telegram_auth_code"`
 	WeixinReacquire      string `yaml:"weixin_reacquire"` // contains %s placeholder
+	WeixinBotToken       string `yaml:"weixin_bot_token"`
+	WeixinUserID         string `yaml:"weixin_user_id"`
 	// Auth
 	Username              string `yaml:"username"`
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`

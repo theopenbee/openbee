@@ -293,12 +293,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 					fmt.Printf("QR login failed: %v\n", err)
 					fmt.Println("Falling back to manual token entry.")
 					if err := survey.AskOne(&survey.Password{
-						Message: "Weixin Bot Token:",
+						Message: i18n.M.Prompt.WeixinBotToken,
 					}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
 						return handleSurveyErr(err)
 					}
 					if err := survey.AskOne(&survey.Input{
-						Message: "Weixin User ID:",
+						Message: i18n.M.Prompt.WeixinUserID,
 						Default: vals.WeixinUserID,
 					}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
 						return handleSurveyErr(err)

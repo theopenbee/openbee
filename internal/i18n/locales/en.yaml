@@ -34,6 +34,8 @@ prompt:
   telegram_token: "Telegram Bot Token:"
   telegram_auth_code: "Telegram Auth Code (empty to disable auth):"
   weixin_reacquire: "Existing Weixin token found (%s). Re-acquire via QR code?"
+  weixin_bot_token: "Weixin Bot Token:"
+  weixin_user_id: "Weixin User ID:"
   username: "Username:"
   password_change_confirm: "Password already configured. Change it?"
   password_setup: "Password setup:"

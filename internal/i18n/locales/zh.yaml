@@ -34,6 +34,8 @@ prompt:
   telegram_token: "Telegram Bot Token："
   telegram_auth_code: "Telegram 授权码（留空则不限制用户）："
   weixin_reacquire: "已有微信 token（%s）。是否重新扫码登录？"
+  weixin_bot_token: "微信 Bot Token："
+  weixin_user_id: "微信 User ID："
   username: "用户名："
   password_change_confirm: "已配置密码，是否修改？"
   password_setup: "密码设置方式："
