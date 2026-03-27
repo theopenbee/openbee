@@ -132,7 +132,9 @@ type ClaimedMessage struct {
 	RetryCount int
 }
 
-// ClaimBatch atomically selects up to batchSize 'received' messages and marks them 'feeding'.
+// ClaimBatch atomically selects up to batchSize 'received' messages — at most one per
+// session_key — skipping any session that already has a message in 'feeding' status.
+// Within each session, the message with the earliest received_at is selected (FIFO).
 func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]ClaimedMessage, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -141,9 +143,20 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	defer tx.Rollback() //nolint:errcheck
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, retry_count FROM bee_platform_messages
-         WHERE status = 'received'
-         ORDER BY received_at ASC LIMIT ?`, batchSize)
+		`SELECT id, session_key, platform, content, retry_count
+		 FROM bee_platform_messages m
+		 WHERE status = 'received'
+		   AND session_key NOT IN (
+		       SELECT session_key FROM bee_platform_messages WHERE status = 'feeding'
+		   )
+		   AND received_at = (
+		       SELECT MIN(received_at)
+		       FROM bee_platform_messages m2
+		       WHERE m2.session_key = m.session_key
+		         AND m2.status = 'received'
+		   )
+		 ORDER BY received_at ASC
+		 LIMIT ?`, batchSize)
 	if err != nil {
 		return nil, fmt.Errorf("select batch: %w", err)
 	}

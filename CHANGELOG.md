@@ -5,6 +5,7 @@
 ### Added
 
 - 支持取消正在运行的任务（`CancelTask`），避免任务长时间卡住无法中断
+- `bee`: parallel session dispatch — each session now runs in its own goroutine, bounded by a semaphore (`max_concurrent_bee`, default 5)
 
 ### Changed
 
