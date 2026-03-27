@@ -417,12 +417,12 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	// All 3 should have started within a short window (concurrent, not serial).
 	mu.Lock()
 	first, last := startTimes[0], startTimes[0]
-	for _, ts := range startTimes[1:] {
-		if ts.Before(first) {
-			first = ts
+	for _, st := range startTimes[1:] {
+		if st.Before(first) {
+			first = st
 		}
-		if ts.After(last) {
-			last = ts
+		if st.After(last) {
+			last = st
 		}
 	}
 	mu.Unlock()
