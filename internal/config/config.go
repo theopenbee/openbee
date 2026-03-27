@@ -39,6 +39,7 @@ func DefaultLogsDir() string {
 }
 
 type Config struct {
+	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Bee      BeeConfig      `yaml:"bee"`
@@ -219,4 +220,22 @@ func generateRandomKey() string {
 		panic("crypto/rand failed: " + err.Error())
 	}
 	return fmt.Sprintf("%x", b)
+}
+
+// GetLang reads the language field from the config file at path.
+// Returns empty string if the file does not exist, cannot be parsed,
+// or does not contain a language field. Never returns an error —
+// callers fall back to the next priority in the detection chain.
+func GetLang(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var cfg struct {
+		Language string `yaml:"language"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return ""
+	}
+	return cfg.Language
 }

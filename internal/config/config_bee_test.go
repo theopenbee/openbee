@@ -168,3 +168,32 @@ bee:
 		t.Errorf("WorkerAPIKey: want worker-key got %q", cfg.Bee.MCP.WorkerAPIKey)
 	}
 }
+
+func TestGetLang_fromFile(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`language: en`)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	if got := GetLang(f.Name()); got != "en" {
+		t.Errorf("GetLang: got %q, want %q", got, "en")
+	}
+}
+
+func TestGetLang_missing(t *testing.T) {
+	if got := GetLang("/nonexistent/path.yaml"); got != "" {
+		t.Errorf("GetLang with missing file: got %q, want empty", got)
+	}
+}
+
+func TestGetLang_notSet(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`server:
+  port: 8080`)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	if got := GetLang(f.Name()); got != "" {
+		t.Errorf("GetLang without language field: got %q, want empty", got)
+	}
+}
