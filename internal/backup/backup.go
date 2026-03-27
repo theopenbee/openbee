@@ -123,6 +123,7 @@ func copyFile(src, dst string) error {
 }
 
 // copyDir recursively copies srcDir to dstDir.
+// Symlinks are copied as symlinks; their targets are not followed.
 func copyDir(srcDir, dstDir string) error {
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -135,6 +136,13 @@ func copyDir(srcDir, dstDir string) error {
 		dst := filepath.Join(dstDir, rel)
 		if info.IsDir() {
 			return os.MkdirAll(dst, 0755)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(target, dst)
 		}
 		return copyFile(path, dst)
 	})
