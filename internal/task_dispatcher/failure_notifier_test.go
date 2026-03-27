@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
@@ -46,13 +47,17 @@ func TestPlatformFailureNotifier_Success(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	// Insert a message to look up.
 	_, err := ms.Create(ctx, "msg-1", "sess-1", "test", "hello", `{"raw":true}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
 
-	err = notifier.NotifyTaskFailure(ctx, "msg-1", "API Error: content filtered")
+	info := model.FailureInfo{
+		Reason:     "API Error: content filtered",
+		WorkerName: "my-worker",
+		RetryCount: -1,
+	}
+	err = notifier.NotifyTaskFailure(ctx, "msg-1", info)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +83,7 @@ func TestPlatformFailureNotifier_MessageNotFound(t *testing.T) {
 	notifier, _, _ := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	err := notifier.NotifyTaskFailure(ctx, "nonexistent-msg", "some error")
+	err := notifier.NotifyTaskFailure(ctx, "nonexistent-msg", model.FailureInfo{Reason: "some error", RetryCount: -1})
 	if err == nil {
 		t.Fatal("expected error for nonexistent message, got nil")
 	}
@@ -88,16 +93,15 @@ func TestPlatformFailureNotifier_MessageNotFound(t *testing.T) {
 }
 
 func TestPlatformFailureNotifier_UnknownPlatform(t *testing.T) {
-	notifier, ms, _ := setupNotifier(t, "feishu") // only feishu sender registered
+	notifier, ms, _ := setupNotifier(t, "feishu")
 	ctx := context.Background()
 
-	// Insert message with platform "dingtalk" which has no sender.
 	_, err := ms.Create(ctx, "msg-2", "sess-2", "dingtalk", "hi", `{}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
 
-	err = notifier.NotifyTaskFailure(ctx, "msg-2", "boom")
+	err = notifier.NotifyTaskFailure(ctx, "msg-2", model.FailureInfo{Reason: "boom", RetryCount: -1})
 	if err == nil {
 		t.Fatal("expected error for unknown platform, got nil")
 	}
@@ -115,9 +119,13 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 		t.Fatalf("create message: %v", err)
 	}
 
-	// Create a reason with > 500 runes (Chinese characters to test UTF-8 safety).
 	longReason := strings.Repeat("错误", 300) // 600 Chinese chars
-	err = notifier.NotifyTaskFailure(ctx, "msg-3", longReason)
+	info := model.FailureInfo{
+		Reason:     longReason,
+		WorkerName: "w",
+		RetryCount: -1,
+	}
+	err = notifier.NotifyTaskFailure(ctx, "msg-3", info)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -135,5 +143,67 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 	}
 	if !strings.HasSuffix(content, "…") {
 		t.Errorf("expected truncated content to end with '…', got: %s", content[len(content)-10:])
+	}
+}
+
+func TestPlatformFailureNotifier_StructuredFormat_WithRetry(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-4", "sess-4", "test", "hi", `{}`, "", 0)
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	info := model.FailureInfo{
+		Reason:     "exit status 1",
+		WorkerName: "数据分析助手",
+		RetryCount: 3,
+		MaxRetries: 3,
+	}
+	if err := notifier.NotifyTaskFailure(ctx, "msg-4", info); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	content := sender.sent[0].Content
+	if !strings.Contains(content, "数据分析助手") {
+		t.Errorf("expected WorkerName in content, got: %s", content)
+	}
+	if !strings.Contains(content, "已重试：3/3 次") {
+		t.Errorf("expected retry line in content, got: %s", content)
+	}
+	if !strings.Contains(content, "exit status 1") {
+		t.Errorf("expected Reason in content, got: %s", content)
+	}
+}
+
+func TestPlatformFailureNotifier_StructuredFormat_NoRetry(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-5", "sess-5", "test", "hi", `{}`, "", 0)
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	info := model.FailureInfo{
+		Reason:     "launch failed",
+		WorkerName: "worker-abc",
+		RetryCount: -1,
+	}
+	if err := notifier.NotifyTaskFailure(ctx, "msg-5", info); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	content := sender.sent[0].Content
+	if strings.Contains(content, "已重试") {
+		t.Errorf("expected no retry line when RetryCount=-1, got: %s", content)
+	}
+	if !strings.Contains(content, "worker-abc") {
+		t.Errorf("expected WorkerName in content, got: %s", content)
 	}
 }
