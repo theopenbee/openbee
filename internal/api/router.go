@@ -19,6 +19,7 @@ import (
 type ServerParams struct {
 	WorkerStore      *store.WorkerStore
 	ExecutionStore   *store.ExecutionStore
+	TaskStore        *store.TaskStore
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
 	WorkerMCPServer  *mcp.MCPServer
@@ -64,6 +65,7 @@ func (s *Server) setupRoutes() error {
 	{
 		s.registerWorkerRoutes(api)
 		s.registerExecutionRoutes(api)
+		s.registerTaskRoutes(api)
 		s.registerLocalChatRoutes(api)
 	}
 

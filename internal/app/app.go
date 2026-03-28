@@ -254,6 +254,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	return api.NewServer(api.ServerParams{
 		WorkerStore:      s.workerStore,
 		ExecutionStore:   s.execStore,
+		TaskStore:        s.taskStore,
 		Manager:          mgr,
 		BeeMCPServer:     beeMCPSrv,
 		WorkerMCPServer:  workerMCPSrv,
