@@ -57,6 +57,7 @@ func NewServer(p ServerParams) (*Server, error) {
 
 func (s *Server) setupRoutes() error {
 	s.registerAuthRoutes()
+	s.router.GET("/api/config", s.getConfig) // public — no JWT required
 
 	api := s.router.Group("/api")
 	api.Use(s.JWTMiddleware)
