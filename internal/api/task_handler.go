@@ -33,8 +33,8 @@ type taskResponse struct {
 func (s *Server) listTasks(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
 
-	taskType := c.DefaultQuery("type", "scheduled,countdown")
-	taskStatus := c.DefaultQuery("status", "pending,running")
+	taskType := c.DefaultQuery("type", model.TaskTypeScheduled+","+model.TaskTypeCountdown)
+	taskStatus := c.DefaultQuery("status", model.TaskStatusPending+","+model.TaskStatusRunning)
 	workerID := c.Query("worker_id")
 
 	filter := store.TaskFilter{
@@ -63,8 +63,9 @@ func (s *Server) listTasks(c *gin.Context) {
 		return
 	}
 
-	workerNames := make(map[string]string)
+	var workerNames map[string]string
 	if workerID != "" {
+		workerNames = make(map[string]string, 1)
 		if w, err := s.WorkerStore.GetByID(workerID); err == nil {
 			workerNames[w.ID] = w.Name
 		}

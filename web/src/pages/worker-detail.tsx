@@ -99,7 +99,7 @@ export function WorkerDetail() {
       <Tabs defaultValue="sessions">
         <TabsList variant="line">
           <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
-          <TabsTrigger value="tasks">{t("nav.tasks")}</TabsTrigger>
+          <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
           <TabsTrigger value="info">{t("executionDetail.info")}</TabsTrigger>
         </TabsList>
 

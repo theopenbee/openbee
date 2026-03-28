@@ -24,15 +24,6 @@ interface TaskListProps {
   workerId?: string
 }
 
-function TypeBadge({ type }: { type: Task["type"] }) {
-  const { t } = useTranslation()
-  return (
-    <Badge variant={type === "scheduled" ? "secondary" : "outline"}>
-      {t(`tasks.types.${type}`)}
-    </Badge>
-  )
-}
-
 function TimeInfo({ task }: { task: Task }) {
   const { t } = useTranslation()
   if (task.type === "countdown" && task.scheduled_at) {
@@ -73,13 +64,7 @@ export function TaskList({ workerId }: TaskListProps) {
   const tasks = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
 
-  const handleCancel = async (id: string) => {
-    try {
-      await cancelTask.mutateAsync(id)
-    } catch {
-      // error surfaced via cancelTask.error
-    }
-  }
+  const mutationError = cancelTask.error || cancelAll.error
 
   return (
     <div>
@@ -88,7 +73,7 @@ export function TaskList({ workerId }: TaskListProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => cancelAll.mutateAsync(workerId).catch(() => {})}
+            onClick={() => cancelAll.mutate(workerId)}
             disabled={cancelAll.isPending}
           >
             {t("tasks.cancelAll")}
@@ -96,7 +81,9 @@ export function TaskList({ workerId }: TaskListProps) {
         </div>
       )}
 
-      {error && <p className="text-destructive mb-4">{error.message}</p>}
+      {(error || mutationError) && (
+        <p className="text-destructive mb-4">{(error || mutationError)?.message}</p>
+      )}
 
       {isLoading ? (
         <SkeletonTable />
@@ -123,7 +110,9 @@ export function TaskList({ workerId }: TaskListProps) {
                 {tasks.map((task) => (
                   <TableRow key={task.id} className="hover:bg-primary/5 transition-colors">
                     <TableCell>
-                      <TypeBadge type={task.type} />
+                      <Badge variant={task.type === "scheduled" ? "secondary" : "outline"}>
+                        {t(`tasks.types.${task.type}`)}
+                      </Badge>
                     </TableCell>
                     {!workerId && (
                       <TableCell>
@@ -155,7 +144,7 @@ export function TaskList({ workerId }: TaskListProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleCancel(task.id)}
+                          onClick={() => cancelTask.mutate(task.id)}
                           disabled={cancelTask.isPending}
                           className="text-destructive hover:text-destructive"
                         >
