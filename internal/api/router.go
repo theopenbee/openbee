@@ -28,6 +28,7 @@ type ServerParams struct {
 	LocalChatHandler *LocalChatHandler
 	AuthHandler      *auth.AuthHandler
 	JWTMiddleware    gin.HandlerFunc
+	Language         string
 }
 
 type Server struct {
