@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboard, Bot, Activity, MessageCircle } from "lucide-react"
+import { LayoutDashboard, Bot, Activity, MessageCircle, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSwitcher } from "./theme-switcher"
 
@@ -58,6 +58,14 @@ export function Nav() {
           })}
         </div>
 
+        <a
+          href="https://github.com/theopenbee/openbee"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        >
+          <Github className="h-4 w-4" />
+        </a>
         <ThemeSwitcher />
       </div>
     </nav>
