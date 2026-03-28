@@ -156,8 +156,8 @@ func TestCancelWorkerTasks_CancelsAllPending(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/workers/w1/tasks/cancel-all", nil)
 	s.router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
 	}
 
 	tasks, _ := ts.List(ctx, store.TaskFilter{WorkerID: "w1", Status: "cancelled"})

@@ -3,7 +3,7 @@ import { api } from "@/lib/api"
 
 export function useTasks(params: { workerID?: string; page?: number; pageSize?: number } = {}) {
   return useQuery({
-    queryKey: ["tasks", params],
+    queryKey: ["tasks", params.workerID ?? null, params.page, params.pageSize],
     queryFn: () => api.tasks.list(params),
     placeholderData: keepPreviousData,
     refetchInterval: 30_000,

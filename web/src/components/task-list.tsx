@@ -44,7 +44,7 @@ function TimeInfo({ task }: { task: Task }) {
       </div>
     )
   }
-  if (task.type === "scheduled") {
+  if (task.type === "scheduled" && (task.next_run_at || task.cron_expr)) {
     return (
       <div className="text-sm text-muted-foreground">
         {task.next_run_at && (
@@ -77,15 +77,7 @@ export function TaskList({ workerId }: TaskListProps) {
     try {
       await cancelTask.mutateAsync(id)
     } catch {
-      // error handled by react-query, toast can be added here if desired
-    }
-  }
-
-  const handleCancelAll = async (wid: string) => {
-    try {
-      await cancelAll.mutateAsync(wid)
-    } catch {
-      // error handled by react-query
+      // error surfaced via cancelTask.error
     }
   }
 
@@ -96,7 +88,7 @@ export function TaskList({ workerId }: TaskListProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleCancelAll(workerId)}
+            onClick={() => cancelAll.mutateAsync(workerId).catch(() => {})}
             disabled={cancelAll.isPending}
           >
             {t("tasks.cancelAll")}

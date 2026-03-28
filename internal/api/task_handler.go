@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
+	"golang.org/x/sync/errgroup"
 )
 
 func (s *Server) registerTaskRoutes(api *gin.RouterGroup) {
@@ -44,27 +45,39 @@ func (s *Server) listTasks(c *gin.Context) {
 		Offset:   offset,
 	}
 
-	total, err := s.TaskStore.CountTasks(c.Request.Context(), filter)
-	if err != nil {
+	var total int
+	var tasks []model.Task
+	g, gCtx := errgroup.WithContext(c.Request.Context())
+	g.Go(func() error {
+		var err error
+		total, err = s.TaskStore.CountTasks(gCtx, filter)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		tasks, err = s.TaskStore.List(gCtx, filter)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	tasks, err := s.TaskStore.List(c.Request.Context(), filter)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Build worker name map from all workers (1 query, avoids N+1)
-	workers, err := s.WorkerStore.List()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	workerNames := make(map[string]string, len(workers))
-	for _, w := range workers {
-		workerNames[w.ID] = w.Name
+	workerNames := make(map[string]string)
+	if workerID != "" {
+		if w, err := s.WorkerStore.GetByID(workerID); err == nil {
+			workerNames[w.ID] = w.Name
+		}
+	} else {
+		workers, err := s.WorkerStore.List()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		workerNames = make(map[string]string, len(workers))
+		for _, w := range workers {
+			workerNames[w.ID] = w.Name
+		}
 	}
 
 	items := make([]taskResponse, len(tasks))
@@ -115,5 +128,5 @@ func (s *Server) cancelWorkerTasks(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.Status(http.StatusNoContent)
 }

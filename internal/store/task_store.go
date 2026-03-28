@@ -94,14 +94,9 @@ type TaskFilter struct {
 	Offset     int
 }
 
-// List returns tasks matching the given filter. If session_key is set, tasks are
-// joined with bee_platform_messages to resolve the session. Results are ordered
-// by created_at DESC.
-func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
-	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t`
+// buildFilterWhere appends the JOIN (if needed) and WHERE clauses for a TaskFilter
+// to the given query prefix, returning the extended query and bound args.
+func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 	if f.SessionKey != "" {
 		q += ` JOIN bee_platform_messages pm ON t.message_id = pm.id`
 	}
@@ -121,6 +116,17 @@ func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error
 	}
 	q, args = appendCSVFilter(q, args, "status", f.Status)
 	q, args = appendCSVFilter(q, args, "type", f.Type)
+	return q, args
+}
+
+// List returns tasks matching the given filter. If session_key is set, tasks are
+// joined with bee_platform_messages to resolve the session. Results are ordered
+// by created_at DESC.
+func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
+	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
+	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.created_at, t.updated_at
+	      FROM bee_tasks t`, f)
 	q += ` ORDER BY t.created_at DESC`
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
@@ -140,26 +146,7 @@ func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error
 
 // CountTasks returns the number of tasks matching the given filter (ignores Limit/Offset).
 func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
-	q := `SELECT COUNT(*) FROM bee_tasks t`
-	if f.SessionKey != "" {
-		q += ` JOIN bee_platform_messages pm ON t.message_id = pm.id`
-	}
-	q += ` WHERE 1=1`
-	var args []any
-	if f.MessageID != "" {
-		q += ` AND t.message_id = ?`
-		args = append(args, f.MessageID)
-	}
-	if f.SessionKey != "" {
-		q += ` AND pm.session_key = ?`
-		args = append(args, f.SessionKey)
-	}
-	if f.WorkerID != "" {
-		q += ` AND t.worker_id = ?`
-		args = append(args, f.WorkerID)
-	}
-	q, args = appendCSVFilter(q, args, "status", f.Status)
-	q, args = appendCSVFilter(q, args, "type", f.Type)
+	q, args := buildFilterWhere(`SELECT COUNT(*) FROM bee_tasks t`, f)
 	var count int
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(&count)
 	return count, err
