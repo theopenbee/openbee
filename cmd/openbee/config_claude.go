@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	claude "github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 // configureClaudeExecutable handles Step 2a:
@@ -15,27 +16,27 @@ import (
 // 3. Prompt for timeout
 func configureClaudeExecutable(vals *configValues) error {
 	if claudePath, err := exec.LookPath("claude"); err == nil {
-		fmt.Printf("Found Claude in PATH: %s, using it automatically.\n", claudePath)
+		fmt.Printf(i18n.M.Output.Config.ClaudeFound+"\n", claudePath)
 		vals.ClaudePath = claudePath
 	} else {
 		var method string
 		if err := survey.AskOne(&survey.Select{
-			Message: "Claude not found, how would you like to get it?",
-			Options: []string{"Enter path manually", "Download Claude"},
+			Message: i18n.M.Prompt.ClaudeNotFound,
+			Options: []string{i18n.M.Prompt.OptionEnterPathManually, i18n.M.Prompt.OptionDownloadClaude},
 		}, &method); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch method {
-		case "Enter path manually":
+		case i18n.M.Prompt.OptionEnterPathManually:
 			if err := promptClaudeManualPath(vals); err != nil {
 				return err
 			}
-		case "Download Claude":
+		case i18n.M.Prompt.OptionDownloadClaude:
 			path, err := claude.Download(openbeeStateDir(), false)
 			if err != nil {
-				fmt.Printf("Download failed: %v\n", err)
-				fmt.Println("Please enter the Claude path manually.")
+				fmt.Printf(i18n.M.Output.Config.ClaudeDownloadFailed+"\n", err)
+				fmt.Println(i18n.M.Output.Config.ClaudeManualEntry)
 				if err := promptClaudeManualPath(vals); err != nil {
 					return err
 				}
@@ -46,7 +47,7 @@ func configureClaudeExecutable(vals *configValues) error {
 	}
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude timeout:",
+		Message: i18n.M.Prompt.ClaudeTimeout,
 		Default: vals.ClaudeTimeout,
 	}, &vals.ClaudeTimeout); err != nil {
 		return handleSurveyErr(err)
@@ -57,19 +58,19 @@ func configureClaudeExecutable(vals *configValues) error {
 
 func promptClaudeManualPath(vals *configValues) error {
 	if err := survey.AskOne(&survey.Input{
-		Message: "Claude executable path:",
+		Message: i18n.M.Prompt.ClaudePath,
 		Default: vals.ClaudePath,
 	}, &vals.ClaudePath, survey.WithValidator(func(val any) error {
 		path, _ := val.(string)
 		info, err := os.Stat(path)
 		if err != nil {
-			return fmt.Errorf("file not found: %s", path)
+			return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
 		}
 		if info.IsDir() {
-			return fmt.Errorf("path is a directory, not a file: %s", path)
+			return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
 		}
 		if info.Mode()&0111 == 0 {
-			return fmt.Errorf("file is not executable: %s", path)
+			return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
 		}
 		return nil
 	})); err != nil {

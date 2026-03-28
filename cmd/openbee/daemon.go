@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 // daemonEnvKey is the env var set on the daemon child to distinguish it from the parent.
@@ -97,7 +99,7 @@ func daemonize(cfgPath string) error {
 	// Check for an existing live daemon.
 	if pid, _, err := readPIDFileFrom(pidFile); err == nil {
 		if isAlive(pid) {
-			return fmt.Errorf("daemon already running (PID: %d)", pid)
+			return fmt.Errorf(i18n.M.Output.Daemon.AlreadyRunning, pid)
 		}
 		// Stale file — clean up before spawning.
 		_ = os.Remove(pidFile)
@@ -134,6 +136,6 @@ func daemonize(cfgPath string) error {
 		return fmt.Errorf("write pid file: %w", err)
 	}
 
-	fmt.Printf("Daemon started (PID: %d)\n", pid)
+	fmt.Printf(i18n.M.Output.Daemon.Started+"\n", pid)
 	return nil
 }

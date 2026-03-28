@@ -8,17 +8,38 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var configTemplate = config.ConfigTemplate
 
+// originalMultiSelectTemplate holds the unmodified survey template so we can
+// replace the hint text cleanly after each language selection.
+var originalMultiSelectTemplate = survey.MultiSelectQuestionTemplate
+
+// multiSelectHintOld is the exact hint fragment to replace inside the template.
+const multiSelectHintOld = `[Use arrows to move, space to select,{{- if not .Config.RemoveSelectAll }} <right> to all,{{end}}{{- if not .Config.RemoveSelectNone }} <left> to none,{{end}} type to filter{{- if and .Help (not .ShowHelp)}}, {{ .Config.HelpInput }} for more help{{end}}]`
+
+// applySurveyTemplates patches the survey MultiSelect hint text to use the
+// currently loaded i18n locale. Must be called after i18n.Load().
+func applySurveyTemplates() {
+	survey.MultiSelectQuestionTemplate = strings.Replace(
+		originalMultiSelectTemplate,
+		multiSelectHintOld,
+		i18n.M.Prompt.MultiSelectHint,
+		1,
+	)
+}
+
 type configValues struct {
+	Language   string
 	ServerPort string
 	ServerHost string
 	Debug      bool
@@ -91,6 +112,7 @@ func loadExistingConfig(path string) *configValues {
 	}
 
 	return &configValues{
+		Language:             cfg.Language,
 		ServerPort:           strconv.Itoa(cfg.Server.Port),
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
@@ -146,14 +168,28 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		AuthRefreshTTL: "168h",
 	}
 
-	// If an existing config file exists, use its values as defaults
+	// If an existing config file exists, load its values as defaults silently
+	// (do NOT print anything yet — language hasn't been selected).
+	existingFound := false
 	if existing := loadExistingConfig(configOutputPath); existing != nil {
-		fmt.Printf("Found existing config at %s, using its values as defaults.\n", configOutputPath)
+		existingFound = true
 		vals = *existing
 	}
 
+	// Language selection — always shown first, before all other prompts
+	lang, err := runLanguageStep(vals.Language)
+	if err != nil {
+		return err
+	}
+	vals.Language = lang
+
+	// Now print the "found existing" message using the selected locale
+	if existingFound {
+		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
+	}
+
 	// Step 1 — Claude config
-	fmt.Println("\n=== Claude Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionClaude)
 
 	if err := configureClaudeExecutable(&vals); err != nil {
 		return err
@@ -163,30 +199,36 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 2 — Platform config
-	fmt.Println("\n=== Platform Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionPlatform)
 
 	// Build default selections from existing config
 	var defaultPlatforms []string
 	if vals.FeishuEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Feishu")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformFeishu)
 	}
 	if vals.DingtalkEnabled {
-		defaultPlatforms = append(defaultPlatforms, "DingTalk")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformDingTalk)
 	}
 	if vals.WecomEnabled {
-		defaultPlatforms = append(defaultPlatforms, "WeCom")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeCom)
 	}
 	if vals.TelegramEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Telegram")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformTelegram)
 	}
 	if vals.WeixinEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Weixin")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeixin)
 	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
-		Message: "Which platforms to enable?",
-		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "Weixin"},
+		Message: i18n.M.Prompt.PlatformSelect,
+		Options: []string{
+			i18n.M.Prompt.PlatformFeishu,
+			i18n.M.Prompt.PlatformDingTalk,
+			i18n.M.Prompt.PlatformWeCom,
+			i18n.M.Prompt.PlatformTelegram,
+			i18n.M.Prompt.PlatformWeixin,
+		},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -201,53 +243,53 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	for _, p := range selectedPlatforms {
 		switch p {
-		case "Feishu":
+		case i18n.M.Prompt.PlatformFeishu:
 			vals.FeishuEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "Feishu App ID:",
+				Message: i18n.M.Prompt.FeishuAppID,
 				Default: vals.FeishuAppID,
 			}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "Feishu App Secret:",
+				Message: i18n.M.Prompt.FeishuAppSecret,
 				Default: vals.FeishuAppSecret,
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "DingTalk":
+		case i18n.M.Prompt.PlatformDingTalk:
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "DingTalk Client ID:",
+				Message: i18n.M.Prompt.DingtalkClientID,
 				Default: vals.DingtalkClientID,
 			}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "DingTalk Client Secret:",
+				Message: i18n.M.Prompt.DingtalkClientSecret,
 				Default: vals.DingtalkClientSecret,
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "WeCom":
+		case i18n.M.Prompt.PlatformWeCom:
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
-				Message: "WeCom Bot ID:",
+				Message: i18n.M.Prompt.WecomBotID,
 				Default: vals.WecomBotID,
 			}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "WeCom Secret:",
+				Message: i18n.M.Prompt.WecomSecret,
 				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "Telegram":
+		case i18n.M.Prompt.PlatformTelegram:
 			vals.TelegramEnabled = true
 			if err := survey.AskOne(&survey.Password{
-				Message: "Telegram Bot Token:",
-				Help:    "Get a token from @BotFather on Telegram",
+				Message: i18n.M.Prompt.TelegramToken,
+				Help:    i18n.M.Prompt.TelegramTokenHelp,
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -258,13 +300,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				authCodeDefault = hex.EncodeToString(b)
 			}
 			if err := survey.AskOne(&survey.Input{
-				Message: "Telegram Auth Code (empty to disable auth):",
+				Message: i18n.M.Prompt.TelegramAuthCode,
 				Default: authCodeDefault,
-				Help:    "Users must send /auth <code> to use the bot; leave empty to allow all",
+				Help:    i18n.M.Prompt.TelegramAuthCodeHelp,
 			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "Weixin":
+		case i18n.M.Prompt.PlatformWeixin:
 			vals.WeixinEnabled = true
 
 			needQRLogin := true
@@ -275,7 +317,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				}
 				var reacquire bool
 				if err := survey.AskOne(&survey.Confirm{
-					Message: fmt.Sprintf("Existing Weixin token found (%s). Re-acquire via QR code?", masked),
+					Message: fmt.Sprintf(i18n.M.Prompt.WeixinReacquire, masked),
 					Default: false,
 				}, &reacquire); err != nil {
 					return handleSurveyErr(err)
@@ -284,20 +326,20 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 
 			if needQRLogin {
-				fmt.Println("\n--- Weixin QR Code Login ---")
-				fmt.Println("Fetching QR code...")
+				fmt.Println(i18n.M.Output.Config.WeixinQRLogin)
+				fmt.Println(i18n.M.Output.Config.FetchingQR)
 
 				token, userID, baseURL, err := runWeixinQRLogin()
 				if err != nil {
-					fmt.Printf("QR login failed: %v\n", err)
-					fmt.Println("Falling back to manual token entry.")
+					fmt.Printf(i18n.M.Output.Config.QRFailed+"\n", err)
+					fmt.Println(i18n.M.Output.Config.QRFallback)
 					if err := survey.AskOne(&survey.Password{
-						Message: "Weixin Bot Token:",
+						Message: i18n.M.Prompt.WeixinBotToken,
 					}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
 						return handleSurveyErr(err)
 					}
 					if err := survey.AskOne(&survey.Input{
-						Message: "Weixin User ID:",
+						Message: i18n.M.Prompt.WeixinUserID,
 						Default: vals.WeixinUserID,
 					}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
 						return handleSurveyErr(err)
@@ -308,7 +350,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 					if baseURL != "" {
 						vals.WeixinBaseURL = baseURL
 					}
-					fmt.Println("Weixin login successful!")
+					fmt.Println(i18n.M.Output.Config.WeixinSuccess)
 				}
 			}
 			if vals.WeixinBaseURL == "" {
@@ -319,10 +361,10 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 3 — Web Authentication
-	fmt.Println("\n=== Web Authentication ===")
+	fmt.Println(i18n.M.Output.Config.SectionAuth)
 
 	if err := survey.AskOne(&survey.Input{
-		Message: "Username:",
+		Message: i18n.M.Prompt.Username,
 		Default: vals.AuthUsername,
 	}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
 		return handleSurveyErr(err)
@@ -331,7 +373,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.AuthPassword != "" {
 		var changePassword bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "Password already configured. Change it?",
+			Message: i18n.M.Prompt.PasswordChangeConfirm,
 			Default: false,
 		}, &changePassword); err != nil {
 			return handleSurveyErr(err)
@@ -350,7 +392,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.AuthJWTSecret != "" {
 		var regenerate bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "JWT secret already exists. Regenerate?",
+			Message: i18n.M.Prompt.JWTRegenConfirm,
 			Default: false,
 		}, &regenerate); err != nil {
 			return handleSurveyErr(err)
@@ -359,21 +401,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			b := make([]byte, 32)
 			rand.Read(b)
 			vals.AuthJWTSecret = hex.EncodeToString(b)
-			fmt.Println("JWT secret regenerated.")
+			fmt.Println(i18n.M.Output.Config.JWTRegenerated)
 		}
 	} else {
 		b := make([]byte, 32)
 		rand.Read(b)
 		vals.AuthJWTSecret = hex.EncodeToString(b)
-		fmt.Println("JWT secret generated.")
+		fmt.Println(i18n.M.Output.Config.JWTGenerated)
 	}
 
 	// Step 4 — Advanced config
-	fmt.Println("\n=== Advanced Configuration ===")
+	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
 
 	var customAdvanced bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "Customize advanced settings?",
+		Message: i18n.M.Prompt.AdvancedConfirm,
 		Default: false,
 	}, &customAdvanced); err != nil {
 		return handleSurveyErr(err)
@@ -381,12 +423,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	if customAdvanced {
 		if err := survey.AskOne(&survey.Input{
-			Message: "Server port:",
+			Message: i18n.M.Prompt.ServerPort,
 			Default: vals.ServerPort,
 		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
 			s, _ := val.(string)
 			if _, err := strconv.Atoi(s); err != nil {
-				return fmt.Errorf("port must be an integer")
+				return errors.New(i18n.M.Validate.PortInteger)
 			}
 			return nil
 		})); err != nil {
@@ -394,80 +436,80 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Server Host:",
+			Message: i18n.M.Prompt.ServerHost,
 			Default: vals.ServerHost,
 		}, &vals.ServerHost); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "Debug mode?",
+			Message: i18n.M.Prompt.DebugMode,
 			Default: vals.Debug,
 		}, &vals.Debug); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Database path:",
+			Message: i18n.M.Prompt.DBPath,
 			Default: vals.DBPath,
 		}, &vals.DBPath); err != nil {
 			return handleSurveyErr(err)
 		}
 
-		mcpKeyChoice := "Generate randomly"
+		mcpKeyChoice := i18n.M.Prompt.OptionGenerateRandom
 		if vals.MCPAPIKey != "" {
-			mcpKeyChoice = "Enter manually"
+			mcpKeyChoice = i18n.M.Prompt.OptionEnterManually
 		}
 		var mcpMethod string
 		if err := survey.AskOne(&survey.Select{
-			Message: "MCP API Key setup:",
-			Options: []string{"Generate randomly", "Enter manually"},
+			Message: i18n.M.Prompt.MCPAPIKeySetup,
+			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
 			Default: mcpKeyChoice,
 		}, &mcpMethod); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch mcpMethod {
-		case "Generate randomly":
+		case i18n.M.Prompt.OptionGenerateRandom:
 			b := make([]byte, 12)
 			if _, err := rand.Read(b); err != nil {
 				return fmt.Errorf("generate random key: %w", err)
 			}
 			vals.MCPAPIKey = hex.EncodeToString(b)
-			fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
-		case "Enter manually":
+			fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
+		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
-				Message: "MCP API Key:",
+				Message: i18n.M.Prompt.MCPAPIKey,
 				Default: vals.MCPAPIKey,
 			}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 		}
 
-		workerKeyChoice := "Generate randomly"
+		workerKeyChoice := i18n.M.Prompt.OptionGenerateRandom
 		if vals.WorkerAPIKey != "" {
-			workerKeyChoice = "Enter manually"
+			workerKeyChoice = i18n.M.Prompt.OptionEnterManually
 		}
 		var workerKeyMethod string
 		if err := survey.AskOne(&survey.Select{
-			Message: "MCP Worker API Key setup:",
-			Options: []string{"Generate randomly", "Enter manually"},
+			Message: i18n.M.Prompt.MCPWorkerAPIKeySetup,
+			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
 			Default: workerKeyChoice,
 		}, &workerKeyMethod); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch workerKeyMethod {
-		case "Generate randomly":
+		case i18n.M.Prompt.OptionGenerateRandom:
 			b := make([]byte, 12)
 			if _, err := rand.Read(b); err != nil {
 				return fmt.Errorf("generate random worker key: %w", err)
 			}
 			vals.WorkerAPIKey = hex.EncodeToString(b)
-			fmt.Printf("Generated MCP Worker API Key: %s\n", vals.WorkerAPIKey)
-		case "Enter manually":
+			fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
+		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
-				Message: "MCP Worker API Key:",
+				Message: i18n.M.Prompt.MCPWorkerAPIKey,
 				Default: vals.WorkerAPIKey,
 			}, &vals.WorkerAPIKey, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
@@ -475,7 +517,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Feeder timeout:",
+			Message: i18n.M.Prompt.FeederTimeout,
 			Default: vals.FeederTimeout,
 		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
@@ -483,13 +525,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 		var concurrentBeeStr string
 		if err := survey.AskOne(&survey.Input{
-			Message: "Max concurrent bee processes:",
+			Message: i18n.M.Prompt.MaxConcurrentBee,
 			Default: strconv.Itoa(vals.FeederMaxConcurrentBee),
 		}, &concurrentBeeStr, survey.WithValidator(func(ans interface{}) error {
 			s, _ := ans.(string)
 			n, err := strconv.Atoi(s)
 			if err != nil || n <= 0 {
-				return fmt.Errorf("must be a positive integer")
+				return errors.New(i18n.M.Validate.PositiveInteger)
 			}
 			return nil
 		})); err != nil {
@@ -498,21 +540,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals.FeederMaxConcurrentBee, _ = strconv.Atoi(concurrentBeeStr)
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "Message debounce:",
+			Message: i18n.M.Prompt.MessageDebounce,
 			Default: vals.MessageDebounce,
 		}, &vals.MessageDebounce); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFprobe path:",
+			Message: i18n.M.Prompt.FFprobePath,
 			Default: vals.FFprobePath,
 		}, &vals.FFprobePath); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		if err := survey.AskOne(&survey.Input{
-			Message: "FFmpeg path:",
+			Message: i18n.M.Prompt.FFmpegPath,
 			Default: vals.FFmpegPath,
 		}, &vals.FFmpegPath); err != nil {
 			return handleSurveyErr(err)
@@ -526,7 +568,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("generate random key: %w", err)
 		}
 		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated MCP API Key: %s\n", vals.MCPAPIKey)
+		fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
 	}
 
 	// Auto-generate Worker API Key if not set
@@ -536,22 +578,22 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("generate random worker key: %w", err)
 		}
 		vals.WorkerAPIKey = hex.EncodeToString(b)
-		fmt.Printf("Generated Worker API Key: %s\n", vals.WorkerAPIKey)
+		fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
 	}
 
 	// Step 4 — Confirm write
-	fmt.Printf("\n=== Write Configuration ===\n")
-	fmt.Printf("Output file: %s\n", configOutputPath)
+	fmt.Println(i18n.M.Output.Config.SectionWrite)
+	fmt.Printf(i18n.M.Output.Config.OutputFile+"\n", configOutputPath)
 
 	var confirmWrite bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: "Confirm write config file?",
+		Message: i18n.M.Prompt.ConfirmWrite,
 		Default: true,
 	}, &confirmWrite); err != nil {
 		return handleSurveyErr(err)
 	}
 	if !confirmWrite {
-		fmt.Println("Write cancelled.")
+		fmt.Println(i18n.M.Output.Config.WriteCancelled)
 		return nil
 	}
 
@@ -569,30 +611,60 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write file: %w", err)
 	}
 
-	fmt.Printf("Config file written to: %s\n", configOutputPath)
+	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
 	return nil
+}
+
+// runLanguageStep shows a bilingual language-selection prompt and reloads i18n
+// with the chosen language. existingLang should be "" or a previously saved
+// language code ("en" or "zh"); it determines the default selection.
+func runLanguageStep(existingLang string) (string, error) {
+	defaultOpt := "English"
+	if existingLang == "zh" {
+		defaultOpt = "中文"
+	}
+
+	var selected string
+	if err := survey.AskOne(&survey.Select{
+		Message: "Select language / 选择语言",
+		Options: []string{"English", "中文"},
+		Default: defaultOpt,
+	}, &selected); err != nil {
+		return "", handleSurveyErr(err)
+	}
+
+	lang := "en"
+	if selected == "中文" {
+		lang = "zh"
+	}
+
+	if err := i18n.Load(lang); err != nil {
+		return "", fmt.Errorf("load i18n: %w", err)
+	}
+	applySurveyTemplates()
+	return lang, nil
 }
 
 func promptPassword(vals *configValues) error {
 	var method string
 	if err := survey.AskOne(&survey.Select{
-		Message: "Password setup:",
-		Options: []string{"Enter manually", "Generate randomly"},
+		Message: i18n.M.Prompt.PasswordSetup,
+		Options: []string{i18n.M.Prompt.OptionEnterManually, i18n.M.Prompt.OptionGenerateRandom},
 	}, &method); err != nil {
 		return handleSurveyErr(err)
 	}
 	switch method {
-	case "Enter manually":
+	case i18n.M.Prompt.OptionEnterManually:
 		if err := survey.AskOne(&survey.Password{
-			Message: "Password:",
+			Message: i18n.M.Prompt.Password,
 		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
 			return handleSurveyErr(err)
 		}
-	case "Generate randomly":
+	case i18n.M.Prompt.OptionGenerateRandom:
 		b := make([]byte, 16)
 		rand.Read(b)
 		vals.AuthPassword = hex.EncodeToString(b)
-		fmt.Printf("Generated password: %s\n", vals.AuthPassword)
+		fmt.Printf(i18n.M.Output.Config.PasswordGenerated+"\n", vals.AuthPassword)
 	}
 	return nil
 }

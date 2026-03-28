@@ -159,7 +159,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore, s.sessionStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler, cfg.Language)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -243,7 +243,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler) (*api.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
@@ -263,5 +263,6 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		LocalChatHandler: localChat,
 		AuthHandler:      authHandler,
 		JWTMiddleware:    jwtMiddleware,
+		Language:         language,
 	})
 }

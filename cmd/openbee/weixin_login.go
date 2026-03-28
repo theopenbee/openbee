@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	qrterminal "github.com/mdp/qrterminal/v3"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 func runWeixinQRLogin() (token, userID, baseURL string, err error) {
@@ -31,7 +33,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 	}
 
 	// Step 2: Display QR code in terminal
-	fmt.Println("\nScan this QR code with WeChat:")
+	fmt.Println(i18n.M.Output.Weixin.ScanQR)
 	qrterminal.GenerateWithConfig(qrResp.QRCodeImgContent, qrterminal.Config{
 		Level:     qrterminal.L,
 		Writer:    os.Stdout,
@@ -40,7 +42,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 	})
 
 	// Step 3: Poll for scan status (max 5 minutes total, max 3 timeouts)
-	fmt.Println("\nWaiting for scan...")
+	fmt.Println(i18n.M.Output.Weixin.Waiting)
 	pollClient := &http.Client{Timeout: 40 * time.Second}
 	deadline := time.Now().Add(5 * time.Minute)
 	for attempt := 0; attempt < 3 && time.Now().Before(deadline); attempt++ {
@@ -50,7 +52,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 
 		pollResp, err := pollClient.Do(req)
 		if err != nil {
-			fmt.Printf("  poll attempt %d failed: %v\n", attempt+1, err)
+			fmt.Printf(i18n.M.Output.Weixin.PollFailed+"\n", attempt+1, err)
 			continue
 		}
 
@@ -63,7 +65,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 		}
 		if err := json.NewDecoder(pollResp.Body).Decode(&statusResp); err != nil {
 			pollResp.Body.Close()
-			fmt.Printf("  poll attempt %d: invalid response: %v\n", attempt+1, err)
+			fmt.Printf(i18n.M.Output.Weixin.PollInvalid+"\n", attempt+1, err)
 			continue
 		}
 		pollResp.Body.Close()
@@ -72,14 +74,14 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 		case "confirmed":
 			return statusResp.BotToken, statusResp.ILinkUserID, statusResp.BaseURL, nil
 		case "scaned":
-			fmt.Println("  Scanned! Please confirm on your phone...")
+			fmt.Println(i18n.M.Output.Weixin.Scanned)
 			attempt--           // don't count scanned as a failed attempt
 			time.Sleep(time.Second) // prevent tight loop if server responds instantly
 		case "expired":
-			return "", "", "", fmt.Errorf("QR code expired")
+			return "", "", "", errors.New(i18n.M.Output.Weixin.QRExpired)
 		case "wait":
-			fmt.Println("  Still waiting for scan...")
+			fmt.Println(i18n.M.Output.Weixin.StillWaiting)
 		}
 	}
-	return "", "", "", fmt.Errorf("QR login timed out after 3 attempts")
+	return "", "", "", errors.New(i18n.M.Output.Weixin.QRTimeout)
 }

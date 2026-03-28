@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/backup"
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 var restorePassword string
@@ -40,7 +41,7 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("Restore complete.")
+		fmt.Println(i18n.M.Output.Restore.Complete)
 		return nil
 	},
 }
