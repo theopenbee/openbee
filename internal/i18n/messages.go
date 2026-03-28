@@ -3,10 +3,12 @@ package i18n
 // Messages 包含所有 CLI 用户可见文本。
 // 字段名通过 yaml tag 与 YAML 键对应。
 type Messages struct {
-	Cmd    CmdMessages    `yaml:"cmd"`
-	Prompt PromptMessages `yaml:"prompt"`
-	Flag   FlagMessages   `yaml:"flag"`
-	Output OutputMessages `yaml:"output"`
+	Cmd      CmdMessages      `yaml:"cmd"`
+	Prompt   PromptMessages   `yaml:"prompt"`
+	Flag     FlagMessages     `yaml:"flag"`
+	Output   OutputMessages   `yaml:"output"`
+	Provider ProviderMessages `yaml:"provider"`
+	Validate ValidateMessages `yaml:"validate"`
 }
 
 // CmdEntry holds the Short and optional Long description for a cobra command.
@@ -73,6 +75,16 @@ type PromptMessages struct {
 	FFmpegPath           string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
+	// Survey options (used in both Options slice and switch cases)
+	OptionEnterManually     string `yaml:"option_enter_manually"`
+	OptionGenerateRandom    string `yaml:"option_generate_random"`
+	OptionEnterPathManually string `yaml:"option_enter_path_manually"`
+	OptionDownloadClaude    string `yaml:"option_download_claude"`
+	// Telegram Help text
+	TelegramTokenHelp    string `yaml:"telegram_token_help"`
+	TelegramAuthCodeHelp string `yaml:"telegram_auth_code_help"`
+	// Generic cancel
+	Cancelled string `yaml:"cancelled"`
 }
 
 // FlagMessages 对应所有 cobra flag 的 Usage 说明。
@@ -87,6 +99,33 @@ type FlagMessages struct {
 	ClaudeDownloadForce string `yaml:"claude_download_force"`
 }
 
+// ProviderMessages 对应 claude/provider.go 中所有用户可见文本。
+type ProviderMessages struct {
+	FoundSettings   string `yaml:"found_settings"`
+	Select          string `yaml:"select"`
+	SelectModel     string `yaml:"select_model"`
+	KeyMoonshot     string `yaml:"key_moonshot"`
+	KeyDeepSeek     string `yaml:"key_deepseek"`
+	KeyGLM          string `yaml:"key_glm"`
+	KeyMiniMax      string `yaml:"key_minimax"`
+	KeyAliyun       string `yaml:"key_aliyun"`
+	KeyVolcengine   string `yaml:"key_volcengine"`
+	KeyTencent      string `yaml:"key_tencent"`
+	KeyCustomURL    string `yaml:"key_custom_url"`
+	KeyCustomToken  string `yaml:"key_custom_token"`
+	WrittenSettings string `yaml:"written_settings"`
+	WrittenJSON     string `yaml:"written_json"`
+}
+
+// ValidateMessages 对应交互式输入的校验错误提示。
+type ValidateMessages struct {
+	PortInteger     string `yaml:"port_integer"`
+	PositiveInteger string `yaml:"positive_integer"`
+	FileNotFound    string `yaml:"file_not_found"` // contains %s
+	PathIsDir       string `yaml:"path_is_dir"`    // contains %s
+	FileNotExec     string `yaml:"file_not_exec"`  // contains %s
+}
+
 // OutputMessages 对应所有命令的运行时输出文本。
 type OutputMessages struct {
 	Stop    StopOutput    `yaml:"stop"`
@@ -97,6 +136,7 @@ type OutputMessages struct {
 	Config  ConfigOutput  `yaml:"config"`
 	Claude  ClaudeOutput  `yaml:"claude"`
 	Weixin  WeixinOutput  `yaml:"weixin"`
+	Daemon  DaemonOutput  `yaml:"daemon"`
 }
 
 // StopOutput 对应 stop 命令的运行时输出。
@@ -182,4 +222,12 @@ type WeixinOutput struct {
 	PollInvalid  string `yaml:"poll_invalid"`  // contains %d, %v
 	Scanned      string `yaml:"scanned"`
 	StillWaiting string `yaml:"still_waiting"`
+	QRExpired    string `yaml:"qr_expired"`
+	QRTimeout    string `yaml:"qr_timeout"`
+}
+
+// DaemonOutput 对应 daemon 相关的运行时输出。
+type DaemonOutput struct {
+	Started        string `yaml:"started"`         // contains %d
+	AlreadyRunning string `yaml:"already_running"` // contains %d
 }

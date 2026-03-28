@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -77,10 +78,10 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 			attempt--           // don't count scanned as a failed attempt
 			time.Sleep(time.Second) // prevent tight loop if server responds instantly
 		case "expired":
-			return "", "", "", fmt.Errorf("QR code expired")
+			return "", "", "", errors.New(i18n.M.Output.Weixin.QRExpired)
 		case "wait":
 			fmt.Println(i18n.M.Output.Weixin.StillWaiting)
 		}
 	}
-	return "", "", "", fmt.Errorf("QR login timed out after 3 attempts")
+	return "", "", "", errors.New(i18n.M.Output.Weixin.QRTimeout)
 }

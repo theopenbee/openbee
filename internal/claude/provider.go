@@ -9,6 +9,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/theopenbee/openbee/internal/i18n"
 )
 
 // ErrInterrupted is returned when the user cancels an interactive prompt (Ctrl+C).
@@ -31,7 +32,7 @@ const (
 // share the same sentinel error without duplicating the check.
 func HandleSurveyErr(err error) error {
 	if errors.Is(err, terminal.InterruptErr) {
-		fmt.Println("\nCancelled.")
+		fmt.Println(i18n.M.Prompt.Cancelled)
 		return ErrInterrupted
 	}
 	return err
@@ -150,7 +151,8 @@ func mergeJSONFile(path string, apply func(map[string]any)) error {
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("warning: %s has invalid JSON, overwriting: %v\n", path, err)
+			// Non-fatal: log and overwrite the corrupted file.
+			fmt.Fprintf(os.Stderr, "warning: %s has invalid JSON, overwriting: %v\n", path, err)
 		}
 	}
 	apply(existing)
@@ -205,7 +207,7 @@ func ConfigureProvider() error {
 	if _, err := os.Stat(settingsPath); err == nil {
 		var skip bool
 		if err := survey.AskOne(&survey.Confirm{
-			Message: "Found ~/.claude/settings.json, skip model provider setup?",
+			Message: i18n.M.Provider.FoundSettings,
 			Default: true,
 		}, &skip); err != nil {
 			return HandleSurveyErr(err)
@@ -227,7 +229,7 @@ func ConfigureProvider() error {
 	}
 	var provider string
 	if err := survey.AskOne(&survey.Select{
-		Message: "Select model provider:",
+		Message: i18n.M.Provider.Select,
 		Options: providerOptions,
 	}, &provider); err != nil {
 		return HandleSurveyErr(err)
@@ -238,21 +240,21 @@ func ConfigureProvider() error {
 
 	switch provider {
 	case ProviderMoonshot:
-		apiKey, err := promptAPIKey("Moonshot API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMoonshot)
 		if err != nil {
 			return err
 		}
 		env = moonshotEnv(apiKey)
 
 	case ProviderDeepSeek:
-		apiKey, err := promptAPIKey("DeepSeek API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyDeepSeek)
 		if err != nil {
 			return err
 		}
 		env = deepseekEnv(apiKey)
 
 	case ProviderGLM:
-		apiKey, err := promptAPIKey("Zhipu API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyGLM)
 		if err != nil {
 			return err
 		}
@@ -260,7 +262,7 @@ func ConfigureProvider() error {
 		needClaudeJSON = true
 
 	case ProviderMiniMax:
-		apiKey, err := promptAPIKey("MiniMax API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMiniMax)
 		if err != nil {
 			return err
 		}
@@ -268,13 +270,13 @@ func ConfigureProvider() error {
 		needClaudeJSON = true
 
 	case ProviderAliyun:
-		apiKey, err := promptAPIKey("Alibaba Cloud API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyAliyun)
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "Select model:",
+			Message: i18n.M.Provider.SelectModel,
 			Options: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
 			Default: "qwen3.5-plus",
 		}, &model); err != nil {
@@ -283,13 +285,13 @@ func ConfigureProvider() error {
 		env = aliyunEnv(apiKey, model)
 
 	case ProviderVolcengine:
-		apiKey, err := promptAPIKey("Volcengine API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyVolcengine)
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "Select model:",
+			Message: i18n.M.Provider.SelectModel,
 			Options: []string{
 				"doubao-seed-2.0-code",
 				"doubao-seed-2.0-pro",
@@ -308,13 +310,13 @@ func ConfigureProvider() error {
 		needClaudeJSON = true
 
 	case ProviderTencent:
-		apiKey, err := promptAPIKey("Tencent Cloud API Key:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyTencent)
 		if err != nil {
 			return err
 		}
 		var model string
 		if err := survey.AskOne(&survey.Select{
-			Message: "Select model:",
+			Message: i18n.M.Provider.SelectModel,
 			Options: []string{
 				"tc-code-latest（auto）",
 				"hunyuan-2.0-instruct",
@@ -333,11 +335,11 @@ func ConfigureProvider() error {
 		needClaudeJSON = true
 
 	case ProviderCustom:
-		baseURL, err := promptAPIKey("ANTHROPIC_BASE_URL:")
+		baseURL, err := promptAPIKey(i18n.M.Provider.KeyCustomURL)
 		if err != nil {
 			return err
 		}
-		apiKey, err := promptAPIKey("ANTHROPIC_AUTH_TOKEN:")
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyCustomToken)
 		if err != nil {
 			return err
 		}
@@ -349,13 +351,13 @@ func ConfigureProvider() error {
 	if err := mergeClaudeSettings(settingsPath, env); err != nil {
 		return fmt.Errorf("write settings.json: %w", err)
 	}
-	fmt.Println("Written ~/.claude/settings.json")
+	fmt.Println(i18n.M.Provider.WrittenSettings)
 
 	if needClaudeJSON {
 		if err := mergeClaudeJSON(claudeJSONPath); err != nil {
 			return fmt.Errorf("write .claude.json: %w", err)
 		}
-		fmt.Println("Written ~/.claude.json")
+		fmt.Println(i18n.M.Provider.WrittenJSON)
 	}
 
 	return nil

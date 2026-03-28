@@ -248,7 +248,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			vals.TelegramEnabled = true
 			if err := survey.AskOne(&survey.Password{
 				Message: i18n.M.Prompt.TelegramToken,
-				Help:    "Get a token from @BotFather on Telegram",
+				Help:    i18n.M.Prompt.TelegramTokenHelp,
 			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -261,7 +261,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.TelegramAuthCode,
 				Default: authCodeDefault,
-				Help:    "Users must send /auth <code> to use the bot; leave empty to allow all",
+				Help:    i18n.M.Prompt.TelegramAuthCodeHelp,
 			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
@@ -387,7 +387,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
 			s, _ := val.(string)
 			if _, err := strconv.Atoi(s); err != nil {
-				return fmt.Errorf("port must be an integer")
+				return errors.New(i18n.M.Validate.PortInteger)
 			}
 			return nil
 		})); err != nil {
@@ -415,28 +415,28 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
-		mcpKeyChoice := "Generate randomly"
+		mcpKeyChoice := i18n.M.Prompt.OptionGenerateRandom
 		if vals.MCPAPIKey != "" {
-			mcpKeyChoice = "Enter manually"
+			mcpKeyChoice = i18n.M.Prompt.OptionEnterManually
 		}
 		var mcpMethod string
 		if err := survey.AskOne(&survey.Select{
 			Message: i18n.M.Prompt.MCPAPIKeySetup,
-			Options: []string{"Generate randomly", "Enter manually"},
+			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
 			Default: mcpKeyChoice,
 		}, &mcpMethod); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch mcpMethod {
-		case "Generate randomly":
+		case i18n.M.Prompt.OptionGenerateRandom:
 			b := make([]byte, 12)
 			if _, err := rand.Read(b); err != nil {
 				return fmt.Errorf("generate random key: %w", err)
 			}
 			vals.MCPAPIKey = hex.EncodeToString(b)
 			fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
-		case "Enter manually":
+		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.MCPAPIKey,
 				Default: vals.MCPAPIKey,
@@ -445,28 +445,28 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		workerKeyChoice := "Generate randomly"
+		workerKeyChoice := i18n.M.Prompt.OptionGenerateRandom
 		if vals.WorkerAPIKey != "" {
-			workerKeyChoice = "Enter manually"
+			workerKeyChoice = i18n.M.Prompt.OptionEnterManually
 		}
 		var workerKeyMethod string
 		if err := survey.AskOne(&survey.Select{
 			Message: i18n.M.Prompt.MCPWorkerAPIKeySetup,
-			Options: []string{"Generate randomly", "Enter manually"},
+			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
 			Default: workerKeyChoice,
 		}, &workerKeyMethod); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch workerKeyMethod {
-		case "Generate randomly":
+		case i18n.M.Prompt.OptionGenerateRandom:
 			b := make([]byte, 12)
 			if _, err := rand.Read(b); err != nil {
 				return fmt.Errorf("generate random worker key: %w", err)
 			}
 			vals.WorkerAPIKey = hex.EncodeToString(b)
 			fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
-		case "Enter manually":
+		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.MCPWorkerAPIKey,
 				Default: vals.WorkerAPIKey,
@@ -490,7 +490,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			s, _ := ans.(string)
 			n, err := strconv.Atoi(s)
 			if err != nil || n <= 0 {
-				return fmt.Errorf("must be a positive integer")
+				return errors.New(i18n.M.Validate.PositiveInteger)
 			}
 			return nil
 		})); err != nil {
@@ -578,18 +578,18 @@ func promptPassword(vals *configValues) error {
 	var method string
 	if err := survey.AskOne(&survey.Select{
 		Message: i18n.M.Prompt.PasswordSetup,
-		Options: []string{"Enter manually", "Generate randomly"},
+		Options: []string{i18n.M.Prompt.OptionEnterManually, i18n.M.Prompt.OptionGenerateRandom},
 	}, &method); err != nil {
 		return handleSurveyErr(err)
 	}
 	switch method {
-	case "Enter manually":
+	case i18n.M.Prompt.OptionEnterManually:
 		if err := survey.AskOne(&survey.Password{
 			Message: i18n.M.Prompt.Password,
 		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
 			return handleSurveyErr(err)
 		}
-	case "Generate randomly":
+	case i18n.M.Prompt.OptionGenerateRandom:
 		b := make([]byte, 16)
 		rand.Read(b)
 		vals.AuthPassword = hex.EncodeToString(b)

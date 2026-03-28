@@ -22,17 +22,17 @@ func configureClaudeExecutable(vals *configValues) error {
 		var method string
 		if err := survey.AskOne(&survey.Select{
 			Message: i18n.M.Prompt.ClaudeNotFound,
-			Options: []string{"Enter path manually", "Download Claude"},
+			Options: []string{i18n.M.Prompt.OptionEnterPathManually, i18n.M.Prompt.OptionDownloadClaude},
 		}, &method); err != nil {
 			return handleSurveyErr(err)
 		}
 
 		switch method {
-		case "Enter path manually":
+		case i18n.M.Prompt.OptionEnterPathManually:
 			if err := promptClaudeManualPath(vals); err != nil {
 				return err
 			}
-		case "Download Claude":
+		case i18n.M.Prompt.OptionDownloadClaude:
 			path, err := claude.Download(openbeeStateDir(), false)
 			if err != nil {
 				fmt.Printf(i18n.M.Output.Config.ClaudeDownloadFailed+"\n", err)
@@ -64,13 +64,13 @@ func promptClaudeManualPath(vals *configValues) error {
 		path, _ := val.(string)
 		info, err := os.Stat(path)
 		if err != nil {
-			return fmt.Errorf("file not found: %s", path)
+			return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
 		}
 		if info.IsDir() {
-			return fmt.Errorf("path is a directory, not a file: %s", path)
+			return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
 		}
 		if info.Mode()&0111 == 0 {
-			return fmt.Errorf("file is not executable: %s", path)
+			return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
 		}
 		return nil
 	})); err != nil {
