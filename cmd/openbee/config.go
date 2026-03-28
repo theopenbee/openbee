@@ -20,6 +20,7 @@ import (
 var configTemplate = config.ConfigTemplate
 
 type configValues struct {
+	Language   string
 	ServerPort string
 	ServerHost string
 	Debug      bool
@@ -92,6 +93,7 @@ func loadExistingConfig(path string) *configValues {
 	}
 
 	return &configValues{
+		Language:             cfg.Language,
 		ServerPort:           strconv.Itoa(cfg.Server.Port),
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
