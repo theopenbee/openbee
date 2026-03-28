@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "工作者",
-    "executions": "执行记录"
+    "executions": "会话记录"
   },
   "common": {
     "save": "保存",
@@ -41,8 +41,8 @@
     }
   },
   "executions": {
-    "title": "执行记录",
-    "noExecutions": "还没有执行记录。",
+    "title": "会话记录",
+    "noExecutions": "还没有会话记录。",
     "turnCount_one": "{{count}} 轮",
     "turnCount_other": "{{count}} 轮",
     "columns": {
@@ -85,7 +85,7 @@
     "session": "会话",
     "worker": "工作者",
     "turn": "第 {{index}} 轮",
-    "noExecutions": "该会话暂无执行记录。"
+    "noExecutions": "该会话暂无会话记录。"
   },
   "logViewer": {
     "waiting": "等待输出...",
@@ -116,7 +116,7 @@
   "emptyState": {
     "noWorkers": "蜂巢中还没有工作者",
     "noWorkersDesc": "创建你的第一个 AI 工作者开始使用",
-    "noExecutions": "暂无执行记录",
+    "noExecutions": "暂无会话记录",
     "noExecutionsDesc": "当工作者执行任务时，记录会显示在这里",
     "noSessions": "暂无对话",
     "noSessionsDesc": "开始与你的 AI 工作者对话"
