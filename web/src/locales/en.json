@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "workers": "Workers",
-    "executions": "Executions"
+    "executions": "Sessions"
   },
   "common": {
     "save": "Save",
@@ -41,8 +41,8 @@
     }
   },
   "executions": {
-    "title": "Executions",
-    "noExecutions": "No executions yet.",
+    "title": "Sessions",
+    "noExecutions": "No sessions yet.",
     "turnCount_one": "{{count}} turn",
     "turnCount_other": "{{count}} turns",
     "columns": {
@@ -69,7 +69,7 @@
     "noMemory": "No memory configured"
   },
   "executionDetail": {
-    "title": "Execution Detail",
+    "title": "Session Detail",
     "noResult": "No result yet.",
     "logs": "Logs",
     "result": "Result",
@@ -85,7 +85,7 @@
     "session": "Session",
     "worker": "Worker",
     "turn": "Turn {{index}}",
-    "noExecutions": "No executions found for this session."
+    "noExecutions": "No sessions found for this session."
   },
   "logViewer": {
     "waiting": "Waiting for output...",
@@ -116,8 +116,8 @@
   "emptyState": {
     "noWorkers": "No workers in the hive yet",
     "noWorkersDesc": "Create your first AI worker to get started",
-    "noExecutions": "No executions recorded",
-    "noExecutionsDesc": "Executions will appear here when workers run tasks",
+    "noExecutions": "No sessions recorded",
+    "noExecutionsDesc": "Sessions will appear here when workers run tasks",
     "noSessions": "No chat sessions",
     "noSessionsDesc": "Start a new conversation with your AI workers"
   }
