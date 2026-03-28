@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -18,6 +19,24 @@ import (
 )
 
 var configTemplate = config.ConfigTemplate
+
+// originalMultiSelectTemplate holds the unmodified survey template so we can
+// replace the hint text cleanly after each language selection.
+var originalMultiSelectTemplate = survey.MultiSelectQuestionTemplate
+
+// multiSelectHintOld is the exact hint fragment to replace inside the template.
+const multiSelectHintOld = `[Use arrows to move, space to select,{{- if not .Config.RemoveSelectAll }} <right> to all,{{end}}{{- if not .Config.RemoveSelectNone }} <left> to none,{{end}} type to filter{{- if and .Help (not .ShowHelp)}}, {{ .Config.HelpInput }} for more help{{end}}]`
+
+// applySurveyTemplates patches the survey MultiSelect hint text to use the
+// currently loaded i18n locale. Must be called after i18n.Load().
+func applySurveyTemplates() {
+	survey.MultiSelectQuestionTemplate = strings.Replace(
+		originalMultiSelectTemplate,
+		multiSelectHintOld,
+		i18n.M.Prompt.MultiSelectHint,
+		1,
+	)
+}
 
 type configValues struct {
 	Language   string
@@ -149,9 +168,11 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		AuthRefreshTTL: "168h",
 	}
 
-	// If an existing config file exists, use its values as defaults
+	// If an existing config file exists, load its values as defaults silently
+	// (do NOT print anything yet — language hasn't been selected).
+	existingFound := false
 	if existing := loadExistingConfig(configOutputPath); existing != nil {
-		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
+		existingFound = true
 		vals = *existing
 	}
 
@@ -161,6 +182,11 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	vals.Language = lang
+
+	// Now print the "found existing" message using the selected locale
+	if existingFound {
+		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
+	}
 
 	// Step 1 — Claude config
 	fmt.Println(i18n.M.Output.Config.SectionClaude)
@@ -178,25 +204,31 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Build default selections from existing config
 	var defaultPlatforms []string
 	if vals.FeishuEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Feishu")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformFeishu)
 	}
 	if vals.DingtalkEnabled {
-		defaultPlatforms = append(defaultPlatforms, "DingTalk")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformDingTalk)
 	}
 	if vals.WecomEnabled {
-		defaultPlatforms = append(defaultPlatforms, "WeCom")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeCom)
 	}
 	if vals.TelegramEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Telegram")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformTelegram)
 	}
 	if vals.WeixinEnabled {
-		defaultPlatforms = append(defaultPlatforms, "Weixin")
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeixin)
 	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: i18n.M.Prompt.PlatformSelect,
-		Options: []string{"Feishu", "DingTalk", "WeCom", "Telegram", "Weixin"},
+		Options: []string{
+			i18n.M.Prompt.PlatformFeishu,
+			i18n.M.Prompt.PlatformDingTalk,
+			i18n.M.Prompt.PlatformWeCom,
+			i18n.M.Prompt.PlatformTelegram,
+			i18n.M.Prompt.PlatformWeixin,
+		},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
 		return handleSurveyErr(err)
@@ -211,7 +243,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	for _, p := range selectedPlatforms {
 		switch p {
-		case "Feishu":
+		case i18n.M.Prompt.PlatformFeishu:
 			vals.FeishuEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.FeishuAppID,
@@ -225,7 +257,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "DingTalk":
+		case i18n.M.Prompt.PlatformDingTalk:
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.DingtalkClientID,
@@ -239,7 +271,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "WeCom":
+		case i18n.M.Prompt.PlatformWeCom:
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
 				Message: i18n.M.Prompt.WecomBotID,
@@ -253,7 +285,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "Telegram":
+		case i18n.M.Prompt.PlatformTelegram:
 			vals.TelegramEnabled = true
 			if err := survey.AskOne(&survey.Password{
 				Message: i18n.M.Prompt.TelegramToken,
@@ -274,7 +306,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
-		case "Weixin":
+		case i18n.M.Prompt.PlatformWeixin:
 			vals.WeixinEnabled = true
 
 			needQRLogin := true
@@ -609,6 +641,7 @@ func runLanguageStep(existingLang string) (string, error) {
 	if err := i18n.Load(lang); err != nil {
 		return "", fmt.Errorf("load i18n: %w", err)
 	}
+	applySurveyTemplates()
 	return lang, nil
 }
 

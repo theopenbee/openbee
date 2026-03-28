@@ -40,7 +40,14 @@ type PromptMessages struct {
 	ClaudePath     string `yaml:"claude_path"`
 	ClaudeTimeout  string `yaml:"claude_timeout"`
 	// Platform
-	PlatformSelect       string `yaml:"platform_select"`
+	PlatformSelect   string `yaml:"platform_select"`
+	PlatformFeishu   string `yaml:"platform_feishu"`
+	PlatformDingTalk string `yaml:"platform_dingtalk"`
+	PlatformWeCom    string `yaml:"platform_wecom"`
+	PlatformTelegram string `yaml:"platform_telegram"`
+	PlatformWeixin   string `yaml:"platform_weixin"`
+	// Survey hint text
+	MultiSelectHint string `yaml:"multiselect_hint"`
 	FeishuAppID          string `yaml:"feishu_app_id"`
 	FeishuAppSecret      string `yaml:"feishu_app_secret"`
 	DingtalkClientID     string `yaml:"dingtalk_client_id"`
