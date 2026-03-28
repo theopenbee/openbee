@@ -155,6 +155,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals = *existing
 	}
 
+	// Language selection — always shown first, before all other prompts
+	lang, err := runLanguageStep(vals.Language)
+	if err != nil {
+		return err
+	}
+	vals.Language = lang
+
 	// Step 1 — Claude config
 	fmt.Println(i18n.M.Output.Config.SectionClaude)
 
@@ -574,6 +581,35 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
 	return nil
+}
+
+// runLanguageStep shows a bilingual language-selection prompt and reloads i18n
+// with the chosen language. existingLang should be "" or a previously saved
+// language code ("en" or "zh"); it determines the default selection.
+func runLanguageStep(existingLang string) (string, error) {
+	defaultOpt := "English"
+	if existingLang == "zh" {
+		defaultOpt = "中文"
+	}
+
+	var selected string
+	if err := survey.AskOne(&survey.Select{
+		Message: "Select language / 选择语言",
+		Options: []string{"English", "中文"},
+		Default: defaultOpt,
+	}, &selected); err != nil {
+		return "", handleSurveyErr(err)
+	}
+
+	lang := "en"
+	if selected == "中文" {
+		lang = "zh"
+	}
+
+	if err := i18n.Load(lang); err != nil {
+		return "", fmt.Errorf("load i18n: %w", err)
+	}
+	return lang, nil
 }
 
 func promptPassword(vals *configValues) error {
