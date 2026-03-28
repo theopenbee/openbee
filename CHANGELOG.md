@@ -6,6 +6,10 @@
 
 - Added backup and restore commands
 
+### Fixed
+
+- Session detail page: show full message content with proper line breaks and paragraph formatting
+
 ## [0.0.13] - 2026-03-27
 
 ### Added
