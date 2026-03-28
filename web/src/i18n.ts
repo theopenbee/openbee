@@ -3,8 +3,6 @@ import { initReactI18next } from "react-i18next"
 import en from "./locales/en.json"
 import zh from "./locales/zh.json"
 
-const savedLanguage = localStorage.getItem("language") || "en"
-
 i18n
   .use(initReactI18next)
   .init({
@@ -12,18 +10,15 @@ i18n
       en: { translation: en },
       zh: { translation: zh },
     },
-    lng: savedLanguage,
+    lng: "en",
     fallbackLng: "en",
     interpolation: {
       escapeValue: false,
     },
   })
 
-function updateHtmlLang(lng: string) {
+i18n.on("languageChanged", (lng) => {
   document.documentElement.lang = lng === "zh" ? "zh-CN" : lng
-}
-
-updateHtmlLang(savedLanguage)
-i18n.on("languageChanged", updateHtmlLang)
+})
 
 export default i18n
