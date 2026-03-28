@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboard, Bot, Activity, MessageCircle, Github } from "lucide-react"
+import { LayoutDashboard, Bot, Activity, Clock, MessageCircle, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSwitcher } from "./theme-switcher"
 
@@ -12,6 +12,7 @@ export function Nav() {
     { href: "/", label: t("nav.dashboard"), icon: LayoutDashboard },
     { href: "/workers", label: t("nav.workers"), icon: Bot },
     { href: "/executions", label: t("nav.executions"), icon: Activity },
+    { href: "/tasks", label: t("nav.tasks"), icon: Clock },
     { href: "/local-chat", label: t("localChat.title"), icon: MessageCircle },
   ]
 
