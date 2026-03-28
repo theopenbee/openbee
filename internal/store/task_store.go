@@ -82,9 +82,8 @@ func splitTrimmed(s string) []string {
 	return parts
 }
 
-// TaskFilter specifies filtering criteria for List.
+// TaskFilter specifies filtering criteria for List and CountTasks.
 // message_id and session_key are mutually exclusive.
-// At least one of message_id, session_key, or worker_id must be non-empty.
 type TaskFilter struct {
 	MessageID  string
 	SessionKey string
