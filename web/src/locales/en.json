@@ -2,7 +2,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "workers": "Workers",
-    "executions": "Sessions"
+    "executions": "Sessions",
+    "tasks": "Tasks"
   },
   "common": {
     "save": "Save",
@@ -93,6 +94,29 @@
     "input": "Input",
     "output": "Output"
   },
+  "tasks": {
+    "title": "Tasks",
+    "columns": {
+      "type": "Type",
+      "worker": "Worker",
+      "instruction": "Instruction",
+      "status": "Status",
+      "timeInfo": "Time Info",
+      "actions": "Actions"
+    },
+    "types": {
+      "scheduled": "Scheduled",
+      "countdown": "Countdown"
+    },
+    "nextRun": "Next run",
+    "triggerAt": "Trigger at",
+    "cancelTask": "Cancel",
+    "cancelAll": "Cancel All Pending",
+    "cancelSuccess": "Task cancelled",
+    "cancelAllSuccess": "All pending tasks cancelled",
+    "cancelNoPending": "No pending tasks to cancel",
+    "cancelFailed": "Cannot cancel: task is not pending"
+  },
   "localChat": {
     "title": "Local Chat",
     "newChat": "New Chat",
@@ -119,6 +143,8 @@
     "noExecutions": "No sessions recorded",
     "noExecutionsDesc": "Sessions will appear here when workers run tasks",
     "noSessions": "No chat sessions",
-    "noSessionsDesc": "Start a new conversation with your AI workers"
+    "noSessionsDesc": "Start a new conversation with your AI workers",
+    "noTasks": "No active tasks",
+    "noTasksDesc": "Scheduled and countdown tasks will appear here"
   }
 }
