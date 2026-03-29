@@ -1,7 +1,7 @@
 {
   "nav": {
     "dashboard": "仪表板",
-    "workers": "工作者",
+    "workers": "员工",
     "executions": "会话记录"
   },
   "common": {
@@ -15,27 +15,27 @@
   },
   "dashboard": {
     "title": "仪表板",
-    "noWorkers": "还没有工作者。",
+    "noWorkers": "还没有员工。",
     "createOne": "创建一个",
-    "summary_one": "{{count}} 个工作者活跃中",
-    "summary_other": "{{count}} 个工作者活跃中",
-    "summaryNone": "暂无活跃工作者"
+    "summary_one": "{{count}} 个员工活跃中",
+    "summary_other": "{{count}} 个员工活跃中",
+    "summaryNone": "暂无活跃员工"
   },
   "workers": {
-    "title": "工作者",
-    "createWorker": "创建工作者",
+    "title": "员工",
+    "createWorker": "创建员工",
     "form": {
       "name": "名称",
       "namePlaceholder": "例如：report-bot",
       "description": "描述",
-      "descriptionPlaceholder": "这个工作者做什么？",
+      "descriptionPlaceholder": "这个员工做什么？",
       "workDir": "工作目录（可选）",
       "workDirPlaceholder": "留空使用默认目录",
       "memory": "记忆",
-      "memoryPlaceholder": "这个工作者执行的指令..."
+      "memoryPlaceholder": "这个员工执行的指令..."
     },
     "deleteDialog": {
-      "title": "删除工作者",
+      "title": "删除员工",
       "confirm": "确定要删除 <strong>{{name}}</strong> 吗？此操作无法撤销。",
       "deleteWorkDir": "同时删除工作目录"
     }
@@ -47,7 +47,7 @@
     "turnCount_other": "{{count}} 轮",
     "columns": {
       "session": "会话",
-      "worker": "工作者",
+      "worker": "员工",
       "turns": "轮次",
       "latestStatus": "最新状态",
       "started": "开始时间",
@@ -61,7 +61,7 @@
   },
   "workerDetail": {
     "sessions": "会话",
-    "workerInfo": "工作者信息",
+    "workerInfo": "员工信息",
     "id": "ID",
     "workDir": "工作目录",
     "created": "创建时间",
@@ -74,7 +74,7 @@
     "logs": "日志",
     "result": "结果",
     "info": "信息",
-    "worker": "工作者",
+    "worker": "员工",
     "session": "会话",
     "triggerInput": "触发输入",
     "pid": "进程ID",
@@ -83,7 +83,7 @@
   },
   "sessionDetail": {
     "session": "会话",
-    "worker": "工作者",
+    "worker": "员工",
     "turn": "第 {{index}} 轮",
     "noExecutions": "该会话暂无会话记录。"
   },
@@ -114,11 +114,11 @@
     "errorGeneric": "登录失败"
   },
   "emptyState": {
-    "noWorkers": "蜂巢中还没有工作者",
-    "noWorkersDesc": "创建你的第一个 AI 工作者开始使用",
+    "noWorkers": "蜂巢中还没有员工",
+    "noWorkersDesc": "创建你的第一个 AI 员工开始使用",
     "noExecutions": "暂无会话记录",
-    "noExecutionsDesc": "当工作者执行任务时，记录会显示在这里",
+    "noExecutionsDesc": "当员工执行任务时，记录会显示在这里",
     "noSessions": "暂无对话",
-    "noSessionsDesc": "开始与你的 AI 工作者对话"
+    "noSessionsDesc": "开始与你的 AI 员工对话"
   }
 }
