@@ -45,3 +45,21 @@ export interface ChatMessage {
   content: string
   ts: number
 }
+
+export type TaskType = "immediate" | "countdown" | "scheduled"
+export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
+
+export interface Task {
+  id: string
+  worker_id: string
+  worker_name: string
+  instruction: string
+  type: TaskType
+  status: TaskStatus
+  scheduled_at: number | null
+  cron_expr: string
+  next_run_at: number | null
+  execution_id: string
+  created_at: number
+  updated_at: number
+}

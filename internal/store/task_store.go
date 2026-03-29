@@ -82,25 +82,21 @@ func splitTrimmed(s string) []string {
 	return parts
 }
 
-// TaskFilter specifies filtering criteria for List.
+// TaskFilter specifies filtering criteria for List and CountTasks.
 // message_id and session_key are mutually exclusive.
-// At least one of message_id, session_key, or worker_id must be non-empty.
 type TaskFilter struct {
 	MessageID  string
 	SessionKey string
 	WorkerID   string
 	Status     string // comma-separated, e.g. "pending,running"
 	Type       string // comma-separated, e.g. "immediate,countdown"
+	Limit      int    // 0 means no limit
+	Offset     int
 }
 
-// List returns tasks matching the given filter. If session_key is set, tasks are
-// joined with bee_platform_messages to resolve the session. Results are ordered
-// by created_at DESC.
-func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
-	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t`
+// buildFilterWhere appends the JOIN (if needed) and WHERE clauses for a TaskFilter
+// to the given query prefix, returning the extended query and bound args.
+func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 	if f.SessionKey != "" {
 		q += ` JOIN bee_platform_messages pm ON t.message_id = pm.id`
 	}
@@ -120,13 +116,40 @@ func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error
 	}
 	q, args = appendCSVFilter(q, args, "status", f.Status)
 	q, args = appendCSVFilter(q, args, "type", f.Type)
+	return q, args
+}
+
+// List returns tasks matching the given filter. If session_key is set, tasks are
+// joined with bee_platform_messages to resolve the session. Results are ordered
+// by created_at DESC.
+func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
+	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
+	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.created_at, t.updated_at
+	      FROM bee_tasks t`, f)
 	q += ` ORDER BY t.created_at DESC`
+	if f.Limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, f.Limit)
+		if f.Offset > 0 {
+			q += ` OFFSET ?`
+			args = append(args, f.Offset)
+		}
+	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 	defer rows.Close()
 	return scanTasks(rows)
+}
+
+// CountTasks returns the number of tasks matching the given filter (ignores Limit/Offset).
+func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
+	q, args := buildFilterWhere(`SELECT COUNT(*) FROM bee_tasks t`, f)
+	var count int
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&count)
+	return count, err
 }
 
 // ListByMessageID returns tasks for a given message, optionally filtered by status and/or type.

@@ -13,6 +13,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
+import { TaskList } from "@/components/task-list"
 
 const PAGE_SIZE = 20
 
@@ -98,6 +99,7 @@ export function WorkerDetail() {
       <Tabs defaultValue="sessions">
         <TabsList variant="line">
           <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
+          <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
           <TabsTrigger value="info">{t("executionDetail.info")}</TabsTrigger>
         </TabsList>
 
@@ -141,6 +143,10 @@ export function WorkerDetail() {
           </div>
 
           <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+        </TabsContent>
+
+        <TabsContent value="tasks" className="mt-6">
+          <TaskList workerId={id!} />
         </TabsContent>
 
         <TabsContent value="info" className="mt-6">

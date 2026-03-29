@@ -754,6 +754,75 @@ func TestTaskStore_ClaimDueTasks_ImmediateUnaffectedByScheduledMap(t *testing.T)
 	}
 }
 
+func TestTaskStore_CountTasks(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	for i := 0; i < 3; i++ {
+		ts.Create(ctx, model.Task{
+			MessageID: "m1", WorkerID: "w1", Instruction: "task",
+			Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+			CreatedAt: now, UpdatedAt: now,
+		})
+	}
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "countdown",
+		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	count, err := ts.CountTasks(ctx, TaskFilter{Type: "scheduled"})
+	if err != nil {
+		t.Fatalf("CountTasks: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("want 3, got %d", count)
+	}
+
+	count, err = ts.CountTasks(ctx, TaskFilter{Type: "scheduled,countdown"})
+	if err != nil {
+		t.Fatalf("CountTasks: %v", err)
+	}
+	if count != 4 {
+		t.Errorf("want 4, got %d", count)
+	}
+}
+
+func TestTaskStore_List_Pagination(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	for i := 0; i < 5; i++ {
+		ts.Create(ctx, model.Task{
+			MessageID: "m1", WorkerID: "w1", Instruction: "task",
+			Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+			CreatedAt: now, UpdatedAt: now,
+		})
+	}
+
+	page1, err := ts.List(ctx, TaskFilter{Type: "scheduled", Limit: 2, Offset: 0})
+	if err != nil {
+		t.Fatalf("List page1: %v", err)
+	}
+	if len(page1) != 2 {
+		t.Errorf("want 2, got %d", len(page1))
+	}
+
+	page2, err := ts.List(ctx, TaskFilter{Type: "scheduled", Limit: 2, Offset: 2})
+	if err != nil {
+		t.Fatalf("List page2: %v", err)
+	}
+	if len(page2) != 2 {
+		t.Errorf("want 2, got %d", len(page2))
+	}
+}
+
 func TestTaskStore_GetTaskByExecutionID(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()

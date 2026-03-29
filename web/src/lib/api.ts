@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage, Task } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -47,6 +47,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || res.statusText)
   }
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 
@@ -128,5 +129,22 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
+  },
+  tasks: {
+    list: (params: { workerID?: string; page?: number; pageSize?: number } = {}) => {
+      const { workerID, page = 1, pageSize = 20 } = params
+      const qs = new URLSearchParams({
+        type: "scheduled,countdown",
+        status: "pending,running",
+        page: String(page),
+        page_size: String(pageSize),
+      })
+      if (workerID) qs.set("worker_id", workerID)
+      return fetchAPI<PaginatedResponse<Task>>(`/tasks?${qs}`)
+    },
+    cancel: (id: string) =>
+      fetchAPI(`/tasks/${id}`, { method: "DELETE" }),
+    cancelAll: (workerID: string) =>
+      fetchAPI(`/workers/${workerID}/tasks/cancel-all`, { method: "POST" }),
   },
 }
