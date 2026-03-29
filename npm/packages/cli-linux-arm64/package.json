@@ -11,6 +11,7 @@
   "files": [
     "bin/"
   ],
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/theopenbee/openbee"

@@ -6,6 +6,7 @@
 
 - Added backup and restore commands
 - Added internationalization (i18n) support for the command-line interface. Currently supports English and Chinese.
+- Added Tasks page
 
 ### Fixed
 

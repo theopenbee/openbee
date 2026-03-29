@@ -19,6 +19,7 @@
     "@theopenbee/cli-win32-x64": "0.0.5",
     "@theopenbee/cli-win32-arm64": "0.0.5"
   },
+  "license": "MIT",
   "engines": {
     "node": ">=14"
   },
