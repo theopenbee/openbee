@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-03-28
+
 ### Added
 
 - Added backup and restore commands
