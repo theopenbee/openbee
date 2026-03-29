@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>Run Claude Code as your digital employee — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
+  <p><strong>Run Claude Code as your digital worker — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
 </div>
 
 <div align="center">
@@ -12,9 +12,13 @@
 
 </div>
 
-[中文](README.zh.md)
+<p align="center">
+  <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
+  <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
+  <a href="https://x.com/0XTYZ">🐦 Author @0XTYZ</a>
+</p>
 
-**OpenBee** is a digital employee solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom / WeChat / Telegram to create workers, assign tasks, and much more — let your imagination run wild!
+**OpenBee** is a digital worker solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom / WeChat / Telegram to create workers, assign tasks, and much more — let your imagination run wild!
 
 ## ✨ Features
 
@@ -23,7 +27,7 @@
 | | | |
 |:---:|:---:|:---:|
 | 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** |
-| Each Worker is a Claude Code agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real employee |
+| Each Worker is a Claude Code agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real worker |
 | 🔧 **MCP Tool Invocation** | ⏰ **Scheduled Tasks** | 🖥️ **Web Console** |
 | Extend capabilities via MCP protocol — read files, call APIs, query databases | Cron-based scheduling for automatic, hands-free triggering | Visual interface for Worker management, task history, and real-time logs |
 
@@ -113,7 +117,7 @@ graph TD
     A["💬 IM Platforms\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🔌 Platform Integration Layer"]
     B --> C["🧠 Central Brain\nClaude Code"]
     C --> D["📨 Task Assignment"]
-    D --> E["🤖 Workers — Digital Employees\nClaude Code Agents"]
+    D --> E["🤖 Workers — Digital Workers\nClaude Code Agents"]
     E -. "Reply Results" .-> A
     C -. "Reply Results" .-> A
 ```
@@ -129,8 +133,8 @@ The central brain receives all incoming messages, understands user intent, and d
 **3. Task Assignment**
 The central brain dispatches tasks to the appropriate Workers based on their capabilities and configuration. Scheduled tasks are also supported for automatic, time-based triggering.
 
-**4. Workers (Digital Employees)**
-Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM platform — just like real employees.
+**4. Workers (Digital Workers)**
+Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM platform — just like real workers.
 
 ## 🌟 Star History
 
