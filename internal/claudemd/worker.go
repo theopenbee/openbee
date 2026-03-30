@@ -28,7 +28,7 @@ func WithMemory(memory string) Option {
 }
 
 func workerRules(name, description, memory string) string {
-	return workerConfigBlock(name, description, memory) + workerPreamble() + workerNotificationRules() + workerTaskRules()
+	return workerConfigBlock(name, description, memory) + workerPreamble() + workerNotificationRules()
 }
 
 func workerConfigBlock(name, description, memory string) string {
@@ -65,18 +65,17 @@ func workerPreamble() string {
 
 以下工具在后台 Worker 模式下不可用，遇到相关场景时请使用替代方式：
 
-- **AskUserQuestion** → 通过 %s 提出问题，然后调用 %s 结束任务。
+- **AskUserQuestion** → 通过 %s 提出问题，然后结束本次任务。
   用户的回复会作为新任务自动恢复你的会话，届时你可以继续处理。不要尝试等待或轮询回复。
 - **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行任务。
 - **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程（如 AskUserQuestion、EnterPlanMode、等待用户确认等）时，
-  使用上述 AskUserQuestion 的替代方式：通过 %s 提出问题，然后调用 %s 结束任务。
+  使用上述 AskUserQuestion 的替代方式：通过 %s 提出问题，然后结束本次任务。
 
 ### 强制要求
 
 - 所有与用户的通信必须且只能通过 %s 工具
-- 任务完成后必须调用 %s 标记完成 — 这是每个任务的最后一步，不可省略
 - 文本输出不会到达任何人，不要通过文本输出与用户交流
-`, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.SendMessage, toolnames.MarkTaskComplete)
+`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
 }
 
 func workerNotificationRules() string {
@@ -94,20 +93,3 @@ func workerNotificationRules() string {
 `, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
 }
 
-func workerTaskRules() string {
-	return fmt.Sprintf(`
-## 任务状态标记（强制 — 不可省略）
-
-每个任务的指令以 YAML frontmatter 开头，其中包含 task_id 和 message_id：
-
-- **task_id** — 当前任务的唯一标识，用于调用 `+"`%s`"+` 标记任务成功
-- **message_id** — 原始用户消息的标识，用于调用 `+"`%s`"+` 回复用户（可能为空）
-
-无论任务执行成功还是失败，无论过程中发生了什么，你都必须调用 `+"`%s`"+` 标记任务完成。
-
-这是每个任务的最后一步，绝对不可遗漏。先调用 `+"`%s`"+` 通知结果，再调用 `+"`%s`"+` 标记完成。如果你没有调用 `+"`%s`"+`，任务将永远处于运行状态，这是严重错误。
-`,
-		toolnames.MarkTaskComplete, toolnames.SendMessage,
-		toolnames.MarkTaskComplete,
-		toolnames.SendMessage, toolnames.MarkTaskComplete, toolnames.MarkTaskComplete)
-}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/toolnames"
 )
 
 func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
@@ -23,8 +24,8 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "任务通知规范") {
-		t.Error("missing shared rules (任务通知规范)")
+	if !strings.Contains(content, "通知规范") {
+		t.Error("missing shared rules (通知规范)")
 	}
 	if !strings.Contains(content, "send_message") {
 		t.Error("missing send_message reference in shared rules")
@@ -33,13 +34,13 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 		t.Error("missing bee-specific rules (会话上下文管理)")
 	}
 	if !strings.Contains(content, "create_task") {
-		t.Error("missing bee-specific create_task reference in 任务分发流程")
+		t.Error("missing bee-specific create_task reference in 任务委托流程")
 	}
 	if !strings.Contains(content, "list_workers") {
-		t.Error("missing bee-specific list_workers reference in 任务分发流程")
+		t.Error("missing bee-specific list_workers reference in 任务委托流程")
 	}
-	if !strings.Contains(content, "任务分发流程") {
-		t.Error("missing bee-specific 任务分发流程 section")
+	if !strings.Contains(content, "任务委托流程") {
+		t.Error("missing bee-specific 任务委托流程 section")
 	}
 	if strings.Contains(content, "mark_task_complete") {
 		t.Error("bee rules should not contain worker-specific mark_task_complete")
@@ -63,11 +64,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if !strings.Contains(content, "任务通知规范") {
 		t.Error("missing shared rules")
 	}
-	if !strings.Contains(content, "mark_task_complete") {
-		t.Error("missing worker-specific rules (mark_task_complete)")
-	}
-	if strings.Contains(content, "mark_task_failed") {
-		t.Error("worker rules must not contain mark_task_failed")
+	if !strings.Contains(content, toolnames.SendMessage) {
+		t.Error("missing worker-specific rules (send_message)")
 	}
 	if !strings.Contains(content, "姓名: 测试助手") {
 		t.Error("missing worker name")
@@ -150,8 +148,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "mark_task_complete") {
-		t.Error("missing worker-specific rules")
+	if !strings.Contains(content, "非交互式后台 Worker") {
+		t.Error("missing worker preamble")
 	}
 }
 

@@ -44,8 +44,9 @@ func (m *mockExecutionQuerier) GetByID(_ string) (model.WorkerExecution, error) 
 }
 
 type mockTaskStore struct {
-	mu          sync.Mutex
-	failedTasks []string
+	mu             sync.Mutex
+	failedTasks    []string
+	completedTasks []string
 }
 
 func (s *mockTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
@@ -53,6 +54,12 @@ func (s *mockTaskStore) FailTask(_ context.Context, taskID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failedTasks = append(s.failedTasks, taskID)
+	return nil
+}
+func (s *mockTaskStore) CompleteTask(_ context.Context, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completedTasks = append(s.completedTasks, taskID)
 	return nil
 }
 func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { return nil }
@@ -740,6 +747,48 @@ func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
 	}
 	if atomic.LoadInt64(&cancelCalled) == 0 {
 		t.Error("expected CancelExecution to be called on the manager")
+	}
+}
+
+func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusRunning}}
+	ts := &mockTaskStore{}
+	execStore := &mockExecutionQuerier{result: model.WorkerExecution{
+		ID:     "exec-1",
+		Status: model.ExecStatusCompleted,
+	}}
+	ss := newMockSessionStore()
+
+	ch := make(chan task_dispatcher.DispatchTask, 1)
+	d := task_dispatcher.New(mgr, ts, ss, execStore, ch)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go d.Run(ctx)
+
+	ch <- task_dispatcher.DispatchTask{
+		TaskID:   "task-1",
+		WorkerID: "worker-1",
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		done := len(ts.completedTasks) > 0
+		ts.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	if len(ts.completedTasks) != 1 || ts.completedTasks[0] != "task-1" {
+		t.Errorf("want completedTasks=[task-1], got %v", ts.completedTasks)
+	}
+	if len(ts.failedTasks) != 0 {
+		t.Errorf("want no failedTasks, got %v", ts.failedTasks)
 	}
 }
 

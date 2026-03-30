@@ -401,6 +401,21 @@ func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
 	return s.UpdateStatus(ctx, taskID, model.TaskStatusFailed)
 }
 
+// CompleteTask marks a task as completed on successful worker exit.
+// For scheduled tasks with a cron expression, it resets to pending instead
+// so the task is picked up again on the next scheduled run.
+func (s *TaskStore) CompleteTask(ctx context.Context, taskID string) error {
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("get task: %w", err)
+	}
+	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
+		_, err := s.CompleteScheduledTask(ctx, taskID)
+		return err
+	}
+	return s.UpdateStatus(ctx, taskID, model.TaskStatusCompleted)
+}
+
 // CountPendingByWorkerID returns the number of pending tasks for a given worker.
 func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string) (int, error) {
 	var count int

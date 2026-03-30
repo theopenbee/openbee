@@ -133,17 +133,6 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.MarkTaskComplete,
-			Description: "Mark a task as successfully completed",
-			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"task_id"},
-				"properties": map[string]any{
-					"task_id": map[string]string{"type": "string", "description": "Task ID to mark as completed"},
-				},
-			},
-		},
-		{
 			Name:        toolnames.SendMessage,
 			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target. Supports sending media files (images, documents, audio, video) by providing a local file path.",
 			InputSchema: map[string]any{
@@ -262,7 +251,6 @@ func beeToolSchemas() []toolSchema {
 
 // workerToolNames is the allowlist of tools exposed to workers.
 var workerToolNames = map[string]bool{
-	toolnames.MarkTaskComplete: true,
 	toolnames.SendMessage:      true,
 	toolnames.SaveMemory:       true,
 	toolnames.GetMemory:        true,
@@ -304,8 +292,6 @@ func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) 
 		return s.toolListTasks(args)
 	case toolnames.CancelTask:
 		return s.toolCancelTask(args)
-	case toolnames.MarkTaskComplete:
-		return s.toolMarkTaskComplete(args)
 	case toolnames.SendMessage:
 		return s.toolSendMessage(args)
 	case toolnames.ClearSession:
@@ -575,37 +561,6 @@ func (s *MCPServer) toolCancelTask(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("cancel task: %w", err)
 	}
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
-}
-
-func (s *MCPServer) toolMarkTaskComplete(args json.RawMessage) (any, error) {
-	var params struct {
-		TaskID string `json:"task_id"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.TaskID == "" {
-		return nil, fmt.Errorf("task_id is required")
-	}
-	ctx := context.Background()
-	task, err := s.taskStore.GetByID(ctx, params.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
-		reset, err := s.taskStore.CompleteScheduledTask(ctx, params.TaskID)
-		if err != nil {
-			return nil, fmt.Errorf("reset scheduled task: %w", err)
-		}
-		if !reset {
-			return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
-		}
-		return map[string]string{"task_id": params.TaskID, "status": "pending"}, nil
-	}
-	if err := s.taskStore.UpdateStatus(ctx, params.TaskID, model.TaskStatusCompleted); err != nil {
-		return nil, fmt.Errorf("mark task success: %w", err)
-	}
-	return map[string]string{"task_id": params.TaskID, "status": "completed"}, nil
 }
 
 func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
