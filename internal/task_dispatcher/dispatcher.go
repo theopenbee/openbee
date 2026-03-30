@@ -32,6 +32,7 @@ type ExecutionQuerier interface {
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
 	SetExecution(ctx context.Context, taskID, executionID, status string) error
+	CompleteTask(ctx context.Context, taskID string) error
 	FailTask(ctx context.Context, taskID string) error
 	CancelTask(ctx context.Context, taskID string) error
 }
@@ -317,8 +318,12 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		}
 		switch exec.Status {
 		case model.ExecStatusCompleted:
+			if task.TaskID != "" {
+				if err := d.taskStore.CompleteTask(ctx, task.TaskID); err != nil {
+					log.Error("complete task", zap.String("taskID", task.TaskID), zap.Error(err))
+				}
+			}
 			// Persist session_id for future resume (only on success).
-			// Terminal task status is set by the worker via mark_task_success.
 			if task.SessionKey != "" && task.WorkerID != "" {
 				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
 					log.Error("upsert session context", zap.Error(err))
