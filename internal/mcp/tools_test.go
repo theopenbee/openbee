@@ -218,52 +218,6 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db)), db
 }
 
-// --- mark_task_complete ---
-
-func TestCallTool_MarkTaskComplete(t *testing.T) {
-	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
-	ctx := context.Background()
-	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-fake", "feishu:c1:u1", "feishu", "hi", `{}`, "", 0) //nolint
-
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W"}))
-	w := workerResult.(model.Worker)
-
-	taskResult, err := s.CallTool("create_task", mustMarshal(t, map[string]any{
-		"message_id":  "msg-fake",
-		"worker_id":   w.ID,
-		"instruction": "do something",
-		"type":        "immediate",
-	}))
-	if err != nil {
-		t.Fatalf("create_task: %v", err)
-	}
-	taskMap := taskResult.(map[string]string)
-	taskID := taskMap["task_id"]
-
-	result, err := s.CallTool("mark_task_complete", mustMarshal(t, map[string]any{
-		"task_id": taskID,
-	}))
-	if err != nil {
-		t.Fatalf("mark_task_complete: %v", err)
-	}
-	m := result.(map[string]string)
-	if m["status"] != "completed" {
-		t.Errorf("expected status=completed, got %q", m["status"])
-	}
-	if m["task_id"] != taskID {
-		t.Errorf("expected task_id=%s, got %q", taskID, m["task_id"])
-	}
-}
-
-func TestCallTool_MarkTaskComplete_MissingTaskID(t *testing.T) {
-	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("mark_task_complete", mustMarshal(t, map[string]any{}))
-	if err == nil {
-		t.Error("expected error for missing task_id")
-	}
-}
-
 // --- send_message ---
 
 func TestCallTool_SendMessage_CallsSender(t *testing.T) {
@@ -347,8 +301,8 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 19 {
-		t.Errorf("expected 19 tool schemas, got %d", len(schemas))
+	if len(schemas) != 18 {
+		t.Errorf("expected 18 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -358,7 +312,7 @@ func TestToolSchemas_IncludesNewTools(t *testing.T) {
 	for _, s := range schemas {
 		names[s.Name] = true
 	}
-	for _, want := range []string{"mark_task_complete", "send_message"} {
+	for _, want := range []string{"send_message"} {
 		if !names[want] {
 			t.Errorf("missing tool schema: %s", want)
 		}
@@ -920,15 +874,15 @@ func setupWorkerMCPServer(t *testing.T) *mcp.MCPServer {
 
 func TestBeeToolSchemasCount(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 19 {
-		t.Errorf("bee tool schemas: want 19 got %d", len(schemas))
+	if len(schemas) != 18 {
+		t.Errorf("bee tool schemas: want 18 got %d", len(schemas))
 	}
 }
 
 func TestWorkerToolSchemasCount(t *testing.T) {
 	schemas := mcp.WorkerToolSchemas()
-	if len(schemas) != 5 {
-		t.Errorf("worker tool schemas: want 5 got %d", len(schemas))
+	if len(schemas) != 4 {
+		t.Errorf("worker tool schemas: want 4 got %d", len(schemas))
 	}
 }
 
@@ -964,7 +918,6 @@ func TestWorkerCannotCallBeeTools(t *testing.T) {
 func TestWorkerCanCallAllowedTools(t *testing.T) {
 	s := setupWorkerMCPServer(t)
 	workerTools := []string{
-		toolnames.MarkTaskComplete,
 		toolnames.SendMessage,
 		toolnames.SaveMemory,
 		toolnames.GetMemory,
