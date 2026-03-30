@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-03-29
+
 ### Added
 
 - `config`: add default model mapping for Zhipu (GLM) provider — `ANTHROPIC_DEFAULT_HAIKU_MODEL` (glm-4.5-air), `ANTHROPIC_DEFAULT_SONNET_MODEL` (glm-5-turbo), `ANTHROPIC_DEFAULT_OPUS_MODEL` (glm-5.1)
