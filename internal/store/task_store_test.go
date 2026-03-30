@@ -918,3 +918,63 @@ func TestTaskStore_CompleteTask_Scheduled(t *testing.T) {
 		t.Errorf("want status %q got %q", model.TaskStatusPending, got.Status)
 	}
 }
+
+func TestTaskStore_CompleteTask_Scheduled_NoCron_MarksAsCompleted(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, err := ts.Create(ctx, model.Task{
+		MessageID:   "m1",
+		WorkerID:    "w1",
+		Instruction: "do it",
+		Type:        model.TaskTypeScheduled,
+		Status:      model.TaskStatusRunning,
+		// CronExpr intentionally empty
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := ts.CompleteTask(ctx, id); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	got, err := ts.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.Status != model.TaskStatusCompleted {
+		t.Errorf("want status %q got %q", model.TaskStatusCompleted, got.Status)
+	}
+}
+
+func TestTaskStore_CompleteTask_Scheduled_Cancelled_NoChange(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	id, err := ts.Create(ctx, model.Task{
+		MessageID:   "m1",
+		WorkerID:    "w1",
+		Instruction: "do it",
+		Type:        model.TaskTypeScheduled,
+		Status:      model.TaskStatusCancelled,
+		CronExpr:    "0 * * * *",
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := ts.CompleteTask(ctx, id); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	got, err := ts.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.Status != model.TaskStatusCancelled {
+		t.Errorf("want status %q got %q", model.TaskStatusCancelled, got.Status)
+	}
+}
