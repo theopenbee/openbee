@@ -98,19 +98,16 @@ var ctlWorkerDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	// create flags
 	ctlWorkerCreateCmd.Flags().StringVarP(&workerCreateName, "name", "n", "", "Worker name (required)")
 	ctlWorkerCreateCmd.MarkFlagRequired("name")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDescription, "description", "", "Worker description")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateMemory, "memory", "", "Worker memory content")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateWorkDir, "work-dir", "", "Working directory path")
 
-	// update flags
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateName, "name", "", "New name")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDescription, "description", "", "New description")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateMemory, "memory", "", "New memory content")
 
-	// delete flags
 	ctlWorkerDeleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
 
 	ctlWorkerCmd.AddCommand(

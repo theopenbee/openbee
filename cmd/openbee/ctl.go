@@ -21,8 +21,6 @@ func init() {
 	rootCmd.AddCommand(ctlCmd)
 }
 
-// ctlRun calls the named MCP tool with args, pretty-prints the JSON result to stdout,
-// and returns any error (which main() prints to stderr and exits 1).
 func ctlRun(toolName string, args any) error {
 	c, err := ctlclient.NewClient(ctlCfgPath)
 	if err != nil {
@@ -43,8 +41,7 @@ func ctlRun(toolName string, args any) error {
 	return nil
 }
 
-// applyCtlTranslations sets Short/Long for all ctl commands from i18n.M.
-// Called from applyTranslations() in main.go.
+// applyCtlTranslations sets Short for all ctl commands from i18n.M.
 func applyCtlTranslations() {
 	m := i18n.M
 	ctlCmd.Short = m.Cmd.Ctl.Short
