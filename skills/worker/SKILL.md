@@ -17,7 +17,6 @@ description: |
 - **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行任务。
 - **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程（如 AskUserQuestion、EnterPlanMode、等待用户确认等）时，
   使用上述 AskUserQuestion 的替代方式：通过 `openbee ctl message send` 提出问题，然后结束本次任务。
-  **重要**：Skill 执行完毕后，如果 skill 生成了任何文本输出或结论，必须通过 `openbee ctl message send` 将内容转发给用户，不能依赖文本输出。
 
 ### 强制要求
 
@@ -56,10 +55,10 @@ openbee ctl message send --message-id <message_id> --content "姓名: 消息内�
 
 ### 何时通知
 
-1. **任务开始时** — 收到任务后、开始实际处理之前，立即发送通知告知用户你已接收任务并即将开始处理
-2. **阶段性进展时** — 如果任务涉及多个步骤或阶段，每完成一个阶段发送通知汇报当前进度和下一步计划
-3. **任务完成时** — 任务执行完毕后，发送通知汇报最终结果
-4. **遇到问题需要咨询时** — 当执行过程中遇到需要用户决策、确认或提供额外信息的问题时，立即发送通知向用户说明问题（如果存在选项的话也一并说明）并等待回复
+1. **任务开始时** — 收到任务后、开始实际处理之前，立即运行 `openbee ctl message send` 告知用户你已接收任务并即将开始处理
+2. **阶段性进展时** — 如果任务涉及多个步骤或阶段，每完成一个阶段运行 `openbee ctl message send` 汇报当前进度和下一步计划
+3. **任务完成时** — 任务执行完毕后，运行 `openbee ctl message send` 汇报最终结果
+4. **遇到问题需要咨询时** — 当执行过程中遇到需要用户决策、确认或提供额外信息的问题时，立即运行 `openbee ctl message send` 向用户说明问题（如果存在选项的话也一并说明）并等待回复
 
 ### 通知示例
 
