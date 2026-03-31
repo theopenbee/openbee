@@ -1,0 +1,57 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/ctlclient"
+	"github.com/theopenbee/openbee/internal/i18n"
+)
+
+var ctlCfgPath string
+
+var ctlCmd = &cobra.Command{
+	Use:   "ctl",
+	Short: "", // set by applyTranslations
+}
+
+func init() {
+	ctlCmd.PersistentFlags().StringVarP(&ctlCfgPath, "config", "c", "config.yaml", "path to config file")
+	rootCmd.AddCommand(ctlCmd)
+}
+
+// ctlRun calls the named MCP tool with args, pretty-prints the JSON result to stdout,
+// and returns any error (which main() prints to stderr and exits 1).
+func ctlRun(toolName string, args any) error {
+	c, err := ctlclient.NewClient(ctlCfgPath)
+	if err != nil {
+		return err
+	}
+	result, err := c.Call(toolName, args)
+	if err != nil {
+		return err
+	}
+	var v any
+	if err := json.Unmarshal(result, &v); err != nil {
+		// fall back to raw output if unmarshal fails
+		fmt.Println(string(result))
+		return nil
+	}
+	out, _ := json.MarshalIndent(v, "", "  ")
+	fmt.Println(string(out))
+	return nil
+}
+
+// applyCtlTranslations sets Short/Long for all ctl commands from i18n.M.
+// Called from applyTranslations() in main.go.
+func applyCtlTranslations() {
+	m := i18n.M
+	ctlCmd.Short = m.Cmd.Ctl.Short
+	ctlWorkerCmd.Short = m.Cmd.CtlWorker.Short
+	ctlTaskCmd.Short = m.Cmd.CtlTask.Short
+	ctlMemoryCmd.Short = m.Cmd.CtlMemory.Short
+	ctlSessionCmd.Short = m.Cmd.CtlSession.Short
+	ctlSystemCmd.Short = m.Cmd.CtlSystem.Short
+	ctlMessageCmd.Short = m.Cmd.CtlMessage.Short
+}
