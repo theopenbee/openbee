@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/skillinstall"
 )
 
 var configTemplate = config.ConfigTemplate
@@ -197,6 +198,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if err := configureClaudeProvider(&vals); err != nil {
 		return err
 	}
+
+	// Install/update built-in skills (non-fatal on error)
+	installBuiltinSkills()
 
 	// Step 2 — Platform config
 	fmt.Println(i18n.M.Output.Config.SectionPlatform)
@@ -671,4 +675,21 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+func installBuiltinSkills() {
+	results, err := skillinstall.InstallSkills("")
+	if err != nil {
+		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
+		return
+	}
+	for _, r := range results {
+		switch r.Action {
+		case "installed":
+			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
+		case "updated":
+			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
+		// "up-to-date": silent
+		}
+	}
 }
