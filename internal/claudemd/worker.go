@@ -70,12 +70,13 @@ func workerPreamble() string {
 - **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行任务。
 - **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程（如 AskUserQuestion、EnterPlanMode、等待用户确认等）时，
   使用上述 AskUserQuestion 的替代方式：通过 %s 提出问题，然后结束本次任务。
+  **重要**：Skill 执行完毕后，如果 skill 生成了任何文本输出或结论，必须通过 %s 将内容转发给用户，不能依赖文本输出。
 
 ### 强制要求
 
 - 所有与用户的通信必须且只能通过 %s 工具
 - 文本输出不会到达任何人，不要通过文本输出与用户交流
-`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
+`, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage, toolnames.SendMessage)
 }
 
 func workerNotificationRules() string {
