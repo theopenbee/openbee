@@ -31,6 +31,13 @@ type CmdMessages struct {
 	Claude         CmdEntry `yaml:"claude"`
 	ClaudeDownload CmdEntry `yaml:"claude_download"`
 	ClaudeEnv      CmdEntry `yaml:"claude_env"`
+	Ctl            CmdEntry `yaml:"ctl"`
+	CtlWorker      CmdEntry `yaml:"ctl_worker"`
+	CtlTask        CmdEntry `yaml:"ctl_task"`
+	CtlMemory      CmdEntry `yaml:"ctl_memory"`
+	CtlSession     CmdEntry `yaml:"ctl_session"`
+	CtlSystem      CmdEntry `yaml:"ctl_system"`
+	CtlMessage     CmdEntry `yaml:"ctl_message"`
 }
 
 // PromptMessages 对应所有 survey 交互提示的 Message 字段。

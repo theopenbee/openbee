@@ -24,6 +24,20 @@ cmd:
     short: "下载 Claude Code 二进制文件至 ~/.openbee/bin/claude"
   claude_env:
     short: "配置 Claude Code 提供商及环境设置"
+  ctl:
+    short: "控制运行中的 openbee 服务器"
+  ctl_worker:
+    short: "管理员工"
+  ctl_task:
+    short: "管理任务"
+  ctl_memory:
+    short: "管理记忆条目"
+  ctl_session:
+    short: "管理会话上下文"
+  ctl_system:
+    short: "查看系统状态和执行记录"
+  ctl_message:
+    short: "向平台用户发送消息"
 prompt:
   claude_not_found: "未找到 Claude，请选择获取方式："
   claude_path: "Claude 可执行文件路径："

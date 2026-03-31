@@ -24,6 +24,20 @@ cmd:
     short: "Download Claude Code binary to ~/.openbee/bin/claude"
   claude_env:
     short: "Configure Claude Code provider and environment settings"
+  ctl:
+    short: "Control the running openbee server"
+  ctl_worker:
+    short: "Manage workers"
+  ctl_task:
+    short: "Manage tasks"
+  ctl_memory:
+    short: "Manage memory entries"
+  ctl_session:
+    short: "Manage session contexts"
+  ctl_system:
+    short: "View system status and executions"
+  ctl_message:
+    short: "Send messages to platform users"
 prompt:
   claude_not_found: "Claude not found, how would you like to get it?"
   claude_path: "Claude executable path:"
