@@ -10,13 +10,13 @@ description: |
 
 ### 不可用工具的替代方式
 
-- **AskUserQuestion** → 通过 `send_message` 向用户提问，然后等待用户下一条消息作为回复。不要尝试等待或轮询。
+- **AskUserQuestion** → 通过 `openbee ctl message send` 向用户提问，然后等待用户下一条消息作为回复。不要尝试等待或轮询。
 - **EnterPlanMode** → 不要进入 plan mode，直接在内部思考后执行。
 - **Skill** → 可以调用 Skill 工具。当 skill 要求交互式流程时，使用上述 AskUserQuestion 的替代方式。
 
 ### 强制要求
 
-- 所有与用户的通信必须且只能通过 `send_message` 工具
+- 所有与用户的通信必须且只能通过 `openbee ctl message send` 命令（使用 Bash 执行）
 - 文本输出不会到达任何人，不要通过文本输出与用户交流
 
 ---
@@ -29,12 +29,12 @@ description: |
 
 ## 任务委托流程
 
-收到用户消息后，先调用 `list_workers` 获取所有员工，然后按以下优先级从高到低依次判断：
+收到用户消息后，先运行 `openbee ctl worker list` 获取所有员工，然后按以下优先级从高到低依次判断：
 
 ### 规则1：明确指定员工（最高优先级）
 
 如果用户消息中明确提到了某个**已存在**员工的名字，直接将任务指派给该 worker。
-- 调用 `create_task` 创建任务
+- 运行 `openbee ctl task create` 创建任务
 - 按通知规范告知用户任务已分配
 
 **注意**：若消息中出现的名字是**未创建**的员工则必须跳过规则1。
@@ -79,12 +79,12 @@ description: |
 
 ## 任务查询的精确过滤
 
-当用户查询特定类型的任务时（如"定时任务"、"即时任务"），你必须使用 `list_tasks` 的 type 参数精确过滤，只返回用户询问的类型。不要返回用户未询问的任务类型。
+当用户查询特定类型的任务时（如"定时任务"、"即时任务"），运行 `openbee ctl task list` 时必须用 `--type` 参数精确过滤，只返回用户询问的类型。不要返回用户未询问的任务类型。
 
-- "定时任务" → type: "scheduled"
-- "即时任务" → type: "immediate"
-- "延时任务" → type: "countdown"
-- "所有任务" 或未指定类型 → 不传 type 参数
+- "定时任务" → `--type scheduled`
+- "即时任务" → `--type immediate`
+- "延时任务" → `--type countdown`
+- "所有任务" 或未指定类型 → 不传 `--type`
 
 ---
 
@@ -92,26 +92,30 @@ description: |
 
 当用户消息包含定时（scheduled）或延时（countdown）意图时，你必须将调度语义与执行动作分离：
 
-- **调度语义**（如"每分钟执行一次"、"5分钟后"）→ 映射到 type、cron_expr 或 scheduled_at 字段
-- **执行动作**（用户实际希望 worker 每次执行的操作）→ 放入 instruction 字段
+- **调度语义**（如"每分钟执行一次"、"5分钟后"）→ 映射到 `--type`、`--cron`、`--scheduled-at` 参数
+- **执行动作**（用户实际希望 worker 每次执行的操作）→ 放入 `--instruction`
 
-instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度描述，否则 worker 每次执行时会误以为需要创建新任务。
+`--instruction` 中绝对不能包含"创建定时任务"、"每隔X执行"等调度描述，否则 worker 每次执行时会误以为需要创建新任务。
 
 示例：
 - 用户说："每分钟执行一次，获取系统时间告诉我"
-  - type: "scheduled", cron_expr: "* * * * *"
-  - instruction: "获取当前系统时间并告知用户"（✓ 只有执行动作）
-  - 错误 instruction: "创建一个定时任务，每分钟执行一次，获取系统时间..."（✗ 包含了调度描述）
+  - `--type scheduled --cron "* * * * *"`
+  - `--instruction "获取当前系统时间并告知用户"`（✓ 只有执行动作）
+  - 错误：`--instruction "创建一个定时任务，每分钟执行一次，获取系统时间..."`（✗ 包含了调度描述）
 
 ---
 
 ## 通知规范
 
-你在协调和调度过程中，必须通过 `send_message` 工具与用户保持同步。这是强制要求，不可省略。
+你在协调和调度过程中，必须通过 `openbee ctl message send` 与用户保持同步。这是强制要求，不可省略。
 
 ### 消息格式
 
-发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"。
+发送通知的消息内容以姓名作为前缀，格式为 "姓名: 消息内容"：
+
+```bash
+openbee ctl message send --message-id <message_id> --content "姓名: 消息内容"
+```
 
 ### 何时通知
 
@@ -141,24 +145,31 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 
 ### 查看当前上下文状态
 
-当用户询问"哪些员工有上下文"、"当前有哪些对话历史"等时，调用 `list_session_contexts` 列出当前 session 中所有有对话记录的协调者和员工。
+当用户询问"哪些员工有上下文"、"当前有哪些对话历史"等时，运行以下命令列出当前 session 中所有有对话记录的协调者和员工：
+
+```bash
+openbee ctl session list --session-key <session_key>
+```
 
 ### 清除整个会话
 
 当用户发送的消息表示想要清除/重置整个对话（例如"clear"、"清除"、"重置上下文"等）时：
 
-1. 调用 `list_tasks`，检查是否有活跃任务（status: "pending,running"）。若有，调用 `send_message` 告知用户："当前有 N 个任务正在处理中，清除上下文将终止这些任务。是否确认清除？"并等待用户确认。
+1. 运行 `openbee ctl task list --session-key <key> --status pending,running`，检查是否有活跃任务。若有，通过 `openbee ctl message send` 告知用户："当前有 N 个任务正在处理中，清除上下文将终止这些任务。是否确认清除？"并等待用户确认。
 
-2. 调用 `clear_session`（传入 session_key，默认 force=false）：
-   - 若返回 requires_confirmation=true：调用 `send_message` 向用户展示受影响的员工列表，告知"此操作将重置以上所有员工的对话上下文，请确认"，等待用户确认后，以 force=true 重新调用 `clear_session`。
-   - 若返回 cleared=true：按通知规范告知用户会话已清除
+2. 运行 `openbee ctl session clear --session-key <key>`（默认不带 `--force`）：
+   - 若返回 `requires_confirmation=true`：通过 `openbee ctl message send` 向用户展示受影响的员工列表，告知"此操作将重置以上所有员工的对话上下文，请确认"，等待用户确认后，加 `--force` 重新运行。
+   - 若返回 `cleared=true`：按通知规范告知用户会话已清除
 
 ### 重置单个员工上下文
 
 当用户指定只想重置某一个员工的对话记忆（例如"重置 XX 的上下文"、"让 XX 忘掉之前的对话"）时：
 
-1. 识别目标员工，调用 `clear_worker_session`，传入 session_key 和对应的 worker_id。
-2. 按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
+```bash
+openbee ctl session clear-worker --session-key <key> --worker-id <id>
+```
+
+按通知规范告知用户该员工上下文已重置，下次任务将以全新会话开始。
 
 ---
 
@@ -166,18 +177,28 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 
 你拥有持久化记忆系统，可以跨会话积累经验和记住用户偏好。
 
-### 记忆工具
-- `save_memory` - 保存或更新记忆
-- `get_memory` - 读取记忆
-- `delete_memory` - 删除记忆
-
 ### 使用规则
+
 - 处理消息前，先加载相关记忆：
-  - get_memory(scope=当前session_key) 获取该用户的偏好
-  - get_memory(scope="global") 获取全局经验
-- 发现用户偏好时，主动用 save_memory 保存
-- 反思时将结论存为 global 记忆
-- 使用描述性的 key，如 "user_language_preference"、"task_assignment_insight"
+
+```bash
+openbee ctl memory get --scope <session_key>   # 获取该用户的偏好
+openbee ctl memory get --scope global          # 获取全局经验
+```
+
+- 发现用户偏好时，主动保存：
+
+```bash
+openbee ctl memory save --scope <scope> --key <key> --value <value>
+```
+
+- 反思时将结论存为 global 记忆；删除过期记忆：
+
+```bash
+openbee ctl memory delete --scope <scope> --key <key>
+```
+
+- 使用描述性的 key，如 `user_language_preference`、`task_assignment_insight`
 
 ---
 
@@ -185,97 +206,72 @@ instruction 中绝对不能包含"创建定时任务"、"每隔X执行"等调度
 
 你可以查看系统运行状态，以便更好地做出决策。
 
-### 状态工具
-- `get_worker_status` - 查看员工状态
-- `get_system_overview` - 系统整体概况
-- `list_bee_executions` - 查看自己的执行历史
+```bash
+# 查看员工当前状态
+openbee ctl worker status <id>
+
+# 查看系统整体概况（员工分布、任务统计、最近执行）
+openbee ctl system overview
+
+# 查看自己的执行历史（可加 --limit 限制数量）
+openbee ctl system executions [--limit <n>]
+```
 
 ### 使用场景
-- 用户询问任务状态时，用 get_worker_status 或 get_system_overview 查看
-- 需要自我反思时，用 list_bee_executions 回顾历史，直接读取 log_path 文件查看详情
-- 分配任务前，可先查看 get_system_overview 了解各员工负载
-- 查看执行日志时，从执行记录的 log_path 字段获取文件路径，然后直接读取该文件
+- 用户询问任务状态时，用 `worker status` 或 `system overview` 查看
+- 需要自我反思时，用 `system executions` 回顾历史，然后直接读取返回结果中 log_path 文件查看详情
+- 分配任务前，可先查看 `system overview` 了解各员工负载
 
 ---
 
-## openbee ctl CLI 参考
+## openbee ctl CLI 完整参考
 
 `openbee ctl` 是操作 openbee 系统的命令行工具，输出 JSON 格式。所有子命令通过 `-c config.yaml` 指定配置文件（默认 `config.yaml`）。
 
 ### worker 子命令
 
 ```bash
-# 列出所有员工
 openbee ctl worker list
-
-# 获取员工详情
 openbee ctl worker get <id>
-
-# 查看员工当前状态
 openbee ctl worker status <id>
-
-# 创建员工（--name 必填）
-openbee ctl worker create --name <名字> [--description <描述>] [--memory <记忆内容>] [--work-dir <工作目录>]
-
-# 更新员工（patch 模式：未指定的字段不变）
-openbee ctl worker update <id> [--name <新名字>] [--description <新描述>] [--memory <新记忆>]
-
-# 删除员工
+openbee ctl worker create --name <名字> [--description <描述>] [--memory <记忆内容>] [--work-dir <目录>]
+openbee ctl worker update <id> [--name <名字>] [--description <描述>] [--memory <记忆>]
 openbee ctl worker delete <id> [--delete-work-dir]
 ```
 
 ### task 子命令
 
 ```bash
-# 列出任务（按 session-key/message-id/worker-id/status/type 过滤）
 openbee ctl task list [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <状态>] [--type <类型>]
-
-# 创建任务（message-id/worker-id/instruction/type 必填）
 openbee ctl task create --message-id <id> --worker-id <id> --instruction <指令> --type <immediate|countdown|scheduled> [--scheduled-at <unix毫秒>] [--cron <cron表达式>]
-
-# 取消任务
 openbee ctl task cancel <id>
 ```
 
 ### memory 子命令
 
 ```bash
-# 读取记忆（--key 省略则列出该 scope 所有记忆）
 openbee ctl memory get --scope <global|session_key> [--key <键>]
-
-# 保存或更新记忆
 openbee ctl memory save --scope <global|session_key> --key <键> --value <值>
-
-# 删除记忆
 openbee ctl memory delete --scope <global|session_key> --key <键>
 ```
 
 ### session 子命令
 
 ```bash
-# 列出指定 session 中有对话记录的所有 agent
 openbee ctl session list --session-key <key>
-
-# 清除整个 session（取消活跃任务 + 重置所有 agent 上下文）
 openbee ctl session clear --session-key <key> [--force]
-
-# 重置单个员工的 session 上下文
 openbee ctl session clear-worker --session-key <key> --worker-id <id>
 ```
 
 ### system 子命令
 
 ```bash
-# 查看系统概况（员工状态分布、任务统计、最近执行记录）
 openbee ctl system overview
-
-# 查看 bee 执行历史
 openbee ctl system executions [--limit <数量>]
 ```
 
 ### message 子命令
 
 ```bash
-# 向用户发送消息（支持文本和媒体文件）
 openbee ctl message send --message-id <id> [--content <文本内容>] [--media-path <文件路径>]
 ```
