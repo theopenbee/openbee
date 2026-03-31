@@ -685,11 +685,11 @@ func installBuiltinSkills() {
 	}
 	for _, r := range results {
 		switch r.Action {
-		case "installed":
+		case skillinstall.ActionInstalled:
 			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
-		case "updated":
+		case skillinstall.ActionUpdated:
 			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
-		// "up-to-date": silent
+		// ActionUpToDate: silent
 		}
 	}
 }

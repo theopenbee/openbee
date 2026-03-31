@@ -5,6 +5,7 @@ package ctlclient
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,7 +109,7 @@ func (c *Client) Call(toolName string, args any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 	if cr.Error != "" {
-		return nil, fmt.Errorf("%s", cr.Error)
+		return nil, errors.New(cr.Error)
 	}
 	return cr.Result, nil
 }

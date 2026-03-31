@@ -8,10 +8,16 @@ import (
 	"path/filepath"
 )
 
+const (
+	ActionInstalled = "installed"
+	ActionUpdated   = "updated"
+	ActionUpToDate  = "up-to-date"
+)
+
 // SkillResult holds the install outcome for one skill.
 type SkillResult struct {
 	Name   string
-	Action string // "installed" | "updated" | "up-to-date"
+	Action string // ActionInstalled | ActionUpdated | ActionUpToDate
 }
 
 // InstallSkills installs embedded skills to baseDir.
@@ -45,12 +51,12 @@ func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 		existingHash := sha256.Sum256(existing)
 		newHash := sha256.Sum256([]byte(skill.content))
 		if newHash == existingHash {
-			return SkillResult{Name: skill.name, Action: "up-to-date"}, nil
+			return SkillResult{Name: skill.name, Action: ActionUpToDate}, nil
 		}
 		if err := os.WriteFile(targetPath, []byte(skill.content), 0o644); err != nil {
 			return SkillResult{}, fmt.Errorf("update skill %s: %w", skill.name, err)
 		}
-		return SkillResult{Name: skill.name, Action: "updated"}, nil
+		return SkillResult{Name: skill.name, Action: ActionUpdated}, nil
 	}
 
 	if !errors.Is(err, os.ErrNotExist) {
@@ -64,5 +70,5 @@ func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 	if err := os.WriteFile(targetPath, []byte(skill.content), 0o644); err != nil {
 		return SkillResult{}, fmt.Errorf("install skill %s: %w", skill.name, err)
 	}
-	return SkillResult{Name: skill.name, Action: "installed"}, nil
+	return SkillResult{Name: skill.name, Action: ActionInstalled}, nil
 }

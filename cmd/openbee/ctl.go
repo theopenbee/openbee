@@ -40,7 +40,6 @@ func ctlRun(toolName string, args any) error {
 	return nil
 }
 
-// applyCtlTranslations sets Short for all ctl commands from i18n.M.
 func applyCtlTranslations() {
 	m := i18n.M
 	ctlCmd.Short = m.Cmd.Ctl.Short

@@ -16,7 +16,7 @@ func TestInstallSkills_FirstInstall(t *testing.T) {
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
 	for _, r := range results {
-		if r.Action != "installed" {
+		if r.Action != ActionInstalled {
 			t.Errorf("skill %s: expected action 'installed', got %q", r.Name, r.Action)
 		}
 		content, err := os.ReadFile(filepath.Join(dir, r.Name, "SKILL.md"))
@@ -42,7 +42,7 @@ func TestInstallSkills_UpToDate(t *testing.T) {
 		t.Fatalf("second install failed: %v", err)
 	}
 	for _, r := range results {
-		if r.Action != "up-to-date" {
+		if r.Action != ActionUpToDate {
 			t.Errorf("skill %s: expected 'up-to-date', got %q", r.Name, r.Action)
 		}
 	}
@@ -68,7 +68,7 @@ func TestInstallSkills_Updated(t *testing.T) {
 			beeResult = r
 		}
 	}
-	if beeResult.Action != "updated" {
+	if beeResult.Action != ActionUpdated {
 		t.Errorf("expected 'updated' for bee, got %q", beeResult.Action)
 	}
 	// Verify file now contains embedded content
@@ -82,7 +82,7 @@ func TestInstallSkills_Updated(t *testing.T) {
 			workerResult = r
 		}
 	}
-	if workerResult.Action != "installed" {
+	if workerResult.Action != ActionInstalled {
 		t.Errorf("expected 'installed' for worker, got %q", workerResult.Action)
 	}
 }
