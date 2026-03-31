@@ -76,12 +76,22 @@ func TestInstallSkills_Updated(t *testing.T) {
 	if string(got) != beeSkillMD {
 		t.Error("bee SKILL.md content not updated to embedded content")
 	}
+	var workerResult SkillResult
+	for _, r := range results {
+		if r.Name == "worker" {
+			workerResult = r
+		}
+	}
+	if workerResult.Action != "installed" {
+		t.Errorf("expected 'installed' for worker, got %q", workerResult.Action)
+	}
 }
 
 func TestInstallSkills_WriteError(t *testing.T) {
 	dir := t.TempDir()
-	// Create bee dir as a file (not a dir) to force write failure
-	if err := os.WriteFile(filepath.Join(dir, "bee"), []byte("block"), 0o444); err != nil {
+	// Place a regular file at the path where the "bee" directory would be created,
+	// so MkdirAll will fail with ENOTDIR.
+	if err := os.WriteFile(filepath.Join(dir, "bee"), []byte("block"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := InstallSkills(dir)
