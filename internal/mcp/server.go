@@ -259,6 +259,31 @@ func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
 	}
 }
 
+// HandleCall is a synchronous HTTP handler for single tool calls.
+// Unlike HandleMessages, it requires no SSE session — the result is returned
+// directly in the response body.
+//
+//	POST /mcp/bee/call
+//	Body: { "name": "<tool>", "arguments": <args> }
+//	Success:    200 { "result": <value> }
+//	Tool error: 200 { "error": "<message>" }
+func (s *MCPServer) HandleCall(c *gin.Context) {
+	var req struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		return
+	}
+	result, err := s.callToolFn(req.Name, req.Arguments)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
 // handleToolCall dispatches tools/call to the appropriate tool handler.
 func (s *MCPServer) handleToolCall(req rpcRequest) rpcResponse {
 	var params struct {

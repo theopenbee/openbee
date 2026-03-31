@@ -111,6 +111,7 @@ func (s *Server) registerMCPRoutes() {
 	beeGroup.Use(mcp.APIKeyMiddleware(s.BeeAPIKey))
 	beeGroup.GET("/sse", s.BeeMCPServer.HandleSSE)
 	beeGroup.POST("/messages", s.BeeMCPServer.HandleMessages)
+	beeGroup.POST("/call", s.BeeMCPServer.HandleCall)
 
 	workerGroup := s.router.Group(config.MCPWorkerBasePath)
 	workerGroup.Use(mcp.APIKeyMiddleware(s.WorkerAPIKey))
