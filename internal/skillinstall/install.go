@@ -2,6 +2,7 @@ package skillinstall
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,7 +55,7 @@ func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 		return SkillResult{Name: skill.name, Action: "updated"}, nil
 	}
 
-	if !os.IsNotExist(err) {
+	if !errors.Is(err, os.ErrNotExist) {
 		return SkillResult{}, fmt.Errorf("read skill %s: %w", skill.name, err)
 	}
 
