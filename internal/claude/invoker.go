@@ -4,9 +4,9 @@ package claude
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -35,18 +35,18 @@ type RunOptions struct {
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary string
-	mcpURL string
-	apiKey string
+	binary     string
+	openbeeURL string
+	apiKey     string
 }
 
-// NewInvoker creates an Invoker. mcpBasePath should include the full MCP base
-// path (e.g. "http://host:port/mcp/bee"); "/sse" is appended automatically.
-func NewInvoker(binary, mcpBasePath, apiKey string) *Invoker {
+// NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
+// (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
+func NewInvoker(binary, openbeeURL, apiKey string) *Invoker {
 	return &Invoker{
-		binary: binary,
-		mcpURL: mcpBasePath + "/sse",
-		apiKey: apiKey,
+		binary:     binary,
+		openbeeURL: openbeeURL,
+		apiKey:     apiKey,
 	}
 }
 
@@ -80,15 +80,10 @@ func (p *Process) Stop() error {
 // The returned channel carries only lifecycle events: OutputDone on success,
 // OutputError on failure. The channel is closed after the process exits.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
-	mcpConfig := fmt.Sprintf(
-		`{"mcpServers":{"openbee":{"type":"sse","url":%q}}}`,
-		inv.mcpURL+"?api_key="+url.QueryEscape(inv.apiKey),
-	)
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
 		"--output-format", "stream-json",
-		"--mcp-config", mcpConfig,
 	}
 	if opts.SessionID != "" {
 		if opts.Resume {
@@ -109,6 +104,20 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	env := append(os.Environ(),
+		"OPENBEE_URL="+inv.openbeeURL,
+		"OPENBEE_API_KEY="+inv.apiKey,
+	)
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		for i, e := range env {
+			if strings.HasPrefix(e, "PATH=") {
+				env[i] = "PATH=" + exeDir + string(os.PathListSeparator) + strings.TrimPrefix(e, "PATH=")
+				break
+			}
+		}
+	}
+	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
