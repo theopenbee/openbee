@@ -24,23 +24,11 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "通知规范") {
-		t.Error("missing shared rules (通知规范)")
+	if !strings.Contains(content, "协调者与调度员") {
+		t.Error("missing bee role description (协调者与调度员)")
 	}
-	if !strings.Contains(content, "send_message") {
-		t.Error("missing send_message reference in shared rules")
-	}
-	if !strings.Contains(content, "会话上下文管理") {
-		t.Error("missing bee-specific rules (会话上下文管理)")
-	}
-	if !strings.Contains(content, "create_task") {
-		t.Error("missing bee-specific create_task reference in 任务委托流程")
-	}
-	if !strings.Contains(content, "list_workers") {
-		t.Error("missing bee-specific list_workers reference in 任务委托流程")
-	}
-	if !strings.Contains(content, "任务委托流程") {
-		t.Error("missing bee-specific 任务委托流程 section")
+	if !strings.Contains(content, "openbee-bee skill") {
+		t.Error("missing openbee-bee skill reference")
 	}
 	if strings.Contains(content, "mark_task_complete") {
 		t.Error("bee rules should not contain worker-specific mark_task_complete")
