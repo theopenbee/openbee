@@ -50,8 +50,8 @@ func TestInstallSkills_UpToDate(t *testing.T) {
 
 func TestInstallSkills_Updated(t *testing.T) {
 	dir := t.TempDir()
-	// Write stale content for "bee"
-	beeDir := filepath.Join(dir, "bee")
+	// Write stale content for "openbee-bee"
+	beeDir := filepath.Join(dir, "openbee-bee")
 	if err := os.MkdirAll(beeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -64,34 +64,34 @@ func TestInstallSkills_Updated(t *testing.T) {
 	}
 	var beeResult SkillResult
 	for _, r := range results {
-		if r.Name == "bee" {
+		if r.Name == "openbee-bee" {
 			beeResult = r
 		}
 	}
 	if beeResult.Action != ActionUpdated {
-		t.Errorf("expected 'updated' for bee, got %q", beeResult.Action)
+		t.Errorf("expected 'updated' for openbee-bee, got %q", beeResult.Action)
 	}
 	// Verify file now contains embedded content
 	got, _ := os.ReadFile(filepath.Join(beeDir, "SKILL.md"))
 	if string(got) != beeSkillMD {
-		t.Error("bee SKILL.md content not updated to embedded content")
+		t.Error("openbee-bee SKILL.md content not updated to embedded content")
 	}
 	var workerResult SkillResult
 	for _, r := range results {
-		if r.Name == "worker" {
+		if r.Name == "openbee-worker" {
 			workerResult = r
 		}
 	}
 	if workerResult.Action != ActionInstalled {
-		t.Errorf("expected 'installed' for worker, got %q", workerResult.Action)
+		t.Errorf("expected 'installed' for openbee-worker, got %q", workerResult.Action)
 	}
 }
 
 func TestInstallSkills_WriteError(t *testing.T) {
 	dir := t.TempDir()
-	// Place a regular file at the path where the "bee" directory would be created,
+	// Place a regular file at the path where the "openbee-bee" directory would be created,
 	// so MkdirAll will fail with ENOTDIR.
-	if err := os.WriteFile(filepath.Join(dir, "bee"), []byte("block"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "openbee-bee"), []byte("block"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := InstallSkills(dir)

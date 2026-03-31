@@ -1,5 +1,5 @@
 ---
-name: worker
+name: openbee-worker
 description: |
   Defines behavior and operating rules for an AI Worker agent in the openbee system — a non-interactive background executor that receives tasks from the Bee coordinator and carries them out. Use this skill when an agent is acting as a Worker, configuring worker behavior, understanding worker notification rules, or managing workers via the `openbee ctl worker` CLI. Triggers on any task involving worker setup, worker notification/communication rules, background task execution behavior, or ctl CLI commands for creating/updating/deleting/querying workers.
 ---
