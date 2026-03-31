@@ -11,7 +11,7 @@ var ctlSystemOverviewCmd = &cobra.Command{
 	Use:   "overview",
 	Short: "Show system overview: worker status distribution, task stats, recent executions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.GetSystemOverview, map[string]any{})
+		return ctlRun(toolnames.GetSystemOverview, nil)
 	},
 }
 

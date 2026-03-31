@@ -8,16 +8,18 @@ import (
 	"path/filepath"
 )
 
+type Action string
+
 const (
-	ActionInstalled = "installed"
-	ActionUpdated   = "updated"
-	ActionUpToDate  = "up-to-date"
+	ActionInstalled Action = "installed"
+	ActionUpdated   Action = "updated"
+	ActionUpToDate  Action = "up-to-date"
 )
 
 // SkillResult holds the install outcome for one skill.
 type SkillResult struct {
 	Name   string
-	Action string // ActionInstalled | ActionUpdated | ActionUpToDate
+	Action Action
 }
 
 // InstallSkills installs embedded skills to baseDir.

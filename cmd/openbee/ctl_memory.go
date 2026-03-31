@@ -8,60 +8,71 @@ import (
 var ctlMemoryCmd = &cobra.Command{Use: "memory", Short: ""}
 
 var (
-	memoryScope string
-	memoryKey   string
-	memoryValue string
+	memoryGetScope string
+	memoryGetKey   string
 )
 
 var ctlMemoryGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Read memory entries (omit --key to list all in scope)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		a := map[string]any{"scope": memoryScope}
-		if memoryKey != "" {
-			a["key"] = memoryKey
+		a := map[string]any{"scope": memoryGetScope}
+		if memoryGetKey != "" {
+			a["key"] = memoryGetKey
 		}
 		return ctlRun(toolnames.GetMemory, a)
 	},
 }
+
+var (
+	memorySaveScope string
+	memorySaveKey   string
+	memorySaveValue string
+)
 
 var ctlMemorySaveCmd = &cobra.Command{
 	Use:   "save",
 	Short: "Save or update a memory entry",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(toolnames.SaveMemory, map[string]any{
-			"scope": memoryScope,
-			"key":   memoryKey,
-			"value": memoryValue,
+			"scope": memorySaveScope,
+			"key":   memorySaveKey,
+			"value": memorySaveValue,
 		})
 	},
 }
+
+var (
+	memoryDeleteScope string
+	memoryDeleteKey   string
+)
 
 var ctlMemoryDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a memory entry",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(toolnames.DeleteMemory, map[string]any{
-			"scope": memoryScope,
-			"key":   memoryKey,
+			"scope": memoryDeleteScope,
+			"key":   memoryDeleteKey,
 		})
 	},
 }
 
 func init() {
-	for _, cmd := range []*cobra.Command{ctlMemoryGetCmd, ctlMemorySaveCmd, ctlMemoryDeleteCmd} {
-		cmd.Flags().StringVar(&memoryScope, "scope", "", "Memory scope: 'global' or session_key (required)")
-		cmd.MarkFlagRequired("scope")
-	}
+	ctlMemoryGetCmd.Flags().StringVar(&memoryGetScope, "scope", "", "Memory scope: 'global' or session_key (required)")
+	ctlMemoryGetCmd.Flags().StringVar(&memoryGetKey, "key", "", "Memory key (omit to list all in scope)")
+	ctlMemoryGetCmd.MarkFlagRequired("scope")
 
-	ctlMemoryGetCmd.Flags().StringVar(&memoryKey, "key", "", "Memory key (omit to list all in scope)")
-
-	ctlMemorySaveCmd.Flags().StringVar(&memoryKey, "key", "", "Memory key (required)")
-	ctlMemorySaveCmd.Flags().StringVar(&memoryValue, "value", "", "Memory value (required)")
+	ctlMemorySaveCmd.Flags().StringVar(&memorySaveScope, "scope", "", "Memory scope: 'global' or session_key (required)")
+	ctlMemorySaveCmd.Flags().StringVar(&memorySaveKey, "key", "", "Memory key (required)")
+	ctlMemorySaveCmd.Flags().StringVar(&memorySaveValue, "value", "", "Memory value (required)")
+	ctlMemorySaveCmd.MarkFlagRequired("scope")
 	ctlMemorySaveCmd.MarkFlagRequired("key")
 	ctlMemorySaveCmd.MarkFlagRequired("value")
 
-	ctlMemoryDeleteCmd.Flags().StringVar(&memoryKey, "key", "", "Memory key (required)")
+	ctlMemoryDeleteCmd.Flags().StringVar(&memoryDeleteScope, "scope", "", "Memory scope: 'global' or session_key (required)")
+	ctlMemoryDeleteCmd.Flags().StringVar(&memoryDeleteKey, "key", "", "Memory key (required)")
+	ctlMemoryDeleteCmd.MarkFlagRequired("scope")
 	ctlMemoryDeleteCmd.MarkFlagRequired("key")
 
 	ctlMemoryCmd.AddCommand(ctlMemoryGetCmd, ctlMemorySaveCmd, ctlMemoryDeleteCmd)

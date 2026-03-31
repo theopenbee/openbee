@@ -11,7 +11,7 @@ var ctlWorkerListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all workers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.ListWorkers, map[string]any{})
+		return ctlRun(toolnames.ListWorkers, nil)
 	},
 }
 
