@@ -147,6 +147,9 @@ output:
     claude_found: "在 PATH 中找到 Claude：%s，将自动使用。"
     claude_download_failed: "下载失败：%v"
     claude_manual_entry: "请手动输入 Claude 路径。"
+    skill_installed: "skill %s 已安装"
+    skill_updated: "skill %s 已更新"
+    skills_install_warning: "安装 skills 时出错（已跳过）: %v"
   claude:
     already_installed: "Claude 已安装在 %s"
     use_force: "使用 --force 重新下载。"

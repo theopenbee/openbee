@@ -219,6 +219,9 @@ type ConfigOutput struct {
 	ClaudeFound          string `yaml:"claude_found"`           // contains %s
 	ClaudeDownloadFailed string `yaml:"claude_download_failed"` // contains %v
 	ClaudeManualEntry    string `yaml:"claude_manual_entry"`
+	SkillInstalled       string `yaml:"skill_installed"`        // contains %s
+	SkillUpdated         string `yaml:"skill_updated"`          // contains %s
+	SkillsInstallWarning string `yaml:"skills_install_warning"` // contains %v
 }
 
 // ClaudeOutput 对应 claude 子命令的运行时输出。

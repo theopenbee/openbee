@@ -147,6 +147,9 @@ output:
     claude_found: "Found Claude in PATH: %s, using it automatically."
     claude_download_failed: "Download failed: %v"
     claude_manual_entry: "Please enter the Claude path manually."
+    skill_installed: "skill %s installed"
+    skill_updated: "skill %s updated"
+    skills_install_warning: "skills install warning (skipped): %v"
   claude:
     already_installed: "Claude is already installed at %s"
     use_force: "Use --force to re-download."
