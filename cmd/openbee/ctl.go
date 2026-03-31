@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -30,14 +31,12 @@ func ctlRun(toolName string, args any) error {
 	if err != nil {
 		return err
 	}
-	var v any
-	if err := json.Unmarshal(result, &v); err != nil {
-		// fall back to raw output if unmarshal fails
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, result, "", "  "); err != nil {
 		fmt.Println(string(result))
 		return nil
 	}
-	out, _ := json.MarshalIndent(v, "", "  ")
-	fmt.Println(string(out))
+	fmt.Println(buf.String())
 	return nil
 }
 
