@@ -57,6 +57,12 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
 	}
+	if !strings.Contains(content, "openbee-worker skill") {
+		t.Error("missing openbee-worker skill reference")
+	}
+	if !strings.Contains(content, "Worker") {
+		t.Error("missing worker role description")
+	}
 }
 
 func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {

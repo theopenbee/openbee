@@ -26,7 +26,11 @@ func WithMemory(memory string) Option {
 }
 
 func workerRules(name, description, memory string) string {
-	return workerConfigBlock(name, description, memory)
+	return workerRoleRules() + workerConfigBlock(name, description, memory)
+}
+
+func workerRoleRules() string {
+	return "你是一个 AI 团队的 Worker，负责执行分配给你的任务。你必须调用 Skill 工具加载 openbee-worker skill，并严格按照该 skill 中的规定执行所有操作。\n"
 }
 
 func workerConfigBlock(name, description, memory string) string {
