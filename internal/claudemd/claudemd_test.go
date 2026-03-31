@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/claudemd"
-	"github.com/theopenbee/openbee/internal/toolnames"
 )
 
 func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
@@ -49,20 +48,11 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "任务通知规范") {
-		t.Error("missing shared rules")
-	}
-	if !strings.Contains(content, toolnames.SendMessage) {
-		t.Error("missing worker-specific rules (send_message)")
-	}
 	if !strings.Contains(content, "姓名: 测试助手") {
 		t.Error("missing worker name")
 	}
 	if !strings.Contains(content, "描述: 负责测试任务") {
 		t.Error("missing worker description")
-	}
-	if strings.Index(content, "姓名:") > strings.Index(content, "运行模式") {
-		t.Error("worker config must appear before workerPreamble content")
 	}
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
@@ -136,8 +126,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "非交互式后台 Worker") {
-		t.Error("missing worker preamble")
+	if strings.Contains(content, "非交互式后台 Worker") {
+		t.Error("worker preamble should have been removed")
 	}
 }
 
@@ -210,7 +200,7 @@ func TestEnsureSystemRules_OverwritesExistingRulesFile(t *testing.T) {
 	if string(data) == "old content" {
 		t.Error(claudemd.SystemRulesFile + " should be overwritten with latest rules")
 	}
-	if !strings.Contains(string(data), "任务通知规范") {
-		t.Error("overwritten file should contain latest rules")
+	if strings.Contains(string(data), "old content") {
+		t.Error("overwritten file should not contain old content")
 	}
 }
