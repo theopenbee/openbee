@@ -15,7 +15,7 @@
 <p align="center">
   <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
   <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0XTYZ">🐦 Author @0XTYZ</a>
+  <a href="https://x.com/0XTYZ">Author @0XTYZ</a>
 </p>
 
 **OpenBee** is a digital worker solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom / WeChat / Telegram to create workers, assign tasks, and much more — let your imagination run wild!
