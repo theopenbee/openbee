@@ -17,15 +17,15 @@ func init() {
 
 const testSecret = "test-secret-xyz"
 
-func newJWTRouter(secret string) *gin.Engine {
+func newRouter(secret string, extra ...gin.HandlerFunc) *gin.Engine {
 	r := gin.New()
-	r.Use(mcp.JWTAuthMiddleware(secret))
+	r.Use(append([]gin.HandlerFunc{mcp.JWTAuthMiddleware(secret)}, extra...)...)
 	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
 	return r
 }
 
 func TestJWTAuthMiddleware_NoToken(t *testing.T) {
-	r := newJWTRouter(testSecret)
+	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	r.ServeHTTP(w, req)
@@ -35,7 +35,7 @@ func TestJWTAuthMiddleware_NoToken(t *testing.T) {
 }
 
 func TestJWTAuthMiddleware_InvalidToken(t *testing.T) {
-	r := newJWTRouter(testSecret)
+	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", "not-a-jwt")
@@ -47,7 +47,7 @@ func TestJWTAuthMiddleware_InvalidToken(t *testing.T) {
 
 func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newJWTRouter(testSecret)
+	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -59,7 +59,7 @@ func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
 
 func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
 	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newJWTRouter(testSecret)
+	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -71,7 +71,7 @@ func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
 
 func TestJWTAuthMiddleware_TokenViaQueryParam(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newJWTRouter(testSecret)
+	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test?api_key="+tok, nil)
 	r.ServeHTTP(w, req)
@@ -80,16 +80,10 @@ func TestJWTAuthMiddleware_TokenViaQueryParam(t *testing.T) {
 	}
 }
 
-func newBeeRouter(secret string) *gin.Engine {
-	r := gin.New()
-	r.Use(mcp.JWTAuthMiddleware(secret), mcp.RequireBee())
-	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
-	return r
-}
 
 func TestRequireBee_AllowsBeeToken(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newBeeRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireBee())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -101,7 +95,7 @@ func TestRequireBee_AllowsBeeToken(t *testing.T) {
 
 func TestRequireBee_RejectsWorkerToken(t *testing.T) {
 	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newBeeRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireBee())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -111,16 +105,10 @@ func TestRequireBee_RejectsWorkerToken(t *testing.T) {
 	}
 }
 
-func newWorkerRouter(secret string) *gin.Engine {
-	r := gin.New()
-	r.Use(mcp.JWTAuthMiddleware(secret), mcp.RequireWorker())
-	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
-	return r
-}
 
 func TestRequireWorker_AllowsWorkerToken(t *testing.T) {
 	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newWorkerRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireWorker())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -132,7 +120,7 @@ func TestRequireWorker_AllowsWorkerToken(t *testing.T) {
 
 func TestRequireWorker_RejectsBeeToken(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newWorkerRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireWorker())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -142,16 +130,10 @@ func TestRequireWorker_RejectsBeeToken(t *testing.T) {
 	}
 }
 
-func newBeeOrWorkerRouter(secret string) *gin.Engine {
-	r := gin.New()
-	r.Use(mcp.JWTAuthMiddleware(secret), mcp.RequireBeeOrWorker())
-	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
-	return r
-}
 
 func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newBeeOrWorkerRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireBeeOrWorker())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
@@ -163,7 +145,7 @@ func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
 
 func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
 	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newBeeOrWorkerRouter(testSecret)
+	r := newRouter(testSecret, mcp.RequireBeeOrWorker())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)

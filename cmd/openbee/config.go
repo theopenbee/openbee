@@ -470,11 +470,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 		switch tokenSecretMethod {
 		case i18n.M.Prompt.OptionGenerateRandom:
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				return fmt.Errorf("generate token secret: %w", err)
-			}
-			vals.MCPTokenSecret = hex.EncodeToString(b)
+			vals.MCPTokenSecret = config.GenerateRandomSecret()
 			fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
@@ -530,13 +526,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Auto-generate MCP Token Secret if not set
 	if vals.MCPTokenSecret == "" {
-		b := make([]byte, 32)
-		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("generate token secret: %w", err)
-		}
-		vals.MCPTokenSecret = hex.EncodeToString(b)
+		vals.MCPTokenSecret = config.GenerateRandomSecret()
 		fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 	}
 

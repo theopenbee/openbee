@@ -212,7 +212,7 @@ func applyDefaults(cfg *Config) error {
 		}
 	}
 	if cfg.Bee.MCP.TokenSecret == "" {
-		cfg.Bee.MCP.TokenSecret = generateRandomKey()
+		cfg.Bee.MCP.TokenSecret = GenerateRandomSecret()
 	}
 	if cfg.Bee.MCP.TokenTTL == 0 {
 		cfg.Bee.MCP.TokenTTL = 2 * time.Hour
@@ -220,7 +220,8 @@ func applyDefaults(cfg *Config) error {
 	return nil
 }
 
-func generateRandomKey() string {
+// GenerateRandomSecret returns a 32-byte hex-encoded random string.
+func GenerateRandomSecret() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		panic("crypto/rand failed: " + err.Error())

@@ -50,5 +50,6 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts claud
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate bee token: %w", err)
 	}
-	return p.invoker.Run(ctx, workDir, prompt, opts, logPath, token)
+	opts.APIKey = token
+	return p.invoker.Run(ctx, workDir, prompt, opts, logPath)
 }

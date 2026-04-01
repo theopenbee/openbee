@@ -54,7 +54,7 @@ func NewClient(cfgPath string) (*Client, error) {
 	}
 
 	return &Client{
-		BaseURL:    strings.TrimRight(baseURL, "/"),
+		BaseURL:    strings.TrimSuffix(baseURL, "/"),
 		APIKey:     apiKey,
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}, nil

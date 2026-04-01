@@ -30,19 +30,20 @@ type Output struct {
 type RunOptions struct {
 	SessionID string
 	Resume    bool
+	APIKey    string
 }
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
 	binary  string
-	baseEnv []string // pre-computed env: system env with patched PATH + OPENBEE_URL; OPENBEE_API_KEY appended per-call
+	baseEnv []string
 }
 
 // NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
 // (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
 func NewInvoker(binary, openbeeURL string) *Invoker {
 	sysEnv := os.Environ()
-	env := make([]string, 0, len(sysEnv)+2)
+	env := make([]string, 0, len(sysEnv)+3)
 	if exePath, err := os.Executable(); err == nil {
 		patchedPath := "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
 		for _, e := range sysEnv {
@@ -87,7 +88,7 @@ func (p *Process) Stop() error {
 // Run starts a Claude CLI process, redirecting its stdout and stderr to logPath.
 // The returned channel carries only lifecycle events: OutputDone on success,
 // OutputError on failure. The channel is closed after the process exits.
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath, apiKey string) (*Process, <-chan Output, error) {
+func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
@@ -112,7 +113,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+apiKey)
+	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

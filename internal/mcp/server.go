@@ -259,7 +259,6 @@ func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
 	}
 }
 
-// HandleCall handles a synchronous tool call without requiring an SSE session.
 // Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.
 func (s *MCPServer) HandleCall(c *gin.Context) {
 	var req struct {
