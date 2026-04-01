@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/toolnames"
 )
@@ -19,7 +21,7 @@ var ctlMessageSendCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		a := map[string]any{"message_id": msgSendMessageID}
 		if msgSendContent != "" {
-			a["content"] = msgSendContent
+			a["content"] = strings.ReplaceAll(msgSendContent, `\n`, "\n")
 		}
 		if msgSendMediaPath != "" {
 			a["media_path"] = msgSendMediaPath
