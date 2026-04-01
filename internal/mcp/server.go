@@ -231,7 +231,7 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 		return
 	}
 
-	ctx := context.WithValue(context.Background(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
+	ctx := context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
 	resp := s.dispatch(ctx, req)
 
 	// Notifications (no ID) get no response
@@ -284,7 +284,7 @@ func (s *MCPServer) HandleCall(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
 		return
 	}
-	ctx := context.WithValue(context.Background(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
+	ctx := context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
 	result, err := s.callToolFn(ctx, req.Name, req.Arguments)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error()})

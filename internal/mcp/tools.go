@@ -295,7 +295,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	case toolnames.SendMessage:
 		return s.toolSendMessage(ctx, args)
 	case toolnames.ClearSession:
-		return s.toolClearSession(args)
+		return s.toolClearSession(ctx, args)
 	case toolnames.GetWorkerStatus:
 		return s.toolGetWorkerStatus(args)
 	case toolnames.GetSystemOverview:
@@ -582,10 +582,8 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 	// Auto-prepend worker name when caller is a worker.
 	if workerID, _ := ctx.Value(ctxKeyWorkerID).(string); workerID != "" && params.Content != "" {
 		name := workerID // fallback: use worker_id if worker record not found
-		if s.workerStore != nil {
-			if w, err := s.workerStore.GetByID(workerID); err == nil {
-				name = w.Name
-			}
+		if w, err := s.workerStore.GetByID(workerID); err == nil {
+			name = w.Name
 		}
 		params.Content = name + "\n" + params.Content
 	}
@@ -625,7 +623,7 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 	return map[string]string{"status": "sent"}, nil
 }
 
-func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 		Force      bool   `json:"force"`
@@ -636,8 +634,6 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	if params.SessionKey == "" {
 		return nil, fmt.Errorf("session_key is required")
 	}
-
-	ctx := context.Background()
 
 	// Two-step confirmation: if more than one worker has a session context and
 	// force is not set, return a confirmation prompt without clearing anything.
