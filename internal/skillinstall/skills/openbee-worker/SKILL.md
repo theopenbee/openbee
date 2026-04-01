@@ -38,10 +38,10 @@ message_id: <message_id>
 
 ## Task Notification Spec
 
-When executing any task, you must stay in sync with the user via `openbee ctl message send`. Prefix the message content with your name in the format `"Name: message content"`. This is mandatory and cannot be omitted.
+When executing any task, you must stay in sync with the user via `openbee ctl message send`.
 
 ```bash
-openbee ctl message send --message-id <message_id> --content "Name: message content"
+openbee ctl message send --message-id <message_id> --content "message content"
 ```
 
 ### When to Notify
@@ -54,27 +54,27 @@ openbee ctl message send --message-id <message_id> --content "Name: message cont
 ### Notification Examples
 
 ```bash
-openbee ctl message send --message-id <id> --content "Maomao: Task received, analyzing requirements and starting processing."
+openbee ctl message send --message-id <id> --content "Task received, analyzing requirements and starting processing."
 
-openbee ctl message send --message-id <id> --content "Maomao: Phase 1 complete, foo.go has been modified. Next step: updating tests."
+openbee ctl message send --message-id <id> --content "Phase 1 complete, foo.go has been modified. Next step: updating tests."
 
-openbee ctl message send --message-id <id> --content "Maomao: Task complete. 3 files modified, all tests passing."
+openbee ctl message send --message-id <id> --content "Task complete. 3 files modified, all tests passing."
 
-openbee ctl message send --message-id <id> --content "Maomao: Encountered an issue requiring confirmation: the database migration will delete the old field. Proceed?"
+openbee ctl message send --message-id <id> --content "Encountered an issue requiring confirmation: the database migration will delete the old field. Proceed?"
 
-openbee ctl message send --message-id <id> --content "Maomao: Task failed. Error during build: module not found. Please check if dependencies are installed."
+openbee ctl message send --message-id <id> --content "Task failed. Error during build: module not found. Please check if dependencies are installed."
 
 # Send an image (no text)
 openbee ctl message send --message-id <id> --media-path /tmp/screenshot.png
 
 # Send an image with description
-openbee ctl message send --message-id <id> --content "Maomao: Run screenshot below." --media-path /tmp/result.png
+openbee ctl message send --message-id <id> --content "Run screenshot below." --media-path /tmp/result.png
 
 # Send a document/report
-openbee ctl message send --message-id <id> --content "Maomao: Task complete, report attached." --media-path /tmp/report.pdf
+openbee ctl message send --message-id <id> --content "Task complete, report attached." --media-path /tmp/report.pdf
 
 # Send multiple files (--media-path supports only one file per call; multiple calls required)
-openbee ctl message send --message-id <id> --content "Maomao: 2 files total, sending in order."
+openbee ctl message send --message-id <id> --content "2 files total, sending in order."
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.csv
 ```
@@ -92,11 +92,11 @@ openbee ctl message send --message-id <id> [--content <text content>] [--media-p
 # --content and --media-path can be used independently or together (text first, then media)
 
 # Send plain text
-openbee ctl message send --message-id <id> --content "Maomao: Done."
+openbee ctl message send --message-id <id> --content "Done."
 
 # Send an image file
 openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 
 # Send text and file together
-openbee ctl message send --message-id <id> --content "Maomao: See attachment for details." --media-path /tmp/output.csv
+openbee ctl message send --message-id <id> --content "See attachment for details." --media-path /tmp/output.csv
 ```
