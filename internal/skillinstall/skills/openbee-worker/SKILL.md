@@ -48,7 +48,7 @@ openbee ctl message send --message-id <message_id> --content "姓名: 消息内�
 
 1. **任务开始时**：收到任务后、开始实际处理之前，立即运行 `openbee ctl message send` 告知用户你已接收任务并即将开始处理
 2. **阶段性进展时**：如果任务涉及多个步骤或阶段，每完成一个阶段就运行 `openbee ctl message send` 汇报当前进度和下一步计划
-3. **任务完成时**：任务执行完毕后，运行 `openbee ctl message send` 汇报最终结果
+3. **任务结束时（无论成功或失败）**：任务执行完毕或因不可恢复错误中止时，运行 `openbee ctl message send` 汇报最终结果或失败原因；失败时无需请求用户决策，直接结束任务即可
 4. **遇到问题需要咨询时**：当执行过程中遇到需要用户决策、确认或提供额外信息的问题时，立即运行 `openbee ctl message send` 说明问题；如果存在选项，也一并说明，然后结束本次任务等待新任务
 
 ### 通知示例
@@ -61,6 +61,8 @@ openbee ctl message send --message-id <id> --content "毛毛: 第一阶段完成
 openbee ctl message send --message-id <id> --content "毛毛: 任务完成。已修改 3 个文件，所有测试通过。"
 
 openbee ctl message send --message-id <id> --content "毛毛: 遇到问题需要确认：数据库迁移会删除旧字段，是否继续？"
+
+openbee ctl message send --message-id <id> --content "毛毛: 任务失败。执行构建命令时报错：找不到模块，请检查依赖是否已安装。"
 
 # 发送图片（无文字）
 openbee ctl message send --message-id <id> --media-path /tmp/screenshot.png
