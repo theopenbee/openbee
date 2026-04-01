@@ -50,7 +50,7 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 
 func TestCallTool_ListWorkers_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	result, err := s.CallTool("list_workers", mustMarshal(t, map[string]any{}))
+	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCallTool_ListWorkers_Empty(t *testing.T) {
 
 func TestCallTool_CreateWorker(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	result, err := s.CallTool("create_worker", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
 		"name":        "TestBot",
 		"description": "A test bot",
 		"prompt":      "You are a test bot.",
@@ -87,10 +87,10 @@ func TestCallTool_CreateWorker(t *testing.T) {
 
 func TestCallTool_GetWorker(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	created, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	created, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
 	w := created.(model.Worker)
 
-	result, err := s.CallTool("get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	result, err := s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestCallTool_GetWorker(t *testing.T) {
 
 func TestCallTool_GetWorker_NotFound(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("get_worker", mustMarshal(t, map[string]any{"worker_id": "nonexistent"}))
+	_, err := s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": "nonexistent"}))
 	if err == nil {
 		t.Error("expected error for missing worker")
 	}
@@ -113,10 +113,10 @@ func TestCallTool_GetWorker_NotFound(t *testing.T) {
 
 func TestCallTool_UpdateWorker(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	created, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "OldName"}))
+	created, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "OldName"}))
 	w := created.(model.Worker)
 
-	result, err := s.CallTool("update_worker", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
 		"worker_id": w.ID,
 		"name":      "NewName",
 		"memory":    "New memory",
@@ -138,15 +138,15 @@ func TestCallTool_UpdateWorker(t *testing.T) {
 
 func TestCallTool_DeleteWorker(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	created, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	created, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
 	w := created.(model.Worker)
 
-	_, err := s.CallTool("delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
 
-	_, err = s.CallTool("get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
 	if err == nil {
 		t.Error("expected error after delete")
 	}
@@ -154,7 +154,7 @@ func TestCallTool_DeleteWorker(t *testing.T) {
 
 func TestCallTool_UnknownTool(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("nonexistent_tool", mustMarshal(t, map[string]any{}))
+	_, err := s.CallTool(context.Background(), "nonexistent_tool", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for unknown tool")
 	}
@@ -175,7 +175,7 @@ func TestToolSchemas_IncludesTaskTools(t *testing.T) {
 
 func TestListWorkers_ReturnsEmptySlice_NotNull(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	result, err := s.CallTool("list_workers", mustMarshal(t, map[string]any{}))
+	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestCallTool_SendMessage_CallsSender(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-send-1", "feishu:chat1:userA", "feishu", "hello", `{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0) //nolint
 
-	result, err := s.CallTool("send_message", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-send-1",
 		"content":    "Task done!",
 	}))
@@ -252,7 +252,7 @@ func TestCallTool_SendMessage_CallsSender(t *testing.T) {
 
 func TestCallTool_SendMessage_MissingMessageID(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("send_message", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"content": "hello",
 	}))
 	if err == nil {
@@ -262,7 +262,7 @@ func TestCallTool_SendMessage_MissingMessageID(t *testing.T) {
 
 func TestCallTool_SendMessage_MissingContent(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("send_message", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-x",
 	}))
 	if err == nil {
@@ -277,7 +277,7 @@ func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-unk", "dingtalk:c1:u1", "dingtalk", "hi", `{}`, "", 0) //nolint
 
-	_, err := s.CallTool("send_message", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-unk",
 		"content":    "hello",
 	}))
@@ -288,7 +288,7 @@ func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
 
 func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("send_message", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "nonexistent-msg",
 		"content":    "hello",
 	}))
@@ -327,15 +327,15 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-sk1", "session-X", "feishu", "hi", `{}`, "", 0) //nolint
 
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
-	s.CallTool("create_task", mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), "create_task", mustMarshal(t, map[string]any{
 		"message_id": "msg-sk1", "worker_id": w.ID,
 		"instruction": "task1", "type": "immediate",
 	}))
 
-	result, err := s.CallTool("list_tasks", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "list_tasks", mustMarshal(t, map[string]any{
 		"session_key": "session-X",
 	}))
 	if err != nil {
@@ -349,7 +349,7 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 
 func TestCallTool_ListTasks_BothParams_Error(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("list_tasks", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "list_tasks", mustMarshal(t, map[string]any{
 		"message_id":  "msg-1",
 		"session_key": "session-X",
 	}))
@@ -360,7 +360,7 @@ func TestCallTool_ListTasks_BothParams_Error(t *testing.T) {
 
 func TestCallTool_ListTasks_NoParams_Error(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("list_tasks", mustMarshal(t, map[string]any{}))
+	_, err := s.CallTool(context.Background(), "list_tasks", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error when neither message_id nor session_key provided")
 	}
@@ -417,7 +417,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
 	s, _, _, clearer := setupMCPServerWithClear(t)
 
-	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-X",
 	}))
 	if err != nil {
@@ -442,7 +442,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-c1", "session-Y", "feishu", "hi", `{}`, "", 0) //nolint
 
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
 	// Create a running task with execution_id
@@ -461,7 +461,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 
-	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-Y",
 	}))
 	if err != nil {
@@ -490,7 +490,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 
 func TestCallTool_ClearSession_MissingSessionKey(t *testing.T) {
 	s, _, _, _ := setupMCPServerWithClear(t)
-	_, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{}))
+	_, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing session_key")
 	}
@@ -500,7 +500,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
 	// Create a worker first
-	created, err := s.CallTool(toolnames.CreateWorker, mustMarshal(t, map[string]any{
+	created, err := s.CallTool(context.Background(), toolnames.CreateWorker, mustMarshal(t, map[string]any{
 		"name": "status-test",
 	}))
 	if err != nil {
@@ -508,7 +508,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 	}
 	w := created.(model.Worker)
 
-	result, err := s.CallTool(toolnames.GetWorkerStatus, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), toolnames.GetWorkerStatus, mustMarshal(t, map[string]any{
 		"worker_id": w.ID,
 	}))
 	if err != nil {
@@ -526,7 +526,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 func TestCallTool_GetSystemOverview(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(toolnames.GetSystemOverview, nil)
+	result, err := s.CallTool(context.Background(), toolnames.GetSystemOverview, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +542,7 @@ func TestCallTool_GetSystemOverview(t *testing.T) {
 func TestCallTool_ListBeeExecutions(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(toolnames.ListBeeExecutions, nil)
+	result, err := s.CallTool(context.Background(), toolnames.ListBeeExecutions, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,7 +555,7 @@ func TestCallTool_ListBeeExecutions(t *testing.T) {
 func TestCallTool_SaveMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "test_pref",
 		"value": "user likes concise replies",
@@ -573,14 +573,14 @@ func TestCallTool_GetMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
 	// Save first
-	s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 		"value": "value1",
 	}))
 
 	// Get by key
-	result, err := s.CallTool(toolnames.GetMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), toolnames.GetMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 	}))
@@ -592,7 +592,7 @@ func TestCallTool_GetMemory(t *testing.T) {
 	}
 
 	// List by scope (no key)
-	result2, err := s.CallTool(toolnames.GetMemory, mustMarshal(t, map[string]any{
+	result2, err := s.CallTool(context.Background(), toolnames.GetMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 	}))
 	if err != nil {
@@ -604,13 +604,13 @@ func TestCallTool_GetMemory(t *testing.T) {
 func TestCallTool_DeleteMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	s.CallTool(toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 		"value": "temp",
 	}))
 
-	result, err := s.CallTool(toolnames.DeleteMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), toolnames.DeleteMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 	}))
@@ -627,7 +627,7 @@ func TestCallTool_DeleteMemory(t *testing.T) {
 
 func TestCallTool_ListSessionContexts_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	result, err := s.CallTool("list_session_contexts", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "list_session_contexts", mustMarshal(t, map[string]any{
 		"session_key": "no-such-session",
 	}))
 	if err != nil {
@@ -644,7 +644,7 @@ func TestCallTool_ListSessionContexts_Empty(t *testing.T) {
 
 func TestCallTool_ListSessionContexts_MissingSessionKey(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("list_session_contexts", mustMarshal(t, map[string]any{}))
+	_, err := s.CallTool(context.Background(), "list_session_contexts", mustMarshal(t, map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing session_key")
 	}
@@ -654,7 +654,7 @@ func TestCallTool_ListSessionContexts_MissingSessionKey(t *testing.T) {
 
 func TestCallTool_ClearWorkerSession_MissingSessionKey(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
 		"worker_id": "some-worker",
 	}))
 	if err == nil {
@@ -664,7 +664,7 @@ func TestCallTool_ClearWorkerSession_MissingSessionKey(t *testing.T) {
 
 func TestCallTool_ClearWorkerSession_MissingWorkerID(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
 		"session_key": "sk",
 	}))
 	if err == nil {
@@ -674,7 +674,7 @@ func TestCallTool_ClearWorkerSession_MissingWorkerID(t *testing.T) {
 
 func TestCallTool_ClearWorkerSession_RefusesBee(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
-	_, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+	_, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
 		"session_key": "sk",
 		"worker_id":   "bee",
 	}))
@@ -686,7 +686,7 @@ func TestCallTool_ClearWorkerSession_RefusesBee(t *testing.T) {
 func TestCallTool_ClearWorkerSession_Idempotent(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	// No session row exists; should succeed without error.
-	result, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
 		"session_key": "sk",
 		"worker_id":   "nonexistent-worker-id",
 	}))
@@ -704,8 +704,8 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 	ctx := context.Background()
 
 	// Create two workers
-	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
-	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	workerResult1, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
 	w1 := workerResult1.(model.Worker)
 	w2 := workerResult2.(model.Worker)
 
@@ -715,7 +715,7 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2") //nolint
 
 	// Clear only w1
-	result, err := s.CallTool("clear_worker_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
 		"session_key": "sk",
 		"worker_id":   w1.ID,
 	}))
@@ -751,8 +751,8 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	ms.Create(ctx, "msg-conf1", "session-C", "feishu", "hi", `{}`, "", 0) //nolint
 
 	// Create two workers and seed session contexts for both.
-	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
-	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	workerResult1, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
 	w1 := workerResult1.(model.Worker)
 	w2 := workerResult2.(model.Worker)
 
@@ -761,7 +761,7 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2") //nolint
 
 	// Call without force — should get confirmation request, NOT clear.
-	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-C",
 	}))
 	if err != nil {
@@ -795,8 +795,8 @@ func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-force1", "session-F", "feishu", "hi", `{}`, "", 0) //nolint
 
-	workerResult1, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
-	workerResult2, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
+	workerResult1, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	workerResult2, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
 	w1 := workerResult1.(model.Worker)
 	w2 := workerResult2.(model.Worker)
 
@@ -804,7 +804,7 @@ func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1") //nolint
 	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2") //nolint
 
-	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-F",
 		"force":       true,
 	}))
@@ -830,14 +830,14 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-one1", "session-O", "feishu", "hi", `{}`, "", 0) //nolint
 
-	workerResult, _ := s.CallTool("create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
 	ss := store.NewSessionStore(db)
 	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w") //nolint
 
 	// Only 1 worker — should clear without confirmation.
-	result, err := s.CallTool("clear_session", mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-O",
 	}))
 	if err != nil {
@@ -869,7 +869,8 @@ func setupWorkerMCPServer(t *testing.T) *mcp.MCPServer {
 	ms := store.NewMessageStore(db)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	memStore := store.NewMemoryStore(db)
-	return mcp.NewWorkerServer(ts, ms, senders, memStore)
+	ws := store.NewWorkerStore(db)
+	return mcp.NewWorkerServer(ts, ms, senders, memStore, ws)
 }
 
 func TestBeeToolSchemasCount(t *testing.T) {
@@ -905,7 +906,7 @@ func TestWorkerCannotCallBeeTools(t *testing.T) {
 		toolnames.ClearWorkerSession,
 	}
 	for _, tool := range beeOnlyTools {
-		_, err := s.CallTool(tool, mustMarshal(t, map[string]any{}))
+		_, err := s.CallTool(context.Background(), tool, mustMarshal(t, map[string]any{}))
 		if err == nil {
 			t.Errorf("worker should not be able to call %s", tool)
 		}
@@ -925,7 +926,7 @@ func TestWorkerCanCallAllowedTools(t *testing.T) {
 	}
 	for _, tool := range workerTools {
 		// Calls may fail due to missing params, but should NOT return "unknown tool"
-		_, err := s.CallTool(tool, mustMarshal(t, map[string]any{}))
+		_, err := s.CallTool(context.Background(), tool, mustMarshal(t, map[string]any{}))
 		if err != nil && strings.Contains(err.Error(), "unknown tool") {
 			t.Errorf("worker should be able to call %s, got unknown tool error", tool)
 		}
