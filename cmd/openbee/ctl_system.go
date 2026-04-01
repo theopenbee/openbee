@@ -30,7 +30,7 @@ var ctlSystemExecutionsCmd = &cobra.Command{
 }
 
 func init() {
-	ctlSystemExecutionsCmd.Flags().IntVar(&executionsLimit, "limit", 0, "Number of records to return (default 10)")
+	ctlSystemExecutionsCmd.Flags().IntVar(&executionsLimit, "limit", 0, "Number of records to return (0 = server default of 10)")
 
 	ctlSystemCmd.AddCommand(ctlSystemOverviewCmd, ctlSystemExecutionsCmd)
 	ctlCmd.AddCommand(ctlSystemCmd)

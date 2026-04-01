@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/mcp"
 )
 
@@ -45,7 +46,7 @@ func TestJWTAuthMiddleware_InvalidToken(t *testing.T) {
 }
 
 func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
-	tok, _ := mcp.GenerateBeeToken(testSecret, time.Hour)
+	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newJWTRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -57,7 +58,7 @@ func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
 }
 
 func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
-	tok, _ := mcp.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
 	r := newJWTRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -69,7 +70,7 @@ func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
 }
 
 func TestJWTAuthMiddleware_TokenViaQueryParam(t *testing.T) {
-	tok, _ := mcp.GenerateBeeToken(testSecret, time.Hour)
+	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newJWTRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test?api_key="+tok, nil)
@@ -87,7 +88,7 @@ func newBeeRouter(secret string) *gin.Engine {
 }
 
 func TestRequireBee_AllowsBeeToken(t *testing.T) {
-	tok, _ := mcp.GenerateBeeToken(testSecret, time.Hour)
+	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newBeeRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -99,7 +100,7 @@ func TestRequireBee_AllowsBeeToken(t *testing.T) {
 }
 
 func TestRequireBee_RejectsWorkerToken(t *testing.T) {
-	tok, _ := mcp.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
 	r := newBeeRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -118,7 +119,7 @@ func newWorkerRouter(secret string) *gin.Engine {
 }
 
 func TestRequireWorker_AllowsWorkerToken(t *testing.T) {
-	tok, _ := mcp.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
 	r := newWorkerRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -130,7 +131,7 @@ func TestRequireWorker_AllowsWorkerToken(t *testing.T) {
 }
 
 func TestRequireWorker_RejectsBeeToken(t *testing.T) {
-	tok, _ := mcp.GenerateBeeToken(testSecret, time.Hour)
+	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newWorkerRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -149,7 +150,7 @@ func newBeeOrWorkerRouter(secret string) *gin.Engine {
 }
 
 func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
-	tok, _ := mcp.GenerateBeeToken(testSecret, time.Hour)
+	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newBeeOrWorkerRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -161,7 +162,7 @@ func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
 }
 
 func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
-	tok, _ := mcp.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
 	r := newBeeOrWorkerRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -173,7 +174,7 @@ func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
 }
 
 func TestWorkerIDStoredInContext(t *testing.T) {
-	tok, _ := mcp.GenerateWorkerToken(testSecret, "worker-999", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-999", time.Hour)
 	r := gin.New()
 	r.Use(mcp.JWTAuthMiddleware(testSecret))
 	r.GET("/test", func(c *gin.Context) {

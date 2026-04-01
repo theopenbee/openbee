@@ -37,15 +37,20 @@ type RunOptions struct {
 type Invoker struct {
 	binary     string
 	openbeeURL string
+	exeDir     string // directory of the current executable, prepended to PATH in subprocesses
 }
 
 // NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
 // (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
 func NewInvoker(binary, openbeeURL string) *Invoker {
-	return &Invoker{
+	inv := &Invoker{
 		binary:     binary,
 		openbeeURL: openbeeURL,
 	}
+	if exePath, err := os.Executable(); err == nil {
+		inv.exeDir = filepath.Dir(exePath)
+	}
+	return inv
 }
 
 // Process represents a running Claude CLI invocation.
@@ -106,11 +111,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 		"OPENBEE_URL="+inv.openbeeURL,
 		"OPENBEE_API_KEY="+apiKey,
 	)
-	if exePath, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exePath)
+	if inv.exeDir != "" {
 		for i, e := range env {
-			if strings.HasPrefix(e, "PATH=") {
-				env[i] = "PATH=" + exeDir + string(os.PathListSeparator) + strings.TrimPrefix(e, "PATH=")
+			if rest, ok := strings.CutPrefix(e, "PATH="); ok {
+				env[i] = "PATH=" + inv.exeDir + string(os.PathListSeparator) + rest
 				break
 			}
 		}

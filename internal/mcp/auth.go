@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/auth"
 )
 
 const (
@@ -24,7 +25,7 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		claims, err := ValidateToken(tokenStr, secret)
+		claims, err := auth.ValidateToken(tokenStr, secret)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
@@ -37,33 +38,28 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 
 // RequireBee aborts with 403 if the token type is not "bee".
 func RequireBee() gin.HandlerFunc {
-	return requireType(TokenTypeBee)
+	return requireTypeIn(auth.TokenTypeBee)
 }
 
 // RequireWorker aborts with 403 if the token type is not "worker".
 func RequireWorker() gin.HandlerFunc {
-	return requireType(TokenTypeWorker)
+	return requireTypeIn(auth.TokenTypeWorker)
 }
 
 // RequireBeeOrWorker accepts tokens of either type.
 func RequireBeeOrWorker() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tokenType, _ := c.Get(CtxKeyTokenType)
-		if tokenType != TokenTypeBee && tokenType != TokenTypeWorker {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		c.Next()
-	}
+	return requireTypeIn(auth.TokenTypeBee, auth.TokenTypeWorker)
 }
 
-func requireType(expected string) gin.HandlerFunc {
+func requireTypeIn(allowed ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenType, _ := c.Get(CtxKeyTokenType)
-		if tokenType != expected {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
+		for _, t := range allowed {
+			if tokenType == t {
+				c.Next()
+				return
+			}
 		}
-		c.Next()
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	}
 }
