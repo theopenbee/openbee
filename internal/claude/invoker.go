@@ -37,16 +37,14 @@ type RunOptions struct {
 type Invoker struct {
 	binary     string
 	openbeeURL string
-	apiKey     string
 }
 
 // NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
 // (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
-func NewInvoker(binary, openbeeURL, apiKey string) *Invoker {
+func NewInvoker(binary, openbeeURL string) *Invoker {
 	return &Invoker{
 		binary:     binary,
 		openbeeURL: openbeeURL,
-		apiKey:     apiKey,
 	}
 }
 
@@ -79,7 +77,7 @@ func (p *Process) Stop() error {
 // Run starts a Claude CLI process, redirecting its stdout and stderr to logPath.
 // The returned channel carries only lifecycle events: OutputDone on success,
 // OutputError on failure. The channel is closed after the process exits.
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
+func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath, apiKey string) (*Process, <-chan Output, error) {
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
@@ -106,7 +104,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stderr = logFile
 	env := append(os.Environ(),
 		"OPENBEE_URL="+inv.openbeeURL,
-		"OPENBEE_API_KEY="+inv.apiKey,
+		"OPENBEE_API_KEY="+apiKey,
 	)
 	if exePath, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exePath)
