@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ctl`: CLI control interface equivalent to MCP — exposes the same capabilities as the MCP server via command-line subcommands
+
 ## [0.0.15] - 2026-03-29
 
 ### Added
