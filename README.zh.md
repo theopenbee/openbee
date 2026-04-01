@@ -114,27 +114,22 @@ openbee server -d
 
 ```mermaid
 graph TD
-    A["💬 IM 平台\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🔌 平台接入层\nPlatform Integration"]
-    B --> C["🧠 中央大脑\nClaude Code"]
-    C --> D["📨 任务分配\nTask Assignment"]
-    D --> E["🤖 Worker（数字员工）\nClaude Code Agent"]
-    E -. "回复结果" .-> A
+    A["💬 IM 层\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🧠 大佬层\nClaude Code"]
+    B --> C["🤖 数字员工层\nClaude Code Agent"]
     C -. "回复结果" .-> A
+    B -. "回复结果" .-> A
 ```
 
-OpenBee 由四个核心层构成：
+OpenBee 由三个核心层构成：
 
-**1. 平台接入层**
-连接飞书、钉钉、企微、微信、Telegram 等 IM 平台，实时接收用户消息，并将结果回复到对话中。
+**1. IM 层**
+包含飞书、钉钉、企业微信、微信和 Telegram。用户通过这些平台发送消息与 OpenBee 交互，并在同一对话中接收回复。
 
-**2. 中央大脑（Claude Code）**
-中央大脑接收所有消息，理解用户意图，决定如何处理。除了任务分配外，它还负责员工管理、会话管理等协调工作，并可将结果直接回复到 IM 平台。
+**2. 大佬层（Claude Code）**
+负责任务调度——接收来自 IM 层的消息，理解用户意图，并将任务分派给数字员工层执行。支持定时任务，可按计划自动触发。大佬层也可将结果直接回复到 IM 层。
 
-**3. 任务分配**
-中央大脑根据 Worker 的能力和配置，将任务分派给合适的 Worker 执行；同时支持定时任务，可按计划自动触发。
-
-**4. Worker（数字员工）**
-每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到 IM 平台——像真实员工一样独立完成工作。
+**3. 数字员工层**
+每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到 IM 层——像真实员工一样独立完成工作。
 
 ## 🌟 Star History
 
