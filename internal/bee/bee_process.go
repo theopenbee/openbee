@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
 )
@@ -15,13 +17,17 @@ const DefaultPersona = `你是 B，一个 AI 智能助手。`
 
 // BeeProcess represents a single short-lived bee Claude invocation.
 type BeeProcess struct {
-	invoker *claude.Invoker
+	invoker     *claude.Invoker
+	tokenSecret string
+	tokenTTL    time.Duration
 }
 
 // NewBeeProcess creates a BeeProcess.
 func NewBeeProcess(cfg config.BeeConfig) *BeeProcess {
 	return &BeeProcess{
-		invoker: claude.NewInvoker(cfg.Claude.Path, cfg.MCPBaseURL, cfg.MCP.APIKey),
+		invoker:     claude.NewInvoker(cfg.Claude.Path, cfg.MCPBaseURL),
+		tokenSecret: cfg.MCP.TokenSecret,
+		tokenTTL:    cfg.MCP.TokenTTL,
 	}
 }
 
@@ -40,5 +46,9 @@ func WriteCLAUDEMD(workDir, persona string) error {
 
 // Run spawns the bee process, redirecting output to logPath.
 func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
-	return p.invoker.Run(ctx, workDir, prompt, opts, logPath)
+	token, err := auth.GenerateBeeToken(p.tokenSecret, p.tokenTTL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate bee token: %w", err)
+	}
+	return p.invoker.Run(ctx, workDir, prompt, opts, logPath, token)
 }
