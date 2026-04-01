@@ -114,21 +114,21 @@ openbee server -d
 
 ```mermaid
 graph TD
-    A["💬 IM Layer\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🧠 Boss Layer\nClaude Code"]
-    B --> C["🤖 Digital Worker Layer\nClaude Code Agents"]
+    A["💬 IM Layer (Communication)\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🧠 Scheduling Layer\nClaude Code"]
+    B --> C["🤖 Execution Layer\nClaude Code Agents"]
     C -. "Reply Results" .-> A
     B -. "Reply Results" .-> A
 ```
 
 OpenBee consists of three core layers:
 
-**1. IM Layer**
+**1. IM Layer (Communication Layer)**
 Includes Lark, DingTalk, WeCom, WeChat, and Telegram. Users send messages through these platforms to interact with OpenBee, and receive replies in the same conversation.
 
-**2. Boss Layer (Claude Code)**
-Responsible for task scheduling — receives messages from the IM layer, understands user intent, and dispatches tasks to the Digital Worker layer for execution. It can also reply results directly to the IM layer.
+**2. Scheduling Layer (Claude Code)**
+Responsible for task scheduling — receives messages from the IM layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the IM layer.
 
-**3. Digital Worker Layer**
+**3. Execution Layer**
 Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM layer — just like real workers.
 
 ## 🌟 Star History

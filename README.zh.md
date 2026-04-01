@@ -114,21 +114,21 @@ openbee server -d
 
 ```mermaid
 graph TD
-    A["💬 IM 层\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🧠 大佬层\nClaude Code"]
-    B --> C["🤖 数字员工层\nClaude Code Agent"]
+    A["💬 IM 层（通讯层）\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🧠 调度层\nClaude Code"]
+    B --> C["🤖 执行层\nClaude Code Agent"]
     C -. "回复结果" .-> A
     B -. "回复结果" .-> A
 ```
 
 OpenBee 由三个核心层构成：
 
-**1. IM 层**
+**1. IM 层（通讯层）**
 包含飞书、钉钉、企业微信、微信和 Telegram。用户通过这些平台发送消息与 OpenBee 交互，并在同一对话中接收回复。
 
-**2. 大佬层（Claude Code）**
-负责任务调度——接收来自 IM 层的消息，理解用户意图，并将任务分派给数字员工层执行。支持定时任务，可按计划自动触发。大佬层也可将结果直接回复到 IM 层。
+**2. 调度层（Claude Code）**
+负责任务调度——接收来自 IM 层的消息，理解用户意图，并将任务分派给执行层执行。支持定时任务，可按计划自动触发。调度层也可将结果直接回复到 IM 层。
 
-**3. 数字员工层**
+**3. 执行层**
 每个 Worker 是一个独立的 Claude Code 智能体，具备持久记忆、工具调用（MCP）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到 IM 层——像真实员工一样独立完成工作。
 
 ## 🌟 Star History
