@@ -23,15 +23,11 @@ var log = logger.With(zap.String("component", "mcp"))
 
 type ctxKey string
 
-// ctxKeyWorkerID is initialised from the CtxKeyWorkerID auth constant so that the
-// same string value used by auth middleware to stamp the worker ID onto gin.Context
-// is also used as the typed context key here — keeping the two in sync without
-// a hard import dependency between the auth and mcp packages.
-const ctxKeyWorkerID ctxKey = CtxKeyWorkerID
-
-// CtxWorkerIDKey is the context key used to carry the caller's worker ID through tool dispatch.
-// It is exported so tests can construct contexts that simulate worker calls.
-const CtxWorkerIDKey = ctxKeyWorkerID
+// CtxWorkerIDKey carries the caller's worker ID through tool dispatch.
+// It uses the same string value as CtxKeyWorkerID (set by auth middleware on gin.Context)
+// so the two stay in sync without a hard import dependency between packages.
+// Exported so tests can construct contexts that simulate worker calls.
+const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -91,8 +87,9 @@ type MCPServer struct {
 	memoryStore    *store.MemoryStore
 	sessionStore   *store.SessionStore
 
-	mu       sync.Mutex
-	sessions map[string]chan rpcResponse // session_id -> response channel
+	mu              sync.Mutex
+	sessions        map[string]chan rpcResponse // session_id -> response channel
+	workerNameCache sync.Map                   // workerID -> display name; lazily populated
 }
 
 // NewBeeServer creates a Bee MCP Server with all tools.
@@ -242,7 +239,7 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
-	return context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
+	return context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
 }
 
 // dispatch routes a JSON-RPC request to the appropriate handler.

@@ -274,11 +274,19 @@ func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMess
 }
 
 // workerDisplayName returns the worker's configured name, falling back to the raw ID.
+// Results are cached for the server's lifetime to avoid a DB round-trip on every send_message call.
 func (s *MCPServer) workerDisplayName(workerID string) string {
-	if w, err := s.workerStore.GetByID(workerID); err == nil {
-		return w.Name
+	if v, ok := s.workerNameCache.Load(workerID); ok {
+		return v.(string)
 	}
-	return workerID
+	name := workerID
+	if w, err := s.workerStore.GetByID(workerID); err == nil {
+		name = w.Name
+	} else {
+		log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
+	}
+	s.workerNameCache.Store(workerID, name)
+	return name
 }
 
 // beeCallTool dispatches to the named tool handler and returns the result.
@@ -587,7 +595,7 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
-	if workerID, _ := ctx.Value(ctxKeyWorkerID).(string); workerID != "" && params.Content != "" {
+	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" && params.Content != "" {
 		params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
 	}
 
