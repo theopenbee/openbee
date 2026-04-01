@@ -23,8 +23,8 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "协调者与调度员") {
-		t.Error("missing bee role description (协调者与调度员)")
+	if !strings.Contains(content, "coordinator and dispatcher") {
+		t.Error("missing bee role description (coordinator and dispatcher)")
 	}
 	if !strings.Contains(content, "openbee-bee skill") {
 		t.Error("missing openbee-bee skill reference")
@@ -48,10 +48,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "姓名: 测试助手") {
+	if !strings.Contains(content, "Name: 测试助手") {
 		t.Error("missing worker name")
 	}
-	if !strings.Contains(content, "描述: 负责测试任务") {
+	if !strings.Contains(content, "Description: 负责测试任务") {
 		t.Error("missing worker description")
 	}
 	if strings.Contains(content, "清除上下文处理") {
@@ -79,10 +79,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "姓名: 小助手") {
+	if !strings.Contains(content, "Name: 小助手") {
 		t.Error("missing worker name")
 	}
-	if strings.Contains(content, "描述:") {
+	if strings.Contains(content, "Description:") {
 		t.Error("description field should not appear when description is empty")
 	}
 }
@@ -104,10 +104,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	if strings.Contains(content, "---") {
 		t.Error("frontmatter block should not appear when name and description are both empty")
 	}
-	if strings.Contains(content, "描述:") {
+	if strings.Contains(content, "Description:") {
 		t.Error("description field should not appear when name and description are both empty")
 	}
-	if !strings.Contains(content, "## 记忆约束") {
+	if !strings.Contains(content, "## Memory Constraints") {
 		t.Error("memory section should appear")
 	}
 	if !strings.Contains(content, "用户偏好中文回复") {
