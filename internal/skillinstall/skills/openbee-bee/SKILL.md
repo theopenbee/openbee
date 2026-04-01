@@ -117,7 +117,12 @@ openbee ctl message send --message-id <message_id> --content "Name: message cont
 2. **When a task is dispatched** — Inform the user which worker the task was assigned to and briefly explain the assignment reason
 3. **When dispatch encounters a problem** — No matching worker, user needs to select from candidates, or user needs to provide more information: notify immediately and explain the situation
 4. **When a meta-operation completes** — After you handle an operation yourself (session management, configuration update, status query, simple greeting, etc.), inform the user of the result
-5. **When an operation errors** — If any `openbee ctl` command returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
+5. **At each key node of session/context operations** — When executing session clearing or context reset, send a notification at each of the following four moments:
+   - **When active tasks are found before clearing**: Before actually executing the clear, inform the user which tasks are currently running and ask whether to proceed. Example: "Bee: There are currently 2 tasks being processed (Task IDs: abc123, def456). Clearing the context will terminate these tasks. Do you confirm continuing?"
+   - **When clearing requires second confirmation (requires_confirmation=true)**: Display the list of workers whose context will be reset, inform the user of the operation's scope, and ask the user to confirm before executing with --force. Example: "Bee: This operation will reset the conversation context of the following workers:\nXiao Ming (worker-001)\nXiao Hong (worker-002)\nPlease confirm whether to continue. After confirmation, the history of all the above workers will be cleared."
+   - **When clearing succeeds**: Explicitly inform the user that the session has been successfully cleared. Example: "Bee: Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
+   - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset. Example: "Bee: Xiao Ming (worker-001)'s conversation context has been reset. The next interaction with them will start from a fresh state."
+6. **When an operation errors** — If any `openbee ctl` command returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
 
 ---
 
@@ -150,11 +155,11 @@ openbee ctl session list --session-key <session_key>
 
 When the user sends a message indicating they want to clear/reset the entire conversation (e.g., "clear", "reset context", etc.):
 
-1. Run `openbee ctl task list --session-key <key> --status pending,running` to check for active tasks. If any exist, notify the user via `openbee ctl message send`: "There are N tasks currently being processed. Clearing the context will terminate these tasks. Please confirm."
+1. Run `openbee ctl task list --session-key <key> --status pending,running` to check for active tasks. If any exist, per notification spec (item 5 — active tasks found before clearing), notify the user via `openbee ctl message send` before proceeding: "There are N tasks currently being processed (Task IDs: ...). Clearing the context will terminate these tasks. Do you confirm continuing?" Then wait for user confirmation before proceeding.
 
 2. Run `openbee ctl session clear --session-key <key>` (without `--force` by default):
-   - If it returns `requires_confirmation=true`: via `openbee ctl message send`, show the user the list of affected workers and inform them "This operation will reset the conversation context of all the above workers, please confirm." After user confirms, re-run with `--force`.
-   - If it returns `cleared=true`: per the notification spec, inform the user that the session has been cleared
+   - If it returns `requires_confirmation=true`: per notification spec (item 5 — clearing requires second confirmation), via `openbee ctl message send`, show the user the list of affected workers and inform them "This operation will reset the conversation context of the following workers: [list]. Please confirm whether to continue. After confirmation, the history of all the above workers will be cleared." After user confirms, re-run with `--force`.
+   - If it returns `cleared=true`: per notification spec (item 5 — clearing succeeds), inform the user: "Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
 
 ### Reset a Single Worker's Context
 
@@ -164,7 +169,7 @@ When the user wants to reset only one worker's conversation memory (e.g., "reset
 openbee ctl session clear-worker --session-key <key> --worker-id <id>
 ```
 
-Per the notification spec, inform the user that this worker's context has been reset and the next task will start with a fresh session.
+Per notification spec (item 5 — single worker context reset completes), inform the user that this worker's context has been reset and the next interaction will start from a fresh state.
 
 ---
 
