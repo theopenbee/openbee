@@ -268,4 +268,20 @@ openbee ctl system executions [--limit <数量>]
 
 ```bash
 openbee ctl message send --message-id <id> [--content <文本内容>] [--media-path <文件路径>]
+
+# 注意：--media-path 每次只支持一个文件；发送多文件需多次调用
+
+# 场景1：纯文字通知
+openbee ctl message send --message-id <id> --content "Bee: 任务已派发给毛毛，请稍候。"
+
+# 场景2：发送截图（附说明）
+openbee ctl message send --message-id <id> --content "Bee: 附上系统状态截图。" --media-path /tmp/overview.png
+
+# 场景3：发送文件（如日志、CSV 报告）
+openbee ctl message send --message-id <id> --content "Bee: 以下是导出的任务列表。" --media-path /tmp/tasks.csv
+
+# 场景4：发送多个文件（分多次调用）
+openbee ctl message send --message-id <id> --content "Bee: 附件共 2 个，依次发送。"
+openbee ctl message send --message-id <id> --media-path /tmp/file1.png
+openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
 ```

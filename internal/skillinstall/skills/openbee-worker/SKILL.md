@@ -61,6 +61,20 @@ openbee ctl message send --message-id <id> --content "毛毛: 第一阶段完成
 openbee ctl message send --message-id <id> --content "毛毛: 任务完成。已修改 3 个文件，所有测试通过。"
 
 openbee ctl message send --message-id <id> --content "毛毛: 遇到问题需要确认：数据库迁移会删除旧字段，是否继续？"
+
+# 发送图片（无文字）
+openbee ctl message send --message-id <id> --media-path /tmp/screenshot.png
+
+# 发送图片 + 说明文字
+openbee ctl message send --message-id <id> --content "毛毛: 运行截图如下。" --media-path /tmp/result.png
+
+# 发送文档/报告
+openbee ctl message send --message-id <id> --content "毛毛: 任务完成，附上报告。" --media-path /tmp/report.pdf
+
+# 发送多个文件（--media-path 每次只支持一个文件，需多次调用）
+openbee ctl message send --message-id <id> --content "毛毛: 共有 2 个文件，依次发送。"
+openbee ctl message send --message-id <id> --media-path /tmp/file1.png
+openbee ctl message send --message-id <id> --media-path /tmp/file2.csv
 ```
 
 ## openbee ctl CLI 参考
@@ -71,4 +85,16 @@ openbee ctl message send --message-id <id> --content "毛毛: 遇到问题需要
 
 ```bash
 openbee ctl message send --message-id <id> [--content <文本内容>] [--media-path <文件路径>]
+
+# 注意：--media-path 每次只支持一个文件；发送多文件需多次调用
+# --content 和 --media-path 可单独使用，也可同时使用（先发文字再发媒体）
+
+# 发送纯文本
+openbee ctl message send --message-id <id> --content "毛毛: 已完成。"
+
+# 发送图片文件
+openbee ctl message send --message-id <id> --media-path /tmp/chart.png
+
+# 同时发送文字和文件
+openbee ctl message send --message-id <id> --content "毛毛: 详见附件。" --media-path /tmp/output.csv
 ```
