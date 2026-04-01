@@ -56,4 +56,3 @@ func workerConfigBlock(name, description, memory string) string {
 
 	return block + "\n"
 }
-

@@ -114,27 +114,22 @@ openbee server -d
 
 ```mermaid
 graph TD
-    A["💬 IM Platforms\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🔌 Platform Integration Layer"]
-    B --> C["🧠 Central Brain\nClaude Code"]
-    C --> D["📨 Task Assignment"]
-    D --> E["🤖 Workers — Digital Workers\nClaude Code Agents"]
-    E -. "Reply Results" .-> A
+    A["💬 IM Layer (Communication)\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🧠 Scheduling Layer\nClaude Code"]
+    B --> C["🤖 Execution Layer\nClaude Code Agents"]
     C -. "Reply Results" .-> A
+    B -. "Reply Results" .-> A
 ```
 
-OpenBee consists of four core layers:
+OpenBee consists of three core layers:
 
-**1. Platform Integration Layer**
-Connects to IM platforms such as Lark, DingTalk, WeCom, WeChat, and Telegram to receive user messages in real time and reply with results in the same conversation.
+**1. IM Layer (Communication Layer)**
+Includes Lark, DingTalk, WeCom, WeChat, and Telegram. Users send messages through these platforms to interact with OpenBee, and receive replies in the same conversation.
 
-**2. Central Brain (Claude Code)**
-The central brain receives all incoming messages, understands user intent, and decides how to handle them. Beyond task assignment, it is responsible for Worker management, session management, and other coordination duties. It can also reply results directly to the IM platform.
+**2. Scheduling Layer (Claude Code)**
+Responsible for task scheduling — receives messages from the IM layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the IM layer.
 
-**3. Task Assignment**
-The central brain dispatches tasks to the appropriate Workers based on their capabilities and configuration. Scheduled tasks are also supported for automatic, time-based triggering.
-
-**4. Workers (Digital Workers)**
-Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM platform — just like real workers.
+**3. Execution Layer**
+Each Worker is an independent Claude Code agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM layer — just like real workers.
 
 ## 🌟 Star History
 
