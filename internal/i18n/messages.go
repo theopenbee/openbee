@@ -78,10 +78,8 @@ type PromptMessages struct {
 	ServerHost           string `yaml:"server_host"`
 	DebugMode            string `yaml:"debug_mode"`
 	DBPath               string `yaml:"db_path"`
-	MCPAPIKeySetup       string `yaml:"mcp_api_key_setup"`
-	MCPAPIKey            string `yaml:"mcp_api_key"`
-	MCPWorkerAPIKeySetup string `yaml:"mcp_worker_api_key_setup"`
-	MCPWorkerAPIKey      string `yaml:"mcp_worker_api_key"`
+	MCPTokenSecretSetup string `yaml:"mcp_token_secret_setup"`
+	MCPTokenSecret      string `yaml:"mcp_token_secret"`
 	FeederTimeout        string `yaml:"feeder_timeout"`
 	MaxConcurrentBee     string `yaml:"max_concurrent_bee"`
 	MessageDebounce      string `yaml:"message_debounce"`
@@ -208,8 +206,7 @@ type ConfigOutput struct {
 	Written              string `yaml:"written"`                // contains %s
 	JWTRegenerated       string `yaml:"jwt_regenerated"`
 	JWTGenerated         string `yaml:"jwt_generated"`
-	MCPKeyGenerated      string `yaml:"mcp_key_generated"`      // contains %s
-	WorkerKeyGenerated   string `yaml:"worker_key_generated"`   // contains %s
+	MCPTokenSecretGenerated string `yaml:"mcp_token_secret_generated"` // contains %s
 	PasswordGenerated    string `yaml:"password_generated"`     // contains %s
 	WeixinQRLogin        string `yaml:"weixin_qr_login"`
 	FetchingQR           string `yaml:"fetching_qr"`
