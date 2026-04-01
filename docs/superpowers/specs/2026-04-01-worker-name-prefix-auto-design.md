@@ -71,9 +71,11 @@ if workerID, _ := ctx.Value(CtxKeyWorkerID).(string); workerID != "" && params.C
     if w, err := s.workerStore.GetByID(workerID); err == nil {
         name = w.Name
     }
-    params.Content = name + ": " + params.Content
+    params.Content = name + "\n" + params.Content
 }
 ```
+
+The name and content are joined with a newline (`\n`), not a colon-space.
 
 Bee tokens have an empty `worker_id`, so the prefix block is skipped entirely for Bee.
 
