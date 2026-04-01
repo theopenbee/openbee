@@ -297,6 +297,81 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 	}
 }
 
+func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
+	mock := &mockSender{}
+	s, db := setupMCPServerWithSender(t, "feishu", mock)
+	ctx := context.Background()
+
+	// Create a worker and a message
+	ws := store.NewWorkerStore(db)
+	w, err := ws.Create(model.Worker{Name: "毛毛", Description: "test worker"})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-worker-prefix", "feishu:chat1:userA", "feishu", "hello", //nolint
+		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+
+	// Call with a context that carries the worker's ID
+	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, w.ID)
+	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-worker-prefix",
+		"content":    "任务完成",
+	}))
+	if err != nil {
+		t.Fatalf("send_message: %v", err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "sent" {
+		t.Errorf("expected status=sent, got %q", m["status"])
+	}
+
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if len(mock.sent) == 0 {
+		t.Fatal("expected sender.Send to be called")
+	}
+	want := "毛毛\n任务完成"
+	if mock.sent[0].Content != want {
+		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
+	}
+}
+
+func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
+	mock := &mockSender{}
+	s, db := setupMCPServerWithSender(t, "feishu", mock)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-deleted-worker", "feishu:chat1:userA", "feishu", "hello", //nolint
+		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+
+	// Use a worker ID that does not exist in the store
+	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, "worker-deleted-xyz")
+	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-deleted-worker",
+		"content":    "任务完成",
+	}))
+	if err != nil {
+		t.Fatalf("send_message: %v", err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "sent" {
+		t.Errorf("expected status=sent, got %q", m["status"])
+	}
+
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if len(mock.sent) == 0 {
+		t.Fatal("expected sender.Send to be called")
+	}
+	want := "worker-deleted-xyz\n任务完成"
+	if mock.sent[0].Content != want {
+		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
+	}
+}
+
 // --- Schema count ---
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {

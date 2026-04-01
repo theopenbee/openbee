@@ -23,7 +23,15 @@ var log = logger.With(zap.String("component", "mcp"))
 
 type ctxKey string
 
+// ctxKeyWorkerID is initialised from the CtxKeyWorkerID auth constant so that the
+// same string value used by auth middleware to stamp the worker ID onto gin.Context
+// is also used as the typed context key here — keeping the two in sync without
+// a hard import dependency between the auth and mcp packages.
 const ctxKeyWorkerID ctxKey = CtxKeyWorkerID
+
+// CtxWorkerIDKey is the context key used to carry the caller's worker ID through tool dispatch.
+// It is exported so tests can construct contexts that simulate worker calls.
+const CtxWorkerIDKey = ctxKeyWorkerID
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
