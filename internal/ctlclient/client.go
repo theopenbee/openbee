@@ -44,9 +44,6 @@ func NewClient(cfgPath string) (*Client, error) {
 				}
 				baseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 			}
-			if apiKey == "" {
-				apiKey = cfg.Bee.MCP.APIKey
-			}
 		}
 	}
 

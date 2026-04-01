@@ -23,8 +23,7 @@ type ServerParams struct {
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
 	WorkerMCPServer  *mcp.MCPServer
-	BeeAPIKey        string
-	WorkerAPIKey     string
+	TokenSecret string
 	StaticFS         fs.FS
 	LocalChatHandler *LocalChatHandler
 	AuthHandler      *auth.AuthHandler
@@ -108,17 +107,18 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 
 func (s *Server) registerMCPRoutes() {
 	beeGroup := s.router.Group(config.MCPBeeBasePath)
-	beeGroup.Use(mcp.APIKeyMiddleware(s.BeeAPIKey))
+	beeGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireBee())
 	beeGroup.GET("/sse", s.BeeMCPServer.HandleSSE)
 	beeGroup.POST("/messages", s.BeeMCPServer.HandleMessages)
-	// /call accepts both BeeAPIKey and WorkerAPIKey so workers can use `openbee ctl`
+
 	s.router.POST(config.MCPBeeBasePath+"/call",
-		mcp.AnyKeyMiddleware(s.BeeAPIKey, s.WorkerAPIKey),
+		mcp.JWTAuthMiddleware(s.TokenSecret),
+		mcp.RequireBeeOrWorker(),
 		s.BeeMCPServer.HandleCall,
 	)
 
 	workerGroup := s.router.Group(config.MCPWorkerBasePath)
-	workerGroup.Use(mcp.APIKeyMiddleware(s.WorkerAPIKey))
+	workerGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireWorker())
 	workerGroup.GET("/sse", s.WorkerMCPServer.HandleSSE)
 	workerGroup.POST("/messages", s.WorkerMCPServer.HandleMessages)
 }
