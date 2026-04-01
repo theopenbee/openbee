@@ -48,17 +48,19 @@ func InstallSkills(baseDir string) ([]SkillResult, error) {
 func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 	targetPath := filepath.Join(baseDir, skill.name, "SKILL.md")
 	newContent := []byte(skill.content)
+	newHash := sha256.Sum256(newContent)
 
 	action := ActionInstalled
 	existing, err := os.ReadFile(targetPath)
 	if err == nil {
-		if sha256.Sum256(existing) == sha256.Sum256(newContent) {
+		if sha256.Sum256(existing) == newHash {
 			return SkillResult{Name: skill.name, Action: ActionUpToDate}, nil
 		}
 		action = ActionUpdated
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return SkillResult{}, fmt.Errorf("read skill %s: %w", skill.name, err)
-	} else {
+	}
+	if action == ActionInstalled {
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 			return SkillResult{}, fmt.Errorf("create skill dir %s: %w", skill.name, err)
 		}

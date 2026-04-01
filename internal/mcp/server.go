@@ -166,10 +166,9 @@ func (s *MCPServer) HandleSSE(c *gin.Context) {
 		params.Set("api_key", apiKey)
 	}
 	endpointURL := fmt.Sprintf("%s/messages?%s", s.basePath, params.Encode())
-	n, err := fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
-	log.Info("MCP SSE wrote endpoint event", zap.String("session", sessionID), zap.Int("bytes", n), zap.Any("err", err))
+	fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
 	c.Writer.Flush()
-	log.Info("MCP SSE flushed endpoint event", zap.String("session", sessionID))
+	log.Info("MCP SSE sent endpoint event", zap.String("session", sessionID))
 
 	ctx := c.Request.Context()
 	heartbeat := time.NewTicker(15 * time.Second)
