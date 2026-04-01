@@ -46,6 +46,7 @@ type configValues struct {
 	Debug      bool
 	DBPath     string
 	MCPTokenSecret string
+	MCPTokenTTL    string
 
 	FeishuEnabled   bool
 	FeishuAppID     string
@@ -118,6 +119,7 @@ func loadExistingConfig(path string) *configValues {
 		Debug:                cfg.Server.Debug,
 		DBPath:               cfg.Database.Path,
 		MCPTokenSecret:       cfg.Bee.MCP.TokenSecret,
+		MCPTokenTTL:          cfg.Bee.MCP.TokenTTL.String(),
 		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
 		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
 		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
@@ -157,6 +159,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		DBPath:          "./data/openbee.db",
 		ClaudePath:      "claude",
 		ClaudeTimeout:   "30m",
+		MCPTokenTTL:     "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce: "300ms",
