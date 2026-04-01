@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/claudemd"
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/store"
 )
@@ -59,7 +60,7 @@ func NewManager(
 		beeCfg:          bc,
 		workerStore:     ws,
 		executionStore:  es,
-		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL, ""),
+		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL),
 		activeProcesses: make(map[string]*claude.Process),
 	}
 }
@@ -142,6 +143,11 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
+	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, m.beeCfg.MCP.TokenTTL)
+	if err != nil {
+		return fmt.Errorf("generate worker token: %w", err)
+	}
+
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -150,7 +156,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume}, logPath)
+	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume}, logPath, token)
 	if err != nil {
 		cancel()
 		return err
