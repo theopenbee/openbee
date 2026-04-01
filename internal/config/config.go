@@ -118,8 +118,8 @@ type WeixinConfig struct {
 }
 
 type MCPConfig struct {
-	APIKey       string `yaml:"api_key"`
-	WorkerAPIKey string `yaml:"worker_api_key"`
+	TokenSecret string        `yaml:"token_secret"` // HMAC-SHA256 secret; empty = auto-generated on startup
+	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
 }
 
 
@@ -207,9 +207,11 @@ func applyDefaults(cfg *Config) error {
 			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 		}
 	}
-	// Auto-generate Worker API Key
-	if cfg.Bee.MCP.WorkerAPIKey == "" && cfg.Bee.MCP.APIKey != "" {
-		cfg.Bee.MCP.WorkerAPIKey = generateRandomKey()
+	if cfg.Bee.MCP.TokenSecret == "" {
+		cfg.Bee.MCP.TokenSecret = generateRandomKey()
+	}
+	if cfg.Bee.MCP.TokenTTL == 0 {
+		cfg.Bee.MCP.TokenTTL = 2 * time.Hour
 	}
 	return nil
 }
