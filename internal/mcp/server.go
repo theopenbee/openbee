@@ -231,8 +231,7 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 		return
 	}
 
-	ctx := context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
-	resp := s.dispatch(ctx, req)
+	resp := s.dispatch(s.workerIDContext(c), req)
 
 	// Notifications (no ID) get no response
 	if req.ID != nil {
@@ -240,6 +239,10 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 	}
 
 	c.Status(http.StatusAccepted)
+}
+
+func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
+	return context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
 }
 
 // dispatch routes a JSON-RPC request to the appropriate handler.
@@ -284,8 +287,7 @@ func (s *MCPServer) HandleCall(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
 		return
 	}
-	ctx := context.WithValue(c.Request.Context(), ctxKeyWorkerID, c.GetString(CtxKeyWorkerID))
-	result, err := s.callToolFn(ctx, req.Name, req.Arguments)
+	result, err := s.callToolFn(s.workerIDContext(c), req.Name, req.Arguments)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
 		return

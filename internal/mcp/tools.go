@@ -273,6 +273,14 @@ func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMess
 	return s.callToolFn(ctx, name, args)
 }
 
+// workerDisplayName returns the worker's configured name, falling back to the raw ID.
+func (s *MCPServer) workerDisplayName(workerID string) string {
+	if w, err := s.workerStore.GetByID(workerID); err == nil {
+		return w.Name
+	}
+	return workerID
+}
+
 // beeCallTool dispatches to the named tool handler and returns the result.
 func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	switch name {
@@ -579,13 +587,8 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
-	// Auto-prepend worker name when caller is a worker.
 	if workerID, _ := ctx.Value(ctxKeyWorkerID).(string); workerID != "" && params.Content != "" {
-		name := workerID // fallback: use worker_id if worker record not found
-		if w, err := s.workerStore.GetByID(workerID); err == nil {
-			name = w.Name
-		}
-		params.Content = name + "\n" + params.Content
+		params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
 	}
 
 	stored, err := s.messageStore.GetByID(ctx, params.MessageID)
