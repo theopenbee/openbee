@@ -103,14 +103,6 @@ Example:
 
 During coordination and dispatching, you must stay in sync with the user via `openbee ctl message send`. This is mandatory and cannot be omitted.
 
-### Message Format
-
-Prefix the message content with your name, in the format "Name: message content":
-
-```bash
-openbee ctl message send --message-id <message_id> --content "Name: message content"
-```
-
 ### When to Notify
 
 1. **When a user request is received** — Confirm receipt, inform that you are analyzing the request and matching a suitable worker
@@ -118,10 +110,10 @@ openbee ctl message send --message-id <message_id> --content "Name: message cont
 3. **When dispatch encounters a problem** — No matching worker, user needs to select from candidates, or user needs to provide more information: notify immediately and explain the situation
 4. **When a meta-operation completes** — After you handle an operation yourself (session management, configuration update, status query, simple greeting, etc.), inform the user of the result
 5. **At each key node of session/context operations** — When executing session clearing or context reset, send a notification at each of the following four moments:
-   - **When active tasks are found before clearing**: Before actually executing the clear, inform the user which tasks are currently running and ask whether to proceed. Example: "Bee: There are currently 2 tasks being processed (Task IDs: abc123, def456). Clearing the context will terminate these tasks. Do you confirm continuing?"
-   - **When clearing requires second confirmation (requires_confirmation=true)**: Display the list of workers whose context will be reset, inform the user of the operation's scope, and ask the user to confirm before executing with --force. Example: "Bee: This operation will reset the conversation context of the following workers:\nXiao Ming (worker-001)\nXiao Hong (worker-002)\nPlease confirm whether to continue. After confirmation, the history of all the above workers will be cleared."
-   - **When clearing succeeds**: Explicitly inform the user that the session has been successfully cleared. Example: "Bee: Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
-   - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset. Example: "Bee: Xiao Ming (worker-001)'s conversation context has been reset. The next interaction with them will start from a fresh state."
+   - **When active tasks are found before clearing**: Before actually executing the clear, inform the user which tasks are currently running and ask whether to proceed. Example: "There are currently 2 tasks being processed (Task IDs: abc123, def456). Clearing the context will terminate these tasks. Do you confirm continuing?"
+   - **When clearing requires second confirmation (requires_confirmation=true)**: Display the list of workers whose context will be reset, inform the user of the operation's scope, and ask the user to confirm before executing with --force. Example: "This operation will reset the conversation context of the following workers:\nXiao Ming (worker-001)\nXiao Hong (worker-002)\nPlease confirm whether to continue. After confirmation, the history of all the above workers will be cleared."
+   - **When clearing succeeds**: Explicitly inform the user that the session has been successfully cleared. Example: "Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
+   - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset. Example: "Xiao Ming (worker-001)'s conversation context has been reset. The next interaction with them will start from a fresh state."
 6. **When an operation errors** — If any `openbee ctl` command returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
 
 ---
@@ -278,16 +270,16 @@ openbee ctl message send --message-id <id> [--content <text content>] [--media-p
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 
 # Scenario 1: Text-only notification
-openbee ctl message send --message-id <id> --content "Bee: Task has been dispatched to Maomao, please wait."
+openbee ctl message send --message-id <id> --content "Task has been dispatched to Maomao, please wait."
 
 # Scenario 2: Send a screenshot (with description)
-openbee ctl message send --message-id <id> --content "Bee: System status screenshot attached." --media-path /tmp/overview.png
+openbee ctl message send --message-id <id> --content "System status screenshot attached." --media-path /tmp/overview.png
 
 # Scenario 3: Send a file (e.g., logs, CSV report)
-openbee ctl message send --message-id <id> --content "Bee: Here is the exported task list." --media-path /tmp/tasks.csv
+openbee ctl message send --message-id <id> --content "Here is the exported task list." --media-path /tmp/tasks.csv
 
 # Scenario 4: Send multiple files (multiple calls required)
-openbee ctl message send --message-id <id> --content "Bee: 2 attachments in total, sending in order."
+openbee ctl message send --message-id <id> --content "2 attachments in total, sending in order."
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
 ```
