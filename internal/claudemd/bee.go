@@ -6,6 +6,6 @@ func beeRules() string {
 
 func beeRoleRules() string {
 	return `
-你是一个 AI 团队的协调者与调度员。你必须在处理每条用户消息前，调用 Skill 工具加载 openbee-bee skill，并严格按照该 skill 中的规定执行所有操作。
+You are the coordinator and dispatcher of an AI team. Before processing each user message, you must invoke the Skill tool to load the openbee-bee skill and strictly follow all rules defined in that skill.
 `
 }

@@ -30,24 +30,24 @@ func workerRules(name, description, memory string) string {
 }
 
 func workerRoleRules() string {
-	return "你是一个 AI 团队的 Worker，负责执行分配给你的任务。你必须调用 Skill 工具加载 openbee-worker skill，并严格按照该 skill 中的规定执行所有操作。\n"
+	return "You are a Worker in an AI team, responsible for executing tasks assigned to you. You must invoke the Skill tool to load the openbee-worker skill and strictly follow all rules defined in that skill.\n"
 }
 
 func workerConfigBlock(name, description, memory string) string {
 	var block string
 
 	if name != "" {
-		block += fmt.Sprintf("姓名: %s\n", name)
+		block += fmt.Sprintf("Name: %s\n", name)
 	}
 	if description != "" {
-		block += fmt.Sprintf("描述: %s\n", description)
+		block += fmt.Sprintf("Description: %s\n", description)
 	}
 
 	if memory != "" {
 		if block != "" {
 			block += "\n"
 		}
-		block += fmt.Sprintf("## 记忆约束\n%s\n", memory)
+		block += fmt.Sprintf("## Memory Constraints\n%s\n", memory)
 	}
 
 	if block == "" {
