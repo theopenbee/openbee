@@ -1,4 +1,3 @@
-// internal/claude/invoker_test.go
 package claude
 
 import (
@@ -11,20 +10,25 @@ import (
 )
 
 func TestNewInvoker(t *testing.T) {
-	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080/mcp/bee", "test-key")
+	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080")
 	if inv.binary != "/usr/bin/claude" {
 		t.Errorf("binary: want /usr/bin/claude, got %s", inv.binary)
 	}
-	if inv.mcpURL != "http://localhost:8080/mcp/bee/sse" {
-		t.Errorf("mcpURL: want http://localhost:8080/mcp/bee/sse, got %s", inv.mcpURL)
+	wantURL := "OPENBEE_URL=http://localhost:8080"
+	var found bool
+	for _, e := range inv.baseEnv {
+		if e == wantURL {
+			found = true
+			break
+		}
 	}
-	if inv.apiKey != "test-key" {
-		t.Errorf("apiKey: want test-key, got %s", inv.apiKey)
+	if !found {
+		t.Errorf("baseEnv missing %s", wantURL)
 	}
 }
 
 func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
-	inv := NewInvoker("echo", "", "")
+	inv := NewInvoker("echo", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -57,7 +61,7 @@ func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
 }
 
 func TestInvoker_Run_SessionFlags(t *testing.T) {
-	inv := NewInvoker("echo", "", "")
+	inv := NewInvoker("echo", "")
 	ctx := context.Background()
 
 	// Test --session-id flag written to log file
@@ -84,7 +88,7 @@ func TestInvoker_Run_SessionFlags(t *testing.T) {
 }
 
 func TestProcess_Stop(t *testing.T) {
-	inv := NewInvoker("sleep", "", "")
+	inv := NewInvoker("sleep", "")
 	ctx := context.Background()
 
 	logPath := filepath.Join(t.TempDir(), "stop.log")
@@ -103,7 +107,7 @@ func TestProcess_Stop(t *testing.T) {
 }
 
 func TestInvoker_ConcurrentRuns(t *testing.T) {
-	inv := NewInvoker("echo", "", "")
+	inv := NewInvoker("echo", "")
 	ctx := context.Background()
 
 	logPath1 := filepath.Join(t.TempDir(), "one.log")

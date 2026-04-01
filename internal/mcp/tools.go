@@ -269,12 +269,28 @@ func workerToolSchemas() []toolSchema {
 }
 
 // CallTool is exported for testing. Production code uses callToolFn via handleToolCall.
-func (s *MCPServer) CallTool(name string, args json.RawMessage) (any, error) {
-	return s.callToolFn(name, args)
+func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
+	return s.callToolFn(ctx, name, args)
+}
+
+// workerDisplayName returns the worker's configured name, falling back to the raw ID.
+// Results are cached for the server's lifetime to avoid a DB round-trip on every send_message call.
+func (s *MCPServer) workerDisplayName(workerID string) string {
+	if v, ok := s.workerNameCache.Load(workerID); ok {
+		return v.(string)
+	}
+	name := workerID
+	if w, err := s.workerStore.GetByID(workerID); err == nil {
+		name = w.Name
+	} else {
+		log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
+	}
+	s.workerNameCache.Store(workerID, name)
+	return name
 }
 
 // beeCallTool dispatches to the named tool handler and returns the result.
-func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) {
+func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	switch name {
 	case toolnames.ListWorkers:
 		return s.toolListWorkers(args)
@@ -293,9 +309,9 @@ func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) 
 	case toolnames.CancelTask:
 		return s.toolCancelTask(args)
 	case toolnames.SendMessage:
-		return s.toolSendMessage(args)
+		return s.toolSendMessage(ctx, args)
 	case toolnames.ClearSession:
-		return s.toolClearSession(args)
+		return s.toolClearSession(ctx, args)
 	case toolnames.GetWorkerStatus:
 		return s.toolGetWorkerStatus(args)
 	case toolnames.GetSystemOverview:
@@ -318,11 +334,11 @@ func (s *MCPServer) beeCallTool(name string, args json.RawMessage) (any, error) 
 }
 
 // workerCallTool delegates to beeCallTool after checking the worker allowlist.
-func (s *MCPServer) workerCallTool(name string, args json.RawMessage) (any, error) {
+func (s *MCPServer) workerCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	if !workerToolNames[name] {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
-	return s.beeCallTool(name, args)
+	return s.beeCallTool(ctx, name, args)
 }
 
 func (s *MCPServer) toolListWorkers(_ json.RawMessage) (any, error) {
@@ -563,7 +579,7 @@ func (s *MCPServer) toolCancelTask(args json.RawMessage) (any, error) {
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
 }
 
-func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID string `json:"message_id"`
 		Content   string `json:"content"`
@@ -579,7 +595,11 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
-	stored, err := s.messageStore.GetByID(context.Background(), params.MessageID)
+	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" && params.Content != "" {
+		params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
+	}
+
+	stored, err := s.messageStore.GetByID(ctx, params.MessageID)
 	if err != nil {
 		return nil, fmt.Errorf("get message: %w", err)
 	}
@@ -598,7 +618,7 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 	// Send text first if both content and media_path are provided
 	if params.Content != "" {
 		outbound := platform.OutboundMessage{ReplyTo: replyTo, Content: params.Content}
-		if err := sender.Send(context.Background(), outbound); err != nil {
+		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send text message: %w", err)
 		}
 	}
@@ -606,7 +626,7 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 	// Send media if media_path is provided
 	if params.MediaPath != "" {
 		outbound := platform.OutboundMessage{ReplyTo: replyTo, MediaPath: params.MediaPath}
-		if err := sender.Send(context.Background(), outbound); err != nil {
+		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send media message: %w", err)
 		}
 	}
@@ -614,7 +634,7 @@ func (s *MCPServer) toolSendMessage(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "sent"}, nil
 }
 
-func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 		Force      bool   `json:"force"`
@@ -625,8 +645,6 @@ func (s *MCPServer) toolClearSession(args json.RawMessage) (any, error) {
 	if params.SessionKey == "" {
 		return nil, fmt.Errorf("session_key is required")
 	}
-
-	ctx := context.Background()
 
 	// Two-step confirmation: if more than one worker has a session context and
 	// force is not set, return a confirmation prompt without clearing anything.

@@ -118,8 +118,8 @@ type WeixinConfig struct {
 }
 
 type MCPConfig struct {
-	APIKey       string `yaml:"api_key"`
-	WorkerAPIKey string `yaml:"worker_api_key"`
+	TokenSecret string        `yaml:"token_secret"` // HMAC-SHA256 secret; empty = auto-generated on startup
+	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
 }
 
 
@@ -155,7 +155,11 @@ func Load(path string) (Config, error) {
 	if err := applyDefaults(&cfg); err != nil {
 		return Config{}, err
 	}
-	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+	host := cfg.Server.Host
+	if host == "" {
+		host = "localhost"
+	}
+	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 	return cfg, nil
 }
 
@@ -207,14 +211,17 @@ func applyDefaults(cfg *Config) error {
 			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 		}
 	}
-	// Auto-generate Worker API Key
-	if cfg.Bee.MCP.WorkerAPIKey == "" && cfg.Bee.MCP.APIKey != "" {
-		cfg.Bee.MCP.WorkerAPIKey = generateRandomKey()
+	if cfg.Bee.MCP.TokenSecret == "" {
+		cfg.Bee.MCP.TokenSecret = GenerateRandomSecret()
+	}
+	if cfg.Bee.MCP.TokenTTL == 0 {
+		cfg.Bee.MCP.TokenTTL = 2 * time.Hour
 	}
 	return nil
 }
 
-func generateRandomKey() string {
+// GenerateRandomSecret returns a 32-byte hex-encoded random string.
+func GenerateRandomSecret() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		panic("crypto/rand failed: " + err.Error())

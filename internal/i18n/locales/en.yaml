@@ -24,6 +24,20 @@ cmd:
     short: "Download Claude Code binary to ~/.openbee/bin/claude"
   claude_env:
     short: "Configure Claude Code provider and environment settings"
+  ctl:
+    short: "Control the running openbee server"
+  ctl_worker:
+    short: "Manage workers"
+  ctl_task:
+    short: "Manage tasks"
+  ctl_memory:
+    short: "Manage memory entries"
+  ctl_session:
+    short: "Manage session contexts"
+  ctl_system:
+    short: "View system status and executions"
+  ctl_message:
+    short: "Send messages to platform users"
 prompt:
   claude_not_found: "Claude not found, how would you like to get it?"
   claude_path: "Claude executable path:"
@@ -56,10 +70,8 @@ prompt:
   server_host: "Server Host:"
   debug_mode: "Debug mode?"
   db_path: "Database path:"
-  mcp_api_key_setup: "MCP API Key setup:"
-  mcp_api_key: "MCP API Key:"
-  mcp_worker_api_key_setup: "MCP Worker API Key setup:"
-  mcp_worker_api_key: "MCP Worker API Key:"
+  mcp_token_secret_setup: "MCP Token Secret setup:"
+  mcp_token_secret: "MCP Token Secret:"
   feeder_timeout: "Feeder timeout:"
   max_concurrent_bee: "Max concurrent bee processes:"
   message_debounce: "Message debounce:"
@@ -122,8 +134,7 @@ output:
     written: "Config file written to: %s"
     jwt_regenerated: "JWT secret regenerated."
     jwt_generated: "JWT secret generated."
-    mcp_key_generated: "Generated MCP API Key: %s"
-    worker_key_generated: "Generated MCP Worker API Key: %s"
+    mcp_token_secret_generated: "Generated MCP Token Secret: %s"
     password_generated: "Generated password: %s"
     weixin_qr_login: "\n--- Weixin QR Code Login ---"
     fetching_qr: "Fetching QR code..."
@@ -133,6 +144,9 @@ output:
     claude_found: "Found Claude in PATH: %s, using it automatically."
     claude_download_failed: "Download failed: %v"
     claude_manual_entry: "Please enter the Claude path manually."
+    skill_installed: "skill %s installed"
+    skill_updated: "skill %s updated"
+    skills_install_warning: "skills install warning (skipped): %v"
   claude:
     already_installed: "Claude is already installed at %s"
     use_force: "Use --force to re-download."

@@ -169,19 +169,25 @@ func parsePostBody(body postBody) (*PostParseResult, error) {
 
 // BuildPostContent wraps a markdown string into a Feishu post message content JSON.
 // The resulting string is suitable for use as the content field with msg_type "post".
+// Each line is placed in its own paragraph row so that newlines render correctly.
 func BuildPostContent(markdown string) string {
 	type mdElem struct {
 		Tag  string `json:"tag"`
 		Text string `json:"text"`
 	}
 	type postLang struct {
-		Title   string      `json:"title"`
-		Content [][]mdElem  `json:"content"`
+		Title   string     `json:"title"`
+		Content [][]mdElem `json:"content"`
+	}
+	lines := strings.Split(markdown, "\n")
+	rows := make([][]mdElem, len(lines))
+	for i, line := range lines {
+		rows[i] = []mdElem{{"md", line}}
 	}
 	payload := map[string]postLang{
 		"zh_cn": {
 			Title:   "",
-			Content: [][]mdElem{{{"md", markdown}}},
+			Content: rows,
 		},
 	}
 	b, _ := json.Marshal(payload)

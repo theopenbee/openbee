@@ -300,13 +300,20 @@ func TestMergeSettingsJSON_CleansOldProviderKeys(t *testing.T) {
 	for _, key := range []string{
 		"ANTHROPIC_MODEL",
 		"ANTHROPIC_SMALL_FAST_MODEL",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL",
-		"ANTHROPIC_DEFAULT_OPUS_MODEL",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL",
 	} {
 		if _, exists := envMap[key]; exists {
 			t.Errorf("stale key %s should have been removed after switching to GLM", key)
 		}
+	}
+
+	if envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5-turbo" {
+		t.Errorf("want glm-5-turbo for ANTHROPIC_DEFAULT_SONNET_MODEL, got %v", envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"])
+	}
+	if envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"] != "glm-5.1" {
+		t.Errorf("want glm-5.1 for ANTHROPIC_DEFAULT_OPUS_MODEL, got %v", envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"])
+	}
+	if envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"] != "glm-4.5-air" {
+		t.Errorf("want glm-4.5-air for ANTHROPIC_DEFAULT_HAIKU_MODEL, got %v", envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"])
 	}
 
 	if envMap["SOME_CUSTOM_VAR"] != "keep-me" {

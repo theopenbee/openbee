@@ -22,8 +22,8 @@ bee:
     path: {{.ClaudePath}}
     timeout: {{.ClaudeTimeout}}
   mcp:
-    api_key: "{{.MCPAPIKey}}"
-    worker_api_key: "{{.WorkerAPIKey}}"  # Worker 专用 API Key；留空则启动时自动生成
+    token_secret: "{{.MCPTokenSecret}}"  # HMAC-SHA256 signing secret; empty = auto-generated on startup
+    token_ttl: {{.MCPTokenTTL}}           # token validity; default 2h
   platforms:
     feishu:
       enabled: {{.FeishuEnabled}}

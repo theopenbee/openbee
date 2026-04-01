@@ -13,7 +13,7 @@ PLATFORMS := \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: help web build release clean npm-prepare npm-publish
+.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -24,6 +24,10 @@ web: ## Build frontend assets
 build: ## Build binary for the current platform
 	@mkdir -p $(OUTDIR)
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY) ./cmd/openbee/
+
+build-linux-amd64: ## Build binary for linux/amd64
+	@mkdir -p $(OUTDIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY)-linux-amd64 ./cmd/openbee/
 
 release: web ## Build binaries for all platforms
 	@mkdir -p $(OUTDIR)

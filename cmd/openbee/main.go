@@ -101,4 +101,6 @@ func applyTranslations() {
 	restartCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
 	upgradeCmd.Flags().Lookup("check").Usage = m.Flag.UpgradeCheck
 	claudeDownloadCmd.Flags().Lookup("force").Usage = m.Flag.ClaudeDownloadForce
+
+	applyCtlTranslations()
 }

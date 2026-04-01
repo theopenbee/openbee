@@ -31,6 +31,13 @@ type CmdMessages struct {
 	Claude         CmdEntry `yaml:"claude"`
 	ClaudeDownload CmdEntry `yaml:"claude_download"`
 	ClaudeEnv      CmdEntry `yaml:"claude_env"`
+	Ctl            CmdEntry `yaml:"ctl"`
+	CtlWorker      CmdEntry `yaml:"ctl_worker"`
+	CtlTask        CmdEntry `yaml:"ctl_task"`
+	CtlMemory      CmdEntry `yaml:"ctl_memory"`
+	CtlSession     CmdEntry `yaml:"ctl_session"`
+	CtlSystem      CmdEntry `yaml:"ctl_system"`
+	CtlMessage     CmdEntry `yaml:"ctl_message"`
 }
 
 // PromptMessages 对应所有 survey 交互提示的 Message 字段。
@@ -71,10 +78,8 @@ type PromptMessages struct {
 	ServerHost           string `yaml:"server_host"`
 	DebugMode            string `yaml:"debug_mode"`
 	DBPath               string `yaml:"db_path"`
-	MCPAPIKeySetup       string `yaml:"mcp_api_key_setup"`
-	MCPAPIKey            string `yaml:"mcp_api_key"`
-	MCPWorkerAPIKeySetup string `yaml:"mcp_worker_api_key_setup"`
-	MCPWorkerAPIKey      string `yaml:"mcp_worker_api_key"`
+	MCPTokenSecretSetup string `yaml:"mcp_token_secret_setup"`
+	MCPTokenSecret      string `yaml:"mcp_token_secret"`
 	FeederTimeout        string `yaml:"feeder_timeout"`
 	MaxConcurrentBee     string `yaml:"max_concurrent_bee"`
 	MessageDebounce      string `yaml:"message_debounce"`
@@ -201,8 +206,7 @@ type ConfigOutput struct {
 	Written              string `yaml:"written"`                // contains %s
 	JWTRegenerated       string `yaml:"jwt_regenerated"`
 	JWTGenerated         string `yaml:"jwt_generated"`
-	MCPKeyGenerated      string `yaml:"mcp_key_generated"`      // contains %s
-	WorkerKeyGenerated   string `yaml:"worker_key_generated"`   // contains %s
+	MCPTokenSecretGenerated string `yaml:"mcp_token_secret_generated"` // contains %s
 	PasswordGenerated    string `yaml:"password_generated"`     // contains %s
 	WeixinQRLogin        string `yaml:"weixin_qr_login"`
 	FetchingQR           string `yaml:"fetching_qr"`
@@ -212,6 +216,9 @@ type ConfigOutput struct {
 	ClaudeFound          string `yaml:"claude_found"`           // contains %s
 	ClaudeDownloadFailed string `yaml:"claude_download_failed"` // contains %v
 	ClaudeManualEntry    string `yaml:"claude_manual_entry"`
+	SkillInstalled       string `yaml:"skill_installed"`        // contains %s
+	SkillUpdated         string `yaml:"skill_updated"`          // contains %s
+	SkillsInstallWarning string `yaml:"skills_install_warning"` // contains %v
 }
 
 // ClaudeOutput 对应 claude 子命令的运行时输出。

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,6 +20,14 @@ import (
 )
 
 var log = logger.With(zap.String("component", "mcp"))
+
+type ctxKey string
+
+// CtxWorkerIDKey carries the caller's worker ID through tool dispatch.
+// It uses the same string value as CtxKeyWorkerID (set by auth middleware on gin.Context)
+// so the two stay in sync without a hard import dependency between packages.
+// Exported so tests can construct contexts that simulate worker calls.
+const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -64,7 +73,7 @@ type SessionClearer interface {
 // MCPServer manages SSE sessions and dispatches JSON-RPC tool calls.
 type MCPServer struct {
 	schemasFn  func() []toolSchema
-	callToolFn func(name string, args json.RawMessage) (any, error)
+	callToolFn func(ctx context.Context, name string, args json.RawMessage) (any, error)
 	basePath   string // SSE endpoint URL prefix, e.g. "/mcp/bee"
 
 	workerStore    *store.WorkerStore
@@ -78,8 +87,9 @@ type MCPServer struct {
 	memoryStore    *store.MemoryStore
 	sessionStore   *store.SessionStore
 
-	mu       sync.Mutex
-	sessions map[string]chan rpcResponse // session_id -> response channel
+	mu              sync.Mutex
+	sessions        map[string]chan rpcResponse // session_id -> response channel
+	workerNameCache sync.Map                   // workerID -> display name; lazily populated
 }
 
 // NewBeeServer creates a Bee MCP Server with all tools.
@@ -120,6 +130,7 @@ func NewWorkerServer(
 	ms *store.MessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
 	memStore *store.MemoryStore,
+	ws *store.WorkerStore,
 ) *MCPServer {
 	s := &MCPServer{
 		basePath:     config.MCPWorkerBasePath,
@@ -127,6 +138,7 @@ func NewWorkerServer(
 		messageStore: ms,
 		senders:      senders,
 		memoryStore:  memStore,
+		workerStore:  ws,
 		sessions:     make(map[string]chan rpcResponse),
 	}
 	s.schemasFn = workerToolSchemas
@@ -166,10 +178,9 @@ func (s *MCPServer) HandleSSE(c *gin.Context) {
 		params.Set("api_key", apiKey)
 	}
 	endpointURL := fmt.Sprintf("%s/messages?%s", s.basePath, params.Encode())
-	n, err := fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
-	log.Info("MCP SSE wrote endpoint event", zap.String("session", sessionID), zap.Int("bytes", n), zap.Any("err", err))
+	fmt.Fprintf(c.Writer, "event: endpoint\ndata: %s\n\n", endpointURL)
 	c.Writer.Flush()
-	log.Info("MCP SSE flushed endpoint event", zap.String("session", sessionID))
+	log.Info("MCP SSE sent endpoint event", zap.String("session", sessionID))
 
 	ctx := c.Request.Context()
 	heartbeat := time.NewTicker(15 * time.Second)
@@ -217,7 +228,7 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 		return
 	}
 
-	resp := s.dispatch(req)
+	resp := s.dispatch(s.workerIDContext(c), req)
 
 	// Notifications (no ID) get no response
 	if req.ID != nil {
@@ -227,8 +238,12 @@ func (s *MCPServer) HandleMessages(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
+func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
+	return context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
+}
+
 // dispatch routes a JSON-RPC request to the appropriate handler.
-func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
+func (s *MCPServer) dispatch(ctx context.Context, req rpcRequest) rpcResponse {
 	switch req.Method {
 	case "initialize":
 		return okResponse(req.ID, map[string]any{
@@ -252,15 +267,33 @@ func (s *MCPServer) dispatch(req rpcRequest) rpcResponse {
 		return okResponse(req.ID, map[string]any{"tools": s.schemasFn()})
 
 	case "tools/call":
-		return s.handleToolCall(req)
+		return s.handleToolCall(ctx, req)
 
 	default:
 		return errResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
 }
 
+// Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.
+func (s *MCPServer) HandleCall(c *gin.Context) {
+	var req struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		return
+	}
+	result, err := s.callToolFn(s.workerIDContext(c), req.Name, req.Arguments)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
 // handleToolCall dispatches tools/call to the appropriate tool handler.
-func (s *MCPServer) handleToolCall(req rpcRequest) rpcResponse {
+func (s *MCPServer) handleToolCall(ctx context.Context, req rpcRequest) rpcResponse {
 	var params struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
@@ -269,7 +302,7 @@ func (s *MCPServer) handleToolCall(req rpcRequest) rpcResponse {
 		return errResponse(req.ID, -32602, "invalid params: "+err.Error())
 	}
 
-	result, err := s.callToolFn(params.Name, params.Arguments)
+	result, err := s.callToolFn(ctx, params.Name, params.Arguments)
 	if err != nil {
 		// Tool execution errors are returned as tool results with isError flag,
 		// not as JSON-RPC errors. This lets the LLM client distinguish between

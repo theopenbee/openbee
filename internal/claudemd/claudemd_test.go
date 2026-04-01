@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/claudemd"
-	"github.com/theopenbee/openbee/internal/toolnames"
 )
 
 func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
@@ -24,23 +23,11 @@ func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "通知规范") {
-		t.Error("missing shared rules (通知规范)")
+	if !strings.Contains(content, "coordinator and dispatcher") {
+		t.Error("missing bee role description (coordinator and dispatcher)")
 	}
-	if !strings.Contains(content, "send_message") {
-		t.Error("missing send_message reference in shared rules")
-	}
-	if !strings.Contains(content, "会话上下文管理") {
-		t.Error("missing bee-specific rules (会话上下文管理)")
-	}
-	if !strings.Contains(content, "create_task") {
-		t.Error("missing bee-specific create_task reference in 任务委托流程")
-	}
-	if !strings.Contains(content, "list_workers") {
-		t.Error("missing bee-specific list_workers reference in 任务委托流程")
-	}
-	if !strings.Contains(content, "任务委托流程") {
-		t.Error("missing bee-specific 任务委托流程 section")
+	if !strings.Contains(content, "openbee-bee skill") {
+		t.Error("missing openbee-bee skill reference")
 	}
 	if strings.Contains(content, "mark_task_complete") {
 		t.Error("bee rules should not contain worker-specific mark_task_complete")
@@ -61,23 +48,20 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "任务通知规范") {
-		t.Error("missing shared rules")
-	}
-	if !strings.Contains(content, toolnames.SendMessage) {
-		t.Error("missing worker-specific rules (send_message)")
-	}
-	if !strings.Contains(content, "姓名: 测试助手") {
+	if !strings.Contains(content, "Name: 测试助手") {
 		t.Error("missing worker name")
 	}
-	if !strings.Contains(content, "描述: 负责测试任务") {
+	if !strings.Contains(content, "Description: 负责测试任务") {
 		t.Error("missing worker description")
-	}
-	if strings.Index(content, "姓名:") > strings.Index(content, "运行模式") {
-		t.Error("worker config must appear before workerPreamble content")
 	}
 	if strings.Contains(content, "清除上下文处理") {
 		t.Error("worker rules should not contain bee-specific 清除上下文处理")
+	}
+	if !strings.Contains(content, "openbee-worker skill") {
+		t.Error("missing openbee-worker skill reference")
+	}
+	if !strings.Contains(content, "Worker") {
+		t.Error("missing worker role description")
 	}
 }
 
@@ -95,10 +79,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "姓名: 小助手") {
+	if !strings.Contains(content, "Name: 小助手") {
 		t.Error("missing worker name")
 	}
-	if strings.Contains(content, "描述:") {
+	if strings.Contains(content, "Description:") {
 		t.Error("description field should not appear when description is empty")
 	}
 }
@@ -120,10 +104,10 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	if strings.Contains(content, "---") {
 		t.Error("frontmatter block should not appear when name and description are both empty")
 	}
-	if strings.Contains(content, "描述:") {
+	if strings.Contains(content, "Description:") {
 		t.Error("description field should not appear when name and description are both empty")
 	}
-	if !strings.Contains(content, "## 记忆约束") {
+	if !strings.Contains(content, "## Memory Constraints") {
 		t.Error("memory section should appear")
 	}
 	if !strings.Contains(content, "用户偏好中文回复") {
@@ -148,8 +132,8 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "非交互式后台 Worker") {
-		t.Error("missing worker preamble")
+	if strings.Contains(content, "非交互式后台 Worker") {
+		t.Error("worker preamble should have been removed")
 	}
 }
 
@@ -222,7 +206,7 @@ func TestEnsureSystemRules_OverwritesExistingRulesFile(t *testing.T) {
 	if string(data) == "old content" {
 		t.Error(claudemd.SystemRulesFile + " should be overwritten with latest rules")
 	}
-	if !strings.Contains(string(data), "任务通知规范") {
-		t.Error("overwritten file should contain latest rules")
+	if strings.Contains(string(data), "old content") {
+		t.Error("overwritten file should not contain old content")
 	}
 }

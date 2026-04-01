@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/config"
 	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/skillinstall"
 )
 
 var configTemplate = config.ConfigTemplate
@@ -44,8 +45,8 @@ type configValues struct {
 	ServerHost string
 	Debug      bool
 	DBPath     string
-	MCPAPIKey      string
-	WorkerAPIKey   string
+	MCPTokenSecret string
+	MCPTokenTTL    string
 
 	FeishuEnabled   bool
 	FeishuAppID     string
@@ -117,8 +118,8 @@ func loadExistingConfig(path string) *configValues {
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
 		DBPath:               cfg.Database.Path,
-		MCPAPIKey:            cfg.Bee.MCP.APIKey,
-		WorkerAPIKey:         cfg.Bee.MCP.WorkerAPIKey,
+		MCPTokenSecret:       cfg.Bee.MCP.TokenSecret,
+		MCPTokenTTL:          cfg.Bee.MCP.TokenTTL.String(),
 		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
 		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
 		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
@@ -158,6 +159,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		DBPath:          "./data/openbee.db",
 		ClaudePath:      "claude",
 		ClaudeTimeout:   "30m",
+		MCPTokenTTL:     "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce: "300ms",
@@ -456,62 +458,28 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
-		mcpKeyChoice := i18n.M.Prompt.OptionGenerateRandom
-		if vals.MCPAPIKey != "" {
-			mcpKeyChoice = i18n.M.Prompt.OptionEnterManually
+		tokenSecretChoice := i18n.M.Prompt.OptionGenerateRandom
+		if vals.MCPTokenSecret != "" {
+			tokenSecretChoice = i18n.M.Prompt.OptionEnterManually
 		}
-		var mcpMethod string
+		var tokenSecretMethod string
 		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Prompt.MCPAPIKeySetup,
+			Message: i18n.M.Prompt.MCPTokenSecretSetup,
 			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
-			Default: mcpKeyChoice,
-		}, &mcpMethod); err != nil {
+			Default: tokenSecretChoice,
+		}, &tokenSecretMethod); err != nil {
 			return handleSurveyErr(err)
 		}
 
-		switch mcpMethod {
+		switch tokenSecretMethod {
 		case i18n.M.Prompt.OptionGenerateRandom:
-			b := make([]byte, 12)
-			if _, err := rand.Read(b); err != nil {
-				return fmt.Errorf("generate random key: %w", err)
-			}
-			vals.MCPAPIKey = hex.EncodeToString(b)
-			fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
+			vals.MCPTokenSecret = config.GenerateRandomSecret()
+			fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 		case i18n.M.Prompt.OptionEnterManually:
 			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.MCPAPIKey,
-				Default: vals.MCPAPIKey,
-			}, &vals.MCPAPIKey, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-		}
-
-		workerKeyChoice := i18n.M.Prompt.OptionGenerateRandom
-		if vals.WorkerAPIKey != "" {
-			workerKeyChoice = i18n.M.Prompt.OptionEnterManually
-		}
-		var workerKeyMethod string
-		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Prompt.MCPWorkerAPIKeySetup,
-			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
-			Default: workerKeyChoice,
-		}, &workerKeyMethod); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		switch workerKeyMethod {
-		case i18n.M.Prompt.OptionGenerateRandom:
-			b := make([]byte, 12)
-			if _, err := rand.Read(b); err != nil {
-				return fmt.Errorf("generate random worker key: %w", err)
-			}
-			vals.WorkerAPIKey = hex.EncodeToString(b)
-			fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
-		case i18n.M.Prompt.OptionEnterManually:
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.MCPWorkerAPIKey,
-				Default: vals.WorkerAPIKey,
-			}, &vals.WorkerAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				Message: i18n.M.Prompt.MCPTokenSecret,
+				Default: vals.MCPTokenSecret,
+			}, &vals.MCPTokenSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
 		}
@@ -561,24 +529,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Auto-generate MCP API Key if not set
-	if vals.MCPAPIKey == "" {
-		b := make([]byte, 12)
-		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("generate random key: %w", err)
-		}
-		vals.MCPAPIKey = hex.EncodeToString(b)
-		fmt.Printf(i18n.M.Output.Config.MCPKeyGenerated+"\n", vals.MCPAPIKey)
-	}
-
-	// Auto-generate Worker API Key if not set
-	if vals.WorkerAPIKey == "" {
-		b := make([]byte, 12)
-		if _, err := rand.Read(b); err != nil {
-			return fmt.Errorf("generate random worker key: %w", err)
-		}
-		vals.WorkerAPIKey = hex.EncodeToString(b)
-		fmt.Printf(i18n.M.Output.Config.WorkerKeyGenerated+"\n", vals.WorkerAPIKey)
+	if vals.MCPTokenSecret == "" {
+		vals.MCPTokenSecret = config.GenerateRandomSecret()
+		fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 	}
 
 	// Step 4 — Confirm write
@@ -612,6 +565,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
+	installBuiltinSkills()
 	return nil
 }
 
@@ -671,4 +625,21 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+func installBuiltinSkills() {
+	results, err := skillinstall.InstallSkills("")
+	if err != nil {
+		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
+		return
+	}
+	for _, r := range results {
+		switch r.Action {
+		case skillinstall.ActionInstalled:
+			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
+		case skillinstall.ActionUpdated:
+			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
+		// ActionUpToDate: silent
+		}
+	}
 }

@@ -1,12 +1,11 @@
-// internal/claude/invoker.go
 package claude
 
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -31,23 +30,33 @@ type Output struct {
 type RunOptions struct {
 	SessionID string
 	Resume    bool
+	APIKey    string
 }
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary string
-	mcpURL string
-	apiKey string
+	binary  string
+	baseEnv []string
 }
 
-// NewInvoker creates an Invoker. mcpBasePath should include the full MCP base
-// path (e.g. "http://host:port/mcp/bee"); "/sse" is appended automatically.
-func NewInvoker(binary, mcpBasePath, apiKey string) *Invoker {
-	return &Invoker{
-		binary: binary,
-		mcpURL: mcpBasePath + "/sse",
-		apiKey: apiKey,
+// NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
+// (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
+func NewInvoker(binary, openbeeURL string) *Invoker {
+	sysEnv := os.Environ()
+	env := make([]string, 0, len(sysEnv)+3)
+	if exePath, err := os.Executable(); err == nil {
+		patchedPath := "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
+		for _, e := range sysEnv {
+			if !strings.HasPrefix(e, "PATH=") {
+				env = append(env, e)
+			}
+		}
+		env = append(env, patchedPath)
+	} else {
+		env = append(env, sysEnv...)
 	}
+	env = append(env, "OPENBEE_URL="+openbeeURL)
+	return &Invoker{binary: binary, baseEnv: env}
 }
 
 // Process represents a running Claude CLI invocation.
@@ -80,15 +89,10 @@ func (p *Process) Stop() error {
 // The returned channel carries only lifecycle events: OutputDone on success,
 // OutputError on failure. The channel is closed after the process exits.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
-	mcpConfig := fmt.Sprintf(
-		`{"mcpServers":{"openbee":{"type":"sse","url":%q}}}`,
-		inv.mcpURL+"?api_key="+url.QueryEscape(inv.apiKey),
-	)
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
 		"--output-format", "stream-json",
-		"--mcp-config", mcpConfig,
 	}
 	if opts.SessionID != "" {
 		if opts.Resume {
@@ -109,6 +113,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

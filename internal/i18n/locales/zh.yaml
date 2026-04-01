@@ -24,6 +24,20 @@ cmd:
     short: "下载 Claude Code 二进制文件至 ~/.openbee/bin/claude"
   claude_env:
     short: "配置 Claude Code 提供商及环境设置"
+  ctl:
+    short: "控制运行中的 openbee 服务器"
+  ctl_worker:
+    short: "管理员工"
+  ctl_task:
+    short: "管理任务"
+  ctl_memory:
+    short: "管理记忆条目"
+  ctl_session:
+    short: "管理会话上下文"
+  ctl_system:
+    short: "查看系统状态和执行记录"
+  ctl_message:
+    short: "向平台用户发送消息"
 prompt:
   claude_not_found: "未找到 Claude，请选择获取方式："
   claude_path: "Claude 可执行文件路径："
@@ -56,10 +70,8 @@ prompt:
   server_host: "服务地址："
   debug_mode: "开启调试模式？"
   db_path: "数据库路径："
-  mcp_api_key_setup: "MCP API Key 设置方式："
-  mcp_api_key: "MCP API Key："
-  mcp_worker_api_key_setup: "MCP Worker API Key 设置方式："
-  mcp_worker_api_key: "MCP Worker API Key："
+  mcp_token_secret_setup: "MCP Token Secret 设置方式："
+  mcp_token_secret: "MCP Token Secret："
   feeder_timeout: "Feeder 超时时间："
   max_concurrent_bee: "最大并发 bee 数量："
   message_debounce: "消息防抖时间："
@@ -122,8 +134,7 @@ output:
     written: "配置文件已写入：%s"
     jwt_regenerated: "JWT 密钥已重新生成。"
     jwt_generated: "JWT 密钥已生成。"
-    mcp_key_generated: "已生成 MCP API Key：%s"
-    worker_key_generated: "已生成 MCP Worker API Key：%s"
+    mcp_token_secret_generated: "已生成 MCP Token Secret：%s"
     password_generated: "已生成密码：%s"
     weixin_qr_login: "\n--- 微信扫码登录 ---"
     fetching_qr: "正在获取二维码..."
@@ -133,6 +144,9 @@ output:
     claude_found: "在 PATH 中找到 Claude：%s，将自动使用。"
     claude_download_failed: "下载失败：%v"
     claude_manual_entry: "请手动输入 Claude 路径。"
+    skill_installed: "skill %s 已安装"
+    skill_updated: "skill %s 已更新"
+    skills_install_warning: "安装 skills 时出错（已跳过）：%v"
   claude:
     already_installed: "Claude 已安装在 %s"
     use_force: "使用 --force 重新下载。"
