@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/auth"
 	"github.com/theopenbee/openbee/internal/config"
 )
 
@@ -27,16 +28,24 @@ type Client struct {
 
 // NewClient resolves connection config in priority order:
 //  1. OPENBEE_URL / OPENBEE_API_KEY environment variables
-//  2. config file at cfgPath (reads server.host, server.port to build base URL)
+//  2. config file at cfgPath: derives base URL and generates a bee JWT from token_secret
 //  3. defaults: http://localhost:8080, empty API key
 func NewClient(cfgPath string) (*Client, error) {
 	baseURL := os.Getenv("OPENBEE_URL")
 	apiKey := os.Getenv("OPENBEE_API_KEY")
 
-	if baseURL == "" {
+	if baseURL == "" || apiKey == "" {
 		cfg, err := config.Load(cfgPath)
 		if err == nil {
-			baseURL = cfg.Bee.MCPBaseURL
+			if baseURL == "" {
+				baseURL = cfg.Bee.MCPBaseURL
+			}
+			if apiKey == "" && cfg.Bee.MCP.TokenSecret != "" {
+				token, err := auth.GenerateBeeToken(cfg.Bee.MCP.TokenSecret, cfg.Bee.MCP.TokenTTL)
+				if err == nil {
+					apiKey = token
+				}
+			}
 		}
 	}
 

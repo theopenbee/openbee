@@ -1,4 +1,3 @@
-// internal/claude/invoker.go
 package claude
 
 import (
@@ -35,22 +34,28 @@ type RunOptions struct {
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary      string
-	openbeeURL  string
-	patchedPath string // pre-computed "PATH=<exeDir>:<original PATH>", empty if exe dir unknown
+	binary  string
+	baseEnv []string // pre-computed env: system env with patched PATH + OPENBEE_URL; OPENBEE_API_KEY appended per-call
 }
 
 // NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
 // (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
 func NewInvoker(binary, openbeeURL string) *Invoker {
-	inv := &Invoker{
-		binary:     binary,
-		openbeeURL: openbeeURL,
-	}
+	sysEnv := os.Environ()
+	env := make([]string, 0, len(sysEnv)+2)
 	if exePath, err := os.Executable(); err == nil {
-		inv.patchedPath = "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
+		patchedPath := "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
+		for _, e := range sysEnv {
+			if !strings.HasPrefix(e, "PATH=") {
+				env = append(env, e)
+			}
+		}
+		env = append(env, patchedPath)
+	} else {
+		env = append(env, sysEnv...)
 	}
-	return inv
+	env = append(env, "OPENBEE_URL="+openbeeURL)
+	return &Invoker{binary: binary, baseEnv: env}
 }
 
 // Process represents a running Claude CLI invocation.
@@ -107,20 +112,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	sysEnv := os.Environ()
-	env := make([]string, 0, len(sysEnv)+3)
-	if inv.patchedPath == "" {
-		env = append(env, sysEnv...)
-	} else {
-		for _, e := range sysEnv {
-			if !strings.HasPrefix(e, "PATH=") {
-				env = append(env, e)
-			}
-		}
-		env = append(env, inv.patchedPath)
-	}
-	env = append(env, "OPENBEE_URL="+inv.openbeeURL, "OPENBEE_API_KEY="+apiKey)
-	cmd.Env = env
+	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+apiKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

@@ -1,4 +1,3 @@
-// internal/claude/invoker_test.go
 package claude
 
 import (
@@ -15,8 +14,16 @@ func TestNewInvoker(t *testing.T) {
 	if inv.binary != "/usr/bin/claude" {
 		t.Errorf("binary: want /usr/bin/claude, got %s", inv.binary)
 	}
-	if inv.openbeeURL != "http://localhost:8080" {
-		t.Errorf("openbeeURL: want http://localhost:8080, got %s", inv.openbeeURL)
+	wantURL := "OPENBEE_URL=http://localhost:8080"
+	var found bool
+	for _, e := range inv.baseEnv {
+		if e == wantURL {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("baseEnv missing %s", wantURL)
 	}
 }
 

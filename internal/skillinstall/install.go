@@ -47,30 +47,25 @@ func InstallSkills(baseDir string) ([]SkillResult, error) {
 
 func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 	targetPath := filepath.Join(baseDir, skill.name, "SKILL.md")
+	newContent := []byte(skill.content)
 
+	action := ActionInstalled
 	existing, err := os.ReadFile(targetPath)
 	if err == nil {
-		existingHash := sha256.Sum256(existing)
-		newHash := sha256.Sum256([]byte(skill.content))
-		if newHash == existingHash {
+		if sha256.Sum256(existing) == sha256.Sum256(newContent) {
 			return SkillResult{Name: skill.name, Action: ActionUpToDate}, nil
 		}
-		if err := os.WriteFile(targetPath, []byte(skill.content), 0o644); err != nil {
-			return SkillResult{}, fmt.Errorf("update skill %s: %w", skill.name, err)
-		}
-		return SkillResult{Name: skill.name, Action: ActionUpdated}, nil
-	}
-
-	if !errors.Is(err, os.ErrNotExist) {
+		action = ActionUpdated
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return SkillResult{}, fmt.Errorf("read skill %s: %w", skill.name, err)
+	} else {
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return SkillResult{}, fmt.Errorf("create skill dir %s: %w", skill.name, err)
+		}
 	}
 
-	skillDir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(skillDir, 0o755); err != nil {
-		return SkillResult{}, fmt.Errorf("create skill dir %s: %w", skill.name, err)
+	if err := os.WriteFile(targetPath, newContent, 0o644); err != nil {
+		return SkillResult{}, fmt.Errorf("%s skill %s: %w", action, skill.name, err)
 	}
-	if err := os.WriteFile(targetPath, []byte(skill.content), 0o644); err != nil {
-		return SkillResult{}, fmt.Errorf("install skill %s: %w", skill.name, err)
-	}
-	return SkillResult{Name: skill.name, Action: ActionInstalled}, nil
+	return SkillResult{Name: skill.name, Action: action}, nil
 }

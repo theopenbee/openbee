@@ -197,8 +197,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	installBuiltinSkills()
-
 	// Step 2 — Platform config
 	fmt.Println(i18n.M.Output.Config.SectionPlatform)
 
@@ -573,6 +571,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
+	installBuiltinSkills()
 	return nil
 }
 
