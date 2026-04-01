@@ -109,15 +109,17 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stderr = logFile
 	sysEnv := os.Environ()
 	env := make([]string, 0, len(sysEnv)+3)
-	for _, e := range sysEnv {
-		if inv.patchedPath == "" || !strings.HasPrefix(e, "PATH=") {
-			env = append(env, e)
+	if inv.patchedPath == "" {
+		env = append(env, sysEnv...)
+	} else {
+		for _, e := range sysEnv {
+			if !strings.HasPrefix(e, "PATH=") {
+				env = append(env, e)
+			}
 		}
-	}
-	env = append(env, "OPENBEE_URL="+inv.openbeeURL, "OPENBEE_API_KEY="+apiKey)
-	if inv.patchedPath != "" {
 		env = append(env, inv.patchedPath)
 	}
+	env = append(env, "OPENBEE_URL="+inv.openbeeURL, "OPENBEE_API_KEY="+apiKey)
 	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {

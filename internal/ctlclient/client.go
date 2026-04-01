@@ -27,7 +27,7 @@ type Client struct {
 
 // NewClient resolves connection config in priority order:
 //  1. OPENBEE_URL / OPENBEE_API_KEY environment variables
-//  2. config file at cfgPath (reads server.host, server.port, bee.mcp.token_secret)
+//  2. config file at cfgPath (reads server.host, server.port to build base URL)
 //  3. defaults: http://localhost:8080, empty API key
 func NewClient(cfgPath string) (*Client, error) {
 	baseURL := os.Getenv("OPENBEE_URL")
