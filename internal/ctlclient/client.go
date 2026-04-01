@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -28,22 +27,16 @@ type Client struct {
 
 // NewClient resolves connection config in priority order:
 //  1. OPENBEE_URL / OPENBEE_API_KEY environment variables
-//  2. config file at cfgPath (reads server.port, server.host, bee.mcp.api_key)
+//  2. config file at cfgPath (reads server.host, server.port, bee.mcp.token_secret)
 //  3. defaults: http://localhost:8080, empty API key
 func NewClient(cfgPath string) (*Client, error) {
 	baseURL := os.Getenv("OPENBEE_URL")
 	apiKey := os.Getenv("OPENBEE_API_KEY")
 
-	if baseURL == "" || apiKey == "" {
+	if baseURL == "" {
 		cfg, err := config.Load(cfgPath)
 		if err == nil {
-			if baseURL == "" {
-				host := cfg.Server.Host
-				if host == "" {
-					host = "localhost"
-				}
-				baseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
-			}
+			baseURL = cfg.Bee.MCPBaseURL
 		}
 	}
 
@@ -76,7 +69,7 @@ func (c *Client) Call(toolName string, args any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/mcp/bee/call", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+config.MCPBeeBasePath+"/call", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -96,13 +89,8 @@ func (c *Client) Call(toolName string, args any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("server returned HTTP %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
 	var cr callResponse
-	if err := json.Unmarshal(data, &cr); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 	if cr.Error != "" {

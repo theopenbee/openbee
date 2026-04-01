@@ -197,7 +197,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Install/update built-in skills (non-fatal on error)
 	installBuiltinSkills()
 
 	// Step 2 — Platform config

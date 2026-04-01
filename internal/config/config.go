@@ -155,7 +155,11 @@ func Load(path string) (Config, error) {
 	if err := applyDefaults(&cfg); err != nil {
 		return Config{}, err
 	}
-	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+	host := cfg.Server.Host
+	if host == "" {
+		host = "localhost"
+	}
+	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 	return cfg, nil
 }
 

@@ -35,9 +35,9 @@ type RunOptions struct {
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary     string
-	openbeeURL string
-	exeDir     string // directory of the current executable, prepended to PATH in subprocesses
+	binary      string
+	openbeeURL  string
+	patchedPath string // pre-computed "PATH=<exeDir>:<original PATH>", empty if exe dir unknown
 }
 
 // NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
@@ -48,7 +48,7 @@ func NewInvoker(binary, openbeeURL string) *Invoker {
 		openbeeURL: openbeeURL,
 	}
 	if exePath, err := os.Executable(); err == nil {
-		inv.exeDir = filepath.Dir(exePath)
+		inv.patchedPath = "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
 	}
 	return inv
 }
@@ -107,17 +107,16 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	env := append(os.Environ(),
-		"OPENBEE_URL="+inv.openbeeURL,
-		"OPENBEE_API_KEY="+apiKey,
-	)
-	if inv.exeDir != "" {
-		for i, e := range env {
-			if rest, ok := strings.CutPrefix(e, "PATH="); ok {
-				env[i] = "PATH=" + inv.exeDir + string(os.PathListSeparator) + rest
-				break
-			}
+	sysEnv := os.Environ()
+	env := make([]string, 0, len(sysEnv)+3)
+	for _, e := range sysEnv {
+		if inv.patchedPath == "" || !strings.HasPrefix(e, "PATH=") {
+			env = append(env, e)
 		}
+	}
+	env = append(env, "OPENBEE_URL="+inv.openbeeURL, "OPENBEE_API_KEY="+apiKey)
+	if inv.patchedPath != "" {
+		env = append(env, inv.patchedPath)
 	}
 	cmd.Env = env
 
