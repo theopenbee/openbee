@@ -39,8 +39,8 @@ export function useDeleteSession() {
 export function useSendMessage(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ content, mediaPath }: { content: string; mediaPath?: string }) =>
-      api.localChat.sendMessage(sessionId, content, mediaPath),
+    mutationFn: ({ content, mediaPaths }: { content: string; mediaPaths?: string[] }) =>
+      api.localChat.sendMessage(sessionId, content, mediaPaths),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-sessions"] })
     },
