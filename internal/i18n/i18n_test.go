@@ -34,13 +34,13 @@ func TestLoad_en(t *testing.T) {
 }
 
 func TestLoad_unsupported_fallbacks_to_zh(t *testing.T) {
-	// 加载 zh 作为基准
+	// load zh as baseline
 	if err := i18n.Load("zh"); err != nil {
 		t.Fatalf("Load zh: %v", err)
 	}
 	zhShort := i18n.M.Cmd.Root.Short
 
-	// 加载不支持的语言，应 fallback 到 zh
+	// loading an unsupported language should fall back to zh
 	if err := i18n.Load("fr"); err != nil {
 		t.Fatalf("Load fr (fallback): %v", err)
 	}

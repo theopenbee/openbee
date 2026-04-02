@@ -981,12 +981,12 @@ func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbo
 	}
 }
 
-// addThinkingEmoji adds a 🤔思考中 emoji reaction to the user's message.
+// addThinkingEmoji adds a thinking emoji reaction to the user's message.
 func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
 	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply")
 }
 
-// recallThinkingEmoji recalls the 🤔思考中 emoji reaction from the user's message.
+// recallThinkingEmoji recalls the thinking emoji reaction from the user's message.
 func recallThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
 	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/recall", 3*time.Second, "recall")
 }

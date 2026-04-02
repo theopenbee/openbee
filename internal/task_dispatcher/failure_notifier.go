@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
@@ -34,19 +35,19 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		return fmt.Errorf("no sender for platform %q", stored.Platform)
 	}
 
+	m := i18n.M.Runtime.FailureNotifier
 	var workerLine string
 	if info.WorkerName != "" {
-		workerLine = fmt.Sprintf("\nWorker：%s", info.WorkerName)
+		workerLine = fmt.Sprintf("\nWorker: %s", info.WorkerName)
 	} else {
-		workerLine = "\n消息解析失败"
+		workerLine = m.ParseFailed
 	}
 	var content string
 	if info.RetryCount >= 0 {
-		content = fmt.Sprintf("❌ 任务执行失败%s\n已重试：%d/%d 次\n错误：%s",
-			workerLine, info.RetryCount, info.MaxRetries, info.Reason)
+		content = m.TaskFailed + workerLine + fmt.Sprintf(m.RetriedCount,
+			info.RetryCount, info.MaxRetries, info.Reason)
 	} else {
-		content = fmt.Sprintf("❌ 任务执行失败%s\n错误：%s",
-			workerLine, info.Reason)
+		content = m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
 	}
 	// Truncate very long error messages to avoid exceeding platform limits.
 	// Use rune slice to avoid splitting multi-byte UTF-8 characters.

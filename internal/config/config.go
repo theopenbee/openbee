@@ -84,7 +84,7 @@ type FeishuConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	AppID        string `yaml:"app_id"`
 	AppSecret    string `yaml:"app_secret"`
-	MaxMediaSize int    `yaml:"max_media_size"` // 最大媒体下载大小（字节），默认 100MB
+	MaxMediaSize int    `yaml:"max_media_size"` // maximum media download size in bytes; default 100 MB
 }
 
 type DingTalkConfig struct {

@@ -63,16 +63,16 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx              context.Context                  // 由 Run 注入的生命周期上下文
-	manager          ExecutionManager                 // 启动 worker 执行
-	taskStore        TaskStore                        // 持久化 task 与 execution 的关联状态
-	sessionStore     SessionStore                     // 管理会话上下文的读写与清理
-	execStore        ExecutionQuerier                 // 按 ID 查询 execution 状态
-	failureNotifier  FailureNotifier                  // 发送失败通知（可选）
-	inCh             <-chan DispatchTask              // 入站任务通道
-	resultsCh        chan internalResult              // 内部完成信号通道，用于驱动队列调度
-	queues           map[string]*queueState           // 按 workerID 分组的串行队列
-	clearCh          chan string                      // 接收需要清理的 sessionKey 信号
+	ctx              context.Context                  // injected by Run; controls the dispatcher lifecycle
+	manager          ExecutionManager                 // launches worker executions
+	taskStore        TaskStore                        // persists task-to-execution mapping and state
+	sessionStore     SessionStore                     // reads, writes, and cleans up session contexts
+	execStore        ExecutionQuerier                 // queries execution state by ID
+	failureNotifier  FailureNotifier                  // sends failure notifications (optional)
+	inCh             <-chan DispatchTask              // inbound task channel
+	resultsCh        chan internalResult              // internal completion signal channel; drives queue scheduling
+	queues           map[string]*queueState           // per-workerID serial queues
+	clearCh          chan string                      // receives sessionKey signals that need to be cleaned up
 	cancelFuncs      map[string]context.CancelFunc   // taskID → cancel func; owned by Run loop
 	cancelCh         chan string                      // receives taskID cancel requests
 }

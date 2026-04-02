@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -548,7 +549,7 @@ func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, s
 		return fmt.Errorf("wecom: send media message: %w", err)
 	}
 
-	return s.finishStream(reqID, streamID, "📎 文件已发送，请查收。")
+	return s.finishStream(reqID, streamID, i18n.M.Runtime.WeCom.FileSent)
 }
 
 // uploadMedia performs the 3-step WeCom media upload: init → chunks → finish.

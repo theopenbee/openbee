@@ -8,6 +8,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
@@ -159,18 +160,18 @@ func beeToolSchemas() []toolSchema {
 		},
 		{
 			Name:        toolnames.GetWorkerStatus,
-			Description: "查看员工的当前状态，包括是否在工作、正在执行什么任务、待处理任务数量。",
+			Description: "View a worker's current status: whether busy, current task, and pending task count.",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"worker_id"},
 				"properties": map[string]any{
-					"worker_id": map[string]string{"type": "string", "description": "员工ID"},
+					"worker_id": map[string]string{"type": "string", "description": "Worker ID"},
 				},
 			},
 		},
 		{
 			Name:        toolnames.GetSystemOverview,
-			Description: "查看系统整体概况：员工状态分布、任务状态统计、最近5条执行记录。",
+			Description: "View system overview: worker status distribution, task statistics, and the 5 most recent executions.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
@@ -178,48 +179,48 @@ func beeToolSchemas() []toolSchema {
 		},
 		{
 			Name:        toolnames.ListBeeExecutions,
-			Description: "查看 bee 自己的执行历史记录，用于自我反思和改进。",
+			Description: "View bee's own execution history for self-reflection and improvement.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"limit": map[string]string{"type": "integer", "description": "返回记录数量，默认10"},
+					"limit": map[string]string{"type": "integer", "description": "Number of records to return, default 10"},
 				},
 			},
 		},
 		{
 			Name:        toolnames.SaveMemory,
-			Description: "保存或更新一条记忆。scope 为 'global' 表示全局经验，或传入 session_key 表示特定用户的偏好。",
+			Description: "Save or update a memory entry. Use scope='global' for global knowledge, or pass a session_key to store per-user preferences.",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"scope", "key", "value"},
 				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符，如 'user_language_preference'"},
-					"value": map[string]string{"type": "string", "description": "记忆内容"},
+					"scope": map[string]string{"type": "string", "description": "Memory scope: 'global' or a session_key"},
+					"key":   map[string]string{"type": "string", "description": "Memory key identifier, e.g. 'user_language_preference'"},
+					"value": map[string]string{"type": "string", "description": "Memory value content"},
 				},
 			},
 		},
 		{
 			Name:        toolnames.GetMemory,
-			Description: "读取记忆。传入 key 返回单条记忆，不传 key 返回该 scope 下所有记忆（最多50条）。",
+			Description: "Read memory. Pass a key to get a single entry; omit key to get all entries in the scope (max 50).",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"scope"},
 				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围：'global' 或 session_key"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符（可选，不传则返回该范围下所有记忆）"},
+					"scope": map[string]string{"type": "string", "description": "Memory scope: 'global' or a session_key"},
+					"key":   map[string]string{"type": "string", "description": "Memory key (optional; omit to return all entries in scope)"},
 				},
 			},
 		},
 		{
 			Name:        toolnames.DeleteMemory,
-			Description: "删除一条记忆。删除不存在的记忆不会报错。",
+			Description: "Delete a memory entry. Deleting a non-existent key is a no-op.",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"scope", "key"},
 				"properties": map[string]any{
-					"scope": map[string]string{"type": "string", "description": "记忆范围"},
-					"key":   map[string]string{"type": "string", "description": "记忆标识符"},
+					"scope": map[string]string{"type": "string", "description": "Memory scope"},
+					"key":   map[string]string{"type": "string", "description": "Memory key identifier"},
 				},
 			},
 		},
@@ -667,7 +668,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				"requires_confirmation": true,
 				"worker_count":          len(workers),
 				"linked_workers":        workers,
-				"message":               fmt.Sprintf("此会话链接了 %d 位员工，清空将重置所有员工和 bee 的对话上下文。请确认后以 force=true 重新调用。", len(workers)),
+				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
 	}

@@ -10,14 +10,15 @@ import (
 //go:embed locales/*.yaml
 var localesFS embed.FS
 
-// M 是全局翻译实例，在 main() 最早阶段通过 Load() 初始化，之后只读。
+// M is the global translation instance. Initialized (once) by Load() at the
+// earliest point in main(); read-only after that.
 var M = &Messages{}
 
-// SupportedLangs 列出所有支持的语言代码。
+// SupportedLangs lists all supported language codes.
 var SupportedLangs = []string{"zh", "en"}
 
-// Load 加载指定语言的翻译文件并设置 M。
-// 若语言不支持（文件不存在），静默 fallback 到 zh。
+// Load loads the translation file for the given language and sets M.
+// If the language is not supported (file not found), it silently falls back to zh.
 func Load(lang string) error {
 	data, err := localesFS.ReadFile("locales/" + lang + ".yaml")
 	if err != nil {

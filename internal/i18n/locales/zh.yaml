@@ -184,3 +184,15 @@ validate:
   file_not_found: "文件不存在：%s"
   path_is_dir: "路径是目录而非文件：%s"
   file_not_exec: "文件不可执行：%s"
+runtime:
+  failure_notifier:
+    task_failed: "❌ 任务执行失败"
+    parse_failed: "\n消息解析失败"
+    retried_count: "\n已重试：%d/%d 次\n错误：%s"
+    failed: "\n错误：%s"
+  feishu:
+    rich_text_fallback: "[富文本消息]"
+  wecom:
+    file_sent: "📎 文件已发送，请查收。"
+  mcp:
+    clear_session_confirm: "此会话链接了 %d 位员工，清空将重置所有员工和 bee 的对话上下文。请确认后以 force=true 重新调用。"

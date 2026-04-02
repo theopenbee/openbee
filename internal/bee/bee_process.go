@@ -13,7 +13,7 @@ import (
 )
 
 // DefaultPersona is the hardcoded bee persona content for CLAUDE.md.
-const DefaultPersona = `你是 B，一个 AI 智能助手。`
+const DefaultPersona = `You are B, an AI assistant.`
 
 // BeeProcess represents a single short-lived bee Claude invocation.
 type BeeProcess struct {

@@ -150,7 +150,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
 			return
 		}
-		content = "[文件] " + body.MediaPath + "\n" + content
+		content = "[file] " + body.MediaPath + "\n" + content
 	}
 
 	h.receiver.Enqueue(platform.InboundMessage{
@@ -167,7 +167,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
-var mediaPathPrefix = regexp.MustCompile(`^\[文件\] ([^\n]+)\n`)
+var mediaPathPrefix = regexp.MustCompile(`^\[file\] ([^\n]+)\n`)
 
 type chatMessage struct {
 	Role      string `json:"role"`
