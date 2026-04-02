@@ -4,6 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | sh -s -- --version v1.0.0
 #   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | sh -s -- --install-dir /custom/path
+#   curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | sh -s -- --cdn-url https://my-cdn.example.com
 
 set -e
 
@@ -275,6 +276,10 @@ parse_args() {
                 NO_VERIFY=true
                 shift
                 ;;
+            --cdn-url)
+                CDN_BASE_URL="$2"
+                shift 2
+                ;;
             --help|-h)
                 usage
                 exit 0
@@ -299,11 +304,12 @@ OpenBee 安装脚本（中国大陆加速版）
   --install-dir, -d <路径>    安装目录，默认 /usr/local/bin
   --force, -f                 强制重新安装
   --no-verify                 跳过 SHA256 校验
+  --cdn-url <地址>             指定 CDN 根地址，覆盖默认值（${CDN_BASE_URL}）
   --help, -h                  显示帮助
 
 说明:
   本脚本通过国内 CDN 下载，适用于中国大陆网络环境。
-  如 CDN 地址有变更，可修改脚本顶部的 CDN_BASE_URL 变量。
+  如 CDN 地址有变更，可通过 --cdn-url 参数指定，或修改脚本顶部的 CDN_BASE_URL 变量。
   国际网络环境请使用 install.sh。
 
 示例:
@@ -315,6 +321,9 @@ OpenBee 安装脚本（中国大陆加速版）
 
   # 安装到自定义目录
   curl -fsSL <url>/install.zh.sh | sh -s -- --install-dir ~/.local/bin
+
+  # 使用自定义 CDN 地址
+  curl -fsSL <url>/install.zh.sh | sh -s -- --cdn-url https://my-cdn.example.com
 EOF
 }
 
