@@ -188,6 +188,7 @@ runtime:
   failure_notifier:
     task_failed: "❌ Task execution failed"
     parse_failed: "\nmessage parse failed"
+    worker_line: "\nWorker: %s"
     retried_count: "\nRetried: %d/%d\nError: %s"
     failed: "\nError: %s"
   feishu:

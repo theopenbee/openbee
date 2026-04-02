@@ -38,7 +38,7 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 	m := i18n.M.Runtime.FailureNotifier
 	var workerLine string
 	if info.WorkerName != "" {
-		workerLine = fmt.Sprintf("\nWorker: %s", info.WorkerName)
+		workerLine = fmt.Sprintf(m.WorkerLine, info.WorkerName)
 	} else {
 		workerLine = m.ParseFailed
 	}
