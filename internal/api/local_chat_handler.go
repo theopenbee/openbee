@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -129,6 +130,9 @@ func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 
 func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
 	sessionKey := localSessionKey(id)
 
 	var body struct {
@@ -142,14 +146,8 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 
 	content := body.Content
 	if body.MediaPath != "" {
-		uploadDir, err := localUploadDir(id)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		rel, err := filepath.Rel(uploadDir, body.MediaPath)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path: must be within upload directory"})
+		if strings.ContainsAny(body.MediaPath, "/\\") || body.MediaPath == ".." || body.MediaPath == "." {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
 			return
 		}
 		content = "[文件] " + body.MediaPath + "\n" + content
@@ -169,9 +167,12 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
+var mediaPathPrefix = regexp.MustCompile(`^\[文件\] ([^\n]+)\n`)
+
 type chatMessage struct {
 	Role      string `json:"role"`
 	Content   string `json:"content"`
+	MediaPath string `json:"media_path,omitempty"`
 	Timestamp int64  `json:"ts"`
 }
 
@@ -193,7 +194,12 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
-		combined = append(combined, chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt})
+		msg := chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt}
+		if matches := mediaPathPrefix.FindStringSubmatch(m.Content); len(matches) == 2 {
+			msg.MediaPath = matches[1]
+			msg.Content = m.Content[len(matches[0]):]
+		}
+		combined = append(combined, msg)
 	}
 	for _, r := range replies {
 		combined = append(combined, chatMessage{Role: "bee", Content: r.Content, Timestamp: r.CreatedAt})
@@ -205,6 +211,9 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
@@ -223,7 +232,8 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	destPath := filepath.Join(uploadDir, filepath.Base(header.Filename))
+	filename := filepath.Base(header.Filename)
+	destPath := filepath.Join(uploadDir, filename)
 	dest, err := os.Create(destPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -236,7 +246,35 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"path": destPath})
+	c.JSON(http.StatusOK, gin.H{"path": filename})
+}
+
+func (h *LocalChatHandler) serveMedia(c *gin.Context) {
+	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
+	filename := filepath.Base(c.Param("filename"))
+	if filename == "." || filename == ".." {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	uploadDir, err := localUploadDir(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.File(filepath.Join(uploadDir, filename))
+}
+
+func validateSessionID(c *gin.Context, id string) bool {
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+		return false
+	}
+	return true
 }
 
 func localSessionKey(id string) string {
