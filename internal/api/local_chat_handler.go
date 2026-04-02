@@ -251,7 +251,7 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 func (h *LocalChatHandler) serveMedia(c *gin.Context) {
 	id := c.Param("id")
 	filename := filepath.Base(c.Param("filename"))
-	if filename == "." || filename == string(filepath.Separator) {
+	if filename == "." || filename == ".." || filename == string(filepath.Separator) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
 		return
 	}
@@ -262,14 +262,7 @@ func (h *LocalChatHandler) serveMedia(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join(uploadDir, filename)
-	rel, err := filepath.Rel(uploadDir, filePath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
-		return
-	}
-
-	c.File(filePath)
+	c.File(filepath.Join(uploadDir, filename))
 }
 
 func localSessionKey(id string) string {
