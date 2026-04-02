@@ -93,6 +93,8 @@ flag:
   restore_password: "用于解密备份文件的密码"
   restore_force: "覆盖已有数据"
   upgrade_check: "仅检查更新，不执行升级"
+  upgrade_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
+  upgrade_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
   claude_download_force: "即使已安装也强制重新下载"
 output:
   stop:
@@ -118,6 +120,7 @@ output:
     verified: "SHA256 验证通过。"
     binary_at: "正在升级二进制文件：%s"
     success: "openbee 已成功升级至 %s。"
+    using_cdn: "正在使用 CDN 渠道：%s"
   backup:
     created: "备份已创建：%s"
   restore:
