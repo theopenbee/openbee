@@ -2,6 +2,7 @@ package task_dispatcher_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +19,7 @@ func TestMain(m *testing.M) {
 	if err := i18n.Load("en"); err != nil {
 		panic("i18n.Load: " + err.Error())
 	}
-	m.Run()
+	os.Exit(m.Run())
 }
 
 // --- helpers ---
