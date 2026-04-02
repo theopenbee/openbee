@@ -80,36 +80,45 @@ export function LocalChatDetail() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [localMessages, isProcessing])
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const content = input.trim()
     if (!content && pendingMediaPaths.length === 0) return
 
+    const paths = [...pendingMediaPaths]
     const userMsg: ChatMessage = {
       role: "user",
       content,
-      media_paths: pendingMediaPaths.length > 0 ? [...pendingMediaPaths] : undefined,
+      media_paths: paths.length > 0 ? paths : undefined,
       ts: Date.now(),
     }
     setLocalMessages((prev) => [...prev, userMsg])
     setInput("")
+    setPendingMediaPaths([])
     setIsProcessing(true)
 
-    await sendMessage.mutateAsync({
-      content: content || " ",
-      mediaPaths: pendingMediaPaths.length > 0 ? pendingMediaPaths : undefined,
-    })
-    setPendingMediaPaths([])
-  }
+    try {
+      await sendMessage.mutateAsync({
+        content: content || " ",
+        mediaPaths: paths.length > 0 ? paths : undefined,
+      })
+    } catch {
+      setLocalMessages((prev) => prev.filter((m) => m !== userMsg))
+      setPendingMediaPaths(paths)
+      setIsProcessing(false)
+    }
+  }, [input, pendingMediaPaths, sendMessage])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
-    const results = await Promise.all(
+    e.target.value = ""
+    const results = await Promise.allSettled(
       files.map((file) => api.localChat.uploadMedia(sessionId, file))
     )
-    setPendingMediaPaths((prev) => [...prev, ...results.map((r) => r.path)])
-    // Reset so same files can be re-selected if needed
-    e.target.value = ""
+    const succeeded = results.filter(
+      (r): r is PromiseFulfilledResult<{ path: string }> => r.status === "fulfilled"
+    )
+    setPendingMediaPaths((prev) => [...prev, ...succeeded.map((r) => r.value.path)])
   }
 
   return (
@@ -148,8 +157,8 @@ export function LocalChatDetail() {
                 </div>
               ) : (
                 <>
-                  {msg.media_paths && msg.media_paths.map((p, i) => (
-                    <AttachmentPreview key={i} sessionId={sessionId} mediaPath={p} />
+                  {msg.media_paths && msg.media_paths.map((p) => (
+                    <AttachmentPreview key={p} sessionId={sessionId} mediaPath={p} />
                   ))}
                   {msg.content.trim() && <span>{msg.content}</span>}
                 </>
@@ -176,9 +185,9 @@ export function LocalChatDetail() {
       <div className="border-t border-border pt-3">
         {pendingMediaPaths.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-1">
-            {pendingMediaPaths.map((p, i) => (
+            {pendingMediaPaths.map((p) => (
               <span
-                key={i}
+                key={p}
                 className="flex items-center gap-1 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded"
               >
                 📎 {basename(p)}
@@ -186,7 +195,7 @@ export function LocalChatDetail() {
                   type="button"
                   className="ml-1 hover:text-destructive"
                   onClick={() =>
-                    setPendingMediaPaths((prev) => prev.filter((_, idx) => idx !== i))
+                    setPendingMediaPaths((prev) => prev.filter((path) => path !== p))
                   }
                 >
                   ×
