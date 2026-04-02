@@ -235,7 +235,7 @@ post_install_check() {
         echo "  将上面这行添加到 ~/.bashrc 或 ~/.zshrc 中以永久生效"
         echo ""
     else
-        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "unknown")
+        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null | awk '{print $2}' || echo "unknown")
         ok "验证安装: ${installed_version}"
     fi
 }
@@ -245,7 +245,7 @@ post_install_check() {
 # ============================================================
 check_existing() {
     if [ -f "${INSTALL_DIR}/${BINARY_NAME}" ] && [ "$FORCE" = false ]; then
-        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "")
+        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null | awk '{print $2}' || echo "")
         if [ -n "$existing_version" ]; then
             info "已安装 openbee: ${existing_version}"
             info "如需重新安装，请使用 --force"

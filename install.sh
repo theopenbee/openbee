@@ -236,7 +236,7 @@ post_install_check() {
         echo "  Add the above line to ~/.bashrc or ~/.zshrc to make it permanent."
         echo ""
     else
-        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "unknown")
+        installed_version=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null | awk '{print $2}' || echo "unknown")
         ok "Verified: ${installed_version}"
     fi
 }
@@ -246,7 +246,7 @@ post_install_check() {
 # ============================================================
 check_existing() {
     if [ -f "${INSTALL_DIR}/${BINARY_NAME}" ] && [ "$FORCE" = false ]; then
-        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" version 2>/dev/null || echo "")
+        existing_version=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>/dev/null | awk '{print $2}' || echo "")
         if [ -n "$existing_version" ]; then
             info "Found existing installation: ${existing_version}"
             info "Use --force to reinstall"
