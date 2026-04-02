@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 
-
 const AttachmentPreview = memo(function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const filename = basename(mediaPath)
   const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${tokenParam()}`
@@ -95,7 +94,7 @@ export function LocalChatDetail() {
       })
     } catch {
       setLocalMessages((prev) => prev.filter((m) => m !== userMsg))
-      setPendingMediaPaths(paths)
+      setPendingMediaPaths((prev) => [...paths, ...prev])
       setIsProcessing(false)
     }
   }, [input, pendingMediaPaths, sendMessage])
@@ -154,7 +153,7 @@ export function LocalChatDetail() {
                 </div>
               ) : (
                 <>
-                  {msg.media_paths && msg.media_paths.map((p) => (
+                  {msg.media_paths?.map((p) => (
                     <AttachmentPreview key={p} sessionId={sessionId} mediaPath={p} />
                   ))}
                   {msg.content.trim() && <span>{msg.content}</span>}

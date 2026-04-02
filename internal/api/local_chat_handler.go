@@ -31,6 +31,9 @@ const fileMediaMarker = "\x00[file]"
 // decodeMediaPaths still recognises it so existing stored messages are decoded correctly.
 const legacyFileMediaMarker = "[file]"
 
+const fileMediaPrefix = fileMediaMarker + " "
+const legacyFileMediaPrefix = legacyFileMediaMarker + " "
+
 type LocalChatHandler struct {
 	receiver     *local.LocalReceiver
 	hub          *local.SSEHub
@@ -199,22 +202,21 @@ func encodeMediaPaths(paths []string, text string) string {
 func decodeMediaPaths(content string) ([]string, string) {
 	var paths []string
 	for {
-		var prefix string
+		var rest string
 		switch {
-		case strings.HasPrefix(content, fileMediaMarker+" "):
-			prefix = fileMediaMarker + " "
-		case strings.HasPrefix(content, legacyFileMediaMarker+" "):
-			prefix = legacyFileMediaMarker + " "
+		case strings.HasPrefix(content, fileMediaPrefix):
+			rest = content[len(fileMediaPrefix):]
+		case strings.HasPrefix(content, legacyFileMediaPrefix):
+			rest = content[len(legacyFileMediaPrefix):]
 		default:
 			return paths, content
 		}
-		rest := content[len(prefix):]
-		idx := strings.IndexByte(rest, '\n')
-		if idx < 0 {
+		filename, after, ok := strings.Cut(rest, "\n")
+		if !ok {
 			break
 		}
-		paths = append(paths, rest[:idx])
-		content = rest[idx+1:]
+		paths = append(paths, filename)
+		content = after
 	}
 	return paths, content
 }
