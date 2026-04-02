@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -172,7 +171,38 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
-var mediaPathPrefix = regexp.MustCompile(`^` + regexp.QuoteMeta(fileMediaMarker) + ` ([^\n]+)\n`)
+// encodeMediaPaths prepends zero or more "[file] name\n" lines to text.
+func encodeMediaPaths(paths []string, text string) string {
+	if len(paths) == 0 {
+		return text
+	}
+	var sb strings.Builder
+	for _, p := range paths {
+		sb.WriteString(fileMediaMarker)
+		sb.WriteByte(' ')
+		sb.WriteString(p)
+		sb.WriteByte('\n')
+	}
+	sb.WriteString(text)
+	return sb.String()
+}
+
+// decodeMediaPaths extracts leading "[file] name\n" lines from content.
+// Returns the list of filenames and the remaining text.
+func decodeMediaPaths(content string) ([]string, string) {
+	prefix := fileMediaMarker + " "
+	var paths []string
+	for strings.HasPrefix(content, prefix) {
+		rest := content[len(prefix):]
+		idx := strings.IndexByte(rest, '\n')
+		if idx < 0 {
+			break
+		}
+		paths = append(paths, rest[:idx])
+		content = rest[idx+1:]
+	}
+	return paths, content
+}
 
 type chatMessage struct {
 	Role      string `json:"role"`
@@ -200,9 +230,9 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		msg := chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt}
-		if matches := mediaPathPrefix.FindStringSubmatch(m.Content); len(matches) == 2 {
-			msg.MediaPath = matches[1]
-			msg.Content = m.Content[len(matches[0]):]
+		if paths, text := decodeMediaPaths(m.Content); len(paths) > 0 {
+			msg.MediaPath = paths[0]
+			msg.Content = text
 		}
 		combined = append(combined, msg)
 	}
