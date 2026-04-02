@@ -140,22 +140,22 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	sessionKey := localSessionKey(id)
 
 	var body struct {
-		Content   string `json:"content" binding:"required"`
-		MediaPath string `json:"media_path"`
+		Content    string   `json:"content" binding:"required"`
+		MediaPaths []string `json:"media_paths"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	content := body.Content
-	if body.MediaPath != "" {
-		if strings.ContainsAny(body.MediaPath, "/\\") || body.MediaPath == ".." || body.MediaPath == "." {
+	for _, p := range body.MediaPaths {
+		if strings.ContainsAny(p, "/\\") || p == ".." || p == "." {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
 			return
 		}
-		content = fileMediaMarker + " " + body.MediaPath + "\n" + content
 	}
+
+	content := encodeMediaPaths(body.MediaPaths, body.Content)
 
 	h.receiver.Enqueue(platform.InboundMessage{
 		Platform:    "local",
@@ -205,10 +205,10 @@ func decodeMediaPaths(content string) ([]string, string) {
 }
 
 type chatMessage struct {
-	Role      string `json:"role"`
-	Content   string `json:"content"`
-	MediaPath string `json:"media_path,omitempty"`
-	Timestamp int64  `json:"ts"`
+	Role       string   `json:"role"`
+	Content    string   `json:"content"`
+	MediaPaths []string `json:"media_paths,omitempty"`
+	Timestamp  int64    `json:"ts"`
 }
 
 func (h *LocalChatHandler) getMessages(c *gin.Context) {
@@ -229,11 +229,10 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
-		msg := chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt}
-		if paths, text := decodeMediaPaths(m.Content); len(paths) > 0 {
-			// TODO(multi-file): only the first path is carried until chatMessage grows a []string field (Task 2).
-			msg.MediaPath = paths[0]
-			msg.Content = text
+		paths, text := decodeMediaPaths(m.Content)
+		msg := chatMessage{Role: "user", Content: text, Timestamp: m.ReceivedAt}
+		if len(paths) > 0 {
+			msg.MediaPaths = paths
 		}
 		combined = append(combined, msg)
 	}
