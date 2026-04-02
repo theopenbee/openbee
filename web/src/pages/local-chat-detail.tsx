@@ -115,7 +115,7 @@ export function LocalChatDetail() {
       setUploadError(t("localChat.uploadError", { count: failedCount }))
     }
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((r) => r.value.path)])
-  }, [sessionId])
+  }, [sessionId, t])
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
