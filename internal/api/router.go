@@ -102,6 +102,7 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 	api.POST("/local/sessions/:id/messages", s.LocalChatHandler.sendMessage)
 	api.GET("/local/sessions/:id/messages", s.LocalChatHandler.getMessages)
 	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
+	api.GET("/local/sessions/:id/media/:filename", s.LocalChatHandler.serveMedia)
 	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
 }
 

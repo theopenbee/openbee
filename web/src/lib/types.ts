@@ -43,6 +43,7 @@ export interface LocalChatSession {
 export interface ChatMessage {
   role: "user" | "bee"
   content: string
+  media_path?: string
   ts: number
 }
 

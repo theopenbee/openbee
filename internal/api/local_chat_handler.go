@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -169,9 +170,13 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
+// mediaPathPrefix is the prefix prepended to content when a file is attached.
+var mediaPathPrefix = regexp.MustCompile(`^\[文件\] ([^\n]+)\n`)
+
 type chatMessage struct {
 	Role      string `json:"role"`
 	Content   string `json:"content"`
+	MediaPath string `json:"media_path,omitempty"`
 	Timestamp int64  `json:"ts"`
 }
 
@@ -193,7 +198,12 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
-		combined = append(combined, chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt})
+		msg := chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt}
+		if matches := mediaPathPrefix.FindStringSubmatch(m.Content); len(matches) == 2 {
+			msg.MediaPath = matches[1]
+			msg.Content = m.Content[len(matches[0]):]
+		}
+		combined = append(combined, msg)
 	}
 	for _, r := range replies {
 		combined = append(combined, chatMessage{Role: "bee", Content: r.Content, Timestamp: r.CreatedAt})
@@ -237,6 +247,31 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"path": destPath})
+}
+
+func (h *LocalChatHandler) serveMedia(c *gin.Context) {
+	id := c.Param("id")
+	filename := filepath.Base(c.Param("filename"))
+	if filename == "." || filename == string(filepath.Separator) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	uploadDir, err := localUploadDir(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	filePath := filepath.Join(uploadDir, filename)
+	// Ensure the resolved path is still within the upload directory.
+	rel, err := filepath.Rel(uploadDir, filePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
+		return
+	}
+
+	c.File(filePath)
 }
 
 func localSessionKey(id string) string {

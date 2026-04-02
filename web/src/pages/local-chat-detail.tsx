@@ -8,9 +8,47 @@ import {
   useLocalChatStream,
 } from "@/hooks/use-local-chat"
 import { api } from "@/lib/api"
+import { config } from "@/lib/config"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
+
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"])
+
+function mediaUrl(sessionId: string, filePath: string): string {
+  const filename = filePath.split("/").pop() ?? filePath
+  return `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}`
+}
+
+function isImage(filePath: string): boolean {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
+  return IMAGE_EXTS.has(ext)
+}
+
+function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
+  const url = mediaUrl(sessionId, mediaPath)
+  const filename = mediaPath.split("/").pop() ?? mediaPath
+  if (isImage(mediaPath)) {
+    return (
+      <img
+        src={url}
+        alt={filename}
+        className="max-w-full max-h-60 rounded-lg object-contain mb-1"
+      />
+    )
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-1 text-xs underline opacity-80 mb-1 break-all"
+    >
+      <Paperclip className="h-3 w-3 shrink-0" />
+      {filename}
+    </a>
+  )
+}
 
 export function LocalChatDetail() {
   const { t } = useTranslation()
@@ -45,7 +83,7 @@ export function LocalChatDetail() {
     const content = input.trim()
     if (!content && !pendingMediaPath) return
 
-    const userMsg: ChatMessage = { role: "user", content, ts: Date.now() }
+    const userMsg: ChatMessage = { role: "user", content, media_path: pendingMediaPath, ts: Date.now() }
     setLocalMessages((prev) => [...prev, userMsg])
     setInput("")
     setIsProcessing(true)
@@ -96,7 +134,12 @@ export function LocalChatDetail() {
                   <Streamdown mode="static">{msg.content}</Streamdown>
                 </div>
               ) : (
-                msg.content
+                <>
+                  {msg.media_path && (
+                    <AttachmentPreview sessionId={sessionId} mediaPath={msg.media_path} />
+                  )}
+                  {msg.content && msg.content.trim() && <span>{msg.content}</span>}
+                </>
               )}
             </div>
           </div>
@@ -120,7 +163,7 @@ export function LocalChatDetail() {
       <div className="border-t border-border pt-3">
         {pendingMediaPath && (
           <p className="text-xs text-muted-foreground mb-1 truncate font-mono">
-            📎 {pendingMediaPath}
+            📎 {pendingMediaPath.split("/").pop() ?? pendingMediaPath}
           </p>
         )}
         <div className="flex gap-2 items-end bg-card rounded-xl ring-1 ring-foreground/10 p-2">
