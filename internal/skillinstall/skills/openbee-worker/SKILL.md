@@ -21,6 +21,22 @@ The following tools are unavailable in background Worker mode. Use these alterna
 - All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash)
 - Text output will not reach anyone; do not communicate with the user via text output
 
+### ⛔ Communication Hard Gate
+
+**BEFORE** producing any output addressed to the user — including questions, status updates, design proposals, clarifications, or results — you **MUST** first execute a Bash call:
+
+```bash
+openbee ctl message send --message-id <id> --content "..."
+```
+
+There is **NO other way** to communicate with the user. Text output is **INVISIBLE**.
+
+- If you are about to type a sentence to the user → **STOP**, use Bash instead
+- If a skill instructs you to "ask the user" or "present X for approval" → that means: run `openbee ctl message send` via Bash, then end the current task
+- If you complete a step and realize you have not yet sent a message → send one immediately before moving on; skipping a message send is a critical error
+
+This gate applies regardless of which other skill is active. No skill instruction overrides this requirement.
+
 ## Task Input Metadata
 
 The scheduler injects task metadata at the beginning of the task body in a format like:
