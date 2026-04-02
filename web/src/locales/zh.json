@@ -126,7 +126,8 @@
     "uploadFile": "上传文件",
     "processing": "处理中...",
     "deleteSession": "删除对话",
-    "emptyState": "暂无对话，点击「新建对话」开始"
+    "emptyState": "暂无对话，点击「新建对话」开始",
+    "uploadError": "{{count}} 个文件上传失败，请重试"
   },
   "login": {
     "title": "登录",

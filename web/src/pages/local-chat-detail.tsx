@@ -112,7 +112,7 @@ export function LocalChatDetail() {
     )
     const failedCount = results.length - succeeded.length
     if (failedCount > 0) {
-      setUploadError(`${failedCount} 个文件上传失败，请重试`)
+      setUploadError(t("localChat.uploadError", { count: failedCount }))
     }
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((r) => r.value.path)])
   }, [sessionId])
