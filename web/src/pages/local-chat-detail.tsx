@@ -9,6 +9,7 @@ import {
 } from "@/hooks/use-local-chat"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
+import { getAccessToken } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
@@ -26,7 +27,8 @@ function isImage(filePath: string): boolean {
 
 const AttachmentPreview = memo(function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const filename = basename(mediaPath)
-  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}`
+  const token = getAccessToken()
+  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${token ? `?token=${encodeURIComponent(token)}` : ""}`
   if (isImage(mediaPath)) {
     return (
       <img
