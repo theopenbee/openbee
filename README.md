@@ -52,7 +52,7 @@ The platform-specific binary is downloaded automatically. Supports Linux / macOS
 <summary>🔧 One-click Script</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
+curl -fsSL https://dl.theopenbee.cn/install.sh | bash
 ```
 
 </details>
@@ -87,9 +87,7 @@ openbee config
 ```
 
 The wizard will guide you through:
-- Server port / host
 - Claude executable path
-- MCP API Key (can be randomly generated)
 - IM platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram) and their credentials
 - Advanced options (can be skipped to use defaults)
 
