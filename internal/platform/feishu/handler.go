@@ -172,9 +172,14 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	// The larkws SDK's Start() blocks with select{} and never checks ctx.Done().
 	// Watch for shutdown and close the underlying WebSocket connection so the SDK's
 	// read loop unblocks and the server receives a proper Close frame before exit.
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-ctx.Done()
-		closeWSConn(wsClient)
+		select {
+		case <-ctx.Done():
+			closeWSConn(wsClient)
+		case <-done:
+		}
 	}()
 
 	log.Info("Feishu bot starting...")
@@ -198,8 +203,12 @@ func closeWSConn(client *larkws.Client) {
 		return
 	}
 	closeMsg := gorillaws.FormatCloseMessage(gorillaws.CloseNormalClosure, "server shutdown")
-	_ = conn.WriteControl(gorillaws.CloseMessage, closeMsg, time.Now().Add(3*time.Second))
-	_ = conn.Close()
+	if err := conn.WriteControl(gorillaws.CloseMessage, closeMsg, time.Now().Add(3*time.Second)); err != nil {
+		log.Debug("feishu ws close frame error", zap.Error(err))
+	}
+	if err := conn.Close(); err != nil {
+		log.Debug("feishu ws conn close error", zap.Error(err))
+	}
 }
 
 // validFeishuKey matches valid Feishu file/image keys.
