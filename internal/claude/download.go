@@ -5,13 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/utils"
 )
 
 // GitHubAPI is the GitHub Releases API endpoint for cc-download.
@@ -19,7 +20,6 @@ import (
 var GitHubAPI = "https://api.github.com/repos/theopenbee/cc-download/releases/latest"
 
 const gitHubRelBase = "https://github.com/theopenbee/cc-download/releases/download"
-const maxDownloadBytes = 512 * 1024 * 1024 // 512 MB guard
 
 // claudePlatform represents a target platform for Claude Code download.
 type claudePlatform struct {
@@ -101,44 +101,9 @@ func fetchLatestClaudeVersion() (string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
-	tag := strings.TrimSpace(rel.TagName)
-	if tag == "" {
-		return "", fmt.Errorf("empty version tag")
-	}
-	if !strings.HasPrefix(tag, "v") {
-		tag = "v" + tag
-	}
-	return tag, nil
+	return utils.NormalizeVersionTag(rel.TagName)
 }
 
-func downloadFile(url, dest string, extra io.Writer) error {
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, url)
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	w := io.Writer(f)
-	if extra != nil {
-		w = io.MultiWriter(f, extra)
-	}
-	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDownloadBytes))
-	if err != nil {
-		return err
-	}
-	if n >= maxDownloadBytes {
-		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
-	}
-	return nil
-}
 
 // Download downloads Claude Code to stateDir/bin/claude and returns the installed path.
 // If the binary already exists and force is false, it returns the existing path immediately
@@ -192,7 +157,7 @@ func Download(stateDir string, force bool) (string, error) {
 
 	checksumPath := filepath.Join(tmpDir, "checksums-sha256.txt")
 	checksumAvailable := true
-	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
+	if err := utils.DownloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
 		fmt.Printf("warning: failed to download checksums-sha256.txt, skipping verification (%v)\n", err)
 	}
@@ -202,7 +167,7 @@ func Download(stateDir string, force bool) (string, error) {
 	tmpPath := destPath + ".tmp"
 	os.Remove(tmpPath) // clean up any stale partial download from a previous interrupted run
 	h := sha256.New()
-	if err := downloadFile(binaryURL, tmpPath, h); err != nil {
+	if err := utils.DownloadFile(binaryURL, tmpPath, h); err != nil {
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("download: %w", err)
 	}
@@ -214,16 +179,10 @@ func Download(stateDir string, force bool) (string, error) {
 			os.Remove(tmpPath)
 			return "", fmt.Errorf("read checksums: %w", err)
 		}
-		var expected string
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if parts := strings.Fields(line); len(parts) == 2 && parts[1] == assetName {
-				expected = parts[0]
-				break
-			}
-		}
-		if expected == "" {
+		expected, err := utils.ParseChecksumFile(data, assetName)
+		if err != nil {
 			os.Remove(tmpPath)
-			return "", fmt.Errorf("no checksum for %s in checksums-sha256.txt", assetName)
+			return "", fmt.Errorf("%w in checksums-sha256.txt", err)
 		}
 		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
 			os.Remove(tmpPath)

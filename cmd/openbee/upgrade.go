@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/utils"
 )
 
 const (
@@ -28,17 +29,18 @@ const (
 
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
-	maxDownloadBytes     = 512 * 1024 * 1024 // 512 MB guard against runaway responses
-	executablePerm       = 0o755
+	executablePerm = 0o755
 )
 
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
-var upgradeCheckOnly bool
-var upgradeCDNURL string
-var upgradeCN bool
+var (
+	upgradeCheckOnly bool
+	upgradeCDNURL    string
+	upgradeCN        bool
+)
 
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
@@ -111,7 +113,7 @@ func fetchLatestVersion(cdnURL string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("read CDN response: %w", err)
 		}
-		return normalizeVersionTag(string(body))
+		return utils.NormalizeVersionTag(string(body))
 	}
 
 	resp, err := client.Get(githubAPILatest)
@@ -129,18 +131,7 @@ func fetchLatestVersion(cdnURL string) (string, error) {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 
-	return normalizeVersionTag(rel.TagName)
-}
-
-func normalizeVersionTag(tag string) (string, error) {
-	tag = strings.TrimSpace(tag)
-	if tag == "" {
-		return "", fmt.Errorf("empty version tag")
-	}
-	if !strings.HasPrefix(tag, "v") {
-		tag = "v" + tag
-	}
-	return tag, nil
+	return utils.NormalizeVersionTag(rel.TagName)
 }
 
 // isNewer returns true when latest is strictly newer than current.
@@ -205,14 +196,14 @@ func doUpgrade(newVersion string, cdnURL string) error {
 	// This avoids a second read of the archive for checksum verification.
 	checksumPath := filepath.Join(tmpDir, "checksums.txt")
 	checksumAvailable := true
-	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
+	if err := utils.DownloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
 		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
 	}
 
 	h := sha256.New()
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath, h); err != nil {
+	if err := utils.DownloadFile(archiveURL, archivePath, h); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
@@ -222,15 +213,9 @@ func doUpgrade(newVersion string, cdnURL string) error {
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
 		}
-		var expected string
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if parts := strings.Fields(line); len(parts) == 2 && parts[1] == archiveName {
-				expected = parts[0]
-				break
-			}
-		}
-		if expected == "" {
-			return fmt.Errorf("no checksum for %s in checksums.txt", archiveName)
+		expected, err := utils.ParseChecksumFile(data, archiveName)
+		if err != nil {
+			return fmt.Errorf("%w in checksums.txt", err)
 		}
 		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
 			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
@@ -269,36 +254,6 @@ func doUpgrade(newVersion string, cdnURL string) error {
 	return nil
 }
 
-// downloadFile fetches url and writes the response body to dest.
-// If extra is non-nil, all downloaded bytes are also written to it (e.g. for hashing).
-func downloadFile(url, dest string, extra io.Writer) error {
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, url)
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	w := io.Writer(f)
-	if extra != nil {
-		w = io.MultiWriter(f, extra)
-	}
-	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDownloadBytes))
-	if err != nil {
-		return err
-	}
-	if n >= maxDownloadBytes {
-		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
-	}
-	return nil
-}
 
 func extractBinary(archivePath string, dest *os.File) error {
 	f, err := os.Open(archivePath)
