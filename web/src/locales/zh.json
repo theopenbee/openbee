@@ -3,7 +3,7 @@
     "dashboard": "仪表板",
     "workers": "员工",
     "executions": "会话记录",
-    "tasks": "任务"
+    "tasks": "定时任务"
   },
   "common": {
     "save": "保存",

@@ -3,7 +3,7 @@
     "dashboard": "Dashboard",
     "workers": "Workers",
     "executions": "Sessions",
-    "tasks": "Tasks"
+    "tasks": "Scheduled Tasks"
   },
   "common": {
     "save": "Save",
