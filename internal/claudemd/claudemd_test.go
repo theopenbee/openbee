@@ -38,7 +38,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("测试助手"), claudemd.WithDescription("负责测试任务")); err != nil {
+	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("test-assistant"), claudemd.WithDescription("responsible for testing")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
@@ -48,14 +48,14 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "Name: 测试助手") {
+	if !strings.Contains(content, "Name: test-assistant") {
 		t.Error("missing worker name")
 	}
-	if !strings.Contains(content, "Description: 负责测试任务") {
+	if !strings.Contains(content, "Description: responsible for testing") {
 		t.Error("missing worker description")
 	}
-	if strings.Contains(content, "清除上下文处理") {
-		t.Error("worker rules should not contain bee-specific 清除上下文处理")
+	if strings.Contains(content, "clear context handling") {
+		t.Error("worker rules should not contain bee-specific clear context handling")
 	}
 	if !strings.Contains(content, "openbee-worker skill") {
 		t.Error("missing openbee-worker skill reference")
@@ -69,7 +69,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("小助手")); err != nil {
+	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("mini-assistant")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, "Name: 小助手") {
+	if !strings.Contains(content, "Name: mini-assistant") {
 		t.Error("missing worker name")
 	}
 	if strings.Contains(content, "Description:") {
@@ -91,7 +91,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithMemory("用户偏好中文回复")); err != nil {
+	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithMemory("user prefers English replies")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	if !strings.Contains(content, "## Memory Constraints") {
 		t.Error("memory section should appear")
 	}
-	if !strings.Contains(content, "用户偏好中文回复") {
+	if !strings.Contains(content, "user prefers English replies") {
 		t.Error("memory content should appear")
 	}
 	if strings.Contains(content, "### Memory") {
@@ -132,7 +132,7 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	}
 	content := string(data)
 
-	if strings.Contains(content, "非交互式后台 Worker") {
+	if strings.Contains(content, "Non-Interactive Background Worker") {
 		t.Error("worker preamble should have been removed")
 	}
 }

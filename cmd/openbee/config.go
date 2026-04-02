@@ -575,20 +575,20 @@ func runConfig(cmd *cobra.Command, args []string) error {
 func runLanguageStep(existingLang string) (string, error) {
 	defaultOpt := "English"
 	if existingLang == "zh" {
-		defaultOpt = "中文"
+		defaultOpt = "Chinese"
 	}
 
 	var selected string
 	if err := survey.AskOne(&survey.Select{
-		Message: "Select language / 选择语言",
-		Options: []string{"English", "中文"},
+		Message: "Select language",
+		Options: []string{"English", "Chinese"},
 		Default: defaultOpt,
 	}, &selected); err != nil {
 		return "", handleSurveyErr(err)
 	}
 
 	lang := "en"
-	if selected == "中文" {
+	if selected == "Chinese" {
 		lang = "zh"
 	}
 

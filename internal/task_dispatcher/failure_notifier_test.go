@@ -129,7 +129,7 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 		t.Fatalf("create message: %v", err)
 	}
 
-	longReason := strings.Repeat("错误", 300) // 600 Chinese chars
+	longReason := strings.Repeat("error ", 300) // 1800 ASCII chars, exceeds 500 rune limit
 	info := model.FailureInfo{
 		Reason:     longReason,
 		WorkerName: "w",
@@ -167,7 +167,7 @@ func TestPlatformFailureNotifier_StructuredFormat_WithRetry(t *testing.T) {
 
 	info := model.FailureInfo{
 		Reason:     "exit status 1",
-		WorkerName: "数据分析助手",
+		WorkerName: "data-analyst",
 		RetryCount: 3,
 		MaxRetries: 3,
 	}
@@ -178,7 +178,7 @@ func TestPlatformFailureNotifier_StructuredFormat_WithRetry(t *testing.T) {
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
 	content := sender.sent[0].Content
-	if !strings.Contains(content, "数据分析助手") {
+	if !strings.Contains(content, "data-analyst") {
 		t.Errorf("expected WorkerName in content, got: %s", content)
 	}
 	if !strings.Contains(content, "Retried: 3/3") {

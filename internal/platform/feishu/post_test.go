@@ -33,15 +33,15 @@ func TestParsePostContent_DirectFormat(t *testing.T) {
 func TestParsePostContent_LocaleFormat(t *testing.T) {
 	content := `{
 		"zh_cn": {
-			"title": "中文标题",
-			"content": [[{"tag": "text", "text": "你好"}]]
+			"title": "Chinese Title",
+			"content": [[{"tag": "text", "text": "hello"}]]
 		}
 	}`
 	result, err := ParsePostContent(content)
 	if err != nil {
 		t.Fatalf("ParsePostContent: %v", err)
 	}
-	if result.TextContent != "中文标题\n你好" {
+	if result.TextContent != "Chinese Title\nhello" {
 		t.Errorf("TextContent = %q", result.TextContent)
 	}
 }

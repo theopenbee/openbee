@@ -119,7 +119,7 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 	ctx := context.Background()
 
 	ws := store.NewWorkerStore(db)
-	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: t.TempDir()})
+	w, err := ws.Create(model.Worker{Name: "TianTian", WorkDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("create worker: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 	}
 
 	wkr := byAgent[w.ID]
-	if wkr.AgentType != "worker" || wkr.Name != "天天" {
+	if wkr.AgentType != "worker" || wkr.Name != "TianTian" {
 		t.Errorf("worker entry: got type=%q name=%q", wkr.AgentType, wkr.Name)
 	}
 }

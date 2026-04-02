@@ -18,7 +18,7 @@ func TestSanitizeFileName(t *testing.T) {
 		{"colon", "C:file.txt", "C_file.txt"},
 		{"consecutive special chars", "a\x00\x01\x02b.txt", "a_b.txt"},
 		{"empty string", "", ""},
-		{"unicode preserved", "报告.pdf", "报告.pdf"},
+		{"unicode preserved", "café.pdf", "café.pdf"},
 		{"del char", "file\x7fname.txt", "file_name.txt"},
 	}
 	for _, tt := range tests {

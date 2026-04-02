@@ -938,11 +938,11 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 		"openMsgId":          data.MsgId,
 		"openConversationId": data.ConversationId,
 		"emotionType":        2,
-		"emotionName":        "🤔思考中",
+		"emotionName":        "🤔 Thinking...",
 		"textEmotion": map[string]string{
 			"emotionId":    "2659900",
-			"emotionName":  "🤔思考中",
-			"text":         "🤔思考中",
+			"emotionName":  "🤔 Thinking...",
+			"text":         "🤔 Thinking...",
 			"backgroundId": "im_bg_1",
 		},
 	})

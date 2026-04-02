@@ -304,7 +304,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 
 	// Create a worker and a message
 	ws := store.NewWorkerStore(db)
-	w, err := ws.Create(model.Worker{Name: "毛毛", Description: "test worker"})
+	w, err := ws.Create(model.Worker{Name: "MaoMao", Description: "test worker"})
 	if err != nil {
 		t.Fatalf("create worker: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, w.ID)
 	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-worker-prefix",
-		"content":    "任务完成",
+		"content":    "task done",
 	}))
 	if err != nil {
 		t.Fatalf("send_message: %v", err)
@@ -332,7 +332,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 	if len(mock.sent) == 0 {
 		t.Fatal("expected sender.Send to be called")
 	}
-	want := "毛毛\n任务完成"
+	want := "MaoMao\ntask done"
 	if mock.sent[0].Content != want {
 		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
 	}
@@ -351,7 +351,7 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, "worker-deleted-xyz")
 	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-deleted-worker",
-		"content":    "任务完成",
+		"content":    "task done",
 	}))
 	if err != nil {
 		t.Fatalf("send_message: %v", err)
@@ -366,7 +366,7 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	if len(mock.sent) == 0 {
 		t.Fatal("expected sender.Send to be called")
 	}
-	want := "worker-deleted-xyz\n任务完成"
+	want := "worker-deleted-xyz\ntask done"
 	if mock.sent[0].Content != want {
 		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
 	}
