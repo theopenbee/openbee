@@ -111,14 +111,7 @@ func fetchLatestVersion(cdnURL string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("read CDN response: %w", err)
 		}
-		tag := strings.TrimSpace(string(body))
-		if tag == "" {
-			return "", fmt.Errorf("empty version from CDN")
-		}
-		if !strings.HasPrefix(tag, "v") {
-			tag = "v" + tag
-		}
-		return tag, nil
+		return normalizeVersionTag(string(body))
 	}
 
 	resp, err := client.Get(githubAPILatest)
@@ -136,7 +129,11 @@ func fetchLatestVersion(cdnURL string) (string, error) {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 
-	tag := strings.TrimSpace(rel.TagName)
+	return normalizeVersionTag(rel.TagName)
+}
+
+func normalizeVersionTag(tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return "", fmt.Errorf("empty version tag")
 	}
@@ -189,12 +186,12 @@ func doUpgrade(newVersion string, cdnURL string) error {
 
 	var relBase string
 	if cdnURL != "" {
-		relBase = cdnURL + "/releases/" + newVersion
+		relBase = fmt.Sprintf("%s/releases/%s", cdnURL, newVersion)
 	} else {
-		relBase = githubRelBase + "/" + newVersion
+		relBase = fmt.Sprintf("%s/%s", githubRelBase, newVersion)
 	}
-	archiveURL := relBase + "/" + archiveName
-	checksumURL := relBase + "/checksums.txt"
+	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
+	checksumURL := fmt.Sprintf("%s/checksums.txt", relBase)
 
 	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
