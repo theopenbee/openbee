@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react"
+import { memo, useState, useRef, useEffect, useCallback } from "react"
 import { Streamdown } from "streamdown"
 import { useParams, Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -19,18 +19,14 @@ function basename(filePath: string): string {
   return filePath.split("/").pop() ?? filePath
 }
 
-function mediaUrl(sessionId: string, filePath: string): string {
-  return `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(basename(filePath))}`
-}
-
 function isImage(filePath: string): boolean {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
   return IMAGE_EXTS.has(ext)
 }
 
-function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
-  const url = mediaUrl(sessionId, mediaPath)
+const AttachmentPreview = memo(function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const filename = basename(mediaPath)
+  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}`
   if (isImage(mediaPath)) {
     return (
       <img
@@ -51,7 +47,7 @@ function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaP
       {filename}
     </a>
   )
-}
+})
 
 export function LocalChatDetail() {
   const { t } = useTranslation()

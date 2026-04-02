@@ -170,7 +170,6 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
-// mediaPathPrefix is the prefix prepended to content when a file is attached.
 var mediaPathPrefix = regexp.MustCompile(`^\[文件\] ([^\n]+)\n`)
 
 type chatMessage struct {
