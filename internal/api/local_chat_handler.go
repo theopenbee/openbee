@@ -23,7 +23,7 @@ import (
 var log = logger.With(zap.String("component", "api"))
 
 // fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
-// It is shared between the write path (sendMessage) and the read path (mediaPathPrefix regex).
+// It is shared between the write path (encodeMediaPaths) and the read path (decodeMediaPaths).
 const fileMediaMarker = "[file]"
 
 type LocalChatHandler struct {
@@ -231,6 +231,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	for _, m := range inbound {
 		msg := chatMessage{Role: "user", Content: m.Content, Timestamp: m.ReceivedAt}
 		if paths, text := decodeMediaPaths(m.Content); len(paths) > 0 {
+			// TODO(multi-file): only the first path is carried until chatMessage grows a []string field (Task 2).
 			msg.MediaPath = paths[0]
 			msg.Content = text
 		}
