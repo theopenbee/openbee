@@ -15,9 +15,12 @@ import type { ChatMessage } from "@/lib/types"
 
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"])
 
+function basename(filePath: string): string {
+  return filePath.split("/").pop() ?? filePath
+}
+
 function mediaUrl(sessionId: string, filePath: string): string {
-  const filename = filePath.split("/").pop() ?? filePath
-  return `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}`
+  return `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(basename(filePath))}`
 }
 
 function isImage(filePath: string): boolean {
@@ -27,7 +30,7 @@ function isImage(filePath: string): boolean {
 
 function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const url = mediaUrl(sessionId, mediaPath)
-  const filename = mediaPath.split("/").pop() ?? mediaPath
+  const filename = basename(mediaPath)
   if (isImage(mediaPath)) {
     return (
       <img
@@ -138,7 +141,7 @@ export function LocalChatDetail() {
                   {msg.media_path && (
                     <AttachmentPreview sessionId={sessionId} mediaPath={msg.media_path} />
                   )}
-                  {msg.content && msg.content.trim() && <span>{msg.content}</span>}
+                  {msg.content.trim() && <span>{msg.content}</span>}
                 </>
               )}
             </div>
@@ -163,7 +166,7 @@ export function LocalChatDetail() {
       <div className="border-t border-border pt-3">
         {pendingMediaPath && (
           <p className="text-xs text-muted-foreground mb-1 truncate font-mono">
-            📎 {pendingMediaPath.split("/").pop() ?? pendingMediaPath}
+            📎 {basename(pendingMediaPath)}
           </p>
         )}
         <div className="flex gap-2 items-end bg-card rounded-xl ring-1 ring-foreground/10 p-2">

@@ -264,7 +264,6 @@ func (h *LocalChatHandler) serveMedia(c *gin.Context) {
 	}
 
 	filePath := filepath.Join(uploadDir, filename)
-	// Ensure the resolved path is still within the upload directory.
 	rel, err := filepath.Rel(uploadDir, filePath)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
