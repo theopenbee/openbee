@@ -22,12 +22,18 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
-          if (id.includes("/react/") || id.includes("/react-dom/")) return "vendor-react";
-          if (id.includes("/react-router-dom/") || id.includes("/react-router/")) return "vendor-router";
-          if (id.includes("/@tanstack/react-query/")) return "vendor-query";
-          if (id.includes("/i18next/") || id.includes("/react-i18next/")) return "vendor-i18n";
-          if (id.includes("/@base-ui/react/")) return "vendor-ui";
-          if (id.includes("/lucide-react/")) return "vendor-icons";
+          // Extract the actual package name from the last node_modules segment in the path.
+          // The greedy .* ensures we pick the last occurrence, which is correct for pnpm
+          // virtual store paths like node_modules/.pnpm/pkg@ver/node_modules/pkg/...
+          const pkgMatch = id.match(/.*\/node_modules\/((?:@[^/]+\/)?[^/]+)/);
+          if (!pkgMatch) return;
+          const pkg = pkgMatch[1];
+          if (pkg === "react" || pkg === "react-dom") return "vendor-react";
+          if (pkg === "react-router-dom" || pkg === "react-router") return "vendor-router";
+          if (pkg === "@tanstack/react-query") return "vendor-query";
+          if (pkg === "i18next" || pkg === "react-i18next") return "vendor-i18n";
+          if (pkg === "@base-ui/react") return "vendor-ui";
+          if (pkg === "lucide-react") return "vendor-icons";
         },
       },
     },
