@@ -18,45 +18,62 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/utils"
 )
 
 const (
 	githubAPILatest = "https://api.github.com/repos/theopenbee/openbee/releases/latest"
 	githubRelBase   = "https://github.com/theopenbee/openbee/releases/download"
 
+	defaultCDNBaseURL = "https://dl.theopenbee.cn"
+
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
-	maxDownloadBytes     = 512 * 1024 * 1024 // 512 MB guard against runaway responses
-	executablePerm       = 0o755
+	executablePerm = 0o755
 )
 
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
-var upgradeCheckOnly bool
+var (
+	upgradeCheckOnly bool
+	upgradeCDNURL    string
+	upgradeCN        bool
+)
 
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Upgrade openbee to the latest version",
 	Long:  "Check for a new version and replace the current binary if one is available.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runUpgrade(upgradeCheckOnly)
+		cdnURL := upgradeCDNURL
+		if cdnURL == "" && upgradeCN {
+			cdnURL = defaultCDNBaseURL
+		}
+		return runUpgrade(upgradeCheckOnly, cdnURL)
 	},
 }
 
 func init() {
-	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "check for updates only, do not upgrade")
+	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, i18n.M.Flag.UpgradeCheck)
+	upgradeCmd.Flags().StringVar(&upgradeCDNURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
+	upgradeCmd.Flags().BoolVar(&upgradeCN, "cn", false, i18n.M.Flag.UpgradeCN)
 	rootCmd.AddCommand(upgradeCmd)
 }
 
-func runUpgrade(checkOnly bool) error {
+func runUpgrade(checkOnly bool, cdnURL string) error {
 	current := version
 
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
+
+	if cdnURL != "" {
+		fmt.Printf(i18n.M.Output.Upgrade.UsingCDN+"\n", cdnURL)
+	}
+
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
-	latest, err := fetchLatestVersion()
+	latest, err := fetchLatestVersion(cdnURL)
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
@@ -75,11 +92,30 @@ func runUpgrade(checkOnly bool) error {
 		return nil
 	}
 
-	return doUpgrade(latest)
+	return doUpgrade(latest, cdnURL)
 }
 
-func fetchLatestVersion() (string, error) {
+func fetchLatestVersion(cdnURL string) (string, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
+
+	if cdnURL != "" {
+		// CDN exposes a plain-text file at {cdnURL}/releases/latest
+		url := cdnURL + "/releases/latest"
+		resp, err := client.Get(url)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+		if err != nil {
+			return "", fmt.Errorf("read CDN response: %w", err)
+		}
+		return utils.NormalizeVersionTag(string(body))
+	}
+
 	resp, err := client.Get(githubAPILatest)
 	if err != nil {
 		return "", err
@@ -95,14 +131,7 @@ func fetchLatestVersion() (string, error) {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 
-	tag := strings.TrimSpace(rel.TagName)
-	if tag == "" {
-		return "", fmt.Errorf("empty version tag")
-	}
-	if !strings.HasPrefix(tag, "v") {
-		tag = "v" + tag
-	}
-	return tag, nil
+	return utils.NormalizeVersionTag(rel.TagName)
 }
 
 // isNewer returns true when latest is strictly newer than current.
@@ -142,11 +171,18 @@ func parseSemver(v string) []int {
 	return nums
 }
 
-func doUpgrade(newVersion string) error {
+func doUpgrade(newVersion string, cdnURL string) error {
 	versionNum := strings.TrimPrefix(newVersion, "v")
 	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", upgradeBinaryName, versionNum, runtime.GOOS, runtime.GOARCH)
-	archiveURL := fmt.Sprintf("%s/%s/%s", githubRelBase, newVersion, archiveName)
-	checksumURL := fmt.Sprintf("%s/%s/checksums.txt", githubRelBase, newVersion)
+
+	var relBase string
+	if cdnURL != "" {
+		relBase = fmt.Sprintf("%s/releases/%s", cdnURL, newVersion)
+	} else {
+		relBase = fmt.Sprintf("%s/%s", githubRelBase, newVersion)
+	}
+	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
+	checksumURL := fmt.Sprintf("%s/checksums.txt", relBase)
 
 	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
@@ -160,14 +196,14 @@ func doUpgrade(newVersion string) error {
 	// This avoids a second read of the archive for checksum verification.
 	checksumPath := filepath.Join(tmpDir, "checksums.txt")
 	checksumAvailable := true
-	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
+	if err := utils.DownloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
 		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
 	}
 
 	h := sha256.New()
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath, h); err != nil {
+	if err := utils.DownloadFile(archiveURL, archivePath, h); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
@@ -177,15 +213,9 @@ func doUpgrade(newVersion string) error {
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
 		}
-		var expected string
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if parts := strings.Fields(line); len(parts) == 2 && parts[1] == archiveName {
-				expected = parts[0]
-				break
-			}
-		}
-		if expected == "" {
-			return fmt.Errorf("no checksum for %s in checksums.txt", archiveName)
+		expected, err := utils.ParseChecksumFile(data, archiveName)
+		if err != nil {
+			return fmt.Errorf("%w in checksums.txt", err)
 		}
 		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
 			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
@@ -224,36 +254,6 @@ func doUpgrade(newVersion string) error {
 	return nil
 }
 
-// downloadFile fetches url and writes the response body to dest.
-// If extra is non-nil, all downloaded bytes are also written to it (e.g. for hashing).
-func downloadFile(url, dest string, extra io.Writer) error {
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, url)
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	w := io.Writer(f)
-	if extra != nil {
-		w = io.MultiWriter(f, extra)
-	}
-	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDownloadBytes))
-	if err != nil {
-		return err
-	}
-	if n >= maxDownloadBytes {
-		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
-	}
-	return nil
-}
 
 func extractBinary(archivePath string, dest *os.File) error {
 	f, err := os.Open(archivePath)

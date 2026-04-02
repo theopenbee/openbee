@@ -93,6 +93,8 @@ flag:
   restore_password: "password to decrypt the backup archive"
   restore_force: "overwrite existing data"
   upgrade_check: "check for updates only, do not upgrade"
+  upgrade_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
+  upgrade_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
   claude_download_force: "Force re-download even if already installed"
 output:
   stop:
@@ -118,6 +120,7 @@ output:
     verified: "SHA256 verified."
     binary_at: "Upgrading binary at: %s"
     success: "Successfully upgraded openbee to %s."
+    using_cdn: "Using CDN: %s"
   backup:
     created: "Backup created: %s"
   restore:

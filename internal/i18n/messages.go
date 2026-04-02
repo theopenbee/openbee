@@ -108,6 +108,8 @@ type FlagMessages struct {
 	RestorePassword     string `yaml:"restore_password"`
 	RestoreForce        string `yaml:"restore_force"`
 	UpgradeCheck        string `yaml:"upgrade_check"`
+	UpgradeCDNURL       string `yaml:"upgrade_cdn_url"`
+	UpgradeCN           string `yaml:"upgrade_cn"`
 	ClaudeDownloadForce string `yaml:"claude_download_force"`
 }
 
@@ -181,6 +183,7 @@ type UpgradeOutput struct {
 	Verified        string `yaml:"verified"`
 	BinaryAt        string `yaml:"binary_at"` // contains %s
 	Success         string `yaml:"success"`   // contains %s
+	UsingCDN        string `yaml:"using_cdn"` // contains %s
 }
 
 // BackupOutput maps to backup command runtime output.
