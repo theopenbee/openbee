@@ -19,7 +19,7 @@ set -e
 #   ${CDN_BASE_URL}/releases/${VERSION}/checksums.txt
 #       → GoReleaser 生成的 SHA256 校验文件
 # ============================================================
-CDN_BASE_URL="https://dl.openbee.dev"
+CDN_BASE_URL="https://dl.theopenbee.cn"
 
 # ============================================================
 # 默认参数
