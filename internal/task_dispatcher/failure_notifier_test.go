@@ -2,15 +2,25 @@ package task_dispatcher_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize i18n with English so message assertions use English strings.
+	if err := i18n.Load("en"); err != nil {
+		panic("i18n.Load: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
 
 // --- helpers ---
 
@@ -68,7 +78,7 @@ func TestPlatformFailureNotifier_Success(t *testing.T) {
 		t.Fatalf("expected 1 message sent, got %d", len(sender.sent))
 	}
 	msg := sender.sent[0]
-	if !strings.Contains(msg.Content, "任务执行失败") {
+	if !strings.Contains(msg.Content, "Task execution failed") {
 		t.Errorf("expected failure prefix, got: %s", msg.Content)
 	}
 	if !strings.Contains(msg.Content, "API Error: content filtered") {
@@ -171,7 +181,7 @@ func TestPlatformFailureNotifier_StructuredFormat_WithRetry(t *testing.T) {
 	if !strings.Contains(content, "数据分析助手") {
 		t.Errorf("expected WorkerName in content, got: %s", content)
 	}
-	if !strings.Contains(content, "已重试：3/3 次") {
+	if !strings.Contains(content, "Retried: 3/3") {
 		t.Errorf("expected retry line in content, got: %s", content)
 	}
 	if !strings.Contains(content, "exit status 1") {
@@ -200,7 +210,7 @@ func TestPlatformFailureNotifier_StructuredFormat_NoRetry(t *testing.T) {
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
 	content := sender.sent[0].Content
-	if strings.Contains(content, "已重试") {
+	if strings.Contains(content, "Retried") {
 		t.Errorf("expected no retry line when RetryCount=-1, got: %s", content)
 	}
 	if !strings.Contains(content, "worker-abc") {

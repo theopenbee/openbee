@@ -184,3 +184,16 @@ validate:
   file_not_found: "file not found: %s"
   path_is_dir: "path is a directory, not a file: %s"
   file_not_exec: "file is not executable: %s"
+runtime:
+  failure_notifier:
+    task_failed: "❌ Task execution failed"
+    parse_failed: "\nmessage parse failed"
+    worker_line: "\nWorker: %s"
+    retried_count: "\nRetried: %d/%d\nError: %s"
+    failed: "\nError: %s"
+  feishu:
+    rich_text_fallback: "[Rich text message]"
+  wecom:
+    file_sent: "📎 File sent, please check."
+  mcp:
+    clear_session_confirm: "This session has %d workers linked. Clearing will reset all worker and bee conversation contexts. Confirm by re-calling with force=true."

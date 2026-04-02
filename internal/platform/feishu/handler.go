@@ -26,6 +26,7 @@ import (
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
 	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/i18n"
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -348,7 +349,7 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 	result, err := ParsePostContent(contentJSON)
 	if err != nil {
 		log.Warn("failed to parse post content", zap.Error(err))
-		return "[富文本消息]"
+		return i18n.M.Runtime.Feishu.RichTextFallback
 	}
 
 	var parts []string
@@ -378,7 +379,7 @@ func (r *FeishuReceiver) resolvePostContent(ctx context.Context, messageID, cont
 	}
 
 	if len(parts) == 0 {
-		return "[富文本消息]"
+		return i18n.M.Runtime.Feishu.RichTextFallback
 	}
 	return strings.Join(parts, "\n")
 }

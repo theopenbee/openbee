@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
 	"github.com/theopenbee/openbee/internal/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
@@ -21,6 +22,10 @@ import (
 )
 
 var log = logger.With(zap.String("component", "api"))
+
+// fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
+// It is shared between the write path (sendMessage) and the read path (mediaPathPrefix regex).
+const fileMediaMarker = "[file]"
 
 type LocalChatHandler struct {
 	receiver     *local.LocalReceiver
@@ -150,7 +155,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
 			return
 		}
-		content = "[文件] " + body.MediaPath + "\n" + content
+		content = fileMediaMarker + " " + body.MediaPath + "\n" + content
 	}
 
 	h.receiver.Enqueue(platform.InboundMessage{
@@ -167,7 +172,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
 }
 
-var mediaPathPrefix = regexp.MustCompile(`^\[文件\] ([^\n]+)\n`)
+var mediaPathPrefix = regexp.MustCompile(`^` + regexp.QuoteMeta(fileMediaMarker) + ` ([^\n]+)\n`)
 
 type chatMessage struct {
 	Role      string `json:"role"`

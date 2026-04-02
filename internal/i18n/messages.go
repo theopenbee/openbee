@@ -1,7 +1,6 @@
 package i18n
 
-// Messages 包含所有 CLI 用户可见文本。
-// 字段名通过 yaml tag 与 YAML 键对应。
+// Messages holds all user-visible text, keyed by YAML tags.
 type Messages struct {
 	Cmd      CmdMessages      `yaml:"cmd"`
 	Prompt   PromptMessages   `yaml:"prompt"`
@@ -9,6 +8,7 @@ type Messages struct {
 	Output   OutputMessages   `yaml:"output"`
 	Provider ProviderMessages `yaml:"provider"`
 	Validate ValidateMessages `yaml:"validate"`
+	Runtime  RuntimeMessages  `yaml:"runtime"`
 }
 
 // CmdEntry holds the Short and optional Long description for a cobra command.
@@ -17,7 +17,7 @@ type CmdEntry struct {
 	Long  string `yaml:"long"`
 }
 
-// CmdMessages 对应所有 cobra 命令的 Short/Long 描述。
+// CmdMessages maps to all cobra command Short/Long descriptions.
 type CmdMessages struct {
 	Root           CmdEntry `yaml:"root"`
 	Config         CmdEntry `yaml:"config"`
@@ -40,7 +40,7 @@ type CmdMessages struct {
 	CtlMessage     CmdEntry `yaml:"ctl_message"`
 }
 
-// PromptMessages 对应所有 survey 交互提示的 Message 字段。
+// PromptMessages maps to all survey prompt Message fields.
 type PromptMessages struct {
 	// Claude setup
 	ClaudeNotFound string `yaml:"claude_not_found"`
@@ -54,7 +54,7 @@ type PromptMessages struct {
 	PlatformTelegram string `yaml:"platform_telegram"`
 	PlatformWeixin   string `yaml:"platform_weixin"`
 	// Survey hint text
-	MultiSelectHint string `yaml:"multiselect_hint"`
+	MultiSelectHint      string `yaml:"multiselect_hint"`
 	FeishuAppID          string `yaml:"feishu_app_id"`
 	FeishuAppSecret      string `yaml:"feishu_app_secret"`
 	DingtalkClientID     string `yaml:"dingtalk_client_id"`
@@ -73,18 +73,18 @@ type PromptMessages struct {
 	Password              string `yaml:"password"`
 	JWTRegenConfirm       string `yaml:"jwt_regen_confirm"`
 	// Advanced
-	AdvancedConfirm      string `yaml:"advanced_confirm"`
-	ServerPort           string `yaml:"server_port"`
-	ServerHost           string `yaml:"server_host"`
-	DebugMode            string `yaml:"debug_mode"`
-	DBPath               string `yaml:"db_path"`
+	AdvancedConfirm     string `yaml:"advanced_confirm"`
+	ServerPort          string `yaml:"server_port"`
+	ServerHost          string `yaml:"server_host"`
+	DebugMode           string `yaml:"debug_mode"`
+	DBPath              string `yaml:"db_path"`
 	MCPTokenSecretSetup string `yaml:"mcp_token_secret_setup"`
 	MCPTokenSecret      string `yaml:"mcp_token_secret"`
-	FeederTimeout        string `yaml:"feeder_timeout"`
-	MaxConcurrentBee     string `yaml:"max_concurrent_bee"`
-	MessageDebounce      string `yaml:"message_debounce"`
-	FFprobePath          string `yaml:"ffprobe_path"`
-	FFmpegPath           string `yaml:"ffmpeg_path"`
+	FeederTimeout       string `yaml:"feeder_timeout"`
+	MaxConcurrentBee    string `yaml:"max_concurrent_bee"`
+	MessageDebounce     string `yaml:"message_debounce"`
+	FFprobePath         string `yaml:"ffprobe_path"`
+	FFmpegPath          string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
 	// Survey options (used in both Options slice and switch cases)
@@ -92,14 +92,14 @@ type PromptMessages struct {
 	OptionGenerateRandom    string `yaml:"option_generate_random"`
 	OptionEnterPathManually string `yaml:"option_enter_path_manually"`
 	OptionDownloadClaude    string `yaml:"option_download_claude"`
-	// Telegram Help text
+	// Telegram help text
 	TelegramTokenHelp    string `yaml:"telegram_token_help"`
 	TelegramAuthCodeHelp string `yaml:"telegram_auth_code_help"`
 	// Generic cancel
 	Cancelled string `yaml:"cancelled"`
 }
 
-// FlagMessages 对应所有 cobra flag 的 Usage 说明。
+// FlagMessages maps to all cobra flag Usage descriptions.
 type FlagMessages struct {
 	ConfigPath          string `yaml:"config_path"`
 	ServerDaemon        string `yaml:"server_daemon"`
@@ -111,7 +111,7 @@ type FlagMessages struct {
 	ClaudeDownloadForce string `yaml:"claude_download_force"`
 }
 
-// ProviderMessages 对应 claude/provider.go 中所有用户可见文本。
+// ProviderMessages maps to all user-visible text in claude/provider.go.
 type ProviderMessages struct {
 	FoundSettings   string `yaml:"found_settings"`
 	Select          string `yaml:"select"`
@@ -129,7 +129,7 @@ type ProviderMessages struct {
 	WrittenJSON     string `yaml:"written_json"`
 }
 
-// ValidateMessages 对应交互式输入的校验错误提示。
+// ValidateMessages maps to interactive input validation error messages.
 type ValidateMessages struct {
 	PortInteger     string `yaml:"port_integer"`
 	PositiveInteger string `yaml:"positive_integer"`
@@ -138,7 +138,7 @@ type ValidateMessages struct {
 	FileNotExec     string `yaml:"file_not_exec"`  // contains %s
 }
 
-// OutputMessages 对应所有命令的运行时输出文本。
+// OutputMessages maps to all command runtime output text.
 type OutputMessages struct {
 	Stop    StopOutput    `yaml:"stop"`
 	Status  StatusOutput  `yaml:"status"`
@@ -151,7 +151,7 @@ type OutputMessages struct {
 	Daemon  DaemonOutput  `yaml:"daemon"`
 }
 
-// StopOutput 对应 stop 命令的运行时输出。
+// StopOutput maps to stop command runtime output.
 type StopOutput struct {
 	NotRunning string `yaml:"not_running"`
 	Stale      string `yaml:"stale"`
@@ -160,14 +160,14 @@ type StopOutput struct {
 	Stopped    string `yaml:"stopped"`
 }
 
-// StatusOutput 对应 status 命令的运行时输出。
+// StatusOutput maps to status command runtime output.
 type StatusOutput struct {
 	NotRunning      string `yaml:"not_running"`
 	NotRunningStale string `yaml:"not_running_stale"`
 	Running         string `yaml:"running"` // contains %d, %s
 }
 
-// UpgradeOutput 对应 upgrade 命令的运行时输出。
+// UpgradeOutput maps to upgrade command runtime output.
 type UpgradeOutput struct {
 	CurrentVersion  string `yaml:"current_version"`  // contains %s
 	Checking        string `yaml:"checking"`
@@ -183,52 +183,52 @@ type UpgradeOutput struct {
 	Success         string `yaml:"success"`   // contains %s
 }
 
-// BackupOutput 对应 backup 命令的运行时输出。
+// BackupOutput maps to backup command runtime output.
 type BackupOutput struct {
 	Created string `yaml:"created"` // contains %s
 }
 
-// RestoreOutput 对应 restore 命令的运行时输出。
+// RestoreOutput maps to restore command runtime output.
 type RestoreOutput struct {
 	Complete string `yaml:"complete"`
 }
 
-// ConfigOutput 对应 config 及 config_claude 的运行时输出。
+// ConfigOutput maps to config and config_claude runtime output.
 type ConfigOutput struct {
-	FoundExisting        string `yaml:"found_existing"`         // contains %s
-	SectionClaude        string `yaml:"section_claude"`
-	SectionPlatform      string `yaml:"section_platform"`
-	SectionAuth          string `yaml:"section_auth"`
-	SectionAdvanced      string `yaml:"section_advanced"`
-	SectionWrite         string `yaml:"section_write"`
-	OutputFile           string `yaml:"output_file"`            // contains %s
-	WriteCancelled       string `yaml:"write_cancelled"`
-	Written              string `yaml:"written"`                // contains %s
-	JWTRegenerated       string `yaml:"jwt_regenerated"`
-	JWTGenerated         string `yaml:"jwt_generated"`
+	FoundExisting           string `yaml:"found_existing"`           // contains %s
+	SectionClaude           string `yaml:"section_claude"`
+	SectionPlatform         string `yaml:"section_platform"`
+	SectionAuth             string `yaml:"section_auth"`
+	SectionAdvanced         string `yaml:"section_advanced"`
+	SectionWrite            string `yaml:"section_write"`
+	OutputFile              string `yaml:"output_file"`              // contains %s
+	WriteCancelled          string `yaml:"write_cancelled"`
+	Written                 string `yaml:"written"`                  // contains %s
+	JWTRegenerated          string `yaml:"jwt_regenerated"`
+	JWTGenerated            string `yaml:"jwt_generated"`
 	MCPTokenSecretGenerated string `yaml:"mcp_token_secret_generated"` // contains %s
-	PasswordGenerated    string `yaml:"password_generated"`     // contains %s
-	WeixinQRLogin        string `yaml:"weixin_qr_login"`
-	FetchingQR           string `yaml:"fetching_qr"`
-	QRFailed             string `yaml:"qr_failed"`              // contains %v
-	QRFallback           string `yaml:"qr_fallback"`
-	WeixinSuccess        string `yaml:"weixin_success"`
-	ClaudeFound          string `yaml:"claude_found"`           // contains %s
-	ClaudeDownloadFailed string `yaml:"claude_download_failed"` // contains %v
-	ClaudeManualEntry    string `yaml:"claude_manual_entry"`
-	SkillInstalled       string `yaml:"skill_installed"`        // contains %s
-	SkillUpdated         string `yaml:"skill_updated"`          // contains %s
-	SkillsInstallWarning string `yaml:"skills_install_warning"` // contains %v
+	PasswordGenerated       string `yaml:"password_generated"`       // contains %s
+	WeixinQRLogin           string `yaml:"weixin_qr_login"`
+	FetchingQR              string `yaml:"fetching_qr"`
+	QRFailed                string `yaml:"qr_failed"`                // contains %v
+	QRFallback              string `yaml:"qr_fallback"`
+	WeixinSuccess           string `yaml:"weixin_success"`
+	ClaudeFound             string `yaml:"claude_found"`             // contains %s
+	ClaudeDownloadFailed    string `yaml:"claude_download_failed"`   // contains %v
+	ClaudeManualEntry       string `yaml:"claude_manual_entry"`
+	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
+	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
+	SkillsInstallWarning    string `yaml:"skills_install_warning"`   // contains %v
 }
 
-// ClaudeOutput 对应 claude 子命令的运行时输出。
+// ClaudeOutput maps to claude subcommand runtime output.
 type ClaudeOutput struct {
 	AlreadyInstalled string `yaml:"already_installed"` // contains %s
 	UseForce         string `yaml:"use_force"`
 	InstalledAt      string `yaml:"installed_at"` // contains %s
 }
 
-// WeixinOutput 对应微信扫码登录流程的运行时输出。
+// WeixinOutput maps to Weixin QR-code login flow output.
 type WeixinOutput struct {
 	ScanQR       string `yaml:"scan_qr"`
 	Waiting      string `yaml:"waiting"`
@@ -240,8 +240,41 @@ type WeixinOutput struct {
 	QRTimeout    string `yaml:"qr_timeout"`
 }
 
-// DaemonOutput 对应 daemon 相关的运行时输出。
+// DaemonOutput maps to daemon-related runtime output.
 type DaemonOutput struct {
 	Started        string `yaml:"started"`         // contains %d
 	AlreadyRunning string `yaml:"already_running"` // contains %d
+}
+
+// RuntimeMessages holds server-runtime user-visible text (sent to IM users,
+// platform placeholders, etc.) that must respond to the language setting.
+type RuntimeMessages struct {
+	FailureNotifier FailureNotifierMessages `yaml:"failure_notifier"`
+	Feishu          FeishuRuntimeMessages   `yaml:"feishu"`
+	WeCom           WeComRuntimeMessages    `yaml:"wecom"`
+	MCP             MCPRuntimeMessages      `yaml:"mcp"`
+}
+
+// FailureNotifierMessages holds text sent to IM users when a task fails.
+type FailureNotifierMessages struct {
+	TaskFailed   string `yaml:"task_failed"`   // prefix e.g. "❌ Task execution failed"
+	ParseFailed  string `yaml:"parse_failed"`  // worker-line when message parse failed; contains leading \n
+	WorkerLine   string `yaml:"worker_line"`   // worker-line template when worker name is known; contains leading \n and %s
+	RetriedCount string `yaml:"retried_count"` // suffix with retry info; contains %d %d %s
+	Failed       string `yaml:"failed"`        // suffix without retry info; contains %s
+}
+
+// FeishuRuntimeMessages holds Feishu platform runtime text.
+type FeishuRuntimeMessages struct {
+	RichTextFallback string `yaml:"rich_text_fallback"` // placeholder when rich-text cannot be parsed
+}
+
+// WeComRuntimeMessages holds WeCom platform runtime text.
+type WeComRuntimeMessages struct {
+	FileSent string `yaml:"file_sent"` // notification after a file is sent to WeCom
+}
+
+// MCPRuntimeMessages holds MCP tool runtime text sent back to the bee agent.
+type MCPRuntimeMessages struct {
+	ClearSessionConfirm string `yaml:"clear_session_confirm"` // confirmation prompt; contains %d
 }
