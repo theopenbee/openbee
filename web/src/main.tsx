@@ -1,3 +1,5 @@
+import "@fontsource-variable/dm-sans"
+import "@fontsource-variable/jetbrains-mono"
 import "./i18n"
 import i18n from "./i18n"
 import { StrictMode } from "react"

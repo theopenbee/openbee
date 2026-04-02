@@ -1,10 +1,8 @@
-@import "@fontsource-variable/dm-sans";
-@import "@fontsource-variable/jetbrains-mono";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@source "../node_modules/streamdown/dist/*.js";
 @import "streamdown/styles.css";
+@source "../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
