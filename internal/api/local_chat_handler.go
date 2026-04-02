@@ -150,7 +150,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 
 	for _, p := range body.MediaPaths {
 		if strings.ContainsAny(p, "/\\") || p == ".." || p == "." {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_paths entry"})
 			return
 		}
 	}
