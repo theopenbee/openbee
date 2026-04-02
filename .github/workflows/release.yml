@@ -102,6 +102,7 @@ jobs:
           echo -n "${VERSION}" > /tmp/latest
           ossutil cp /tmp/latest "oss://${OSS_BUCKET}/releases/latest" \
             --meta "Content-Type:text/plain;Cache-Control:no-cache" \
+            -f \
             -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}"
 
   npm-publish:
