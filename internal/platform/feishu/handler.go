@@ -8,11 +8,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
+	gorillaws "github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -166,8 +169,37 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 		larkws.WithLogLevel(larkcore.LogLevelInfo),
 	)
 
+	// The larkws SDK's Start() blocks with select{} and never checks ctx.Done().
+	// Watch for shutdown and close the underlying WebSocket connection so the SDK's
+	// read loop unblocks and the server receives a proper Close frame before exit.
+	go func() {
+		<-ctx.Done()
+		closeWSConn(wsClient)
+	}()
+
 	log.Info("Feishu bot starting...")
 	return wsClient.Start(ctx)
+}
+
+// closeWSConn sends a WebSocket normal-closure frame and closes the underlying
+// connection of a larkws.Client. The SDK exposes no public Stop method, so we
+// use unsafe reflection to reach the private conn field.
+func closeWSConn(client *larkws.Client) {
+	v := reflect.ValueOf(client).Elem()
+	connField := v.FieldByName("conn")
+	if !connField.IsValid() || connField.IsNil() {
+		return
+	}
+	// reflect.NewAt + unsafe.Pointer lets us read an unexported pointer field
+	// without triggering the "unexported field" panic.
+	connVal := reflect.NewAt(connField.Type(), unsafe.Pointer(connField.UnsafeAddr())).Elem().Interface()
+	conn, ok := connVal.(*gorillaws.Conn)
+	if !ok || conn == nil {
+		return
+	}
+	closeMsg := gorillaws.FormatCloseMessage(gorillaws.CloseNormalClosure, "server shutdown")
+	_ = conn.WriteControl(gorillaws.CloseMessage, closeMsg, time.Now().Add(3*time.Second))
+	_ = conn.Close()
 }
 
 // validFeishuKey matches valid Feishu file/image keys.
