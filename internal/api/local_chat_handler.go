@@ -130,6 +130,9 @@ func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 
 func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
 	sessionKey := localSessionKey(id)
 
 	var body struct {
@@ -143,14 +146,8 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 
 	content := body.Content
 	if body.MediaPath != "" {
-		uploadDir, err := localUploadDir(id)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		rel, err := filepath.Rel(uploadDir, body.MediaPath)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path: must be within upload directory"})
+		if strings.ContainsAny(body.MediaPath, "/\\") || body.MediaPath == ".." || body.MediaPath == "." {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_path"})
 			return
 		}
 		content = "[文件] " + body.MediaPath + "\n" + content
@@ -214,6 +211,9 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
@@ -232,7 +232,8 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	destPath := filepath.Join(uploadDir, filepath.Base(header.Filename))
+	filename := filepath.Base(header.Filename)
+	destPath := filepath.Join(uploadDir, filename)
 	dest, err := os.Create(destPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -245,13 +246,16 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"path": destPath})
+	c.JSON(http.StatusOK, gin.H{"path": filename})
 }
 
 func (h *LocalChatHandler) serveMedia(c *gin.Context) {
 	id := c.Param("id")
+	if !validateSessionID(c, id) {
+		return
+	}
 	filename := filepath.Base(c.Param("filename"))
-	if filename == "." || filename == ".." || filename == string(filepath.Separator) {
+	if filename == "." || filename == ".." {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
 		return
 	}
@@ -263,6 +267,14 @@ func (h *LocalChatHandler) serveMedia(c *gin.Context) {
 	}
 
 	c.File(filepath.Join(uploadDir, filename))
+}
+
+func validateSessionID(c *gin.Context, id string) bool {
+	if _, err := uuid.Parse(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+		return false
+	}
+	return true
 }
 
 func localSessionKey(id string) string {
