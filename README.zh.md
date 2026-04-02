@@ -52,7 +52,7 @@ npm install -g @theopenbee/cli
 <summary>🔧 一键安装脚本</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.zh.sh | bash
+curl -fsSL https://dl.theopenbee.cn/install.sh | bash
 ```
 
 </details>
