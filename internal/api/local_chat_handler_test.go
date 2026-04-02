@@ -21,19 +21,19 @@ func TestEncodeMediaPaths(t *testing.T) {
 			name:  "single file",
 			paths: []string{"photo.png"},
 			text:  "see this",
-			want:  "[file] photo.png\nsee this",
+			want:  "\x00[file] photo.png\nsee this",
 		},
 		{
 			name:  "multiple files",
 			paths: []string{"a.png", "b.pdf"},
 			text:  "two files",
-			want:  "[file] a.png\n[file] b.pdf\ntwo files",
+			want:  "\x00[file] a.png\n\x00[file] b.pdf\ntwo files",
 		},
 		{
 			name:  "files with empty text",
 			paths: []string{"x.jpg"},
 			text:  " ",
-			want:  "[file] x.jpg\n ",
+			want:  "\x00[file] x.jpg\n ",
 		},
 	}
 	for _, tc := range tests {
@@ -60,20 +60,38 @@ func TestDecodeMediaPaths(t *testing.T) {
 			wantText:  "hello",
 		},
 		{
+			name:      "single file (new format)",
+			content:   "\x00[file] photo.png\nhello",
+			wantPaths: []string{"photo.png"},
+			wantText:  "hello",
+		},
+		{
+			name:      "multiple files (new format)",
+			content:   "\x00[file] a.png\n\x00[file] b.pdf\ntwo files",
+			wantPaths: []string{"a.png", "b.pdf"},
+			wantText:  "two files",
+		},
+		{
 			name:      "single file (legacy format)",
 			content:   "[file] photo.png\nhello",
 			wantPaths: []string{"photo.png"},
 			wantText:  "hello",
 		},
 		{
-			name:      "multiple files",
+			name:      "multiple files (legacy format)",
 			content:   "[file] a.png\n[file] b.pdf\ntwo files",
 			wantPaths: []string{"a.png", "b.pdf"},
 			wantText:  "two files",
 		},
 		{
+			name:      "user text starting with [file] is not decoded",
+			content:   "[file] this is just text without NUL prefix",
+			wantPaths: nil,
+			wantText:  "[file] this is just text without NUL prefix",
+		},
+		{
 			name:      "files with empty text",
-			content:   "[file] x.jpg\n ",
+			content:   "\x00[file] x.jpg\n ",
 			wantPaths: []string{"x.jpg"},
 			wantText:  " ",
 		},

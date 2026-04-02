@@ -24,7 +24,12 @@ var log = logger.With(zap.String("component", "api"))
 
 // fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
 // It is shared between the write path (encodeMediaPaths) and the read path (decodeMediaPaths).
-const fileMediaMarker = "[file]"
+// The leading \x00 (NUL byte) prevents collision with ordinary user text, which cannot contain NUL.
+const fileMediaMarker = "\x00[file]"
+
+// legacyFileMediaMarker is the old marker written before the NUL prefix was added.
+// decodeMediaPaths still recognises it so existing stored messages are decoded correctly.
+const legacyFileMediaMarker = "[file]"
 
 type LocalChatHandler struct {
 	receiver     *local.LocalReceiver
@@ -150,7 +155,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 
 	for _, p := range body.MediaPaths {
 		if strings.ContainsAny(p, "/\\") || p == ".." || p == "." {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_paths entry"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename in media_paths"})
 			return
 		}
 	}
@@ -187,12 +192,22 @@ func encodeMediaPaths(paths []string, text string) string {
 	return sb.String()
 }
 
-// decodeMediaPaths extracts leading "[file] name\n" lines from content.
+// decodeMediaPaths extracts leading "<marker> name\n" lines from content.
+// It recognises the current marker (\x00[file]) and the legacy marker ([file])
+// so messages stored before the NUL prefix was introduced are still decoded correctly.
 // Returns the list of filenames and the remaining text.
 func decodeMediaPaths(content string) ([]string, string) {
-	prefix := fileMediaMarker + " "
 	var paths []string
-	for strings.HasPrefix(content, prefix) {
+	for {
+		var prefix string
+		switch {
+		case strings.HasPrefix(content, fileMediaMarker+" "):
+			prefix = fileMediaMarker + " "
+		case strings.HasPrefix(content, legacyFileMediaMarker+" "):
+			prefix = legacyFileMediaMarker + " "
+		default:
+			return paths, content
+		}
 		rest := content[len(prefix):]
 		idx := strings.IndexByte(rest, '\n')
 		if idx < 0 {

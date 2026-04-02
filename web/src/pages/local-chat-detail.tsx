@@ -9,26 +9,16 @@ import {
 } from "@/hooks/use-local-chat"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
-import { getAccessToken } from "@/lib/auth"
+import { tokenParam } from "@/lib/auth"
+import { basename, isImage } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 
-const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"])
-
-function basename(filePath: string): string {
-  return filePath.split("/").pop() ?? filePath
-}
-
-function isImage(filePath: string): boolean {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
-  return IMAGE_EXTS.has(ext)
-}
 
 const AttachmentPreview = memo(function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const filename = basename(mediaPath)
-  const token = getAccessToken()
-  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${token ? `?token=${encodeURIComponent(token)}` : ""}`
+  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${tokenParam()}`
   if (isImage(mediaPath)) {
     return (
       <img
@@ -63,6 +53,7 @@ export function LocalChatDetail() {
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -94,6 +85,7 @@ export function LocalChatDetail() {
     setLocalMessages((prev) => [...prev, userMsg])
     setInput("")
     setPendingMediaPaths([])
+    setUploadError(null)
     setIsProcessing(true)
 
     try {
@@ -108,18 +100,23 @@ export function LocalChatDetail() {
     }
   }, [input, pendingMediaPaths, sendMessage])
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
     e.target.value = ""
+    setUploadError(null)
     const results = await Promise.allSettled(
       files.map((file) => api.localChat.uploadMedia(sessionId, file))
     )
     const succeeded = results.filter(
       (r): r is PromiseFulfilledResult<{ path: string }> => r.status === "fulfilled"
     )
+    const failedCount = results.length - succeeded.length
+    if (failedCount > 0) {
+      setUploadError(`${failedCount} 个文件上传失败，请重试`)
+    }
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((r) => r.value.path)])
-  }
+  }, [sessionId])
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -183,6 +180,9 @@ export function LocalChatDetail() {
 
       {/* Input */}
       <div className="border-t border-border pt-3">
+        {uploadError && (
+          <p className="text-xs text-destructive mb-1">{uploadError}</p>
+        )}
         {pendingMediaPaths.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-1">
             {pendingMediaPaths.map((p) => (
