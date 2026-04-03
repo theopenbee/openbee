@@ -70,8 +70,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/">
+            <SidebarMenuButton size="lg" render={<Link to="/" />}>
                 <svg
                   width="24"
                   height="24"
@@ -88,7 +87,6 @@ export function AppSidebar() {
                   />
                 </svg>
                 <span className="text-base font-bold tracking-tight">OpenBee</span>
-              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -101,14 +99,12 @@ export function AppSidebar() {
               {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => (
                 <SidebarMenuItem key={href}>
                   <SidebarMenuButton
-                    asChild
+                    render={<Link to={href} />}
                     isActive={isActive(href, exact)}
                     tooltip={label}
                   >
-                    <Link to={href}>
-                      <Icon />
-                      <span>{label}</span>
-                    </Link>
+                    <Icon />
+                    <span>{label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -130,19 +126,21 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton tooltip={username}>
-                  <div
-                    className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center",
-                      "rounded-full bg-primary/20 text-xs font-semibold text-primary"
-                    )}
-                  >
-                    {initial}
-                  </div>
-                  <span className="truncate font-medium">{username}</span>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton tooltip={username}>
+                    <div
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center",
+                        "rounded-full bg-primary/20 text-xs font-semibold text-primary"
+                      )}
+                    >
+                      {initial}
+                    </div>
+                    <span className="truncate font-medium">{username}</span>
+                  </SidebarMenuButton>
+                }
+              />
               <DropdownMenuContent side="top" align="start" className="w-48">
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
