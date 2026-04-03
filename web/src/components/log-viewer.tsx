@@ -197,15 +197,17 @@ function ToolCard({
   return (
     <div className="my-1 bg-secondary ring-1 ring-foreground/5 rounded-lg text-xs">
       <button
+        aria-expanded={open}
+        aria-label={open ? t("logViewer.collapse", { name: entry.name }) : t("logViewer.expand", { name: entry.name })}
         className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-foreground/5 transition-colors rounded-lg"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="font-mono text-primary">{meta.icon}</span>
+        <span className="font-mono text-primary" aria-hidden="true">{meta.icon}</span>
         <span className="font-semibold text-primary">{entry.name}</span>
         <span className="text-muted-foreground font-mono truncate flex-1">
           {summary}
         </span>
-        <span className="text-muted-foreground shrink-0">{open ? "▲" : "▼"}</span>
+        <span className="text-muted-foreground shrink-0" aria-hidden="true">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div className="border-t border-border px-3 py-2 space-y-2">
@@ -219,7 +221,7 @@ function ToolCard({
             <div>
               <div className="text-muted-foreground mb-1">{t("logViewer.output")}</div>
               <pre
-                className={`overflow-x-auto bg-background rounded p-3 text-xs ${entry.isError ? "text-destructive" : "text-green-600 dark:text-green-400"}`}
+                className={`overflow-x-auto bg-background rounded p-3 text-xs ${entry.isError ? "text-destructive" : "text-status-idle"}`}
               >
                 {entry.result}
               </pre>
@@ -231,28 +233,16 @@ function ToolCard({
   );
 }
 
-function ResultCard({
-  entry,
-}: {
-  entry: Extract<ParsedEntry, { kind: "result" }>;
-}) {
-  return (
-    <div className="my-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-sm text-primary">
-      <span className="font-semibold mr-2">✓ Result</span>
-      {entry.text}
-    </div>
-  );
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface LogViewerProps {
   executionId: string;
   status: ExecutionStatus;
   onComplete?: () => void;
+  autoScroll?: boolean;
 }
 
-export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
+export function LogViewer({ executionId, status, onComplete, autoScroll = true }: LogViewerProps) {
   const [entries, setEntries] = useState<ParsedEntry[]>([]);
   const toolMapRef = useRef<Map<string, number>>(new Map());
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -303,8 +293,10 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
   }, [status, onComplete]);
 
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries]);
+    if (autoScroll) {
+      logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [entries, autoScroll]);
 
   return (
     <div className="bg-secondary/30 rounded-lg p-4 font-mono text-sm">
@@ -325,7 +317,13 @@ export function LogViewer({ executionId, status, onComplete }: LogViewerProps) {
           return <AssistantText key={i} text={entry.text} />;
         if (entry.kind === "tool")
           return <ToolCard key={entry.id} entry={entry} />;
-        if (entry.kind === "result") return null;
+        if (entry.kind === "result")
+          return (
+            <div key={i} className="my-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-sm text-primary">
+              <span className="font-semibold mr-2">✓ {t("logViewer.result")}</span>
+              {entry.text}
+            </div>
+          );
         return (
           <div
             key={i}

@@ -72,7 +72,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="animate-fade-in flex flex-col items-center justify-center py-16 text-center">
       <HoneycombSvg />
-      <h3 className="mt-4 text-lg font-medium text-foreground">{title}</h3>
+      <h2 className="mt-4 text-lg font-medium text-foreground">{title}</h2>
       {description && (
         <p className="mt-1 text-sm text-muted-foreground max-w-sm">{description}</p>
       )}

@@ -42,18 +42,18 @@ export function SessionDetail() {
         }
       />
 
-      {error && <p className="text-destructive mb-4">{error.message}</p>}
+      {error && <p role="alert" className="text-destructive mb-4">{error.message}</p>}
 
-      <div className="relative pl-8">
-        {/* Amber timeline line */}
-        <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-primary/20" />
+      <div className="relative pl-10 sm:pl-8">
+        {/* Timeline line */}
+        <div className="absolute left-4 sm:left-3 top-2 bottom-2 w-0.5 bg-primary/20" />
 
         <div className="space-y-4">
           {executions.map((exec, index) => (
             <div key={exec.id} className="relative">
               {/* Timeline dot */}
-              <div className="absolute -left-8 top-4 w-6 h-6 rounded-full bg-background border-2 border-primary/40 flex items-center justify-center">
-                <span className="text-[10px] font-mono text-primary font-medium">{index + 1}</span>
+              <div className="absolute -left-10 sm:-left-8 top-4 w-6 h-6 rounded-full bg-background border-2 border-primary/40 flex items-center justify-center">
+                <span className="text-[10px] font-mono text-primary font-medium" aria-hidden="true">{index + 1}</span>
               </div>
 
               <Card>
@@ -87,6 +87,7 @@ export function SessionDetail() {
                   <LogViewer
                     executionId={exec.id}
                     status={exec.status}
+                    autoScroll={false}
                     onComplete={
                       index === executions.length - 1
                         ? () => queryClient.invalidateQueries({ queryKey: ["sessions", sessionId, "executions"] })

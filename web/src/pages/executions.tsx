@@ -44,7 +44,7 @@ export function Executions() {
     <FadeIn>
       <PageHeader title={t("executions.title")} />
 
-      {error && <p className="text-destructive mb-4">{error.message}</p>}
+      {error && <p role="alert" className="text-destructive mb-4">{error.message}</p>}
 
       {isLoading ? (
         <SkeletonTable />
@@ -77,6 +77,7 @@ export function Executions() {
                       <TableCell>
                         <Link
                           to={`/sessions/${latest.session_id}`}
+                          aria-label={t("executions.viewSession", { id: latest.session_id })}
                           className="font-mono text-sm text-primary hover:underline"
                         >
                           {latest.session_id.slice(0, 8)}...

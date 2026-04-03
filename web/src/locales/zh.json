@@ -46,6 +46,7 @@
   "executions": {
     "title": "会话记录",
     "noExecutions": "还没有会话记录。",
+    "viewSession": "查看会话 {{id}}",
     "turnCount_one": "{{count}} 轮",
     "turnCount_other": "{{count}} 轮",
     "columns": {
@@ -76,6 +77,7 @@
   "executionDetail": {
     "title": "执行详情",
     "noResult": "暂无结果。",
+    "notFound": "执行记录不存在。",
     "logs": "日志",
     "result": "结果",
     "info": "信息",
@@ -96,7 +98,10 @@
     "waiting": "等待输出...",
     "noLogs": "没有日志记录。",
     "input": "输入",
-    "output": "输出"
+    "output": "输出",
+    "expand": "展开 {{name}}",
+    "collapse": "收起 {{name}}",
+    "result": "结果"
   },
   "tasks": {
     "title": "任务",

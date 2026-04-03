@@ -46,6 +46,7 @@
   "executions": {
     "title": "Sessions",
     "noExecutions": "No sessions yet.",
+    "viewSession": "View session {{id}}",
     "turnCount_one": "{{count}} turn",
     "turnCount_other": "{{count}} turns",
     "columns": {
@@ -76,6 +77,7 @@
   "executionDetail": {
     "title": "Session Detail",
     "noResult": "No result yet.",
+    "notFound": "Execution not found.",
     "logs": "Logs",
     "result": "Result",
     "info": "Info",
@@ -96,7 +98,10 @@
     "waiting": "Waiting for output...",
     "noLogs": "No logs recorded.",
     "input": "Input",
-    "output": "Output"
+    "output": "Output",
+    "expand": "Expand {{name}}",
+    "collapse": "Collapse {{name}}",
+    "result": "Result"
   },
   "tasks": {
     "title": "Tasks",
