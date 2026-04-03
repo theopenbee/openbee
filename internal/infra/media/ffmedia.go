@@ -1,4 +1,4 @@
-package ffmedia
+package media
 
 import (
 	"context"
