@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon } from "lucide-react"
 
@@ -41,7 +42,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<a href="/" />}>
+            <SidebarMenuButton size="lg" render={<Link to="/" />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path

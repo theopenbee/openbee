@@ -12,7 +12,9 @@
     "view": "View",
     "create": "Create",
     "send": "Send",
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "loadError": "Failed to load data.",
+    "retry": "Retry"
   },
   "dashboard": {
     "title": "Dashboard",

@@ -12,7 +12,9 @@
     "view": "查看",
     "create": "创建",
     "send": "发送",
-    "noDescription": "无描述"
+    "noDescription": "无描述",
+    "loadError": "加载数据失败。",
+    "retry": "重试"
   },
   "dashboard": {
     "title": "仪表板",

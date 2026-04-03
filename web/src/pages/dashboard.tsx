@@ -10,7 +10,7 @@ import { SkeletonCard } from "@/components/skeleton-loader"
 import { Button } from "@/components/ui/button"
 
 export function Dashboard() {
-  const { data: workers = [], error, isLoading } = useWorkers()
+  const { data: workers = [], error, isLoading, refetch } = useWorkers()
   const { t } = useTranslation()
 
   const activeCount = workers.filter((w) => w.status === "working").length
@@ -21,13 +21,27 @@ export function Dashboard() {
         title={t("dashboard.title")}
         subtitle={
           workers.length > 0
-            ? t("dashboard.summary", { count: activeCount })
+            ? activeCount > 0
+              ? t("dashboard.summary", { count: activeCount })
+              : t("dashboard.summaryNone")
             : undefined
+        }
+        actions={
+          workers.length > 0 ? (
+            <Link to="/workers">
+              <Button>{t("workers.createWorker")}</Button>
+            </Link>
+          ) : undefined
         }
       />
 
       {error && (
-        <p className="text-destructive mb-4">{error.message}</p>
+        <div className="flex items-center gap-3 mb-4">
+          <p className="text-destructive text-sm">{t("common.loadError")}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            {t("common.retry")}
+          </Button>
+        </div>
       )}
 
       {isLoading ? (
@@ -58,7 +72,7 @@ export function Dashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {w.description || t("common.noDescription")}
                   </p>
                 </CardContent>
