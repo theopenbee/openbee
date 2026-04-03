@@ -52,7 +52,7 @@ The platform-specific binary is downloaded automatically. Supports Linux / macOS
 <summary>🔧 One-click Script</summary>
 
 ```bash
-curl -fsSL https://dl.theopenbee.cn/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
 ```
 
 </details>
