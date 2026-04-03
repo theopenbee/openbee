@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>让 Claude Code 成为你的数字员工 — 通过飞书/钉钉/企微/微信/Telegram 直接指挥</strong></p>
+  <p><strong>让 Agents 成为你的数字员工</strong></p>
 </div>
 
 <div align="center">
