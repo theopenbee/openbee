@@ -129,6 +129,9 @@
     "emptyState": "暂无对话，点击「新建对话」开始",
     "uploadError": "{{count}} 个文件上传失败，请重试"
   },
+  "breadcrumb": {
+    "detail": "详情"
+  },
   "theme": {
     "light": "浅色模式",
     "dark": "深色模式"

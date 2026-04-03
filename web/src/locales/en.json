@@ -130,6 +130,9 @@
     "uploadError_one": "{{count}} file failed to upload, please try again",
     "uploadError_other": "{{count}} files failed to upload, please try again"
   },
+  "breadcrumb": {
+    "detail": "Detail"
+  },
   "theme": {
     "light": "Light mode",
     "dark": "Dark mode"
