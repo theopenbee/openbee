@@ -10,6 +10,8 @@
     "cancel": "取消",
     "delete": "删除",
     "view": "查看",
+    "copy": "复制",
+    "copied": "已复制",
     "create": "创建",
     "send": "发送",
     "noDescription": "无描述",
@@ -27,20 +29,43 @@
   "workers": {
     "title": "员工",
     "createWorker": "创建员工",
-    "form": {
+    "summary_one": "{{count}} 名员工，{{active}} 名运行中",
+    "summary_other": "{{count}} 名员工，{{active}} 名运行中",
+    "defaultWorkDir": "默认目录",
+    "columns": {
       "name": "名称",
-      "namePlaceholder": "例如：report-bot",
+      "workDir": "工作目录",
+      "status": "状态",
+      "activeTime": "活跃时间",
+      "actions": "操作"
+    },
+    "form": {
+      "panelDescription": "为你的蜂巢配置一名新的 AI 员工。",
+      "sectionBasic": "基本信息",
+      "sectionConfig": "配置",
+      "name": "名称",
+      "namePlaceholder": "例如：sam",
+      "nameHelper": "用于身份识别",
       "description": "描述",
       "descriptionPlaceholder": "这个员工做什么？",
-      "workDir": "工作目录（可选）",
-      "workDirPlaceholder": "留空使用默认目录",
+      "descriptionHelper": "用于任务分发",
+      "workDir": "工作目录",
+      "workDirPlaceholder": "/home/user/projects/my-project",
+      "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
       "memory": "记忆",
-      "memoryPlaceholder": "这个员工执行的指令..."
+      "memoryPlaceholder": "这个员工执行的指令...",
+      "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。"
     },
     "deleteDialog": {
       "title": "删除员工",
-      "confirm": "确定要删除 <strong>{{name}}</strong> 吗？此操作无法撤销。",
-      "deleteWorkDir": "同时删除工作目录"
+      "stepOne": "第 1 步",
+      "stepTwo": "第 2 步",
+      "stepOneDescription": "请输入 <strong>{{name}}</strong> 以继续。",
+      "stepTwoDescription": "你将删除 <strong>{{name}}</strong>。删除操作无法撤销。",
+      "continue": "下一步",
+      "deleteWorkDir": "同时删除工作目录",
+      "confirmNameLabel": "输入 {{name}} 以进入下一步",
+      "confirmNamePlaceholder": "输入员工名称"
     }
   },
   "executions": {
@@ -49,13 +74,17 @@
     "viewSession": "查看会话 {{id}}",
     "turnCount_one": "{{count}} 轮",
     "turnCount_other": "{{count}} 轮",
+    "summary_one": "{{count}} 条会话",
+    "summary_other": "{{count}} 条会话",
+    "summaryWithActive_one": "{{count}} 条会话 — {{active}} 活跃中",
+    "summaryWithActive_other": "{{count}} 条会话 — {{active}} 活跃中",
     "columns": {
       "session": "会话",
       "worker": "员工",
       "turns": "轮次",
       "latestStatus": "最新状态",
       "started": "开始时间",
-      "lastCompleted": "最后完成"
+      "duration": "耗时"
     },
     "pagination": {
       "page": "第 {{page}} / {{totalPages}} 页",

@@ -17,8 +17,66 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
+
+const STATUS_ROW_BORDER: Record<string, string> = {
+  running: "border-l-status-working",
+  completed: "border-l-status-idle",
+  failed: "border-l-status-error",
+  pending: "border-l-transparent",
+}
+
+const TURN_DOT: Record<string, string> = {
+  running: "bg-status-working",
+  completed: "bg-status-idle",
+  failed: "bg-status-error",
+  pending: "bg-muted-foreground/30",
+}
+
+function formatDuration(startMs: number | null, endMs: number | null): string {
+  if (!startMs || !endMs) return "—"
+  const diff = endMs - startMs
+  if (diff < 0) return "—"
+  const totalSec = Math.floor(diff / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function formatRelative(ms: number | null): string {
+  if (!ms) return "—"
+  const diff = Date.now() - ms
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return "just now"
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  return `${Math.floor(hr / 24)}d ago`
+}
+
+function TurnPips({ executions }: { executions: WorkerExecution[] }) {
+  const ordered = [...executions].reverse()
+  return (
+    <div className="flex items-center gap-0.5 flex-wrap max-w-[120px]">
+      {ordered.map((e, i) => (
+        <div
+          key={e.id}
+          title={`Turn ${i + 1}: ${e.status}`}
+          className={cn(
+            "size-2 rounded-full shrink-0",
+            TURN_DOT[e.status] ?? "bg-muted-foreground/30"
+          )}
+        />
+      ))}
+    </div>
+  )
+}
 
 export function Executions() {
   const { t } = useTranslation()
@@ -27,6 +85,7 @@ export function Executions() {
 
   const executions = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const totalSessions = data?.total ?? 0
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, WorkerExecution[]>()
@@ -40,11 +99,26 @@ export function Executions() {
     })
   }, [executions])
 
+  const activeCount = sessionGroups.filter(
+    (g) => g[0].status === "running" || g[0].status === "pending"
+  ).length
+
+  const subtitle =
+    totalSessions > 0
+      ? activeCount > 0
+        ? t("executions.summaryWithActive", { count: totalSessions, active: activeCount })
+        : t("executions.summary", { count: totalSessions })
+      : undefined
+
   return (
     <FadeIn>
-      <PageHeader title={t("executions.title")} />
+      <PageHeader title={t("executions.title")} subtitle={subtitle} />
 
-      {error && <p role="alert" className="text-destructive mb-4">{error.message}</p>}
+      {error && (
+        <p role="alert" className="text-destructive mb-4">
+          {error.message}
+        </p>
+      )}
 
       {isLoading ? (
         <SkeletonTable />
@@ -59,12 +133,12 @@ export function Executions() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  <TableHead>{t("executions.columns.session")}</TableHead>
-                  <TableHead>{t("executions.columns.worker")}</TableHead>
+                  <TableHead className="pl-5 w-28">{t("executions.columns.session")}</TableHead>
+                  <TableHead className="w-36">{t("executions.columns.worker")}</TableHead>
                   <TableHead>{t("executions.columns.turns")}</TableHead>
-                  <TableHead>{t("executions.columns.latestStatus")}</TableHead>
-                  <TableHead>{t("executions.columns.started")}</TableHead>
-                  <TableHead>{t("executions.columns.lastCompleted")}</TableHead>
+                  <TableHead className="w-28">{t("executions.columns.latestStatus")}</TableHead>
+                  <TableHead className="w-24">{t("executions.columns.started")}</TableHead>
+                  <TableHead className="w-20">{t("executions.columns.duration")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -72,40 +146,72 @@ export function Executions() {
                   const latest = group[0]
                   const oldest = group[group.length - 1]
                   const lastCompleted = group.find((e) => e.completed_at)
+                  const isActive = latest.status === "running" || latest.status === "pending"
+                  const duration = formatDuration(oldest.started_at, lastCompleted?.completed_at ?? null)
+
                   return (
-                    <TableRow key={latest.session_id} className="hover:bg-primary/5 transition-colors">
-                      <TableCell>
+                    <TableRow
+                      key={latest.session_id}
+                      className="hover:bg-primary/5 transition-colors"
+                    >
+                      <TableCell
+                        className={cn(
+                          "pl-4 border-l-2",
+                          STATUS_ROW_BORDER[latest.status] ?? "border-l-transparent"
+                        )}
+                      >
                         <Link
                           to={`/sessions/${latest.session_id}`}
                           aria-label={t("executions.viewSession", { id: latest.session_id })}
-                          className="font-mono text-sm text-primary hover:underline"
+                          className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
                         >
-                          {latest.session_id.slice(0, 8)}...
+                          {latest.session_id.slice(0, 8)}
                         </Link>
                       </TableCell>
+
                       <TableCell>
                         {latest.worker_id ? (
                           <Link
                             to={`/workers/${latest.worker_id}`}
-                            className="text-sm hover:text-primary transition-colors"
+                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                           >
-                            {latest.worker_name || latest.worker_id.slice(0, 8) + "..."}
+                            {latest.worker_name || latest.worker_id.slice(0, 8)}
                           </Link>
                         ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
+                          <span className="text-sm text-muted-foreground/50">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm font-mono">{t("executions.turnCount", { count: group.length })}</TableCell>
+
+                      <TableCell>
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {t("executions.turnCount", { count: group.length })}
+                          </span>
+                          <TurnPips executions={group} />
+                        </div>
+                      </TableCell>
+
                       <TableCell>
                         <StatusBadge status={latest.status} />
                       </TableCell>
-                      <TableCell className="text-sm font-mono text-muted-foreground">
-                        {oldest.started_at ? new Date(oldest.started_at).toLocaleString() : "-"}
+
+                      <TableCell
+                        className="text-xs font-mono text-muted-foreground"
+                        title={
+                          oldest.started_at
+                            ? new Date(oldest.started_at).toLocaleString()
+                            : undefined
+                        }
+                      >
+                        {formatRelative(oldest.started_at)}
                       </TableCell>
-                      <TableCell className="text-sm font-mono text-muted-foreground">
-                        {lastCompleted?.completed_at
-                          ? new Date(lastCompleted.completed_at).toLocaleString()
-                          : "-"}
+
+                      <TableCell className="text-xs font-mono">
+                        {isActive ? (
+                          <span className="text-status-working animate-pulse-amber">live</span>
+                        ) : (
+                          <span className="text-muted-foreground">{duration}</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   )

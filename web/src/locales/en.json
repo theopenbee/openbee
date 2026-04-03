@@ -10,6 +10,8 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "view": "View",
+    "copy": "Copy",
+    "copied": "Copied",
     "create": "Create",
     "send": "Send",
     "noDescription": "No description",
@@ -27,20 +29,43 @@
   "workers": {
     "title": "Workers",
     "createWorker": "Create Worker",
-    "form": {
+    "summary_one": "{{count}} worker, {{active}} active",
+    "summary_other": "{{count}} workers, {{active}} active",
+    "defaultWorkDir": "Default directory",
+    "columns": {
       "name": "Name",
-      "namePlaceholder": "e.g. report-bot",
+      "workDir": "Work Directory",
+      "status": "Status",
+      "activeTime": "Active Time",
+      "actions": "Actions"
+    },
+    "form": {
+      "panelDescription": "Configure a new AI worker for your hive.",
+      "sectionBasic": "Basic Info",
+      "sectionConfig": "Configuration",
+      "name": "Name",
+      "namePlaceholder": "e.g. sam",
+      "nameHelper": "Used for identification",
       "description": "Description",
       "descriptionPlaceholder": "What does this worker do?",
-      "workDir": "Work Directory (optional)",
-      "workDirPlaceholder": "Leave blank to use default",
+      "descriptionHelper": "Used for task dispatching",
+      "workDir": "Work Directory",
+      "workDirPlaceholder": "/home/user/projects/my-project",
+      "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
       "memory": "Memory",
-      "memoryPlaceholder": "The instruction this worker will execute..."
+      "memoryPlaceholder": "The instruction this worker will execute...",
+      "memoryHelper": "Persistent context loaded into the worker at the start of every session."
     },
     "deleteDialog": {
       "title": "Delete Worker",
-      "confirm": "Are you sure you want to delete <strong>{{name}}</strong>? This action cannot be undone.",
-      "deleteWorkDir": "Also delete work directory"
+      "stepOne": "Step 1",
+      "stepTwo": "Step 2",
+      "stepOneDescription": "Type <strong>{{name}}</strong> to continue.",
+      "stepTwoDescription": "You are about to delete <strong>{{name}}</strong>. This action cannot be undone.",
+      "continue": "Next",
+      "deleteWorkDir": "Also delete work directory",
+      "confirmNameLabel": "Type {{name}} to go to the next step",
+      "confirmNamePlaceholder": "Enter worker name"
     }
   },
   "executions": {
@@ -49,13 +74,17 @@
     "viewSession": "View session {{id}}",
     "turnCount_one": "{{count}} turn",
     "turnCount_other": "{{count}} turns",
+    "summary_one": "{{count}} session",
+    "summary_other": "{{count}} sessions",
+    "summaryWithActive_one": "{{count}} session — {{active}} active",
+    "summaryWithActive_other": "{{count}} sessions — {{active}} active",
     "columns": {
       "session": "Session",
       "worker": "Worker",
       "turns": "Turns",
       "latestStatus": "Latest Status",
       "started": "Started",
-      "lastCompleted": "Last Completed"
+      "duration": "Duration"
     },
     "pagination": {
       "page": "Page {{page}} of {{totalPages}}",

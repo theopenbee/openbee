@@ -15,7 +15,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
           <p className="mt-1 text-sm text-muted-foreground" aria-live="polite">{subtitle}</p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 self-center items-center gap-2">{actions}</div>}
     </div>
   )
 }

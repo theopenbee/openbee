@@ -17,17 +17,17 @@ export function SkeletonCard() {
   )
 }
 
-export function SkeletonTable({ rows = 5 }: { rows?: number }) {
+export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
     <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
       <div className="bg-secondary/50 px-4 py-3 flex gap-8">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-4 w-20" />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="px-4 py-3 flex gap-8 border-t border-border">
-          {Array.from({ length: 5 }).map((_, j) => (
+          {Array.from({ length: columns }).map((_, j) => (
             <div key={j} className="skeleton h-4 w-20" />
           ))}
         </div>
