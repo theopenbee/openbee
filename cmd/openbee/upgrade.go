@@ -99,7 +99,7 @@ func runUpgrade(checkOnly bool, cdnURL string) error {
 
 func fetchLatestVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
-		return utils.FetchPlainTextVersion(cdnURL + "/releases/latest")
+		return utils.FetchPlainTextVersion(cdnURL + "/releases/latest.txt")
 	}
 
 	resp, err := utils.APIClient.Get(githubAPILatest)

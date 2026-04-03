@@ -99,8 +99,8 @@ jobs:
             exit 0
           fi
           VERSION="${GITHUB_REF_NAME}"
-          echo -n "${VERSION}" > /tmp/latest
-          ossutil cp /tmp/latest "oss://${OSS_BUCKET}/releases/latest" \
+          echo -n "${VERSION}" > /tmp/latest.txt
+          ossutil cp /tmp/latest.txt "oss://${OSS_BUCKET}/releases/latest.txt" \
             --meta "Content-Type:text/plain;Cache-Control:no-cache" \
             -f \
             -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}"
