@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -125,7 +124,7 @@ func (f *Feeder) tick(ctx context.Context) {
 		f.rollback(ctx, msgs, err.Error())
 		return
 	}
-	if err := claudemd.EnsureSystemRules(f.workDir, claudemd.RoleBee); err != nil {
+	if err := claude.EnsureSystemRules(f.workDir, claude.RoleBee); err != nil {
 		log.Error("ensure system rules", zap.Error(err))
 	}
 

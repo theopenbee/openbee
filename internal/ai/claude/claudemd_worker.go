@@ -1,4 +1,4 @@
-package claudemd
+package claude
 
 import (
 	"fmt"

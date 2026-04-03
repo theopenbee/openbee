@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 

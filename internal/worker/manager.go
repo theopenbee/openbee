@@ -12,8 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -80,13 +79,13 @@ func (m *Manager) CreateWorker(
 
 	claudeMD := filepath.Join(workDir, "CLAUDE.md")
 	if _, err := os.Stat(claudeMD); os.IsNotExist(err) {
-		initialContent := claudemd.ImportLine + "\n"
+		initialContent := claude.ImportLine + "\n"
 		if err := os.WriteFile(claudeMD, []byte(initialContent), 0644); err != nil {
 			return model.Worker{}, fmt.Errorf("create CLAUDE.md: %w", err)
 		}
 	}
 
-	if err := claudemd.EnsureSystemRules(workDir, claudemd.RoleWorker, claudemd.WithName(name), claudemd.WithDescription(description), claudemd.WithMemory(memory)); err != nil {
+	if err := claude.EnsureSystemRules(workDir, claude.RoleWorker, claude.WithName(name), claude.WithDescription(description), claude.WithMemory(memory)); err != nil {
 		log.Error("ensure system rules", zap.String("op", "create"), zap.Error(err))
 	}
 
@@ -121,7 +120,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := claudemd.EnsureSystemRules(worker.WorkDir, claudemd.RoleWorker, claudemd.WithName(worker.Name), claudemd.WithDescription(worker.Description), claudemd.WithMemory(worker.Memory)); err != nil {
+	if err := claude.EnsureSystemRules(worker.WorkDir, claude.RoleWorker, claude.WithName(worker.Name), claude.WithDescription(worker.Description), claude.WithMemory(worker.Memory)); err != nil {
 		log.Error("ensure system rules", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.beeCfg.Claude.Timeout

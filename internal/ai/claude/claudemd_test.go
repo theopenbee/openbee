@@ -1,4 +1,4 @@
-package claudemd_test
+package claude_test
 
 import (
 	"os"
@@ -6,20 +6,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/claudemd"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 )
 
 func TestEnsureSystemRules_WritesBeeRules(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Bee\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleBee); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleBee); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if err != nil {
-		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+		t.Fatalf("read %s: %v", claude.SystemRulesFile, err)
 	}
 	content := string(data)
 
@@ -38,13 +38,13 @@ func TestEnsureSystemRules_WritesWorkerRulesWithName(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("test-assistant"), claudemd.WithDescription("responsible for testing")); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker, claude.WithName("test-assistant"), claude.WithDescription("responsible for testing")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if err != nil {
-		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+		t.Fatalf("read %s: %v", claude.SystemRulesFile, err)
 	}
 	content := string(data)
 
@@ -69,13 +69,13 @@ func TestEnsureSystemRules_WritesWorkerRulesWithNameOnly(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithName("mini-assistant")); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker, claude.WithName("mini-assistant")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if err != nil {
-		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+		t.Fatalf("read %s: %v", claude.SystemRulesFile, err)
 	}
 	content := string(data)
 
@@ -91,13 +91,13 @@ func TestEnsureSystemRules_WritesWorkerRulesWithMemoryOnly(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker, claudemd.WithMemory("user prefers English replies")); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker, claude.WithMemory("user prefers English replies")); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if err != nil {
-		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+		t.Fatalf("read %s: %v", claude.SystemRulesFile, err)
 	}
 	content := string(data)
 
@@ -122,13 +122,13 @@ func TestEnsureSystemRules_WritesWorkerRulesWithoutName(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Worker\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if err != nil {
-		t.Fatalf("read %s: %v", claudemd.SystemRulesFile, err)
+		t.Fatalf("read %s: %v", claude.SystemRulesFile, err)
 	}
 	content := string(data)
 
@@ -141,7 +141,7 @@ func TestEnsureSystemRules_AppendsImportWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# My Bot\n\nSome user content\n"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
@@ -151,7 +151,7 @@ func TestEnsureSystemRules_AppendsImportWhenMissing(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.Contains(content, claudemd.ImportLine) {
+	if !strings.Contains(content, claude.ImportLine) {
 		t.Error("CLAUDE.md should contain import line")
 	}
 	if !strings.Contains(content, "# My Bot") {
@@ -164,10 +164,10 @@ func TestEnsureSystemRules_AppendsImportWhenMissing(t *testing.T) {
 
 func TestEnsureSystemRules_DoesNotDuplicateImport(t *testing.T) {
 	dir := t.TempDir()
-	original := "# My Bot\n\n" + claudemd.ImportLine + "\n"
+	original := "# My Bot\n\n" + claude.ImportLine + "\n"
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(original), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
@@ -180,12 +180,12 @@ func TestEnsureSystemRules_DoesNotDuplicateImport(t *testing.T) {
 func TestEnsureSystemRules_SkipsWhenNoCLAUDEMD(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, claudemd.SystemRulesFile)); err != nil {
-		t.Error(claudemd.SystemRulesFile + " should be created even without CLAUDE.md")
+	if _, err := os.Stat(filepath.Join(dir, claude.SystemRulesFile)); err != nil {
+		t.Error(claude.SystemRulesFile + " should be created even without CLAUDE.md")
 	}
 
 	if _, err := os.Stat(filepath.Join(dir, "CLAUDE.md")); err == nil {
@@ -196,15 +196,15 @@ func TestEnsureSystemRules_SkipsWhenNoCLAUDEMD(t *testing.T) {
 func TestEnsureSystemRules_OverwritesExistingRulesFile(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# Bot\n"), 0644)
-	os.WriteFile(filepath.Join(dir, claudemd.SystemRulesFile), []byte("old content"), 0644)
+	os.WriteFile(filepath.Join(dir, claude.SystemRulesFile), []byte("old content"), 0644)
 
-	if err := claudemd.EnsureSystemRules(dir, claudemd.RoleWorker); err != nil {
+	if err := claude.EnsureSystemRules(dir, claude.RoleWorker); err != nil {
 		t.Fatalf("EnsureSystemRules: %v", err)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(dir, claudemd.SystemRulesFile))
+	data, _ := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
 	if string(data) == "old content" {
-		t.Error(claudemd.SystemRulesFile + " should be overwritten with latest rules")
+		t.Error(claude.SystemRulesFile + " should be overwritten with latest rules")
 	}
 	if strings.Contains(string(data), "old content") {
 		t.Error("overwritten file should not contain old content")

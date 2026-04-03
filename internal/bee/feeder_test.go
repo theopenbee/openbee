@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/bee"
-	"github.com/theopenbee/openbee/internal/claude"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
