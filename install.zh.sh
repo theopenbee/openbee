@@ -12,7 +12,7 @@ set -e
 # CDN 配置 — 修改此处指向阿里云（或其他国内）CDN 根地址
 #
 # CDN 上需预先同步以下文件结构（由 CI 在 GoReleaser 发布后自动上传）：
-#   ${CDN_BASE_URL}/releases/latest
+#   ${CDN_BASE_URL}/releases/latest.txt
 #       → 纯文本文件，内容为最新版本号，如 v1.0.0
 #   ${CDN_BASE_URL}/releases/${VERSION}/openbee-${VERSION_NUM}-${OS}-${ARCH}.tar.gz
 #       → GoReleaser 生成的二进制压缩包
@@ -128,7 +128,7 @@ detect_platform() {
 fetch_latest_version() {
     info "正在获取最新版本号..."
 
-    VERSION=$(download_text "${CDN_BASE_URL}/releases/latest" 2>/dev/null) || true
+    VERSION=$(download_text "${CDN_BASE_URL}/releases/latest.txt" 2>/dev/null) || true
     VERSION=$(echo "$VERSION" | tr -d '[:space:]')
 
     if [ -z "$VERSION" ]; then
