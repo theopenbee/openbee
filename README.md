@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>Run Claude Code as your digital worker — command via Lark, DingTalk, WeCom, WeChat, or Telegram</strong></p>
+  <p><strong>Run Agents as your digital workers</strong></p>
 </div>
 
 <div align="center">
