@@ -1,5 +1,6 @@
 import { Fragment } from "react"
 import { Outlet, Link, useLocation } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import {
   Breadcrumb,
@@ -13,29 +14,30 @@ import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "./app-sidebar"
 
 interface BreadcrumbSegment {
-  label: string
+  labelKey: string
   href?: string
 }
 
 function getBreadcrumbs(pathname: string): BreadcrumbSegment[] {
-  if (pathname === "/") return [{ label: "Dashboard" }]
-  if (pathname === "/workers") return [{ label: "Workers" }]
+  if (pathname === "/") return [{ labelKey: "nav.dashboard" }]
+  if (pathname === "/workers") return [{ labelKey: "nav.workers" }]
   if (/^\/workers\/[^/]+/.test(pathname))
-    return [{ label: "Workers", href: "/workers" }, { label: "Worker Detail" }]
-  if (pathname === "/executions") return [{ label: "Sessions" }]
+    return [{ labelKey: "nav.workers", href: "/workers" }, { labelKey: "nav.workerDetail" }]
+  if (pathname === "/executions") return [{ labelKey: "nav.executions" }]
   if (/^\/executions\/[^/]+/.test(pathname))
-    return [{ label: "Sessions", href: "/executions" }, { label: "Session Detail" }]
+    return [{ labelKey: "nav.executions", href: "/executions" }, { labelKey: "nav.sessionDetail" }]
   if (/^\/sessions\/[^/]+/.test(pathname))
-    return [{ label: "Sessions", href: "/executions" }, { label: "Session Detail" }]
-  if (pathname === "/tasks") return [{ label: "Scheduled Tasks" }]
-  if (pathname === "/local-chat") return [{ label: "Local Chat" }]
+    return [{ labelKey: "nav.executions", href: "/executions" }, { labelKey: "nav.sessionDetail" }]
+  if (pathname === "/tasks") return [{ labelKey: "nav.tasks" }]
+  if (pathname === "/local-chat") return [{ labelKey: "nav.localChat" }]
   if (/^\/local-chat\/[^/]+/.test(pathname))
-    return [{ label: "Local Chat", href: "/local-chat" }, { label: "Chat Detail" }]
-  return [{ label: "Dashboard" }]
+    return [{ labelKey: "nav.localChat", href: "/local-chat" }, { labelKey: "nav.chatDetail" }]
+  return [{ labelKey: "nav.dashboard" }]
 }
 
 export function Layout() {
   const { pathname } = useLocation()
+  const { t } = useTranslation()
   const crumbs = getBreadcrumbs(pathname)
 
   return (
@@ -44,7 +46,7 @@ export function Layout() {
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Separator orientation="vertical" className="mr-2 h-4 self-center" />
           <Breadcrumb>
             <BreadcrumbList>
               {crumbs.map((crumb, i) => (
@@ -53,10 +55,10 @@ export function Layout() {
                   <BreadcrumbItem>
                     {crumb.href ? (
                       <BreadcrumbLink render={<Link to={crumb.href} />}>
-                        {crumb.label}
+                        {t(crumb.labelKey)}
                       </BreadcrumbLink>
                     ) : (
-                      <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                      <BreadcrumbPage>{t(crumb.labelKey)}</BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
                 </Fragment>

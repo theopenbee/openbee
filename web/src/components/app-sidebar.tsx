@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   LayoutDashboard, Bot, Activity, Clock, MessageCircle,
   LogOut, Sun, Moon,
@@ -25,16 +26,17 @@ import { clearTokens, getUsername } from "@/lib/auth"
 import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/workers", label: "Workers", icon: Bot, exact: false },
-  { href: "/executions", label: "Sessions", icon: Activity, exact: false },
-  { href: "/tasks", label: "Scheduled Tasks", icon: Clock, exact: false },
-  { href: "/local-chat", label: "Local Chat", icon: MessageCircle, exact: false },
+  { href: "/", key: "nav.dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/workers", key: "nav.workers", icon: Bot, exact: false },
+  { href: "/executions", key: "nav.executions", icon: Activity, exact: false },
+  { href: "/tasks", key: "nav.tasks", icon: Clock, exact: false },
+  { href: "/local-chat", key: "nav.localChat", icon: MessageCircle, exact: false },
 ]
 
 export function AppSidebar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const username = getUsername()
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
 
@@ -77,7 +79,7 @@ export function AppSidebar() {
                     fillOpacity="0.15"
                   />
                 </svg>
-                <span className="text-base font-bold tracking-tight">OpenBee</span>
+                <span className="text-base font-bold tracking-tight group-data-[collapsible=icon]:hidden">OpenBee</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -87,15 +89,15 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => (
+              {NAV_ITEMS.map(({ href, key, icon: Icon, exact }) => (
                 <SidebarMenuItem key={href}>
                   <SidebarMenuButton
                     render={<Link to={href} />}
                     isActive={isActive(href, exact)}
-                    tooltip={label}
+                    tooltip={t(key)}
                   >
                     <Icon />
-                    <span>{label}</span>
+                    <span>{t(key)}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -109,10 +111,10 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleTheme}
-              tooltip={theme === "dark" ? "Light mode" : "Dark mode"}
+              tooltip={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
             >
               {theme === "dark" ? <Sun /> : <Moon />}
-              <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+              <span>{theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -130,7 +132,7 @@ export function AppSidebar() {
               <DropdownMenuContent side="top" align="start" className="w-48">
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                  {t("nav.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

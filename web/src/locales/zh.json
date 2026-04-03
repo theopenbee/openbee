@@ -3,7 +3,14 @@
     "dashboard": "仪表板",
     "workers": "员工",
     "executions": "会话记录",
-    "tasks": "定时任务"
+    "tasks": "定时任务",
+    "localChat": "本地对话",
+    "lightMode": "浅色模式",
+    "darkMode": "深色模式",
+    "logout": "退出登录",
+    "workerDetail": "员工详情",
+    "sessionDetail": "会话详情",
+    "chatDetail": "对话详情"
   },
   "common": {
     "save": "保存",

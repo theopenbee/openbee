@@ -3,7 +3,14 @@
     "dashboard": "Dashboard",
     "workers": "Workers",
     "executions": "Sessions",
-    "tasks": "Scheduled Tasks"
+    "tasks": "Scheduled Tasks",
+    "localChat": "Local Chat",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "logout": "Logout",
+    "workerDetail": "Worker Detail",
+    "sessionDetail": "Session Detail",
+    "chatDetail": "Chat Detail"
   },
   "common": {
     "save": "Save",
