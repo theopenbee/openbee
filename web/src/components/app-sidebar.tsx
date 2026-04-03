@@ -16,25 +16,25 @@ import {
 } from "@/components/ui/sidebar"
 import { getStoredUsername } from "@/lib/auth"
 
+const navSecondary = [
+  {
+    title: "GitHub",
+    url: "https://github.com/theopenbee/openbee",
+    icon: <GithubIcon />,
+  },
+]
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
-  const username = getStoredUsername() ?? "User"
+  const [username] = React.useState(() => getStoredUsername() ?? "User")
 
-  const navMain = [
+  const navMain = React.useMemo(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
     { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
     { title: t("nav.executions"), url: "/executions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
     { title: t("localChat.title"), url: "/local-chat", icon: <MessageCircleIcon /> },
-  ]
-
-  const navSecondary = [
-    {
-      title: "GitHub",
-      url: "https://github.com/theopenbee/openbee",
-      icon: <GithubIcon />,
-    },
-  ]
+  ], [t])
 
   return (
     <Sidebar variant="inset" {...props}>

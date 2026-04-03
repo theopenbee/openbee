@@ -1,5 +1,3 @@
-"use client"
-
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
 import type { SeparatorProps } from "@base-ui/react/separator"
 
