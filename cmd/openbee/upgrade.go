@@ -42,16 +42,20 @@ var (
 	upgradeCN        bool
 )
 
+// resolveCDNURL returns cdnURL unchanged if set; falls back to defaultCDNBaseURL when useCN is true.
+func resolveCDNURL(cdnURL string, useCN bool) string {
+	if cdnURL == "" && useCN {
+		return defaultCDNBaseURL
+	}
+	return cdnURL
+}
+
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Upgrade openbee to the latest version",
 	Long:  "Check for a new version and replace the current binary if one is available.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cdnURL := upgradeCDNURL
-		if cdnURL == "" && upgradeCN {
-			cdnURL = defaultCDNBaseURL
-		}
-		return runUpgrade(upgradeCheckOnly, cdnURL)
+		return runUpgrade(upgradeCheckOnly, resolveCDNURL(upgradeCDNURL, upgradeCN))
 	},
 }
 

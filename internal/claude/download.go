@@ -86,17 +86,18 @@ func buildClaudeDownloadURL(p claudePlatform, version string) string {
 	return fmt.Sprintf("%s/%s/%s", gitHubRelBase, version, assetName)
 }
 
-func fetchLatestClaudeVersion(cdnURL string) (string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
+func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
 		url := cdnURL + "/claude-code-releases/latest.txt"
-		resp, err := client.Get(url)
+		resp, err := httpClient.Get(url)
 		if err != nil {
 			return "", err
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			_, _ = io.Copy(io.Discard, resp.Body)
 			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
 		}
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
@@ -106,18 +107,19 @@ func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 		return utils.NormalizeVersionTag(string(body))
 	}
 
-	resp, err := client.Get(GitHubAPI)
+	resp, err := httpClient.Get(GitHubAPI)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
 	var rel struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 	return utils.NormalizeVersionTag(rel.TagName)

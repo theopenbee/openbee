@@ -26,10 +26,7 @@ var claudeDownloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download Claude Code binary to ~/.openbee/bin/claude",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cdnURL := claudeDownloadCDNURL
-		if cdnURL == "" && claudeDownloadCN {
-			cdnURL = defaultCDNBaseURL
-		}
+		cdnURL := resolveCDNURL(claudeDownloadCDNURL, claudeDownloadCN)
 		stateDir := openbeeStateDir()
 		destPath := filepath.Join(stateDir, "bin", "claude")
 		if !claudeDownloadForce {
