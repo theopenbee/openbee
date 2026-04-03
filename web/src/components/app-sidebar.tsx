@@ -22,14 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { clearTokens, getUsername } from "@/lib/auth"
-import { cn } from "@/lib/utils"
-
-type Theme = "dark" | "light"
-
-function getStoredTheme(): Theme {
-  const stored = localStorage.getItem("theme")
-  return stored === "light" ? "light" : "dark"
-}
+import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -52,9 +45,7 @@ export function AppSidebar() {
 
   function toggleTheme() {
     const next: Theme = theme === "dark" ? "light" : "dark"
-    document.documentElement.classList.remove("dark", "light")
-    document.documentElement.classList.add(next)
-    localStorage.setItem("theme", next)
+    applyTheme(next)
     setTheme(next)
   }
 
@@ -63,7 +54,7 @@ export function AppSidebar() {
     navigate("/login", { replace: true })
   }
 
-  const initial = username[0]?.toUpperCase() ?? "A"
+  const initial = username[0].toUpperCase()
 
   return (
     <Sidebar collapsible="icon">
@@ -129,12 +120,7 @@ export function AppSidebar() {
               <DropdownMenuTrigger
                 render={
                   <SidebarMenuButton tooltip={username}>
-                    <div
-                      className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center",
-                        "rounded-full bg-primary/20 text-xs font-semibold text-primary"
-                      )}
-                    >
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
                       {initial}
                     </div>
                     <span className="truncate font-medium">{username}</span>

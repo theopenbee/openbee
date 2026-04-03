@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { Outlet, Link, useLocation } from "react-router-dom"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import {
@@ -47,7 +48,7 @@ export function Layout() {
           <Breadcrumb>
             <BreadcrumbList>
               {crumbs.map((crumb, i) => (
-                <span key={i} className="flex items-center gap-1.5">
+                <Fragment key={i}>
                   {i > 0 && <BreadcrumbSeparator />}
                   <BreadcrumbItem>
                     {crumb.href ? (
@@ -58,7 +59,7 @@ export function Layout() {
                       <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                     )}
                   </BreadcrumbItem>
-                </span>
+                </Fragment>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
