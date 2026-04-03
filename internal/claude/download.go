@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/theopenbee/openbee/internal/utils"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // GitHubAPI is the GitHub Releases API endpoint for cc-download.

@@ -30,7 +30,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/utils"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var log = logger.With(zap.String("component", "feishu"))

@@ -14,7 +14,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/worker"
 )
 
@@ -575,7 +575,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
 	// Create a worker first
-	created, err := s.CallTool(context.Background(), toolnames.CreateWorker, mustMarshal(t, map[string]any{
+	created, err := s.CallTool(context.Background(), utils.CreateWorker, mustMarshal(t, map[string]any{
 		"name": "status-test",
 	}))
 	if err != nil {
@@ -583,7 +583,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 	}
 	w := created.(model.Worker)
 
-	result, err := s.CallTool(context.Background(), toolnames.GetWorkerStatus, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.GetWorkerStatus, mustMarshal(t, map[string]any{
 		"worker_id": w.ID,
 	}))
 	if err != nil {
@@ -601,7 +601,7 @@ func TestCallTool_GetWorkerStatus(t *testing.T) {
 func TestCallTool_GetSystemOverview(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(context.Background(), toolnames.GetSystemOverview, nil)
+	result, err := s.CallTool(context.Background(), utils.GetSystemOverview, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -617,7 +617,7 @@ func TestCallTool_GetSystemOverview(t *testing.T) {
 func TestCallTool_ListBeeExecutions(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(context.Background(), toolnames.ListBeeExecutions, nil)
+	result, err := s.CallTool(context.Background(), utils.ListBeeExecutions, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestCallTool_ListBeeExecutions(t *testing.T) {
 func TestCallTool_SaveMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "test_pref",
 		"value": "user likes concise replies",
@@ -648,14 +648,14 @@ func TestCallTool_GetMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
 	// Save first
-	s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 		"value": "value1",
 	}))
 
 	// Get by key
-	result, err := s.CallTool(context.Background(), toolnames.GetMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.GetMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 	}))
@@ -667,7 +667,7 @@ func TestCallTool_GetMemory(t *testing.T) {
 	}
 
 	// List by scope (no key)
-	result2, err := s.CallTool(context.Background(), toolnames.GetMemory, mustMarshal(t, map[string]any{
+	result2, err := s.CallTool(context.Background(), utils.GetMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 	}))
 	if err != nil {
@@ -679,13 +679,13 @@ func TestCallTool_GetMemory(t *testing.T) {
 func TestCallTool_DeleteMemory(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	s.CallTool(context.Background(), toolnames.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 		"value": "temp",
 	}))
 
-	result, err := s.CallTool(context.Background(), toolnames.DeleteMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.DeleteMemory, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 	}))
@@ -965,20 +965,20 @@ func TestWorkerToolSchemasCount(t *testing.T) {
 func TestWorkerCannotCallBeeTools(t *testing.T) {
 	s := setupWorkerMCPServer(t)
 	beeOnlyTools := []string{
-		toolnames.ListWorkers,
-		toolnames.GetWorker,
-		toolnames.CreateWorker,
-		toolnames.UpdateWorker,
-		toolnames.DeleteWorker,
-		toolnames.CreateTask,
-		toolnames.ListTasks,
-		toolnames.CancelTask,
-		toolnames.ClearSession,
-		toolnames.GetWorkerStatus,
-		toolnames.GetSystemOverview,
-		toolnames.ListBeeExecutions,
-		toolnames.ListSessionContexts,
-		toolnames.ClearWorkerSession,
+		utils.ListWorkers,
+		utils.GetWorker,
+		utils.CreateWorker,
+		utils.UpdateWorker,
+		utils.DeleteWorker,
+		utils.CreateTask,
+		utils.ListTasks,
+		utils.CancelTask,
+		utils.ClearSession,
+		utils.GetWorkerStatus,
+		utils.GetSystemOverview,
+		utils.ListBeeExecutions,
+		utils.ListSessionContexts,
+		utils.ClearWorkerSession,
 	}
 	for _, tool := range beeOnlyTools {
 		_, err := s.CallTool(context.Background(), tool, mustMarshal(t, map[string]any{}))
@@ -994,10 +994,10 @@ func TestWorkerCannotCallBeeTools(t *testing.T) {
 func TestWorkerCanCallAllowedTools(t *testing.T) {
 	s := setupWorkerMCPServer(t)
 	workerTools := []string{
-		toolnames.SendMessage,
-		toolnames.SaveMemory,
-		toolnames.GetMemory,
-		toolnames.DeleteMemory,
+		utils.SendMessage,
+		utils.SaveMemory,
+		utils.GetMemory,
+		utils.DeleteMemory,
 	}
 	for _, tool := range workerTools {
 		// Calls may fail due to missing params, but should NOT return "unknown tool"

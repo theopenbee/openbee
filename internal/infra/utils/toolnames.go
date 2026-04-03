@@ -1,5 +1,5 @@
 // Package toolnames defines MCP tool name constants as the single source of truth.
-package toolnames
+package utils
 
 const (
 	ListWorkers         = "list_workers"

@@ -13,7 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // toolSchema represents a single MCP tool definition returned by tools/list.
@@ -35,7 +35,7 @@ func WorkerToolSchemas() []toolSchema { return workerToolSchemas() }
 func beeToolSchemas() []toolSchema {
 	return []toolSchema{
 		{
-			Name:        toolnames.ListWorkers,
+			Name:        utils.ListWorkers,
 			Description: "List all workers",
 			InputSchema: map[string]any{
 				"type":       "object",
@@ -43,7 +43,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.GetWorker,
+			Name:        utils.GetWorker,
 			Description: "Get a single worker by ID",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -54,7 +54,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.CreateWorker,
+			Name:        utils.CreateWorker,
 			Description: "Create a new worker",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -68,7 +68,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.UpdateWorker,
+			Name:        utils.UpdateWorker,
 			Description: "Update a worker's name, description, or memory (patch semantics: omitted fields unchanged)",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -82,7 +82,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.DeleteWorker,
+			Name:        utils.DeleteWorker,
 			Description: "Delete a worker",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -94,7 +94,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.CreateTask,
+			Name:        utils.CreateTask,
 			Description: "Create a task assigning a worker to handle a user instruction from a message",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -110,7 +110,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.ListTasks,
+			Name:        utils.ListTasks,
 			Description: "List tasks filtered by message_id, session_key, and/or worker_id. message_id and session_key are mutually exclusive; at least one of message_id, session_key, or worker_id is required.",
 			InputSchema: map[string]any{
 				"type": "object",
@@ -124,7 +124,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.CancelTask,
+			Name:        utils.CancelTask,
 			Description: "Cancel a pending or scheduled task",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -135,7 +135,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.SendMessage,
+			Name:        utils.SendMessage,
 			Description: "Send a message to the user on the originating platform. Use message_id from the task metadata to identify the reply target. Supports sending media files (images, documents, audio, video) by providing a local file path.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -148,7 +148,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.ClearSession,
+			Name:        utils.ClearSession,
 			Description: "Cancel all active tasks (terminating running worker processes), clear dispatcher queues, and reset all session contexts for the given session. Use this to fully reset a conversation session.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -160,7 +160,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.GetWorkerStatus,
+			Name:        utils.GetWorkerStatus,
 			Description: "View a worker's current status: whether busy, current task, and pending task count.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -171,7 +171,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.GetSystemOverview,
+			Name:        utils.GetSystemOverview,
 			Description: "View system overview: worker status distribution, task statistics, and the 5 most recent executions.",
 			InputSchema: map[string]any{
 				"type":       "object",
@@ -179,7 +179,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.ListBeeExecutions,
+			Name:        utils.ListBeeExecutions,
 			Description: "View bee's own execution history for self-reflection and improvement.",
 			InputSchema: map[string]any{
 				"type": "object",
@@ -189,7 +189,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.SaveMemory,
+			Name:        utils.SaveMemory,
 			Description: "Save or update a memory entry. Use scope='global' for global knowledge, or pass a session_key to store per-user preferences.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -202,7 +202,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.GetMemory,
+			Name:        utils.GetMemory,
 			Description: "Read memory. Pass a key to get a single entry; omit key to get all entries in the scope (max 50).",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -214,7 +214,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.DeleteMemory,
+			Name:        utils.DeleteMemory,
 			Description: "Delete a memory entry. Deleting a non-existent key is a no-op.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -226,7 +226,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.ListSessionContexts,
+			Name:        utils.ListSessionContexts,
 			Description: "List all agents (bee and workers) that have active session contexts for a given session key.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -237,7 +237,7 @@ func beeToolSchemas() []toolSchema {
 			},
 		},
 		{
-			Name:        toolnames.ClearWorkerSession,
+			Name:        utils.ClearWorkerSession,
 			Description: "Reset one worker's Claude session context within a session, without affecting other workers or bee. Does not cancel tasks.",
 			InputSchema: map[string]any{
 				"type":     "object",
@@ -253,10 +253,10 @@ func beeToolSchemas() []toolSchema {
 
 // workerToolNames is the allowlist of tools exposed to workers.
 var workerToolNames = map[string]bool{
-	toolnames.SendMessage:      true,
-	toolnames.SaveMemory:       true,
-	toolnames.GetMemory:        true,
-	toolnames.DeleteMemory:     true,
+	utils.SendMessage:      true,
+	utils.SaveMemory:       true,
+	utils.GetMemory:        true,
+	utils.DeleteMemory:     true,
 }
 
 func workerToolSchemas() []toolSchema {
@@ -294,41 +294,41 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 // beeCallTool dispatches to the named tool handler and returns the result.
 func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	switch name {
-	case toolnames.ListWorkers:
+	case utils.ListWorkers:
 		return s.toolListWorkers(args)
-	case toolnames.GetWorker:
+	case utils.GetWorker:
 		return s.toolGetWorker(args)
-	case toolnames.CreateWorker:
+	case utils.CreateWorker:
 		return s.toolCreateWorker(args)
-	case toolnames.UpdateWorker:
+	case utils.UpdateWorker:
 		return s.toolUpdateWorker(args)
-	case toolnames.DeleteWorker:
+	case utils.DeleteWorker:
 		return s.toolDeleteWorker(args)
-	case toolnames.CreateTask:
+	case utils.CreateTask:
 		return s.toolCreateTask(args)
-	case toolnames.ListTasks:
+	case utils.ListTasks:
 		return s.toolListTasks(args)
-	case toolnames.CancelTask:
+	case utils.CancelTask:
 		return s.toolCancelTask(args)
-	case toolnames.SendMessage:
+	case utils.SendMessage:
 		return s.toolSendMessage(ctx, args)
-	case toolnames.ClearSession:
+	case utils.ClearSession:
 		return s.toolClearSession(ctx, args)
-	case toolnames.GetWorkerStatus:
+	case utils.GetWorkerStatus:
 		return s.toolGetWorkerStatus(args)
-	case toolnames.GetSystemOverview:
+	case utils.GetSystemOverview:
 		return s.toolGetSystemOverview(args)
-	case toolnames.ListBeeExecutions:
+	case utils.ListBeeExecutions:
 		return s.toolListBeeExecutions(args)
-	case toolnames.SaveMemory:
+	case utils.SaveMemory:
 		return s.toolSaveMemory(args)
-	case toolnames.GetMemory:
+	case utils.GetMemory:
 		return s.toolGetMemory(args)
-	case toolnames.DeleteMemory:
+	case utils.DeleteMemory:
 		return s.toolDeleteMemory(args)
-	case toolnames.ListSessionContexts:
+	case utils.ListSessionContexts:
 		return s.toolListSessionContexts(args)
-	case toolnames.ClearWorkerSession:
+	case utils.ClearWorkerSession:
 		return s.toolClearWorkerSession(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)

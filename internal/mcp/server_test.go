@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func TestHandleCall_ListWorkers(t *testing.T) {
@@ -19,7 +19,7 @@ func TestHandleCall_ListWorkers(t *testing.T) {
 	r := gin.New()
 	r.POST("/mcp/bee/call", s.HandleCall)
 
-	body := `{"name":"` + toolnames.ListWorkers + `","arguments":{}}`
+	body := `{"name":"` + utils.ListWorkers + `","arguments":{}}`
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/mcp/bee/call", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
