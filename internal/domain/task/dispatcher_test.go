@@ -1,4 +1,4 @@
-package task_dispatcher_test
+package task_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -123,15 +123,15 @@ func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
 	return false
 }
 
-func newTaskDispatcher(mgr task_dispatcher.ExecutionManager, eq task_dispatcher.ExecutionQuerier, ss task_dispatcher.SessionStore, opts ...task_dispatcher.Option) (*task_dispatcher.TaskDispatcher, chan task_dispatcher.DispatchTask, *mockTaskStore) {
-	in := make(chan task_dispatcher.DispatchTask, 4)
+func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
+	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task_dispatcher.New(mgr, ts, ss, eq, in, opts...)
+	d := task.New(mgr, ts, ss, eq, in, opts...)
 	return d, in, ts
 }
 
-func immediateTask(sessionKey, workerID, instruction string) task_dispatcher.DispatchTask {
-	return task_dispatcher.DispatchTask{
+func immediateTask(sessionKey, workerID, instruction string) task.DispatchTask {
+	return task.DispatchTask{
 		TaskID:      "task-1",
 		WorkerID:    workerID,
 		SessionKey:  sessionKey,
@@ -188,7 +188,7 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	defer cancel()
 	go d.Run(ctx)
 
-	task := task_dispatcher.DispatchTask{
+	task := task.DispatchTask{
 		TaskID:      "task-abc",
 		WorkerID:    "w1",
 		SessionKey:  "s1",
@@ -256,8 +256,8 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 	mgr := &blockingExecManager{blocker: blocker}
 
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
-	in := make(chan task_dispatcher.DispatchTask, 4)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
+	in := make(chan task.DispatchTask, 4)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -364,8 +364,8 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
-	in := make(chan task_dispatcher.DispatchTask, 4)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
+	in := make(chan task.DispatchTask, 4)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -492,8 +492,8 @@ func TestTaskDispatcher_CrossSession_SameWorker_Serialized(t *testing.T) {
 func TestQueueKey_IgnoresSessionKey(t *testing.T) {
 	// Same workerID, different sessionKeys must produce the same key.
 	// This is the contract that prevents cross-session concurrent execution.
-	k1 := task_dispatcher.ExportedQueueKey("session-a", "worker-1")
-	k2 := task_dispatcher.ExportedQueueKey("session-b", "worker-1")
+	k1 := task.ExportedQueueKey("session-a", "worker-1")
+	k2 := task.ExportedQueueKey("session-b", "worker-1")
 	if k1 != k2 {
 		t.Errorf("expected same key for different sessions, got %q and %q", k1, k2)
 	}
@@ -549,13 +549,13 @@ func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
 	mgr := &alwaysFailExecManager{}
 	eq := &mockExecutionQuerier{}
 	fn := &mockFailureNotifier{}
-	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task_dispatcher.WithFailureNotifier(fn))
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)
 
-	task := task_dispatcher.DispatchTask{
+	task := task.DispatchTask{
 		TaskID:      "task-launch-fail",
 		WorkerID:    "w1",
 		SessionKey:  "s1",
@@ -601,8 +601,8 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	mgr := &blockingExecManager{blocker: blocker}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
 
-	in := make(chan task_dispatcher.DispatchTask, 8)
-	d := task_dispatcher.New(mgr, &mockTaskStore{}, ss, eq, in)
+	in := make(chan task.DispatchTask, 8)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -680,9 +680,9 @@ func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
 	mgr := &blockingExecManager{blocker: blocker}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
 
-	in := make(chan task_dispatcher.DispatchTask, 4)
+	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task_dispatcher.New(mgr, ts, newMockSessionStore(), eq, in)
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -721,9 +721,9 @@ func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
 	mgr := &cancelTrackingExecManager{cancelCount: &cancelCalled}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
 
-	in := make(chan task_dispatcher.DispatchTask, 4)
+	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task_dispatcher.New(mgr, ts, newMockSessionStore(), eq, in)
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -759,14 +759,14 @@ func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
 	}}
 	ss := newMockSessionStore()
 
-	ch := make(chan task_dispatcher.DispatchTask, 1)
-	d := task_dispatcher.New(mgr, ts, ss, execStore, ch)
+	ch := make(chan task.DispatchTask, 1)
+	d := task.New(mgr, ts, ss, execStore, ch)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	go d.Run(ctx)
 
-	ch <- task_dispatcher.DispatchTask{
+	ch <- task.DispatchTask{
 		TaskID:   "task-1",
 		WorkerID: "worker-1",
 	}
@@ -800,13 +800,13 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 		result: model.WorkerExecution{ID: "exec-fail", Status: model.ExecStatusFailed, Result: "API Error: blocked"},
 	}
 	fn := &mockFailureNotifier{}
-	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task_dispatcher.WithFailureNotifier(fn))
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)
 
-	task := task_dispatcher.DispatchTask{
+	task := task.DispatchTask{
 		TaskID:      "task-fail-1",
 		WorkerID:    "w1",
 		SessionKey:  "s1",

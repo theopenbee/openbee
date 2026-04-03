@@ -1,4 +1,4 @@
-package task_dispatcher
+package task
 
 import "github.com/theopenbee/openbee/internal/platform"
 

@@ -252,7 +252,7 @@ func (m *Manager) StopExecution(executionID string) error {
 	return proc.Stop()
 }
 
-// CancelExecution implements task_dispatcher.ExecutionManager.
+// CancelExecution implements task.ExecutionManager.
 // It stops the active worker process for the given executionID.
 func (m *Manager) CancelExecution(_ context.Context, executionID string) error {
 	return m.StopExecution(executionID)

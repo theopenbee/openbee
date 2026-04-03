@@ -1,4 +1,4 @@
-package task_scheduler
+package task
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
 
-var log = logger.With(zap.String("component", "taskscheduler"))
+var schedulerLog = logger.With(zap.String("component", "taskscheduler"))
 
 type schedulerStore interface {
 	PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error)
@@ -25,12 +24,12 @@ type schedulerStore interface {
 // Scheduler polls for due tasks and sends them to the TaskDispatcher.
 type Scheduler struct {
 	taskStore    schedulerStore
-	dispatchCh   chan<- task_dispatcher.DispatchTask
+	dispatchCh   chan<- DispatchTask
 	pollInterval time.Duration
 }
 
-// New creates a Scheduler.
-func New(taskStore schedulerStore, dispatchCh chan<- task_dispatcher.DispatchTask, pollInterval time.Duration) *Scheduler {
+// NewScheduler creates a Scheduler.
+func NewScheduler(taskStore schedulerStore, dispatchCh chan<- DispatchTask, pollInterval time.Duration) *Scheduler {
 	return &Scheduler{
 		taskStore:    taskStore,
 		dispatchCh:   dispatchCh,
@@ -104,7 +103,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 		}
 
 		sessionKey := ct.MessageSessionKey
-		dt := task_dispatcher.DispatchTask{
+		dt := DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
 			SessionKey:  sessionKey,

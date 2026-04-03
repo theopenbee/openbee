@@ -1,4 +1,4 @@
-package task_scheduler_test
+package task_test
 
 import (
 	"context"
@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/task_scheduler"
 )
 
 func setupDB(t *testing.T) (*sql.DB, *store.TaskStore) {
@@ -34,20 +33,20 @@ func TestScheduler_ImmediateTask_Dispatched(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	dispCh := make(chan task_dispatcher.DispatchTask, 10)
-	sched := task_scheduler.New(ts, dispCh, 50*time.Millisecond)
+	dispCh := make(chan task.DispatchTask, 10)
+	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	go sched.Run(ctx)
 
 	select {
-	case task := <-dispCh:
-		if task.WorkerID != "w1" {
-			t.Errorf("unexpected worker: %s", task.WorkerID)
+	case dt := <-dispCh:
+		if dt.WorkerID != "w1" {
+			t.Errorf("unexpected worker: %s", dt.WorkerID)
 		}
-		if task.TaskType != model.TaskTypeImmediate {
-			t.Errorf("unexpected task type: %s", task.TaskType)
+		if dt.TaskType != model.TaskTypeImmediate {
+			t.Errorf("unexpected task type: %s", dt.TaskType)
 		}
 	case <-ctx.Done():
 		t.Fatal("timeout: no task dispatched")
@@ -72,8 +71,8 @@ func TestScheduler_ScheduledTask_NextRunAtSetCorrectly(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	dispCh := make(chan task_dispatcher.DispatchTask, 10)
-	sched := task_scheduler.New(ts, dispCh, 50*time.Millisecond)
+	dispCh := make(chan task.DispatchTask, 10)
+	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -120,16 +119,16 @@ func TestScheduler_CountdownTask_NotDispatchedBeforeTime(t *testing.T) {
 		CreatedAt:   now, UpdatedAt: now,
 	})
 
-	dispCh := make(chan task_dispatcher.DispatchTask, 10)
-	sched := task_scheduler.New(ts, dispCh, 50*time.Millisecond)
+	dispCh := make(chan task.DispatchTask, 10)
+	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	go sched.Run(ctx)
 
 	select {
-	case task := <-dispCh:
-		t.Errorf("should not have dispatched future task, got: %+v", task)
+	case dt := <-dispCh:
+		t.Errorf("should not have dispatched future task, got: %+v", dt)
 	case <-ctx.Done():
 		// Expected: no dispatch
 	}

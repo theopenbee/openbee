@@ -1,4 +1,4 @@
-package task_dispatcher_test
+package task_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
+	"github.com/theopenbee/openbee/internal/domain/task"
 )
 
 func TestMain(m *testing.M) {
@@ -36,7 +36,7 @@ func (s *spySender) Send(_ context.Context, msg platform.OutboundMessage) error 
 	return nil
 }
 
-func setupNotifier(t *testing.T, platformID string) (*task_dispatcher.PlatformFailureNotifier, *store.MessageStore, *spySender) {
+func setupNotifier(t *testing.T, platformID string) (*task.PlatformFailureNotifier, *store.MessageStore, *spySender) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -47,7 +47,7 @@ func setupNotifier(t *testing.T, platformID string) (*task_dispatcher.PlatformFa
 	ms := store.NewMessageStore(db)
 	sender := &spySender{}
 	senders := map[string]platform.PlatformSenderAdapter{platformID: sender}
-	notifier := task_dispatcher.NewPlatformFailureNotifier(ms, senders)
+	notifier := task.NewPlatformFailureNotifier(ms, senders)
 	return notifier, ms, sender
 }
 

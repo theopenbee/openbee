@@ -30,8 +30,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/task_dispatcher"
-	"github.com/theopenbee/openbee/internal/task_scheduler"
+	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/worker"
 	webui "github.com/theopenbee/openbee/web"
 )
@@ -96,12 +95,12 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	mgr := buildWorkerManager(cfg.Bee, s)
 
-	dispatchCh := make(chan task_dispatcher.DispatchTask, 128)
+	dispatchCh := make(chan task.DispatchTask, 128)
 
 	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
-	failureNotifier := task_dispatcher.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
+	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier)
 
@@ -195,11 +194,11 @@ func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
 	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
 }
 
-func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task_dispatcher.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task_scheduler.Scheduler) {
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier))
-	sched := task_scheduler.New(s.taskStore, dispatchCh, bee.PollInterval)
+	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
 
@@ -207,11 +206,11 @@ func buildPipeline(
 	debounce time.Duration,
 	s appStores,
 	mgr *worker.Manager,
-	dispatchCh chan task_dispatcher.DispatchTask,
-	failureNotifier task_dispatcher.FailureNotifier,
-) (*msgingest.Gateway, *task_dispatcher.TaskDispatcher) {
+	dispatchCh chan task.DispatchTask,
+	failureNotifier task.FailureNotifier,
+) (*msgingest.Gateway, *task.TaskDispatcher) {
 	ingest := msgingest.New(s.msgStore, debounce)
-	disp := task_dispatcher.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, task_dispatcher.WithFailureNotifier(failureNotifier))
+	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, task.WithFailureNotifier(failureNotifier))
 	return ingest, disp
 }
 
