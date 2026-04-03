@@ -56,6 +56,11 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
+export function tokenParam(): string {
+  const token = getAccessToken()
+  return token ? `?token=${encodeURIComponent(token)}` : ""
+}
+
 export interface LoginResult {
   success: boolean
   status?: number

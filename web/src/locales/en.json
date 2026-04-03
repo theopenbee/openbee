@@ -126,7 +126,9 @@
     "uploadFile": "Upload file",
     "processing": "Processing...",
     "deleteSession": "Delete session",
-    "emptyState": "No sessions yet. Click \"New Chat\" to start."
+    "emptyState": "No sessions yet. Click \"New Chat\" to start.",
+    "uploadError_one": "{{count}} file failed to upload, please try again",
+    "uploadError_other": "{{count}} files failed to upload, please try again"
   },
   "login": {
     "title": "Sign In",

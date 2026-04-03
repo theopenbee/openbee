@@ -9,26 +9,15 @@ import {
 } from "@/hooks/use-local-chat"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
-import { getAccessToken } from "@/lib/auth"
+import { tokenParam } from "@/lib/auth"
+import { basename, isImage } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, Paperclip, Send } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 
-const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"])
-
-function basename(filePath: string): string {
-  return filePath.split("/").pop() ?? filePath
-}
-
-function isImage(filePath: string): boolean {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
-  return IMAGE_EXTS.has(ext)
-}
-
 const AttachmentPreview = memo(function AttachmentPreview({ sessionId, mediaPath }: { sessionId: string; mediaPath: string }) {
   const filename = basename(mediaPath)
-  const token = getAccessToken()
-  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${token ? `?token=${encodeURIComponent(token)}` : ""}`
+  const url = `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${tokenParam()}`
   if (isImage(mediaPath)) {
     return (
       <img
@@ -62,7 +51,8 @@ export function LocalChatDetail() {
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
-  const [pendingMediaPath, setPendingMediaPath] = useState<string | undefined>()
+  const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -80,25 +70,52 @@ export function LocalChatDetail() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [localMessages, isProcessing])
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const content = input.trim()
-    if (!content && !pendingMediaPath) return
+    if (!content && pendingMediaPaths.length === 0) return
 
-    const userMsg: ChatMessage = { role: "user", content, media_path: pendingMediaPath, ts: Date.now() }
+    const paths = [...pendingMediaPaths]
+    const userMsg: ChatMessage = {
+      role: "user",
+      content,
+      media_paths: paths.length > 0 ? paths : undefined,
+      ts: Date.now(),
+    }
     setLocalMessages((prev) => [...prev, userMsg])
     setInput("")
+    setPendingMediaPaths([])
+    setUploadError(null)
     setIsProcessing(true)
 
-    await sendMessage.mutateAsync({ content: content || " ", mediaPath: pendingMediaPath })
-    setPendingMediaPath(undefined)
-  }
+    try {
+      await sendMessage.mutateAsync({
+        content: content || " ",
+        mediaPaths: paths.length > 0 ? paths : undefined,
+      })
+    } catch {
+      setLocalMessages((prev) => prev.filter((m) => m !== userMsg))
+      setPendingMediaPaths((prev) => [...paths, ...prev])
+      setIsProcessing(false)
+    }
+  }, [input, pendingMediaPaths, sendMessage])
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const { path } = await api.localChat.uploadMedia(sessionId, file)
-    setPendingMediaPath(path)
-  }
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+    e.target.value = ""
+    setUploadError(null)
+    const results = await Promise.allSettled(
+      files.map((file) => api.localChat.uploadMedia(sessionId, file))
+    )
+    const succeeded = results.filter(
+      (r): r is PromiseFulfilledResult<{ path: string }> => r.status === "fulfilled"
+    )
+    const failedCount = results.length - succeeded.length
+    if (failedCount > 0) {
+      setUploadError(t("localChat.uploadError", { count: failedCount }))
+    }
+    setPendingMediaPaths((prev) => [...prev, ...succeeded.map((r) => r.value.path)])
+  }, [sessionId, t])
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -136,9 +153,9 @@ export function LocalChatDetail() {
                 </div>
               ) : (
                 <>
-                  {msg.media_path && (
-                    <AttachmentPreview sessionId={sessionId} mediaPath={msg.media_path} />
-                  )}
+                  {msg.media_paths?.map((p) => (
+                    <AttachmentPreview key={p} sessionId={sessionId} mediaPath={p} />
+                  ))}
                   {msg.content.trim() && <span>{msg.content}</span>}
                 </>
               )}
@@ -162,10 +179,29 @@ export function LocalChatDetail() {
 
       {/* Input */}
       <div className="border-t border-border pt-3">
-        {pendingMediaPath && (
-          <p className="text-xs text-muted-foreground mb-1 truncate font-mono">
-            📎 {basename(pendingMediaPath)}
-          </p>
+        {uploadError && (
+          <p className="text-xs text-destructive mb-1">{uploadError}</p>
+        )}
+        {pendingMediaPaths.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1">
+            {pendingMediaPaths.map((p) => (
+              <span
+                key={p}
+                className="flex items-center gap-1 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded"
+              >
+                📎 {basename(p)}
+                <button
+                  type="button"
+                  className="ml-1 hover:text-destructive"
+                  onClick={() =>
+                    setPendingMediaPaths((prev) => prev.filter((path) => path !== p))
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
         )}
         <div className="flex gap-2 items-end bg-card rounded-xl ring-1 ring-foreground/10 p-2">
           <textarea
@@ -183,6 +219,7 @@ export function LocalChatDetail() {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             className="hidden"
             onChange={handleFileChange}
           />

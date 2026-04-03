@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
-import { getAccessToken } from "@/lib/auth"
+import { tokenParam } from "@/lib/auth"
 import type { ChatMessage } from "@/lib/types"
 
 export function useLocalSessions() {
@@ -39,8 +39,8 @@ export function useDeleteSession() {
 export function useSendMessage(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ content, mediaPath }: { content: string; mediaPath?: string }) =>
-      api.localChat.sendMessage(sessionId, content, mediaPath),
+    mutationFn: ({ content, mediaPaths }: { content: string; mediaPaths?: string[] }) =>
+      api.localChat.sendMessage(sessionId, content, mediaPaths),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-sessions"] })
     },
@@ -63,9 +63,7 @@ export function useLocalChatStream(
     let reconnectTimer: ReturnType<typeof setTimeout>
 
     const connect = () => {
-      const token = getAccessToken()
-      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ""
-      es = new EventSource(`${config.apiUrl}/local/sessions/${sessionId}/stream${tokenParam}`)
+      es = new EventSource(`${config.apiUrl}/local/sessions/${sessionId}/stream${tokenParam()}`)
 
       es.onmessage = (event) => {
         try {

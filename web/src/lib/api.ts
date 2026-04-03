@@ -110,10 +110,10 @@ export const api = {
       }),
     deleteSession: (id: string) =>
       fetchAPI(`/local/sessions/${id}`, { method: "DELETE" }),
-    sendMessage: (sessionId: string, content: string, mediaPath?: string) =>
+    sendMessage: (sessionId: string, content: string, mediaPaths?: string[]) =>
       fetchAPI(`/local/sessions/${sessionId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content, media_path: mediaPath }),
+        body: JSON.stringify({ content, media_paths: mediaPaths }),
       }),
     getMessages: async (sessionId: string) => {
       const msgs = await fetchAPI<ChatMessage[] | null>(`/local/sessions/${sessionId}/messages`)
