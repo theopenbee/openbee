@@ -26,7 +26,7 @@ const navSecondary = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
-  const username = getStoredUsername() ?? "User"
+  const username = React.useMemo(() => getStoredUsername() ?? "User", [])
 
   const navMain = React.useMemo(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },

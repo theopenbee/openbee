@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { useState } from "react"
 import {
   Avatar,
   AvatarFallback,
@@ -21,13 +20,13 @@ import {
 } from "@/components/ui/sidebar"
 import { ChevronsUpDownIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react"
 import { clearTokens } from "@/lib/auth"
-import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
+import { useThemeToggle } from "@/hooks/use-theme-toggle"
 
 export function NavUser({ username }: { username: string }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const { theme, toggle: toggleTheme } = useThemeToggle()
 
   const initials = username ? username.slice(0, 2).toUpperCase() : "U"
   const avatar = (
@@ -35,12 +34,6 @@ export function NavUser({ username }: { username: string }) {
       <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
     </Avatar>
   )
-
-  const toggleTheme = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark"
-    applyTheme(next)
-    setTheme(next)
-  }
 
   const handleLogout = () => {
     clearTokens()
