@@ -19,7 +19,10 @@ import (
 // It is a var (not const) so tests can override it with a local httptest server.
 var GitHubAPI = "https://api.github.com/repos/theopenbee/cc-download/releases/latest"
 
-const gitHubRelBase = "https://github.com/theopenbee/cc-download/releases/download"
+const (
+	gitHubRelBase       = "https://github.com/theopenbee/cc-download/releases/download"
+	cdnClaudeReleasesPath = "claude-code-releases"
+)
 
 // claudePlatform represents a target platform for Claude Code download.
 type claudePlatform struct {
@@ -91,7 +94,7 @@ func buildClaudeDownloadURL(p claudePlatform, version string) string {
 
 func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
-		return utils.FetchPlainTextVersion(cdnURL + "/claude-code-releases/latest.txt")
+		return utils.FetchPlainTextVersion(cdnURL + "/" + cdnClaudeReleasesPath + "/latest.txt")
 	}
 
 	resp, err := utils.APIClient.Get(GitHubAPI)
@@ -152,7 +155,7 @@ func Download(stateDir string, force bool, cdnURL string) (string, error) {
 
 	var checksumURL, binaryURL string
 	if cdnURL != "" {
-		base := fmt.Sprintf("%s/claude-code-releases/%s", cdnURL, versionNum)
+		base := fmt.Sprintf("%s/%s/%s", cdnURL, cdnClaudeReleasesPath, versionNum)
 		checksumURL = fmt.Sprintf("%s/checksums-sha256.txt", base)
 		binaryURL = fmt.Sprintf("%s/%s/claude", base, platformStr)
 	} else {
