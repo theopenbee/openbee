@@ -69,7 +69,9 @@
     "workDir": "Work Dir",
     "created": "Created",
     "memory": "Memory",
-    "noMemory": "No memory configured"
+    "noMemory": "No memory configured",
+    "editDescription": "Edit description",
+    "editMemory": "Edit memory"
   },
   "executionDetail": {
     "title": "Session Detail",

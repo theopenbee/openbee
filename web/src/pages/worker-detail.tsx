@@ -83,12 +83,15 @@ export function WorkerDetail() {
         </div>
       ) : (
         <div className="-mt-6 mb-8">
-          <button
-            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("workerDetail.editDescription")}
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => { setEditDesc(worker.description); setIsEditingDesc(true) }}
           >
             <Pencil className="h-3 w-3" />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -157,10 +160,10 @@ export function WorkerDetail() {
             <CardContent>
               <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
                 <span className="text-muted-foreground">{t("workerDetail.id")}</span>
-                <span className="font-mono">{worker.id}</span>
+                <span className="font-mono break-all">{worker.id}</span>
 
                 <span className="text-muted-foreground">{t("workerDetail.workDir")}</span>
-                <span className="font-mono">{worker.work_dir}</span>
+                <span className="font-mono break-all">{worker.work_dir}</span>
 
                 <span className="text-muted-foreground">{t("workerDetail.created")}</span>
                 <span className="font-mono">{new Date(worker.created_at).toLocaleString()}</span>
@@ -170,12 +173,15 @@ export function WorkerDetail() {
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-sm font-medium">{t("workerDetail.memory")}</span>
                   {!isEditingMemory && (
-                    <button
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("workerDetail.editMemory")}
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => { setEditMemory(worker.memory); setIsEditingMemory(true) }}
                     >
                       <Pencil className="h-3 w-3" />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {isEditingMemory ? (

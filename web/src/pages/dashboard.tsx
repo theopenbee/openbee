@@ -64,7 +64,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {workers.map((w) => (
             <Link key={w.id} to={`/workers/${w.id}`}>
-              <Card className="hover:ring-1 hover:ring-primary/30 transition-all duration-200 cursor-pointer h-full">
+              <Card className="hover:ring-1 hover:ring-primary/30 transition-shadow duration-200 cursor-pointer h-full">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold">{w.name}</CardTitle>

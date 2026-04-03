@@ -69,7 +69,9 @@
     "workDir": "工作目录",
     "created": "创建时间",
     "memory": "记忆",
-    "noMemory": "未配置记忆"
+    "noMemory": "未配置记忆",
+    "editDescription": "编辑描述",
+    "editMemory": "编辑记忆"
   },
   "executionDetail": {
     "title": "执行详情",

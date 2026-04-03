@@ -21,7 +21,6 @@ export function PaginationControls({ page, totalPages, onPageChange }: Paginatio
       <div className="flex gap-2">
         <Button
           variant="outline"
-          size="sm"
           disabled={page <= 1}
           onClick={() => onPageChange(Math.max(1, page - 1))}
         >
@@ -30,7 +29,6 @@ export function PaginationControls({ page, totalPages, onPageChange }: Paginatio
         </Button>
         <Button
           variant="outline"
-          size="sm"
           disabled={page >= totalPages}
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         >

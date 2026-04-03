@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
@@ -39,7 +39,8 @@ export function Workers() {
 
   const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || ""
 
-  const handleCreate = async () => {
+  const handleCreate = async (e?: FormEvent) => {
+    e?.preventDefault()
     await createWorker.mutateAsync({
       name,
       description,
@@ -72,7 +73,7 @@ export function Workers() {
               <DialogHeader>
                 <DialogTitle>{t("workers.createWorker")}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              <form onSubmit={handleCreate} className="space-y-4 max-h-[70vh] overflow-y-auto">
                 <div>
                   <Label htmlFor="name">{t("workers.form.name")}</Label>
                   <Input
@@ -112,10 +113,10 @@ export function Workers() {
                   />
                 </div>
 
-                <Button onClick={handleCreate} className="w-full">
+                <Button type="submit" disabled={createWorker.isPending} className="w-full">
                   {t("workers.createWorker")}
                 </Button>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         }
@@ -140,14 +141,10 @@ export function Workers() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {workers.map((w) => (
-            <Card key={w.id} className="hover:ring-1 hover:ring-primary/30 transition-all duration-200">
+            <Card key={w.id} className="hover:ring-1 hover:ring-primary/30 transition-shadow duration-200">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <Link to={`/workers/${w.id}`}>
-                    <CardTitle className="text-base font-semibold hover:text-primary transition-colors">
-                      {w.name}
-                    </CardTitle>
-                  </Link>
+                  <CardTitle className="text-base font-semibold">{w.name}</CardTitle>
                   <StatusBadge status={w.status} />
                 </div>
               </CardHeader>
@@ -194,9 +191,9 @@ export function Workers() {
               id="delete-work-dir"
               checked={deleteWorkDir}
               onChange={(e) => setDeleteWorkDir(e.target.checked)}
-              className="accent-primary"
+              className="size-4 accent-primary cursor-pointer rounded"
             />
-            <Label htmlFor="delete-work-dir">{t("workers.deleteDialog.deleteWorkDir")}</Label>
+            <Label htmlFor="delete-work-dir" className="cursor-pointer">{t("workers.deleteDialog.deleteWorkDir")}</Label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetDelete}>
