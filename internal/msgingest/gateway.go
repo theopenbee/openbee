@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 var log = logger.With(zap.String("component", "msgingest"))

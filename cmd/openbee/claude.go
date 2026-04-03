@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	claude "github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 var claudeCmd = &cobra.Command{

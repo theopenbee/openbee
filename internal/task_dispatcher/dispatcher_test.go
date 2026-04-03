@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 

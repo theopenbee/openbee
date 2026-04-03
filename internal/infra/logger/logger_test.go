@@ -6,7 +6,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 )
 
 func TestInit_JSONFormat(t *testing.T) {

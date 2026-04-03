@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 // LocalSender implements platform.PlatformSenderAdapter.

@@ -3,7 +3,7 @@ package i18n_test
 import (
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func TestLoad_zh(t *testing.T) {

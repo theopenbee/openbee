@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/auth"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 )
 
 func TestGenerateBeeToken_ValidAndParseable(t *testing.T) {

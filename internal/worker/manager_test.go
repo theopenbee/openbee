@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {

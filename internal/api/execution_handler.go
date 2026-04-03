@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func parsePagination(c *gin.Context) (page, pageSize, offset int) {

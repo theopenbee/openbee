@@ -7,8 +7,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )

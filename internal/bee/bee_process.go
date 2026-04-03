@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/auth"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 // DefaultPersona is the hardcoded bee persona content for CLAUDE.md.

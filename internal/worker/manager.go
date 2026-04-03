@@ -14,11 +14,11 @@ import (
 	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/claude"
 	"github.com/theopenbee/openbee/internal/claudemd"
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/auth"
-	"github.com/theopenbee/openbee/internal/model"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 var log = logger.With(zap.String("component", "worker"))

@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func setupTestDB(t *testing.T) *WorkerStore {

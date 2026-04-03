@@ -9,7 +9,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // ErrInterrupted is returned when the user cancels an interactive prompt (Ctrl+C).

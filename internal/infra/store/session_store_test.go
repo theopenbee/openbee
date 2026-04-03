@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/model"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 func setupSessionDB(t *testing.T) (*sql.DB, *store.SessionStore) {

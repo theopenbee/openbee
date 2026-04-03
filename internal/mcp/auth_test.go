@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/auth"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/mcp"
 )
 

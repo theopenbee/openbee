@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/utils"
 )
 

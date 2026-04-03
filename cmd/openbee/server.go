@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/app"
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 )
 
 var cfgPath string

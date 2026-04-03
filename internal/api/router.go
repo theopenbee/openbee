@@ -9,10 +9,10 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/auth"
-	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/mcp"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/worker"
 )
 

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/i18n"
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/task_dispatcher"
 )
 

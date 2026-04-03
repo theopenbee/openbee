@@ -23,9 +23,9 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
-	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/ffmedia"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )

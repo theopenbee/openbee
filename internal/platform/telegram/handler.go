@@ -17,8 +17,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )

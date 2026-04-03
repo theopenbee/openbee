@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/theopenbee/openbee/internal/backup"
+	"github.com/theopenbee/openbee/internal/infra/backup"
 )
 
 func TestManifestRoundTrip(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/auth"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 )
 
 const (

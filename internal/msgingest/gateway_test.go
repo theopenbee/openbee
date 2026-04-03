@@ -8,7 +8,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 // mockMsgStore implements msgingest.MessageStore for testing.

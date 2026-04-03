@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 // detectLang determines the UI language using priority:

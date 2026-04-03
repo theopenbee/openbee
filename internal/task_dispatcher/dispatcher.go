@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/model"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 var log = logger.With(zap.String("component", "taskdispatcher"))

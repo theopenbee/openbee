@@ -8,7 +8,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 func setupSenderDB(t *testing.T) (*store.LocalReplyStore, *sql.DB) {
