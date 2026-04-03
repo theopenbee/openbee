@@ -21,20 +21,7 @@ import {
 } from "@/components/ui/sidebar"
 import { ChevronsUpDownIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react"
 import { clearTokens } from "@/lib/auth"
-
-type Theme = "dark" | "light"
-
-function getStoredTheme(): Theme {
-  const stored = localStorage.getItem("theme")
-  return stored === "light" ? "light" : "dark"
-}
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement
-  root.classList.remove("dark", "light")
-  root.classList.add(theme)
-  localStorage.setItem("theme", theme)
-}
+import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
 
 export function NavUser({ username }: { username: string }) {
   const { isMobile } = useSidebar()
@@ -42,9 +29,12 @@ export function NavUser({ username }: { username: string }) {
   const { t } = useTranslation()
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
 
-  const initials = username
-    ? username.slice(0, 2).toUpperCase()
-    : "U"
+  const initials = username ? username.slice(0, 2).toUpperCase() : "U"
+  const avatar = (
+    <Avatar className="size-8 rounded-lg">
+      <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+    </Avatar>
+  )
 
   const toggleTheme = () => {
     const next: Theme = theme === "dark" ? "light" : "dark"
@@ -66,9 +56,7 @@ export function NavUser({ username }: { username: string }) {
               <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
             }
           >
-            <Avatar className="size-8 rounded-lg">
-              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-            </Avatar>
+            {avatar}
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{username}</span>
             </div>
@@ -82,9 +70,7 @@ export function NavUser({ username }: { username: string }) {
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="size-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
+                {avatar}
                 <span className="truncate font-medium">{username}</span>
               </div>
             </DropdownMenuLabel>

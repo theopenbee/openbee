@@ -1,19 +1,6 @@
 import { useState } from "react"
 import { Sun, Moon } from "lucide-react"
-
-type Theme = "dark" | "light"
-
-function getStoredTheme(): Theme {
-  const stored = localStorage.getItem("theme")
-  return stored === "light" ? "light" : "dark"
-}
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement
-  root.classList.remove("dark", "light")
-  root.classList.add(theme)
-  localStorage.setItem("theme", theme)
-}
+import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
 
 export function ThemeSwitcher() {
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
