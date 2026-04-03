@@ -5,12 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/theopenbee/openbee/internal/utils"
 )
@@ -19,7 +19,10 @@ import (
 // It is a var (not const) so tests can override it with a local httptest server.
 var GitHubAPI = "https://api.github.com/repos/theopenbee/cc-download/releases/latest"
 
-const gitHubRelBase = "https://github.com/theopenbee/cc-download/releases/download"
+const (
+	gitHubRelBase       = "https://github.com/theopenbee/cc-download/releases/download"
+	cdnClaudeReleasesPath = "claude-code-releases"
+)
 
 // claudePlatform represents a target platform for Claude Code download.
 type claudePlatform struct {
@@ -75,40 +78,48 @@ func isMusl() bool {
 	return isMuslWith(filepath.Glob)
 }
 
+func platformString(p claudePlatform) string {
+	s := p.os + "-" + p.arch
+	if p.variant != "" {
+		s += "-" + p.variant
+	}
+	return s
+}
+
 func buildClaudeDownloadURL(p claudePlatform, version string) string {
 	versionNum := strings.TrimPrefix(version, "v")
-	platformStr := p.os + "-" + p.arch
-	if p.variant != "" {
-		platformStr += "-" + p.variant
-	}
-	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
+	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformString(p))
 	return fmt.Sprintf("%s/%s/%s", gitHubRelBase, version, assetName)
 }
 
-func fetchLatestClaudeVersion() (string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(GitHubAPI)
+func fetchLatestClaudeVersion(cdnURL string) (string, error) {
+	if cdnURL != "" {
+		return utils.FetchPlainTextVersion(cdnURL + "/" + cdnClaudeReleasesPath + "/latest.txt")
+	}
+
+	resp, err := utils.APIClient.Get(GitHubAPI)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
 	var rel struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 	return utils.NormalizeVersionTag(rel.TagName)
 }
 
-
 // Download downloads Claude Code to stateDir/bin/claude and returns the installed path.
 // If the binary already exists and force is false, it returns the existing path immediately
-// without re-downloading.
-func Download(stateDir string, force bool) (string, error) {
+// without re-downloading. cdnURL, if non-empty, redirects both version check and binary
+// download to the given CDN base URL.
+func Download(stateDir string, force bool, cdnURL string) (string, error) {
 	destPath := filepath.Join(stateDir, "bin", "claude")
 
 	if !force {
@@ -133,20 +144,24 @@ func Download(stateDir string, force bool) (string, error) {
 	}
 
 	fmt.Println("Checking for latest Claude version...")
-	version, err := fetchLatestClaudeVersion()
+	version, err := fetchLatestClaudeVersion(cdnURL)
 	if err != nil {
 		return "", fmt.Errorf("fetch latest Claude version: %w", err)
 	}
 	fmt.Printf("Latest Claude version: %s\n", version)
 
 	versionNum := strings.TrimPrefix(version, "v")
-	platformStr := platform.os + "-" + platform.arch
-	if platform.variant != "" {
-		platformStr += "-" + platform.variant
-	}
+	platformStr := platformString(platform)
 
-	checksumURL := fmt.Sprintf("%s/%s/checksums-sha256.txt", gitHubRelBase, version)
-	binaryURL := buildClaudeDownloadURL(platform, version)
+	var checksumURL, binaryURL string
+	if cdnURL != "" {
+		base := fmt.Sprintf("%s/%s/%s", cdnURL, cdnClaudeReleasesPath, versionNum)
+		checksumURL = fmt.Sprintf("%s/checksums-sha256.txt", base)
+		binaryURL = fmt.Sprintf("%s/%s/claude", base, platformStr)
+	} else {
+		checksumURL = fmt.Sprintf("%s/%s/checksums-sha256.txt", gitHubRelBase, version)
+		binaryURL = buildClaudeDownloadURL(platform, version)
+	}
 	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
 
 	tmpDir, err := os.MkdirTemp("", "openbee-claude-*")

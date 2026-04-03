@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/i18n"
@@ -42,16 +41,19 @@ var (
 	upgradeCN        bool
 )
 
+func resolveCDNURL(cdnURL string, useCN bool) string {
+	if cdnURL == "" && useCN {
+		return defaultCDNBaseURL
+	}
+	return cdnURL
+}
+
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Upgrade openbee to the latest version",
 	Long:  "Check for a new version and replace the current binary if one is available.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cdnURL := upgradeCDNURL
-		if cdnURL == "" && upgradeCN {
-			cdnURL = defaultCDNBaseURL
-		}
-		return runUpgrade(upgradeCheckOnly, cdnURL)
+		return runUpgrade(upgradeCheckOnly, resolveCDNURL(upgradeCDNURL, upgradeCN))
 	},
 }
 
@@ -96,41 +98,23 @@ func runUpgrade(checkOnly bool, cdnURL string) error {
 }
 
 func fetchLatestVersion(cdnURL string) (string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
-
 	if cdnURL != "" {
-		// CDN exposes a plain-text file at {cdnURL}/releases/latest
-		url := cdnURL + "/releases/latest"
-		resp, err := client.Get(url)
-		if err != nil {
-			return "", err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
-		if err != nil {
-			return "", fmt.Errorf("read CDN response: %w", err)
-		}
-		return utils.NormalizeVersionTag(string(body))
+		return utils.FetchPlainTextVersion(cdnURL + "/releases/latest")
 	}
 
-	resp, err := client.Get(githubAPILatest)
+	resp, err := utils.APIClient.Get(githubAPILatest)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
-
 	var rel githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
-
 	return utils.NormalizeVersionTag(rel.TagName)
 }
 
