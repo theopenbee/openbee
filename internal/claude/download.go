@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/theopenbee/openbee/internal/utils"
 )
@@ -90,28 +89,12 @@ func buildClaudeDownloadURL(p claudePlatform, version string) string {
 	return fmt.Sprintf("%s/%s/%s", gitHubRelBase, version, assetName)
 }
 
-var httpClient = &http.Client{Timeout: 15 * time.Second}
-
 func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
-		url := cdnURL + "/claude-code-releases/latest.txt"
-		resp, err := httpClient.Get(url)
-		if err != nil {
-			return "", err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			_, _ = io.Copy(io.Discard, resp.Body)
-			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
-		if err != nil {
-			return "", fmt.Errorf("read CDN response: %w", err)
-		}
-		return utils.NormalizeVersionTag(string(body))
+		return utils.FetchPlainTextVersion(cdnURL + "/claude-code-releases/latest.txt")
 	}
 
-	resp, err := httpClient.Get(GitHubAPI)
+	resp, err := utils.APIClient.Get(GitHubAPI)
 	if err != nil {
 		return "", err
 	}
@@ -129,11 +112,10 @@ func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	return utils.NormalizeVersionTag(rel.TagName)
 }
 
-
 // Download downloads Claude Code to stateDir/bin/claude and returns the installed path.
 // If the binary already exists and force is false, it returns the existing path immediately
 // without re-downloading. cdnURL, if non-empty, redirects both version check and binary
-// download to the given CDN base URL (e.g. "https://dl.theopenbee.cn").
+// download to the given CDN base URL.
 func Download(stateDir string, force bool, cdnURL string) (string, error) {
 	destPath := filepath.Join(stateDir, "bin", "claude")
 

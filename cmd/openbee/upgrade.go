@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/i18n"
@@ -98,28 +97,12 @@ func runUpgrade(checkOnly bool, cdnURL string) error {
 	return doUpgrade(latest, cdnURL)
 }
 
-var upgradeHTTPClient = &http.Client{Timeout: 15 * time.Second}
-
 func fetchLatestVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
-		url := cdnURL + "/releases/latest"
-		resp, err := upgradeHTTPClient.Get(url)
-		if err != nil {
-			return "", err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			_, _ = io.Copy(io.Discard, resp.Body)
-			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
-		if err != nil {
-			return "", fmt.Errorf("read CDN response: %w", err)
-		}
-		return utils.NormalizeVersionTag(string(body))
+		return utils.FetchPlainTextVersion(cdnURL + "/releases/latest")
 	}
 
-	resp, err := upgradeHTTPClient.Get(githubAPILatest)
+	resp, err := utils.APIClient.Get(githubAPILatest)
 	if err != nil {
 		return "", err
 	}
