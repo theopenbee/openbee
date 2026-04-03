@@ -35,29 +35,29 @@ const fileMediaPrefix = fileMediaMarker + " "
 const legacyFileMediaPrefix = legacyFileMediaMarker + " "
 
 type LocalChatHandler struct {
-	receiver     *local.LocalReceiver
-	hub          *local.SSEHub
-	sessionStore *store.LocalSessionStore
-	replyStore   *store.LocalReplyStore
-	msgStore     *store.MessageStore
-	sessionCtx   *store.SessionStore
+	receiver      *local.LocalReceiver
+	hub           *local.SSEHub
+	sessionStore  *store.LocalSessionStore
+	outboundStore *store.OutboundMessageStore
+	msgStore      *store.MessageStore
+	sessionCtx    *store.SessionStore
 }
 
 func NewLocalChatHandler(
 	receiver *local.LocalReceiver,
 	hub *local.SSEHub,
 	sessionStore *store.LocalSessionStore,
-	replyStore *store.LocalReplyStore,
+	outboundStore *store.OutboundMessageStore,
 	msgStore *store.MessageStore,
 	sessionCtx *store.SessionStore,
 ) *LocalChatHandler {
 	return &LocalChatHandler{
-		receiver:     receiver,
-		hub:          hub,
-		sessionStore: sessionStore,
-		replyStore:   replyStore,
-		msgStore:     msgStore,
-		sessionCtx:   sessionCtx,
+		receiver:      receiver,
+		hub:           hub,
+		sessionStore:  sessionStore,
+		outboundStore: outboundStore,
+		msgStore:      msgStore,
+		sessionCtx:    sessionCtx,
 	}
 }
 
@@ -127,8 +127,8 @@ func (h *LocalChatHandler) deleteSession(c *gin.Context) {
 	if err := h.msgStore.DeleteBySessionKey(ctx, sessionKey); err != nil {
 		log.Error("deleteSession: delete messages", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
-	if err := h.replyStore.DeleteBySession(ctx, sessionKey); err != nil {
-		log.Error("deleteSession: delete replies", zap.String("sessionKey", sessionKey), zap.Error(err))
+	if err := h.outboundStore.DeleteBySessionKey(ctx, sessionKey); err != nil {
+		log.Error("deleteSession: delete outbound messages", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	if err := h.sessionCtx.ClearSessionContexts(ctx, sessionKey); err != nil {
 		log.Error("deleteSession: clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -238,7 +238,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	replies, err := h.replyStore.ListBySession(ctx, sessionKey)
+	replies, err := h.outboundStore.ListBySessionKey(ctx, sessionKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -254,7 +254,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 		combined = append(combined, msg)
 	}
 	for _, r := range replies {
-		combined = append(combined, chatMessage{Role: "bee", Content: r.Content, Timestamp: r.CreatedAt})
+		combined = append(combined, chatMessage{Role: "bee", Content: r.Content, Timestamp: r.SentAt})
 	}
 	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 

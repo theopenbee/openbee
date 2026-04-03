@@ -5,35 +5,28 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/store"
 )
 
 // LocalSender implements platform.PlatformSenderAdapter.
-// It writes bee replies to the local_replies table and broadcasts via SSEHub.
+// It broadcasts replies to connected SSE clients via SSEHub.
+// Persistence to the outbound message store is handled by the
+// store.LoggingPlatformSenderAdapter that wraps this sender in app.go.
 type LocalSender struct {
-	replyStore *store.LocalReplyStore
-	hub        *SSEHub
+	hub *SSEHub
 }
 
 // NewLocalSender constructs a LocalSender.
-func NewLocalSender(replyStore *store.LocalReplyStore, hub *SSEHub) *LocalSender {
-	return &LocalSender{replyStore: replyStore, hub: hub}
+func NewLocalSender(hub *SSEHub) *LocalSender {
+	return &LocalSender{hub: hub}
 }
 
-// Send stores the reply and broadcasts it to any connected SSE clients.
-// The session key is read from msg.ReplyTo.SessionKey (msg.SessionKey is always empty).
+// Send broadcasts the reply to any connected SSE clients for the session.
+// The session key is read from msg.ReplyTo.SessionKey.
 func (s *LocalSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	sessionKey := msg.ReplyTo.SessionKey
-	id := uuid.New().String()
-
-	if err := s.replyStore.Create(ctx, id, sessionKey, msg.Content); err != nil {
-		return err
-	}
 
 	data, _ := json.Marshal(map[string]any{
-		"id":         id,
 		"content":    msg.Content,
 		"created_at": time.Now().UnixMilli(),
 	})

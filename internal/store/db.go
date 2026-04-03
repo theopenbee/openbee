@@ -168,6 +168,48 @@ var migrations = []migration{
 		name:    "create_index_local_replies_session_key",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_local_replies_session_key ON bee_local_replies(session_key)`,
 	},
+	{
+		version: 17,
+		name:    "create_table_bee_outbound_messages",
+		sql: `CREATE TABLE IF NOT EXISTS bee_outbound_messages (
+	id              TEXT PRIMARY KEY,
+	session_key     TEXT NOT NULL,
+	platform        TEXT NOT NULL,
+	content         TEXT NOT NULL DEFAULT '',
+	media_path      TEXT NOT NULL DEFAULT '',
+	status          TEXT NOT NULL DEFAULT 'sent' CHECK(status IN ('sent','failed')),
+	platform_msg_id TEXT NOT NULL DEFAULT '',
+	source_type     TEXT NOT NULL DEFAULT '',
+	source_id       TEXT NOT NULL DEFAULT '',
+	inbound_msg_id  TEXT NOT NULL DEFAULT '',
+	error           TEXT NOT NULL DEFAULT '',
+	retry_count     INTEGER NOT NULL DEFAULT 0,
+	sent_at         INTEGER NOT NULL,
+	created_at      INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 18,
+		name:    "create_index_outbound_session_key_sent_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_outbound_session_key_sent_at ON bee_outbound_messages(session_key, sent_at DESC)`,
+	},
+	{
+		version: 19,
+		name:    "create_index_outbound_platform_sent_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_outbound_platform_sent_at ON bee_outbound_messages(platform, sent_at DESC)`,
+	},
+	{
+		version: 20,
+		name:    "create_index_outbound_source_id_sent_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_outbound_source_id_sent_at ON bee_outbound_messages(source_id, sent_at DESC) WHERE source_id != ''`,
+	},
+	{
+		version: 21,
+		name:    "migrate_local_replies_to_outbound_messages",
+		sql: `INSERT OR IGNORE INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
+SELECT id, session_key, 'local', content, 'sent', created_at, created_at
+FROM bee_local_replies`,
+	},
 }
 
 // inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".
