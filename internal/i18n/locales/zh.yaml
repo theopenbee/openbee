@@ -96,6 +96,8 @@ flag:
   upgrade_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
   upgrade_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
   claude_download_force: "即使已安装也强制重新下载"
+  claude_download_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
+  claude_download_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
 output:
   stop:
     not_running: "openbee 未运行"
@@ -154,6 +156,7 @@ output:
     already_installed: "Claude 已安装在 %s"
     use_force: "使用 --force 重新下载。"
     installed_at: "Claude 已安装至：%s"
+    using_cdn: "正在使用 CDN 渠道：%s"
   weixin:
     scan_qr: "\n请使用微信扫描以下二维码："
     waiting: "\n等待扫码..."

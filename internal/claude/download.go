@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -85,8 +86,26 @@ func buildClaudeDownloadURL(p claudePlatform, version string) string {
 	return fmt.Sprintf("%s/%s/%s", gitHubRelBase, version, assetName)
 }
 
-func fetchLatestClaudeVersion() (string, error) {
+func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
+
+	if cdnURL != "" {
+		url := cdnURL + "/claude-code-releases/latest.txt"
+		resp, err := client.Get(url)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+		if err != nil {
+			return "", fmt.Errorf("read CDN response: %w", err)
+		}
+		return utils.NormalizeVersionTag(string(body))
+	}
+
 	resp, err := client.Get(GitHubAPI)
 	if err != nil {
 		return "", err
@@ -107,8 +126,9 @@ func fetchLatestClaudeVersion() (string, error) {
 
 // Download downloads Claude Code to stateDir/bin/claude and returns the installed path.
 // If the binary already exists and force is false, it returns the existing path immediately
-// without re-downloading.
-func Download(stateDir string, force bool) (string, error) {
+// without re-downloading. cdnURL, if non-empty, redirects both version check and binary
+// download to the given CDN base URL (e.g. "https://dl.theopenbee.cn").
+func Download(stateDir string, force bool, cdnURL string) (string, error) {
 	destPath := filepath.Join(stateDir, "bin", "claude")
 
 	if !force {
@@ -133,7 +153,7 @@ func Download(stateDir string, force bool) (string, error) {
 	}
 
 	fmt.Println("Checking for latest Claude version...")
-	version, err := fetchLatestClaudeVersion()
+	version, err := fetchLatestClaudeVersion(cdnURL)
 	if err != nil {
 		return "", fmt.Errorf("fetch latest Claude version: %w", err)
 	}
@@ -145,8 +165,15 @@ func Download(stateDir string, force bool) (string, error) {
 		platformStr += "-" + platform.variant
 	}
 
-	checksumURL := fmt.Sprintf("%s/%s/checksums-sha256.txt", gitHubRelBase, version)
-	binaryURL := buildClaudeDownloadURL(platform, version)
+	var checksumURL, binaryURL string
+	if cdnURL != "" {
+		base := fmt.Sprintf("%s/claude-code-releases/%s", cdnURL, versionNum)
+		checksumURL = fmt.Sprintf("%s/checksums-sha256.txt", base)
+		binaryURL = fmt.Sprintf("%s/%s/claude", base, platformStr)
+	} else {
+		checksumURL = fmt.Sprintf("%s/%s/checksums-sha256.txt", gitHubRelBase, version)
+		binaryURL = buildClaudeDownloadURL(platform, version)
+	}
 	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
 
 	tmpDir, err := os.MkdirTemp("", "openbee-claude-*")

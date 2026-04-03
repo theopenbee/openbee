@@ -101,16 +101,18 @@ type PromptMessages struct {
 
 // FlagMessages maps to all cobra flag Usage descriptions.
 type FlagMessages struct {
-	ConfigPath          string `yaml:"config_path"`
-	ServerDaemon        string `yaml:"server_daemon"`
-	ConfigOutput        string `yaml:"config_output"`
-	BackupPassword      string `yaml:"backup_password"`
-	RestorePassword     string `yaml:"restore_password"`
-	RestoreForce        string `yaml:"restore_force"`
-	UpgradeCheck        string `yaml:"upgrade_check"`
-	UpgradeCDNURL       string `yaml:"upgrade_cdn_url"`
-	UpgradeCN           string `yaml:"upgrade_cn"`
-	ClaudeDownloadForce string `yaml:"claude_download_force"`
+	ConfigPath             string `yaml:"config_path"`
+	ServerDaemon           string `yaml:"server_daemon"`
+	ConfigOutput           string `yaml:"config_output"`
+	BackupPassword         string `yaml:"backup_password"`
+	RestorePassword        string `yaml:"restore_password"`
+	RestoreForce           string `yaml:"restore_force"`
+	UpgradeCheck           string `yaml:"upgrade_check"`
+	UpgradeCDNURL          string `yaml:"upgrade_cdn_url"`
+	UpgradeCN              string `yaml:"upgrade_cn"`
+	ClaudeDownloadForce    string `yaml:"claude_download_force"`
+	ClaudeDownloadCDNURL   string `yaml:"claude_download_cdn_url"`
+	ClaudeDownloadCN       string `yaml:"claude_download_cn"`
 }
 
 // ProviderMessages maps to all user-visible text in claude/provider.go.
@@ -229,6 +231,7 @@ type ClaudeOutput struct {
 	AlreadyInstalled string `yaml:"already_installed"` // contains %s
 	UseForce         string `yaml:"use_force"`
 	InstalledAt      string `yaml:"installed_at"` // contains %s
+	UsingCDN         string `yaml:"using_cdn"`    // contains %s
 }
 
 // WeixinOutput maps to Weixin QR-code login flow output.

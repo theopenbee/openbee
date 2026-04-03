@@ -33,7 +33,7 @@ func configureClaudeExecutable(vals *configValues) error {
 				return err
 			}
 		case i18n.M.Prompt.OptionDownloadClaude:
-			path, err := claude.Download(openbeeStateDir(), false)
+			path, err := claude.Download(openbeeStateDir(), false, "")
 			if err != nil {
 				fmt.Printf(i18n.M.Output.Config.ClaudeDownloadFailed+"\n", err)
 				fmt.Println(i18n.M.Output.Config.ClaudeManualEntry)

@@ -96,6 +96,8 @@ flag:
   upgrade_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
   upgrade_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
   claude_download_force: "Force re-download even if already installed"
+  claude_download_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
+  claude_download_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
 output:
   stop:
     not_running: "openbee is not running"
@@ -154,6 +156,7 @@ output:
     already_installed: "Claude is already installed at %s"
     use_force: "Use --force to re-download."
     installed_at: "Claude installed at: %s"
+    using_cdn: "Using CDN: %s"
   weixin:
     scan_qr: "\nScan this QR code with WeChat:"
     waiting: "\nWaiting for scan..."

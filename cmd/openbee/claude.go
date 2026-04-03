@@ -16,12 +16,20 @@ var claudeCmd = &cobra.Command{
 	Short: "Manage Claude Code installation and provider configuration",
 }
 
-var claudeDownloadForce bool
+var (
+	claudeDownloadForce  bool
+	claudeDownloadCDNURL string
+	claudeDownloadCN     bool
+)
 
 var claudeDownloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download Claude Code binary to ~/.openbee/bin/claude",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cdnURL := claudeDownloadCDNURL
+		if cdnURL == "" && claudeDownloadCN {
+			cdnURL = defaultCDNBaseURL
+		}
 		stateDir := openbeeStateDir()
 		destPath := filepath.Join(stateDir, "bin", "claude")
 		if !claudeDownloadForce {
@@ -31,7 +39,10 @@ var claudeDownloadCmd = &cobra.Command{
 				return nil
 			}
 		}
-		path, err := claude.Download(stateDir, claudeDownloadForce)
+		if cdnURL != "" {
+			fmt.Printf(i18n.M.Output.Claude.UsingCDN+"\n", cdnURL)
+		}
+		path, err := claude.Download(stateDir, claudeDownloadForce, cdnURL)
 		if err != nil {
 			return err
 		}
@@ -55,7 +66,9 @@ var claudeEnvCmd = &cobra.Command{
 }
 
 func init() {
-	claudeDownloadCmd.Flags().BoolVar(&claudeDownloadForce, "force", false, "Force re-download even if already installed")
+	claudeDownloadCmd.Flags().BoolVar(&claudeDownloadForce, "force", false, i18n.M.Flag.ClaudeDownloadForce)
+	claudeDownloadCmd.Flags().StringVar(&claudeDownloadCDNURL, "cdn-url", "", i18n.M.Flag.ClaudeDownloadCDNURL)
+	claudeDownloadCmd.Flags().BoolVar(&claudeDownloadCN, "cn", false, i18n.M.Flag.ClaudeDownloadCN)
 	claudeCmd.AddCommand(claudeDownloadCmd)
 	claudeCmd.AddCommand(claudeEnvCmd)
 	rootCmd.AddCommand(claudeCmd)

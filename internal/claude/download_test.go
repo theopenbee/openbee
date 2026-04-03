@@ -154,7 +154,7 @@ func TestFetchLatestClaudeVersion(t *testing.T) {
 			GitHubAPI = srv.URL
 			defer func() { GitHubAPI = orig }()
 
-			got, err := fetchLatestClaudeVersion()
+			got, err := fetchLatestClaudeVersion("")
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got %q", got)
