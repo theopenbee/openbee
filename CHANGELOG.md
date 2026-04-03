@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.0.17] - 2026-04-02
+
+### Added
+
+- Add installation script support for China mainland CDN
+- Add Claude Code download support for China mainland CDN
+
+### Fixed
+
+- Fix bug where brainstorming skill does not send messages
+
+### Changed
+
+- Default language set to English
+- Optimize Feishu WebSocket proactive disconnection
+
 ## [0.0.16] - 2026-04-01
 
 ### Added
