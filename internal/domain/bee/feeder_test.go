@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/bee"
+	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"

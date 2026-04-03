@@ -15,7 +15,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/worker"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 )
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {

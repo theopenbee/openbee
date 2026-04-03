@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )

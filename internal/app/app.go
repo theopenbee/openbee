@@ -16,12 +16,12 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/bee"
+	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/ai/mcp"
-	"github.com/theopenbee/openbee/internal/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
@@ -31,7 +31,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/domain/task"
-	"github.com/theopenbee/openbee/internal/worker"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	webui "github.com/theopenbee/openbee/web"
 )
 

@@ -13,7 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/ai/mcp"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/worker"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 )
 
 type ServerParams struct {
