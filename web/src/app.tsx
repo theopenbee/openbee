@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m.Dashboard })))
@@ -27,6 +28,7 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
       <HashRouter>
         <Suspense fallback={null}>
           <Routes>
@@ -45,6 +47,7 @@ export function App() {
           </Routes>
         </Suspense>
       </HashRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   )
 }

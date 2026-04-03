@@ -4,6 +4,7 @@ const API_BASE = config.apiUrl
 
 const ACCESS_TOKEN_KEY = "openbee_access_token"
 const REFRESH_TOKEN_KEY = "openbee_refresh_token"
+const USERNAME_KEY = "openbee_username"
 
 export function saveTokens(accessToken: string, refreshToken: string): void {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
@@ -18,9 +19,14 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
+export function getStoredUsername(): string | null {
+  return localStorage.getItem(USERNAME_KEY)
+}
+
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(USERNAME_KEY)
 }
 
 // Concurrent refresh dedup — multiple 401s only trigger one refresh call
@@ -80,6 +86,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 
     const data = await res.json()
     saveTokens(data.access_token, data.refresh_token)
+    localStorage.setItem(USERNAME_KEY, username)
     return { success: true }
   } catch {
     return { success: false }
