@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/backup"
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/backup"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 var backupPassword string

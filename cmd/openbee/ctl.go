@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/ctlclient"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 var ctlCfgPath string

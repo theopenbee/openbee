@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlSystemCmd = &cobra.Command{Use: "system", Short: ""}
@@ -11,7 +11,7 @@ var ctlSystemOverviewCmd = &cobra.Command{
 	Use:   "overview",
 	Short: "Show system overview: worker status distribution, task stats, recent executions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.GetSystemOverview, nil)
+		return ctlRun(utils.GetSystemOverview, nil)
 	},
 }
 
@@ -25,7 +25,7 @@ var ctlSystemExecutionsCmd = &cobra.Command{
 		if executionsLimit > 0 {
 			a["limit"] = executionsLimit
 		}
-		return ctlRun(toolnames.ListBeeExecutions, a)
+		return ctlRun(utils.ListBeeExecutions, a)
 	},
 }
 

@@ -6,8 +6,8 @@ import (
 	"os/exec"
 
 	"github.com/AlecAivazis/survey/v2"
-	claude "github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/i18n"
+	claude "github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // configureClaudeExecutable handles Step 2a:

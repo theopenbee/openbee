@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlWorkerCmd = &cobra.Command{Use: "worker", Short: ""}
@@ -11,7 +11,7 @@ var ctlWorkerListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all workers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.ListWorkers, nil)
+		return ctlRun(utils.ListWorkers, nil)
 	},
 }
 
@@ -20,7 +20,7 @@ var ctlWorkerGetCmd = &cobra.Command{
 	Short: "Get a worker by ID",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.GetWorker, map[string]any{"worker_id": args[0]})
+		return ctlRun(utils.GetWorker, map[string]any{"worker_id": args[0]})
 	},
 }
 
@@ -29,7 +29,7 @@ var ctlWorkerStatusCmd = &cobra.Command{
 	Short: "Get current status of a worker",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.GetWorkerStatus, map[string]any{"worker_id": args[0]})
+		return ctlRun(utils.GetWorkerStatus, map[string]any{"worker_id": args[0]})
 	},
 }
 
@@ -54,7 +54,7 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateWorkDir != "" {
 			a["work_dir"] = workerCreateWorkDir
 		}
-		return ctlRun(toolnames.CreateWorker, a)
+		return ctlRun(utils.CreateWorker, a)
 	},
 }
 
@@ -79,7 +79,7 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("memory") {
 			a["memory"] = workerUpdateMemory
 		}
-		return ctlRun(toolnames.UpdateWorker, a)
+		return ctlRun(utils.UpdateWorker, a)
 	},
 }
 
@@ -90,7 +90,7 @@ var ctlWorkerDeleteCmd = &cobra.Command{
 	Short: "Delete a worker",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.DeleteWorker, map[string]any{
+		return ctlRun(utils.DeleteWorker, map[string]any{
 			"worker_id":       args[0],
 			"delete_work_dir": workerDeleteWorkDir,
 		})

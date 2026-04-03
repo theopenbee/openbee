@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlTaskCmd = &cobra.Command{Use: "task", Short: ""}
@@ -35,7 +35,7 @@ var ctlTaskListCmd = &cobra.Command{
 		if taskListType != "" {
 			a["type"] = taskListType
 		}
-		return ctlRun(toolnames.ListTasks, a)
+		return ctlRun(utils.ListTasks, a)
 	},
 }
 
@@ -64,7 +64,7 @@ var ctlTaskCreateCmd = &cobra.Command{
 		if taskCreateCron != "" {
 			a["cron_expr"] = taskCreateCron
 		}
-		return ctlRun(toolnames.CreateTask, a)
+		return ctlRun(utils.CreateTask, a)
 	},
 }
 
@@ -73,7 +73,7 @@ var ctlTaskCancelCmd = &cobra.Command{
 	Short: "Cancel a pending or scheduled task",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.CancelTask, map[string]any{"task_id": args[0]})
+		return ctlRun(utils.CancelTask, map[string]any{"task_id": args[0]})
 	},
 }
 

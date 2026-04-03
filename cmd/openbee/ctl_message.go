@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlMessageCmd = &cobra.Command{Use: "message", Short: ""}
@@ -26,7 +26,7 @@ var ctlMessageSendCmd = &cobra.Command{
 		if msgSendMediaPath != "" {
 			a["media_path"] = msgSendMediaPath
 		}
-		return ctlRun(toolnames.SendMessage, a)
+		return ctlRun(utils.SendMessage, a)
 	},
 }
 

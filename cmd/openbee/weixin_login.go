@@ -10,7 +10,7 @@ import (
 	"time"
 
 	qrterminal "github.com/mdp/qrterminal/v3"
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func runWeixinQRLogin() (token, userID, baseURL string, err error) {

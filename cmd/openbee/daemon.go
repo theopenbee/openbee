@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/i18n"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // daemonEnvKey is the env var set on the daemon child to distinguish it from the parent.

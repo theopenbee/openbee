@@ -25,12 +25,12 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/i18n"
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/utils"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var log = logger.With(zap.String("component", "feishu"))
