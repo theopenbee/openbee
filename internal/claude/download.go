@@ -76,13 +76,17 @@ func isMusl() bool {
 	return isMuslWith(filepath.Glob)
 }
 
+func platformString(p claudePlatform) string {
+	s := p.os + "-" + p.arch
+	if p.variant != "" {
+		s += "-" + p.variant
+	}
+	return s
+}
+
 func buildClaudeDownloadURL(p claudePlatform, version string) string {
 	versionNum := strings.TrimPrefix(version, "v")
-	platformStr := p.os + "-" + p.arch
-	if p.variant != "" {
-		platformStr += "-" + p.variant
-	}
-	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformStr)
+	assetName := fmt.Sprintf("claude-%s-%s", versionNum, platformString(p))
 	return fmt.Sprintf("%s/%s/%s", gitHubRelBase, version, assetName)
 }
 
@@ -119,7 +123,7 @@ func fetchLatestClaudeVersion(cdnURL string) (string, error) {
 	var rel struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 	return utils.NormalizeVersionTag(rel.TagName)
@@ -162,10 +166,7 @@ func Download(stateDir string, force bool, cdnURL string) (string, error) {
 	fmt.Printf("Latest Claude version: %s\n", version)
 
 	versionNum := strings.TrimPrefix(version, "v")
-	platformStr := platform.os + "-" + platform.arch
-	if platform.variant != "" {
-		platformStr += "-" + platform.variant
-	}
+	platformStr := platformString(platform)
 
 	var checksumURL, binaryURL string
 	if cdnURL != "" {

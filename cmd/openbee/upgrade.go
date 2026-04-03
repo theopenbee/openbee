@@ -42,7 +42,6 @@ var (
 	upgradeCN        bool
 )
 
-// resolveCDNURL returns cdnURL unchanged if set; falls back to defaultCDNBaseURL when useCN is true.
 func resolveCDNURL(cdnURL string, useCN bool) string {
 	if cdnURL == "" && useCN {
 		return defaultCDNBaseURL
@@ -99,18 +98,18 @@ func runUpgrade(checkOnly bool, cdnURL string) error {
 	return doUpgrade(latest, cdnURL)
 }
 
-func fetchLatestVersion(cdnURL string) (string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+var upgradeHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
+func fetchLatestVersion(cdnURL string) (string, error) {
 	if cdnURL != "" {
-		// CDN exposes a plain-text file at {cdnURL}/releases/latest
 		url := cdnURL + "/releases/latest"
-		resp, err := client.Get(url)
+		resp, err := upgradeHTTPClient.Get(url)
 		if err != nil {
 			return "", err
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			_, _ = io.Copy(io.Discard, resp.Body)
 			return "", fmt.Errorf("CDN returned %d for %s", resp.StatusCode, url)
 		}
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
@@ -120,21 +119,19 @@ func fetchLatestVersion(cdnURL string) (string, error) {
 		return utils.NormalizeVersionTag(string(body))
 	}
 
-	resp, err := client.Get(githubAPILatest)
+	resp, err := upgradeHTTPClient.Get(githubAPILatest)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
-
 	var rel githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
-
 	return utils.NormalizeVersionTag(rel.TagName)
 }
 
