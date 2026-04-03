@@ -23,6 +23,10 @@ export function getStoredUsername(): string | null {
   return localStorage.getItem(USERNAME_KEY)
 }
 
+export function saveUsername(username: string): void {
+  localStorage.setItem(USERNAME_KEY, username)
+}
+
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
@@ -86,7 +90,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 
     const data = await res.json()
     saveTokens(data.access_token, data.refresh_token)
-    localStorage.setItem(USERNAME_KEY, username)
+    saveUsername(username)
     return { success: true }
   } catch {
     return { success: false }

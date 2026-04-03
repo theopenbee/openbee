@@ -130,11 +130,16 @@
     "uploadError_one": "{{count}} file failed to upload, please try again",
     "uploadError_other": "{{count}} files failed to upload, please try again"
   },
+  "theme": {
+    "light": "Light mode",
+    "dark": "Dark mode"
+  },
   "login": {
     "title": "Sign In",
     "username": "Username",
     "password": "Password",
     "submit": "Sign In",
+    "logout": "Log out",
     "error401": "Invalid username or password",
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"

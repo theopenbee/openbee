@@ -28,7 +28,7 @@ export function NavUser({ username }: { username: string }) {
   const { t } = useTranslation()
   const { theme, toggle: toggleTheme } = useThemeToggle()
 
-  const initials = username ? username.slice(0, 2).toUpperCase() : "U"
+  const initials = username.slice(0, 2).toUpperCase()
   const avatar = (
     <Avatar className="size-8 rounded-lg">
       <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>

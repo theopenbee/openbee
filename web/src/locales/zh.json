@@ -129,11 +129,16 @@
     "emptyState": "暂无对话，点击「新建对话」开始",
     "uploadError": "{{count}} 个文件上传失败，请重试"
   },
+  "theme": {
+    "light": "浅色模式",
+    "dark": "深色模式"
+  },
   "login": {
     "title": "登录",
     "username": "用户名",
     "password": "密码",
     "submit": "登录",
+    "logout": "退出登录",
     "error401": "用户名或密码错误",
     "error429": "尝试次数过多，请稍后再试",
     "errorGeneric": "登录失败"
