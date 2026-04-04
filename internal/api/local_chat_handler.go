@@ -166,7 +166,7 @@ func (h *LocalChatHandler) sendMessage(c *gin.Context) {
 	content := encodeMediaPaths(body.MediaPaths, body.Content)
 
 	h.receiver.Enqueue(platform.InboundMessage{
-		Platform:    "local",
+		Platform:    local.PlatformID,
 		SenderID:    "web",
 		SessionKey:  sessionKey,
 		Content:     content,

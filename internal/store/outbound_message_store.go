@@ -106,15 +106,15 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 	return scanOutboundMessages(rows)
 }
 
-// ListByPlatform returns outbound messages for a platform ordered by sent_at descending.
-func (s *OutboundMessageStore) ListByPlatform(ctx context.Context, platform string, limit int) ([]OutboundMessage, error) {
+// listByColumn returns outbound messages filtered by a single column, ordered by sent_at descending.
+func (s *OutboundMessageStore) listByColumn(ctx context.Context, column, value string, limit int) ([]OutboundMessage, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+outboundMessageColumns+`
 		 FROM bee_outbound_messages
-		 WHERE platform = ?
+		 WHERE `+column+` = ?
 		 ORDER BY sent_at DESC
 		 LIMIT ?`,
-		platform, limit,
+		value, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -123,21 +123,14 @@ func (s *OutboundMessageStore) ListByPlatform(ctx context.Context, platform stri
 	return scanOutboundMessages(rows)
 }
 
+// ListByPlatform returns outbound messages for a platform ordered by sent_at descending.
+func (s *OutboundMessageStore) ListByPlatform(ctx context.Context, platform string, limit int) ([]OutboundMessage, error) {
+	return s.listByColumn(ctx, "platform", platform, limit)
+}
+
 // ListBySourceID returns outbound messages sent by a specific source (worker/bee) ordered by sent_at descending.
 func (s *OutboundMessageStore) ListBySourceID(ctx context.Context, sourceID string, limit int) ([]OutboundMessage, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+outboundMessageColumns+`
-		 FROM bee_outbound_messages
-		 WHERE source_id = ?
-		 ORDER BY sent_at DESC
-		 LIMIT ?`,
-		sourceID, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanOutboundMessages(rows)
+	return s.listByColumn(ctx, "source_id", sourceID, limit)
 }
 
 // DeleteBySessionKey removes all outbound messages for the given session key.

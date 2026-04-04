@@ -109,9 +109,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
 	rawLocalSender := local.NewLocalSender(localHub)
-	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, "local")
+	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
-	sendersByPlatform["local"] = localSender
+	sendersByPlatform[local.PlatformID] = localSender
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore)
 	workerMCPSrv := mcp.NewWorkerServer(s.taskStore, s.msgStore, sendersByPlatform, s.memoryStore, s.workerStore)
