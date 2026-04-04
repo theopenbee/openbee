@@ -630,7 +630,6 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		InboundMsgID: params.MessageID,
 	}
 
-	// Send text first if both content and media_path are provided
 	if params.Content != "" {
 		outbound := base
 		outbound.Content = params.Content
@@ -639,7 +638,6 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		}
 	}
 
-	// Send media if media_path is provided
 	if params.MediaPath != "" {
 		outbound := base
 		outbound.MediaPath = params.MediaPath

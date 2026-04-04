@@ -11,7 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-var senderLog = logger.With(zap.String("component", "logging_sender"))
+var log = logger.With(zap.String("component", "logging_sender"))
 
 // LoggingPlatformSenderAdapter wraps a PlatformSenderAdapter and records every
 // outbound message to OutboundMessageStore regardless of send success or failure.
@@ -68,7 +68,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 	}
 
 	if storeErr := a.outboundStore.Create(ctx, record); storeErr != nil {
-		senderLog.Error("failed to store outbound message", zap.Error(storeErr),
+		log.Error("failed to store outbound message", zap.Error(storeErr),
 			zap.String("platform", a.platformID),
 			zap.String("sessionKey", sessionKey),
 		)
