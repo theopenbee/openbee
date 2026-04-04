@@ -39,10 +39,10 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 	sentAt := time.Now().UnixMilli()
 	sendErr := a.inner.Send(ctx, msg)
 
-	status := "sent"
+	status := OutboundStatusSent
 	errMsg := ""
 	if sendErr != nil {
-		status = "failed"
+		status = OutboundStatusFailed
 		errMsg = sendErr.Error()
 	}
 

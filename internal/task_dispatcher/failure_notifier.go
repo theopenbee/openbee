@@ -64,7 +64,7 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 			SessionKey: stored.SessionKey,
 			Raw:        stored.Raw,
 		},
-		SourceType:   "system",
+		SourceType:   store.SourceTypeSystem,
 		InboundMsgID: messageID,
 	}
 	if err := sender.Send(ctx, outbound); err != nil {

@@ -597,10 +597,10 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
-	sourceType := "bee"
+	sourceType := store.SourceTypeBee
 	sourceID := ""
 	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
-		sourceType = "worker"
+		sourceType = store.SourceTypeWorker
 		sourceID = workerID
 		if params.Content != "" {
 			params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
