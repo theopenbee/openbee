@@ -623,15 +623,17 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		Raw:        stored.Raw,
 	}
 
+	base := platform.OutboundMessage{
+		ReplyTo:      replyTo,
+		SourceType:   sourceType,
+		SourceID:     sourceID,
+		InboundMsgID: params.MessageID,
+	}
+
 	// Send text first if both content and media_path are provided
 	if params.Content != "" {
-		outbound := platform.OutboundMessage{
-			ReplyTo:      replyTo,
-			Content:      params.Content,
-			SourceType:   sourceType,
-			SourceID:     sourceID,
-			InboundMsgID: params.MessageID,
-		}
+		outbound := base
+		outbound.Content = params.Content
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send text message: %w", err)
 		}
@@ -639,13 +641,8 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 
 	// Send media if media_path is provided
 	if params.MediaPath != "" {
-		outbound := platform.OutboundMessage{
-			ReplyTo:      replyTo,
-			MediaPath:    params.MediaPath,
-			SourceType:   sourceType,
-			SourceID:     sourceID,
-			InboundMsgID: params.MessageID,
-		}
+		outbound := base
+		outbound.MediaPath = params.MediaPath
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send media message: %w", err)
 		}

@@ -179,7 +179,7 @@ var migrations = []migration{
 	media_path      TEXT NOT NULL DEFAULT '',
 	status          TEXT NOT NULL DEFAULT 'sent' CHECK(status IN ('sent','failed')),
 	platform_msg_id TEXT NOT NULL DEFAULT '',
-	source_type     TEXT NOT NULL DEFAULT '',
+	source_type     TEXT NOT NULL DEFAULT '' CHECK(source_type IN ('','bee','worker','system')),
 	source_id       TEXT NOT NULL DEFAULT '',
 	inbound_msg_id  TEXT NOT NULL DEFAULT '',
 	error           TEXT NOT NULL DEFAULT '',
