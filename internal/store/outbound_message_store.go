@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -111,8 +112,17 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 	return scanOutboundMessages(rows)
 }
 
+// allowedFilterColumns is a whitelist of columns that listByColumn may filter on.
+var allowedFilterColumns = map[string]bool{
+	"platform":  true,
+	"source_id": true,
+}
+
 // listByColumn returns outbound messages filtered by a single column, ordered by sent_at descending.
 func (s *OutboundMessageStore) listByColumn(ctx context.Context, column, value string, limit int) ([]OutboundMessage, error) {
+	if !allowedFilterColumns[column] {
+		return nil, fmt.Errorf("invalid filter column: %q", column)
+	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+outboundMessageColumns+`
 		 FROM bee_outbound_messages
