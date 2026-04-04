@@ -90,15 +90,20 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	return err
 }
 
-// ListBySessionKey returns all outbound messages for a session ordered by sent_at ascending.
-func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey string) ([]OutboundMessage, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+outboundMessageColumns+`
+// ListBySessionKey returns outbound messages for a session ordered by sent_at ascending.
+// Pass limit <= 0 to return all rows (use with caution on long-lived sessions).
+func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey string, limit int) ([]OutboundMessage, error) {
+	query := `SELECT ` + outboundMessageColumns + `
 		 FROM bee_outbound_messages
 		 WHERE session_key = ?
-		 ORDER BY sent_at ASC`,
-		sessionKey,
-	)
+		 ORDER BY sent_at ASC`
+	var args []any
+	args = append(args, sessionKey)
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

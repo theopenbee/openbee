@@ -10,8 +10,6 @@ import (
 
 // LocalSender implements platform.PlatformSenderAdapter.
 // It broadcasts replies to connected SSE clients via SSEHub.
-// Persistence to the outbound message store is handled by the
-// store.LoggingPlatformSenderAdapter that wraps this sender in app.go.
 type LocalSender struct {
 	hub *SSEHub
 }

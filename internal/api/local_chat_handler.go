@@ -238,7 +238,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	replies, err := h.outboundStore.ListBySessionKey(ctx, sessionKey)
+	replies, err := h.outboundStore.ListBySessionKey(ctx, sessionKey, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
