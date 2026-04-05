@@ -1,21 +1,58 @@
-import { useState, useMemo } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { Activity, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
-import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
+
+function formatTimestamp(value: number | null | undefined) {
+  if (!value) return "—"
+  return new Date(value).toLocaleString()
+}
+
+function statusTone(status: string) {
+  switch (status) {
+    case "idle":
+      return "text-status-idle"
+    case "working":
+      return "text-status-working"
+    case "error":
+      return "text-status-error"
+    default:
+      return "text-muted-foreground"
+  }
+}
+
+function StatusDot({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    idle: "bg-status-idle",
+    working: "bg-status-working",
+    error: "bg-status-error",
+  }
+  const color = colorMap[status] ?? "bg-muted-foreground"
+
+  return (
+    <span className="relative inline-flex size-2 shrink-0">
+      {status === "working" ? (
+        <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", color)} />
+      ) : null}
+      <span className={cn("relative inline-flex size-2 rounded-full", color)} />
+    </span>
+  )
+}
 
 export function WorkerDetail() {
   const { t } = useTranslation()
@@ -26,16 +63,18 @@ export function WorkerDetail() {
 
   const executions = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const latestExecution = executions[0]
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, typeof executions>()
-    for (const e of executions) {
-      const group = map.get(e.session_id) ?? []
-      group.push(e)
-      map.set(e.session_id, group)
+    for (const execution of executions) {
+      const group = map.get(execution.session_id) ?? []
+      group.push(execution)
+      map.set(execution.session_id, group)
     }
-    return Array.from(map.values()).sort((a, b) => {
-      return (b[0].started_at ?? 0) - (a[0].started_at ?? 0)
+
+    return Array.from(map.values()).sort((left, right) => {
+      return (right[0].started_at ?? 0) - (left[0].started_at ?? 0)
     })
   }, [executions])
 
@@ -49,172 +88,308 @@ export function WorkerDetail() {
 
   return (
     <FadeIn>
-      <PageHeader
-        title={worker.name}
-        subtitle={
-          isEditingDesc ? undefined : (worker.description || t("common.noDescription"))
-        }
-        actions={<StatusBadge status={worker.status} />}
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title={worker.name}
+          actions={<StatusBadge status={worker.status} />}
+        />
 
-      {/* Inline description editing */}
-      {isEditingDesc ? (
-        <div className="-mt-6 mb-8 space-y-2">
-          <Textarea
-            value={editDesc}
-            onChange={(e) => setEditDesc(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") { setIsEditingDesc(false); setEditDesc(worker.description) }
-            }}
-            autoFocus
-            rows={2}
-            className="text-sm"
-          />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={async () => {
-              await updateWorker.mutateAsync({ id: id!, data: { description: editDesc } })
-              setIsEditingDesc(false)
-            }}>{t("common.save")}</Button>
-            <Button size="sm" variant="outline" onClick={() => {
-              setIsEditingDesc(false)
-              setEditDesc(worker.description)
-            }}>{t("common.cancel")}</Button>
-          </div>
-        </div>
-      ) : (
-        <div className="-mt-6 mb-8">
-          <button
-            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => { setEditDesc(worker.description); setIsEditingDesc(true) }}
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-        </div>
-      )}
+        {workerError ? (
+          <p className="text-destructive">{workerError.message}</p>
+        ) : null}
 
-      {workerError && (
-        <p className="text-destructive mb-4">{workerError?.message}</p>
-      )}
+        <DetailHero>
+          <div className="flex flex-col gap-6 p-5 sm:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                  {t("workerDetail.workerInfo")}
+                </p>
 
-      <Tabs defaultValue="sessions">
-        <TabsList variant="line">
-          <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
-          <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
-          <TabsTrigger value="info">{t("executionDetail.info")}</TabsTrigger>
-        </TabsList>
+                <div className="space-y-3">
+                  <h2 className="max-w-4xl break-all font-mono text-sm leading-7 text-foreground sm:text-base">
+                    {worker.id}
+                  </h2>
 
-        <TabsContent value="sessions" className="mt-6">
-          {sessionGroups.length === 0 && (
-            <EmptyState
-              title={t("executions.noExecutions")}
-            />
-          )}
-          <div className="space-y-3">
-            {sessionGroups.map((group) => {
-              const latest = group[0]
-              const oldest = group[group.length - 1]
-              const isRunning = latest.status === "running"
-              return (
-                <Card
-                  key={latest.session_id}
-                  className={isRunning ? "border-l-2 border-l-primary" : ""}
-                >
-                  <CardContent className="flex items-center justify-between py-4">
-                    <div>
-                      <Link
-                        to={`/sessions/${latest.session_id}`}
-                        className="font-mono text-sm text-primary hover:underline"
-                      >
-                        {latest.session_id.slice(0, 8)}...
-                      </Link>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {oldest.started_at ? new Date(oldest.started_at).toLocaleString() : "-"}
-                        {oldest.trigger_input && ` · ${oldest.trigger_input.slice(0, 50)}${oldest.trigger_input.length > 50 ? "..." : ""}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("executions.turnCount", { count: group.length })}
-                      </p>
+                  {isEditingDesc ? (
+                    <div className="max-w-3xl space-y-3">
+                      <Textarea
+                        value={editDesc}
+                        onChange={(event) => setEditDesc(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setIsEditingDesc(false)
+                            setEditDesc(worker.description)
+                          }
+                        }}
+                        autoFocus
+                        rows={3}
+                        className="bg-background/80 text-sm"
+                      />
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            await updateWorker.mutateAsync({ id: id!, data: { description: editDesc } })
+                            setIsEditingDesc(false)
+                          }}
+                        >
+                          <Check className="size-3" />
+                          {t("common.save")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingDesc(false)
+                            setEditDesc(worker.description)
+                          }}
+                        >
+                          <X className="size-3" />
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
                     </div>
-                    <StatusBadge status={latest.status} />
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-
-          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
-        </TabsContent>
-
-        <TabsContent value="tasks" className="mt-6">
-          <TaskList workerId={id!} />
-        </TabsContent>
-
-        <TabsContent value="info" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("workerDetail.workerInfo")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
-                <span className="text-muted-foreground">{t("workerDetail.id")}</span>
-                <span className="font-mono">{worker.id}</span>
-
-                <span className="text-muted-foreground">{t("workerDetail.workDir")}</span>
-                <span className="font-mono">{worker.work_dir}</span>
-
-                <span className="text-muted-foreground">{t("workerDetail.created")}</span>
-                <span className="font-mono">{new Date(worker.created_at).toLocaleString()}</span>
-              </div>
-
-              <div className="mt-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">{t("workerDetail.memory")}</span>
-                  {!isEditingMemory && (
-                    <button
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={() => { setEditMemory(worker.memory); setIsEditingMemory(true) }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
+                  ) : (
+                    <div className="flex flex-col items-start gap-3">
+                      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                        {worker.description || t("common.noDescription")}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditDesc(worker.description)
+                          setIsEditingDesc(true)
+                        }}
+                        aria-label={t("workerDetail.editDescription")}
+                      >
+                        <Pencil className="size-3.5" />
+                        {t("workerDetail.editDescription")}
+                      </Button>
+                    </div>
                   )}
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {worker.work_dir ? (
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                    <FolderOpenIcon className="size-3.5 shrink-0" />
+                    <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
+                  </span>
+                ) : null}
+
+                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                  <CalendarIcon className="size-3.5 shrink-0" />
+                  <span>{new Date(worker.created_at).toLocaleDateString()}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <DetailOverviewStat
+                icon={Activity}
+                label={t("executions.columns.latestStatus")}
+                value={
+                  <span className={cn("inline-flex items-center gap-2", statusTone(worker.status))}>
+                    <StatusDot status={worker.status} />
+                    <span className="font-medium">{worker.status}</span>
+                  </span>
+                }
+              />
+              <DetailOverviewStat
+                icon={Logs}
+                label={t("executions.columns.turns")}
+                value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
+                hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("executions.noExecutions")}
+              />
+              <DetailOverviewStat
+                icon={FolderOpenIcon}
+                label={t("workerDetail.workDir")}
+                valueClassName="font-mono text-sm leading-6 break-all"
+                value={worker.work_dir || "—"}
+              />
+              <DetailOverviewStat
+                icon={CalendarIcon}
+                label={t("workerDetail.created")}
+                value={<span className="font-mono text-sm sm:text-base">{formatTimestamp(worker.created_at)}</span>}
+              />
+            </div>
+          </div>
+        </DetailHero>
+
+        <Tabs defaultValue="sessions">
+          <TabsList variant="line">
+            <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
+            <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
+            <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sessions" className="mt-6 space-y-4">
+            <DetailSection>
+              <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {t("workerDetail.sessions")}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {t("executions.turnCount", { count: data?.total ?? 0 })}
+                    </p>
+                  </div>
+
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {t("executions.pagination.page", { page, totalPages })}
+                  </span>
+                </div>
+              </div>
+
+              {sessionGroups.length === 0 ? (
+                <div className="px-5 py-10 sm:px-6">
+                  <EmptyState title={t("executions.noExecutions")} />
+                </div>
+              ) : (
+                <div className="divide-y divide-border/70">
+                  {sessionGroups.map((group) => {
+                    const latest = group[0]
+                    const oldest = group[group.length - 1]
+                    const isRunning = latest.status === "running"
+
+                    return (
+                      <div
+                        key={latest.session_id}
+                        className={cn(
+                          "flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
+                          isRunning && "border-l-2 border-l-status-working"
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <Link
+                              to={`/sessions/${latest.session_id}`}
+                              className="font-mono text-sm text-primary transition-colors hover:text-primary/80 hover:underline"
+                            >
+                              {latest.session_id}
+                            </Link>
+                            <span className="text-xs text-muted-foreground">
+                              {t("executions.turnCount", { count: group.length })}
+                            </span>
+                          </div>
+
+                          {(oldest.started_at || oldest.trigger_input) ? (
+                            <p className="mt-1 max-w-3xl truncate text-sm text-muted-foreground">
+                              {oldest.started_at ? (
+                                <span className="mr-2 font-mono text-xs">{formatTimestamp(oldest.started_at)}</span>
+                              ) : null}
+                              {oldest.trigger_input ? (
+                                <span>{oldest.trigger_input}</span>
+                              ) : null}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <StatusBadge status={latest.status} />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </DetailSection>
+
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          </TabsContent>
+
+          <TabsContent value="tasks" className="mt-6">
+            <TaskList workerId={id!} />
+          </TabsContent>
+
+          <TabsContent value="memory" className="mt-6">
+            <DetailSection className="p-5 sm:p-6">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {t("workerDetail.memory")}
+                    </p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {t("workers.form.memoryHelper")}
+                    </p>
+                  </div>
+
+                  {!isEditingMemory ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditMemory(worker.memory || "")
+                        setIsEditingMemory(true)
+                      }}
+                      aria-label={t("workerDetail.editMemory")}
+                    >
+                      <Pencil className="size-3.5" />
+                      {t("workerDetail.editMemory")}
+                    </Button>
+                  ) : null}
+                </div>
+
                 {isEditingMemory ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <Textarea
                       value={editMemory}
-                      onChange={(e) => setEditMemory(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") { setIsEditingMemory(false); setEditMemory(worker.memory) }
+                      onChange={(event) => setEditMemory(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setIsEditingMemory(false)
+                          setEditMemory(worker.memory || "")
+                        }
                       }}
                       autoFocus
-                      rows={8}
-                      className="text-sm font-mono"
+                      rows={12}
+                      className="font-mono text-sm"
                     />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={async () => {
-                        await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
-                        setIsEditingMemory(false)
-                      }}>{t("common.save")}</Button>
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setIsEditingMemory(false)
-                        setEditMemory(worker.memory)
-                      }}>{t("common.cancel")}</Button>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
+                          setIsEditingMemory(false)
+                        }}
+                      >
+                        <Check className="size-3" />
+                        {t("common.save")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditingMemory(false)
+                          setEditMemory(worker.memory || "")
+                        }}
+                      >
+                        <X className="size-3" />
+                        {t("common.cancel")}
+                      </Button>
                     </div>
                   </div>
-                ) : (
-                  worker.memory ? (
-                    <pre className="whitespace-pre-wrap text-sm bg-secondary rounded-lg p-4 font-mono">
+                ) : worker.memory ? (
+                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
                       {worker.memory}
                     </pre>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">{t("workerDetail.noMemory")}</p>
-                  )
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
+                    {t("workerDetail.noMemory")}
+                  </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </DetailSection>
+          </TabsContent>
+        </Tabs>
+      </div>
     </FadeIn>
   )
 }

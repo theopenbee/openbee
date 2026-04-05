@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m.Dashboard })))
@@ -27,24 +28,26 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route element={<AuthGuard><Layout /></AuthGuard>}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/workers" element={<Workers />} />
-              <Route path="/workers/:id" element={<WorkerDetail />} />
-              <Route path="/executions" element={<Executions />} />
-              <Route path="/executions/:id" element={<ExecutionDetail />} />
-              <Route path="/sessions/:sessionId" element={<SessionDetail />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/local-chat" element={<LocalChat />} />
-              <Route path="/local-chat/:id" element={<LocalChatDetail />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </HashRouter>
+      <TooltipProvider>
+        <HashRouter>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<AuthGuard><Layout /></AuthGuard>}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/workers" element={<Workers />} />
+                <Route path="/workers/:id" element={<WorkerDetail />} />
+                <Route path="/executions" element={<Executions />} />
+                <Route path="/executions/:id" element={<ExecutionDetail />} />
+                <Route path="/sessions/:sessionId" element={<SessionDetail />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/local-chat" element={<LocalChat />} />
+                <Route path="/local-chat/:id" element={<LocalChatDetail />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </HashRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   )
 }

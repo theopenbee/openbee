@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge"
 
 const statusStyles: Record<string, string> = {
-  idle: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20",
-  working: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
-  error: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+  idle: "bg-status-idle/15 text-status-idle border-status-idle/20",
+  working: "bg-status-working/15 text-status-working border-status-working/20",
+  error: "bg-status-error/15 text-status-error border-status-error/20",
   pending: "bg-muted text-muted-foreground border-border",
 }
 

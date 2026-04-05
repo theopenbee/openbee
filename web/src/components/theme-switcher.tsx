@@ -1,28 +1,8 @@
-import { useState } from "react"
 import { Sun, Moon } from "lucide-react"
-
-type Theme = "dark" | "light"
-
-function getStoredTheme(): Theme {
-  const stored = localStorage.getItem("theme")
-  return stored === "light" ? "light" : "dark"
-}
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement
-  root.classList.remove("dark", "light")
-  root.classList.add(theme)
-  localStorage.setItem("theme", theme)
-}
+import { useThemeToggle } from "@/hooks/use-theme-toggle"
 
 export function ThemeSwitcher() {
-  const [theme, setTheme] = useState<Theme>(getStoredTheme)
-
-  const toggle = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark"
-    applyTheme(next)
-    setTheme(next)
-  }
+  const { theme, toggle } = useThemeToggle()
 
   return (
     <button

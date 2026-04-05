@@ -10,7 +10,7 @@ import { SkeletonCard } from "@/components/skeleton-loader"
 import { Button } from "@/components/ui/button"
 
 export function Dashboard() {
-  const { data: workers = [], error, isLoading } = useWorkers()
+  const { data: workers = [], error, isLoading, refetch } = useWorkers()
   const { t } = useTranslation()
 
   const activeCount = workers.filter((w) => w.status === "working").length
@@ -21,13 +21,27 @@ export function Dashboard() {
         title={t("dashboard.title")}
         subtitle={
           workers.length > 0
-            ? t("dashboard.summary", { count: activeCount })
+            ? activeCount > 0
+              ? t("dashboard.summary", { count: activeCount })
+              : t("dashboard.summaryNone")
             : undefined
+        }
+        actions={
+          workers.length > 0 ? (
+            <Link to="/workers">
+              <Button>{t("workers.createWorker")}</Button>
+            </Link>
+          ) : undefined
         }
       />
 
       {error && (
-        <p className="text-destructive mb-4">{error.message}</p>
+        <div className="flex items-center gap-3 mb-4">
+          <p className="text-destructive text-sm">{t("common.loadError")}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            {t("common.retry")}
+          </Button>
+        </div>
       )}
 
       {isLoading ? (
@@ -50,7 +64,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {workers.map((w) => (
             <Link key={w.id} to={`/workers/${w.id}`}>
-              <Card className="hover:ring-1 hover:ring-primary/30 transition-all duration-200 cursor-pointer h-full">
+              <Card className="hover:ring-1 hover:ring-primary/30 transition-shadow duration-200 cursor-pointer h-full">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold">{w.name}</CardTitle>
@@ -58,7 +72,7 @@ export function Dashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {w.description || t("common.noDescription")}
                   </p>
                 </CardContent>
