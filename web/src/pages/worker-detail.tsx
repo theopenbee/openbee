@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { Activity, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { CalendarIcon, Check, FolderOpenIcon, HashIcon, Pencil, X } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
@@ -16,6 +18,24 @@ import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 
+function formatTimestamp(value: number | null | undefined) {
+  if (!value) return "—"
+  return new Date(value).toLocaleString()
+}
+
+function statusTone(status: string) {
+  switch (status) {
+    case "idle":
+      return "text-status-idle"
+    case "working":
+      return "text-status-working"
+    case "error":
+      return "text-status-error"
+    default:
+      return "text-muted-foreground"
+  }
+}
+
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
     idle: "bg-status-idle",
@@ -23,11 +43,12 @@ function StatusDot({ status }: { status: string }) {
     error: "bg-status-error",
   }
   const color = colorMap[status] ?? "bg-muted-foreground"
+
   return (
     <span className="relative inline-flex size-2 shrink-0">
-      {status === "working" && (
+      {status === "working" ? (
         <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", color)} />
-      )}
+      ) : null}
       <span className={cn("relative inline-flex size-2 rounded-full", color)} />
     </span>
   )
@@ -42,16 +63,18 @@ export function WorkerDetail() {
 
   const executions = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const latestExecution = executions[0]
 
   const sessionGroups = useMemo(() => {
     const map = new Map<string, typeof executions>()
-    for (const e of executions) {
-      const group = map.get(e.session_id) ?? []
-      group.push(e)
-      map.set(e.session_id, group)
+    for (const execution of executions) {
+      const group = map.get(execution.session_id) ?? []
+      group.push(execution)
+      map.set(execution.session_id, group)
     }
-    return Array.from(map.values()).sort((a, b) => {
-      return (b[0].started_at ?? 0) - (a[0].started_at ?? 0)
+
+    return Array.from(map.values()).sort((left, right) => {
+      return (right[0].started_at ?? 0) - (left[0].started_at ?? 0)
     })
   }, [executions])
 
@@ -65,239 +88,308 @@ export function WorkerDetail() {
 
   return (
     <FadeIn>
-      {/* ── Worker header ───────────────────────────────────────────── */}
-      <div className="mb-8">
-        <div className="flex items-start justify-between gap-6">
-          {/* Left: name + description */}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">{worker.name}</h1>
+      <div className="space-y-6">
+        <PageHeader
+          title={worker.name}
+          actions={<StatusBadge status={worker.status} />}
+        />
 
-            {isEditingDesc ? (
-              <div className="mt-2 space-y-2">
-                <Textarea
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setIsEditingDesc(false)
-                      setEditDesc(worker.description)
-                    }
-                  }}
-                  autoFocus
-                  rows={2}
-                  className="text-sm"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      await updateWorker.mutateAsync({ id: id!, data: { description: editDesc } })
-                      setIsEditingDesc(false)
-                    }}
-                  >
-                    <Check className="size-3" />
-                    {t("common.save")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditingDesc(false)
-                      setEditDesc(worker.description)
-                    }}
-                  >
-                    <X className="size-3" />
-                    {t("common.cancel")}
-                  </Button>
+        {workerError ? (
+          <p className="text-destructive">{workerError.message}</p>
+        ) : null}
+
+        <DetailHero>
+          <div className="flex flex-col gap-6 p-5 sm:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                  {t("workerDetail.workerInfo")}
+                </p>
+
+                <div className="space-y-3">
+                  <h2 className="max-w-4xl break-all font-mono text-sm leading-7 text-foreground sm:text-base">
+                    {worker.id}
+                  </h2>
+
+                  {isEditingDesc ? (
+                    <div className="max-w-3xl space-y-3">
+                      <Textarea
+                        value={editDesc}
+                        onChange={(event) => setEditDesc(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setIsEditingDesc(false)
+                            setEditDesc(worker.description)
+                          }
+                        }}
+                        autoFocus
+                        rows={3}
+                        className="bg-background/80 text-sm"
+                      />
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            await updateWorker.mutateAsync({ id: id!, data: { description: editDesc } })
+                            setIsEditingDesc(false)
+                          }}
+                        >
+                          <Check className="size-3" />
+                          {t("common.save")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingDesc(false)
+                            setEditDesc(worker.description)
+                          }}
+                        >
+                          <X className="size-3" />
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-start gap-3">
+                      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                        {worker.description || t("common.noDescription")}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditDesc(worker.description)
+                          setIsEditingDesc(true)
+                        }}
+                        aria-label={t("workerDetail.editDescription")}
+                      >
+                        <Pencil className="size-3.5" />
+                        {t("workerDetail.editDescription")}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
-            ) : (
-              <button
-                className="group mt-1.5 flex items-start gap-1.5 text-left"
-                onClick={() => {
-                  setEditDesc(worker.description)
-                  setIsEditingDesc(true)
-                }}
-                aria-label={t("workerDetail.editDescription")}
-              >
-                <span className="text-sm leading-relaxed text-muted-foreground">
-                  {worker.description || t("common.noDescription")}
+
+              <div className="flex flex-wrap items-center gap-2">
+                {worker.work_dir ? (
+                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                    <FolderOpenIcon className="size-3.5 shrink-0" />
+                    <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
+                  </span>
+                ) : null}
+
+                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                  <CalendarIcon className="size-3.5 shrink-0" />
+                  <span>{new Date(worker.created_at).toLocaleDateString()}</span>
                 </span>
-                <Pencil className="mt-0.5 size-3 shrink-0 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
-              </button>
-            )}
-          </div>
-
-          {/* Right: status */}
-          <div className="flex shrink-0 items-center gap-2 pt-1">
-            <StatusDot status={worker.status} />
-            <StatusBadge status={worker.status} />
-          </div>
-        </div>
-
-        {/* Meta bar */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-border pt-3">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <HashIcon className="size-3 shrink-0" />
-            <span className="font-mono">{worker.id.slice(0, 8)}…{worker.id.slice(-4)}</span>
-          </span>
-          {worker.work_dir ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <FolderOpenIcon className="size-3 shrink-0" />
-              <span className="max-w-[20rem] truncate font-mono">{worker.work_dir}</span>
-            </span>
-          ) : null}
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarIcon className="size-3 shrink-0" />
-            <span>{new Date(worker.created_at).toLocaleDateString()}</span>
-          </span>
-        </div>
-      </div>
-
-      {workerError && (
-        <p className="mb-4 text-destructive">{workerError?.message}</p>
-      )}
-
-      {/* ── Tabs ────────────────────────────────────────────────────── */}
-      <Tabs defaultValue="sessions">
-        <TabsList variant="line">
-          <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
-          <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
-          <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
-        </TabsList>
-
-        {/* Sessions */}
-        <TabsContent value="sessions" className="mt-6">
-          {sessionGroups.length === 0 ? (
-            <EmptyState title={t("executions.noExecutions")} />
-          ) : (
-            <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/5 divide-y divide-border">
-              {sessionGroups.map((group) => {
-                const latest = group[0]
-                const oldest = group[group.length - 1]
-                const isRunning = latest.status === "running"
-                return (
-                  <div
-                    key={latest.session_id}
-                    className={cn(
-                      "flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-primary/5",
-                      isRunning && "border-l-2 border-l-status-working"
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2.5">
-                        <Link
-                          to={`/sessions/${latest.session_id}`}
-                          className="font-mono text-sm text-primary hover:underline"
-                        >
-                          {latest.session_id.slice(0, 8)}…
-                        </Link>
-                        <span className="text-xs text-muted-foreground">
-                          {t("executions.turnCount", { count: group.length })}
-                        </span>
-                      </div>
-                      {(oldest.started_at || oldest.trigger_input) && (
-                        <p className="mt-0.5 max-w-xl truncate text-xs text-muted-foreground">
-                          {oldest.started_at && (
-                            <span className="mr-2">{new Date(oldest.started_at).toLocaleString()}</span>
-                          )}
-                          {oldest.trigger_input && (
-                            <span className="text-foreground/55">
-                              {oldest.trigger_input.slice(0, 80)}
-                              {oldest.trigger_input.length > 80 ? "…" : ""}
-                            </span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0">
-                      <StatusBadge status={latest.status} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
-        </TabsContent>
-
-        {/* Tasks */}
-        <TabsContent value="tasks" className="mt-6">
-          <TaskList workerId={id!} />
-        </TabsContent>
-
-        {/* Memory */}
-        <TabsContent value="memory" className="mt-6">
-          {isEditingMemory ? (
-            <div className="space-y-3">
-              <Textarea
-                value={editMemory}
-                onChange={(e) => setEditMemory(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setIsEditingMemory(false)
-                    setEditMemory(worker.memory)
-                  }
-                }}
-                autoFocus
-                rows={12}
-                className="font-mono text-sm"
-              />
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
-                    setIsEditingMemory(false)
-                  }}
-                >
-                  <Check className="size-3" />
-                  {t("common.save")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditingMemory(false)
-                    setEditMemory(worker.memory)
-                  }}
-                >
-                  <X className="size-3" />
-                  {t("common.cancel")}
-                </Button>
               </div>
             </div>
-          ) : worker.memory ? (
-            <button
-              className="group relative w-full text-left"
-              onClick={() => {
-                setEditMemory(worker.memory)
-                setIsEditingMemory(true)
-              }}
-              aria-label={t("workerDetail.editMemory")}
-            >
-              <pre className="whitespace-pre-wrap rounded-xl bg-secondary p-4 font-mono text-sm leading-relaxed ring-1 ring-foreground/5 transition-all group-hover:ring-primary/25">
-                {worker.memory}
-              </pre>
-              <span className="absolute right-3 top-3 flex items-center gap-1 rounded-md bg-background px-2 py-1 text-xs text-muted-foreground opacity-0 shadow-sm ring-1 ring-foreground/10 transition-opacity group-hover:opacity-100">
-                <Pencil className="size-2.5" />
-                {t("workerDetail.editMemory")}
-              </span>
-            </button>
-          ) : (
-            <button
-              className="group flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-14 text-center transition-colors hover:border-primary/30 hover:bg-primary/[0.02]"
-              onClick={() => {
-                setEditMemory("")
-                setIsEditingMemory(true)
-              }}
-            >
-              <Pencil className="size-4 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/70" />
-              <span className="text-sm text-muted-foreground">{t("workerDetail.noMemory")}</span>
-            </button>
-          )}
-        </TabsContent>
-      </Tabs>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <DetailOverviewStat
+                icon={Activity}
+                label={t("executions.columns.latestStatus")}
+                value={
+                  <span className={cn("inline-flex items-center gap-2", statusTone(worker.status))}>
+                    <StatusDot status={worker.status} />
+                    <span className="font-medium">{worker.status}</span>
+                  </span>
+                }
+              />
+              <DetailOverviewStat
+                icon={Logs}
+                label={t("executions.columns.turns")}
+                value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
+                hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("executions.noExecutions")}
+              />
+              <DetailOverviewStat
+                icon={FolderOpenIcon}
+                label={t("workerDetail.workDir")}
+                valueClassName="font-mono text-sm leading-6 break-all"
+                value={worker.work_dir || "—"}
+              />
+              <DetailOverviewStat
+                icon={CalendarIcon}
+                label={t("workerDetail.created")}
+                value={<span className="font-mono text-sm sm:text-base">{formatTimestamp(worker.created_at)}</span>}
+              />
+            </div>
+          </div>
+        </DetailHero>
+
+        <Tabs defaultValue="sessions">
+          <TabsList variant="line">
+            <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
+            <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
+            <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sessions" className="mt-6 space-y-4">
+            <DetailSection>
+              <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {t("workerDetail.sessions")}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {t("executions.turnCount", { count: data?.total ?? 0 })}
+                    </p>
+                  </div>
+
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {t("executions.pagination.page", { page, totalPages })}
+                  </span>
+                </div>
+              </div>
+
+              {sessionGroups.length === 0 ? (
+                <div className="px-5 py-10 sm:px-6">
+                  <EmptyState title={t("executions.noExecutions")} />
+                </div>
+              ) : (
+                <div className="divide-y divide-border/70">
+                  {sessionGroups.map((group) => {
+                    const latest = group[0]
+                    const oldest = group[group.length - 1]
+                    const isRunning = latest.status === "running"
+
+                    return (
+                      <div
+                        key={latest.session_id}
+                        className={cn(
+                          "flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
+                          isRunning && "border-l-2 border-l-status-working"
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <Link
+                              to={`/sessions/${latest.session_id}`}
+                              className="font-mono text-sm text-primary transition-colors hover:text-primary/80 hover:underline"
+                            >
+                              {latest.session_id}
+                            </Link>
+                            <span className="text-xs text-muted-foreground">
+                              {t("executions.turnCount", { count: group.length })}
+                            </span>
+                          </div>
+
+                          {(oldest.started_at || oldest.trigger_input) ? (
+                            <p className="mt-1 max-w-3xl truncate text-sm text-muted-foreground">
+                              {oldest.started_at ? (
+                                <span className="mr-2 font-mono text-xs">{formatTimestamp(oldest.started_at)}</span>
+                              ) : null}
+                              {oldest.trigger_input ? (
+                                <span>{oldest.trigger_input}</span>
+                              ) : null}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <StatusBadge status={latest.status} />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </DetailSection>
+
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          </TabsContent>
+
+          <TabsContent value="tasks" className="mt-6">
+            <TaskList workerId={id!} />
+          </TabsContent>
+
+          <TabsContent value="memory" className="mt-6">
+            <DetailSection className="p-5 sm:p-6">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {t("workerDetail.memory")}
+                    </p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {t("workers.form.memoryHelper")}
+                    </p>
+                  </div>
+
+                  {!isEditingMemory ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditMemory(worker.memory || "")
+                        setIsEditingMemory(true)
+                      }}
+                      aria-label={t("workerDetail.editMemory")}
+                    >
+                      <Pencil className="size-3.5" />
+                      {t("workerDetail.editMemory")}
+                    </Button>
+                  ) : null}
+                </div>
+
+                {isEditingMemory ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={editMemory}
+                      onChange={(event) => setEditMemory(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setIsEditingMemory(false)
+                          setEditMemory(worker.memory || "")
+                        }
+                      }}
+                      autoFocus
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
+                          setIsEditingMemory(false)
+                        }}
+                      >
+                        <Check className="size-3" />
+                        {t("common.save")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditingMemory(false)
+                          setEditMemory(worker.memory || "")
+                        }}
+                      >
+                        <X className="size-3" />
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : worker.memory ? (
+                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
+                      {worker.memory}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
+                    {t("workerDetail.noMemory")}
+                  </div>
+                )}
+              </div>
+            </DetailSection>
+          </TabsContent>
+        </Tabs>
+      </div>
     </FadeIn>
   )
 }

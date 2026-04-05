@@ -1,8 +1,8 @@
-import type { ReactNode } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, ArrowUpRight, Bot, Clock3, Logs, type LucideIcon } from "lucide-react"
+import { Activity, ArrowUpRight, Bot, Clock3, Logs } from "lucide-react"
 import { useExecution } from "@/hooks/use-executions"
+import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { LogViewer } from "@/components/log-viewer"
 import { StatusBadge } from "@/components/status-badge"
 import { PageHeader } from "@/components/page-header"
@@ -57,46 +57,6 @@ function statusTone(status: string) {
   }
 }
 
-function OverviewStat({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: LucideIcon
-  label: string
-  value: ReactNode
-  hint?: ReactNode
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-        <Icon className="size-3.5" />
-        <span>{label}</span>
-      </div>
-      <div className="mt-3 text-base font-medium text-foreground">{value}</div>
-      {hint && <div className="mt-2 text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  )
-}
-
-function DetailField({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string
-  value: ReactNode
-  mono?: boolean
-}) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <div className={cn("text-sm text-foreground", mono && "font-mono break-all")}>{value}</div>
-    </div>
-  )
-}
-
 export function ExecutionDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
@@ -139,9 +99,7 @@ export function ExecutionDetail() {
           }
         />
 
-        <section className="relative overflow-hidden rounded-3xl border border-border/70 bg-card">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
-
+        <DetailHero>
           <div className="flex flex-col gap-6 p-5 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-3">
@@ -200,7 +158,7 @@ export function ExecutionDetail() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <OverviewStat
+              <DetailOverviewStat
                 icon={Activity}
                 label={t("executions.columns.latestStatus")}
                 value={
@@ -210,13 +168,13 @@ export function ExecutionDetail() {
                   </span>
                 }
               />
-              <OverviewStat
+              <DetailOverviewStat
                 icon={Clock3}
                 label={t("executions.columns.started")}
                 value={<span className="font-mono text-sm sm:text-base">{formatTimestamp(execution.started_at)}</span>}
                 hint={formatCompactTimestamp(execution.started_at)}
               />
-              <OverviewStat
+              <DetailOverviewStat
                 icon={Clock3}
                 label={t("executionDetail.completed")}
                 value={
@@ -226,7 +184,7 @@ export function ExecutionDetail() {
                 }
                 hint={isLive ? t("sessionDetail.live") : formatCompactTimestamp(execution.completed_at)}
               />
-              <OverviewStat
+              <DetailOverviewStat
                 icon={Activity}
                 label={t("executions.columns.duration")}
                 value={<span className="font-mono text-sm sm:text-base">{duration}</span>}
@@ -234,9 +192,9 @@ export function ExecutionDetail() {
               />
             </div>
           </div>
-        </section>
+        </DetailHero>
 
-        <section className="overflow-hidden rounded-3xl border border-border/70 bg-card">
+        <DetailSection>
           <div className="border-b border-border/70 px-5 py-4 sm:px-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -261,10 +219,10 @@ export function ExecutionDetail() {
               onComplete={isLive ? refetch : undefined}
             />
           </div>
-        </section>
+        </DetailSection>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
-          <section className="overflow-hidden rounded-3xl border border-border/70 bg-card">
+          <DetailSection>
             <div className="border-b border-border/70 px-5 py-4 sm:px-6">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {t("executionDetail.context")}
@@ -301,10 +259,10 @@ export function ExecutionDetail() {
                 </div>
               </section>
             </div>
-          </section>
+          </DetailSection>
 
           <aside className="xl:sticky xl:top-6 xl:self-start">
-            <section className="rounded-3xl border border-border/70 bg-card p-5 sm:p-6">
+            <DetailSection className="p-5 sm:p-6">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {t("sessionDetail.metadata")}
               </p>
@@ -353,7 +311,7 @@ export function ExecutionDetail() {
                   mono
                 />
               </div>
-            </section>
+            </DetailSection>
           </aside>
         </div>
       </div>

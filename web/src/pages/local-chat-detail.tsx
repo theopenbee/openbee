@@ -4,14 +4,12 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react"
 import { Streamdown } from "streamdown"
-import { Link, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   ArrowUpRight,
-  ChevronLeft,
   Clock3,
   MessageSquareText,
   Paperclip,
@@ -24,7 +22,9 @@ import {
   useLocalChatStream,
   useSendMessage,
 } from "@/hooks/use-local-chat"
+import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { FadeIn } from "@/components/fade-in"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { tokenParam } from "@/lib/auth"
@@ -79,59 +79,6 @@ function getLastMessageByRole(messages: ChatMessage[], role: ChatMessage["role"]
 function mediaUrl(sessionId: string, mediaPath: string) {
   const filename = basename(mediaPath)
   return `${config.apiUrl}/local/sessions/${sessionId}/media/${encodeURIComponent(filename)}${tokenParam()}`
-}
-
-function OverviewStat({
-  label,
-  value,
-  hint,
-  compact = false,
-}: {
-  label: string
-  value: ReactNode
-  hint?: ReactNode
-  compact?: boolean
-}) {
-  return (
-    <div className="rounded-[1.5rem] border border-border/70 bg-background/78 p-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <div className={cn(
-        "mt-3 font-semibold tracking-[-0.04em] text-foreground",
-        compact ? "text-sm leading-6" : "text-3xl"
-      )}
-      >
-        {value}
-      </div>
-      {hint && (
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {hint}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function DetailRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string
-  value: ReactNode
-  mono?: boolean
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <div className={cn("text-sm text-foreground", mono && "break-all font-mono")}>
-        {value}
-      </div>
-    </div>
-  )
 }
 
 const AttachmentPreview = memo(function AttachmentPreview({
@@ -348,99 +295,91 @@ export function LocalChatDetail() {
   return (
     <FadeIn>
       <div className="space-y-6">
-        <div className="space-y-4">
-          <Link
-            to="/local-chat"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronLeft className="size-4" />
-            {t("localChat.backToSessions")}
-          </Link>
+        <PageHeader
+          title={currentSession?.name ?? sessionId}
+          subtitle={t("localChat.detailDescription")}
+          actions={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                {isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                {t("localChat.queuedUploadsLabel")}: {pendingMediaPaths.length}
+              </span>
+            </div>
+          }
+        />
 
-          <section
-            className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/75"
-            style={{
-              backgroundImage: [
-                "radial-gradient(circle at top right, color-mix(in oklch, var(--foreground) 10%, transparent), transparent 28%)",
-                "linear-gradient(180deg, color-mix(in oklch, var(--card) 92%, var(--muted) 8%), color-mix(in oklch, var(--card) 84%, var(--background) 16%))",
-                "linear-gradient(color-mix(in oklch, var(--border) 42%, transparent) 1px, transparent 1px)",
-                "linear-gradient(90deg, color-mix(in oklch, var(--border) 42%, transparent) 1px, transparent 1px)",
-              ].join(", "),
-              backgroundSize: "100% 100%, 100% 100%, 24px 24px, 24px 24px",
-            }}
-          >
-            <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-foreground/25 to-transparent" />
+        <DetailHero>
+          <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(19rem,0.95fr)]">
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                  {t("localChat.detailLabel")}
+                </p>
 
-            <div className="relative grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(19rem,0.95fr)] xl:p-7">
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  <span className="inline-flex items-center rounded-full border border-border/70 bg-background/78 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    {t("localChat.detailLabel")}
-                  </span>
-
-                  <div className="space-y-3">
-                    <h1 className="max-w-4xl break-words text-[clamp(1.85rem,3vw,2.9rem)] font-semibold tracking-[-0.04em] text-foreground">
-                      {currentSession?.name ?? sessionId}
-                    </h1>
-                    <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                      {t("localChat.detailDescription")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-background/78 px-3 py-1 text-xs text-muted-foreground">
-                    <span>{t("localChat.sessionIdLabel")}</span>
-                    <span className="truncate font-mono text-foreground">{sessionId}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/78 px-3 py-1 text-xs text-muted-foreground">
-                    <Clock3 className="size-3.5" />
-                    {t("localChat.updatedAt", {
-                      time: formatSessionTimestamp(latestTimestamp, i18n.language),
-                    })}
-                  </span>
+                <div className="space-y-2">
+                  <h2 className="max-w-4xl break-all font-mono text-sm leading-7 text-foreground sm:text-base">
+                    {sessionId}
+                  </h2>
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                    {t("localChat.timelineHint")}
+                  </p>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <OverviewStat
-                  label={t("localChat.messagesLabel")}
-                  value={messageCount}
-                  hint={t("localChat.createdAt", {
-                    time: formatSessionTimestamp(currentSession?.created_at, i18n.language),
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                  <span>{t("localChat.sessionIdLabel")}</span>
+                  <span className="truncate font-mono text-foreground">{sessionId}</span>
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                  <Clock3 className="size-3.5" />
+                  {t("localChat.updatedAt", {
+                    time: formatSessionTimestamp(latestTimestamp, i18n.language),
                   })}
-                />
-                <OverviewStat
-                  label={t("localChat.repliesLabel")}
-                  value={beeReplyCount}
-                  hint={isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
-                />
-                <OverviewStat
-                  label={t("localChat.queuedUploadsLabel")}
-                  value={pendingMediaPaths.length}
-                  hint={uploadError || t("localChat.queuePanelHint")}
-                />
-                <OverviewStat
-                  label={t("localChat.latestResponseLabel")}
-                  value={
-                    latestBeeMessage
-                      ? formatSessionTimestamp(latestBeeMessage.ts, i18n.language)
-                      : t("localChat.latestResponseEmpty")
-                  }
-                  hint={t("localChat.timelineHint")}
-                  compact
-                />
+                </span>
               </div>
             </div>
-          </section>
-        </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailOverviewStat
+                label={t("localChat.messagesLabel")}
+                value={<span className="font-mono text-sm sm:text-base">{messageCount}</span>}
+                hint={t("localChat.createdAt", {
+                  time: formatSessionTimestamp(currentSession?.created_at, i18n.language),
+                })}
+              />
+              <DetailOverviewStat
+                label={t("localChat.repliesLabel")}
+                value={<span className="font-mono text-sm sm:text-base">{beeReplyCount}</span>}
+                hint={isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
+              />
+              <DetailOverviewStat
+                label={t("localChat.queuedUploadsLabel")}
+                value={<span className="font-mono text-sm sm:text-base">{pendingMediaPaths.length}</span>}
+                hint={uploadError || t("localChat.queuePanelHint")}
+              />
+              <DetailOverviewStat
+                label={t("localChat.latestResponseLabel")}
+                valueClassName="font-mono text-sm leading-6"
+                value={
+                  latestBeeMessage
+                    ? formatSessionTimestamp(latestBeeMessage.ts, i18n.language)
+                    : t("localChat.latestResponseEmpty")
+                }
+                hint={t("localChat.timelineHint")}
+              />
+            </div>
+          </div>
+        </DetailHero>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <section className="flex min-h-[34rem] flex-col overflow-hidden rounded-[2rem] border border-border/70 bg-card/75 xl:h-[calc(100vh-16rem)]">
+          <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-16rem)]">
             <div className="border-b border-border/70 px-5 py-4 sm:px-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                     {t("localChat.timelineLabel")}
                   </p>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -582,7 +521,7 @@ export function LocalChatDetail() {
               )}
             </div>
 
-            <div className="border-t border-border/70 bg-card/85 p-4 sm:p-5">
+            <div className="border-t border-border/70 bg-card p-4 sm:p-5">
               {uploadError && (
                 <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {uploadError}
@@ -663,11 +602,11 @@ export function LocalChatDetail() {
                 </div>
               </div>
             </div>
-          </section>
+          </DetailSection>
 
           <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-            <section className="rounded-[1.75rem] border border-border/70 bg-card/75 p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <DetailSection className="p-5">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {t("localChat.detailsPanelLabel")}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -675,16 +614,16 @@ export function LocalChatDetail() {
               </p>
 
               <div className="mt-5 space-y-4 border-t border-border/70 pt-4">
-                <DetailRow label={t("localChat.sessionIdLabel")} value={sessionId} mono />
-                <DetailRow
+                <DetailField label={t("localChat.sessionIdLabel")} value={sessionId} mono />
+                <DetailField
                   label={t("localChat.createdLabel")}
                   value={formatSessionTimestamp(currentSession?.created_at, i18n.language)}
                 />
-                <DetailRow
+                <DetailField
                   label={t("localChat.updatedLabel")}
                   value={formatSessionTimestamp(latestTimestamp, i18n.language)}
                 />
-                <DetailRow
+                <DetailField
                   label={t("localChat.latestResponseLabel")}
                   value={
                     latestBeeMessage
@@ -692,15 +631,15 @@ export function LocalChatDetail() {
                       : t("localChat.latestResponseEmpty")
                   }
                 />
-                <DetailRow
+                <DetailField
                   label={t("localChat.statusLabel")}
                   value={isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
                 />
               </div>
-            </section>
+            </DetailSection>
 
-            <section className="rounded-[1.75rem] border border-border/70 bg-card/60 p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <DetailSection className="p-5">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {t("localChat.queuePanelLabel")}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -727,7 +666,7 @@ export function LocalChatDetail() {
                   {t("localChat.queueEmpty")}
                 </div>
               )}
-            </section>
+            </DetailSection>
           </aside>
         </div>
       </div>
