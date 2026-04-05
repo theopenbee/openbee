@@ -171,10 +171,12 @@
     "failed": "执行失败"
   },
   "tasks": {
-    "title": "任务",
+    "title": "定时任务",
+    "summary_one": "{{count}} 个待执行或运行中的任务",
+    "summary_other": "{{count}} 个待执行或运行中的任务",
     "columns": {
       "type": "类型",
-      "worker": "工作者",
+      "worker": "员工",
       "instruction": "指令",
       "status": "状态",
       "timeInfo": "时间信息",
@@ -186,7 +188,7 @@
     },
     "nextRun": "下次运行",
     "triggerAt": "触发时间",
-    "cancelTask": "取消",
+    "cancelTask": "取消任务",
     "cancelAll": "取消所有待执行任务",
     "cancelSuccess": "任务已取消",
     "cancelAllSuccess": "所有待执行任务已取消",

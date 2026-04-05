@@ -171,7 +171,9 @@
     "failed": "Failed"
   },
   "tasks": {
-    "title": "Tasks",
+    "title": "Scheduled tasks",
+    "summary_one": "{{count}} active task",
+    "summary_other": "{{count}} active tasks",
     "columns": {
       "type": "Type",
       "worker": "Worker",
@@ -186,8 +188,8 @@
     },
     "nextRun": "Next run",
     "triggerAt": "Trigger at",
-    "cancelTask": "Cancel",
-    "cancelAll": "Cancel All Pending",
+    "cancelTask": "Cancel task",
+    "cancelAll": "Cancel pending tasks",
     "cancelSuccess": "Task cancelled",
     "cancelAllSuccess": "All pending tasks cancelled",
     "cancelNoPending": "No pending tasks to cancel",
