@@ -107,17 +107,17 @@ func BuildApp(cfg config.Config) (*App, error) {
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
-	localSender := local.NewLocalSender(s.localReplyStore, localHub)
+	rawLocalSender := local.NewLocalSender(localHub)
+	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
-	sendersByPlatform["local"] = localSender
+	sendersByPlatform[local.PlatformID] = localSender
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore)
 	workerMCPSrv := mcp.NewWorkerServer(s.taskStore, s.msgStore, sendersByPlatform, s.memoryStore, s.workerStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
 
-	// Populate sender map before goroutines start
 	for _, p := range platforms {
-		sendersByPlatform[p.ID()] = p.Sender()
+		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
 
 	// Synchronous startup recovery — must run before goroutines start
@@ -147,7 +147,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	localChatHandler := api.NewLocalChatHandler(
 		localReceiver, localHub,
-		s.localSessionStore, s.localReplyStore,
+		s.localSessionStore, s.outboundMsgStore,
 		s.msgStore, s.sessionStore,
 	)
 
@@ -169,7 +169,7 @@ type appStores struct {
 	taskStore         *store.TaskStore
 	sessionStore      *store.SessionStore
 	localSessionStore *store.LocalSessionStore
-	localReplyStore   *store.LocalReplyStore
+	outboundMsgStore  *store.OutboundMessageStore
 	memoryStore       *store.MemoryStore
 }
 
@@ -185,7 +185,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		taskStore:         store.NewTaskStore(db),
 		sessionStore:      store.NewSessionStore(db),
 		localSessionStore: store.NewLocalSessionStore(db),
-		localReplyStore:   store.NewLocalReplyStore(db),
+		outboundMsgStore:  store.NewOutboundMessageStore(db),
 		memoryStore:       store.NewMemoryStore(db),
 	}, nil
 }

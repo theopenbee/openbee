@@ -18,10 +18,13 @@ type InboundMessage struct {
 
 // OutboundMessage carries a reply to send back on a platform.
 type OutboundMessage struct {
-	SessionKey string
-	Content    string
-	ReplyTo    InboundMessage
-	MediaPath  string // optional local file path to upload and send
+	SessionKey   string
+	Content      string
+	ReplyTo      InboundMessage
+	MediaPath    string // optional local file path to upload and send
+	SourceType   string // "bee" | "worker" | "system" — who sent this message
+	SourceID     string // worker_id when SourceType is "worker"
+	InboundMsgID string // ID of the bee_platform_messages row that triggered this reply
 }
 
 // PlatformReceiverAdapter receives inbound messages and dispatches them.

@@ -2,29 +2,16 @@ package local_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
-	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func setupSenderDB(t *testing.T) (*store.LocalReplyStore, *sql.DB) {
-	t.Helper()
-	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return store.NewLocalReplyStore(db), db
-}
-
-func TestLocalSender_Send_WritesReplyAndBroadcasts(t *testing.T) {
-	replyStore, _ := setupSenderDB(t)
+func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(replyStore, hub)
+	sender := local.NewLocalSender(hub)
 
 	ch, unsub := hub.Subscribe("local:sess-1")
 	defer unsub()
@@ -37,16 +24,6 @@ func TestLocalSender_Send_WritesReplyAndBroadcasts(t *testing.T) {
 		t.Fatalf("Send: %v", err)
 	}
 
-	// Verify DB write
-	replies, err := replyStore.ListBySession(context.Background(), "local:sess-1")
-	if err != nil {
-		t.Fatalf("ListBySession: %v", err)
-	}
-	if len(replies) != 1 || replies[0].Content != "Reply content" {
-		t.Errorf("unexpected replies: %+v", replies)
-	}
-
-	// Verify SSE broadcast
 	select {
 	case data := <-ch:
 		var payload map[string]any
@@ -62,9 +39,11 @@ func TestLocalSender_Send_WritesReplyAndBroadcasts(t *testing.T) {
 }
 
 func TestLocalSender_Send_UsesReplyToSessionKey(t *testing.T) {
-	replyStore, _ := setupSenderDB(t)
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(replyStore, hub)
+	sender := local.NewLocalSender(hub)
+
+	ch, unsub := hub.Subscribe("local:correct-session")
+	defer unsub()
 
 	// OutboundMessage.SessionKey is empty — only ReplyTo.SessionKey should be used
 	msg := platform.OutboundMessage{
@@ -76,8 +55,10 @@ func TestLocalSender_Send_UsesReplyToSessionKey(t *testing.T) {
 		t.Fatalf("Send: %v", err)
 	}
 
-	replies, _ := replyStore.ListBySession(context.Background(), "local:correct-session")
-	if len(replies) != 1 {
-		t.Errorf("expected reply in correct session, got %d replies", len(replies))
+	select {
+	case <-ch:
+		// broadcast received on the correct session — pass
+	default:
+		t.Error("expected SSE broadcast on correct session but channel was empty")
 	}
 }

@@ -597,8 +597,14 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
 	}
 
-	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" && params.Content != "" {
-		params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
+	sourceType := store.SourceTypeBee
+	sourceID := ""
+	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
+		sourceType = store.SourceTypeWorker
+		sourceID = workerID
+		if params.Content != "" {
+			params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
+		}
 	}
 
 	stored, err := s.messageStore.GetByID(ctx, params.MessageID)
@@ -617,17 +623,24 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 		Raw:        stored.Raw,
 	}
 
-	// Send text first if both content and media_path are provided
+	base := platform.OutboundMessage{
+		ReplyTo:      replyTo,
+		SourceType:   sourceType,
+		SourceID:     sourceID,
+		InboundMsgID: params.MessageID,
+	}
+
 	if params.Content != "" {
-		outbound := platform.OutboundMessage{ReplyTo: replyTo, Content: params.Content}
+		outbound := base
+		outbound.Content = params.Content
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send text message: %w", err)
 		}
 	}
 
-	// Send media if media_path is provided
 	if params.MediaPath != "" {
-		outbound := platform.OutboundMessage{ReplyTo: replyTo, MediaPath: params.MediaPath}
+		outbound := base
+		outbound.MediaPath = params.MediaPath
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send media message: %w", err)
 		}
