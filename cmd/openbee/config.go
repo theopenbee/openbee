@@ -13,10 +13,10 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/claude"
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/i18n"
-	"github.com/theopenbee/openbee/internal/skillinstall"
+	"github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/skillinstall"
 )
 
 var configTemplate = config.ConfigTemplate

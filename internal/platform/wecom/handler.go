@@ -17,10 +17,10 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/i18n"
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 

@@ -23,10 +23,9 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
-	"github.com/theopenbee/openbee/internal/config"
-	"github.com/theopenbee/openbee/internal/ffmedia"
-	"github.com/theopenbee/openbee/internal/logger"
-	"github.com/theopenbee/openbee/internal/media"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -556,19 +555,19 @@ func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage)
 		var info mediaInfo
 		switch mediaType {
 		case "voice":
-			durationMs, err := ffmedia.AudioDurationMs(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
+			durationMs, err := media.AudioDurationMs(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
 			if err != nil {
 				log.Warn("could not probe audio duration, using 0", zap.Error(err))
 			}
 			info.durationMs = durationMs
 		case "video":
-			durationSec, err := ffmedia.VideoDurationSec(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
+			durationSec, err := media.VideoDurationSec(ctx, msg.MediaPath, s.mediaCfg.FFprobePath)
 			if err != nil {
 				log.Warn("could not probe video duration, using 0", zap.Error(err))
 			}
 			info.durationSec = durationSec
 
-			thumbPath, cleanup, err := ffmedia.ExtractFirstFrame(ctx, msg.MediaPath, s.mediaCfg.FFmpegPath)
+			thumbPath, cleanup, err := media.ExtractFirstFrame(ctx, msg.MediaPath, s.mediaCfg.FFmpegPath)
 			if err == nil {
 				defer cleanup()
 				picMediaID, uploadErr := uploadMediaToDingTalk(ctx, s.cfg, thumbPath, "image")

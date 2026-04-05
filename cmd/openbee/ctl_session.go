@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlSessionCmd = &cobra.Command{Use: "session", Short: ""}
@@ -19,7 +19,7 @@ var ctlSessionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all agents with active session contexts for a session key",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.ListSessionContexts, map[string]any{"session_key": sessionListKey})
+		return ctlRun(utils.ListSessionContexts, map[string]any{"session_key": sessionListKey})
 	},
 }
 
@@ -27,7 +27,7 @@ var ctlSessionClearCmd = &cobra.Command{
 	Use:   "clear",
 	Short: "Cancel all active tasks and clear all session contexts for a session key",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.ClearSession, map[string]any{
+		return ctlRun(utils.ClearSession, map[string]any{
 			"session_key": sessionClearKey,
 			"force":       sessionClearForce,
 		})
@@ -38,7 +38,7 @@ var ctlSessionClearWorkerCmd = &cobra.Command{
 	Use:   "clear-worker",
 	Short: "Reset one worker's session context within a session",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.ClearWorkerSession, map[string]any{
+		return ctlRun(utils.ClearWorkerSession, map[string]any{
 			"session_key": sessionClearWorkerKey,
 			"worker_id":   sessionClearWorkerID,
 		})

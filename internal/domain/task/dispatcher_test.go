@@ -1,0 +1,853 @@
+package task_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/theopenbee/openbee/internal/domain/task"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/platform"
+)
+
+// --- Mocks ---
+
+type mockExecManager struct {
+	mu                   sync.Mutex
+	execResult           model.WorkerExecution
+	resumedWithSessionID string
+	executedInstructions []string
+}
+
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string) (model.WorkerExecution, error) {
+	m.mu.Lock()
+	if sessionID != "" {
+		m.resumedWithSessionID = sessionID
+	}
+	m.executedInstructions = append(m.executedInstructions, instruction)
+	m.mu.Unlock()
+	return m.execResult, nil
+}
+
+func (m *mockExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+type mockExecutionQuerier struct {
+	result model.WorkerExecution
+}
+
+func (m *mockExecutionQuerier) GetByID(_ string) (model.WorkerExecution, error) {
+	return m.result, nil
+}
+
+type mockTaskStore struct {
+	mu             sync.Mutex
+	failedTasks    []string
+	completedTasks []string
+}
+
+func (s *mockTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
+func (s *mockTaskStore) FailTask(_ context.Context, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failedTasks = append(s.failedTasks, taskID)
+	return nil
+}
+func (s *mockTaskStore) CompleteTask(_ context.Context, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completedTasks = append(s.completedTasks, taskID)
+	return nil
+}
+func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { return nil }
+
+type mockSessionStore struct {
+	mu      sync.Mutex
+	data    map[string]string
+	cleared []string
+}
+
+func newMockSessionStore() *mockSessionStore {
+	return &mockSessionStore{data: make(map[string]string)}
+}
+
+func (s *mockSessionStore) GetSessionContext(_ context.Context, sessionKey, agentID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data[sessionKey+"|"+agentID], nil
+}
+func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[sessionKey+"|"+agentID] = sessionID
+	return nil
+}
+func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleared = append(s.cleared, sessionKey)
+	return nil
+}
+
+type mockFailureNotifier struct {
+	mu    sync.Mutex
+	calls []failureCall
+}
+
+type failureCall struct {
+	messageID string
+	info      model.FailureInfo
+}
+
+func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.calls = append(n.calls, failureCall{messageID: messageID, info: info})
+	return nil
+}
+
+func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n.mu.Lock()
+		count := len(n.calls)
+		n.mu.Unlock()
+		if count > 0 {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
+	in := make(chan task.DispatchTask, 4)
+	ts := &mockTaskStore{}
+	d := task.New(mgr, ts, ss, eq, in, opts...)
+	return d, in, ts
+}
+
+func immediateTask(sessionKey, workerID, instruction string) task.DispatchTask {
+	return task.DispatchTask{
+		TaskID:      "task-1",
+		WorkerID:    workerID,
+		SessionKey:  sessionKey,
+		Instruction: instruction,
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: sessionKey},
+		TaskType:    "immediate",
+		MessageID:   "msg-1",
+	}
+}
+
+// waitForExecCount waits until mgr.executedInstructions reaches n or timeout.
+func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mgr.mu.Lock()
+		count := len(mgr.executedInstructions)
+		mgr.mu.Unlock()
+		if count >= n {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+// --- Tests ---
+
+func TestTaskDispatcher_ImmediateTask_CallsExecuteWorker(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "done!"}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "check weather")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+}
+
+func TestTaskDispatcher_InstructionInjection(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	task := task.DispatchTask{
+		TaskID:      "task-abc",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "do the thing",
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: "s1"},
+		TaskType:    "immediate",
+		MessageID:   "msg-xyz",
+	}
+	in <- task
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	instr := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+
+	if !strings.HasPrefix(instr, "---\n") {
+		t.Errorf("instruction missing frontmatter prefix, got: %q", instr)
+	}
+	if !strings.Contains(instr, "task_id: task-abc") {
+		t.Errorf("instruction missing task_id injection, got: %q", instr)
+	}
+	if !strings.Contains(instr, "message_id: msg-xyz") {
+		t.Errorf("instruction missing message_id injection, got: %q", instr)
+	}
+	if !strings.Contains(instr, "do the thing") {
+		t.Errorf("instruction missing original text, got: %q", instr)
+	}
+}
+
+func TestTaskDispatcher_ClearSession_ClearsSessionContexts(t *testing.T) {
+	ss := newMockSessionStore()
+	d, _, _ := newTaskDispatcher(&mockExecManager{}, &mockExecutionQuerier{}, ss)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	d.ClearSession("s1")
+
+	// Wait for async clear
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		ss.mu.Lock()
+		cleared := len(ss.cleared)
+		ss.mu.Unlock()
+		if cleared > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if len(ss.cleared) == 0 || ss.cleared[0] != "s1" {
+		t.Errorf("expected ClearSessionContexts called with s1, got %v", ss.cleared)
+	}
+}
+
+func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T) {
+	ss := newMockSessionStore()
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
+	in := make(chan task.DispatchTask, 4)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// Send a task to create a queue entry
+	t1 := immediateTask("s1", "w1", "first")
+	t1.TaskID = "task-1"
+	in <- t1
+
+	// Wait for first task to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Queue a second task (pending in queue)
+	t2 := immediateTask("s1", "w1", "second")
+	t2.TaskID = "task-2"
+	in <- t2
+	time.Sleep(20 * time.Millisecond)
+
+	// Call ClearSession — should clear the pending queue entry and session contexts
+	d.ClearSession("s1")
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock the first task
+	close(blocker)
+	time.Sleep(100 * time.Millisecond)
+
+	// Session contexts should have been cleared
+	ss.mu.Lock()
+	cleared := ss.cleared
+	ss.mu.Unlock()
+	if len(cleared) == 0 || cleared[0] != "s1" {
+		t.Errorf("expected ClearSessionContexts called with s1, got %v", cleared)
+	}
+
+	// Second task should NOT have executed (queue was cleared)
+	if atomic.LoadInt64(&mgr.completed) > 1 {
+		t.Errorf("expected at most 1 execution (second should be cleared from queue), got %d", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
+func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
+	ss := newMockSessionStore()
+	ss.data["s1|w1"] = "prior-session-id"
+
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "follow-up")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorkerWithSession was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	resumed := mgr.resumedWithSessionID
+	mgr.mu.Unlock()
+
+	if resumed != "prior-session-id" {
+		t.Errorf("expected ExecuteWorkerWithSession with prior-session-id, got %q", resumed)
+	}
+}
+
+func TestTaskDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
+	ss := newMockSessionStore()
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "new-session"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "fresh!"}}
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "first message")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	resumed := mgr.resumedWithSessionID
+	mgr.mu.Unlock()
+
+	if resumed != "" {
+		t.Errorf("expected fresh start (no resume), but ExecuteWorkerWithSession was called with %q", resumed)
+	}
+}
+
+func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
+	ss := newMockSessionStore()
+	ss.data["s1|w1"] = "broken-session-id"
+
+	mgr := &fallbackExecManager{
+		freshResult: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
+
+	in := make(chan task.DispatchTask, 4)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "message after broken session")
+
+	// Wait for execution to complete — mgr.execCount reaches 1 (fresh execute)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&mgr.freshCount) >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.freshCount) < 1 {
+		t.Fatal("fallback ExecuteWorker was never called")
+	}
+
+	// Stale session should be cleared
+	deadline = time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		ss.mu.Lock()
+		cleared := len(ss.cleared)
+		ss.mu.Unlock()
+		if cleared > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if len(ss.cleared) == 0 {
+		t.Error("expected ClearSessionContexts called after resume failure")
+	}
+}
+
+func TestTaskDispatcher_TwoTasks_SameSession_Serialized(t *testing.T) {
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "first")
+	t1.TaskID = "task-1"
+	t2 := immediateTask("s1", "w1", "second")
+	t2.TaskID = "task-2"
+
+	in <- t1
+	in <- t2
+
+	// Wait for first task to start blocking
+	time.Sleep(50 * time.Millisecond)
+	if atomic.LoadInt64(&mgr.started) != 1 {
+		t.Fatalf("expected 1 execution started, got %d", atomic.LoadInt64(&mgr.started))
+	}
+
+	// Unblock first execution
+	close(blocker)
+
+	// Wait for both to complete
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&mgr.completed) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.completed) < 2 {
+		t.Errorf("expected 2 executions completed, got %d", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
+func TestTaskDispatcher_CrossSession_SameWorker_Serialized(t *testing.T) {
+	// Two different sessions both dispatch to the same worker.
+	// They must execute sequentially — never concurrently.
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// Session s1 dispatches to worker w1
+	t1 := immediateTask("s1", "w1", "from-s1")
+	t1.TaskID = "task-s1"
+	// Session s2 also dispatches to worker w1
+	t2 := immediateTask("s2", "w1", "from-s2")
+	t2.TaskID = "task-s2"
+
+	in <- t1
+	in <- t2
+
+	// Wait for first task to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Only one execution should have started — the second must be queued
+	if atomic.LoadInt64(&mgr.started) != 1 {
+		t.Fatalf("expected exactly 1 execution started (second should be queued), got %d", atomic.LoadInt64(&mgr.started))
+	}
+
+	// Unblock the first execution
+	close(blocker)
+
+	// Both should eventually complete
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&mgr.completed) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.completed) < 2 {
+		t.Errorf("expected both tasks to complete, only %d completed", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
+func TestQueueKey_IgnoresSessionKey(t *testing.T) {
+	// Same workerID, different sessionKeys must produce the same key.
+	// This is the contract that prevents cross-session concurrent execution.
+	k1 := task.ExportedQueueKey("session-a", "worker-1")
+	k2 := task.ExportedQueueKey("session-b", "worker-1")
+	if k1 != k2 {
+		t.Errorf("expected same key for different sessions, got %q and %q", k1, k2)
+	}
+	if k1 != "worker-1" {
+		t.Errorf("expected key to equal workerID, got %q", k1)
+	}
+}
+
+// --- Helper managers ---
+
+type blockingExecManager struct {
+	blocker   <-chan struct{}
+	started   int64
+	completed int64
+}
+
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	atomic.AddInt64(&m.started, 1)
+	<-m.blocker
+	atomic.AddInt64(&m.completed, 1)
+	return model.WorkerExecution{ID: "exec-x"}, nil
+}
+
+func (m *blockingExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+type alwaysFailExecManager struct {
+	called int64
+}
+
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	atomic.AddInt64(&m.called, 1)
+	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
+}
+
+func (m *alwaysFailExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+type fallbackExecManager struct {
+	freshResult model.WorkerExecution
+	freshCount  int64
+}
+
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID string) (model.WorkerExecution, error) {
+	if sessionID != "" {
+		return model.WorkerExecution{}, fmt.Errorf("session broken")
+	}
+	atomic.AddInt64(&m.freshCount, 1)
+	return m.freshResult, nil
+}
+
+func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+func TestTaskDispatcher_ExecuteError_CallsFailTask(t *testing.T) {
+	mgr := &alwaysFailExecManager{}
+	eq := &mockExecutionQuerier{}
+	fn := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	task := task.DispatchTask{
+		TaskID:      "task-launch-fail",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "do something",
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: "s1"},
+		TaskType:    "countdown",
+		MessageID:   "msg-1",
+	}
+	in <- task
+
+	// Wait for FailTask to be called
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		n := len(ts.failedTasks)
+		ts.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ts.mu.Lock()
+	if len(ts.failedTasks) != 1 || ts.failedTasks[0] != "task-launch-fail" {
+		t.Errorf("expected FailTask called with task-launch-fail, got %v", ts.failedTasks)
+	}
+	ts.mu.Unlock()
+
+	// Verify failure notification was sent.
+	if !fn.waitForCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskFailure to be called")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	if fn.calls[0].messageID != "msg-1" {
+		t.Errorf("expected messageID=msg-1, got %s", fn.calls[0].messageID)
+	}
+}
+
+func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
+	ss := newMockSessionStore()
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
+
+	in := make(chan task.DispatchTask, 8)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// t1 from s1 starts executing (blocks)
+	t1 := immediateTask("s1", "w1", "s1-first")
+	t1.TaskID = "t1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // wait for t1 to start blocking
+
+	// t2 from s1 queued as pending
+	t2 := immediateTask("s1", "w1", "s1-second")
+	t2.TaskID = "t2"
+	in <- t2
+
+	// t3 from s2 (different session, same worker) queued as pending
+	t3 := immediateTask("s2", "w1", "s2-task")
+	t3.TaskID = "t3"
+	in <- t3
+
+	time.Sleep(30 * time.Millisecond) // let pending tasks register
+
+	// Clear session s1 — should remove t2 but NOT t3
+	d.ClearSession("s1")
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock t1
+	close(blocker)
+
+	// Wait for t3 to execute (s2's task should still run)
+	deadline2 := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline2) {
+		if atomic.LoadInt64(&mgr.completed) >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&mgr.completed) < 2 {
+		t.Fatalf("expected 2 executions (t1 + t3), got %d", atomic.LoadInt64(&mgr.completed))
+	}
+
+	// t2 from s1 must NOT have executed
+	if atomic.LoadInt64(&mgr.started) > 2 {
+		t.Errorf("expected at most 2 executions started (t2 should be cleared), got %d", atomic.LoadInt64(&mgr.started))
+	}
+
+	// Session contexts for s1 must have been cleared
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if len(ss.cleared) == 0 || ss.cleared[0] != "s1" {
+		t.Errorf("expected ClearSessionContexts called with s1, got %v", ss.cleared)
+	}
+}
+
+// cancelTrackingExecManager blocks forever on ExecuteWorker (context-aware),
+// and tracks CancelExecution calls.
+type cancelTrackingExecManager struct {
+	cancelCount *int64
+}
+
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string) (model.WorkerExecution, error) {
+	<-ctx.Done()
+	return model.WorkerExecution{ID: "exec-tracked"}, nil
+}
+
+func (m *cancelTrackingExecManager) CancelExecution(_ context.Context, _ string) error {
+	atomic.AddInt64(m.cancelCount, 1)
+	return nil
+}
+
+func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
+	// A pending (not yet executing) task should be removed from the queue.
+	blocker := make(chan struct{})
+	mgr := &blockingExecManager{blocker: blocker}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
+
+	in := make(chan task.DispatchTask, 4)
+	ts := &mockTaskStore{}
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	// t1 blocks the worker queue
+	t1 := immediateTask("s1", "w1", "first")
+	t1.TaskID = "task-1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // t1 now executing
+
+	// t2 is pending in queue
+	t2 := immediateTask("s1", "w1", "second")
+	t2.TaskID = "task-2"
+	in <- t2
+	time.Sleep(20 * time.Millisecond)
+
+	// Cancel t2 while it's pending
+	if err := d.CancelTask(context.Background(), "task-2"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock t1
+	close(blocker)
+	time.Sleep(100 * time.Millisecond)
+
+	// t2 should NOT have executed
+	if atomic.LoadInt64(&mgr.completed) > 1 {
+		t.Errorf("task-2 should not have executed after cancel, completed=%d", atomic.LoadInt64(&mgr.completed))
+	}
+}
+
+func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
+	var cancelCalled int64
+	mgr := &cancelTrackingExecManager{cancelCount: &cancelCalled}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
+
+	in := make(chan task.DispatchTask, 4)
+	ts := &mockTaskStore{}
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "long task")
+	t1.TaskID = "task-exec-1"
+	in <- t1
+	time.Sleep(50 * time.Millisecond) // executing
+
+	if err := d.CancelTask(context.Background(), "task-exec-1"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&cancelCalled) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&cancelCalled) == 0 {
+		t.Error("expected CancelExecution to be called on the manager")
+	}
+}
+
+func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusRunning}}
+	ts := &mockTaskStore{}
+	execStore := &mockExecutionQuerier{result: model.WorkerExecution{
+		ID:     "exec-1",
+		Status: model.ExecStatusCompleted,
+	}}
+	ss := newMockSessionStore()
+
+	ch := make(chan task.DispatchTask, 1)
+	d := task.New(mgr, ts, ss, execStore, ch)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go d.Run(ctx)
+
+	ch <- task.DispatchTask{
+		TaskID:   "task-1",
+		WorkerID: "worker-1",
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		done := len(ts.completedTasks) > 0
+		ts.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	if len(ts.completedTasks) != 1 || ts.completedTasks[0] != "task-1" {
+		t.Errorf("want completedTasks=[task-1], got %v", ts.completedTasks)
+	}
+	if len(ts.failedTasks) != 0 {
+		t.Errorf("want no failedTasks, got %v", ts.failedTasks)
+	}
+}
+
+func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{
+		result: model.WorkerExecution{ID: "exec-fail", Status: model.ExecStatusFailed, Result: "API Error: blocked"},
+	}
+	fn := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	task := task.DispatchTask{
+		TaskID:      "task-fail-1",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "do something",
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: "s1"},
+		TaskType:    "immediate",
+		MessageID:   "msg-1",
+	}
+	in <- task
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+	// Wait for FailTask to be called
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		n := len(ts.failedTasks)
+		ts.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ts.mu.Lock()
+	if len(ts.failedTasks) != 1 || ts.failedTasks[0] != "task-fail-1" {
+		t.Errorf("expected FailTask called with task-fail-1, got %v", ts.failedTasks)
+	}
+	ts.mu.Unlock()
+
+	// Verify failure notification was sent with execution result.
+	if !fn.waitForCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskFailure to be called")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	if fn.calls[0].messageID != "msg-1" {
+		t.Errorf("expected messageID=msg-1, got %s", fn.calls[0].messageID)
+	}
+	if fn.calls[0].info.Reason != "API Error: blocked" {
+		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].info.Reason)
+	}
+}

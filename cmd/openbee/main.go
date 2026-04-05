@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/i18n"
-	"github.com/theopenbee/openbee/internal/logger"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 )
 
 // exitCodeError is a sentinel error that carries a specific exit code.

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/auth"
-	"github.com/theopenbee/openbee/internal/config"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 const defaultURL = "http://localhost:8080"

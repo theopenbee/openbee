@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var ctlMemoryCmd = &cobra.Command{Use: "memory", Short: ""}
@@ -20,7 +20,7 @@ var ctlMemoryGetCmd = &cobra.Command{
 		if memoryGetKey != "" {
 			a["key"] = memoryGetKey
 		}
-		return ctlRun(toolnames.GetMemory, a)
+		return ctlRun(utils.GetMemory, a)
 	},
 }
 
@@ -34,7 +34,7 @@ var ctlMemorySaveCmd = &cobra.Command{
 	Use:   "save",
 	Short: "Save or update a memory entry",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.SaveMemory, map[string]any{
+		return ctlRun(utils.SaveMemory, map[string]any{
 			"scope": memorySaveScope,
 			"key":   memorySaveKey,
 			"value": memorySaveValue,
@@ -51,7 +51,7 @@ var ctlMemoryDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a memory entry",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(toolnames.DeleteMemory, map[string]any{
+		return ctlRun(utils.DeleteMemory, map[string]any{
 			"scope": memoryDeleteScope,
 			"key":   memoryDeleteKey,
 		})

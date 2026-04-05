@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/model"
-	"github.com/theopenbee/openbee/internal/store"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 func newTestServerWithTasks(t *testing.T) (*Server, *store.TaskStore, func()) {

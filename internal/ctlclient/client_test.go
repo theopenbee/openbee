@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/ctlclient"
-	"github.com/theopenbee/openbee/internal/toolnames"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func TestCall_Success(t *testing.T) {
@@ -23,7 +23,7 @@ func TestCall_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := &ctlclient.Client{BaseURL: srv.URL, APIKey: "testkey", HTTPClient: &http.Client{}}
-	result, err := c.Call(toolnames.ListWorkers, map[string]any{})
+	result, err := c.Call(utils.ListWorkers, map[string]any{})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -48,14 +48,14 @@ func TestCall_Unauthorized(t *testing.T) {
 	defer srv.Close()
 
 	c := &ctlclient.Client{BaseURL: srv.URL, APIKey: "wrong", HTTPClient: &http.Client{}}
-	_, err := c.Call(toolnames.ListWorkers, map[string]any{})
+	_, err := c.Call(utils.ListWorkers, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unauthorized")
 }
 
 func TestCall_ConnectionRefused(t *testing.T) {
 	c := &ctlclient.Client{BaseURL: "http://127.0.0.1:19999", APIKey: "key", HTTPClient: &http.Client{}}
-	_, err := c.Call(toolnames.ListWorkers, map[string]any{})
+	_, err := c.Call(utils.ListWorkers, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot connect")
 }
