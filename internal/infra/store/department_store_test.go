@@ -127,3 +127,89 @@ func TestDepartmentStore_BuildTree_SortOrder(t *testing.T) {
 		t.Errorf("expected A,B,C order, got %s,%s,%s", tree[0].Name, tree[1].Name, tree[2].Name)
 	}
 }
+
+func TestDepartmentStore_SetWorkerDepartments(t *testing.T) {
+	ds, ws := setupDeptTestDB(t)
+	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
+	d1, _ := ds.Create(model.Department{Name: "Dept1"})
+	d2, _ := ds.Create(model.Department{Name: "Dept2"})
+
+	// Set initial departments
+	if err := ds.SetWorkerDepartments(w.ID, []string{d1.ID, d2.ID}); err != nil {
+		t.Fatalf("SetWorkerDepartments: %v", err)
+	}
+	depts, _ := ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 2 {
+		t.Errorf("expected 2 departments, got %d", len(depts))
+	}
+
+	// Replace with just one
+	if err := ds.SetWorkerDepartments(w.ID, []string{d1.ID}); err != nil {
+		t.Fatalf("SetWorkerDepartments replace: %v", err)
+	}
+	depts, _ = ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 1 {
+		t.Errorf("expected 1 department, got %d", len(depts))
+	}
+
+	// Clear all
+	if err := ds.SetWorkerDepartments(w.ID, []string{}); err != nil {
+		t.Fatalf("SetWorkerDepartments clear: %v", err)
+	}
+	depts, _ = ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 0 {
+		t.Errorf("expected 0 departments, got %d", len(depts))
+	}
+}
+
+func TestDepartmentStore_GetDepartmentWorkerIDs(t *testing.T) {
+	ds, ws := setupDeptTestDB(t)
+	dept, _ := ds.Create(model.Department{Name: "Dept"})
+	w1, _ := ws.Create(model.Worker{Name: "Bot1", WorkDir: "/tmp/b1"})
+	w2, _ := ws.Create(model.Worker{Name: "Bot2", WorkDir: "/tmp/b2"})
+
+	ds.SetWorkerDepartments(w1.ID, []string{dept.ID})
+	ds.SetWorkerDepartments(w2.ID, []string{dept.ID})
+
+	ids, err := ds.GetDepartmentWorkerIDs(dept.ID)
+	if err != nil {
+		t.Fatalf("GetDepartmentWorkerIDs: %v", err)
+	}
+	if len(ids) != 2 {
+		t.Errorf("expected 2 worker IDs, got %d", len(ids))
+	}
+}
+
+func TestDepartmentStore_DeleteWorkerDepartments(t *testing.T) {
+	ds, ws := setupDeptTestDB(t)
+	dept, _ := ds.Create(model.Department{Name: "Dept"})
+	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
+	ds.SetWorkerDepartments(w.ID, []string{dept.ID})
+
+	if err := ds.DeleteWorkerDepartments(w.ID); err != nil {
+		t.Fatalf("DeleteWorkerDepartments: %v", err)
+	}
+	depts, _ := ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 0 {
+		t.Errorf("expected 0 departments after cleanup, got %d", len(depts))
+	}
+}
+
+func TestDepartmentStore_CheckCircularReference(t *testing.T) {
+	ds, _ := setupDeptTestDB(t)
+	a, _ := ds.Create(model.Department{Name: "A"})
+	b, _ := ds.Create(model.Department{Name: "B", ParentID: &a.ID})
+	c, _ := ds.Create(model.Department{Name: "C", ParentID: &b.ID})
+
+	// Moving A under C would create A -> B -> C -> A cycle
+	err := ds.CheckCircularReference(a.ID, c.ID)
+	if err == nil {
+		t.Error("expected circular reference error")
+	}
+
+	// Moving C under A is fine (already the case via B)
+	err = ds.CheckCircularReference(c.ID, a.ID)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

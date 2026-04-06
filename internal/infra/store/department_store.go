@@ -214,10 +214,12 @@ func (s *DepartmentStore) SetWorkerDepartments(workerID string, deptIDs []string
 	return tx.Commit()
 }
 
+const departmentColumnsAliased = `d.id, d.name, d.parent_id, d.sort_order, d.created_at, d.updated_at`
+
 // GetWorkerDepartments returns all departments a worker belongs to.
 func (s *DepartmentStore) GetWorkerDepartments(workerID string) ([]model.Department, error) {
 	rows, err := s.db.Query(
-		`SELECT d.`+departmentColumns+` FROM bee_departments d
+		`SELECT `+departmentColumnsAliased+` FROM bee_departments d
 		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id
 		 WHERE wd.worker_id = ?
 		 ORDER BY d.sort_order, d.created_at`,
