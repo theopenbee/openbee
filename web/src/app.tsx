@@ -10,7 +10,6 @@ const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m
 const Workers = lazy(() => import("@/pages/workers").then(m => ({ default: m.Workers })))
 const WorkerDetail = lazy(() => import("@/pages/worker-detail").then(m => ({ default: m.WorkerDetail })))
 const Executions = lazy(() => import("@/pages/executions").then(m => ({ default: m.Executions })))
-const ExecutionDetail = lazy(() => import("@/pages/execution-detail").then(m => ({ default: m.ExecutionDetail })))
 const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ default: m.SessionDetail })))
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const LocalChatDetail = lazy(() => import("@/pages/local-chat-detail").then(m => ({ default: m.LocalChatDetail })))
@@ -38,7 +37,6 @@ export function App() {
                 <Route path="/workers" element={<Workers />} />
                 <Route path="/workers/:id" element={<WorkerDetail />} />
                 <Route path="/executions" element={<Executions />} />
-                <Route path="/executions/:id" element={<ExecutionDetail />} />
                 <Route path="/sessions/:sessionId" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/local-chat" element={<LocalChat />} />
