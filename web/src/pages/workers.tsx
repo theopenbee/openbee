@@ -3,6 +3,9 @@ import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { CheckIcon, CopyIcon, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
+import { useDepartments } from "@/hooks/use-departments"
+import { DepartmentTreeSidebar } from "@/components/department-tree"
+import { DepartmentManageDialog } from "@/components/department-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -50,7 +53,14 @@ type DeleteStep = 1 | 2
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: workers = [], error: fetchError, isLoading } = useWorkers()
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
+  const [manageDeptOpen, setManageDeptOpen] = useState(false)
+  const { data: departments = [] } = useDepartments()
+  const deptFilter = selectedDeptId === "ungrouped" ? undefined : (selectedDeptId ?? undefined)
+  const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
+  const displayedWorkers = selectedDeptId === "ungrouped"
+    ? workers.filter((w) => !w.departments || w.departments.length === 0)
+    : workers
   const createWorker = useCreateWorker()
   const deleteWorker = useDeleteWorker()
   const [open, setOpen] = useState(false)
@@ -72,7 +82,7 @@ export function Workers() {
   const [workDir, setWorkDir] = useState("")
 
   const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || ""
-  const activeWorkers = workers.filter((worker) => worker.status === "working").length
+  const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
 
   const handleCreate = async (e?: FormEvent) => {
@@ -123,11 +133,24 @@ export function Workers() {
 
   return (
     <FadeIn>
+      <div className="flex gap-6 h-full">
+        {/* Left sidebar */}
+        <div className="w-56 shrink-0 border-r pr-4">
+          <DepartmentTreeSidebar
+            departments={departments}
+            selectedId={selectedDeptId}
+            onSelect={setSelectedDeptId}
+            onManage={() => setManageDeptOpen(true)}
+          />
+        </div>
+
+        {/* Right content */}
+        <div className="flex-1 min-w-0">
       <PageHeader
         title={t("workers.title")}
         subtitle={
-          workers.length > 0
-            ? t("workers.summary", { count: workers.length, active: activeWorkers })
+          displayedWorkers.length > 0
+            ? t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })
             : undefined
         }
         actions={
@@ -240,7 +263,7 @@ export function Workers() {
 
       {isLoading ? (
         <SkeletonTable rows={6} columns={5} />
-      ) : workers.length === 0 && !error ? (
+      ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={t("emptyState.noWorkers")}
           description={t("emptyState.noWorkersDesc")}
@@ -261,7 +284,7 @@ export function Workers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workers.map((w) => (
+              {displayedWorkers.map((w) => (
                 <TableRow key={w.id} className="hover:bg-primary/5 transition-colors">
                   <TableCell className="min-w-[19rem]">
                     <div className="flex flex-col gap-1.5 py-1">
@@ -420,6 +443,10 @@ export function Workers() {
           )}
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
+
+      <DepartmentManageDialog open={manageDeptOpen} onOpenChange={setManageDeptOpen} />
     </FadeIn>
   )
 }
