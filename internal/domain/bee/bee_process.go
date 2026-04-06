@@ -26,7 +26,6 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter) *BeeProcess {
 	}
 }
 
-// SetupWorkspace delegates to the underlying engine adapter.
 func (p *BeeProcess) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
 	return p.engine.SetupWorkspace(workDir, role, opts)
 }

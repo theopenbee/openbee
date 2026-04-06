@@ -33,7 +33,6 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
 
-// SetupWorkspace implements ai.EngineAdapter.
 func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
 	switch role {
 	case ai.RoleWorker:
@@ -57,7 +56,6 @@ func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.Wor
 	}
 }
 
-// Run implements ai.EngineAdapter.
 func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)

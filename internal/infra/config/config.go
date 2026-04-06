@@ -68,6 +68,11 @@ type BeeConfig struct {
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
+// WorkerTimeout returns the maximum duration for a single worker execution.
+func (b BeeConfig) WorkerTimeout() time.Duration {
+	return b.Claude.Timeout
+}
+
 // EffectiveEngine returns the configured engine name, defaulting to "claude".
 func (b BeeConfig) EffectiveEngine() string {
 	if b.Engine != "" {

@@ -62,7 +62,7 @@ func NewManager(
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
 		tokenTTL:        bc.MCP.TokenTTL,
-		workerTimeout:   bc.Claude.Timeout,
+		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,
 		engine:          engine,
@@ -211,6 +211,7 @@ func extractResultFromLog(logPath string) string {
 
 	var lastAssistantText, streamResult string
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1<<20), 1<<20) // raise cap to 1 MB; default 64 KB is too small for verbose output
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {
