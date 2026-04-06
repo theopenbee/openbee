@@ -57,6 +57,7 @@ type MediaConfig struct {
 
 type BeeConfig struct {
 	MessageDebounce time.Duration   `yaml:"message_debounce"`
+	Engine          string          `yaml:"engine"`
 	Claude          ClaudeConfig    `yaml:"claude"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
@@ -65,6 +66,23 @@ type BeeConfig struct {
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
+}
+
+// EngineConfigRaw returns the raw config map for the selected engine.
+func (b BeeConfig) EngineConfigRaw() map[string]any {
+	name := b.Engine
+	if name == "" {
+		name = "claude"
+	}
+	switch name {
+	case "claude":
+		return map[string]any{
+			"path":    b.Claude.Path,
+			"timeout": b.Claude.Timeout,
+		}
+	default:
+		return nil
+	}
 }
 
 type PlatformsConfig struct {
