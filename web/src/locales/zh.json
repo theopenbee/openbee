@@ -140,7 +140,6 @@
     "latest": "最新",
     "inspectTurn": "轮次详情",
     "inspectTurnHint": "从会话总览快速切到任意一轮，聚焦查看该次执行的上下文与输出。",
-    "openExecution": "打开执行详情",
     "noTriggerInput": "未记录触发输入。",
     "execution": "执行",
     "metadata": "元数据",

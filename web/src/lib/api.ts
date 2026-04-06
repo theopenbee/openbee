@@ -80,7 +80,6 @@ export const api = {
         `/executions?page=${page}&page_size=${pageSize}`
       )
     },
-    get: (id: string) => fetchAPI<WorkerExecution>(`/executions/${id}`),
     logs: async (id: string): Promise<string> => {
       const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
         headers: { "Accept-Language": i18n.language || "en" },

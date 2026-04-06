@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
-import { Activity, ArrowUpRight, Bot, Clock3, Logs } from "lucide-react"
+import { Activity, Bot, Clock3, Logs } from "lucide-react"
 import { useSessionExecutions } from "@/hooks/use-executions"
 import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { LogViewer } from "@/components/log-viewer"
@@ -334,18 +334,9 @@ export function SessionDetail() {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-end gap-3">
-                      <h3 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {t("sessionDetail.turn", { index: selectedTurnIndex })}
-                      </h3>
-                      <Link
-                        to={`/executions/${selectedExecution.id}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-                      >
-                        <span>{t("sessionDetail.openExecution")}</span>
-                        <ArrowUpRight className="size-4" />
-                      </Link>
-                    </div>
+                    <h3 className="text-2xl font-semibold tracking-tight text-foreground">
+                      {t("sessionDetail.turn", { index: selectedTurnIndex })}
+                    </h3>
                   </div>
 
                   <StatusBadge status={selectedExecution.status} />
@@ -390,14 +381,7 @@ export function SessionDetail() {
                     <div className="space-y-4">
                       <DetailField
                         label={t("sessionDetail.execution")}
-                        value={
-                          <Link
-                            to={`/executions/${selectedExecution.id}`}
-                            className="font-mono text-primary transition-colors hover:text-primary/80 hover:underline"
-                          >
-                            {selectedExecution.id}
-                          </Link>
-                        }
+                        value={selectedExecution.id}
                         mono
                       />
 

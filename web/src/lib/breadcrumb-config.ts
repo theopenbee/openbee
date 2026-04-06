@@ -21,13 +21,6 @@ const ROUTES: { test: RegExp; crumbs: CrumbDef[] }[] = [
     crumbs: [{ labelKey: "nav.executions" }],
   },
   {
-    test: /^\/executions\//,
-    crumbs: [
-      { labelKey: "nav.executions", to: "/executions" },
-      { labelKey: "breadcrumb.detail" },
-    ],
-  },
-  {
     test: /^\/sessions\//,
     crumbs: [
       { labelKey: "nav.executions", to: "/executions" },

@@ -140,7 +140,6 @@
     "latest": "Latest",
     "inspectTurn": "Turn Detail",
     "inspectTurnHint": "Jump between turns without losing the operational context for this session.",
-    "openExecution": "Open execution",
     "noTriggerInput": "No trigger input recorded.",
     "execution": "Execution",
     "metadata": "Metadata",
