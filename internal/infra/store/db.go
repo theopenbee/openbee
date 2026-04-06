@@ -210,6 +210,43 @@ var migrations = []migration{
 SELECT id, session_key, 'local', content, 'sent', created_at, created_at
 FROM bee_local_replies`,
 	},
+	{
+		version: 22,
+		name:    "create_table_bee_departments",
+		sql: `CREATE TABLE IF NOT EXISTS bee_departments (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    parent_id  TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 23,
+		name:    "create_index_departments_parent_id",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_departments_parent_id ON bee_departments(parent_id)`,
+	},
+	{
+		version: 24,
+		name:    "create_table_bee_worker_departments",
+		sql: `CREATE TABLE IF NOT EXISTS bee_worker_departments (
+    worker_id     TEXT NOT NULL REFERENCES bee_workers(id),
+    department_id TEXT NOT NULL REFERENCES bee_departments(id),
+    created_at    INTEGER NOT NULL,
+    PRIMARY KEY (worker_id, department_id)
+)`,
+	},
+	{
+		version: 25,
+		name:    "create_index_worker_depts_worker",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_worker_depts_worker ON bee_worker_departments(worker_id)`,
+	},
+	{
+		version: 26,
+		name:    "create_index_worker_depts_dept",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_worker_depts_dept ON bee_worker_departments(department_id)`,
+	},
 }
 
 // inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".
