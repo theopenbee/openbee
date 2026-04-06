@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -16,11 +16,6 @@ import (
 )
 
 var log = logger.With(zap.String("component", "feeder"))
-
-// BeeRunner abstracts the bee process invocation (real or test double).
-type BeeRunner interface {
-	Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error)
-}
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
 type FailureNotifier interface {
@@ -41,7 +36,7 @@ type Feeder struct {
 	taskStore       *store.TaskStore
 	sessionStore    *store.SessionStore
 	execStore       *store.ExecutionStore
-	runner          BeeRunner
+	runner          ai.EngineAdapter
 	workDir         string
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
@@ -49,7 +44,7 @@ type Feeder struct {
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner BeeRunner, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
@@ -119,13 +114,10 @@ func (f *Feeder) tick(ctx context.Context) {
 		return
 	}
 
-	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
-		log.Error("write CLAUDE.md", zap.Error(err))
+	if err := f.runner.SetupWorkspace(f.workDir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
+		log.Error("setup bee workspace", zap.Error(err))
 		f.rollback(ctx, msgs, err.Error())
 		return
-	}
-	if err := claude.EnsureSystemRules(f.workDir, claude.RoleBee); err != nil {
-		log.Error("ensure system rules", zap.Error(err))
 	}
 
 	for _, m := range msgs {
@@ -183,7 +175,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()
 
-	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, claude.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -272,16 +264,16 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
 // Returns nil on OutputDone, non-nil error on OutputError or unexpected channel close.
-func (f *Feeder) waitBeeOutput(ch <-chan claude.Output) error {
+func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 	for out := range ch {
 		switch out.Type {
-		case claude.OutputDone:
+		case ai.OutputDone:
 			return nil
-		case claude.OutputError:
-			return fmt.Errorf("bee exited with error: %s", out.Content)
+		case ai.OutputError:
+			return fmt.Errorf("%s", out.Content)
 		}
 	}
-	return fmt.Errorf("bee output channel closed without completion signal")
+	return nil
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {

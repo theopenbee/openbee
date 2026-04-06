@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/domain/bee"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -40,47 +40,48 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 	}
 }
 
+type mockProcess struct{}
+
+func (m *mockProcess) PID() int    { return 0 }
+func (m *mockProcess) Stop() error { return nil }
+
 // mockBeeRunner records all Run calls.
 type mockBeeRunner struct {
 	mu          sync.Mutex
 	calls       []beeCall
 	err         error
-	outputLines []claude.Output
+	outputLines []ai.Output
 }
 
 type beeCall struct {
-	prompt    string
-	sessionID string
-	resume    bool
-	logPath   string
+	prompt  string
+	opts    ai.RunOptions
+	logPath string
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
+func (m *mockBeeRunner) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+	return nil
+}
+
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	m.mu.Lock()
-	m.calls = append(m.calls, beeCall{
-		prompt:    prompt,
-		sessionID: opts.SessionID,
-		resume:    opts.Resume,
-		logPath:   logPath,
-	})
-	customLines := m.outputLines
+	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
 	m.mu.Unlock()
-
-	var lines []claude.Output
-	if customLines != nil {
-		lines = customLines
-	} else if m.err != nil {
-		lines = []claude.Output{{Type: claude.OutputError, Content: m.err.Error()}}
-	} else {
-		lines = []claude.Output{{Type: claude.OutputDone}}
+	if m.err != nil {
+		return nil, nil, m.err
 	}
-
-	ch := make(chan claude.Output, len(lines))
+	var lines []ai.Output
+	if len(m.outputLines) > 0 {
+		lines = m.outputLines
+	} else {
+		lines = []ai.Output{{Type: ai.OutputDone}}
+	}
+	ch := make(chan ai.Output, len(lines))
 	for _, l := range lines {
 		ch <- l
 	}
 	close(ch)
-	return &claude.Process{}, ch, nil
+	return &mockProcess{}, ch, nil
 }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
@@ -89,7 +90,7 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 	return append([]beeCall{}, m.calls...)
 }
 
-func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner bee.BeeRunner) *bee.Feeder {
+func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter) *bee.Feeder {
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
@@ -113,10 +114,10 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.sessionID == "" {
+	if call.opts.SessionID == "" {
 		t.Error("expected non-empty sessionID on first call")
 	}
-	if call.resume {
+	if call.opts.Resume {
 		t.Error("expected resume=false on first call")
 	}
 
@@ -124,8 +125,8 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session context: %v", err)
 	}
-	if got != call.sessionID {
-		t.Errorf("persisted sessionID mismatch: want %q got %q", call.sessionID, got)
+	if got != call.opts.SessionID {
+		t.Errorf("persisted sessionID mismatch: want %q got %q", call.opts.SessionID, got)
 	}
 
 	var status string
@@ -158,10 +159,10 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.sessionID != "existing-session" {
-		t.Errorf("expected existing-session, got %q", call.sessionID)
+	if call.opts.SessionID != "existing-session" {
+		t.Errorf("expected existing-session, got %q", call.opts.SessionID)
 	}
-	if !call.resume {
+	if !call.opts.Resume {
 		t.Error("expected resume=true on second call")
 	}
 }
@@ -503,49 +504,24 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 
 // callbackBeeRunner invokes fn synchronously inside Run, then signals done.
 type callbackBeeRunner struct {
-	fn func()
+	fn   func()
+	done chan struct{}
 }
 
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ claude.RunOptions, _ string) (*claude.Process, <-chan claude.Output, error) {
-	ch := make(chan claude.Output, 1)
+func (r *callbackBeeRunner) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+	return nil
+}
+
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
+	ch := make(chan ai.Output, 1)
 	go func() {
-		if r.fn != nil {
-			r.fn()
+		r.fn()
+		if r.done != nil {
+			close(r.done)
 		}
-		ch <- claude.Output{Type: claude.OutputDone}
+		ch <- ai.Output{Type: ai.OutputDone}
 		close(ch)
 	}()
-	return &claude.Process{}, ch, nil
-}
-
-func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
-	dir := t.TempDir()
-	original := "user-edited content"
-	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(original), 0644)
-
-	if err := bee.WriteCLAUDEMD(dir, "new persona"); err != nil {
-		t.Fatal(err)
-	}
-
-	data, _ := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if string(data) != original {
-		t.Error("WriteCLAUDEMD should not overwrite existing file")
-	}
-}
-
-func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := bee.WriteCLAUDEMD(dir, bee.DefaultPersona); err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if err != nil {
-		t.Fatalf("CLAUDE.md should be created: %v", err)
-	}
-	if string(data) != bee.DefaultPersona {
-		t.Errorf("unexpected content: %q", string(data))
-	}
+	return &mockProcess{}, ch, nil
 }
 
