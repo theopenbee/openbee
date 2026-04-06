@@ -67,8 +67,14 @@ func writeCLAUDEMD(workDir, persona string) error {
 		return fmt.Errorf("mkdir bee workdir: %w", err)
 	}
 	path := filepath.Join(workDir, "CLAUDE.md")
-	if _, err := os.Stat(path); err == nil {
-		return nil // already exists
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if os.IsExist(err) {
+		return nil
 	}
-	return os.WriteFile(path, []byte(persona), 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(persona)
+	return err
 }

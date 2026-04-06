@@ -44,23 +44,20 @@ func EnsureSystemRules(workDir string, role ai.Role, optFns ...Option) error {
 	for _, fn := range optFns {
 		fn(&opts)
 	}
-	// 1. Write .openbee.md (always overwrite)
 	rulesPath := filepath.Join(workDir, SystemRulesFile)
 	if err := os.WriteFile(rulesPath, []byte(rulesForRole(role, opts)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", SystemRulesFile, err)
 	}
 
-	// 2. Check CLAUDE.md for import reference
 	claudePath := filepath.Join(workDir, "CLAUDE.md")
 	data, err := os.ReadFile(claudePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // CLAUDE.md doesn't exist, skip
+			return nil
 		}
 		return fmt.Errorf("read CLAUDE.md: %w", err)
 	}
 
-	// 3. Append import if missing
 	if !bytes.Contains(data, []byte(ImportLine)) {
 		data = append(data, []byte("\n"+ImportLine+"\n")...)
 		if err := os.WriteFile(claudePath, data, 0o644); err != nil {

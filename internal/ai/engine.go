@@ -28,10 +28,8 @@ type RunOptions struct {
 type OutputType string
 
 const (
-	OutputStdout OutputType = "stdout"
-	OutputStderr OutputType = "stderr"
-	OutputDone   OutputType = "done"
-	OutputError  OutputType = "error"
+	OutputDone  OutputType = "done"
+	OutputError OutputType = "error"
 )
 
 // Output is a single lifecycle event.

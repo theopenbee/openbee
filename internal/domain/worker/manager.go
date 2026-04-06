@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -39,7 +40,9 @@ type claudeContent struct {
 
 type Manager struct {
 	workerBaseDir  string
-	beeCfg         config.BeeConfig
+	tokenSecret    string
+	tokenTTL       time.Duration
+	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engine         ai.EngineAdapter
@@ -57,7 +60,9 @@ func NewManager(
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
-		beeCfg:          bc,
+		tokenSecret:     bc.MCP.TokenSecret,
+		tokenTTL:        bc.MCP.TokenTTL,
+		workerTimeout:   bc.Claude.Timeout,
 		workerStore:     ws,
 		executionStore:  es,
 		engine:          engine,
@@ -124,7 +129,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}); err != nil {
 		log.Error("setup worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
-	timeout := m.beeCfg.Claude.Timeout
+	timeout := m.workerTimeout
 
 	if err := m.launchRuntime(exec, worker, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -143,7 +148,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
-	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, m.beeCfg.MCP.TokenTTL)
+	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, m.tokenTTL)
 	if err != nil {
 		return fmt.Errorf("generate worker token: %w", err)
 	}
@@ -198,13 +203,16 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 // extractResultFromLog scans the log file for stream-json events and returns
 // the best result string: prefers {"type":"result"} over the last assistant text.
 func extractResultFromLog(logPath string) string {
-	data, err := os.ReadFile(logPath)
+	f, err := os.Open(logPath)
 	if err != nil {
 		return ""
 	}
+	defer f.Close()
+
 	var lastAssistantText, streamResult string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {
 			continue
 		}

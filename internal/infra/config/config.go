@@ -68,13 +68,17 @@ type BeeConfig struct {
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
+// EffectiveEngine returns the configured engine name, defaulting to "claude".
+func (b BeeConfig) EffectiveEngine() string {
+	if b.Engine != "" {
+		return b.Engine
+	}
+	return "claude"
+}
+
 // EngineConfigRaw returns the raw config map for the selected engine.
 func (b BeeConfig) EngineConfigRaw() map[string]any {
-	name := b.Engine
-	if name == "" {
-		name = "claude"
-	}
-	switch name {
+	switch b.EffectiveEngine() {
 	case "claude":
 		return map[string]any{
 			"path":    b.Claude.Path,

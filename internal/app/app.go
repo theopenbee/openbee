@@ -197,11 +197,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 }
 
 func buildEngine(cfg config.BeeConfig) (ai.EngineAdapter, error) {
-	name := cfg.Engine
-	if name == "" {
-		name = "claude"
-	}
-	return ai.New(name, ai.EngineConfig{
+	return ai.New(cfg.EffectiveEngine(), ai.EngineConfig{
 		OpenbeeURL: cfg.MCPBaseURL,
 		Raw:        cfg.EngineConfigRaw(),
 	})
