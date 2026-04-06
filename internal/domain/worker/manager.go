@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -42,9 +42,9 @@ type Manager struct {
 	beeCfg         config.BeeConfig
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	invoker        *claude.Invoker
+	engine         ai.EngineAdapter
 
-	activeProcesses map[string]*claude.Process // execution_id -> process
+	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
 }
 
@@ -53,14 +53,15 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
+	engine ai.EngineAdapter,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		beeCfg:          bc,
 		workerStore:     ws,
 		executionStore:  es,
-		invoker:         claude.NewInvoker(bc.Claude.Path, bc.MCPBaseURL),
-		activeProcesses: make(map[string]*claude.Process),
+		engine:          engine,
+		activeProcesses: make(map[string]ai.Process),
 	}
 }
 
@@ -77,16 +78,12 @@ func (m *Manager) CreateWorker(
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	claudeMD := filepath.Join(workDir, "CLAUDE.md")
-	if _, err := os.Stat(claudeMD); os.IsNotExist(err) {
-		initialContent := claude.ImportLine + "\n"
-		if err := os.WriteFile(claudeMD, []byte(initialContent), 0644); err != nil {
-			return model.Worker{}, fmt.Errorf("create CLAUDE.md: %w", err)
-		}
-	}
-
-	if err := claude.EnsureSystemRules(workDir, claude.RoleWorker, claude.WithName(name), claude.WithDescription(description), claude.WithMemory(memory)); err != nil {
-		log.Error("ensure system rules", zap.String("op", "create"), zap.Error(err))
+	if err := m.engine.SetupWorkspace(workDir, ai.RoleWorker, ai.WorkspaceOptions{
+		Name:        name,
+		Description: description,
+		Memory:      memory,
+	}); err != nil {
+		log.Error("setup worker workspace", zap.String("op", "create"), zap.Error(err))
 	}
 
 	return m.workerStore.Create(model.Worker{
@@ -120,8 +117,12 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := claude.EnsureSystemRules(worker.WorkDir, claude.RoleWorker, claude.WithName(worker.Name), claude.WithDescription(worker.Description), claude.WithMemory(worker.Memory)); err != nil {
-		log.Error("ensure system rules", zap.String("op", "execute"), zap.Error(err))
+	if err := m.engine.SetupWorkspace(worker.WorkDir, ai.RoleWorker, ai.WorkspaceOptions{
+		Name:        worker.Name,
+		Description: worker.Description,
+		Memory:      worker.Memory,
+	}); err != nil {
+		log.Error("setup worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.beeCfg.Claude.Timeout
 
@@ -155,7 +156,11 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	proc, outputCh, err := m.invoker.Run(execCtx, worker.WorkDir, prompt, claude.RunOptions{SessionID: exec.SessionID, Resume: resume, APIKey: token}, logPath)
+	proc, outputCh, err := m.engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
+		SessionID: exec.SessionID,
+		Resume:    resume,
+		APIKey:    token,
+	}, logPath)
 	if err != nil {
 		cancel()
 		return err
@@ -170,16 +175,16 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan claude.Output, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
 	defer cancel()
 
 	for out := range outputCh {
 		switch out.Type {
-		case claude.OutputDone:
+		case ai.OutputDone:
 			result := extractResultFromLog(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
-		case claude.OutputError:
+		case ai.OutputError:
 			m.executionStore.UpdateResult(exec.ID, out.Content, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		}

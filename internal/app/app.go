@@ -20,7 +20,9 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/mcp"
+	_ "github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
@@ -191,7 +193,18 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 }
 
 func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
+	engineName := bc.Engine
+	if engineName == "" {
+		engineName = "claude"
+	}
+	engine, err := ai.New(engineName, ai.EngineConfig{
+		OpenbeeURL: bc.MCPBaseURL,
+		Raw:        bc.EngineConfigRaw(),
+	})
+	if err != nil {
+		panic(fmt.Sprintf("build engine %q: %v", engineName, err))
+	}
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task.Scheduler) {
