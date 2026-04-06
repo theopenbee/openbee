@@ -20,6 +20,7 @@ type ServerParams struct {
 	WorkerStore      *store.WorkerStore
 	ExecutionStore   *store.ExecutionStore
 	TaskStore        *store.TaskStore
+	DepartmentStore  *store.DepartmentStore
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
 	WorkerMCPServer  *mcp.MCPServer
@@ -65,6 +66,7 @@ func (s *Server) setupRoutes() error {
 		s.registerWorkerRoutes(api)
 		s.registerExecutionRoutes(api)
 		s.registerTaskRoutes(api)
+		s.registerDepartmentRoutes(api)
 		s.registerLocalChatRoutes(api)
 	}
 
@@ -104,6 +106,17 @@ func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
 	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
 	api.GET("/local/sessions/:id/media/:filename", s.LocalChatHandler.serveMedia)
 	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
+}
+
+func (s *Server) registerDepartmentRoutes(api *gin.RouterGroup) {
+	api.POST("/departments", s.createDepartment)
+	api.GET("/departments", s.listDepartments)
+	api.GET("/departments/:id", s.getDepartment)
+	api.PUT("/departments/:id", s.updateDepartment)
+	api.DELETE("/departments/:id", s.deleteDepartment)
+	api.PUT("/workers/:id/departments", s.setWorkerDepartments)
+	api.GET("/workers/:id/departments", s.getWorkerDepartments)
+	api.GET("/departments/:id/workers", s.getDepartmentWorkers)
 }
 
 func (s *Server) registerMCPRoutes() {
