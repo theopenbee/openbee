@@ -95,7 +95,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	mgr := buildWorkerManager(cfg.Bee, s)
+	engine, err := buildEngine(cfg.Bee)
+	if err != nil {
+		return nil, fmt.Errorf("init engine: %w", err)
+	}
+	mgr := buildWorkerManager(cfg.Bee, s, engine)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -103,7 +107,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
@@ -192,23 +196,24 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
-	engineName := bc.Engine
-	if engineName == "" {
-		engineName = "claude"
+func buildEngine(cfg config.BeeConfig) (ai.EngineAdapter, error) {
+	name := cfg.Engine
+	if name == "" {
+		name = "claude"
 	}
-	engine, err := ai.New(engineName, ai.EngineConfig{
-		OpenbeeURL: bc.MCPBaseURL,
-		Raw:        bc.EngineConfigRaw(),
+	return ai.New(name, ai.EngineConfig{
+		OpenbeeURL: cfg.MCPBaseURL,
+		Raw:        cfg.EngineConfigRaw(),
 	})
-	if err != nil {
-		panic(fmt.Sprintf("build engine %q: %v", engineName, err))
-	}
+}
+
+func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapter) *worker.Manager {
 	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine)
 }
 
-func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task.Scheduler) {
-	beeProcess := bee.NewBeeProcess(cfg)
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
+	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter) (*bee.Feeder, *task.Scheduler) {
+	beeProcess := bee.NewBeeProcess(cfg, engine)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
