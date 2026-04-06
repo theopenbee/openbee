@@ -1,4 +1,3 @@
-// internal/ai/registry.go
 package ai
 
 import "fmt"

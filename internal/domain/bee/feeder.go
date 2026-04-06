@@ -81,6 +81,9 @@ func (f *Feeder) RecoverFeeding(ctx context.Context) {
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
 func (f *Feeder) Run(ctx context.Context) {
+	if err := f.runner.SetupWorkspace(f.workDir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
+		log.Error("setup bee workspace", zap.Error(err))
+	}
 	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
 	for {
@@ -112,12 +115,6 @@ func (f *Feeder) tick(ctx context.Context) {
 		return
 	}
 	if len(msgs) == 0 {
-		return
-	}
-
-	if err := f.runner.SetupWorkspace(f.workDir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
-		log.Error("setup bee workspace", zap.Error(err))
-		f.rollback(ctx, msgs, err.Error())
 		return
 	}
 

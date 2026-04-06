@@ -81,8 +81,7 @@ func (b BeeConfig) EngineConfigRaw() map[string]any {
 	switch b.EffectiveEngine() {
 	case "claude":
 		return map[string]any{
-			"path":    b.Claude.Path,
-			"timeout": b.Claude.Timeout,
+			"path": b.Claude.Path,
 		}
 	default:
 		return nil
@@ -144,7 +143,6 @@ type MCPConfig struct {
 	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
 }
 
-
 type AuthConfig struct {
 	Username        string        `yaml:"username"`          // login username; default "admin"
 	Password        string        `yaml:"password"`          // login password; empty = auto-generated on startup
@@ -163,7 +161,6 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	Path string `yaml:"path"`
 }
-
 
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)

@@ -2,7 +2,9 @@ package claude
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -26,7 +28,7 @@ type claudeAdapter struct {
 	invoker *Invoker
 }
 
-// NewAdapter creates a claudeAdapter. Exported for testing.
+// NewAdapter creates a claudeAdapter.
 func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
@@ -68,7 +70,7 @@ func writeCLAUDEMD(workDir, persona string) error {
 	}
 	path := filepath.Join(workDir, "CLAUDE.md")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if os.IsExist(err) {
+	if errors.Is(err, fs.ErrExist) {
 		return nil
 	}
 	if err != nil {

@@ -2,7 +2,9 @@ package claude
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -52,7 +54,7 @@ func EnsureSystemRules(workDir string, role ai.Role, optFns ...Option) error {
 	claudePath := filepath.Join(workDir, "CLAUDE.md")
 	data, err := os.ReadFile(claudePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("read CLAUDE.md: %w", err)

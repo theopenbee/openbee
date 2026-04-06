@@ -23,17 +23,17 @@ import (
 
 var log = logger.With(zap.String("component", "worker"))
 
-type claudeStreamEvent struct {
+type streamEvent struct {
 	Type    string         `json:"type"`
-	Message *claudeMessage `json:"message,omitempty"`
+	Message *streamMessage `json:"message,omitempty"`
 	Result  string         `json:"result,omitempty"`
 }
 
-type claudeMessage struct {
-	Content []claudeContent `json:"content"`
+type streamMessage struct {
+	Content []streamContent `json:"content"`
 }
 
-type claudeContent struct {
+type streamContent struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
 }
@@ -216,7 +216,7 @@ func extractResultFromLog(logPath string) string {
 		if !strings.HasPrefix(line, "{") {
 			continue
 		}
-		var event claudeStreamEvent
+		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
 			continue
 		}
