@@ -4,7 +4,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { CheckIcon, CopyIcon, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
-import { DepartmentTreeSidebar } from "@/components/department-tree"
+import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { DepartmentManageDialog } from "@/components/department-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -56,9 +56,9 @@ export function Workers() {
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [manageDeptOpen, setManageDeptOpen] = useState(false)
   const { data: departments = [] } = useDepartments()
-  const deptFilter = selectedDeptId === "ungrouped" ? undefined : (selectedDeptId ?? undefined)
+  const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
   const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
-  const displayedWorkers = selectedDeptId === "ungrouped"
+  const displayedWorkers = selectedDeptId === UNGROUPED_FILTER
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const createWorker = useCreateWorker()
@@ -134,7 +134,6 @@ export function Workers() {
   return (
     <FadeIn>
       <div className="flex gap-6 h-full">
-        {/* Left sidebar */}
         <div className="w-56 shrink-0 border-r pr-4">
           <DepartmentTreeSidebar
             departments={departments}
@@ -144,7 +143,6 @@ export function Workers() {
           />
         </div>
 
-        {/* Right content */}
         <div className="flex-1 min-w-0">
       <PageHeader
         title={t("workers.title")}

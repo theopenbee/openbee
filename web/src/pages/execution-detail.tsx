@@ -9,11 +9,7 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone } from "@/lib/format"
-
-function isActiveStatus(status: string) {
-  return status === "running" || status === "pending"
-}
+import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus } from "@/lib/format"
 
 export function ExecutionDetail() {
   const { t } = useTranslation()

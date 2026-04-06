@@ -4,9 +4,11 @@ import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } fr
 import { cn } from "@/lib/utils"
 import type { DepartmentTree as DepartmentTreeType } from "@/lib/types"
 
+export const UNGROUPED_FILTER = "ungrouped" as const
+
 interface DepartmentTreeProps {
   departments: DepartmentTreeType[]
-  selectedId: string | null // null = "all", "ungrouped" = ungrouped
+  selectedId: string | null
   onSelect: (id: string | null) => void
   onManage: () => void
 }
@@ -33,10 +35,10 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onMan
 
         {/* Ungrouped */}
         <button
-          onClick={() => onSelect("ungrouped")}
+          onClick={() => onSelect(UNGROUPED_FILTER)}
           className={cn(
             "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors",
-            selectedId === "ungrouped"
+            selectedId === UNGROUPED_FILTER
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted"
           )}

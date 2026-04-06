@@ -19,17 +19,9 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonLine } from "@/components/skeleton-loader"
 import type { LocalChatSession } from "@/lib/types"
 
-type SessionGroupKey = "today" | "thisWeek" | "earlier"
+import { isSameDay } from "@/lib/format"
 
-function isSameDay(left: number, right: number) {
-  const leftDate = new Date(left)
-  const rightDate = new Date(right)
-  return (
-    leftDate.getFullYear() === rightDate.getFullYear()
-    && leftDate.getMonth() === rightDate.getMonth()
-    && leftDate.getDate() === rightDate.getDate()
-  )
-}
+type SessionGroupKey = "today" | "thisWeek" | "earlier"
 
 function getSessionGroup(updatedAt: number, now: number): SessionGroupKey {
   if (isSameDay(updatedAt, now)) return "today"

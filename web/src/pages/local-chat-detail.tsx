@@ -31,16 +31,7 @@ import { tokenParam } from "@/lib/auth"
 import { config } from "@/lib/config"
 import type { ChatMessage } from "@/lib/types"
 import { basename, cn, isImage } from "@/lib/utils"
-
-function isSameDay(left: number, right: number) {
-  const leftDate = new Date(left)
-  const rightDate = new Date(right)
-  return (
-    leftDate.getFullYear() === rightDate.getFullYear()
-    && leftDate.getMonth() === rightDate.getMonth()
-    && leftDate.getDate() === rightDate.getDate()
-  )
-}
+import { isSameDay } from "@/lib/format"
 
 function formatSessionTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"

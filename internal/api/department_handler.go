@@ -116,11 +116,14 @@ func (s *Server) setWorkerDepartments(c *gin.Context) {
 	}
 
 	// Validate all department IDs exist
-	for _, id := range req.DepartmentIDs {
-		if _, err := s.DepartmentStore.GetByID(id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "department not found: " + id})
-			return
-		}
+	found, err := s.DepartmentStore.GetByIDs(req.DepartmentIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if len(found) != len(req.DepartmentIDs) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "one or more departments not found"})
+		return
 	}
 
 	if err := s.DepartmentStore.SetWorkerDepartments(workerID, req.DepartmentIDs); err != nil {
@@ -150,11 +153,6 @@ func (s *Server) getWorkerDepartments(c *gin.Context) {
 
 func (s *Server) getDepartmentWorkers(c *gin.Context) {
 	deptID := c.Param("id")
-	if _, err := s.DepartmentStore.GetByID(deptID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "department not found"})
-		return
-	}
-
 	workerIDs, err := s.DepartmentStore.GetDepartmentWorkerIDs(deptID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

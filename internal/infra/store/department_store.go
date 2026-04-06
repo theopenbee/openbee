@@ -72,6 +72,25 @@ func (s *DepartmentStore) GetByID(id string) (model.Department, error) {
 	return d, nil
 }
 
+func (s *DepartmentStore) GetByIDs(ids []string) ([]model.Department, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.Query(
+		`SELECT `+departmentColumns+` FROM bee_departments WHERE id IN (`+inPlaceholders(len(ids))+`)`,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get departments by ids: %w", err)
+	}
+	defer rows.Close()
+	return scanDepartments(rows)
+}
+
 func (s *DepartmentStore) ListAll() ([]model.Department, error) {
 	rows, err := s.db.Query(`SELECT ` + departmentColumns + ` FROM bee_departments ORDER BY sort_order, created_at`)
 	if err != nil {

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useMemo, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon } from "lucide-react"
 import {
@@ -23,6 +23,8 @@ import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepa
 import type { Department } from "@/lib/types"
 import { flattenDeptTree } from "@/lib/department-utils"
 
+const NO_PARENT_VALUE = NO_PARENT_VALUE
+
 interface DepartmentManageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -41,7 +43,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
   const [parentId, setParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
-  const flatDepts = flattenDeptTree(departments)
+  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
 
   const resetForm = () => {
     setName("")
@@ -185,14 +187,14 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
             <div className="space-y-1.5">
               <Label>{t("departments.form.parent")}</Label>
               <Select
-                value={parentId ?? "__none__"}
-                onValueChange={(v) => setParentId(v === "__none__" ? null : v)}
+                value={parentId ?? NO_PARENT_VALUE}
+                onValueChange={(v) => setParentId(v === NO_PARENT_VALUE ? null : v)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">{t("departments.form.noParent")}</SelectItem>
+                  <SelectItem value=NO_PARENT_VALUE>{t("departments.form.noParent")}</SelectItem>
                   {flatDepts
                     .filter(({ dept }) => dept.id !== editingDept?.id)
                     .map(({ dept, depth }) => (

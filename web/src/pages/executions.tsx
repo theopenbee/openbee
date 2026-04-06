@@ -18,7 +18,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { cn } from "@/lib/utils"
-import { formatDuration, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -27,18 +27,6 @@ const TURN_DOT: Record<string, string> = {
   completed: "bg-status-idle",
   failed: "bg-status-error",
   pending: "bg-muted-foreground/30",
-}
-
-function formatRelative(ms: number | null): string {
-  if (!ms) return "—"
-  const diff = Date.now() - ms
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return "just now"
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  return `${Math.floor(hr / 24)}d ago`
 }
 
 function TurnPips({ executions }: { executions: WorkerExecution[] }) {

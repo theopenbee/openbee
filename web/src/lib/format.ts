@@ -45,6 +45,32 @@ export function statusTone(status: string) {
   }
 }
 
+export function isActiveStatus(status: string) {
+  return status === "running" || status === "pending"
+}
+
+export function isSameDay(left: number, right: number) {
+  const leftDate = new Date(left)
+  const rightDate = new Date(right)
+  return (
+    leftDate.getFullYear() === rightDate.getFullYear()
+    && leftDate.getMonth() === rightDate.getMonth()
+    && leftDate.getDate() === rightDate.getDate()
+  )
+}
+
+export function formatRelative(ms: number | null): string {
+  if (!ms) return "—"
+  const diff = Date.now() - ms
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return "just now"
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  return `${Math.floor(hr / 24)}d ago`
+}
+
 export const STATUS_ROW_BORDER: Record<string, string> = {
   pending: "border-l-transparent",
   running: "border-l-status-working",
