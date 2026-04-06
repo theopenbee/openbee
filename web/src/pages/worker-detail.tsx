@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,26 +17,11 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
+import { formatTimestamp, statusTone } from "@/lib/format"
+import { flattenDeptTree } from "@/lib/department-utils"
+import type { DepartmentTree } from "@/lib/types"
 
 const PAGE_SIZE = 20
-
-function formatTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString()
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "idle":
-      return "text-status-idle"
-    case "working":
-      return "text-status-working"
-    case "error":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
 
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -83,6 +70,10 @@ export function WorkerDetail() {
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
   const updateWorker = useUpdateWorker()
+  const { data: departments = [] } = useDepartments()
+  const setWorkerDepts = useSetWorkerDepartments()
+  const [deptDialogOpen, setDeptDialogOpen] = useState(false)
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
 
   if (!worker) return <SkeletonPage />
 
@@ -173,18 +164,51 @@ export function WorkerDetail() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {worker.work_dir ? (
-                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                    <FolderOpenIcon className="size-3.5 shrink-0" />
-                    <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
-                  </span>
-                ) : null}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {worker.work_dir ? (
+                    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                      <FolderOpenIcon className="size-3.5 shrink-0" />
+                      <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
+                    </span>
+                  ) : null}
 
-                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                  <CalendarIcon className="size-3.5 shrink-0" />
-                  <span>{new Date(worker.created_at).toLocaleDateString()}</span>
-                </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                    <CalendarIcon className="size-3.5 shrink-0" />
+                    <span>{new Date(worker.created_at).toLocaleDateString()}</span>
+                  </span>
+                </div>
+
+                {/* Department badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {t("departments.title")}
+                  </span>
+                  {worker.departments && worker.departments.length > 0 ? (
+                    worker.departments.map((d) => (
+                      <span
+                        key={d.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                      >
+                        <Building2 className="size-3 shrink-0" />
+                        {d.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedDeptIds(worker.departments?.map((d) => d.id) ?? [])
+                      setDeptDialogOpen(true)
+                    }}
+                  >
+                    <Pencil className="size-3" />
+                    {t("departments.manage")}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -390,6 +414,57 @@ export function WorkerDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={deptDialogOpen} onOpenChange={setDeptDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("departments.title")}</DialogTitle>
+            <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {flattenDeptTree(departments).map(({ dept, depth }) => (
+              <label
+                key={dept.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer"
+                style={{ paddingLeft: `${depth * 16 + 8}px` }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedDeptIds.includes(dept.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedDeptIds([...selectedDeptIds, dept.id])
+                    } else {
+                      setSelectedDeptIds(selectedDeptIds.filter((id) => id !== dept.id))
+                    }
+                  }}
+                  className="size-4 rounded accent-primary"
+                />
+                <span className="text-sm">{dept.name}</span>
+              </label>
+            ))}
+            {departments.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {t("departments.empty")}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeptDialogOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={async () => {
+                await setWorkerDepts.mutateAsync({ workerId: id!, departmentIds: selectedDeptIds })
+                setDeptDialogOpen(false)
+              }}
+              disabled={setWorkerDepts.isPending}
+            >
+              {t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </FadeIn>
   )
 }

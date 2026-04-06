@@ -12,51 +12,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { cn } from "@/lib/utils"
-
-function isActiveStatus(status: string) {
-  return status === "running" || status === "pending"
-}
-
-function formatTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString()
-}
-
-function formatCompactTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDuration(startMs: number | null | undefined, endMs: number | null | undefined) {
-  if (!startMs || !endMs) return "—"
-  const diff = endMs - startMs
-  if (diff < 0) return "—"
-  const totalSec = Math.floor(diff / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "running":
-      return "text-status-working"
-    case "completed":
-      return "text-status-idle"
-    case "failed":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
+import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus } from "@/lib/format"
 
 export function SessionDetail() {
   const { t } = useTranslation()

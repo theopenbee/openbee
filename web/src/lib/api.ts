@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage, Task } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, LocalChatSession, ChatMessage, Task, Department, DepartmentTree } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -53,8 +53,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   workers: {
-    list: async () => {
-      const workers = await fetchAPI<Worker[] | null>("/workers")
+    list: async (departmentId?: string) => {
+      const qs = departmentId ? `?department_id=${departmentId}` : ""
+      const workers = await fetchAPI<Worker[] | null>(`/workers${qs}`)
       return Array.isArray(workers) ? workers : []
     },
     get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
@@ -68,6 +69,12 @@ export const api = {
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
+    getDepartments: (id: string) => fetchAPI<Department[]>(`/workers/${id}/departments`),
+    setDepartments: (id: string, departmentIds: string[]) =>
+      fetchAPI(`/workers/${id}/departments`, {
+        method: "PUT",
+        body: JSON.stringify({ department_ids: departmentIds }),
+      }),
     executions: async (id: string, page: number = 1, pageSize: number = 20) => {
       return fetchAPI<PaginatedResponse<WorkerExecution>>(
         `/workers/${id}/executions?page=${page}&page_size=${pageSize}`
@@ -128,6 +135,20 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
+  },
+  departments: {
+    list: async () => {
+      const tree = await fetchAPI<DepartmentTree[] | null>("/departments")
+      return Array.isArray(tree) ? tree : []
+    },
+    get: (id: string) => fetchAPI<Department>(`/departments/${id}`),
+    create: (data: { name: string; parent_id?: string | null; sort_order?: number }) =>
+      fetchAPI<Department>("/departments", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; parent_id?: string | null; sort_order?: number }) =>
+      fetchAPI<Department>(`/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      fetchAPI(`/departments/${id}`, { method: "DELETE" }),
+    workers: (id: string) => fetchAPI<Worker[]>(`/departments/${id}/workers`),
   },
   tasks: {
     list: (params: { workerID?: string; page?: number; pageSize?: number } = {}) => {

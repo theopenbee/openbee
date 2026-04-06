@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
+import { isActiveStatus } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 type ParsedEntry =
@@ -48,10 +49,6 @@ interface LogViewerProps {
   onComplete?: () => void
   autoScroll?: boolean
   variant?: LogViewerVariant
-}
-
-function isLiveStatus(status: ExecutionStatus) {
-  return status === "running" || status === "pending"
 }
 
 function parseStreamLine(line: string): ClaudeStreamEvent | null {
@@ -511,7 +508,7 @@ export function LogViewer({
         const content = await api.executions.logs(executionId)
         if (disposed) return
 
-        const flushTail = !isLiveStatus(status)
+        const flushTail = !isActiveStatus(status)
         if (content.length < parsedLengthRef.current) {
           parsedLengthRef.current = content.length
           rebuildEntries(content, flushTail)
@@ -535,7 +532,7 @@ export function LogViewer({
 
     fetchLogs()
 
-    if (isLiveStatus(status)) {
+    if (isActiveStatus(status)) {
       const interval = setInterval(fetchLogs, 2000)
       return () => {
         disposed = true
@@ -549,7 +546,7 @@ export function LogViewer({
   }, [executionId, status])
 
   useEffect(() => {
-    if (isLiveStatus(prevStatusRef.current) && !isLiveStatus(status)) {
+    if (isActiveStatus(prevStatusRef.current) && !isActiveStatus(status)) {
       onComplete?.()
     }
     prevStatusRef.current = status
@@ -586,7 +583,7 @@ export function LogViewer({
   ]
 
   const handleViewportScroll = () => {
-    if (!autoScroll || !isLiveStatus(status)) return
+    if (!autoScroll || !isActiveStatus(status)) return
     const viewport = viewportRef.current
     if (!viewport) return
 
@@ -621,7 +618,7 @@ export function LogViewer({
 
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={status} />
-            {isLiveStatus(status) &&
+            {isActiveStatus(status) &&
               (followLive ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-status-working/20 bg-status-working/10 px-3 py-1.5 text-xs font-medium text-status-working">
                   <span className="size-1.5 rounded-full bg-current animate-pulse-amber" />
@@ -662,7 +659,7 @@ export function LogViewer({
       >
         {entries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
-            {isLiveStatus(status) ? (
+            {isActiveStatus(status) ? (
               <span className="inline-flex items-center gap-2">
                 <span className="size-1.5 rounded-full bg-primary animate-pulse-amber" />
                 {t("logViewer.waiting")}

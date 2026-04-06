@@ -8,8 +8,27 @@ export interface Worker {
   memory: string
   work_dir: string
   status: WorkerStatus
+  departments?: DepartmentBrief[]
   created_at: number
   updated_at: number
+}
+
+export interface Department {
+  id: string
+  name: string
+  parent_id: string | null
+  sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+export interface DepartmentTree extends Department {
+  children: DepartmentTree[]
+}
+
+export interface DepartmentBrief {
+  id: string
+  name: string
 }
 
 export interface WorkerExecution {
