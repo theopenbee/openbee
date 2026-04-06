@@ -4,7 +4,18 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
+
+type workerResponse struct {
+	model.Worker
+	Departments []departmentBrief `json:"departments"`
+}
+
+type departmentBrief struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
 
 type createWorkerRequest struct {
 	Name        string `json:"name" binding:"required"`
@@ -37,7 +48,35 @@ func (s *Server) listWorkers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, workers)
+
+	// Filter by department_id if provided
+	deptID := c.Query("department_id")
+
+	var result []workerResponse
+	for _, w := range workers {
+		depts, _ := s.DepartmentStore.GetWorkerDepartments(w.ID)
+		if deptID != "" {
+			found := false
+			for _, d := range depts {
+				if d.ID == deptID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		briefs := make([]departmentBrief, 0, len(depts))
+		for _, d := range depts {
+			briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
+		}
+		result = append(result, workerResponse{Worker: w, Departments: briefs})
+	}
+	if result == nil {
+		result = []workerResponse{}
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (s *Server) getWorker(c *gin.Context) {
@@ -46,7 +85,12 @@ func (s *Server) getWorker(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
 	}
-	c.JSON(http.StatusOK, w)
+	depts, _ := s.DepartmentStore.GetWorkerDepartments(w.ID)
+	briefs := make([]departmentBrief, 0, len(depts))
+	for _, d := range depts {
+		briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
+	}
+	c.JSON(http.StatusOK, workerResponse{Worker: w, Departments: briefs})
 }
 
 func (s *Server) updateWorker(c *gin.Context) {
@@ -88,6 +132,7 @@ func (s *Server) updateWorker(c *gin.Context) {
 func (s *Server) deleteWorker(c *gin.Context) {
 	id := c.Param("id")
 	deleteWorkDir := c.Query("delete_work_dir") == "true"
+	s.DepartmentStore.DeleteWorkerDepartments(id)
 	if err := s.Manager.DeleteWorker(id, deleteWorkDir); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
