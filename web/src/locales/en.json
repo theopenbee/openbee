@@ -284,6 +284,24 @@
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"
   },
+  "departments": {
+    "title": "Departments",
+    "allWorkers": "All Workers",
+    "ungrouped": "Ungrouped",
+    "manage": "Manage Departments",
+    "manageTitle": "Manage Departments",
+    "manageDescription": "Create, edit, and organize departments for your workers.",
+    "empty": "No departments yet. Create one to get started.",
+    "create": "Create Department",
+    "addChild": "Add Sub-department",
+    "rename": "Rename",
+    "form": {
+      "name": "Department Name",
+      "namePlaceholder": "e.g. Engineering",
+      "parent": "Parent Department",
+      "noParent": "None (Top Level)"
+    }
+  },
   "emptyState": {
     "noWorkers": "No workers in the hive yet",
     "noWorkersDesc": "Create your first AI worker to get started",
