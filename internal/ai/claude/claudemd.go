@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 const (
-	RoleBee    = "bee"
-	RoleWorker = "worker"
-
 	SystemRulesFile = ".openbee.md"
 	ImportLine      = "@" + SystemRulesFile
 )
@@ -26,11 +25,11 @@ type options struct {
 type Option func(*options)
 
 // rulesForRole returns the combined rules content for the given role.
-func rulesForRole(role string, opts options) string {
+func rulesForRole(role ai.Role, opts options) string {
 	switch role {
-	case RoleBee:
+	case ai.RoleBee:
 		return beeRules()
-	case RoleWorker:
+	case ai.RoleWorker:
 		return workerRules(opts.name, opts.description, opts.memory)
 	default:
 		return ""
@@ -40,7 +39,7 @@ func rulesForRole(role string, opts options) string {
 // EnsureSystemRules writes .openbee.md with the latest system rules
 // for the given role, and ensures CLAUDE.md contains the @import reference.
 // It does NOT create CLAUDE.md if it doesn't exist.
-func EnsureSystemRules(workDir, role string, optFns ...Option) error {
+func EnsureSystemRules(workDir string, role ai.Role, optFns ...Option) error {
 	var opts options
 	for _, fn := range optFns {
 		fn(&opts)

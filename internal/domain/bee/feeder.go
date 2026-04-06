@@ -263,7 +263,7 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 }
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
-// Returns nil on OutputDone, non-nil error on OutputError or unexpected channel close.
+// Returns nil on OutputDone or channel close, non-nil error on OutputError.
 func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 	for out := range ch {
 		switch out.Type {

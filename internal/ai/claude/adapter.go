@@ -44,7 +44,7 @@ func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.Wor
 				return fmt.Errorf("create CLAUDE.md: %w", err)
 			}
 		}
-		return EnsureSystemRules(workDir, RoleWorker,
+		return EnsureSystemRules(workDir, ai.RoleWorker,
 			WithName(opts.Name),
 			WithDescription(opts.Description),
 			WithMemory(opts.Memory),
