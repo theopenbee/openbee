@@ -23,7 +23,7 @@ import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepa
 import type { Department } from "@/lib/types"
 import { flattenDeptTree } from "@/lib/department-utils"
 
-const NO_PARENT_VALUE = NO_PARENT_VALUE
+const NO_PARENT_VALUE = "__no_parent__"
 
 interface DepartmentManageDialogProps {
   open: boolean
@@ -194,7 +194,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value=NO_PARENT_VALUE>{t("departments.form.noParent")}</SelectItem>
+                  <SelectItem value={NO_PARENT_VALUE}>{t("departments.form.noParent")}</SelectItem>
                   {flatDepts
                     .filter(({ dept }) => dept.id !== editingDept?.id)
                     .map(({ dept, depth }) => (

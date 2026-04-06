@@ -145,9 +145,6 @@ func (s *Server) getWorkerDepartments(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if depts == nil {
-		depts = []model.Department{}
-	}
 	c.JSON(http.StatusOK, depts)
 }
 
