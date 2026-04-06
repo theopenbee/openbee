@@ -115,7 +115,6 @@ func (s *Server) setWorkerDepartments(c *gin.Context) {
 		return
 	}
 
-	// Validate all department IDs exist
 	found, err := s.DepartmentStore.GetByIDs(req.DepartmentIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -150,13 +149,7 @@ func (s *Server) getWorkerDepartments(c *gin.Context) {
 
 func (s *Server) getDepartmentWorkers(c *gin.Context) {
 	deptID := c.Param("id")
-	workerIDs, err := s.DepartmentStore.GetDepartmentWorkerIDs(deptID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	workers, err := s.WorkerStore.GetByIDs(workerIDs)
+	workers, err := s.WorkerStore.GetByDepartmentID(deptID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

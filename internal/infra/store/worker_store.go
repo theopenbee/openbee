@@ -60,6 +60,18 @@ func (s *WorkerStore) GetByID(id string) (model.Worker, error) {
 	return w, nil
 }
 
+func scanWorkers(rows *sql.Rows) ([]model.Worker, error) {
+	var workers []model.Worker
+	for rows.Next() {
+		w, err := scanWorker(rows)
+		if err != nil {
+			return nil, err
+		}
+		workers = append(workers, w)
+	}
+	return workers, rows.Err()
+}
+
 func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -76,16 +88,22 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 		return nil, fmt.Errorf("get workers by ids: %w", err)
 	}
 	defer rows.Close()
+	return scanWorkers(rows)
+}
 
-	var workers []model.Worker
-	for rows.Next() {
-		w, err := scanWorker(rows)
-		if err != nil {
-			return nil, err
-		}
-		workers = append(workers, w)
+func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
+	rows, err := s.db.Query(
+		`SELECT `+workerColumns+` FROM bee_workers w
+		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
+		 WHERE wd.department_id = ?
+		 ORDER BY w.created_at DESC`,
+		deptID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get workers by department: %w", err)
 	}
-	return workers, rows.Err()
+	defer rows.Close()
+	return scanWorkers(rows)
 }
 
 func (s *WorkerStore) List() ([]model.Worker, error) {
@@ -94,16 +112,7 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
 	defer rows.Close()
-
-	var workers []model.Worker
-	for rows.Next() {
-		w, err := scanWorker(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan worker: %w", err)
-		}
-		workers = append(workers, w)
-	}
-	return workers, rows.Err()
+	return scanWorkers(rows)
 }
 
 
