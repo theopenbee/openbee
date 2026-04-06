@@ -69,7 +69,7 @@ export function Workers() {
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
   const [copiedWorkerId, setCopiedWorkerId] = useState<string | null>(null)
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(copyTimerRef.current), [])
 
   const resetDelete = () => {
@@ -171,7 +171,6 @@ export function Workers() {
                   onSubmit={handleCreate}
                   className="flex-1 overflow-y-auto px-6 py-5 space-y-6"
                 >
-                  {/* Basic info */}
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                       {t("workers.form.sectionBasic")}
@@ -206,7 +205,6 @@ export function Workers() {
 
                   <Separator />
 
-                  {/* Configuration */}
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                       {t("workers.form.sectionConfig")}

@@ -69,7 +69,9 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 	}
 
 	go func() {
-		if storeErr := a.outboundStore.Create(context.Background(), record); storeErr != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if storeErr := a.outboundStore.Create(ctx, record); storeErr != nil {
 			log.Error("failed to store outbound message", zap.Error(storeErr),
 				zap.String("platform", a.platformID),
 				zap.String("sessionKey", sessionKey),

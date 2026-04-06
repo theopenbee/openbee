@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,7 +19,6 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onMan
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto py-2 space-y-0.5">
-        {/* All Workers */}
         <button
           onClick={() => onSelect(null)}
           className={cn(
@@ -33,7 +32,6 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onMan
           {t("departments.allWorkers")}
         </button>
 
-        {/* Ungrouped */}
         <button
           onClick={() => onSelect(UNGROUPED_FILTER)}
           className={cn(
@@ -47,7 +45,6 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onMan
           {t("departments.ungrouped")}
         </button>
 
-        {/* Department tree */}
         {departments.length > 0 && (
           <div className="pt-2">
             <p className="px-3 pb-1 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -93,7 +90,7 @@ function DepartmentNode({
   const hasChildren = dept.children.length > 0
 
   return (
-    <div>
+    <Fragment>
       <button
         onClick={() => onSelect(dept.id)}
         className={cn(
@@ -127,19 +124,15 @@ function DepartmentNode({
         <span className="truncate">{dept.name}</span>
       </button>
 
-      {expanded && hasChildren && (
-        <div>
-          {dept.children.map((child) => (
-            <DepartmentNode
-              key={child.id}
-              dept={child}
-              selectedId={selectedId}
-              onSelect={onSelect}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      {expanded && hasChildren && dept.children.map((child) => (
+        <DepartmentNode
+          key={child.id}
+          dept={child}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          depth={depth + 1}
+        />
+      ))}
+    </Fragment>
   )
 }

@@ -252,13 +252,33 @@ func (s *DepartmentStore) GetWorkerDepartments(workerID string) ([]model.Departm
 
 // GetAllWorkerDepartments returns a map of workerID → departments for all workers.
 func (s *DepartmentStore) GetAllWorkerDepartments() (map[string][]model.Department, error) {
-	rows, err := s.db.Query(
-		`SELECT wd.worker_id, ` + departmentColumnsAliased + ` FROM bee_departments d
-		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id
-		 ORDER BY d.sort_order, d.created_at`,
-	)
+	return s.getWorkerDepartmentsMap(nil)
+}
+
+// GetWorkersDepartments returns a map of workerID → departments for the given worker IDs.
+func (s *DepartmentStore) GetWorkersDepartments(workerIDs []string) (map[string][]model.Department, error) {
+	if len(workerIDs) == 0 {
+		return map[string][]model.Department{}, nil
+	}
+	return s.getWorkerDepartmentsMap(workerIDs)
+}
+
+func (s *DepartmentStore) getWorkerDepartmentsMap(workerIDs []string) (map[string][]model.Department, error) {
+	query := `SELECT wd.worker_id, ` + departmentColumnsAliased + ` FROM bee_departments d
+		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id`
+	var args []any
+	if len(workerIDs) > 0 {
+		query += ` WHERE wd.worker_id IN (` + inPlaceholders(len(workerIDs)) + `)`
+		args = make([]any, len(workerIDs))
+		for i, id := range workerIDs {
+			args[i] = id
+		}
+	}
+	query += ` ORDER BY d.sort_order, d.created_at`
+
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("get all worker departments: %w", err)
+		return nil, fmt.Errorf("get worker departments map: %w", err)
 	}
 	defer rows.Close()
 

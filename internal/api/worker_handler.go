@@ -65,7 +65,11 @@ func (s *Server) listWorkers(c *gin.Context) {
 		return
 	}
 
-	allDepts, err := s.DepartmentStore.GetAllWorkerDepartments()
+	workerIDs := make([]string, len(workers))
+	for i, w := range workers {
+		workerIDs[i] = w.ID
+	}
+	deptMap, err := s.DepartmentStore.GetWorkersDepartments(workerIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -73,7 +77,7 @@ func (s *Server) listWorkers(c *gin.Context) {
 
 	result := make([]workerResponse, 0, len(workers))
 	for _, w := range workers {
-		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(allDepts[w.ID])})
+		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(deptMap[w.ID])})
 	}
 	c.JSON(http.StatusOK, result)
 }

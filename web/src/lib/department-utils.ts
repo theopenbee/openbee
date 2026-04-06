@@ -1,12 +1,13 @@
-import type { DepartmentTree } from "./types"
+import type { Department, DepartmentTree } from "./types"
 
 export function flattenDeptTree(
   tree: DepartmentTree[],
   depth = 0
-): { dept: { id: string; name: string }; depth: number }[] {
-  const result: { dept: { id: string; name: string }; depth: number }[] = []
+): { dept: Department; depth: number }[] {
+  const result: { dept: Department; depth: number }[] = []
   for (const node of tree) {
-    result.push({ dept: { id: node.id, name: node.name }, depth })
+    const { children: _, ...dept } = node
+    result.push({ dept, depth })
     if (node.children.length > 0) {
       result.push(...flattenDeptTree(node.children, depth + 1))
     }
