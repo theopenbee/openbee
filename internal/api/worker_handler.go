@@ -17,6 +17,14 @@ type departmentBrief struct {
 	Name string `json:"name"`
 }
 
+func toDepartmentBriefs(depts []model.Department) []departmentBrief {
+	briefs := make([]departmentBrief, 0, len(depts))
+	for _, d := range depts {
+		briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
+	}
+	return briefs
+}
+
 type createWorkerRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
@@ -49,12 +57,12 @@ func (s *Server) listWorkers(c *gin.Context) {
 		return
 	}
 
-	// Filter by department_id if provided
+	allDepts, _ := s.DepartmentStore.GetAllWorkerDepartments()
 	deptID := c.Query("department_id")
 
-	var result []workerResponse
+	result := make([]workerResponse, 0, len(workers))
 	for _, w := range workers {
-		depts, _ := s.DepartmentStore.GetWorkerDepartments(w.ID)
+		depts := allDepts[w.ID]
 		if deptID != "" {
 			found := false
 			for _, d := range depts {
@@ -67,14 +75,7 @@ func (s *Server) listWorkers(c *gin.Context) {
 				continue
 			}
 		}
-		briefs := make([]departmentBrief, 0, len(depts))
-		for _, d := range depts {
-			briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
-		}
-		result = append(result, workerResponse{Worker: w, Departments: briefs})
-	}
-	if result == nil {
-		result = []workerResponse{}
+		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(depts)})
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -86,11 +87,7 @@ func (s *Server) getWorker(c *gin.Context) {
 		return
 	}
 	depts, _ := s.DepartmentStore.GetWorkerDepartments(w.ID)
-	briefs := make([]departmentBrief, 0, len(depts))
-	for _, d := range depts {
-		briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
-	}
-	c.JSON(http.StatusOK, workerResponse{Worker: w, Departments: briefs})
+	c.JSON(http.StatusOK, workerResponse{Worker: w, Departments: toDepartmentBriefs(depts)})
 }
 
 func (s *Server) updateWorker(c *gin.Context) {
@@ -132,7 +129,10 @@ func (s *Server) updateWorker(c *gin.Context) {
 func (s *Server) deleteWorker(c *gin.Context) {
 	id := c.Param("id")
 	deleteWorkDir := c.Query("delete_work_dir") == "true"
-	s.DepartmentStore.DeleteWorkerDepartments(id)
+	if err := s.DepartmentStore.DeleteWorkerDepartments(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	if err := s.Manager.DeleteWorker(id, deleteWorkDir); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -161,13 +161,10 @@ func (s *Server) getDepartmentWorkers(c *gin.Context) {
 		return
 	}
 
-	var workers []model.Worker
-	for _, wid := range workerIDs {
-		w, err := s.WorkerStore.GetByID(wid)
-		if err != nil {
-			continue
-		}
-		workers = append(workers, w)
+	workers, err := s.WorkerStore.GetByIDs(workerIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	if workers == nil {
 		workers = []model.Worker{}

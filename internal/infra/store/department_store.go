@@ -26,6 +26,18 @@ func scanDepartment(scanner interface{ Scan(...any) error }) (model.Department, 
 	return d, err
 }
 
+func scanDepartments(rows *sql.Rows) ([]model.Department, error) {
+	var departments []model.Department
+	for rows.Next() {
+		d, err := scanDepartment(rows)
+		if err != nil {
+			return nil, err
+		}
+		departments = append(departments, d)
+	}
+	return departments, rows.Err()
+}
+
 func (s *DepartmentStore) Create(d model.Department) (model.Department, error) {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
@@ -66,16 +78,7 @@ func (s *DepartmentStore) ListAll() ([]model.Department, error) {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
 	defer rows.Close()
-
-	var departments []model.Department
-	for rows.Next() {
-		d, err := scanDepartment(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan department: %w", err)
-		}
-		departments = append(departments, d)
-	}
-	return departments, rows.Err()
+	return scanDepartments(rows)
 }
 
 func (s *DepartmentStore) Update(d model.Department) (model.Department, error) {
@@ -145,11 +148,8 @@ func (s *DepartmentStore) CheckCircularReference(departmentID, parentID string) 
 
 // BuildTree assembles a flat list of departments into a tree structure.
 func (s *DepartmentStore) BuildTree(depts []model.Department) []model.DepartmentTree {
-	// Use index maps to track children by parent ID
 	childrenMap := make(map[string][]model.Department, len(depts))
-	deptMap := make(map[string]model.Department, len(depts))
 	for _, d := range depts {
-		deptMap[d.ID] = d
 		if d.ParentID != nil {
 			childrenMap[*d.ParentID] = append(childrenMap[*d.ParentID], d)
 		}
@@ -161,7 +161,6 @@ func (s *DepartmentStore) BuildTree(depts []model.Department) []model.Department
 		for _, child := range childrenMap[d.ID] {
 			node.Children = append(node.Children, buildNode(child))
 		}
-		sortTreeSlice(node.Children)
 		return node
 	}
 
@@ -229,16 +228,31 @@ func (s *DepartmentStore) GetWorkerDepartments(workerID string) ([]model.Departm
 		return nil, fmt.Errorf("get worker departments: %w", err)
 	}
 	defer rows.Close()
+	return scanDepartments(rows)
+}
 
-	var departments []model.Department
+// GetAllWorkerDepartments returns a map of workerID → departments for all workers.
+func (s *DepartmentStore) GetAllWorkerDepartments() (map[string][]model.Department, error) {
+	rows, err := s.db.Query(
+		`SELECT wd.worker_id, ` + departmentColumnsAliased + ` FROM bee_departments d
+		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id
+		 ORDER BY d.sort_order, d.created_at`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get all worker departments: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string][]model.Department)
 	for rows.Next() {
-		d, err := scanDepartment(rows)
-		if err != nil {
+		var workerID string
+		var d model.Department
+		if err := rows.Scan(&workerID, &d.ID, &d.Name, &d.ParentID, &d.SortOrder, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			return nil, err
 		}
-		departments = append(departments, d)
+		result[workerID] = append(result[workerID], d)
 	}
-	return departments, rows.Err()
+	return result, rows.Err()
 }
 
 // GetDepartmentWorkerIDs returns the IDs of workers directly associated with a department.

@@ -17,27 +17,11 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
+import { formatTimestamp, statusTone } from "@/lib/format"
+import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 
 const PAGE_SIZE = 20
-
-function formatTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString()
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "idle":
-      return "text-status-idle"
-    case "working":
-      return "text-status-working"
-    case "error":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
 
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -483,18 +467,4 @@ export function WorkerDetail() {
       </Dialog>
     </FadeIn>
   )
-}
-
-function flattenDeptTree(
-  tree: DepartmentTree[],
-  depth = 0
-): { dept: { id: string; name: string }; depth: number }[] {
-  const result: { dept: { id: string; name: string }; depth: number }[] = []
-  for (const node of tree) {
-    result.push({ dept: { id: node.id, name: node.name }, depth })
-    if (node.children.length > 0) {
-      result.push(...flattenDeptTree(node.children, depth + 1))
-    }
-  }
-  return result
 }

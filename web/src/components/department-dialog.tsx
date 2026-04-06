@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
-import type { Department, DepartmentTree } from "@/lib/types"
+import type { Department } from "@/lib/types"
+import { flattenDeptTree } from "@/lib/department-utils"
 
 interface DepartmentManageDialogProps {
   open: boolean
@@ -40,7 +41,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
   const [parentId, setParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
-  const flatDepts = flattenTree(departments)
+  const flatDepts = flattenDeptTree(departments)
 
   const resetForm = () => {
     setName("")
@@ -216,18 +217,4 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
       </DialogContent>
     </Dialog>
   )
-}
-
-function flattenTree(
-  tree: DepartmentTree[],
-  depth = 0
-): { dept: Department; depth: number }[] {
-  const result: { dept: Department; depth: number }[] = []
-  for (const node of tree) {
-    result.push({ dept: node, depth })
-    if (node.children.length > 0) {
-      result.push(...flattenTree(node.children, depth + 1))
-    }
-  }
-  return result
 }

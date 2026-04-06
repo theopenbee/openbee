@@ -18,34 +18,15 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { cn } from "@/lib/utils"
+import { formatDuration, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
-
-const STATUS_ROW_BORDER: Record<string, string> = {
-  running: "border-l-status-working",
-  completed: "border-l-status-idle",
-  failed: "border-l-status-error",
-  pending: "border-l-transparent",
-}
 
 const TURN_DOT: Record<string, string> = {
   running: "bg-status-working",
   completed: "bg-status-idle",
   failed: "bg-status-error",
   pending: "bg-muted-foreground/30",
-}
-
-function formatDuration(startMs: number | null, endMs: number | null): string {
-  if (!startMs || !endMs) return "—"
-  const diff = endMs - startMs
-  if (diff < 0) return "—"
-  const totalSec = Math.floor(diff / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
 }
 
 function formatRelative(ms: number | null): string {

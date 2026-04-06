@@ -18,16 +18,9 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { Badge } from "@/components/ui/badge"
 import type { Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { STATUS_ROW_BORDER } from "@/lib/format"
 
 export const TASK_PAGE_SIZE = 20
-
-const STATUS_ROW_BORDER: Record<string, string> = {
-  pending: "border-l-transparent",
-  running: "border-l-status-working",
-  completed: "border-l-status-idle",
-  failed: "border-l-status-error",
-  cancelled: "border-l-transparent",
-}
 
 interface TaskListProps {
   workerId?: string
