@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/ai/mcp"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -17,6 +18,16 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 )
+
+// stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
+type stubEngineAdapter struct{}
+
+func (s *stubEngineAdapter) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+	return nil
+}
+func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
+	return nil, nil, nil
+}
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Helper()
@@ -34,6 +45,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
+		&stubEngineAdapter{},
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db))
@@ -213,6 +225,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
+		&stubEngineAdapter{},
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db)), db
@@ -482,6 +495,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 		t.TempDir(),
 		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
 		ws, es,
+		&stubEngineAdapter{},
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
