@@ -2,6 +2,7 @@ package bee
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -206,17 +207,17 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	// Persist session_id before marking messages processed.
+	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
+	upsert := true
 	if resume {
 		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))
-		} else {
-			if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-				log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-			}
+			upsert = false
 		}
-	} else {
+	}
+	if upsert {
 		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
@@ -270,7 +271,7 @@ func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 		case ai.OutputDone:
 			return nil
 		case ai.OutputError:
-			return fmt.Errorf("%s", out.Content)
+			return errors.New(out.Content)
 		}
 	}
 	return nil

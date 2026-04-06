@@ -35,14 +35,8 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
 	switch role {
 	case ai.RoleWorker:
-		claudeMD := filepath.Join(workDir, "CLAUDE.md")
-		if _, err := os.Stat(claudeMD); os.IsNotExist(err) {
-			if err := os.MkdirAll(workDir, 0o755); err != nil {
-				return fmt.Errorf("mkdir workdir: %w", err)
-			}
-			if err := os.WriteFile(claudeMD, []byte(ImportLine+"\n"), 0o644); err != nil {
-				return fmt.Errorf("create CLAUDE.md: %w", err)
-			}
+		if err := writeCLAUDEMD(workDir, ImportLine+"\n"); err != nil {
+			return err
 		}
 		return EnsureSystemRules(workDir, ai.RoleWorker,
 			WithName(opts.Name),
