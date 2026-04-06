@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useState, useRef, useEffect, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { CheckIcon, CopyIcon, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
@@ -69,6 +69,8 @@ export function Workers() {
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
   const [copiedWorkerId, setCopiedWorkerId] = useState<string | null>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => () => clearTimeout(copyTimerRef.current), [])
 
   const resetDelete = () => {
     setDeleteTarget(null)
@@ -123,7 +125,8 @@ export function Workers() {
     try {
       await navigator.clipboard.writeText(dir)
       setCopiedWorkerId(workerId)
-      window.setTimeout(() => {
+      clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => {
         setCopiedWorkerId((current) => current === workerId ? null : current)
       }, 1500)
     } catch {

@@ -48,7 +48,6 @@ export function useSetWorkerDepartments() {
     onSuccess: (_, { workerId }) => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
       queryClient.invalidateQueries({ queryKey: ["workers", workerId] })
-      queryClient.invalidateQueries({ queryKey: ["departments"] })
     },
   })
 }

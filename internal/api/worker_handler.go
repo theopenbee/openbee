@@ -51,7 +51,15 @@ func (s *Server) createWorker(c *gin.Context) {
 }
 
 func (s *Server) listWorkers(c *gin.Context) {
-	workers, err := s.WorkerStore.List()
+	deptID := c.Query("department_id")
+
+	var workers []model.Worker
+	var err error
+	if deptID != "" {
+		workers, err = s.WorkerStore.GetByDepartmentID(deptID)
+	} else {
+		workers, err = s.WorkerStore.List()
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -62,24 +70,10 @@ func (s *Server) listWorkers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	deptID := c.Query("department_id")
 
 	result := make([]workerResponse, 0, len(workers))
 	for _, w := range workers {
-		depts := allDepts[w.ID]
-		if deptID != "" {
-			found := false
-			for _, d := range depts {
-				if d.ID == deptID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(depts)})
+		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(allDepts[w.ID])})
 	}
 	c.JSON(http.StatusOK, result)
 }
