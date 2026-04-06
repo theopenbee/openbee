@@ -275,9 +275,13 @@
   },
   "login": {
     "title": "Sign In",
+    "eyebrow": "Control console access",
     "username": "Username",
+    "usernamePlaceholder": "operator",
     "password": "Password",
+    "passwordPlaceholder": "Enter your password",
     "submit": "Sign In",
+    "submitting": "Signing in...",
     "logout": "Log out",
     "error401": "Invalid username or password",
     "error429": "Too many attempts, please try again later",
