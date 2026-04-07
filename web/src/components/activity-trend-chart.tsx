@@ -91,7 +91,7 @@ export function ActivityTrendChart() {
                   dataKey="active_workers"
                   strokeWidth={2}
                   dot={false}
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--primary)"
                 />
               </LineChart>
             </ResponsiveContainer>
