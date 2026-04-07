@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "员工",
-    "executions": "会话记录",
+    "executions": "会话",
     "tasks": "定时任务"
   },
   "common": {
@@ -214,7 +214,7 @@
     "cancelFailed": "任务已在运行或已完成，无法取消"
   },
   "localChat": {
-    "title": "对话",
+    "title": "聊天",
     "subtitle": "恢复最近会话，保持本地对话井然有序",
     "newChat": "新建对话",
     "sessionNamePlaceholder": "对话名称",
