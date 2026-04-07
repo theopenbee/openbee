@@ -31,6 +31,8 @@ const fileMediaPrefix = fileMediaMarker + " "
 const legacyFileMediaPrefix = legacyFileMediaMarker + " "
 
 const defaultSessionKey = "local:default"
+const chatRoleUser = "user"
+const chatRoleBee = "bee"
 
 type LocalChatHandler struct {
 	receiver      *local.LocalReceiver
@@ -180,14 +182,14 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
-		msg := chatMessage{Role: "user", Content: text, Timestamp: m.ReceivedAt}
+		msg := chatMessage{Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
 		if len(paths) > 0 {
 			msg.MediaPaths = paths
 		}
 		combined = append(combined, msg)
 	}
 	for _, r := range replies {
-		combined = append(combined, chatMessage{Role: "bee", Content: r.Content, Timestamp: r.SentAt})
+		combined = append(combined, chatMessage{Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt})
 	}
 	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
