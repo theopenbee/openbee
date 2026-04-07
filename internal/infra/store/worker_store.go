@@ -93,7 +93,8 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 
 func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
 	rows, err := s.db.Query(
-		`SELECT `+workerColumns+` FROM bee_workers w
+		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.created_at, w.updated_at
+		 FROM bee_workers w
 		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
 		 WHERE wd.department_id = ?
 		 ORDER BY w.created_at DESC`,

@@ -191,7 +191,13 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
                 onValueChange={(v) => setParentId(v === NO_PARENT_VALUE ? null : v)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string | null) =>
+                      !value || value === NO_PARENT_VALUE
+                        ? t("departments.form.noParent")
+                        : flatDepts.find(({ dept }) => dept.id === value)?.dept.name ?? value
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_PARENT_VALUE}>{t("departments.form.noParent")}</SelectItem>
@@ -199,7 +205,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
                     .filter(({ dept }) => dept.id !== editingDept?.id)
                     .map(({ dept, depth }) => (
                       <SelectItem key={dept.id} value={dept.id}>
-                        {"  ".repeat(depth)}{dept.name}
+                        <span style={{ paddingLeft: `${depth * 12}px` }}>{dept.name}</span>
                       </SelectItem>
                     ))}
                 </SelectContent>
