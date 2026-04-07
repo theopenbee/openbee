@@ -34,6 +34,8 @@
     "executionsTotal": "Total",
     "executionsSuccess": "Success",
     "executionsFailed": "Failed",
+    "systemStatus": "System",
+    "todayActivity": "Today",
     "activityTrend": "Worker Activity Trend",
     "days": "d",
     "noTrendData": "No activity data",
