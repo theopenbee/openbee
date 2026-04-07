@@ -120,8 +120,7 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	eg.Go(func() error {
 		rows, err := s.db.QueryContext(egc, `
 			SELECT status, COUNT(*) FROM bee_executions
-			WHERE worker_id IS NOT NULL
-			  AND started_at >= ? AND started_at < ?
+			WHERE started_at >= ? AND started_at < ?
 			GROUP BY status`, todayStart, todayEnd)
 		if err != nil {
 			return fmt.Errorf("executions today: %w", err)
