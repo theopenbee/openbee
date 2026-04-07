@@ -107,13 +107,9 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	})
 
 	eg.Go(func() error {
-		return s.db.QueryRowContext(egc, `
-			SELECT COUNT(*) FROM (
-				SELECT session_key
-				FROM bee_platform_messages
-				GROUP BY session_key
-				HAVING MIN(received_at) >= ? AND MIN(received_at) < ?
-			)`, todayStart, todayEnd,
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(DISTINCT session_id) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
+			todayStart, todayEnd,
 		).Scan(&ov.SessionsNewToday)
 	})
 

@@ -61,7 +61,6 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 		t.Fatalf("insert outbound message: %v", err)
 	}
 
-	// New session today: first message for "sk1" is today
 	// Active countdown task
 	now := time.Now().UnixMilli()
 	ts.Create(ctx, model.Task{
@@ -87,8 +86,8 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	if ov.MessagesSentToday != 1 {
 		t.Errorf("MessagesSentToday: want 1, got %d", ov.MessagesSentToday)
 	}
-	if ov.SessionsNewToday != 1 {
-		t.Errorf("SessionsNewToday: want 1, got %d", ov.SessionsNewToday)
+	if ov.SessionsNewToday != 3 {
+		t.Errorf("SessionsNewToday: want 3, got %d", ov.SessionsNewToday)
 	}
 	if ov.ExecutionsToday.Total != 3 {
 		t.Errorf("ExecutionsToday.Total: want 3, got %d", ov.ExecutionsToday.Total)
