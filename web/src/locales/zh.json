@@ -52,7 +52,7 @@
       "workDir": "工作目录",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
-      "memory": "记忆",
+      "memory": "静态记忆",
       "memoryPlaceholder": "这个员工执行的指令...",
       "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。",
       "sectionDepartment": "部门",
@@ -100,10 +100,10 @@
     "id": "ID",
     "workDir": "工作目录",
     "created": "创建时间",
-    "memory": "记忆",
-    "noMemory": "未配置记忆",
+    "memory": "静态记忆",
+    "noMemory": "未配置静态记忆",
     "editDescription": "编辑描述",
-    "editMemory": "编辑记忆"
+    "editMemory": "编辑静态记忆"
   },
   "executionDetail": {
     "title": "执行详情",

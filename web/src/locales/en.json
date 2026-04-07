@@ -52,7 +52,7 @@
       "workDir": "Work Directory",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
-      "memory": "Memory",
+      "memory": "Static Memory",
       "memoryPlaceholder": "The instruction this worker will execute...",
       "memoryHelper": "Persistent context loaded into the worker at the start of every session.",
       "sectionDepartment": "Department",
@@ -100,10 +100,10 @@
     "id": "ID",
     "workDir": "Work Dir",
     "created": "Created",
-    "memory": "Memory",
-    "noMemory": "No memory configured",
+    "memory": "Static Memory",
+    "noMemory": "No static memory configured",
     "editDescription": "Edit description",
-    "editMemory": "Edit memory"
+    "editMemory": "Edit static memory"
   },
   "executionDetail": {
     "title": "Execution Detail",

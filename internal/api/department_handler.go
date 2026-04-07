@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -59,9 +60,9 @@ func (s *Server) updateDepartment(c *gin.Context) {
 	}
 
 	var req struct {
-		Name      *string `json:"name"`
-		ParentID  *string `json:"parent_id"`
-		SortOrder *int    `json:"sort_order"`
+		Name      *string         `json:"name"`
+		ParentID  json.RawMessage `json:"parent_id"`
+		SortOrder *int            `json:"sort_order"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -72,11 +73,20 @@ func (s *Server) updateDepartment(c *gin.Context) {
 		d.Name = *req.Name
 	}
 	if req.ParentID != nil {
-		if err := s.DepartmentStore.CheckCircularReference(d.ID, *req.ParentID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+		if string(req.ParentID) == "null" {
+			d.ParentID = nil
+		} else {
+			var parentID string
+			if err := json.Unmarshal(req.ParentID, &parentID); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parent_id"})
+				return
+			}
+			if err := s.DepartmentStore.CheckCircularReference(d.ID, parentID); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			d.ParentID = &parentID
 		}
-		d.ParentID = req.ParentID
 	}
 	if req.SortOrder != nil {
 		d.SortOrder = *req.SortOrder

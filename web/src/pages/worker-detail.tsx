@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
@@ -69,6 +69,7 @@ export function WorkerDetail() {
   const [editDesc, setEditDesc] = useState("")
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
+  const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const { data: departments = [] } = useDepartments()
   const setWorkerDepts = useSetWorkerDepartments()
@@ -165,20 +166,6 @@ export function WorkerDetail() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {worker.work_dir ? (
-                    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                      <FolderOpenIcon className="size-3.5 shrink-0" />
-                      <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
-                    </span>
-                  ) : null}
-
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                    <CalendarIcon className="size-3.5 shrink-0" />
-                    <span>{new Date(worker.created_at).toLocaleDateString()}</span>
-                  </span>
-                </div>
-
                 {/* Department badges */}
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                   <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -225,7 +212,7 @@ export function WorkerDetail() {
               />
               <DetailOverviewStat
                 icon={Logs}
-                label={t("executions.columns.turns")}
+                label={t("workerDetail.sessions")}
                 value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
                 hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("executions.noExecutions")}
               />
@@ -233,7 +220,24 @@ export function WorkerDetail() {
                 icon={FolderOpenIcon}
                 label={t("workerDetail.workDir")}
                 valueClassName="font-mono text-sm leading-6 break-all"
-                value={worker.work_dir || "—"}
+                value={
+                  worker.work_dir ? (
+                    <div className="flex items-start gap-2">
+                      <span className="flex-1">{worker.work_dir}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(worker.work_dir)
+                          setCopiedWorkDir(true)
+                          setTimeout(() => setCopiedWorkDir(false), 2000)
+                        }}
+                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Copy"
+                      >
+                        {copiedWorkDir ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      </button>
+                    </div>
+                  ) : "—"
+                }
               />
               <DetailOverviewStat
                 icon={CalendarIcon}

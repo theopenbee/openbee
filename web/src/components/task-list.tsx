@@ -85,7 +85,7 @@ export function TaskList({
 
   return (
     <div>
-      {workerId && (
+      {workerId && !isLoading && tasks.length > 0 && (
         <div className="flex justify-end mb-4">
           <Button
             variant="outline"
