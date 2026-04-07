@@ -198,31 +198,24 @@ export function LocalChat() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="relative w-full max-w-xl">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder={t("localChat.searchPlaceholder")}
-                        className="h-10 rounded-2xl border-border/70 bg-background/80 pl-9 pr-10"
-                        aria-label={t("localChat.searchPlaceholder")}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          onClick={() => setSearchQuery("")}
-                          aria-label={t("localChat.clearSearch")}
-                        >
-                          <X className="size-4" />
-                        </button>
-                      )}
-                    </div>
+                  <div className="relative w-full max-w-xl">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder={t("localChat.searchPlaceholder")}
+                      className="h-10 rounded-2xl border-border/70 bg-background/80 pl-9 pr-10"
+                      aria-label={t("localChat.searchPlaceholder")}
+                    />
                     {searchQuery && (
-                      <Button variant="outline" onClick={() => setSearchQuery("")}>
-                        {t("localChat.clearSearch")}
-                      </Button>
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        onClick={() => setSearchQuery("")}
+                        aria-label={t("localChat.clearSearch")}
+                      >
+                        <X className="size-4" />
+                      </button>
                     )}
                   </div>
                 </div>

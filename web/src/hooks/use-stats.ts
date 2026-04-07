@@ -13,5 +13,6 @@ export function useStatsTrend(days: 7 | 15 | 30) {
   return useQuery({
     queryKey: ["stats", "trend", days],
     queryFn: () => api.stats.trend(days),
+    staleTime: 60_000,
   })
 }

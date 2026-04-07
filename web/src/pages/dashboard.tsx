@@ -30,7 +30,6 @@ export function Dashboard() {
     <FadeIn>
       <PageHeader title={t("dashboard.title")} />
 
-      {/* Row 1: 4 stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         <StatCard title={t("dashboard.departments")} value={ov.departments} loading={isLoading} />
         <StatCard title={t("dashboard.workers")} value={ov.workers} loading={isLoading} />
@@ -38,7 +37,6 @@ export function Dashboard() {
         <StatCard title={t("dashboard.sessionsToday")} value={ov.sessions_new_today} loading={isLoading} />
       </div>
 
-      {/* Row 2: active workers full width */}
       <div className="mb-4">
         <ActiveWorkersCard
           today={ov.active_workers_today}
@@ -48,7 +46,6 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Row 3: messages + executions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <MessagesCard
           received={ov.messages_received_today}
@@ -58,7 +55,6 @@ export function Dashboard() {
         <ExecutionsCard stats={ov.executions_today} loading={isLoading} />
       </div>
 
-      {/* Row 4: trend chart */}
       <ActivityTrendChart />
     </FadeIn>
   )

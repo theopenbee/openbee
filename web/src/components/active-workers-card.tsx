@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatChange } from "@/lib/format"
 
 interface ActiveWorkersCardProps {
   today: number
@@ -13,11 +14,7 @@ interface ActiveWorkersCardProps {
 export function ActiveWorkersCard({ today, yesterday, change, loading }: ActiveWorkersCardProps) {
   const { t } = useTranslation()
 
-  const changeLabel = (() => {
-    if (change === null) return null
-    const pct = (change * 100).toFixed(1)
-    return change >= 0 ? `+${pct}%` : `${pct}%`
-  })()
+  const changeLabel = formatChange(change)
 
   const ChangeIcon = change === null ? null : change > 0 ? TrendingUp : change < 0 ? TrendingDown : Minus
   const changeColor = change === null ? "" : change > 0 ? "text-green-500" : change < 0 ? "text-red-500" : "text-muted-foreground"

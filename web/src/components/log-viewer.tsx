@@ -375,7 +375,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
-  const lineCount = entry.content.split("\n").length
+  const lineCount = useMemo(() => entry.content.split("\n").length, [entry.content])
 
   return (
     <TimelineRow markerClassName={isError ? "bg-destructive/85" : "bg-muted-foreground/55"}>
@@ -536,7 +536,7 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "auto" })
   }, [entries, autoScroll, followLive])
 
-  const { narrativeCount, toolCount, rawCount, visibleEntries } = useMemo(() => {
+  const { filterOptions, visibleEntries } = useMemo(() => {
     let narrativeCount = 0
     let toolCount = 0
     let rawCount = 0
@@ -550,15 +550,14 @@ export function LogViewer({
       if (filter === "all") return true
       return entry.kind === filter
     })
-    return { narrativeCount, toolCount, rawCount, visibleEntries }
-  }, [entries, filter])
-
-  const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
-    { key: "all", label: t("logViewer.all"), count: entries.length },
-    { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
-    { key: "tool", label: t("logViewer.tools"), count: toolCount },
-    { key: "raw", label: t("logViewer.raw"), count: rawCount },
-  ]
+    const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
+      { key: "all", label: t("logViewer.all"), count: entries.length },
+      { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
+      { key: "tool", label: t("logViewer.tools"), count: toolCount },
+      { key: "raw", label: t("logViewer.raw"), count: rawCount },
+    ]
+    return { filterOptions, visibleEntries }
+  }, [entries, filter, t])
 
   const handleViewportScroll = () => {
     if (!autoScroll || !isActiveStatus(status)) return

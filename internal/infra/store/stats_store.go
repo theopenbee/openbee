@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"golang.org/x/sync/errgroup"
 )
 
 // StatsStore provides aggregated statistics queries.
@@ -59,18 +61,22 @@ func dayBounds(offset int) (startMS, endMS int64) {
 
 // GetOverview returns all numeric card statistics.
 func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
-	var ov StatsOverview
+	var (
+		ov      StatsOverview
+		mu      sync.Mutex
+		eg, egc = errgroup.WithContext(ctx)
+	)
 
 	todayStart, todayEnd := dayBounds(0)
 	yestStart, yestEnd := dayBounds(-1)
 
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bee_departments`).Scan(&ov.Departments); err != nil {
-		return ov, fmt.Errorf("count departments: %w", err)
-	}
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_departments`).Scan(&ov.Departments)
+	})
 
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bee_workers`).Scan(&ov.Workers); err != nil {
-		return ov, fmt.Errorf("count workers: %w", err)
-	}
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_workers`).Scan(&ov.Workers)
+	})
 
 	activeWorkerQuery := `
 		SELECT COUNT(DISTINCT worker_id)
@@ -78,77 +84,90 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		WHERE worker_id IS NOT NULL
 		  AND started_at >= ? AND started_at < ?`
 
-	if err := s.db.QueryRowContext(ctx, activeWorkerQuery, todayStart, todayEnd).Scan(&ov.ActiveWorkersToday); err != nil {
-		return ov, fmt.Errorf("active workers today: %w", err)
-	}
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, activeWorkerQuery, todayStart, todayEnd).Scan(&ov.ActiveWorkersToday)
+	})
 
-	if err := s.db.QueryRowContext(ctx, activeWorkerQuery, yestStart, yestEnd).Scan(&ov.ActiveWorkersYesterday); err != nil {
-		return ov, fmt.Errorf("active workers yesterday: %w", err)
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, activeWorkerQuery, yestStart, yestEnd).Scan(&ov.ActiveWorkersYesterday)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
+			todayStart, todayEnd,
+		).Scan(&ov.MessagesReceivedToday)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
+			todayStart, todayEnd,
+		).Scan(&ov.MessagesSentToday)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `
+			SELECT COUNT(*) FROM (
+				SELECT session_key
+				FROM bee_platform_messages
+				GROUP BY session_key
+				HAVING MIN(received_at) >= ? AND MIN(received_at) < ?
+			)`, todayStart, todayEnd,
+		).Scan(&ov.SessionsNewToday)
+	})
+
+	eg.Go(func() error {
+		rows, err := s.db.QueryContext(egc, `
+			SELECT status, COUNT(*) FROM bee_executions
+			WHERE worker_id IS NOT NULL
+			  AND started_at >= ? AND started_at < ?
+			GROUP BY status`, todayStart, todayEnd)
+		if err != nil {
+			return fmt.Errorf("executions today: %w", err)
+		}
+		defer rows.Close()
+		var stats ExecStats
+		for rows.Next() {
+			var status string
+			var cnt int
+			if err := rows.Scan(&status, &cnt); err != nil {
+				return err
+			}
+			stats.Total += cnt
+			switch status {
+			case model.TaskStatusCompleted:
+				stats.Success += cnt
+			case model.TaskStatusFailed:
+				stats.Failed += cnt
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("executions today rows: %w", err)
+		}
+		mu.Lock()
+		ov.ExecutionsToday = stats
+		mu.Unlock()
+		return nil
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `
+			SELECT COUNT(*) FROM bee_tasks
+			WHERE type IN (?,?)
+			  AND status NOT IN (?,?,?)`,
+			model.TaskTypeCountdown, model.TaskTypeScheduled,
+			model.TaskStatusCompleted, model.TaskStatusCancelled, model.TaskStatusFailed,
+		).Scan(&ov.ScheduledTasks)
+	})
+
+	if err := eg.Wait(); err != nil {
+		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
 
 	if ov.ActiveWorkersYesterday > 0 {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)
 		ov.ActiveWorkersChange = &change
-	}
-
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
-		todayStart, todayEnd,
-	).Scan(&ov.MessagesReceivedToday); err != nil {
-		return ov, fmt.Errorf("messages received today: %w", err)
-	}
-
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
-		todayStart, todayEnd,
-	).Scan(&ov.MessagesSentToday); err != nil {
-		return ov, fmt.Errorf("messages sent today: %w", err)
-	}
-
-	if err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM (
-			SELECT session_key
-			FROM bee_platform_messages
-			GROUP BY session_key
-			HAVING MIN(received_at) >= ? AND MIN(received_at) < ?
-		)`, todayStart, todayEnd,
-	).Scan(&ov.SessionsNewToday); err != nil {
-		return ov, fmt.Errorf("new sessions today: %w", err)
-	}
-
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT status, COUNT(*) FROM bee_executions
-		WHERE worker_id IS NOT NULL
-		  AND started_at >= ? AND started_at < ?
-		GROUP BY status`, todayStart, todayEnd)
-	if err != nil {
-		return ov, fmt.Errorf("executions today: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var status string
-		var cnt int
-		if err := rows.Scan(&status, &cnt); err != nil {
-			return ov, err
-		}
-		ov.ExecutionsToday.Total += cnt
-		switch status {
-		case model.TaskStatusCompleted:
-			ov.ExecutionsToday.Success += cnt
-		case model.TaskStatusFailed:
-			ov.ExecutionsToday.Failed += cnt
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return ov, fmt.Errorf("executions today rows: %w", err)
-	}
-
-	if err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM bee_tasks
-		WHERE type IN ('`+model.TaskTypeCountdown+`','`+model.TaskTypeScheduled+`')
-		  AND status NOT IN ('`+model.TaskStatusCompleted+`','`+model.TaskStatusCancelled+`','`+model.TaskStatusFailed+`')`,
-	).Scan(&ov.ScheduledTasks); err != nil {
-		return ov, fmt.Errorf("scheduled tasks: %w", err)
 	}
 
 	return ov, nil

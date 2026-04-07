@@ -255,20 +255,13 @@ func (s *DepartmentStore) GetWorkersDepartments(workerIDs []string) (map[string]
 	if len(workerIDs) == 0 {
 		return map[string][]model.Department{}, nil
 	}
-	return s.getWorkerDepartmentsMap(workerIDs)
-}
 
-func (s *DepartmentStore) getWorkerDepartmentsMap(workerIDs []string) (map[string][]model.Department, error) {
 	query := `SELECT wd.worker_id, ` + departmentColumnsAliased + ` FROM bee_departments d
-		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id`
-	var args []any
-	if len(workerIDs) > 0 {
-		query += ` WHERE wd.worker_id IN (` + inPlaceholders(len(workerIDs)) + `)`
-		args = stringsToArgs(workerIDs)
-	}
-	query += ` ORDER BY d.sort_order, d.created_at`
+		 INNER JOIN bee_worker_departments wd ON d.id = wd.department_id
+		 WHERE wd.worker_id IN (` + inPlaceholders(len(workerIDs)) + `)
+		 ORDER BY d.sort_order, d.created_at`
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query(query, stringsToArgs(workerIDs)...)
 	if err != nil {
 		return nil, fmt.Errorf("get worker departments map: %w", err)
 	}

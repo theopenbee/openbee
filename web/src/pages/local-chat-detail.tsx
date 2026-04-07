@@ -281,8 +281,6 @@ export function LocalChatDetail() {
   const latestTimestamp = currentSession?.updated_at ?? localMessages[localMessages.length - 1]?.ts
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
-  const openAttachmentLabel = t("localChat.openAttachment")
-
   return (
     <FadeIn>
       <div className="space-y-6">
@@ -645,7 +643,7 @@ export function LocalChatDetail() {
                       sessionId={sessionId}
                       mediaPath={path}
                       removeLabel={t("localChat.removeAttachment")}
-                      openLabel={openAttachmentLabel}
+                      openLabel={t("localChat.openAttachment")}
                       onRemove={() =>
                         setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
                       }
