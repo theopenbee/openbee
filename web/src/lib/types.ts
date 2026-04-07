@@ -83,3 +83,32 @@ export interface Task {
   created_at: number
   updated_at: number
 }
+
+export interface ExecStats {
+  total: number
+  success: number
+  failed: number
+}
+
+export interface StatsOverview {
+  departments: number
+  workers: number
+  active_workers_today: number
+  active_workers_yesterday: number
+  active_workers_change: number | null
+  messages_received_today: number
+  messages_sent_today: number
+  sessions_new_today: number
+  executions_today: ExecStats
+  scheduled_tasks: number
+}
+
+export interface TrendPoint {
+  date: string
+  active_workers: number
+}
+
+export interface StatsTrend {
+  days: number
+  data: TrendPoint[]
+}
