@@ -266,7 +266,9 @@
     "idleStatus": "Ready for next prompt",
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "openAttachment": "Open attachment",
-    "removeAttachment": "Remove attachment"
+    "removeAttachment": "Remove attachment",
+    "quickCommandClear": "clear",
+    "quickCommandConfirm": "confirm"
   },
   "breadcrumb": {
     "detail": "Detail"

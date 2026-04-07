@@ -9,6 +9,13 @@ import { Streamdown } from "streamdown"
 import { useTranslation } from "react-i18next"
 import {
   ArrowUpRight,
+  File,
+  FileArchive,
+  FileAudio,
+  FileCode,
+  FileImage,
+  FileText,
+  FileVideo,
   MessageSquareText,
   Paperclip,
   Send,
@@ -26,7 +33,7 @@ import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage } from "@/lib/types"
-import { basename, cn, isImage } from "@/lib/utils"
+import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
@@ -42,6 +49,20 @@ function formatMessageTimestamp(timestamp: number | null | undefined, language: 
         hour: "numeric",
         minute: "2-digit",
       }).format(new Date(timestamp))
+}
+
+function FileCategoryIcon({ filePath, className }: { filePath: string; className?: string }) {
+  const category = getFileCategory(filePath)
+  const props = { className: className ?? "size-4 shrink-0" }
+  switch (category) {
+    case "image": return <FileImage {...props} />
+    case "audio": return <FileAudio {...props} />
+    case "video": return <FileVideo {...props} />
+    case "document": return <FileText {...props} />
+    case "code": return <FileCode {...props} />
+    case "archive": return <FileArchive {...props} />
+    default: return <File {...props} />
+  }
 }
 
 function mediaUrl(mediaPath: string) {
@@ -92,7 +113,7 @@ const AttachmentPreview = memo(function AttachmentPreview({
           : "text-foreground hover:bg-muted/40"
       )}
     >
-      <Paperclip className="size-4 shrink-0" />
+      <FileCategoryIcon filePath={mediaPath} />
       <span className="break-all">{filename}</span>
       <ArrowUpRight className="size-4 shrink-0 opacity-70" />
     </a>
@@ -164,6 +185,22 @@ export function LocalChat() {
       setIsProcessing(false)
     }
   }, [input, pendingMediaPaths, sendMessage])
+
+  const handleQuickCommand = useCallback(async (text: string) => {
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: text,
+      ts: Date.now(),
+    }
+    setLocalMessages((prev) => [...prev, userMessage])
+    setIsProcessing(true)
+    try {
+      await sendMessage.mutateAsync({ content: text })
+    } catch {
+      setLocalMessages((prev) => prev.filter((m) => m !== userMessage))
+      setIsProcessing(false)
+    }
+  }, [sendMessage])
 
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -331,7 +368,7 @@ export function LocalChat() {
                     key={path}
                     className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
                   >
-                    <Paperclip className="size-3.5 text-muted-foreground" />
+                    <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="max-w-52 truncate">{basename(path)}</span>
                     <button
                       type="button"
@@ -362,6 +399,22 @@ export function LocalChat() {
                   }
                 }}
               />
+
+              <div className="mt-3 flex flex-wrap gap-1.5 px-3">
+                {[
+                  t("localChat.quickCommandClear"),
+                  t("localChat.quickCommandConfirm"),
+                ].map((cmd) => (
+                  <button
+                    key={cmd}
+                    type="button"
+                    className="inline-flex items-center rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+                    onClick={() => void handleQuickCommand(cmd)}
+                  >
+                    {cmd}
+                  </button>
+                ))}
+              </div>
 
               <div className="mt-3 flex flex-col gap-3 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs leading-5 text-muted-foreground">
