@@ -17,7 +17,7 @@ export function ActiveWorkersCard({ today, yesterday, change, loading }: ActiveW
   const changeLabel = formatChange(change)
 
   const ChangeIcon = change === null ? null : change > 0 ? TrendingUp : change < 0 ? TrendingDown : Minus
-  const changeColor = change === null ? "" : change > 0 ? "text-green-500" : change < 0 ? "text-red-500" : "text-muted-foreground"
+  const changeColor = change === null ? "" : change > 0 ? "text-status-idle" : change < 0 ? "text-status-error" : "text-muted-foreground"
 
   return (
     <Card>
@@ -28,25 +28,28 @@ export function ActiveWorkersCard({ today, yesterday, change, loading }: ActiveW
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-6">
             <Skeleton className="h-8 w-16" />
             <Skeleton className="h-8 w-16" />
             <Skeleton className="h-8 w-16" />
           </div>
         ) : (
-          <div className="flex items-end gap-6">
+          <div className="flex flex-wrap items-end gap-6">
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.today")}</p>
-              <p className="text-3xl font-bold">{today}</p>
+              <p className="text-3xl font-bold" aria-live="polite">{today}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.yesterday")}</p>
               <p className="text-3xl font-bold text-muted-foreground">{yesterday}</p>
             </div>
             {changeLabel !== null && ChangeIcon && (
-              <div className={`flex items-center gap-1 pb-1 ${changeColor}`}>
-                <ChangeIcon className="h-4 w-4" />
-                <span className="text-sm font-medium">{changeLabel}</span>
+              <div
+                className={`flex items-center gap-1 pb-1 ${changeColor}`}
+                aria-label={changeLabel ?? undefined}
+              >
+                <ChangeIcon className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm font-medium" aria-live="polite">{changeLabel}</span>
               </div>
             )}
           </div>

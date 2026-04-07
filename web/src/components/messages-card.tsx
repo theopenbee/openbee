@@ -27,11 +27,11 @@ export function MessagesCard({ received, sent, loading }: MessagesCardProps) {
           <div className="flex gap-6">
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.messagesReceived")}</p>
-              <p className="text-3xl font-bold">{received}</p>
+              <p className="text-3xl font-bold" aria-live="polite">{received}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.messagesSent")}</p>
-              <p className="text-3xl font-bold">{sent}</p>
+              <p className="text-3xl font-bold" aria-live="polite">{sent}</p>
             </div>
           </div>
         )}

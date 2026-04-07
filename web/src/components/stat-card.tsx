@@ -9,7 +9,7 @@ interface StatCardProps {
 
 export function StatCard({ title, value, loading }: StatCardProps) {
   return (
-    <Card>
+    <Card role="article" aria-label={title}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
       </CardHeader>
@@ -17,7 +17,7 @@ export function StatCard({ title, value, loading }: StatCardProps) {
         {loading ? (
           <Skeleton className="h-8 w-24" />
         ) : (
-          <p className="text-3xl font-bold">{value}</p>
+          <p className="text-3xl font-bold" aria-live="polite">{value}</p>
         )}
       </CardContent>
     </Card>

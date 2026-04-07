@@ -35,7 +35,11 @@
     "executionsSuccess": "Success",
     "executionsFailed": "Failed",
     "activityTrend": "Worker Activity Trend",
-    "days": "d"
+    "days": "d",
+    "noTrendData": "No activity data",
+    "noTrendDataDesc": "Worker activity will appear here once tasks have been executed.",
+    "daysLabel": "Show last {{count}} days",
+    "activityTrendAriaLabel": "Worker activity trend for the last {{days}} days"
   },
   "workers": {
     "title": "Workers",

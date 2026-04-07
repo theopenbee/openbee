@@ -28,15 +28,19 @@ export function ExecutionsCard({ stats, loading }: ExecutionsCardProps) {
           <div className="flex gap-6">
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.executionsTotal")}</p>
-              <p className="text-3xl font-bold">{stats.total}</p>
+              <p className="text-3xl font-bold" aria-live="polite">{stats.total}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.executionsSuccess")}</p>
-              <p className="text-3xl font-bold text-green-500">{stats.success}</p>
+              <p className="text-3xl font-bold text-status-idle" aria-live="polite">
+                <span aria-label={`${t("dashboard.executionsSuccess")}: ${stats.success}`}>{stats.success}</span>
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.executionsFailed")}</p>
-              <p className="text-3xl font-bold text-red-500">{stats.failed}</p>
+              <p className="text-3xl font-bold text-status-error" aria-live="polite">
+                <span aria-label={`${t("dashboard.executionsFailed")}: ${stats.failed}`}>{stats.failed}</span>
+              </p>
             </div>
           </div>
         )}

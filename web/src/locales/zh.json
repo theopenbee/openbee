@@ -35,7 +35,11 @@
     "executionsSuccess": "成功",
     "executionsFailed": "失败",
     "activityTrend": "员工活跃趋势",
-    "days": "天"
+    "days": "天",
+    "noTrendData": "暂无活跃数据",
+    "noTrendDataDesc": "任务执行后，员工活跃趋势将显示在此处。",
+    "daysLabel": "显示最近 {{count}} 天数据",
+    "activityTrendAriaLabel": "最近 {{days}} 天员工活跃趋势图"
   },
   "workers": {
     "title": "员工",

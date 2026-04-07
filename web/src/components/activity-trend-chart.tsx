@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/empty-state"
 import { useStatsTrend } from "@/hooks/use-stats"
 
 const DAY_OPTIONS = [7, 15, 30] as const
@@ -21,6 +22,8 @@ export function ActivityTrendChart() {
   const [days, setDays] = useState<7 | 15 | 30>(7)
   const { data, isLoading } = useStatsTrend(days)
 
+  const chartData = data?.data ?? []
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -28,13 +31,15 @@ export function ActivityTrendChart() {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             {t("dashboard.activityTrend")}
           </CardTitle>
-          <div className="flex gap-1">
+          <div className="flex gap-1" role="group" aria-label={t("dashboard.activityTrend")}>
             {DAY_OPTIONS.map((d) => (
               <Button
                 key={d}
                 variant={days === d ? "default" : "ghost"}
                 size="sm"
                 className="h-7 px-2 text-xs"
+                aria-pressed={days === d}
+                aria-label={t("dashboard.daysLabel", { count: d })}
                 onClick={() => setDays(d)}
               >
                 {d}{t("dashboard.days")}
@@ -46,30 +51,48 @@ export function ActivityTrendChart() {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
+        ) : chartData.length === 0 ? (
+          <EmptyState
+            title={t("dashboard.noTrendData")}
+            description={t("dashboard.noTrendDataDesc")}
+          />
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={data?.data ?? []} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v: string) => v.slice(5)}
-                className="text-muted-foreground"
-              />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} className="text-muted-foreground" />
-              <Tooltip
-                labelFormatter={(label) => String(label)}
-                formatter={(value) => [value, t("dashboard.activeWorkers")]}
-              />
-              <Line
-                type="monotone"
-                dataKey="active_workers"
-                strokeWidth={2}
-                dot={false}
-                stroke="hsl(var(--primary))"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          // left: -20 offsets the YAxis tick label width so the chart aligns flush with card edges
+          <div
+            role="img"
+            aria-label={t("dashboard.activityTrendAriaLabel", { days })}
+          >
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v: string) => v.slice(5)}
+                  className="text-muted-foreground"
+                />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} className="text-muted-foreground" />
+                <Tooltip
+                  labelFormatter={(label) => String(label)}
+                  formatter={(value) => [value, t("dashboard.activeWorkers")]}
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    color: "var(--card-foreground)",
+                    fontSize: 12,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="active_workers"
+                  strokeWidth={2}
+                  dot={false}
+                  stroke="hsl(var(--primary))"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
     </Card>
