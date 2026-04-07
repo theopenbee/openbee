@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/platform"
@@ -24,10 +25,13 @@ func NewLocalSender(hub *SSEHub) *LocalSender {
 func (s *LocalSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	sessionKey := msg.ReplyTo.SessionKey
 
-	data, _ := json.Marshal(map[string]any{
+	data, err := json.Marshal(map[string]any{
 		"content":    msg.Content,
 		"created_at": time.Now().UnixMilli(),
 	})
+	if err != nil {
+		return fmt.Errorf("marshal SSE payload: %w", err)
+	}
 	s.hub.Broadcast(sessionKey, string(data))
 	return nil
 }

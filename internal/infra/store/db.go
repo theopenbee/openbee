@@ -247,6 +247,14 @@ FROM bee_local_replies`,
 		name:    "create_index_worker_depts_dept",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_worker_depts_dept ON bee_worker_departments(department_id)`,
 	},
+	{
+		version: 27,
+		name:    "deprecate_bee_local_sessions",
+		sql: `-- bee_local_sessions is deprecated. Local chat now uses the fixed
+-- session_key "local:default" and no longer reads or writes this table.
+-- The table is preserved for historical data only.
+SELECT 1`,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.

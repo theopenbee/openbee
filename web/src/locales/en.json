@@ -208,7 +208,7 @@
     "cancelFailed": "Cannot cancel: task is not pending"
   },
   "localChat": {
-    "title": "Local Chat",
+    "title": "Chat",
     "subtitle": "Resume recent conversations and keep local sessions organized",
     "newChat": "New Chat",
     "sessionNamePlaceholder": "Session name",
@@ -271,13 +271,15 @@
     "queuePanelHint": "Review or remove uploads before they are attached to the next outgoing message.",
     "queueEmpty": "No files queued for the next message.",
     "noMessagesTitle": "Start the first exchange",
-    "noMessagesDescription": "Send a prompt or upload reference files to begin. Replies will stream into this timeline in order.",
+    "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
     "idleStatus": "Ready for next prompt",
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "openAttachment": "Open attachment",
-    "removeAttachment": "Remove attachment"
+    "removeAttachment": "Remove attachment",
+    "quickCommandClear": "clear",
+    "quickCommandConfirm": "confirm"
   },
   "breadcrumb": {
     "detail": "Detail"
