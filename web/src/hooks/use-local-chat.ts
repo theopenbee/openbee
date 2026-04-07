@@ -1,69 +1,36 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage } from "@/lib/types"
 
-export function useLocalSessions() {
+export function useLocalMessages() {
   return useQuery({
-    queryKey: ["local-sessions"],
-    queryFn: () => api.localChat.listSessions(),
+    queryKey: ["local-messages"],
+    queryFn: () => api.localChat.getMessages(),
   })
 }
 
-export function useLocalMessages(sessionId: string) {
-  return useQuery({
-    queryKey: ["local-messages", sessionId],
-    queryFn: () => api.localChat.getMessages(sessionId),
-    enabled: !!sessionId,
-  })
-}
-
-export function useCreateSession() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (name: string) => api.localChat.createSession(name),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["local-sessions"] }),
-  })
-}
-
-export function useDeleteSession() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => api.localChat.deleteSession(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["local-sessions"] }),
-  })
-}
-
-export function useSendMessage(sessionId: string) {
-  const queryClient = useQueryClient()
+export function useSendMessage() {
   return useMutation({
     mutationFn: ({ content, mediaPaths }: { content: string; mediaPaths?: string[] }) =>
-      api.localChat.sendMessage(sessionId, content, mediaPaths),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["local-sessions"] })
-    },
+      api.localChat.sendMessage(content, mediaPaths),
   })
 }
 
-// useLocalChatStream subscribes to SSE for a session.
-// Calls onReply on each new reply event and re-fetches history on reconnect.
-export function useLocalChatStream(
-  sessionId: string,
-  onReply: (msg: ChatMessage) => void
-) {
-  const queryClient = useQueryClient()
+// useLocalChatStream subscribes to SSE for the default local session.
+// Calls onReply on each new reply event.
+export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
   const onReplyRef = useRef(onReply)
   onReplyRef.current = onReply
 
   useEffect(() => {
-    if (!sessionId) return
     let es: EventSource
     let reconnectTimer: ReturnType<typeof setTimeout>
 
     const connect = () => {
-      es = new EventSource(`${config.apiUrl}/local/sessions/${sessionId}/stream${tokenParam()}`)
+      es = new EventSource(`${config.apiUrl}/local/stream${tokenParam()}`)
 
       es.onmessage = (event) => {
         try {
@@ -80,8 +47,6 @@ export function useLocalChatStream(
 
       es.onerror = () => {
         es.close()
-        // Re-fetch full history to fill any gap, then reconnect
-        queryClient.invalidateQueries({ queryKey: ["local-messages", sessionId] })
         reconnectTimer = setTimeout(connect, 2000)
       }
     }
@@ -92,5 +57,5 @@ export function useLocalChatStream(
       clearTimeout(reconnectTimer)
       es?.close()
     }
-  }, [sessionId, queryClient])
+  }, [])
 }
