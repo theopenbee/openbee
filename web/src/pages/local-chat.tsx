@@ -1,46 +1,37 @@
-import { useState, type ReactNode } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { useTranslation } from "react-i18next"
-import { ArrowRight, Clock3, MessageSquare, Plus, Search, Trash2, X } from "lucide-react"
-import { useLocalSessions, useCreateSession, useDeleteSession } from "@/hooks/use-local-chat"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { PageHeader } from "@/components/page-header"
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
+import { Streamdown } from "streamdown"
+import { useTranslation } from "react-i18next"
+import {
+  ArrowUpRight,
+  MessageSquareText,
+  Paperclip,
+  Send,
+  X,
+} from "lucide-react"
+import {
+  useLocalMessages,
+  useLocalChatStream,
+  useSendMessage,
+} from "@/hooks/use-local-chat"
+import { DetailSection } from "@/components/detail-primitives"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonLine } from "@/components/skeleton-loader"
-import type { LocalChatSession } from "@/lib/types"
-
+import { PageHeader } from "@/components/page-header"
+import { Button } from "@/components/ui/button"
+import { api } from "@/lib/api"
+import { config } from "@/lib/config"
+import { tokenParam } from "@/lib/auth"
+import type { ChatMessage } from "@/lib/types"
+import { basename, cn, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
 
-type SessionGroupKey = "today" | "thisWeek" | "earlier"
-
-function getSessionGroup(updatedAt: number, now: number): SessionGroupKey {
-  if (isSameDay(updatedAt, now)) return "today"
-
-  const dayMs = 24 * 60 * 60 * 1000
-  if (now - updatedAt < 7 * dayMs) return "thisWeek"
-  return "earlier"
-}
-
-function formatSessionTime(timestamp: number, language: string) {
-  return new Intl.DateTimeFormat(language, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(timestamp))
-}
-
-function formatSessionStatTime(timestamp: number, language: string) {
+function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
+  if (!timestamp) return "—"
   return new Intl.DateTimeFormat(language, isSameDay(timestamp, Date.now())
     ? {
         hour: "numeric",
@@ -54,442 +45,399 @@ function formatSessionStatTime(timestamp: number, language: string) {
       }).format(new Date(timestamp))
 }
 
-function SessionListSkeleton() {
-  return (
-    <div className="divide-y divide-border/70">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="space-y-3 px-5 py-4">
-          <SkeletonLine className="h-5 w-56" />
-          <div className="flex flex-wrap gap-2">
-            <SkeletonLine className="h-4 w-40" />
-            <SkeletonLine className="h-4 w-32" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+function mediaUrl(mediaPath: string) {
+  const filename = basename(mediaPath)
+  return `${config.apiUrl}/local/media/${encodeURIComponent(filename)}${tokenParam()}`
 }
 
-function EmptyPanel({
-  title,
-  description,
-  action,
+const AttachmentPreview = memo(function AttachmentPreview({
+  mediaPath,
+  tone,
 }: {
-  title: string
-  description: string
-  action?: ReactNode
+  mediaPath: string
+  tone: "user" | "bee"
 }) {
+  const filename = basename(mediaPath)
+  const url = mediaUrl(mediaPath)
+  const frameClass = tone === "user"
+    ? "border-primary-foreground/15 bg-primary-foreground/10"
+    : "border-border/70 bg-background/70"
+
+  if (isImage(mediaPath)) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className={cn("block overflow-hidden rounded-2xl border", frameClass)}
+      >
+        <img
+          src={url}
+          alt={filename}
+          className="max-h-80 w-full object-contain"
+        />
+      </a>
+    )
+  }
+
   return (
-    <div className="flex flex-col items-start gap-4 px-5 py-14 sm:px-6">
-      <div className="inline-flex size-11 items-center justify-center rounded-2xl border border-border/70 bg-muted/40">
-        <MessageSquare className="size-5 text-muted-foreground" />
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
-        <p className="max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
-      </div>
-      {action}
-    </div>
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className={cn(
+        "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-colors",
+        frameClass,
+        tone === "user"
+          ? "text-primary-foreground/90 hover:bg-primary-foreground/10"
+          : "text-foreground hover:bg-muted/40"
+      )}
+    >
+      <Paperclip className="size-4 shrink-0" />
+      <span className="break-all">{filename}</span>
+      <ArrowUpRight className="size-4 shrink-0 opacity-70" />
+    </a>
   )
-}
+})
 
 export function LocalChat() {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
-  const { data: sessions = [], isLoading, error } = useLocalSessions()
-  const createSession = useCreateSession()
-  const deleteSession = useDeleteSession()
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [newName, setNewName] = useState("")
-  const [searchQuery, setSearchQuery] = useState("")
+  const { data: history = [], isLoading } = useLocalMessages()
+  const sendMessage = useSendMessage()
 
-  const trimmedNewName = newName.trim()
-  const normalizedQuery = searchQuery.trim().toLowerCase()
-  const sortedSessions = [...sessions].sort((left, right) => right.updated_at - left.updated_at)
-  const filteredSessions = normalizedQuery
-    ? sortedSessions.filter((session) => session.name.toLowerCase().includes(normalizedQuery))
-    : sortedSessions
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState("")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  const now = Date.now()
-  const updatedTodayCount = sessions.filter((session) => isSameDay(session.updated_at, now)).length
-  const latestSession = sortedSessions[0]
+  useEffect(() => {
+    setLocalMessages(history)
+  }, [history])
 
-  const sessionGroups: Array<{ key: SessionGroupKey; label: string; items: LocalChatSession[] }> = [
-    { key: "today", label: t("localChat.groupToday"), items: [] },
-    { key: "thisWeek", label: t("localChat.groupThisWeek"), items: [] },
-    { key: "earlier", label: t("localChat.groupEarlier"), items: [] },
-  ]
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = "0px"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`
+  }, [input])
 
-  filteredSessions.forEach((session) => {
-    const group = sessionGroups.find((entry) => entry.key === getSessionGroup(session.updated_at, now))
-    group?.items.push(session)
-  })
+  const handleReply = useCallback((message: ChatMessage) => {
+    setLocalMessages((prev) => [...prev, message])
+    setIsProcessing(false)
+  }, [])
+  useLocalChatStream(handleReply)
 
-  const visibleGroups = sessionGroups.filter((group) => group.items.length > 0)
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [localMessages, isProcessing])
 
-  const handleCreate = async () => {
-    if (!trimmedNewName) return
-    const session = await createSession.mutateAsync(trimmedNewName)
-    setNewName("")
-    setDialogOpen(false)
-    navigate(`/local-chat/${session.id}`)
-  }
+  const handleSend = useCallback(async () => {
+    const content = input.trim()
+    if (!content && pendingMediaPaths.length === 0) return
 
-  const handleDialogChange = (open: boolean) => {
-    setDialogOpen(open)
-    if (!open) setNewName("")
-  }
+    const paths = [...pendingMediaPaths]
+    const userMessage: ChatMessage = {
+      role: "user",
+      content,
+      media_paths: paths.length > 0 ? paths : undefined,
+      ts: Date.now(),
+    }
 
-  const errorMessage = error instanceof Error ? error.message : ""
-  const headerSubtitle = normalizedQuery
-    ? t("localChat.summaryFiltered", { shown: filteredSessions.length, total: sessions.length })
-    : sessions.length > 0
-      ? t("localChat.summary", { count: sessions.length })
-      : t("localChat.subtitle")
+    setLocalMessages((prev) => [...prev, userMessage])
+    setInput("")
+    setPendingMediaPaths([])
+    setUploadError(null)
+    setIsProcessing(true)
+
+    try {
+      await sendMessage.mutateAsync({
+        content: content || " ",
+        mediaPaths: paths.length > 0 ? paths : undefined,
+      })
+    } catch {
+      setLocalMessages((prev) => prev.filter((message) => message !== userMessage))
+      setPendingMediaPaths((prev) => [...paths, ...prev])
+      setIsProcessing(false)
+    }
+  }, [input, pendingMediaPaths, sendMessage])
+
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+    if (files.length === 0) return
+
+    event.target.value = ""
+    setUploadError(null)
+
+    const results = await Promise.allSettled(
+      files.map((file) => api.localChat.uploadMedia(file))
+    )
+    const succeeded = results.filter(
+      (result): result is PromiseFulfilledResult<{ path: string }> => result.status === "fulfilled"
+    )
+    const failedCount = results.length - succeeded.length
+
+    if (failedCount > 0) {
+      setUploadError(t("localChat.uploadError", { count: failedCount }))
+    }
+
+    setPendingMediaPaths((prev) => [...prev, ...succeeded.map((result) => result.value.path)])
+  }, [t])
+
+  const messageCount = localMessages.length
+  const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
+  const isEmpty = !isLoading && messageCount === 0
 
   return (
     <FadeIn>
       <div className="space-y-6">
         <PageHeader
           title={t("localChat.title")}
-          subtitle={headerSubtitle}
+          subtitle={t("localChat.detailDescription")}
           actions={
-            <Button onClick={() => setDialogOpen(true)}>
-              {t("localChat.newChat")}
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                {isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
+              </span>
+              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                {t("localChat.queuedUploadsLabel")}: {pendingMediaPaths.length}
+              </span>
+            </div>
           }
         />
 
-        {errorMessage && (
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_19rem]">
-          <section
-            className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/70"
-            style={{
-              backgroundImage: [
-                "radial-gradient(circle at top right, color-mix(in oklch, var(--foreground) 10%, transparent), transparent 28%)",
-                "linear-gradient(180deg, color-mix(in oklch, var(--card) 92%, var(--muted) 8%), color-mix(in oklch, var(--card) 84%, var(--background) 16%))",
-                "linear-gradient(color-mix(in oklch, var(--border) 45%, transparent) 1px, transparent 1px)",
-                "linear-gradient(90deg, color-mix(in oklch, var(--border) 45%, transparent) 1px, transparent 1px)",
-              ].join(", "),
-              backgroundSize: "100% 100%, 100% 100%, 24px 24px, 24px 24px",
-            }}
-          >
-            <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-foreground/25 to-transparent" />
-            <div className="relative p-5 sm:p-6 lg:p-7">
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
-                <div className="space-y-5">
-                  <div className="space-y-3">
-                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("localChat.controlLabel")}
-                    </span>
-                    <div className="space-y-3">
-                      <h2 className="max-w-3xl text-[clamp(1.8rem,3vw,2.7rem)] font-semibold tracking-[-0.03em] text-foreground">
-                        {t("localChat.controlTitle")}
-                      </h2>
-                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {t("localChat.controlDescription")}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="relative w-full max-w-xl">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder={t("localChat.searchPlaceholder")}
-                        className="h-10 rounded-2xl border-border/70 bg-background/80 pl-9 pr-10"
-                        aria-label={t("localChat.searchPlaceholder")}
-                      />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          onClick={() => setSearchQuery("")}
-                          aria-label={t("localChat.clearSearch")}
-                        >
-                          <X className="size-4" />
-                        </button>
-                      )}
-                    </div>
-                    {searchQuery && (
-                      <Button variant="outline" onClick={() => setSearchQuery("")}>
-                        {t("localChat.clearSearch")}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                  <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      {t("localChat.totalSessions")}
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                      {sessions.length}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      {t("localChat.touchedToday")}
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                      {updatedTodayCount}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      {t("localChat.latestActivity")}
-                    </p>
-                    <p className="mt-3 text-sm font-medium text-foreground">
-                      {latestSession
-                        ? formatSessionStatTime(latestSession.updated_at, i18n.language)
-                        : t("localChat.latestActivityEmpty")}
-                    </p>
-                    {latestSession && (
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {latestSession.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
+        <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
+          <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("localChat.timelineLabel")}
+                </p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  {t("localChat.timelineHint")}
+                </p>
               </div>
 
-              <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/82">
-                <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("localChat.recentSessions")}
-                    </p>
-                    <p className="mt-1 text-sm text-foreground">
-                      {t("localChat.sessionListHint")}
-                    </p>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-muted-foreground">
+                  {isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-muted-foreground">
+                  {t("localChat.queuedUploadsLabel")}: {pendingMediaPaths.length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+            {isLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="rounded-[1.6rem] border border-border/70 bg-background/80 px-4 py-4"
+                  >
+                    <div className="h-4 w-28 rounded bg-muted" />
+                    <div className="mt-4 h-4 w-full rounded bg-muted" />
+                    <div className="mt-2 h-4 w-4/5 rounded bg-muted" />
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/35 px-3 py-1 text-xs text-muted-foreground">
-                    <Clock3 className="size-3.5" />
-                    {headerSubtitle}
+                ))}
+              </div>
+            ) : isEmpty ? (
+              <div className="flex h-full min-h-[18rem] items-center justify-center">
+                <div className="max-w-md rounded-[1.75rem] border border-dashed border-border/80 bg-background/78 px-6 py-8 text-left">
+                  <div className="inline-flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/35">
+                    <MessageSquareText className="size-5 text-muted-foreground" />
                   </div>
+                  <h2 className="mt-5 text-lg font-semibold tracking-tight text-foreground">
+                    {t("localChat.noMessagesTitle")}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {t("localChat.noMessagesDescription")}
+                  </p>
                 </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {localMessages.map((message, index) => {
+                  const isUser = message.role === "user"
+                  const hasContent = message.content.trim().length > 0
 
-                {isLoading ? (
-                  <SessionListSkeleton />
-                ) : sessions.length === 0 ? (
-                  <EmptyPanel
-                    title={t("emptyState.noSessions")}
-                    description={t("emptyState.noSessionsDesc")}
-                    action={
-                      <Button onClick={() => setDialogOpen(true)}>
-                        {t("localChat.newChat")}
-                      </Button>
-                    }
-                  />
-                ) : filteredSessions.length === 0 ? (
-                  <EmptyPanel
-                    title={t("localChat.noMatches")}
-                    description={t("localChat.noMatchesDesc")}
-                    action={
-                      <Button variant="outline" onClick={() => setSearchQuery("")}>
-                        {t("localChat.clearSearch")}
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <div>
-                    {visibleGroups.map((group) => (
-                      <div key={group.key}>
-                        <div className="flex items-center gap-3 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                          <span>{group.label}</span>
-                          <span className="h-px flex-1 bg-border/70" />
-                          <span>{group.items.length}</span>
+                  return (
+                    <div
+                      key={`${message.role}-${message.ts}-${index}`}
+                      className={cn("flex", isUser ? "justify-end" : "justify-start")}
+                    >
+                      <article
+                        className={cn(
+                          "w-full rounded-[1.6rem] border px-4 py-4 sm:px-5",
+                          isUser
+                            ? "max-w-[min(100%,44rem)] border-primary/15 bg-primary text-primary-foreground"
+                            : "max-w-[min(100%,52rem)] border-border/70 bg-background/82"
+                        )}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em]">
+                            <span className={cn(
+                              "size-2 rounded-full",
+                              isUser ? "bg-primary-foreground/70" : "bg-primary/70"
+                            )}
+                            />
+                            <span className={isUser ? "text-primary-foreground/78" : "text-muted-foreground"}>
+                              {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
+                            </span>
+                          </div>
+
+                          <time className={cn(
+                            "text-xs",
+                            isUser ? "text-primary-foreground/72" : "text-muted-foreground"
+                          )}
+                          >
+                            {formatMessageTimestamp(message.ts, i18n.language)}
+                          </time>
                         </div>
-                        <div className="divide-y divide-border/70">
-                          {group.items.map((session) => (
-                            <div
-                              key={session.id}
-                              className="grid gap-4 px-5 py-4 transition-colors hover:bg-muted/25 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
-                            >
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Link
-                                    to={`/local-chat/${session.id}`}
-                                    className="truncate text-sm font-semibold text-foreground transition-colors hover:text-primary"
-                                  >
-                                    {session.name}
-                                  </Link>
-                                  {isSameDay(session.updated_at, now) && (
-                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/35 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                      {t("localChat.updatedToday")}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <Clock3 className="size-3.5" />
-                                    {t("localChat.updatedAt", {
-                                      time: formatSessionTime(session.updated_at, i18n.language),
-                                    })}
-                                  </span>
-                                  <span>
-                                    {t("localChat.createdAt", {
-                                      time: formatSessionTime(session.created_at, i18n.language),
-                                    })}
-                                  </span>
-                                </div>
-                              </div>
 
-                              <div className="flex items-center gap-2">
-                                <Link
-                                  to={`/local-chat/${session.id}`}
-                                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                                >
-                                  {t("localChat.openSession")}
-                                  <ArrowRight className="size-4" />
-                                </Link>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                  onClick={() => deleteSession.mutate(session.id)}
-                                  disabled={deleteSession.isPending}
-                                  aria-label={t("localChat.deleteSession")}
-                                >
-                                  <Trash2 className="size-4" />
-                                </Button>
-                              </div>
+                        {message.media_paths && message.media_paths.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                            {message.media_paths.map((path) => (
+                              <AttachmentPreview
+                                key={path}
+                                mediaPath={path}
+                                tone={message.role}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {hasContent && (
+                          message.role === "bee" ? (
+                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3">
+                              <Streamdown mode="static">{message.content}</Streamdown>
                             </div>
-                          ))}
+                          ) : (
+                            <p className="mt-4 whitespace-pre-wrap text-sm leading-7">
+                              {message.content}
+                            </p>
+                          )
+                        )}
+                      </article>
+                    </div>
+                  )
+                })}
+
+                {isProcessing && (
+                  <div className="flex justify-start">
+                    <div className="w-full max-w-[38rem] rounded-[1.6rem] border border-border/70 bg-background/82 px-4 py-4 sm:px-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                          <span className="size-2 rounded-full bg-primary/70" />
+                          <span>{t("localChat.beeLabel")}</span>
                         </div>
+                        <span className="text-xs text-muted-foreground">
+                          {t("localChat.processing")}
+                        </span>
                       </div>
-                    ))}
+                      <div className="mt-4 flex gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                <div ref={bottomRef} />
               </div>
-            </div>
-          </section>
-
-          <aside className="space-y-4">
-            <section className="rounded-[1.75rem] border border-border/70 bg-card/70 p-5">
-              <div className="inline-flex size-11 items-center justify-center rounded-2xl border border-border/70 bg-background/80">
-                <Plus className="size-5 text-foreground" />
-              </div>
-              <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
-                {t("localChat.createPanelTitle")}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {t("localChat.createPanelDescription")}
-              </p>
-              <Button className="mt-6 w-full justify-between" onClick={() => setDialogOpen(true)}>
-                {t("localChat.newChat")}
-                <ArrowRight className="size-4" />
-              </Button>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                {t("localChat.createPanelHint")}
-              </p>
-            </section>
-
-            <section className="rounded-[1.75rem] border border-border/70 bg-card/55 p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {t("localChat.latestPanelLabel")}
-              </p>
-              {latestSession ? (
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                      {latestSession.name}
-                    </h2>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {t("localChat.updatedAt", {
-                        time: formatSessionTime(latestSession.updated_at, i18n.language),
-                      })}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 border-t border-border/70 pt-4">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                        {t("localChat.totalSessions")}
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground">
-                        {sessions.length}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                        {t("localChat.touchedToday")}
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground">
-                        {updatedTodayCount}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    to={`/local-chat/${latestSession.id}`}
-                    className="inline-flex w-full items-center justify-between rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    {t("localChat.openSession")}
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </div>
-              ) : (
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                  {t("localChat.latestPanelEmpty")}
-                </p>
-              )}
-            </section>
-          </aside>
-        </div>
-      </div>
-
-      <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
-          <div className="border-b border-border/70 bg-muted/30 px-6 py-5">
-            <DialogHeader className="gap-2">
-              <DialogTitle>{t("localChat.newSessionTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("localChat.newSessionDescription")}
-              </DialogDescription>
-            </DialogHeader>
+            )}
           </div>
 
-          <form
-            className="space-y-5 px-6 py-5"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void handleCreate()
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="local-chat-session-name">{t("localChat.sessionNameLabel")}</Label>
-              <Input
-                id="local-chat-session-name"
-                placeholder={t("localChat.sessionNamePlaceholder")}
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                autoFocus
-                className="h-10 rounded-xl"
-              />
-              <p className="text-xs leading-5 text-muted-foreground">
-                {t("localChat.sessionNameHint")}
-              </p>
-            </div>
+          <div className="border-t border-border/70 bg-card p-4 sm:p-5">
+            {uploadError && (
+              <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {uploadError}
+              </div>
+            )}
 
-            <DialogFooter className="-mx-6 -mb-5 mt-6 px-6">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" disabled={!trimmedNewName || createSession.isPending}>
-                {t("localChat.newChat")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            {pendingMediaPaths.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {pendingMediaPaths.map((path) => (
+                  <span
+                    key={path}
+                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
+                  >
+                    <Paperclip className="size-3.5 text-muted-foreground" />
+                    <span className="max-w-52 truncate">{basename(path)}</span>
+                    <button
+                      type="button"
+                      className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label={`${t("localChat.removeAttachment")}: ${basename(path)}`}
+                      onClick={() =>
+                        setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
+                      }
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-[1.6rem] border border-border/70 bg-background/82 p-3">
+              <textarea
+                ref={textareaRef}
+                className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
+                placeholder={t("localChat.inputPlaceholder")}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    void handleSend()
+                  }
+                }}
+              />
+
+              <div className="mt-3 flex flex-col gap-3 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {t("localChat.composerHint")}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <Button
+                    variant="outline"
+                    className="h-10 rounded-xl"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label={t("localChat.uploadFile")}
+                  >
+                    <Paperclip className="size-4" />
+                    <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
+                  </Button>
+                  <Button
+                    className="h-10 rounded-xl"
+                    onClick={() => void handleSend()}
+                    disabled={!canSend || sendMessage.isPending}
+                    aria-label={t("localChat.send")}
+                  >
+                    <Send className="size-4" />
+                    <span>{t("localChat.send")}</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DetailSection>
+      </div>
     </FadeIn>
   )
 }
