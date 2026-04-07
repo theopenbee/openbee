@@ -12,15 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
-
-	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
-
-var log = logger.With(zap.String("component", "api"))
 
 // fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
 // It is shared between the write path (encodeMediaPaths) and the read path (decodeMediaPaths).
@@ -34,7 +29,6 @@ const legacyFileMediaMarker = "[file]"
 const fileMediaPrefix = fileMediaMarker + " "
 const legacyFileMediaPrefix = legacyFileMediaMarker + " "
 
-// defaultSessionKey is the fixed session key used for all local chat messages.
 const defaultSessionKey = "local:default"
 
 type LocalChatHandler struct {
@@ -210,7 +204,7 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 		return
 	}
 
-	filename := uuid.New().String() + "_" + filepath.Base(header.Filename)
+	filename := uuid.New().String() + "_" + platform.SanitizeFileName(filepath.Base(header.Filename))
 	destPath := filepath.Join(uploadDir, filename)
 	dest, err := os.Create(destPath)
 	if err != nil {

@@ -28,8 +28,10 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
   useEffect(() => {
     let es: EventSource
     let reconnectTimer: ReturnType<typeof setTimeout>
+    let mounted = true
 
     const connect = () => {
+      if (!mounted) return
       es = new EventSource(`${config.apiUrl}/local/stream${tokenParam()}`)
 
       es.onmessage = (event) => {
@@ -54,6 +56,7 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
     connect()
 
     return () => {
+      mounted = false
       clearTimeout(reconnectTimer)
       es?.close()
     }
