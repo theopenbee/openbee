@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Streamdown } from "streamdown"
-import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
@@ -283,19 +282,6 @@ function ToolEntry({
     }
   }, [entry.isError])
 
-  const stateLabel =
-    entry.isError
-      ? t("logViewer.failed")
-      : entry.result !== undefined
-        ? t("logViewer.returned")
-        : t("logViewer.pending")
-
-  const stateClassName = entry.isError
-    ? "border-destructive/20 bg-destructive/10 text-destructive"
-    : entry.result !== undefined
-      ? "border-status-idle/20 bg-status-idle/10 text-status-idle"
-      : "border-border/70 bg-muted/60 text-muted-foreground"
-
   return (
     <TimelineRow markerClassName={entry.isError ? "bg-destructive" : entry.result ? "bg-status-idle" : "bg-primary/55"}>
       <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
@@ -315,9 +301,6 @@ function ToolEntry({
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 {t("logViewer.toolCall")}
               </p>
-              <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", stateClassName)}>
-                {stateLabel}
-              </span>
             </div>
 
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
@@ -610,7 +593,6 @@ export function LogViewer({
       <div className="border-b border-border/70 bg-muted/20 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={status} />
             {isActiveStatus(status) &&
               (followLive ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-status-working/20 bg-status-working/10 px-3 py-1.5 text-xs font-medium text-status-working">
