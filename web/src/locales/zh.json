@@ -19,12 +19,23 @@
     "retry": "重试"
   },
   "dashboard": {
-    "title": "仪表板",
-    "noWorkers": "还没有员工。",
-    "createOne": "创建一个",
-    "summary_one": "{{count}} 个员工活跃中",
-    "summary_other": "{{count}} 个员工活跃中",
-    "summaryNone": "暂无活跃员工"
+    "title": "仪表盘",
+    "departments": "部门数",
+    "workers": "员工数",
+    "scheduledTasks": "定时任务",
+    "sessionsToday": "今日会话",
+    "activeWorkers": "活跃员工",
+    "today": "今日",
+    "yesterday": "昨日",
+    "messages": "消息",
+    "messagesReceived": "收到",
+    "messagesSent": "发送",
+    "executions": "执行数",
+    "executionsTotal": "总计",
+    "executionsSuccess": "成功",
+    "executionsFailed": "失败",
+    "activityTrend": "员工活跃趋势",
+    "days": "天"
   },
   "workers": {
     "title": "员工",

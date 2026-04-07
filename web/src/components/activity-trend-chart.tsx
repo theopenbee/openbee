@@ -59,8 +59,8 @@ export function ActivityTrendChart() {
               />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} className="text-muted-foreground" />
               <Tooltip
-                labelFormatter={(label: string) => label}
-                formatter={(value: number) => [value, t("dashboard.activeWorkers")]}
+                labelFormatter={(label) => String(label)}
+                formatter={(value) => [value, t("dashboard.activeWorkers")]}
               />
               <Line
                 type="monotone"

@@ -20,11 +20,22 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "noWorkers": "No workers yet.",
-    "createOne": "Create one",
-    "summary_one": "{{count}} worker active",
-    "summary_other": "{{count}} workers active",
-    "summaryNone": "No active workers"
+    "departments": "Departments",
+    "workers": "Workers",
+    "scheduledTasks": "Scheduled Tasks",
+    "sessionsToday": "Sessions Today",
+    "activeWorkers": "Active Workers",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "messages": "Messages",
+    "messagesReceived": "Received",
+    "messagesSent": "Sent",
+    "executions": "Executions",
+    "executionsTotal": "Total",
+    "executionsSuccess": "Success",
+    "executionsFailed": "Failed",
+    "activityTrend": "Worker Activity Trend",
+    "days": "d"
   },
   "workers": {
     "title": "Workers",
