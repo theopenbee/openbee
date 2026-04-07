@@ -52,13 +52,6 @@ export interface PaginatedResponse<T> {
   page_size: number
 }
 
-export interface LocalChatSession {
-  id: string
-  name: string
-  created_at: number
-  updated_at: number
-}
-
 export interface ChatMessage {
   role: "user" | "bee"
   content: string
