@@ -37,8 +37,9 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
   const updateDept = useUpdateDepartment()
   const deleteDept = useDeleteDepartment()
 
-  const [mode, setMode] = useState<"list" | "create" | "edit">("list")
+  const [mode, setMode] = useState<"list" | "create" | "edit" | "confirmDelete">("list")
   const [editingDept, setEditingDept] = useState<Department | null>(null)
+  const [deletingDept, setDeletingDept] = useState<Department | null>(null)
   const [name, setName] = useState("")
   const [parentId, setParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
@@ -50,6 +51,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
     setParentId(null)
     setError("")
     setEditingDept(null)
+    setDeletingDept(null)
     setMode("list")
   }
 
@@ -78,12 +80,21 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!deletingDept) return
     try {
-      await deleteDept.mutateAsync(id)
+      await deleteDept.mutateAsync(deletingDept.id)
+      setDeletingDept(null)
+      setMode("list")
     } catch (err: any) {
       setError(err.message)
     }
+  }
+
+  const startDelete = (dept: Department) => {
+    setDeletingDept(dept)
+    setError("")
+    setMode("confirmDelete")
   }
 
   const startEdit = (dept: Department) => {
@@ -105,8 +116,12 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o) }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("departments.manageTitle")}</DialogTitle>
-          <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
+          <DialogTitle>
+            {mode === "confirmDelete" ? t("departments.deleteConfirm.title") : t("departments.manageTitle")}
+          </DialogTitle>
+          {mode !== "confirmDelete" && (
+            <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
+          )}
         </DialogHeader>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -147,7 +162,7 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        onClick={() => handleDelete(dept.id)}
+                        onClick={() => startDelete(dept)}
                         title={t("common.delete")}
                       >
                         <Trash2Icon className="size-3.5" />
@@ -165,6 +180,22 @@ export function DepartmentManageDialog({ open, onOpenChange }: DepartmentManageD
               <Button onClick={() => startCreate()}>
                 <PlusIcon className="size-4 mr-1" />
                 {t("departments.create")}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {mode === "confirmDelete" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDeletingDept(null); setMode("list") }}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleteDept.isPending}>
+                {t("common.delete")}
               </Button>
             </DialogFooter>
           </div>

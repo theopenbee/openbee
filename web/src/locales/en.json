@@ -54,7 +54,9 @@
       "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
       "memory": "Memory",
       "memoryPlaceholder": "The instruction this worker will execute...",
-      "memoryHelper": "Persistent context loaded into the worker at the start of every session."
+      "memoryHelper": "Persistent context loaded into the worker at the start of every session.",
+      "sectionDepartment": "Department",
+      "departmentHelper": "Assign the worker to departments (optional)"
     },
     "deleteDialog": {
       "title": "Delete Worker",
@@ -303,6 +305,10 @@
       "namePlaceholder": "e.g. Engineering",
       "parent": "Parent Department",
       "noParent": "None (Top Level)"
+    },
+    "deleteConfirm": {
+      "title": "Delete Department",
+      "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
     }
   },
   "emptyState": {

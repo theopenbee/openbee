@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, type FormEvent } from "react"
+import { useState, useMemo, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
-import { CheckIcon, CopyIcon, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
-import { useDepartments } from "@/hooks/use-departments"
+import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { flattenDeptTree } from "@/lib/department-utils"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { DepartmentManageDialog } from "@/components/department-dialog"
 import { Button } from "@/components/ui/button"
@@ -63,14 +64,14 @@ export function Workers() {
     : workers
   const createWorker = useCreateWorker()
   const deleteWorker = useDeleteWorker()
+  const setWorkerDepts = useSetWorkerDepartments()
   const [open, setOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
-  const [copiedWorkerId, setCopiedWorkerId] = useState<string | null>(null)
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(copyTimerRef.current), [])
+  const [selectedCreateDeptIds, setSelectedCreateDeptIds] = useState<Set<string>>(new Set())
+  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
 
   const resetDelete = () => {
     setDeleteTarget(null)
@@ -83,23 +84,27 @@ export function Workers() {
   const [memory, setMemory] = useState("")
   const [workDir, setWorkDir] = useState("")
 
-  const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || ""
+  const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || setWorkerDepts.error?.message || ""
   const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
 
   const handleCreate = async (e?: FormEvent) => {
     e?.preventDefault()
-    await createWorker.mutateAsync({
+    const worker = await createWorker.mutateAsync({
       name,
       description,
       memory: memory || undefined,
       work_dir: workDir || undefined,
     })
+    if (selectedCreateDeptIds.size > 0) {
+      await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+    }
     setOpen(false)
     setName("")
     setDescription("")
     setMemory("")
     setWorkDir("")
+    setSelectedCreateDeptIds(new Set())
   }
 
   const handleDeleteConfirm = async () => {
@@ -119,19 +124,6 @@ export function Workers() {
     setDeleteWorkDir(false)
     setDeleteConfirmationText("")
     setDeleteTarget(target)
-  }
-
-  const handleCopyWorkDir = async (workerId: string, dir: string) => {
-    try {
-      await navigator.clipboard.writeText(dir)
-      setCopiedWorkerId(workerId)
-      clearTimeout(copyTimerRef.current)
-      copyTimerRef.current = setTimeout(() => {
-        setCopiedWorkerId((current) => current === workerId ? null : current)
-      }, 1500)
-    } catch {
-      setCopiedWorkerId(null)
-    }
   }
 
   return (
@@ -232,6 +224,43 @@ export function Workers() {
                       <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
                     </div>
                   </div>
+
+                  {flatDepts.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("workers.form.sectionDepartment")}
+                        </p>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {flatDepts.map(({ dept, depth }) => (
+                            <div
+                              key={dept.id}
+                              className="flex items-center gap-2"
+                              style={{ paddingLeft: `${depth * 12}px` }}
+                            >
+                              <input
+                                type="checkbox"
+                                id={`create-dept-${dept.id}`}
+                                checked={selectedCreateDeptIds.has(dept.id)}
+                                onChange={(e) => {
+                                  const next = new Set(selectedCreateDeptIds)
+                                  if (e.target.checked) next.add(dept.id)
+                                  else next.delete(dept.id)
+                                  setSelectedCreateDeptIds(next)
+                                }}
+                                className="size-4 cursor-pointer rounded accent-primary"
+                              />
+                              <Label htmlFor={`create-dept-${dept.id}`} className="cursor-pointer text-sm font-normal">
+                                {dept.name}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+                      </div>
+                    </>
+                  )}
                 </form>
                 <Separator />
                 <SheetFooter className="px-6 py-4 flex-row gap-2">
@@ -246,7 +275,7 @@ export function Workers() {
                   <Button
                     type="submit"
                     form="create-worker-form"
-                    disabled={createWorker.isPending || !name.trim()}
+                    disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
                     className="flex-1"
                   >
                     {t("workers.createWorker")}
@@ -260,8 +289,9 @@ export function Workers() {
 
       {error && <p className="text-destructive mb-4">{error}</p>}
 
+      <div className="min-h-[320px]">
       {isLoading ? (
-        <SkeletonTable rows={6} columns={5} />
+        <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={t("emptyState.noWorkers")}
@@ -272,11 +302,10 @@ export function Workers() {
         />
       ) : (
         <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
-          <Table className="min-w-[760px]">
+          <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead>{t("workers.columns.workDir")}</TableHead>
                 <TableHead>{t("workers.columns.status")}</TableHead>
                 <TableHead>{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
@@ -297,33 +326,6 @@ export function Workers() {
                         {w.description || "-"}
                       </p>
                     </div>
-                  </TableCell>
-                  <TableCell className="max-w-[20rem]">
-                    {w.work_dir ? (
-                      <div className="flex items-center gap-2">
-                        <span className="block max-w-[16rem] truncate font-mono text-xs text-muted-foreground">
-                          {w.work_dir}
-                        </span>
-                        <Button
-                          variant={copiedWorkerId === w.id ? "secondary" : "ghost"}
-                          size="icon-xs"
-                          className="shrink-0"
-                          aria-label={copiedWorkerId === w.id ? t("common.copied") : t("common.copy")}
-                          title={copiedWorkerId === w.id ? t("common.copied") : t("common.copy")}
-                          onClick={() => handleCopyWorkDir(w.id, w.work_dir)}
-                        >
-                          {copiedWorkerId === w.id ? (
-                            <CheckIcon className="size-3.5" />
-                          ) : (
-                            <CopyIcon className="size-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {t("workers.defaultWorkDir")}
-                      </span>
-                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={w.status} />
@@ -366,6 +368,7 @@ export function Workers() {
           </Table>
         </div>
       )}
+      </div>
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
         <DialogContent>

@@ -54,7 +54,9 @@
       "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
       "memory": "记忆",
       "memoryPlaceholder": "这个员工执行的指令...",
-      "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。"
+      "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。",
+      "sectionDepartment": "部门",
+      "departmentHelper": "将员工分配到所属部门（可选）"
     },
     "deleteDialog": {
       "title": "删除员工",
@@ -302,6 +304,10 @@
       "namePlaceholder": "例如：技术部",
       "parent": "上级部门",
       "noParent": "无（顶级部门）"
+    },
+    "deleteConfirm": {
+      "title": "删除部门",
+      "description": "确定要删除部门「{{name}}」吗？此操作无法撤销。"
     }
   },
   "emptyState": {
