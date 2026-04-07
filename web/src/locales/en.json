@@ -260,7 +260,7 @@
     "queuePanelHint": "Review or remove uploads before they are attached to the next outgoing message.",
     "queueEmpty": "No files queued for the next message.",
     "noMessagesTitle": "Start the first exchange",
-    "noMessagesDescription": "Send a prompt or upload reference files to begin. Replies will stream into this timeline in order.",
+    "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
     "idleStatus": "Ready for next prompt",
