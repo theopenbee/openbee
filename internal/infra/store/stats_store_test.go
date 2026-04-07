@@ -25,11 +25,6 @@ func newStatsTestDB(t *testing.T) (*StatsStore, *WorkerStore, *ExecutionStore, *
 		func() { db.Close() }
 }
 
-func todayStartMS() int64 {
-	now := time.Now()
-	y, m, d := now.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, now.Location()).UnixMilli()
-}
 
 func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	ss, ws, es, ms, oms, ts, cleanup := newStatsTestDB(t)
@@ -41,7 +36,8 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	w2, _ := ws.Create(model.Worker{Name: "W2", WorkDir: "/tmp/w2"})
 
 	// Both workers have executions today
-	todayMS := todayStartMS() + 1000
+	todayStartMS, _ := dayBounds(0)
+	todayMS := todayStartMS + 1000
 	db := ss.db
 	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
 		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS); err != nil {
@@ -160,7 +156,8 @@ func TestStatsStore_ActiveWorkersChange_NullWhenYesterdayZero(t *testing.T) {
 	db := ss.db
 
 	// Only today's execution, none yesterday
-	todayMS := todayStartMS() + 1000
+	todayStartMS, _ := dayBounds(0)
+	todayMS := todayStartMS + 1000
 	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
 		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS); err != nil {
 		t.Fatalf("insert execution: %v", err)

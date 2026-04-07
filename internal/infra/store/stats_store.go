@@ -45,23 +45,14 @@ type TrendPoint struct {
 	ActiveWorkers int    `json:"active_workers"`
 }
 
-// todayBounds returns Unix-millisecond boundaries for today (local time).
-func todayBounds() (startMS, endMS int64) {
+// dayBounds returns Unix-millisecond boundaries for the day at the given offset from today
+// (0 = today, -1 = yesterday, etc.), in local time.
+func dayBounds(offset int) (startMS, endMS int64) {
 	now := time.Now()
 	y, m, d := now.Date()
 	loc := now.Location()
-	start := time.Date(y, m, d, 0, 0, 0, 0, loc)
+	start := time.Date(y, m, d+offset, 0, 0, 0, 0, loc)
 	end := start.Add(24 * time.Hour)
-	return start.UnixMilli(), end.UnixMilli()
-}
-
-// yesterdayBounds returns Unix-millisecond boundaries for yesterday (local time).
-func yesterdayBounds() (startMS, endMS int64) {
-	now := time.Now()
-	y, m, d := now.Date()
-	loc := now.Location()
-	start := time.Date(y, m, d-1, 0, 0, 0, 0, loc)
-	end := time.Date(y, m, d, 0, 0, 0, 0, loc)
 	return start.UnixMilli(), end.UnixMilli()
 }
 
@@ -69,8 +60,8 @@ func yesterdayBounds() (startMS, endMS int64) {
 func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	var ov StatsOverview
 
-	todayStart, todayEnd := todayBounds()
-	yestStart, yestEnd := yesterdayBounds()
+	todayStart, todayEnd := dayBounds(0)
+	yestStart, yestEnd := dayBounds(-1)
 
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bee_departments`).Scan(&ov.Departments); err != nil {
 		return ov, fmt.Errorf("count departments: %w", err)

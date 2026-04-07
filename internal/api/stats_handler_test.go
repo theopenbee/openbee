@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -63,7 +64,7 @@ func TestGetStatsTrend_ValidDays(t *testing.T) {
 
 	for _, days := range []int{7, 15, 30} {
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/api/stats/trend?days="+itoa(days), nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/stats/trend?days="+strconv.Itoa(days), nil)
 		s.router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
@@ -95,19 +96,5 @@ func TestGetStatsTrend_InvalidDays_Returns400(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("days=%q: expected 400, got %d", bad, w.Code)
 		}
-	}
-}
-
-// itoa converts int to string without importing strconv in this file.
-func itoa(n int) string {
-	switch n {
-	case 7:
-		return "7"
-	case 15:
-		return "15"
-	case 30:
-		return "30"
-	default:
-		return "0"
 	}
 }

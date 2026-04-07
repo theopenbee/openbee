@@ -67,7 +67,6 @@ export function ActivityTrendChart() {
                 dataKey="active_workers"
                 strokeWidth={2}
                 dot={false}
-                className="stroke-primary"
                 stroke="hsl(var(--primary))"
               />
             </LineChart>

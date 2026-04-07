@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,13 +77,9 @@ func (s *DepartmentStore) GetByIDs(ids []string) ([]model.Department, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
 	rows, err := s.db.Query(
 		`SELECT `+departmentColumns+` FROM bee_departments WHERE id IN (`+inPlaceholders(len(ids))+`)`,
-		args...,
+		stringsToArgs(ids)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get departments by ids: %w", err)
@@ -148,19 +145,20 @@ func (s *DepartmentStore) HasWorkers(id string) (bool, error) {
 // CheckCircularReference returns an error if setting parentID as the parent of
 // departmentID would create a cycle.
 func (s *DepartmentStore) CheckCircularReference(departmentID, parentID string) error {
-	current := parentID
-	for current != "" {
-		if current == departmentID {
-			return fmt.Errorf("circular reference detected")
-		}
-		d, err := s.GetByID(current)
-		if err != nil {
-			return nil // parent chain broken, no cycle
-		}
-		if d.ParentID == nil {
-			break
-		}
-		current = *d.ParentID
+	var found int
+	err := s.db.QueryRow(`
+		WITH RECURSIVE ancestors(id, parent_id) AS (
+			SELECT id, parent_id FROM bee_departments WHERE id = ?
+			UNION ALL
+			SELECT d.id, d.parent_id FROM bee_departments d JOIN ancestors a ON d.id = a.parent_id
+		)
+		SELECT COUNT(*) FROM ancestors WHERE id = ?`, parentID, departmentID,
+	).Scan(&found)
+	if err != nil {
+		return nil // broken chain, no cycle
+	}
+	if found > 0 {
+		return fmt.Errorf("circular reference detected")
 	}
 	return nil
 }
@@ -218,14 +216,18 @@ func (s *DepartmentStore) SetWorkerDepartments(workerID string, deptIDs []string
 		return fmt.Errorf("clear worker departments: %w", err)
 	}
 
-	now := time.Now().UnixMilli()
-	for _, deptID := range deptIDs {
-		if _, err := tx.Exec(
-			`INSERT INTO bee_worker_departments (worker_id, department_id, created_at) VALUES (?, ?, ?)`,
-			workerID, deptID, now,
-		); err != nil {
+	if len(deptIDs) > 0 {
+		now := time.Now().UnixMilli()
+		args := make([]any, 0, len(deptIDs)*3)
+		for _, deptID := range deptIDs {
+			args = append(args, workerID, deptID, now)
+		}
+		query := `INSERT INTO bee_worker_departments (worker_id, department_id, created_at) VALUES ` +
+			strings.Repeat("(?, ?, ?),", len(deptIDs))
+		query = query[:len(query)-1] // trim trailing comma
+		if _, err := tx.Exec(query, args...); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("insert worker department: %w", err)
+			return fmt.Errorf("insert worker departments: %w", err)
 		}
 	}
 
@@ -269,10 +271,7 @@ func (s *DepartmentStore) getWorkerDepartmentsMap(workerIDs []string) (map[strin
 	var args []any
 	if len(workerIDs) > 0 {
 		query += ` WHERE wd.worker_id IN (` + inPlaceholders(len(workerIDs)) + `)`
-		args = make([]any, len(workerIDs))
-		for i, id := range workerIDs {
-			args[i] = id
-		}
+		args = stringsToArgs(workerIDs)
 	}
 	query += ` ORDER BY d.sort_order, d.created_at`
 
