@@ -14,6 +14,11 @@ import { EmptyState } from "@/components/empty-state"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus } from "@/lib/format"
 
+function stripMetadataPrefix(input: string): string {
+  const match = input.match(/^---\n[\s\S]*?\n---\n\n?/)
+  return match ? input.slice(match[0].length) : input
+}
+
 export function SessionDetail() {
   const { t } = useTranslation()
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -248,7 +253,7 @@ export function SessionDetail() {
                           </div>
 
                           <p className="mt-1 truncate text-sm text-muted-foreground">
-                            {exec.trigger_input || t("sessionDetail.noTriggerInput")}
+                            {stripMetadataPrefix(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
                           </p>
 
                           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

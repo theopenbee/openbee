@@ -610,13 +610,6 @@ export function LogViewer({
       <div className="border-b border-border/70 bg-muted/20 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <MetricChip label={t("logViewer.entries")} value={entries.length} />
-            <MetricChip label={t("logViewer.narrative")} value={narrativeCount} />
-            <MetricChip label={t("logViewer.tools")} value={toolCount} />
-            <MetricChip label={t("logViewer.raw")} value={rawCount} />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={status} />
             {isActiveStatus(status) &&
               (followLive ? (

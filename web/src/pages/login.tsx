@@ -10,7 +10,6 @@ import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { ThemeSwitcher } from "@/components/theme-switcher"
 import { getStoredUsername, login } from "@/lib/auth"
 
 export function Login() {
@@ -61,13 +60,7 @@ export function Login() {
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-        <div className="absolute right-4 top-4 sm:right-6 sm:top-5 lg:right-8">
-          <div className="rounded-full border border-border/70 bg-background/72 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <ThemeSwitcher />
-          </div>
-        </div>
-
-        <div className="animate-fade-in motion-reduce:animate-none flex flex-1 flex-col">
+<div className="animate-fade-in motion-reduce:animate-none flex flex-1 flex-col">
           <main className="flex flex-1 items-center justify-center py-6 lg:py-10">
             <section
               className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-border/70 bg-card/82 p-5 shadow-[0_30px_80px_-52px_rgba(15,23,42,0.55)] backdrop-blur-sm sm:p-6 lg:p-7"
