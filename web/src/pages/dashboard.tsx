@@ -1,86 +1,65 @@
-import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { useWorkers } from "@/hooks/use-workers"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatusBadge } from "@/components/status-badge"
-import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonCard } from "@/components/skeleton-loader"
-import { Button } from "@/components/ui/button"
+import { StatCard } from "@/components/stat-card"
+import { ActiveWorkersCard } from "@/components/active-workers-card"
+import { MessagesCard } from "@/components/messages-card"
+import { ExecutionsCard } from "@/components/executions-card"
+import { ActivityTrendChart } from "@/components/activity-trend-chart"
+import { useStatsOverview } from "@/hooks/use-stats"
 
 export function Dashboard() {
-  const { data: workers = [], error, isLoading, refetch } = useWorkers()
   const { t } = useTranslation()
+  const { data, isLoading } = useStatsOverview()
 
-  const activeCount = workers.filter((w) => w.status === "working").length
+  const empty: import("@/lib/types").StatsOverview = {
+    departments: 0,
+    workers: 0,
+    active_workers_today: 0,
+    active_workers_yesterday: 0,
+    active_workers_change: null,
+    messages_received_today: 0,
+    messages_sent_today: 0,
+    sessions_new_today: 0,
+    executions_today: { total: 0, success: 0, failed: 0 },
+    scheduled_tasks: 0,
+  }
+  const ov = data ?? empty
 
   return (
     <FadeIn>
-      <PageHeader
-        title={t("dashboard.title")}
-        subtitle={
-          workers.length > 0
-            ? activeCount > 0
-              ? t("dashboard.summary", { count: activeCount })
-              : t("dashboard.summaryNone")
-            : undefined
-        }
-        actions={
-          workers.length > 0 ? (
-            <Link to="/workers">
-              <Button>{t("workers.createWorker")}</Button>
-            </Link>
-          ) : undefined
-        }
-      />
+      <PageHeader title={t("dashboard.title")} />
 
-      {error && (
-        <div className="flex items-center gap-3 mb-4">
-          <p className="text-destructive text-sm">{t("common.loadError")}</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            {t("common.retry")}
-          </Button>
-        </div>
-      )}
+      {/* Row 1: 4 stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <StatCard title={t("dashboard.departments")} value={ov.departments} loading={isLoading} />
+        <StatCard title={t("dashboard.workers")} value={ov.workers} loading={isLoading} />
+        <StatCard title={t("dashboard.scheduledTasks")} value={ov.scheduled_tasks} loading={isLoading} />
+        <StatCard title={t("dashboard.sessionsToday")} value={ov.sessions_new_today} loading={isLoading} />
+      </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      ) : workers.length === 0 && !error ? (
-        <EmptyState
-          title={t("emptyState.noWorkers")}
-          description={t("emptyState.noWorkersDesc")}
-          action={
-            <Link to="/workers">
-              <Button>{t("workers.createWorker")}</Button>
-            </Link>
-          }
+      {/* Row 2: active workers full width */}
+      <div className="mb-4">
+        <ActiveWorkersCard
+          today={ov.active_workers_today}
+          yesterday={ov.active_workers_yesterday}
+          change={ov.active_workers_change}
+          loading={isLoading}
         />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {workers.map((w) => (
-            <Link key={w.id} to={`/workers/${w.id}`}>
-              <Card className="hover:ring-1 hover:ring-primary/30 transition-shadow duration-200 cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">{w.name}</CardTitle>
-                    <StatusBadge status={w.status} />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {w.description || t("common.noDescription")}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      </div>
+
+      {/* Row 3: messages + executions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <MessagesCard
+          received={ov.messages_received_today}
+          sent={ov.messages_sent_today}
+          loading={isLoading}
+        />
+        <ExecutionsCard stats={ov.executions_today} loading={isLoading} />
+      </div>
+
+      {/* Row 4: trend chart */}
+      <ActivityTrendChart />
     </FadeIn>
   )
 }
