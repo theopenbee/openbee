@@ -172,6 +172,7 @@ type appStores struct {
 	outboundMsgStore  *store.OutboundMessageStore
 	memoryStore       *store.MemoryStore
 	departmentStore   *store.DepartmentStore
+	statsStore        *store.StatsStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -189,6 +190,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		outboundMsgStore:  store.NewOutboundMessageStore(db),
 		memoryStore:       store.NewMemoryStore(db),
 		departmentStore:   store.NewDepartmentStore(db),
+		statsStore:        store.NewStatsStore(db),
 	}, nil
 }
 
@@ -259,5 +261,6 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		JWTMiddleware:    jwtMiddleware,
 		DepartmentStore:  s.departmentStore,
 		Language:         language,
+		StatsStore:       s.statsStore,
 	})
 }
