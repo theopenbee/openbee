@@ -198,16 +198,6 @@ export function LocalChat() {
         <PageHeader
           title={t("localChat.title")}
           subtitle={t("localChat.detailDescription")}
-          actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                {isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                {t("localChat.queuedUploadsLabel")}: {pendingMediaPaths.length}
-              </span>
-            </div>
-          }
         />
 
         <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">

@@ -12,9 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
-	"github.com/theopenbee/openbee/internal/infra/store"
+	"golang.org/x/sync/errgroup"
 )
 
 // fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
@@ -158,13 +159,20 @@ type chatMessage struct {
 func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	inbound, err := h.msgStore.ListBySessionKey(ctx, defaultSessionKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	replies, err := h.outboundStore.ListBySessionKey(ctx, defaultSessionKey, 0)
-	if err != nil {
+	var inbound []store.InboundMessage
+	var replies []store.OutboundMessage
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, 0)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

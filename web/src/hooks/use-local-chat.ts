@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -20,8 +20,9 @@ export function useSendMessage() {
 }
 
 // useLocalChatStream subscribes to SSE for the default local session.
-// Calls onReply on each new reply event.
+// Calls onReply on each new reply event and re-fetches history on reconnect.
 export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
+  const queryClient = useQueryClient()
   const onReplyRef = useRef(onReply)
   onReplyRef.current = onReply
 
@@ -49,6 +50,9 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
 
       es.onerror = () => {
         es.close()
+        clearTimeout(reconnectTimer)
+        // Re-fetch full history to fill any gap created by the disconnect.
+        queryClient.invalidateQueries({ queryKey: ["local-messages"] })
         reconnectTimer = setTimeout(connect, 2000)
       }
     }
@@ -60,5 +64,5 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
       clearTimeout(reconnectTimer)
       es?.close()
     }
-  }, [])
+  }, [queryClient])
 }
