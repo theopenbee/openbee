@@ -1,6 +1,8 @@
 import "@fontsource-variable/oxanium"
 import "@fontsource-variable/jetbrains-mono"
 import "./i18n"
+import { getStoredTheme, applyTheme } from "./lib/theme"
+applyTheme(getStoredTheme())
 import i18n from "./i18n"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
