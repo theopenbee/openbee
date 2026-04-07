@@ -42,7 +42,6 @@ type LocalChatHandler struct {
 	hub           *local.SSEHub
 	outboundStore *store.OutboundMessageStore
 	msgStore      *store.MessageStore
-	sessionCtx    *store.SessionStore
 }
 
 func NewLocalChatHandler(
@@ -50,14 +49,12 @@ func NewLocalChatHandler(
 	hub *local.SSEHub,
 	outboundStore *store.OutboundMessageStore,
 	msgStore *store.MessageStore,
-	sessionCtx *store.SessionStore,
 ) *LocalChatHandler {
 	return &LocalChatHandler{
 		receiver:      receiver,
 		hub:           hub,
 		outboundStore: outboundStore,
 		msgStore:      msgStore,
-		sessionCtx:    sessionCtx,
 	}
 }
 
