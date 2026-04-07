@@ -43,19 +43,27 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	// Both workers have executions today
 	todayMS := todayStartMS() + 1000
 	db := ss.db
-	db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS)
-	db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w2.ID, "sess2", "hi", "failed", "", 0, todayMS)
-	db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess3", "hi", "completed", "", 0, todayMS)
+	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS); err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w2.ID, "sess2", "hi", "failed", "", 0, todayMS); err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "sess3", "hi", "completed", "", 0, todayMS); err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
 
 	// One inbound message today
 	ms.Create(ctx, uuid.New().String(), "sk1", "feishu", "hello", "{}", "", todayMS)
 
 	// One outbound message today
-	db.Exec(`INSERT INTO bee_outbound_messages (id,session_key,platform,content,media_path,status,platform_msg_id,source_type,source_id,inbound_msg_id,error,retry_count,sent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), "sk1", "feishu", "reply", "", "sent", "", "worker", w1.ID, "", "", 0, todayMS, todayMS)
+	if _, err := db.Exec(`INSERT INTO bee_outbound_messages (id,session_key,platform,content,media_path,status,platform_msg_id,source_type,source_id,inbound_msg_id,error,retry_count,sent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "sk1", "feishu", "reply", "", "sent", "", "worker", w1.ID, "", "", 0, todayMS, todayMS); err != nil {
+		t.Fatalf("insert outbound message: %v", err)
+	}
 
 	// New session today: first message for "sk1" is today
 	// Active countdown task
@@ -113,8 +121,10 @@ func TestStatsStore_GetTrend_FillsMissingDays(t *testing.T) {
 
 	// Add an execution 3 days ago only
 	threeDaysAgo := time.Now().AddDate(0, 0, -3).UnixMilli()
-	db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, threeDaysAgo)
+	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, threeDaysAgo); err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
 
 	points, err := ss.GetTrend(ctx, 7)
 	if err != nil {
@@ -151,8 +161,10 @@ func TestStatsStore_ActiveWorkersChange_NullWhenYesterdayZero(t *testing.T) {
 
 	// Only today's execution, none yesterday
 	todayMS := todayStartMS() + 1000
-	db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS)
+	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS); err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
 
 	ov, err := ss.GetOverview(ctx)
 	if err != nil {
