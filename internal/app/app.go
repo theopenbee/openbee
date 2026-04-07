@@ -147,7 +147,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	localChatHandler := api.NewLocalChatHandler(
 		localReceiver, localHub,
-		s.localSessionStore, s.outboundMsgStore,
+		s.outboundMsgStore,
 		s.msgStore, s.sessionStore,
 	)
 
