@@ -131,15 +131,15 @@ func (s *DepartmentStore) Delete(id string) error {
 }
 
 func (s *DepartmentStore) HasChildren(id string) (bool, error) {
-	var count int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM bee_departments WHERE parent_id = ?`, id).Scan(&count)
-	return count > 0, err
+	var exists bool
+	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM bee_departments WHERE parent_id = ?)`, id).Scan(&exists)
+	return exists, err
 }
 
 func (s *DepartmentStore) HasWorkers(id string) (bool, error) {
-	var count int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM bee_worker_departments WHERE department_id = ?`, id).Scan(&count)
-	return count > 0, err
+	var exists bool
+	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM bee_worker_departments WHERE department_id = ?)`, id).Scan(&exists)
+	return exists, err
 }
 
 // CheckCircularReference returns an error if setting parentID as the parent of
@@ -163,7 +163,6 @@ func (s *DepartmentStore) CheckCircularReference(departmentID, parentID string) 
 	return nil
 }
 
-// BuildTree assembles a flat list of departments into a tree structure.
 func (s *DepartmentStore) BuildTree(depts []model.Department) []model.DepartmentTree {
 	childrenMap := make(map[string][]model.Department, len(depts))
 	for _, d := range depts {
@@ -210,9 +209,9 @@ func (s *DepartmentStore) SetWorkerDepartments(workerID string, deptIDs []string
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
+	defer tx.Rollback() //nolint:errcheck
 
 	if _, err := tx.Exec(`DELETE FROM bee_worker_departments WHERE worker_id = ?`, workerID); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("clear worker departments: %w", err)
 	}
 
@@ -226,7 +225,6 @@ func (s *DepartmentStore) SetWorkerDepartments(workerID string, deptIDs []string
 			strings.Repeat("(?, ?, ?),", len(deptIDs))
 		query = query[:len(query)-1] // trim trailing comma
 		if _, err := tx.Exec(query, args...); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("insert worker departments: %w", err)
 		}
 	}
@@ -250,11 +248,6 @@ func (s *DepartmentStore) GetWorkerDepartments(workerID string) ([]model.Departm
 	}
 	defer rows.Close()
 	return scanDepartments(rows)
-}
-
-// GetAllWorkerDepartments returns a map of workerID → departments for all workers.
-func (s *DepartmentStore) GetAllWorkerDepartments() (map[string][]model.Department, error) {
-	return s.getWorkerDepartmentsMap(nil)
 }
 
 // GetWorkersDepartments returns a map of workerID → departments for the given worker IDs.

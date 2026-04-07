@@ -1,4 +1,3 @@
-// internal/infra/store/stats_store.go
 package store
 
 import (
@@ -6,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 // StatsStore provides aggregated statistics queries.
@@ -132,9 +133,9 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		}
 		ov.ExecutionsToday.Total += cnt
 		switch status {
-		case "completed":
+		case model.TaskStatusCompleted:
 			ov.ExecutionsToday.Success += cnt
-		case "failed":
+		case model.TaskStatusFailed:
 			ov.ExecutionsToday.Failed += cnt
 		}
 	}
@@ -144,8 +145,8 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM bee_tasks
-		WHERE type IN ('countdown','scheduled')
-		  AND status NOT IN ('completed','cancelled','failed')`,
+		WHERE type IN ('`+model.TaskTypeCountdown+`','`+model.TaskTypeScheduled+`')
+		  AND status NOT IN ('`+model.TaskStatusCompleted+`','`+model.TaskStatusCancelled+`','`+model.TaskStatusFailed+`')`,
 	).Scan(&ov.ScheduledTasks); err != nil {
 		return ov, fmt.Errorf("scheduled tasks: %w", err)
 	}

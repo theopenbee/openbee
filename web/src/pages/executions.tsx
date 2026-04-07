@@ -18,7 +18,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { cn } from "@/lib/utils"
-import { formatDuration, formatRelative, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -56,21 +56,9 @@ export function Executions() {
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
   const totalSessions = data?.total ?? 0
 
-  const sessionGroups = useMemo(() => {
-    const map = new Map<string, WorkerExecution[]>()
-    for (const e of executions) {
-      const group = map.get(e.session_id) ?? []
-      group.push(e)
-      map.set(e.session_id, group)
-    }
-    return Array.from(map.values()).sort((a, b) => {
-      return (b[0].started_at ?? 0) - (a[0].started_at ?? 0)
-    })
-  }, [executions])
+  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
-  const activeCount = sessionGroups.filter(
-    (g) => g[0].status === "running" || g[0].status === "pending"
-  ).length
+  const activeCount = sessionGroups.filter((g) => isActiveStatus(g[0].status)).length
 
   const subtitle =
     totalSessions > 0

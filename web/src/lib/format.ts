@@ -71,6 +71,18 @@ export function formatRelative(ms: number | null): string {
   return `${Math.floor(hr / 24)}d ago`
 }
 
+export function groupExecutionsBySession<T extends { session_id: string; started_at: number | null }>(
+  executions: T[]
+): T[][] {
+  const map = new Map<string, T[]>()
+  for (const e of executions) {
+    const group = map.get(e.session_id) ?? []
+    group.push(e)
+    map.set(e.session_id, group)
+  }
+  return Array.from(map.values()).sort((a, b) => (b[0].started_at ?? 0) - (a[0].started_at ?? 0))
+}
+
 export const STATUS_ROW_BORDER: Record<string, string> = {
   pending: "border-l-transparent",
   running: "border-l-status-working",

@@ -1,4 +1,3 @@
-// web/src/components/active-workers-card.tsx
 import { useTranslation } from "react-i18next"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

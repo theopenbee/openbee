@@ -1,4 +1,3 @@
-// web/src/components/activity-trend-chart.tsx
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import {

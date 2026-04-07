@@ -90,21 +90,24 @@ export function Workers() {
 
   const handleCreate = async (e?: FormEvent) => {
     e?.preventDefault()
-    const worker = await createWorker.mutateAsync({
-      name,
-      description,
-      memory: memory || undefined,
-      work_dir: workDir || undefined,
-    })
-    if (selectedCreateDeptIds.size > 0) {
-      await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+    try {
+      const worker = await createWorker.mutateAsync({
+        name,
+        description,
+        memory: memory || undefined,
+        work_dir: workDir || undefined,
+      })
+      if (selectedCreateDeptIds.size > 0) {
+        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+      }
+      setOpen(false)
+    } finally {
+      setName("")
+      setDescription("")
+      setMemory("")
+      setWorkDir("")
+      setSelectedCreateDeptIds(new Set())
     }
-    setOpen(false)
-    setName("")
-    setDescription("")
-    setMemory("")
-    setWorkDir("")
-    setSelectedCreateDeptIds(new Set())
   }
 
   const handleDeleteConfirm = async () => {
