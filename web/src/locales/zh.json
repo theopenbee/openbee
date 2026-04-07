@@ -290,7 +290,7 @@
   },
   "departments": {
     "title": "部门",
-    "allWorkers": "全部 Worker",
+    "allWorkers": "全部员工",
     "ungrouped": "未分组",
     "manage": "管理部门",
     "manageTitle": "管理部门",
