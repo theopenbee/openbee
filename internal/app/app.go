@@ -147,8 +147,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	localChatHandler := api.NewLocalChatHandler(
 		localReceiver, localHub,
-		s.localSessionStore, s.outboundMsgStore,
-		s.msgStore, s.sessionStore,
+		s.outboundMsgStore,
+		s.msgStore,
 	)
 
 	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler, cfg.Language)
@@ -163,15 +163,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 // appStores groups all store instances for passing to sub-builders.
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
-	workerStore       *store.WorkerStore
-	execStore         *store.ExecutionStore
-	msgStore          *store.MessageStore
-	taskStore         *store.TaskStore
-	sessionStore      *store.SessionStore
-	localSessionStore *store.LocalSessionStore
-	outboundMsgStore  *store.OutboundMessageStore
-	memoryStore       *store.MemoryStore
-	departmentStore   *store.DepartmentStore
+	workerStore      *store.WorkerStore
+	execStore        *store.ExecutionStore
+	msgStore         *store.MessageStore
+	taskStore        *store.TaskStore
+	sessionStore     *store.SessionStore
+	outboundMsgStore *store.OutboundMessageStore
+	memoryStore      *store.MemoryStore
+	departmentStore  *store.DepartmentStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -180,15 +179,14 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		return nil, appStores{}, fmt.Errorf("init database: %w", err)
 	}
 	return db, appStores{
-		workerStore:       store.NewWorkerStore(db),
-		execStore:         store.NewExecutionStore(db, config.DefaultLogsDir()),
-		msgStore:          store.NewMessageStore(db),
-		taskStore:         store.NewTaskStore(db),
-		sessionStore:      store.NewSessionStore(db),
-		localSessionStore: store.NewLocalSessionStore(db),
-		outboundMsgStore:  store.NewOutboundMessageStore(db),
-		memoryStore:       store.NewMemoryStore(db),
-		departmentStore:   store.NewDepartmentStore(db),
+		workerStore:      store.NewWorkerStore(db),
+		execStore:        store.NewExecutionStore(db, config.DefaultLogsDir()),
+		msgStore:         store.NewMessageStore(db),
+		taskStore:        store.NewTaskStore(db),
+		sessionStore:     store.NewSessionStore(db),
+		outboundMsgStore: store.NewOutboundMessageStore(db),
+		memoryStore:      store.NewMemoryStore(db),
+		departmentStore:  store.NewDepartmentStore(db),
 	}, nil
 }
 

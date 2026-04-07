@@ -41,7 +41,7 @@ type Server struct {
 func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
-		"/api/local/sessions/.+/stream",
+		"/api/local/stream",
 		"/mcp/.*/sse",
 		"/mcp/.*/messages",
 	})))
@@ -98,14 +98,11 @@ func (s *Server) registerExecutionRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
-	api.POST("/local/sessions", s.LocalChatHandler.createSession)
-	api.GET("/local/sessions", s.LocalChatHandler.listSessions)
-	api.DELETE("/local/sessions/:id", s.LocalChatHandler.deleteSession)
-	api.POST("/local/sessions/:id/messages", s.LocalChatHandler.sendMessage)
-	api.GET("/local/sessions/:id/messages", s.LocalChatHandler.getMessages)
-	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
-	api.GET("/local/sessions/:id/media/:filename", s.LocalChatHandler.serveMedia)
-	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
+	api.POST("/local/messages", s.LocalChatHandler.sendMessage)
+	api.GET("/local/messages", s.LocalChatHandler.getMessages)
+	api.POST("/local/media", s.LocalChatHandler.uploadMedia)
+	api.GET("/local/media/:filename", s.LocalChatHandler.serveMedia)
+	api.GET("/local/stream", s.LocalChatHandler.StreamReplies)
 }
 
 func (s *Server) registerDepartmentRoutes(api *gin.RouterGroup) {

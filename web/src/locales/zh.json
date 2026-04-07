@@ -197,7 +197,7 @@
     "cancelFailed": "任务已在运行或已完成，无法取消"
   },
   "localChat": {
-    "title": "本地对话",
+    "title": "对话",
     "subtitle": "恢复最近会话，保持本地对话井然有序",
     "newChat": "新建对话",
     "sessionNamePlaceholder": "对话名称",
@@ -259,13 +259,15 @@
     "queuePanelHint": "发送前可在这里复核或移除附件，避免把无关文件带进下一条消息。",
     "queueEmpty": "下一条消息暂无待发送文件。",
     "noMessagesTitle": "开始第一轮对话",
-    "noMessagesDescription": "发送一条消息，或者先上传参考文件。Bee 的回复会按顺序流入这里。",
+    "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
     "beeLabel": "Bee",
     "idleStatus": "可继续发送",
     "composerHint": "回车发送，Shift+Enter 换行",
     "openAttachment": "打开附件",
-    "removeAttachment": "移除附件"
+    "removeAttachment": "移除附件",
+    "quickCommandClear": "重置对话",
+    "quickCommandConfirm": "我已确认"
   },
   "breadcrumb": {
     "detail": "详情"
