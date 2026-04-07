@@ -67,14 +67,14 @@ Existing messages with `session_key = "local:{old_uuid}"` remain in DB untouched
 ### Removed Endpoints
 
 ```
-DELETE  POST   /api/local/sessions
-DELETE  GET    /api/local/sessions
-DELETE  DELETE /api/local/sessions/:id
-DELETE  POST   /api/local/sessions/:id/messages
-DELETE  GET    /api/local/sessions/:id/messages
-DELETE  POST   /api/local/sessions/:id/media
-DELETE  GET    /api/local/sessions/:id/media/:filename
-DELETE  GET    /api/local/sessions/:id/stream
+POST   /api/local/sessions                    (removed)
+GET    /api/local/sessions                    (removed)
+DELETE /api/local/sessions/:id               (removed)
+POST   /api/local/sessions/:id/messages      (removed)
+GET    /api/local/sessions/:id/messages      (removed)
+POST   /api/local/sessions/:id/media         (removed)
+GET    /api/local/sessions/:id/media/:filename (removed)
+GET    /api/local/sessions/:id/stream        (removed)
 ```
 
 ### New Endpoints
@@ -88,6 +88,8 @@ GET  /api/local/stream            # SSE real-time stream
 ```
 
 All handlers hardcode `session_key = "local:default"`. No session ID parameter anywhere.
+
+**Media file storage:** Currently files are stored under `~/.openbee/local-uploads/{sessionId}/`. After refactor, use the fixed path `~/.openbee/local-uploads/default/` for all uploads.
 
 ### Backend Changes
 
