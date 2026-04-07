@@ -10,10 +10,10 @@ export function Nav() {
 
   const links = [
     { href: "/", label: t("nav.dashboard"), icon: LayoutDashboard },
+    { href: "/chat", label: t("localChat.title"), icon: MessageCircle },
     { href: "/workers", label: t("nav.workers"), icon: Bot },
     { href: "/executions", label: t("nav.executions"), icon: Activity },
     { href: "/tasks", label: t("nav.tasks"), icon: Clock },
-    { href: "/local-chat", label: t("localChat.title"), icon: MessageCircle },
   ]
 
   const isActive = (href: string) =>

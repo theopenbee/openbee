@@ -197,7 +197,7 @@
     "cancelFailed": "Cannot cancel: task is not pending"
   },
   "localChat": {
-    "title": "Local Chat",
+    "title": "Chat",
     "subtitle": "Resume recent conversations and keep local sessions organized",
     "newChat": "New Chat",
     "sessionNamePlaceholder": "Session name",

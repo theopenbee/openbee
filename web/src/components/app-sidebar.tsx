@@ -31,10 +31,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const navMain = React.useMemo(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
+    { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
     { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
     { title: t("nav.executions"), url: "/executions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
-    { title: t("localChat.title"), url: "/local-chat", icon: <MessageCircleIcon /> },
   ], [t])
 
   return (

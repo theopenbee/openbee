@@ -21,7 +21,6 @@ import {
 } from "@/hooks/use-local-chat"
 import { DetailSection } from "@/components/detail-primitives"
 import { FadeIn } from "@/components/fade-in"
-import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -195,34 +194,7 @@ export function LocalChat() {
   return (
     <FadeIn>
       <div className="space-y-6">
-        <PageHeader
-          title={t("localChat.title")}
-          subtitle={t("localChat.detailDescription")}
-        />
-
         <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
-          <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  {t("localChat.timelineLabel")}
-                </p>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  {t("localChat.timelineHint")}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-muted-foreground">
-                  {isProcessing ? t("localChat.processing") : t("localChat.idleStatus")}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-muted-foreground">
-                  {t("localChat.queuedUploadsLabel")}: {pendingMediaPaths.length}
-                </span>
-              </div>
-            </div>
-          </div>
-
           <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
             {isLoading ? (
               <div className="space-y-4">

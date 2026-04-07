@@ -197,7 +197,7 @@
     "cancelFailed": "任务已在运行或已完成，无法取消"
   },
   "localChat": {
-    "title": "本地对话",
+    "title": "对话",
     "subtitle": "恢复最近会话，保持本地对话井然有序",
     "newChat": "新建对话",
     "sessionNamePlaceholder": "对话名称",

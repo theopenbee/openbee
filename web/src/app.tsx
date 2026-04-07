@@ -38,7 +38,7 @@ export function App() {
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/sessions/:sessionId" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
-                <Route path="/local-chat" element={<LocalChat />} />
+                <Route path="/chat" element={<LocalChat />} />
               </Route>
             </Routes>
           </Suspense>
