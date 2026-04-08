@@ -375,17 +375,13 @@ export function SessionDetail() {
 
             <DetailSection>
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("executionDetail.logs")}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {t("sessionDetail.logsHint")}
-                    </p>
-                  </div>
-
-                  <span className="font-mono text-xs text-muted-foreground">{selectedExecution.id}</span>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {t("executionDetail.logs")}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {t("sessionDetail.logsHint")}
+                  </p>
                 </div>
               </div>
 
