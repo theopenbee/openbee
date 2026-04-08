@@ -12,7 +12,7 @@ export function Layout() {
           <div className="h-4 w-px shrink-0 bg-border" />
           <AppBreadcrumb />
         </header>
-        <main className="flex-1 overflow-auto p-6">
+        <main className="min-w-0 flex-1 overflow-auto p-6">
           <Outlet />
         </main>
       </SidebarInset>
