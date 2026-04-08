@@ -1007,3 +1007,58 @@ func TestWorkerCanCallAllowedTools(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveDepartmentID_ByID(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	dept, err := ds.Create(model.Department{Name: "Engineering"})
+	if err != nil {
+		t.Fatalf("create dept: %v", err)
+	}
+
+	result, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": dept.ID}))
+	if err != nil {
+		t.Fatalf("get_department by ID: %v", err)
+	}
+	got, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if got.ID != dept.ID {
+		t.Errorf("expected ID %s, got %s", dept.ID, got.ID)
+	}
+}
+
+func TestResolveDepartmentID_ByName(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	_, err := ds.Create(model.Department{Name: "Marketing"})
+	if err != nil {
+		t.Fatalf("create dept: %v", err)
+	}
+
+	result, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": "Marketing"}))
+	if err != nil {
+		t.Fatalf("get_department by name: %v", err)
+	}
+	got, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if got.Name != "Marketing" {
+		t.Errorf("expected name Marketing, got %s", got.Name)
+	}
+}
+
+func TestResolveDepartmentID_NotFound(t *testing.T) {
+	s, _ := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	_, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": "nonexistent"}))
+	if err == nil {
+		t.Fatal("expected error for nonexistent department, got nil")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -973,4 +974,131 @@ func (s *MCPServer) toolClearWorkerSession(args json.RawMessage) (any, error) {
 		"worker_id":   params.WorkerID,
 		"worker_name": workerName,
 	}, nil
+}
+
+// splitAndTrim splits a comma-separated string and trims whitespace from each part,
+// returning only non-empty parts.
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// resolveDepartmentID resolves an ID-or-name string to a department ID.
+// It tries by ID first; if not found, falls back to name match.
+// Returns an error if no match or if the name is ambiguous.
+func (s *MCPServer) resolveDepartmentID(idOrName string) (string, error) {
+	if _, err := s.departmentStore.GetByID(idOrName); err == nil {
+		return idOrName, nil
+	}
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return "", fmt.Errorf("list departments: %w", err)
+	}
+	var matches []model.Department
+	for _, d := range all {
+		if d.Name == idOrName {
+			matches = append(matches, d)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("department %q not found", idOrName)
+	case 1:
+		return matches[0].ID, nil
+	default:
+		deptMap := make(map[string]model.Department, len(all))
+		for _, d := range all {
+			deptMap[d.ID] = d
+		}
+		paths := make([]string, len(matches))
+		for i, m := range matches {
+			paths[i] = departmentAncestorPath(deptMap, m)
+		}
+		return "", fmt.Errorf("department name %q is ambiguous, matches: %s; use an ID instead",
+			idOrName, strings.Join(paths, ", "))
+	}
+}
+
+// resolveDepartmentIDs resolves a slice of ID-or-name strings to department IDs.
+func (s *MCPServer) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
+	ids := make([]string, 0, len(idOrNames))
+	for _, v := range idOrNames {
+		id, err := s.resolveDepartmentID(v)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// departmentAncestorPath builds "grandparent > parent > dept" for display.
+func departmentAncestorPath(deptMap map[string]model.Department, d model.Department) string {
+	var parts []string
+	cur := d
+	for {
+		parts = append([]string{cur.Name}, parts...)
+		if cur.ParentID == nil {
+			break
+		}
+		parent, ok := deptMap[*cur.ParentID]
+		if !ok {
+			break
+		}
+		cur = parent
+	}
+	return strings.Join(parts, " > ")
+}
+
+// collectDescendantIDs returns rootID plus all descendant department IDs via DFS.
+func collectDescendantIDs(all []model.Department, rootID string) []string {
+	childrenMap := make(map[string][]string)
+	for _, d := range all {
+		if d.ParentID != nil {
+			childrenMap[*d.ParentID] = append(childrenMap[*d.ParentID], d.ID)
+		}
+	}
+	var ids []string
+	var dfs func(id string)
+	dfs = func(id string) {
+		ids = append(ids, id)
+		for _, childID := range childrenMap[id] {
+			dfs(childID)
+		}
+	}
+	dfs(rootID)
+	return ids
+}
+
+// listWorkersRecursive returns workers in deptID and all its descendant departments.
+func (s *MCPServer) listWorkersRecursive(deptID string) ([]model.Worker, error) {
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list departments: %w", err)
+	}
+	deptIDs := collectDescendantIDs(all, deptID)
+
+	workerIDSet := make(map[string]struct{})
+	for _, id := range deptIDs {
+		wids, err := s.departmentStore.GetDepartmentWorkerIDs(id)
+		if err != nil {
+			return nil, fmt.Errorf("get department workers: %w", err)
+		}
+		for _, wid := range wids {
+			workerIDSet[wid] = struct{}{}
+		}
+	}
+
+	workerIDs := make([]string, 0, len(workerIDSet))
+	for wid := range workerIDSet {
+		workerIDs = append(workerIDs, wid)
+	}
+	return s.workerStore.GetByIDs(workerIDs)
 }
