@@ -231,8 +231,7 @@ export function LocalChat() {
 
   const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(event.clipboardData.items)
-      .filter((item) => item.type.startsWith("image/"))
-      .map((item) => item.getAsFile())
+      .map((item) => (item.type.startsWith("image/") ? item.getAsFile() : null))
       .filter((file): file is File => file !== null)
     if (files.length === 0) return
 
