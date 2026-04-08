@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added support for Kimi Code
+
 ## [0.0.18] - 2026-04-07
 
 ### Added

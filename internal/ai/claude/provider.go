@@ -49,7 +49,7 @@ func promptAPIKey(message string) (string, error) {
 	return apiKey, nil
 }
 
-// Provider env map builders — only ANTHROPIC_AUTH_TOKEN comes from user input.
+// Provider env map builders — ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY comes from user input depending on the provider.
 
 func kimiCodeEnv(apiKey string) map[string]string {
 	return map[string]string{
