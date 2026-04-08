@@ -429,14 +429,14 @@ func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 	var err error
 
 	if params.DepartmentID != "" {
-		deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
 		recursive := params.Recursive == nil || *params.Recursive
 		if recursive {
-			workers, err = s.listWorkersRecursive(deptID)
+			workers, err = s.listWorkersRecursive(params.DepartmentID)
 		} else {
+			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
 			workers, err = s.workerStore.GetByDepartmentID(deptID)
 		}
 	} else {
@@ -1158,10 +1158,15 @@ func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
 	if params.ID == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	deptID, err := s.resolveDepartmentID(params.ID)
+	toResolve := []string{params.ID}
+	if params.ParentID != nil {
+		toResolve = append(toResolve, *params.ParentID)
+	}
+	resolvedIDs, err := s.resolveDepartmentIDs(toResolve)
 	if err != nil {
 		return nil, err
 	}
+	deptID := resolvedIDs[0]
 	d, err := s.departmentStore.GetByID(deptID)
 	if err != nil {
 		return nil, fmt.Errorf("get department: %w", err)
@@ -1173,10 +1178,7 @@ func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
 		d.SortOrder = *params.SortOrder
 	}
 	if params.ParentID != nil {
-		resolvedParentID, err := s.resolveDepartmentID(*params.ParentID)
-		if err != nil {
-			return nil, fmt.Errorf("parent: %w", err)
-		}
+		resolvedParentID := resolvedIDs[1]
 		if err := s.departmentStore.CheckCircularReference(d.ID, resolvedParentID); err != nil {
 			return nil, err
 		}
@@ -1223,6 +1225,12 @@ func (s *MCPServer) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
+	return resolveDeptIDsFromList(all, idOrNames)
+}
+
+// resolveDeptIDsFromList resolves ID-or-name strings using an already-loaded department list,
+// avoiding an extra DB query when the caller already has all departments in memory.
+func resolveDeptIDsFromList(all []model.Department, idOrNames []string) ([]string, error) {
 	deptByID := make(map[string]model.Department, len(all))
 	deptByName := make(map[string][]model.Department)
 	for _, d := range all {
@@ -1307,12 +1315,16 @@ func collectDescendantIDs(all []model.Department, rootID string) []string {
 	return ids
 }
 
-func (s *MCPServer) listWorkersRecursive(deptID string) ([]model.Worker, error) {
+func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
-	deptIDs := collectDescendantIDs(all, deptID)
+	resolvedIDs, err := resolveDeptIDsFromList(all, []string{idOrName})
+	if err != nil {
+		return nil, err
+	}
+	deptIDs := collectDescendantIDs(all, resolvedIDs[0])
 	workerIDs, err := s.departmentStore.GetWorkerIDsForDepartments(deptIDs)
 	if err != nil {
 		return nil, fmt.Errorf("get department workers: %w", err)
