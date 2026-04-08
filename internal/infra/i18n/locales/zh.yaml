@@ -173,6 +173,7 @@ provider:
   found_settings: "已找到 ~/.claude/settings.json，跳过模型提供商配置？"
   select: "选择模型提供商："
   select_model: "选择模型："
+  key_kimicode: "KimiCode API Key："
   key_moonshot: "Moonshot API Key："
   key_deepseek: "DeepSeek API Key："
   key_glm: "智谱 API Key："

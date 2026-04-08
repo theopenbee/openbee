@@ -173,6 +173,7 @@ provider:
   found_settings: "Found ~/.claude/settings.json, skip model provider setup?"
   select: "Select model provider:"
   select_model: "Select model:"
+  key_kimicode: "KimiCode API Key:"
   key_moonshot: "Moonshot API Key:"
   key_deepseek: "DeepSeek API Key:"
   key_glm: "Zhipu API Key:"
