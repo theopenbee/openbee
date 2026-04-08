@@ -259,7 +259,7 @@ export function LocalChat() {
     <FadeIn>
       <PageHeader title={t("localChat.title")} />
       <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
-        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
