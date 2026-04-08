@@ -297,10 +297,12 @@ export function Workers() {
         <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
-          title={t("emptyState.noWorkers")}
-          description={t("emptyState.noWorkersDesc")}
+          title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+          description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            selectedDeptId === null ? (
+              <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            ) : undefined
           }
         />
       ) : (

@@ -333,6 +333,8 @@
   "emptyState": {
     "noWorkers": "No workers in the hive yet",
     "noWorkersDesc": "Create your first AI worker to get started",
+    "noWorkersInGroup": "No workers in this group",
+    "noWorkersInGroupDesc": "Switch groups or add workers to this group",
     "noExecutions": "No sessions recorded",
     "noExecutionsDesc": "Sessions will appear here when workers run tasks",
     "noSessions": "No chat sessions",

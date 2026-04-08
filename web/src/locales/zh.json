@@ -332,6 +332,8 @@
   "emptyState": {
     "noWorkers": "蜂巢中还没有员工",
     "noWorkersDesc": "创建你的第一个 AI 员工开始使用",
+    "noWorkersInGroup": "该分组下暂无员工",
+    "noWorkersInGroupDesc": "切换分组或将员工添加到此分组",
     "noExecutions": "暂无会话记录",
     "noExecutionsDesc": "当员工执行任务时，记录会显示在这里",
     "noSessions": "暂无对话",
