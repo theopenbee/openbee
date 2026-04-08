@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -104,13 +105,17 @@ type streamContent struct {
 // ExtractResultFromLog scans a Claude stream-json log file and returns the best
 // result string: prefers {"type":"result"} over the last assistant text.
 func ExtractResultFromLog(logPath string) string {
-	data, err := os.ReadFile(logPath)
+	f, err := os.Open(logPath)
 	if err != nil {
 		return ""
 	}
+	defer f.Close()
+
 	var lastAssistantText, streamResult string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {
 			continue
 		}

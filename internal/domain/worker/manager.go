@@ -177,7 +177,6 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	m.mu.Unlock()
 }
 
-
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
 	if deleteWorkDir {
 		worker, err := m.workerStore.GetByID(id)
