@@ -249,6 +249,25 @@ func beeToolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        utils.ListDepartments,
+			Description: "List all departments as a tree structure",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        utils.GetDepartment,
+			Description: "Get a department by ID or name",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id": map[string]string{"type": "string", "description": "Department ID or name"},
+				},
+			},
+		},
 	}
 }
 
@@ -331,6 +350,10 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolListSessionContexts(args)
 	case utils.ClearWorkerSession:
 		return s.toolClearWorkerSession(args)
+	case utils.ListDepartments:
+		return s.toolListDepartments(args)
+	case utils.GetDepartment:
+		return s.toolGetDepartment(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -974,6 +997,35 @@ func (s *MCPServer) toolClearWorkerSession(args json.RawMessage) (any, error) {
 		"worker_id":   params.WorkerID,
 		"worker_name": workerName,
 	}, nil
+}
+
+func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list departments: %w", err)
+	}
+	tree := s.departmentStore.BuildTree(all)
+	if tree == nil {
+		tree = []model.DepartmentTree{}
+	}
+	return tree, nil
+}
+
+func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deptID, err := s.resolveDepartmentID(params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.departmentStore.GetByID(deptID)
 }
 
 // splitAndTrim splits a comma-separated string and trims whitespace from each part,

@@ -1062,3 +1062,45 @@ func TestResolveDepartmentID_NotFound(t *testing.T) {
 		t.Fatal("expected error for nonexistent department, got nil")
 	}
 }
+
+func TestCallTool_ListDepartments_Empty(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("list_departments: %v", err)
+	}
+	tree, ok := result.([]model.DepartmentTree)
+	if !ok {
+		t.Fatalf("expected []model.DepartmentTree, got %T", result)
+	}
+	if len(tree) != 0 {
+		t.Errorf("expected empty tree, got %d roots", len(tree))
+	}
+}
+
+func TestCallTool_ListDepartments_Tree(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	parent, _ := ds.Create(model.Department{Name: "R&D"})
+	_, _ = ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
+	_, _ = ds.Create(model.Department{Name: "Backend", ParentID: &parent.ID})
+
+	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("list_departments: %v", err)
+	}
+	tree, ok := result.([]model.DepartmentTree)
+	if !ok {
+		t.Fatalf("expected []model.DepartmentTree, got %T", result)
+	}
+	if len(tree) != 1 {
+		t.Fatalf("expected 1 root, got %d", len(tree))
+	}
+	if tree[0].Name != "R&D" {
+		t.Errorf("expected root name R&D, got %s", tree[0].Name)
+	}
+	if len(tree[0].Children) != 2 {
+		t.Errorf("expected 2 children, got %d", len(tree[0].Children))
+	}
+}
