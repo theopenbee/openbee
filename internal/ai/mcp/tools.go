@@ -1206,36 +1206,11 @@ func (s *MCPServer) toolDeleteDepartment(args json.RawMessage) (any, error) {
 }
 
 func (s *MCPServer) resolveDepartmentID(idOrName string) (string, error) {
-	if _, err := s.departmentStore.GetByID(idOrName); err == nil {
-		return idOrName, nil
-	}
-	all, err := s.departmentStore.ListAll()
+	ids, err := s.resolveDepartmentIDs([]string{idOrName})
 	if err != nil {
-		return "", fmt.Errorf("list departments: %w", err)
+		return "", err
 	}
-	var matches []model.Department
-	for _, d := range all {
-		if d.Name == idOrName {
-			matches = append(matches, d)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		return "", fmt.Errorf("department %q not found", idOrName)
-	case 1:
-		return matches[0].ID, nil
-	default:
-		deptMap := make(map[string]model.Department, len(all))
-		for _, d := range all {
-			deptMap[d.ID] = d
-		}
-		paths := make([]string, len(matches))
-		for i, m := range matches {
-			paths[i] = departmentAncestorPath(deptMap, m)
-		}
-		return "", fmt.Errorf("department name %q is ambiguous, matches: %s; use an ID instead",
-			idOrName, strings.Join(paths, ", "))
-	}
+	return ids[0], nil
 }
 
 // resolveDepartmentIDs resolves a slice of ID-or-name strings to department IDs with a single

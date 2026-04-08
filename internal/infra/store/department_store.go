@@ -305,15 +305,9 @@ func (s *DepartmentStore) GetWorkerIDsForDepartments(deptIDs []string) ([]string
 	if len(deptIDs) == 0 {
 		return nil, nil
 	}
-	placeholders := strings.Repeat("?,", len(deptIDs))
-	placeholders = placeholders[:len(placeholders)-1]
-	args := make([]any, len(deptIDs))
-	for i, id := range deptIDs {
-		args[i] = id
-	}
 	rows, err := s.db.Query(
-		`SELECT DISTINCT worker_id FROM bee_worker_departments WHERE department_id IN (`+placeholders+`)`,
-		args...,
+		`SELECT DISTINCT worker_id FROM bee_worker_departments WHERE department_id IN (`+inPlaceholders(len(deptIDs))+`)`,
+		stringsToArgs(deptIDs)...,
 	)
 	if err != nil {
 		return nil, err
