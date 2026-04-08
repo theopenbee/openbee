@@ -203,11 +203,9 @@ export function LocalChat() {
     }
   }, [sendMessage])
 
-  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
+  const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return
 
-    event.target.value = ""
     setUploadError(null)
 
     const results = await Promise.allSettled(
@@ -224,6 +222,22 @@ export function LocalChat() {
 
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((result) => result.value.path)])
   }, [t])
+
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ""
+    await uploadFiles(files)
+  }, [uploadFiles])
+
+  const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData.items)
+      .map((item) => (item.type.startsWith("image/") ? item.getAsFile() : null))
+      .filter((file): file is File => file !== null)
+    if (files.length === 0) return
+
+    event.preventDefault()
+    await uploadFiles(files)
+  }, [uploadFiles])
 
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
@@ -390,6 +404,7 @@ export function LocalChat() {
                     void handleSend()
                   }
                 }}
+                onPaste={handlePaste}
               />
 
               <div className="mt-3 flex flex-wrap gap-1.5 px-3">

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added support for pasting images to upload in the chat input box
 - Added support for Kimi Code
 
 ## [0.0.18] - 2026-04-07
