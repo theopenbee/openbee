@@ -64,10 +64,11 @@ func beeToolSchemas() []toolSchema {
 				"type":     "object",
 				"required": []string{"name"},
 				"properties": map[string]any{
-					"name":        map[string]string{"type": "string", "description": "Worker name"},
-					"description": map[string]string{"type": "string", "description": "Worker description"},
-					"memory":      map[string]string{"type": "string", "description": "Worker memory content"},
-					"work_dir":    map[string]string{"type": "string", "description": "Working directory path (optional, auto-assigned if empty)"},
+					"name":           map[string]string{"type": "string", "description": "Worker name"},
+					"description":    map[string]string{"type": "string", "description": "Worker description"},
+					"memory":         map[string]string{"type": "string", "description": "Worker memory content"},
+					"work_dir":       map[string]string{"type": "string", "description": "Working directory path (optional, auto-assigned if empty)"},
+					"department_ids": map[string]string{"type": "string", "description": "Comma-separated department IDs or names to associate the worker with"},
 				},
 			},
 		},
@@ -78,10 +79,11 @@ func beeToolSchemas() []toolSchema {
 				"type":     "object",
 				"required": []string{"worker_id"},
 				"properties": map[string]any{
-					"worker_id":   map[string]string{"type": "string", "description": "Worker ID"},
-					"name":        map[string]string{"type": "string", "description": "New name"},
-					"description": map[string]string{"type": "string", "description": "New description"},
-					"memory":      map[string]string{"type": "string", "description": "New memory content"},
+					"worker_id":      map[string]string{"type": "string", "description": "Worker ID"},
+					"name":           map[string]string{"type": "string", "description": "New name"},
+					"description":    map[string]string{"type": "string", "description": "New description"},
+					"memory":         map[string]string{"type": "string", "description": "New memory content"},
+					"department_ids": map[string]string{"type": "string", "description": "Comma-separated department IDs or names; replaces all existing associations. Empty string clears all."},
 				},
 			},
 		},
@@ -465,10 +467,11 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Memory      string `json:"memory"`
-		WorkDir     string `json:"work_dir"`
+		Name          string `json:"name"`
+		Description   string `json:"description"`
+		Memory        string `json:"memory"`
+		WorkDir       string `json:"work_dir"`
+		DepartmentIDs string `json:"department_ids"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -476,15 +479,29 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	return s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+	if params.DepartmentIDs != "" {
+		deptIDs, err := s.resolveDepartmentIDs(splitAndTrim(params.DepartmentIDs))
+		if err != nil {
+			return nil, fmt.Errorf("set departments: %w", err)
+		}
+		if err := s.departmentStore.SetWorkerDepartments(w.ID, deptIDs); err != nil {
+			return nil, fmt.Errorf("set worker departments: %w", err)
+		}
+	}
+	return w, nil
 }
 
 func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID    string  `json:"worker_id"`
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		Memory      *string `json:"memory"`
+		WorkerID      string  `json:"worker_id"`
+		Name          *string `json:"name"`
+		Description   *string `json:"description"`
+		Memory        *string `json:"memory"`
+		DepartmentIDs *string `json:"department_ids"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -492,12 +509,10 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-
 	w, err := s.workerStore.GetByID(params.WorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -507,8 +522,23 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.Memory != nil {
 		w.Memory = *params.Memory
 	}
-
-	return s.workerStore.Update(w)
+	w, err = s.workerStore.Update(w)
+	if err != nil {
+		return nil, err
+	}
+	if params.DepartmentIDs != nil {
+		var deptIDs []string
+		if *params.DepartmentIDs != "" {
+			deptIDs, err = s.resolveDepartmentIDs(splitAndTrim(*params.DepartmentIDs))
+			if err != nil {
+				return nil, fmt.Errorf("set departments: %w", err)
+			}
+		}
+		if err := s.departmentStore.SetWorkerDepartments(w.ID, deptIDs); err != nil {
+			return nil, fmt.Errorf("set worker departments: %w", err)
+		}
+	}
+	return w, nil
 }
 
 func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
