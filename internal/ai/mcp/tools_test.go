@@ -36,7 +36,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		ws, es,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db))
+	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -215,7 +215,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		ws, es,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db)), db
+	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -376,8 +376,8 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 
 func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 18 {
-		t.Errorf("expected 18 tool schemas, got %d", len(schemas))
+	if len(schemas) != 23 {
+		t.Errorf("expected 23 tool schemas, got %d", len(schemas))
 	}
 }
 
@@ -486,7 +486,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db)), db, stopper, clearer
+	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
@@ -950,8 +950,8 @@ func setupWorkerMCPServer(t *testing.T) *mcp.MCPServer {
 
 func TestBeeToolSchemasCount(t *testing.T) {
 	schemas := mcp.ToolSchemas()
-	if len(schemas) != 18 {
-		t.Errorf("bee tool schemas: want 18 got %d", len(schemas))
+	if len(schemas) != 23 {
+		t.Errorf("bee tool schemas: want 23 got %d", len(schemas))
 	}
 }
 
@@ -1005,5 +1005,325 @@ func TestWorkerCanCallAllowedTools(t *testing.T) {
 		if err != nil && strings.Contains(err.Error(), "unknown tool") {
 			t.Errorf("worker should be able to call %s, got unknown tool error", tool)
 		}
+	}
+}
+
+func TestResolveDepartmentID_ByID(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	dept, err := ds.Create(model.Department{Name: "Engineering"})
+	if err != nil {
+		t.Fatalf("create dept: %v", err)
+	}
+
+	result, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": dept.ID}))
+	if err != nil {
+		t.Fatalf("get_department by ID: %v", err)
+	}
+	got, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if got.ID != dept.ID {
+		t.Errorf("expected ID %s, got %s", dept.ID, got.ID)
+	}
+}
+
+func TestResolveDepartmentID_ByName(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	_, err := ds.Create(model.Department{Name: "Marketing"})
+	if err != nil {
+		t.Fatalf("create dept: %v", err)
+	}
+
+	result, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": "Marketing"}))
+	if err != nil {
+		t.Fatalf("get_department by name: %v", err)
+	}
+	got, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if got.Name != "Marketing" {
+		t.Errorf("expected name Marketing, got %s", got.Name)
+	}
+}
+
+func TestResolveDepartmentID_NotFound(t *testing.T) {
+	s, _ := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	_, err := s.CallTool(context.Background(), "get_department",
+		mustMarshal(t, map[string]any{"id": "nonexistent"}))
+	if err == nil {
+		t.Fatal("expected error for nonexistent department, got nil")
+	}
+}
+
+func TestCallTool_ListDepartments_Empty(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("list_departments: %v", err)
+	}
+	tree, ok := result.([]model.DepartmentTree)
+	if !ok {
+		t.Fatalf("expected []model.DepartmentTree, got %T", result)
+	}
+	if len(tree) != 0 {
+		t.Errorf("expected empty tree, got %d roots", len(tree))
+	}
+}
+
+func TestCallTool_ListDepartments_Tree(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+
+	parent, _ := ds.Create(model.Department{Name: "R&D"})
+	_, _ = ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
+	_, _ = ds.Create(model.Department{Name: "Backend", ParentID: &parent.ID})
+
+	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("list_departments: %v", err)
+	}
+	tree, ok := result.([]model.DepartmentTree)
+	if !ok {
+		t.Fatalf("expected []model.DepartmentTree, got %T", result)
+	}
+	if len(tree) != 1 {
+		t.Fatalf("expected 1 root, got %d", len(tree))
+	}
+	if tree[0].Name != "R&D" {
+		t.Errorf("expected root name R&D, got %s", tree[0].Name)
+	}
+	if len(tree[0].Children) != 2 {
+		t.Errorf("expected 2 children, got %d", len(tree[0].Children))
+	}
+}
+
+func TestCallTool_CreateDepartment(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "create_department",
+		mustMarshal(t, map[string]any{"name": "Engineering"}))
+	if err != nil {
+		t.Fatalf("create_department: %v", err)
+	}
+	dept, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if dept.ID == "" {
+		t.Error("expected non-empty ID")
+	}
+	if dept.Name != "Engineering" {
+		t.Errorf("expected name Engineering, got %s", dept.Name)
+	}
+}
+
+func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	parent, _ := ds.Create(model.Department{Name: "R&D"})
+
+	result, err := s.CallTool(context.Background(), "create_department",
+		mustMarshal(t, map[string]any{"name": "Frontend", "parent_id": "R&D"}))
+	if err != nil {
+		t.Fatalf("create_department with parent: %v", err)
+	}
+	child, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if child.ParentID == nil || *child.ParentID != parent.ID {
+		t.Errorf("expected ParentID %s, got %v", parent.ID, child.ParentID)
+	}
+}
+
+func TestCallTool_UpdateDepartment_Name(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	dept, _ := ds.Create(model.Department{Name: "OldName"})
+
+	result, err := s.CallTool(context.Background(), "update_department",
+		mustMarshal(t, map[string]any{"id": dept.ID, "name": "NewName"}))
+	if err != nil {
+		t.Fatalf("update_department: %v", err)
+	}
+	updated, ok := result.(model.Department)
+	if !ok {
+		t.Fatalf("expected model.Department, got %T", result)
+	}
+	if updated.Name != "NewName" {
+		t.Errorf("expected name NewName, got %s", updated.Name)
+	}
+}
+
+func TestCallTool_DeleteDepartment(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	dept, _ := ds.Create(model.Department{Name: "ToDelete"})
+
+	_, err := s.CallTool(context.Background(), "delete_department",
+		mustMarshal(t, map[string]any{"id": dept.ID}))
+	if err != nil {
+		t.Fatalf("delete_department: %v", err)
+	}
+
+	_, err = ds.GetByID(dept.ID)
+	if err == nil {
+		t.Error("expected error fetching deleted department, got nil")
+	}
+}
+
+func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	parent, _ := ds.Create(model.Department{Name: "Parent"})
+	_, _ = ds.Create(model.Department{Name: "Child", ParentID: &parent.ID})
+
+	_, err := s.CallTool(context.Background(), "delete_department",
+		mustMarshal(t, map[string]any{"id": parent.ID}))
+	if err == nil {
+		t.Error("expected error deleting department with children, got nil")
+	}
+}
+
+func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	dept, _ := ds.Create(model.Department{Name: "Engineering"})
+	other, _ := ds.Create(model.Department{Name: "Marketing"})
+
+	w1, _ := ws.Create(model.Worker{Name: "Alice"})
+	w2, _ := ws.Create(model.Worker{Name: "Bob"})
+	_ = ds.SetWorkerDepartments(w1.ID, []string{dept.ID})
+	_ = ds.SetWorkerDepartments(w2.ID, []string{other.ID})
+
+	result, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": dept.ID}))
+	if err != nil {
+		t.Fatalf("list_workers with dept filter: %v", err)
+	}
+	workers, ok := result.([]model.Worker)
+	if !ok {
+		t.Fatalf("expected []model.Worker, got %T", result)
+	}
+	if len(workers) != 1 {
+		t.Fatalf("expected 1 worker, got %d", len(workers))
+	}
+	if workers[0].Name != "Alice" {
+		t.Errorf("expected Alice, got %s", workers[0].Name)
+	}
+}
+
+func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	parent, _ := ds.Create(model.Department{Name: "R&D"})
+	child, _ := ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
+
+	w1, _ := ws.Create(model.Worker{Name: "Alice"})
+	w2, _ := ws.Create(model.Worker{Name: "Bob"})
+	_ = ds.SetWorkerDepartments(w1.ID, []string{parent.ID})
+	_ = ds.SetWorkerDepartments(w2.ID, []string{child.ID})
+
+	// recursive (default): should return both
+	result, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": parent.ID}))
+	if err != nil {
+		t.Fatalf("list_workers recursive: %v", err)
+	}
+	workers := result.([]model.Worker)
+	if len(workers) != 2 {
+		t.Errorf("expected 2 workers (recursive), got %d", len(workers))
+	}
+
+	// non-recursive: should return only Alice
+	result2, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": parent.ID, "recursive": false}))
+	if err != nil {
+		t.Fatalf("list_workers non-recursive: %v", err)
+	}
+	workers2 := result2.([]model.Worker)
+	if len(workers2) != 1 {
+		t.Errorf("expected 1 worker (non-recursive), got %d", len(workers2))
+	}
+	if workers2[0].Name != "Alice" {
+		t.Errorf("expected Alice, got %s", workers2[0].Name)
+	}
+}
+
+func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	dept, _ := ds.Create(model.Department{Name: "Engineering"})
+
+	result, err := s.CallTool(context.Background(), "create_worker",
+		mustMarshal(t, map[string]any{"name": "Alice", "department_ids": dept.ID}))
+	if err != nil {
+		t.Fatalf("create_worker with dept: %v", err)
+	}
+	w, ok := result.(model.Worker)
+	if !ok {
+		t.Fatalf("expected model.Worker, got %T", result)
+	}
+
+	depts, err := ds.GetWorkerDepartments(w.ID)
+	if err != nil {
+		t.Fatalf("GetWorkerDepartments: %v", err)
+	}
+	if len(depts) != 1 || depts[0].ID != dept.ID {
+		t.Errorf("expected worker in Engineering dept, got %v", depts)
+	}
+}
+
+func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	dept1, _ := ds.Create(model.Department{Name: "Engineering"})
+	dept2, _ := ds.Create(model.Department{Name: "Design"})
+	w, _ := ws.Create(model.Worker{Name: "Alice"})
+	_ = ds.SetWorkerDepartments(w.ID, []string{dept1.ID})
+
+	_, err := s.CallTool(context.Background(), "update_worker",
+		mustMarshal(t, map[string]any{"worker_id": w.ID, "department_ids": dept2.Name}))
+	if err != nil {
+		t.Fatalf("update_worker set dept: %v", err)
+	}
+
+	depts, _ := ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 1 || depts[0].ID != dept2.ID {
+		t.Errorf("expected worker in Design dept only, got %v", depts)
+	}
+}
+
+func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	dept, _ := ds.Create(model.Department{Name: "Engineering"})
+	w, _ := ws.Create(model.Worker{Name: "Alice"})
+	_ = ds.SetWorkerDepartments(w.ID, []string{dept.ID})
+
+	_, err := s.CallTool(context.Background(), "update_worker",
+		mustMarshal(t, map[string]any{"worker_id": w.ID, "department_ids": ""}))
+	if err != nil {
+		t.Fatalf("update_worker clear depts: %v", err)
+	}
+
+	depts, _ := ds.GetWorkerDepartments(w.ID)
+	if len(depts) != 0 {
+		t.Errorf("expected 0 departments after clear, got %d", len(depts))
 	}
 }

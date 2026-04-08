@@ -11,7 +11,14 @@ var ctlWorkerListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all workers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ctlRun(utils.ListWorkers, nil)
+		a := map[string]any{}
+		if workerListDepartment != "" {
+			a["department_id"] = workerListDepartment
+			if workerListNoRecursive {
+				a["recursive"] = false
+			}
+		}
+		return ctlRun(utils.ListWorkers, a)
 	},
 }
 
@@ -54,6 +61,9 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateWorkDir != "" {
 			a["work_dir"] = workerCreateWorkDir
 		}
+		if workerCreateDepartment != "" {
+			a["department_ids"] = workerCreateDepartment
+		}
 		return ctlRun(utils.CreateWorker, a)
 	},
 }
@@ -79,9 +89,19 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("memory") {
 			a["memory"] = workerUpdateMemory
 		}
+		if cmd.Flags().Changed("department") {
+			a["department_ids"] = workerUpdateDepartment
+		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
 }
+
+var (
+	workerListDepartment   string
+	workerListNoRecursive  bool
+	workerCreateDepartment string
+	workerUpdateDepartment string
+)
 
 var workerDeleteWorkDir bool
 
@@ -109,6 +129,11 @@ func init() {
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateMemory, "memory", "", "New memory content")
 
 	ctlWorkerDeleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
+
+	ctlWorkerListCmd.Flags().StringVar(&workerListDepartment, "department", "", "Filter by department ID or name")
+	ctlWorkerListCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
+	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
+	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,

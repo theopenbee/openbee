@@ -84,8 +84,9 @@ type MCPServer struct {
 	execStopper    ExecutionStopper
 	sessionClearer SessionClearer
 	executionStore *store.ExecutionStore
-	memoryStore    *store.MemoryStore
-	sessionStore   *store.SessionStore
+	memoryStore     *store.MemoryStore
+	sessionStore    *store.SessionStore
+	departmentStore *store.DepartmentStore
 
 	mu              sync.Mutex
 	sessions        map[string]chan rpcResponse // session_id -> response channel
@@ -104,20 +105,22 @@ func NewBeeServer(
 	es *store.ExecutionStore,
 	memStore *store.MemoryStore,
 	sessionStore *store.SessionStore,
+	ds *store.DepartmentStore,
 ) *MCPServer {
 	s := &MCPServer{
-		basePath:       config.MCPBeeBasePath,
-		workerStore:    ws,
-		manager:        mgr,
-		taskStore:      ts,
-		messageStore:   ms,
-		senders:        senders,
-		execStopper:    execStopper,
-		sessionClearer: sessionClearer,
-		executionStore: es,
-		memoryStore:    memStore,
-		sessionStore:   sessionStore,
-		sessions:       make(map[string]chan rpcResponse),
+		basePath:        config.MCPBeeBasePath,
+		workerStore:     ws,
+		manager:         mgr,
+		taskStore:       ts,
+		messageStore:    ms,
+		senders:         senders,
+		execStopper:     execStopper,
+		sessionClearer:  sessionClearer,
+		executionStore:  es,
+		memoryStore:     memStore,
+		sessionStore:    sessionStore,
+		departmentStore: ds,
+		sessions:        make(map[string]chan rpcResponse),
 	}
 	s.schemasFn = beeToolSchemas
 	s.callToolFn = s.beeCallTool

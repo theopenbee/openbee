@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -36,10 +37,13 @@ func beeToolSchemas() []toolSchema {
 	return []toolSchema{
 		{
 			Name:        utils.ListWorkers,
-			Description: "List all workers",
+			Description: "List all workers, optionally filtered by department",
 			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
+				"type": "object",
+				"properties": map[string]any{
+					"department_id": map[string]string{"type": "string", "description": "Filter by department ID or name"},
+					"recursive":     map[string]any{"type": "boolean", "description": "Include workers in child departments (default: true)", "default": true},
+				},
 			},
 		},
 		{
@@ -60,10 +64,11 @@ func beeToolSchemas() []toolSchema {
 				"type":     "object",
 				"required": []string{"name"},
 				"properties": map[string]any{
-					"name":        map[string]string{"type": "string", "description": "Worker name"},
-					"description": map[string]string{"type": "string", "description": "Worker description"},
-					"memory":      map[string]string{"type": "string", "description": "Worker memory content"},
-					"work_dir":    map[string]string{"type": "string", "description": "Working directory path (optional, auto-assigned if empty)"},
+					"name":           map[string]string{"type": "string", "description": "Worker name"},
+					"description":    map[string]string{"type": "string", "description": "Worker description"},
+					"memory":         map[string]string{"type": "string", "description": "Worker memory content"},
+					"work_dir":       map[string]string{"type": "string", "description": "Working directory path (optional, auto-assigned if empty)"},
+					"department_ids": map[string]string{"type": "string", "description": "Comma-separated department IDs or names to associate the worker with"},
 				},
 			},
 		},
@@ -74,10 +79,11 @@ func beeToolSchemas() []toolSchema {
 				"type":     "object",
 				"required": []string{"worker_id"},
 				"properties": map[string]any{
-					"worker_id":   map[string]string{"type": "string", "description": "Worker ID"},
-					"name":        map[string]string{"type": "string", "description": "New name"},
-					"description": map[string]string{"type": "string", "description": "New description"},
-					"memory":      map[string]string{"type": "string", "description": "New memory content"},
+					"worker_id":      map[string]string{"type": "string", "description": "Worker ID"},
+					"name":           map[string]string{"type": "string", "description": "New name"},
+					"description":    map[string]string{"type": "string", "description": "New description"},
+					"memory":         map[string]string{"type": "string", "description": "New memory content"},
+					"department_ids": map[string]string{"type": "string", "description": "Comma-separated department IDs or names; replaces all existing associations. Empty string clears all."},
 				},
 			},
 		},
@@ -248,6 +254,63 @@ func beeToolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        utils.ListDepartments,
+			Description: "List all departments as a tree structure",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        utils.GetDepartment,
+			Description: "Get a department by ID or name",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id": map[string]string{"type": "string", "description": "Department ID or name"},
+				},
+			},
+		},
+		{
+			Name:        utils.CreateDepartment,
+			Description: "Create a new department",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"name"},
+				"properties": map[string]any{
+					"name":       map[string]string{"type": "string", "description": "Department name"},
+					"parent_id":  map[string]string{"type": "string", "description": "Parent department ID or name"},
+					"sort_order": map[string]string{"type": "integer", "description": "Display sort order"},
+				},
+			},
+		},
+		{
+			Name:        utils.UpdateDepartment,
+			Description: "Update a department (patch semantics: omitted fields unchanged). Setting parent_id moves the department; cannot move to root level.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id":         map[string]string{"type": "string", "description": "Department ID or name"},
+					"name":       map[string]string{"type": "string", "description": "New name"},
+					"parent_id":  map[string]string{"type": "string", "description": "New parent department ID or name"},
+					"sort_order": map[string]string{"type": "integer", "description": "New sort order"},
+				},
+			},
+		},
+		{
+			Name:        utils.DeleteDepartment,
+			Description: "Delete a department. Fails if it has child departments or associated workers.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id": map[string]string{"type": "string", "description": "Department ID or name"},
+				},
+			},
+		},
 	}
 }
 
@@ -330,6 +393,16 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolListSessionContexts(args)
 	case utils.ClearWorkerSession:
 		return s.toolClearWorkerSession(args)
+	case utils.ListDepartments:
+		return s.toolListDepartments(args)
+	case utils.GetDepartment:
+		return s.toolGetDepartment(args)
+	case utils.CreateDepartment:
+		return s.toolCreateDepartment(args)
+	case utils.UpdateDepartment:
+		return s.toolUpdateDepartment(args)
+	case utils.DeleteDepartment:
+		return s.toolDeleteDepartment(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -343,8 +416,33 @@ func (s *MCPServer) workerCallTool(ctx context.Context, name string, args json.R
 	return s.beeCallTool(ctx, name, args)
 }
 
-func (s *MCPServer) toolListWorkers(_ json.RawMessage) (any, error) {
-	workers, err := s.workerStore.List()
+func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
+	var params struct {
+		DepartmentID string `json:"department_id"`
+		Recursive    *bool  `json:"recursive"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+
+	var workers []model.Worker
+	var err error
+
+	if params.DepartmentID != "" {
+		recursive := params.Recursive == nil || *params.Recursive
+		if recursive {
+			workers, err = s.listWorkersRecursive(params.DepartmentID)
+		} else {
+			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			workers, err = s.workerStore.GetByDepartmentID(deptID)
+		}
+	} else {
+		workers, err = s.workerStore.List()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
@@ -369,10 +467,11 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Memory      string `json:"memory"`
-		WorkDir     string `json:"work_dir"`
+		Name          string `json:"name"`
+		Description   string `json:"description"`
+		Memory        string `json:"memory"`
+		WorkDir       string `json:"work_dir"`
+		DepartmentIDs string `json:"department_ids"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -380,15 +479,25 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	return s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+	if params.DepartmentIDs != "" {
+		if err := s.applyWorkerDepartments(w.ID, params.DepartmentIDs); err != nil {
+			return nil, err
+		}
+	}
+	return w, nil
 }
 
 func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID    string  `json:"worker_id"`
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		Memory      *string `json:"memory"`
+		WorkerID      string  `json:"worker_id"`
+		Name          *string `json:"name"`
+		Description   *string `json:"description"`
+		Memory        *string `json:"memory"`
+		DepartmentIDs *string `json:"department_ids"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -396,12 +505,10 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-
 	w, err := s.workerStore.GetByID(params.WorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -411,8 +518,16 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.Memory != nil {
 		w.Memory = *params.Memory
 	}
-
-	return s.workerStore.Update(w)
+	w, err = s.workerStore.Update(w)
+	if err != nil {
+		return nil, err
+	}
+	if params.DepartmentIDs != nil {
+		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
+			return nil, err
+		}
+	}
+	return w, nil
 }
 
 func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
@@ -973,4 +1088,246 @@ func (s *MCPServer) toolClearWorkerSession(args json.RawMessage) (any, error) {
 		"worker_id":   params.WorkerID,
 		"worker_name": workerName,
 	}, nil
+}
+
+func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list departments: %w", err)
+	}
+	tree := s.departmentStore.BuildTree(all)
+	if tree == nil {
+		tree = []model.DepartmentTree{}
+	}
+	return tree, nil
+}
+
+func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deptID, err := s.resolveDepartmentID(params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.departmentStore.GetByID(deptID)
+}
+
+func (s *MCPServer) toolCreateDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		Name      string `json:"name"`
+		ParentID  string `json:"parent_id"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	d := model.Department{
+		Name:      params.Name,
+		SortOrder: params.SortOrder,
+	}
+	if params.ParentID != "" {
+		parentID, err := s.resolveDepartmentID(params.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("parent: %w", err)
+		}
+		d.ParentID = &parentID
+	}
+	return s.departmentStore.Create(d)
+}
+
+func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID        string  `json:"id"`
+		Name      *string `json:"name"`
+		ParentID  *string `json:"parent_id"`
+		SortOrder *int    `json:"sort_order"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	toResolve := []string{params.ID}
+	if params.ParentID != nil {
+		toResolve = append(toResolve, *params.ParentID)
+	}
+	resolvedIDs, err := s.resolveDepartmentIDs(toResolve)
+	if err != nil {
+		return nil, err
+	}
+	deptID := resolvedIDs[0]
+	d, err := s.departmentStore.GetByID(deptID)
+	if err != nil {
+		return nil, fmt.Errorf("get department: %w", err)
+	}
+	if params.Name != nil {
+		d.Name = *params.Name
+	}
+	if params.SortOrder != nil {
+		d.SortOrder = *params.SortOrder
+	}
+	if params.ParentID != nil {
+		resolvedParentID := resolvedIDs[1]
+		if err := s.departmentStore.CheckCircularReference(d.ID, resolvedParentID); err != nil {
+			return nil, err
+		}
+		d.ParentID = &resolvedParentID
+	}
+	return s.departmentStore.Update(d)
+}
+
+func (s *MCPServer) toolDeleteDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deptID, err := s.resolveDepartmentID(params.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.departmentStore.Delete(deptID); err != nil {
+		return nil, err
+	}
+	return map[string]string{"status": "deleted"}, nil
+}
+
+func (s *MCPServer) resolveDepartmentID(idOrName string) (string, error) {
+	ids, err := s.resolveDepartmentIDs([]string{idOrName})
+	if err != nil {
+		return "", err
+	}
+	return ids[0], nil
+}
+
+// resolveDepartmentIDs resolves a slice of ID-or-name strings to department IDs with a single
+// ListAll call to avoid per-element DB queries.
+func (s *MCPServer) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
+	if len(idOrNames) == 0 {
+		return nil, nil
+	}
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list departments: %w", err)
+	}
+	return resolveDeptIDsFromList(all, idOrNames)
+}
+
+// resolveDeptIDsFromList resolves ID-or-name strings using an already-loaded department list,
+// avoiding an extra DB query when the caller already has all departments in memory.
+func resolveDeptIDsFromList(all []model.Department, idOrNames []string) ([]string, error) {
+	deptByID := make(map[string]model.Department, len(all))
+	deptByName := make(map[string][]model.Department)
+	for _, d := range all {
+		deptByID[d.ID] = d
+		deptByName[d.Name] = append(deptByName[d.Name], d)
+	}
+
+	ids := make([]string, 0, len(idOrNames))
+	for _, v := range idOrNames {
+		if _, ok := deptByID[v]; ok {
+			ids = append(ids, v)
+			continue
+		}
+		matches := deptByName[v]
+		switch len(matches) {
+		case 0:
+			return nil, fmt.Errorf("department %q not found", v)
+		case 1:
+			ids = append(ids, matches[0].ID)
+		default:
+			paths := make([]string, len(matches))
+			for i, m := range matches {
+				paths[i] = departmentAncestorPath(deptByID, m)
+			}
+			return nil, fmt.Errorf("department name %q is ambiguous, matches: %s; use an ID instead",
+				v, strings.Join(paths, ", "))
+		}
+	}
+	return ids, nil
+}
+
+// applyWorkerDepartments resolves a comma-separated list of department IDs or names and
+// replaces all department associations for the worker. An empty string clears all associations.
+func (s *MCPServer) applyWorkerDepartments(workerID, deptIDsParam string) error {
+	var deptIDs []string
+	if deptIDsParam != "" {
+		var err error
+		deptIDs, err = s.resolveDepartmentIDs(utils.SplitAndTrim(deptIDsParam))
+		if err != nil {
+			return fmt.Errorf("set departments: %w", err)
+		}
+	}
+	if err := s.departmentStore.SetWorkerDepartments(workerID, deptIDs); err != nil {
+		return fmt.Errorf("set worker departments: %w", err)
+	}
+	return nil
+}
+
+func departmentAncestorPath(deptMap map[string]model.Department, d model.Department) string {
+	var parts []string
+	cur := d
+	for {
+		parts = append([]string{cur.Name}, parts...)
+		if cur.ParentID == nil {
+			break
+		}
+		parent, ok := deptMap[*cur.ParentID]
+		if !ok {
+			break
+		}
+		cur = parent
+	}
+	return strings.Join(parts, " > ")
+}
+
+func collectDescendantIDs(all []model.Department, rootID string) []string {
+	childrenMap := make(map[string][]string)
+	for _, d := range all {
+		if d.ParentID != nil {
+			childrenMap[*d.ParentID] = append(childrenMap[*d.ParentID], d.ID)
+		}
+	}
+	var ids []string
+	var dfs func(id string)
+	dfs = func(id string) {
+		ids = append(ids, id)
+		for _, childID := range childrenMap[id] {
+			dfs(childID)
+		}
+	}
+	dfs(rootID)
+	return ids
+}
+
+func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error) {
+	all, err := s.departmentStore.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list departments: %w", err)
+	}
+	resolvedIDs, err := resolveDeptIDsFromList(all, []string{idOrName})
+	if err != nil {
+		return nil, err
+	}
+	deptIDs := collectDescendantIDs(all, resolvedIDs[0])
+	workerIDs, err := s.departmentStore.GetWorkerIDsForDepartments(deptIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get department workers: %w", err)
+	}
+	return s.workerStore.GetByIDs(workerIDs)
 }

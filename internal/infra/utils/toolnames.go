@@ -20,4 +20,9 @@ const (
 	DeleteMemory        = "delete_memory"
 	ListSessionContexts = "list_session_contexts"
 	ClearWorkerSession  = "clear_worker_session"
+	ListDepartments     = "list_departments"
+	GetDepartment       = "get_department"
+	CreateDepartment    = "create_department"
+	UpdateDepartment    = "update_department"
+	DeleteDepartment    = "delete_department"
 )
