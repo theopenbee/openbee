@@ -268,6 +268,44 @@ func beeToolSchemas() []toolSchema {
 				},
 			},
 		},
+		{
+			Name:        utils.CreateDepartment,
+			Description: "Create a new department",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"name"},
+				"properties": map[string]any{
+					"name":       map[string]string{"type": "string", "description": "Department name"},
+					"parent_id":  map[string]string{"type": "string", "description": "Parent department ID or name"},
+					"sort_order": map[string]string{"type": "integer", "description": "Display sort order"},
+				},
+			},
+		},
+		{
+			Name:        utils.UpdateDepartment,
+			Description: "Update a department (patch semantics: omitted fields unchanged). Setting parent_id moves the department; cannot move to root level.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id":         map[string]string{"type": "string", "description": "Department ID or name"},
+					"name":       map[string]string{"type": "string", "description": "New name"},
+					"parent_id":  map[string]string{"type": "string", "description": "New parent department ID or name"},
+					"sort_order": map[string]string{"type": "integer", "description": "New sort order"},
+				},
+			},
+		},
+		{
+			Name:        utils.DeleteDepartment,
+			Description: "Delete a department. Fails if it has child departments or associated workers.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id": map[string]string{"type": "string", "description": "Department ID or name"},
+				},
+			},
+		},
 	}
 }
 
@@ -354,6 +392,12 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolListDepartments(args)
 	case utils.GetDepartment:
 		return s.toolGetDepartment(args)
+	case utils.CreateDepartment:
+		return s.toolCreateDepartment(args)
+	case utils.UpdateDepartment:
+		return s.toolUpdateDepartment(args)
+	case utils.DeleteDepartment:
+		return s.toolDeleteDepartment(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1026,6 +1070,92 @@ func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return s.departmentStore.GetByID(deptID)
+}
+
+func (s *MCPServer) toolCreateDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		Name      string `json:"name"`
+		ParentID  string `json:"parent_id"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	d := model.Department{
+		Name:      params.Name,
+		SortOrder: params.SortOrder,
+	}
+	if params.ParentID != "" {
+		parentID, err := s.resolveDepartmentID(params.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("parent: %w", err)
+		}
+		d.ParentID = &parentID
+	}
+	return s.departmentStore.Create(d)
+}
+
+func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID        string  `json:"id"`
+		Name      *string `json:"name"`
+		ParentID  *string `json:"parent_id"`
+		SortOrder *int    `json:"sort_order"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deptID, err := s.resolveDepartmentID(params.ID)
+	if err != nil {
+		return nil, err
+	}
+	d, err := s.departmentStore.GetByID(deptID)
+	if err != nil {
+		return nil, fmt.Errorf("get department: %w", err)
+	}
+	if params.Name != nil {
+		d.Name = *params.Name
+	}
+	if params.SortOrder != nil {
+		d.SortOrder = *params.SortOrder
+	}
+	if params.ParentID != nil {
+		resolvedParentID, err := s.resolveDepartmentID(*params.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("parent: %w", err)
+		}
+		if err := s.departmentStore.CheckCircularReference(d.ID, resolvedParentID); err != nil {
+			return nil, err
+		}
+		d.ParentID = &resolvedParentID
+	}
+	return s.departmentStore.Update(d)
+}
+
+func (s *MCPServer) toolDeleteDepartment(args json.RawMessage) (any, error) {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deptID, err := s.resolveDepartmentID(params.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.departmentStore.Delete(deptID); err != nil {
+		return nil, err
+	}
+	return map[string]string{"status": "deleted"}, nil
 }
 
 // splitAndTrim splits a comma-separated string and trims whitespace from each part,
