@@ -225,6 +225,33 @@ export function LocalChat() {
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((result) => result.value.path)])
   }, [t])
 
+  const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData.items)
+    const imageItems = items.filter((item) => item.type.startsWith("image/"))
+    if (imageItems.length === 0) return
+
+    const files = imageItems
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    if (files.length === 0) return
+
+    setUploadError(null)
+
+    const results = await Promise.allSettled(
+      files.map((file) => api.localChat.uploadMedia(file))
+    )
+    const succeeded = results.filter(
+      (result): result is PromiseFulfilledResult<{ path: string }> => result.status === "fulfilled"
+    )
+    const failedCount = results.length - succeeded.length
+
+    if (failedCount > 0) {
+      setUploadError(t("localChat.uploadError", { count: failedCount }))
+    }
+
+    setPendingMediaPaths((prev) => [...prev, ...succeeded.map((result) => result.value.path)])
+  }, [t])
+
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
@@ -390,6 +417,7 @@ export function LocalChat() {
                     void handleSend()
                   }
                 }}
+                onPaste={(event) => void handlePaste(event)}
               />
 
               <div className="mt-3 flex flex-wrap gap-1.5 px-3">
