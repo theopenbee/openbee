@@ -1,4 +1,4 @@
-import { Fragment } from "react"
+import { Fragment, useMemo } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
@@ -14,7 +14,7 @@ import { resolveCrumbs } from "@/lib/breadcrumb-config"
 export function AppBreadcrumb() {
   const { pathname } = useLocation()
   const { t } = useTranslation()
-  const crumbs = resolveCrumbs(pathname)
+  const crumbs = useMemo(() => resolveCrumbs(pathname), [pathname])
 
   return (
     <Breadcrumb>

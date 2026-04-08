@@ -33,7 +33,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
     { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
     { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
-    { title: t("nav.executions"), url: "/executions", icon: <ActivityIcon /> },
+    { title: t("nav.executions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
   ], [t])
 

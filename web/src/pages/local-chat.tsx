@@ -16,7 +16,6 @@ import {
   FileImage,
   FileText,
   FileVideo,
-  MessageSquareText,
   Paperclip,
   Send,
   X,
@@ -27,7 +26,9 @@ import {
   useSendMessage,
 } from "@/hooks/use-local-chat"
 import { DetailSection } from "@/components/detail-primitives"
+import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -230,36 +231,27 @@ export function LocalChat() {
 
   return (
     <FadeIn>
-      <div className="space-y-6">
-        <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
-          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+      <PageHeader title={t("localChat.title")} />
+      <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="rounded-[1.6rem] border border-border/70 bg-background/80 px-4 py-4"
+                    className="rounded-3xl border border-border/70 bg-background/80 px-4 py-4"
                   >
-                    <div className="h-4 w-28 rounded bg-muted" />
-                    <div className="mt-4 h-4 w-full rounded bg-muted" />
-                    <div className="mt-2 h-4 w-4/5 rounded bg-muted" />
+                    <div className="skeleton h-4 w-28" />
+                    <div className="skeleton mt-4 h-4 w-full" />
+                    <div className="skeleton mt-2 h-4 w-4/5" />
                   </div>
                 ))}
               </div>
             ) : isEmpty ? (
-              <div className="flex h-full min-h-[18rem] items-center justify-center">
-                <div className="max-w-md rounded-[1.75rem] border border-dashed border-border/80 bg-background/78 px-6 py-8 text-left">
-                  <div className="inline-flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/35">
-                    <MessageSquareText className="size-5 text-muted-foreground" />
-                  </div>
-                  <h2 className="mt-5 text-lg font-semibold tracking-tight text-foreground">
-                    {t("localChat.noMessagesTitle")}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {t("localChat.noMessagesDescription")}
-                  </p>
-                </div>
-              </div>
+              <EmptyState
+                title={t("localChat.noMessagesTitle")}
+                description={t("localChat.noMessagesDescription")}
+              />
             ) : (
               <div className="space-y-4">
                 {localMessages.map((message, index) => {
@@ -273,7 +265,7 @@ export function LocalChat() {
                     >
                       <article
                         className={cn(
-                          "w-full rounded-[1.6rem] border px-4 py-4 sm:px-5",
+                          "w-full rounded-3xl border px-4 py-4 sm:px-5",
                           isUser
                             ? "max-w-[min(100%,44rem)] border-primary/15 bg-primary text-primary-foreground"
                             : "max-w-[min(100%,52rem)] border-border/70 bg-background/82"
@@ -330,7 +322,7 @@ export function LocalChat() {
 
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="w-full max-w-[38rem] rounded-[1.6rem] border border-border/70 bg-background/82 px-4 py-4 sm:px-5">
+                    <div className="w-full max-w-[38rem] rounded-3xl border border-border/70 bg-background/82 px-4 py-4 sm:px-5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                           <span className="size-2 rounded-full bg-primary/70" />
@@ -356,7 +348,7 @@ export function LocalChat() {
 
           <div className="border-t border-border/70 bg-card p-4 sm:p-5">
             {uploadError && (
-              <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {uploadError}
               </div>
             )}
@@ -385,7 +377,7 @@ export function LocalChat() {
               </div>
             )}
 
-            <div className="rounded-[1.6rem] border border-border/70 bg-background/82 p-3">
+            <div className="rounded-3xl border border-border/70 bg-background/82 p-3">
               <textarea
                 ref={textareaRef}
                 className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
@@ -451,8 +443,7 @@ export function LocalChat() {
               </div>
             </div>
           </div>
-        </DetailSection>
-      </div>
+      </DetailSection>
     </FadeIn>
   )
 }

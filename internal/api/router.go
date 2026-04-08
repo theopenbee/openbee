@@ -21,6 +21,7 @@ type ServerParams struct {
 	ExecutionStore   *store.ExecutionStore
 	TaskStore        *store.TaskStore
 	DepartmentStore  *store.DepartmentStore
+	StatsStore       *store.StatsStore
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
 	WorkerMCPServer  *mcp.MCPServer
@@ -68,6 +69,7 @@ func (s *Server) setupRoutes() error {
 		s.registerTaskRoutes(api)
 		s.registerDepartmentRoutes(api)
 		s.registerLocalChatRoutes(api)
+		s.registerStatsRoutes(api)
 	}
 
 	s.registerMCPRoutes()

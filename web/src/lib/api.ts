@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, Task, Department, DepartmentTree } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, Task, Department, DepartmentTree, StatsOverview, StatsTrend } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -155,5 +155,9 @@ export const api = {
       fetchAPI(`/tasks/${id}`, { method: "DELETE" }),
     cancelAll: (workerID: string) =>
       fetchAPI(`/workers/${workerID}/tasks/cancel-all`, { method: "POST" }),
+  },
+  stats: {
+    overview: () => fetchAPI<StatsOverview>("/stats/overview"),
+    trend: (days: 7 | 15 | 30) => fetchAPI<StatsTrend>(`/stats/trend?days=${days}`),
   },
 }

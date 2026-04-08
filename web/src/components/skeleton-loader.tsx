@@ -19,7 +19,7 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+    <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
       <div className="bg-secondary/50 px-4 py-3 flex gap-8">
         {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-4 w-20" />

@@ -90,21 +90,24 @@ export function Workers() {
 
   const handleCreate = async (e?: FormEvent) => {
     e?.preventDefault()
-    const worker = await createWorker.mutateAsync({
-      name,
-      description,
-      memory: memory || undefined,
-      work_dir: workDir || undefined,
-    })
-    if (selectedCreateDeptIds.size > 0) {
-      await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+    try {
+      const worker = await createWorker.mutateAsync({
+        name,
+        description,
+        memory: memory || undefined,
+        work_dir: workDir || undefined,
+      })
+      if (selectedCreateDeptIds.size > 0) {
+        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+      }
+      setOpen(false)
+    } finally {
+      setName("")
+      setDescription("")
+      setMemory("")
+      setWorkDir("")
+      setSelectedCreateDeptIds(new Set())
     }
-    setOpen(false)
-    setName("")
-    setDescription("")
-    setMemory("")
-    setWorkDir("")
-    setSelectedCreateDeptIds(new Set())
   }
 
   const handleDeleteConfirm = async () => {
@@ -287,21 +290,27 @@ export function Workers() {
         }
       />
 
-      {error && <p className="text-destructive mb-4">{error}</p>}
+      {error && (
+        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="min-h-[320px]">
       {isLoading ? (
         <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
-          title={t("emptyState.noWorkers")}
-          description={t("emptyState.noWorkersDesc")}
+          title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+          description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            selectedDeptId === null ? (
+              <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            ) : undefined
           }
         />
       ) : (
-        <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+        <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">

@@ -91,22 +91,13 @@ function DepartmentNode({
 
   return (
     <Fragment>
-      <button
-        onClick={() => onSelect(dept.id)}
-        className={cn(
-          "w-full flex items-center gap-1.5 py-1.5 text-sm rounded-md transition-colors",
-          selectedId === dept.id
-            ? "bg-primary/10 text-primary font-medium"
-            : "text-muted-foreground hover:bg-muted"
-        )}
+      <div
+        className="w-full flex items-center gap-1.5 py-1.5 text-sm rounded-md transition-colors"
         style={{ paddingLeft: `${depth * 16 + 12}px`, paddingRight: "12px" }}
       >
         {hasChildren ? (
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setExpanded(!expanded)
-            }}
+            onClick={() => setExpanded(!expanded)}
             className="shrink-0 p-0.5 hover:bg-muted rounded"
           >
             <ChevronRightIcon
@@ -116,13 +107,23 @@ function DepartmentNode({
         ) : (
           <span className="w-4.5 shrink-0" />
         )}
-        {expanded && hasChildren ? (
-          <FolderOpenIcon className="size-4 shrink-0" />
-        ) : (
-          <FolderIcon className="size-4 shrink-0" />
-        )}
-        <span className="truncate">{dept.name}</span>
-      </button>
+        <button
+          onClick={() => onSelect(dept.id)}
+          className={cn(
+            "flex-1 flex items-center gap-1.5 text-left",
+            selectedId === dept.id
+              ? "text-primary font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {expanded && hasChildren ? (
+            <FolderOpenIcon className="size-4 shrink-0" />
+          ) : (
+            <FolderIcon className="size-4 shrink-0" />
+          )}
+          <span className="truncate">{dept.name}</span>
+        </button>
+      </div>
 
       {expanded && hasChildren && dept.children.map((child) => (
         <DepartmentNode

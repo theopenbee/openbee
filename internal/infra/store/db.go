@@ -257,6 +257,15 @@ SELECT 1`,
 	},
 }
 
+// stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.
+func stringsToArgs(ss []string) []any {
+	args := make([]any, len(ss))
+	for i, s := range ss {
+		args[i] = s
+	}
+	return args
+}
+
 // inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".
 func inPlaceholders(n int) string {
 	if n == 0 {

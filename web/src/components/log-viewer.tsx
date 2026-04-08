@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Streamdown } from "streamdown"
@@ -276,12 +276,6 @@ function ToolEntry({
   const meta = getToolMeta(entry.name)
   const summary = meta.summary(entry.input)
 
-  useEffect(() => {
-    if (entry.isError) {
-      setOpen(true)
-    }
-  }, [entry.isError])
-
   return (
     <TimelineRow markerClassName={entry.isError ? "bg-destructive" : entry.result ? "bg-status-idle" : "bg-primary/55"}>
       <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
@@ -381,7 +375,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
-  const lineCount = entry.content.split("\n").length
+  const lineCount = useMemo(() => entry.content.split("\n").length, [entry.content])
 
   return (
     <TimelineRow markerClassName={isError ? "bg-destructive/85" : "bg-muted-foreground/55"}>
@@ -542,28 +536,28 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "auto" })
   }, [entries, autoScroll, followLive])
 
-  let narrativeCount = 0
-  let toolCount = 0
-  let rawCount = 0
-
-  for (const entry of entries) {
-    if (entry.kind === "text") narrativeCount += 1
-    if (entry.kind === "tool") toolCount += 1
-    if (entry.kind === "raw") rawCount += 1
-  }
-
-  const visibleEntries = entries.filter((entry) => {
-    if (entry.kind === "result") return true
-    if (filter === "all") return true
-    return entry.kind === filter
-  })
-
-  const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
-    { key: "all", label: t("logViewer.all"), count: entries.length },
-    { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
-    { key: "tool", label: t("logViewer.tools"), count: toolCount },
-    { key: "raw", label: t("logViewer.raw"), count: rawCount },
-  ]
+  const { filterOptions, visibleEntries } = useMemo(() => {
+    let narrativeCount = 0
+    let toolCount = 0
+    let rawCount = 0
+    for (const entry of entries) {
+      if (entry.kind === "text") narrativeCount += 1
+      if (entry.kind === "tool") toolCount += 1
+      if (entry.kind === "raw") rawCount += 1
+    }
+    const visibleEntries = entries.filter((entry) => {
+      if (entry.kind === "result") return true
+      if (filter === "all") return true
+      return entry.kind === filter
+    })
+    const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
+      { key: "all", label: t("logViewer.all"), count: entries.length },
+      { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
+      { key: "tool", label: t("logViewer.tools"), count: toolCount },
+      { key: "raw", label: t("logViewer.raw"), count: rawCount },
+    ]
+    return { filterOptions, visibleEntries }
+  }, [entries, filter, t])
 
   const handleViewportScroll = () => {
     if (!autoScroll || !isActiveStatus(status)) return

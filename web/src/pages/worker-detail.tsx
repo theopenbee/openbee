@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, statusTone } from "@/lib/format"
+import { formatTimestamp, groupExecutionsBySession, statusTone } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 
@@ -52,18 +52,7 @@ export function WorkerDetail() {
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
   const latestExecution = executions[0]
 
-  const sessionGroups = useMemo(() => {
-    const map = new Map<string, typeof executions>()
-    for (const execution of executions) {
-      const group = map.get(execution.session_id) ?? []
-      group.push(execution)
-      map.set(execution.session_id, group)
-    }
-
-    return Array.from(map.values()).sort((left, right) => {
-      return (right[0].started_at ?? 0) - (left[0].started_at ?? 0)
-    })
-  }, [executions])
+  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
   const [isEditingDesc, setIsEditingDesc] = useState(false)
   const [editDesc, setEditDesc] = useState("")
@@ -72,6 +61,7 @@ export function WorkerDetail() {
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const { data: departments = [] } = useDepartments()
+  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
   const setWorkerDepts = useSetWorkerDepartments()
   const [deptDialogOpen, setDeptDialogOpen] = useState(false)
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
@@ -426,7 +416,7 @@ export function WorkerDetail() {
             <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
           </DialogHeader>
           <div className="max-h-64 overflow-y-auto space-y-1">
-            {flattenDeptTree(departments).map(({ dept, depth }) => (
+            {flatDepts.map(({ dept, depth }) => (
               <label
                 key={dept.id}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer"

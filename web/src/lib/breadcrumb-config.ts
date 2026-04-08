@@ -17,13 +17,13 @@ const ROUTES: { test: RegExp; crumbs: CrumbDef[] }[] = [
     ],
   },
   {
-    test: /^\/executions$/,
+    test: /^\/sessions$/,
     crumbs: [{ labelKey: "nav.executions" }],
   },
   {
     test: /^\/sessions\//,
     crumbs: [
-      { labelKey: "nav.executions", to: "/executions" },
+      { labelKey: "nav.executions", to: "/sessions" },
       { labelKey: "breadcrumb.detail" },
     ],
   },
