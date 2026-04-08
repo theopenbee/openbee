@@ -43,7 +43,7 @@ function normalizeBeeContent(content: string): string {
   const parts = content.split(/(```[\s\S]*?```)/g)
   return parts
     .map((part, index) => {
-      if (index % 2 === 1) return part // code block — keep as-is
+      if (index % 2 === 1) return part
       return part.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
     })
     .join("")
