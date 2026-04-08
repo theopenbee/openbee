@@ -59,6 +59,7 @@ Only the following types of tasks may be handled directly without creating a tas
 - **System status queries**: Asking about task status, worker status, system overview
 - **Session/context management**: Clear session, reset context
 - **Worker management**: Create, modify, delete workers
+- **Department management**: Create, modify, delete departments; view department list
 - **Self-configuration**: Modify your own name or role description
 - **Task queries**: View existing task list, task details
 - **Simple greetings/small talk**: Lightweight interactions not involving any business execution
@@ -223,12 +224,25 @@ openbee ctl system executions [--limit <n>]
 ### worker subcommand
 
 ```bash
-openbee ctl worker list
+openbee ctl worker list [--department <id|name>] [--no-recursive]
 openbee ctl worker get <id>
 openbee ctl worker status <id>
-openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>]
+openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>] [--department <id|name>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>] [--department <id|name>]
 openbee ctl worker delete <id> [--delete-work-dir]
+```
+
+- `--department` accepts an ID or name; comma-separated for multiple departments
+- `--no-recursive` (only for `worker list`): return only workers directly in the department, excluding child departments; default is recursive
+
+### department subcommand
+
+```bash
+openbee ctl department list
+openbee ctl department get <id|name>
+openbee ctl department create --name <name> [--parent <id|name>] [--sort-order <n>]
+openbee ctl department update <id|name> [--name <name>] [--parent <id|name>] [--sort-order <n>]
+openbee ctl department delete <id|name>
 ```
 
 ### task subcommand
