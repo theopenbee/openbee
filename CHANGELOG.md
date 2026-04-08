@@ -6,6 +6,7 @@
 
 - Added support for pasting images to upload in the chat input box
 - Added support for Kimi Code
+- Added collapsible support for long chat messages: messages exceeding a fixed height are clipped with a fade overlay and can be expanded or collapsed on demand
 
 ### Fixed
 
