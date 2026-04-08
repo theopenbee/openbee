@@ -1191,3 +1191,72 @@ func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
 		t.Error("expected error deleting department with children, got nil")
 	}
 }
+
+func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	dept, _ := ds.Create(model.Department{Name: "Engineering"})
+	other, _ := ds.Create(model.Department{Name: "Marketing"})
+
+	w1, _ := ws.Create(model.Worker{Name: "Alice"})
+	w2, _ := ws.Create(model.Worker{Name: "Bob"})
+	_ = ds.SetWorkerDepartments(w1.ID, []string{dept.ID})
+	_ = ds.SetWorkerDepartments(w2.ID, []string{other.ID})
+
+	result, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": dept.ID}))
+	if err != nil {
+		t.Fatalf("list_workers with dept filter: %v", err)
+	}
+	workers, ok := result.([]model.Worker)
+	if !ok {
+		t.Fatalf("expected []model.Worker, got %T", result)
+	}
+	if len(workers) != 1 {
+		t.Fatalf("expected 1 worker, got %d", len(workers))
+	}
+	if workers[0].Name != "Alice" {
+		t.Errorf("expected Alice, got %s", workers[0].Name)
+	}
+}
+
+func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ds := store.NewDepartmentStore(db)
+	ws := store.NewWorkerStore(db)
+
+	parent, _ := ds.Create(model.Department{Name: "R&D"})
+	child, _ := ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
+
+	w1, _ := ws.Create(model.Worker{Name: "Alice"})
+	w2, _ := ws.Create(model.Worker{Name: "Bob"})
+	_ = ds.SetWorkerDepartments(w1.ID, []string{parent.ID})
+	_ = ds.SetWorkerDepartments(w2.ID, []string{child.ID})
+
+	// recursive (default): should return both
+	result, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": parent.ID}))
+	if err != nil {
+		t.Fatalf("list_workers recursive: %v", err)
+	}
+	workers := result.([]model.Worker)
+	if len(workers) != 2 {
+		t.Errorf("expected 2 workers (recursive), got %d", len(workers))
+	}
+
+	// non-recursive: should return only Alice
+	result2, err := s.CallTool(context.Background(), "list_workers",
+		mustMarshal(t, map[string]any{"department_id": parent.ID, "recursive": false}))
+	if err != nil {
+		t.Fatalf("list_workers non-recursive: %v", err)
+	}
+	workers2 := result2.([]model.Worker)
+	if len(workers2) != 1 {
+		t.Errorf("expected 1 worker (non-recursive), got %d", len(workers2))
+	}
+	if workers2[0].Name != "Alice" {
+		t.Errorf("expected Alice, got %s", workers2[0].Name)
+	}
+}

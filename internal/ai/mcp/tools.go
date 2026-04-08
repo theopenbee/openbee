@@ -37,10 +37,13 @@ func beeToolSchemas() []toolSchema {
 	return []toolSchema{
 		{
 			Name:        utils.ListWorkers,
-			Description: "List all workers",
+			Description: "List all workers, optionally filtered by department",
 			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
+				"type": "object",
+				"properties": map[string]any{
+					"department_id": map[string]string{"type": "string", "description": "Filter by department ID or name"},
+					"recursive":     map[string]any{"type": "boolean", "description": "Include workers in child departments (default: true)", "default": true},
+				},
 			},
 		},
 		{
@@ -411,8 +414,33 @@ func (s *MCPServer) workerCallTool(ctx context.Context, name string, args json.R
 	return s.beeCallTool(ctx, name, args)
 }
 
-func (s *MCPServer) toolListWorkers(_ json.RawMessage) (any, error) {
-	workers, err := s.workerStore.List()
+func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
+	var params struct {
+		DepartmentID string `json:"department_id"`
+		Recursive    *bool  `json:"recursive"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+
+	var workers []model.Worker
+	var err error
+
+	if params.DepartmentID != "" {
+		deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		recursive := params.Recursive == nil || *params.Recursive
+		if recursive {
+			workers, err = s.listWorkersRecursive(deptID)
+		} else {
+			workers, err = s.workerStore.GetByDepartmentID(deptID)
+		}
+	} else {
+		workers, err = s.workerStore.List()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
