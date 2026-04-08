@@ -405,7 +405,7 @@ export function LocalChat() {
                     void handleSend()
                   }
                 }}
-                onPaste={(event) => void handlePaste(event)}
+                onPaste={handlePaste}
               />
 
               <div className="mt-3 flex flex-wrap gap-1.5 px-3">
