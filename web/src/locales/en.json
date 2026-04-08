@@ -280,6 +280,8 @@
     "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "idleStatus": "Ready for next prompt",
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "openAttachment": "Open attachment",

@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react"
@@ -126,6 +127,48 @@ const AttachmentPreview = memo(function AttachmentPreview({
       <span className="break-all">{filename}</span>
       <ArrowUpRight className="size-4 shrink-0 opacity-70" />
     </a>
+  )
+})
+
+const COLLAPSE_HEIGHT = 320
+
+const CollapsibleContent = memo(function CollapsibleContent({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const { t } = useTranslation()
+  const innerRef = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(true)
+  const [overflows, setOverflows] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    setOverflows(el.scrollHeight > COLLAPSE_HEIGHT)
+  }, [children])
+
+  return (
+    <div>
+      <div
+        className={cn("overflow-hidden transition-[max-height] duration-300", collapsed && overflows ? "relative" : "")}
+        style={{ maxHeight: collapsed && overflows ? COLLAPSE_HEIGHT : undefined }}
+      >
+        <div ref={innerRef}>{children}</div>
+        {collapsed && overflows && (
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/95 to-transparent" />
+        )}
+      </div>
+      {overflows && (
+        <button
+          type="button"
+          className="mt-2 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
+          onClick={() => setCollapsed((prev) => !prev)}
+        >
+          {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
+        </button>
+      )}
+    </div>
   )
 })
 
@@ -319,9 +362,11 @@ export function LocalChat() {
                         )}
 
                         {hasContent && (
-                          <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
-                            <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
-                          </div>
+                          <CollapsibleContent>
+                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
+                              <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
+                            </div>
+                          </CollapsibleContent>
                         )}
                       </article>
                     </div>

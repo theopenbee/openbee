@@ -279,6 +279,8 @@
     "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
     "beeLabel": "Bee",
+    "showMore": "展开全部",
+    "showLess": "收起",
     "idleStatus": "可继续发送",
     "composerHint": "回车发送，Shift+Enter 换行",
     "openAttachment": "打开附件",
