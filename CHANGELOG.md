@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add statistics data to dashboard page
+- Add department feature
+
+### Changed
+
+- Refactor web UI
+- Complete message lifecycle closed-loop
+- Refactor backend code
+
 ## [0.0.17] - 2026-04-02
 
 ### Added
