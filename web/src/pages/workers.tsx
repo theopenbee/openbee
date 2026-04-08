@@ -290,7 +290,11 @@ export function Workers() {
         }
       />
 
-      {error && <p className="text-destructive mb-4">{error}</p>}
+      {error && (
+        <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="min-h-[320px]">
       {isLoading ? (
@@ -306,7 +310,7 @@ export function Workers() {
           }
         />
       ) : (
-        <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+        <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
