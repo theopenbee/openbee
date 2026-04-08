@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -83,6 +84,57 @@ func (p *Process) Stop() error {
 		return p.cmd.Process.Kill()
 	}
 	return nil
+}
+
+type streamEvent struct {
+	Type    string         `json:"type"`
+	Message *streamMessage `json:"message,omitempty"`
+	Result  string         `json:"result,omitempty"`
+}
+
+type streamMessage struct {
+	Content []streamContent `json:"content"`
+}
+
+type streamContent struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+// ExtractResultFromLog scans a Claude stream-json log file and returns the best
+// result string: prefers {"type":"result"} over the last assistant text.
+func ExtractResultFromLog(logPath string) string {
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return ""
+	}
+	var lastAssistantText, streamResult string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var event streamEvent
+		if json.Unmarshal([]byte(line), &event) != nil {
+			continue
+		}
+		switch event.Type {
+		case "assistant":
+			if event.Message != nil && len(event.Message.Content) > 0 {
+				if event.Message.Content[0].Type == "text" && event.Message.Content[0].Text != "" {
+					lastAssistantText = event.Message.Content[0].Text
+				}
+			}
+		case "result":
+			if event.Result != "" {
+				streamResult = event.Result
+			}
+		}
+	}
+	if streamResult != "" {
+		return streamResult
+	}
+	return lastAssistantText
 }
 
 // Run starts a Claude CLI process, redirecting its stdout and stderr to logPath.

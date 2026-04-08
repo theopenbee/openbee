@@ -2,11 +2,9 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,21 +19,6 @@ import (
 )
 
 var log = logger.With(zap.String("component", "worker"))
-
-type claudeStreamEvent struct {
-	Type    string         `json:"type"`
-	Message *claudeMessage `json:"message,omitempty"`
-	Result  string         `json:"result,omitempty"`
-}
-
-type claudeMessage struct {
-	Content []claudeContent `json:"content"`
-}
-
-type claudeContent struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-}
 
 type Manager struct {
 	workerBaseDir  string
@@ -176,11 +159,15 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	for out := range outputCh {
 		switch out.Type {
 		case claude.OutputDone:
-			result := extractResultFromLog(logPath)
+			result := claude.ExtractResultFromLog(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case claude.OutputError:
-			m.executionStore.UpdateResult(exec.ID, out.Content, model.ExecStatusFailed)
+			result := claude.ExtractResultFromLog(logPath)
+			if result == "" {
+				result = out.Content
+			}
+			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		}
 	}
@@ -190,41 +177,6 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	m.mu.Unlock()
 }
 
-// extractResultFromLog scans the log file for stream-json events and returns
-// the best result string: prefers {"type":"result"} over the last assistant text.
-func extractResultFromLog(logPath string) string {
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		return ""
-	}
-	var lastAssistantText, streamResult string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var event claudeStreamEvent
-		if json.Unmarshal([]byte(line), &event) != nil {
-			continue
-		}
-		switch event.Type {
-		case "assistant":
-			if event.Message != nil && len(event.Message.Content) > 0 {
-				if event.Message.Content[0].Type == "text" && event.Message.Content[0].Text != "" {
-					lastAssistantText = event.Message.Content[0].Text
-				}
-			}
-		case "result":
-			if event.Result != "" {
-				streamResult = event.Result
-			}
-		}
-	}
-	if streamResult != "" {
-		return streamResult
-	}
-	return lastAssistantText
-}
 
 func (m *Manager) DeleteWorker(id string, deleteWorkDir bool) error {
 	if deleteWorkDir {
