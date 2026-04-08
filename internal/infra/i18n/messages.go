@@ -120,6 +120,7 @@ type ProviderMessages struct {
 	FoundSettings   string `yaml:"found_settings"`
 	Select          string `yaml:"select"`
 	SelectModel     string `yaml:"select_model"`
+	KeyKimiCode     string `yaml:"key_kimicode"`
 	KeyMoonshot     string `yaml:"key_moonshot"`
 	KeyDeepSeek     string `yaml:"key_deepseek"`
 	KeyGLM          string `yaml:"key_glm"`

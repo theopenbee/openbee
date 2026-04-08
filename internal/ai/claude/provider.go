@@ -17,6 +17,7 @@ var ErrInterrupted = errors.New("interrupted")
 
 // Provider display names used in the selection menu and switch cases.
 const (
+	ProviderKimiCode   = "KimiCode"
 	ProviderMoonshot   = "Moonshot (Kimi)"
 	ProviderDeepSeek   = "DeepSeek"
 	ProviderGLM        = "Zhipu (GLM)"
@@ -49,6 +50,14 @@ func promptAPIKey(message string) (string, error) {
 }
 
 // Provider env map builders — only ANTHROPIC_AUTH_TOKEN comes from user input.
+
+func kimiCodeEnv(apiKey string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_BASE_URL":  "https://api.kimi.com/coding/",
+		"ANTHROPIC_API_KEY":   apiKey,
+		"ENABLE_TOOL_SEARCH":  "false",
+	}
+}
 
 func moonshotEnv(apiKey string) map[string]string {
 	return map[string]string{
@@ -136,6 +145,7 @@ func customEnv(baseURL, apiKey string) map[string]string {
 // previous provider do not linger after switching.
 var providerEnvKeys = []string{
 	"ANTHROPIC_AUTH_TOKEN",
+	"ANTHROPIC_API_KEY",
 	"ANTHROPIC_BASE_URL",
 	"ANTHROPIC_MODEL",
 	"ANTHROPIC_SMALL_FAST_MODEL",
@@ -221,6 +231,7 @@ func ConfigureProvider() error {
 	}
 
 	providerOptions := []string{
+		ProviderKimiCode,
 		ProviderMoonshot,
 		ProviderDeepSeek,
 		ProviderGLM,
@@ -242,6 +253,13 @@ func ConfigureProvider() error {
 	needClaudeJSON := false
 
 	switch provider {
+	case ProviderKimiCode:
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyKimiCode)
+		if err != nil {
+			return err
+		}
+		env = kimiCodeEnv(apiKey)
+
 	case ProviderMoonshot:
 		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMoonshot)
 		if err != nil {
