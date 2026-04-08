@@ -199,8 +199,8 @@ export function SessionDetail() {
         </DetailHero>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <aside className="xl:sticky xl:top-6 xl:self-start">
-            <DetailSection>
+          <aside className="xl:sticky xl:top-6">
+            <DetailSection className="h-full flex flex-col">
               <div className="border-b border-border/70 px-4 py-4 sm:px-5">
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {t("sessionDetail.turnNavigator")}
@@ -210,7 +210,7 @@ export function SessionDetail() {
                 </p>
               </div>
 
-              <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3 sm:p-4">
+              <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
                 {[...executions].reverse().map((exec, reverseIndex) => {
                   const turnNumber = executions.length - reverseIndex
                   const isSelected = exec.id === selectedExecution.id
