@@ -319,15 +319,9 @@ export function LocalChat() {
                         )}
 
                         {hasContent && (
-                          message.role === "bee" ? (
-                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
-                              <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
-                            </div>
-                          ) : (
-                            <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">
-                              {message.content}
-                            </p>
-                          )
+                          <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
+                            <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
+                          </div>
                         )}
                       </article>
                     </div>
