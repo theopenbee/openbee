@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
+import { PageHeader } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityTrendChart } from "@/components/activity-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
@@ -24,7 +25,7 @@ const EMPTY: StatsOverview = {
 function SectionRule({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 mb-5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70 whitespace-nowrap select-none">
+      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap select-none">
         {children}
       </span>
       <div className="flex-1 h-px bg-border" />
@@ -61,10 +62,7 @@ export function Dashboard() {
 
   return (
     <FadeIn>
-      {/* Page header */}
-      <h1 className="text-2xl font-bold tracking-tight mb-10">
-        {t("dashboard.title")}
-      </h1>
+      <PageHeader title={t("dashboard.title")} />
 
       {/* ── System Status ─────────────────────────────────────────── */}
       <div className="mb-10">
@@ -76,9 +74,9 @@ export function Dashboard() {
                 key={i}
                 className={
                   i % 2 !== 0
-                    ? "pl-6 border-l border-border sm:pl-8"
+                    ? "pl-6 border-l border-border/70 sm:pl-8"
                     : i > 0
-                      ? "pl-6 sm:pl-8 sm:border-l sm:border-border"
+                      ? "pl-6 sm:pl-8 sm:border-l sm:border-border/70"
                       : ""
                 }
               >
@@ -96,15 +94,15 @@ export function Dashboard() {
                 key={i}
                 className={[
                   // On mobile: right column (odd index) gets left border
-                  i % 2 !== 0 ? "pl-6 border-l border-border" : "",
+                  i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
                   // On sm+: all but first get left border and padding
-                  i > 0 ? "sm:pl-8 sm:border-l sm:border-border" : "",
+                  i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
                   // Bottom padding for first row on mobile
                   i < 2 ? "pb-6 sm:pb-0" : "",
                 ].join(" ")}
                 aria-label={label}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-2.5">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
                   {label}
                 </p>
                 <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
@@ -118,7 +116,7 @@ export function Dashboard() {
       <div className="mb-10">
         <SectionRule>{t("dashboard.todayActivity")}</SectionRule>
         <div
-          className="border border-border rounded-[10px] overflow-hidden"
+          className="border border-border/70 rounded-3xl overflow-hidden"
           role="region"
           aria-label={t("dashboard.todayActivity")}
         >
@@ -126,7 +124,7 @@ export function Dashboard() {
 
             {/* Active Workers */}
             <div className="p-6">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
                 {t("dashboard.activeWorkers")}
               </p>
               {isLoading ? (
@@ -148,7 +146,7 @@ export function Dashboard() {
                   </p>
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                         {t("dashboard.yesterday")}
                       </span>
                       <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
@@ -171,7 +169,7 @@ export function Dashboard() {
 
             {/* Messages */}
             <div className="p-6">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
                 {t("dashboard.messages")}
               </p>
               {isLoading ? (
@@ -182,7 +180,7 @@ export function Dashboard() {
               ) : (
                 <div className="space-y-5">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60 mb-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
                       {t("dashboard.messagesReceived")}
                     </p>
                     <p
@@ -193,7 +191,7 @@ export function Dashboard() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60 mb-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
                       {t("dashboard.messagesSent")}
                     </p>
                     <p
@@ -209,7 +207,7 @@ export function Dashboard() {
 
             {/* Executions */}
             <div className="p-6">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
                 {t("dashboard.executions")}
               </p>
               {isLoading ? (
@@ -231,7 +229,7 @@ export function Dashboard() {
                   </p>
                   <div className="flex gap-6">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60 mb-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
                         {t("dashboard.executionsSuccess")}
                       </p>
                       <p
@@ -243,7 +241,7 @@ export function Dashboard() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60 mb-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
                         {t("dashboard.executionsFailed")}
                       </p>
                       <p
