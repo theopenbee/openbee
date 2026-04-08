@@ -37,6 +37,18 @@ import type { ChatMessage } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
 
+// Convert isolated single newlines to double newlines so Markdown renders them
+// as paragraph breaks. Fenced code blocks are left untouched.
+function normalizeBeeContent(content: string): string {
+  const parts = content.split(/(```[\s\S]*?```)/g)
+  return parts
+    .map((part, index) => {
+      if (index % 2 === 1) return part
+      return part.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
+    })
+    .join("")
+}
+
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"
   return new Intl.DateTimeFormat(language, isSameDay(timestamp, Date.now())
@@ -279,7 +291,7 @@ export function LocalChat() {
                     >
                       <article
                         className={cn(
-                          "w-full rounded-3xl border px-4 py-4 sm:px-5",
+                          "w-full overflow-hidden rounded-3xl border px-4 py-4 sm:px-5",
                           isUser
                             ? "max-w-[min(100%,44rem)] border-primary/15 bg-primary text-primary-foreground"
                             : "max-w-[min(100%,52rem)] border-border/70 bg-background/82"
@@ -320,11 +332,11 @@ export function LocalChat() {
 
                         {hasContent && (
                           message.role === "bee" ? (
-                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3">
-                              <Streamdown mode="static">{message.content}</Streamdown>
+                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
+                              <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
                             </div>
                           ) : (
-                            <p className="mt-4 whitespace-pre-wrap text-sm leading-7">
+                            <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">
                               {message.content}
                             </p>
                           )
