@@ -130,14 +130,9 @@ func init() {
 
 	ctlWorkerDeleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
 
-	// list flags
 	ctlWorkerListCmd.Flags().StringVar(&workerListDepartment, "department", "", "Filter by department ID or name")
 	ctlWorkerListCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
-
-	// create flag
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
-
-	// update flag
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 
 	ctlWorkerCmd.AddCommand(

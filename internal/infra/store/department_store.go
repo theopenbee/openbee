@@ -300,6 +300,37 @@ func (s *DepartmentStore) GetDepartmentWorkerIDs(deptID string) ([]string, error
 	return ids, rows.Err()
 }
 
+// GetWorkerIDsForDepartments returns the unique worker IDs associated with any of the given departments.
+func (s *DepartmentStore) GetWorkerIDsForDepartments(deptIDs []string) ([]string, error) {
+	if len(deptIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(deptIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(deptIDs))
+	for i, id := range deptIDs {
+		args[i] = id
+	}
+	rows, err := s.db.Query(
+		`SELECT DISTINCT worker_id FROM bee_worker_departments WHERE department_id IN (`+placeholders+`)`,
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // DeleteWorkerDepartments removes all department associations for a worker.
 func (s *DepartmentStore) DeleteWorkerDepartments(workerID string) error {
 	_, err := s.db.Exec(`DELETE FROM bee_worker_departments WHERE worker_id = ?`, workerID)
