@@ -113,7 +113,7 @@ func ExtractResultFromLog(logPath string) string {
 
 	var lastAssistantText, streamResult string
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {
