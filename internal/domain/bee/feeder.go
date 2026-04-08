@@ -201,7 +201,10 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	resultMsg := ""
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
-		resultMsg = drainErr.Error()
+		resultMsg = claude.ExtractResultFromLog(logPath)
+		if resultMsg == "" {
+			resultMsg = drainErr.Error()
+		}
 	}
 	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
 		log.Error("update execution result", zap.Error(resErr))
