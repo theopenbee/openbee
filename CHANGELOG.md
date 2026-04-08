@@ -10,6 +10,7 @@
 ### Fixed
 
 - Fixed chat message newline rendering issue
+- Fixed chat message content overflow: long text, JSON, and code blocks no longer break out of message bubbles
 
 ## [0.0.18] - 2026-04-07
 

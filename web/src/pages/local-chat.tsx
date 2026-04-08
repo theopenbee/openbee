@@ -291,7 +291,7 @@ export function LocalChat() {
                     >
                       <article
                         className={cn(
-                          "w-full rounded-3xl border px-4 py-4 sm:px-5",
+                          "w-full overflow-hidden rounded-3xl border px-4 py-4 sm:px-5",
                           isUser
                             ? "max-w-[min(100%,44rem)] border-primary/15 bg-primary text-primary-foreground"
                             : "max-w-[min(100%,52rem)] border-border/70 bg-background/82"
@@ -332,11 +332,11 @@ export function LocalChat() {
 
                         {hasContent && (
                           message.role === "bee" ? (
-                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3">
+                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
                               <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
                             </div>
                           ) : (
-                            <p className="mt-4 whitespace-pre-wrap text-sm leading-7">
+                            <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">
                               {message.content}
                             </p>
                           )
