@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-04-07
+
 ### Added
 
 - Add statistics data to dashboard page
