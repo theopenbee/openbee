@@ -72,9 +72,9 @@ export function Executions() {
       <PageHeader title={t("executions.title")} subtitle={subtitle} />
 
       {error && (
-        <p role="alert" className="text-destructive mb-4">
+        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error.message}
-        </p>
+        </div>
       )}
 
       {isLoading ? (
@@ -86,7 +86,7 @@ export function Executions() {
         />
       ) : (
         <>
-          <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+          <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

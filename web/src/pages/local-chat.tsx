@@ -348,7 +348,7 @@ export function LocalChat() {
 
           <div className="border-t border-border/70 bg-card p-4 sm:p-5">
             {uploadError && (
-              <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {uploadError}
               </div>
             )}

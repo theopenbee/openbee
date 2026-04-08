@@ -99,7 +99,9 @@ export function TaskList({
       )}
 
       {(error || mutationError) && (
-        <p className="text-destructive mb-4">{(error || mutationError)?.message}</p>
+        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {(error || mutationError)?.message}
+        </div>
       )}
 
       {isLoading ? (
@@ -111,7 +113,7 @@ export function TaskList({
         />
       ) : (
         <>
-          <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+          <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
             <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">
