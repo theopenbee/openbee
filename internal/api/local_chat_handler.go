@@ -211,7 +211,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 
 	hasMore := len(combined) > limit
 	if hasMore {
-		combined = combined[:limit]
+		combined = combined[len(combined)-limit:]
 	}
 
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
