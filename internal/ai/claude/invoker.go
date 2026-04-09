@@ -7,13 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
-	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
-
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
@@ -23,47 +20,7 @@ type Invoker struct {
 
 // NewInvoker creates an Invoker. openbeeURL is injected as OPENBEE_URL into subprocesses.
 func NewInvoker(binary, openbeeURL string) *Invoker {
-	sysEnv := os.Environ()
-	env := make([]string, 0, len(sysEnv)+3)
-	if exePath, err := os.Executable(); err == nil {
-		patchedPath := "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
-		for _, e := range sysEnv {
-			if !strings.HasPrefix(e, "PATH=") {
-				env = append(env, e)
-			}
-		}
-		env = append(env, patchedPath)
-	} else {
-		env = append(env, sysEnv...)
-	}
-	env = append(env, "OPENBEE_URL="+openbeeURL)
-	return &Invoker{binary: binary, baseEnv: env}
-}
-
-// Process represents a running Claude CLI invocation.
-type Process struct {
-	cmd *exec.Cmd
-	mu  sync.Mutex
-}
-
-// PID returns the process ID, or 0 if the process has not started.
-func (p *Process) PID() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
-		return p.cmd.Process.Pid
-	}
-	return 0
-}
-
-// Stop kills the process.
-func (p *Process) Stop() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
-		return p.cmd.Process.Kill()
-	}
-	return nil
+	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL)}
 }
 
 type streamEvent struct {
@@ -154,7 +111,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		return nil, nil, fmt.Errorf("start claude: %w", err)
 	}
 
-	proc := &Process{cmd: cmd}
+	proc := &ai.CmdProcess{Cmd: cmd}
 	ch := make(chan ai.Output, 1)
 
 	go func() {

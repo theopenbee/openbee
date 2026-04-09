@@ -38,6 +38,5 @@ func (a *codexAdapter) ExtractResult(logPath string) string {
 	return ExtractResultFromLog(logPath)
 }
 
-// Compile-time interface checks.
+// Compile-time interface check.
 var _ ai.EngineAdapter = (*codexAdapter)(nil)
-var _ ai.Process = (*Process)(nil)
