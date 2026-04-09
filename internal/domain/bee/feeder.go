@@ -28,10 +28,6 @@ type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
-type WorkerNameLookup interface {
-	GetByName(name string) (model.Worker, error)
-}
-
 // Option configures a Feeder.
 type Option func(*Feeder)
 
@@ -40,7 +36,7 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-func WithDirectDispatch(ch chan<- task.DispatchTask, lookup WorkerNameLookup) Option {
+func WithDirectDispatch(ch chan<- task.DispatchTask, lookup *store.WorkerStore) Option {
 	return func(f *Feeder) {
 		f.directDispatchCh = ch
 		f.workerLookup = lookup
@@ -58,7 +54,7 @@ type Feeder struct {
 	cfg              config.BeeConfig
 	failureNotifier  FailureNotifier
 	sem              chan struct{} // bounds concurrent bee processes
-	workerLookup     WorkerNameLookup
+	workerLookup     *store.WorkerStore
 	directDispatchCh chan<- task.DispatchTask
 }
 
@@ -153,6 +149,10 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
+	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
+		return
+	}
+
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -162,10 +162,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	resume := sessionID != ""
 	if sessionID == "" {
 		sessionID = uuid.New().String()
-	}
-
-	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
-		return
 	}
 
 	for i, m := range msgs {

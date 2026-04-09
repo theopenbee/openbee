@@ -550,27 +550,17 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 }
 
-// mockWorkerLookup implements bee.WorkerNameLookup for tests.
-type mockWorkerLookup struct {
-	worker model.Worker
-	err    error
-}
-
-func (m *mockWorkerLookup) GetByName(_ string) (model.Worker, error) {
-	return m.worker, m.err
-}
-
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "sk1", "hello world")
 
 	runner := &mockBeeRunner{}
 	dispatchCh := make(chan task.DispatchTask, 8)
-	lookup := &mockWorkerLookup{err: fmt.Errorf("not found")}
+	ws := store.NewWorkerStore(db)
 
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
 		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
-	}, bee.WithDirectDispatch(dispatchCh, lookup))
+	}, bee.WithDirectDispatch(dispatchCh, ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -593,13 +583,13 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 
 	runner := &mockBeeRunner{}
 	dispatchCh := make(chan task.DispatchTask, 8)
-	lookup := &mockWorkerLookup{err: fmt.Errorf("sql: no rows")}
+	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
 
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
-		bee.WithDirectDispatch(dispatchCh, lookup))
+		bee.WithDirectDispatch(dispatchCh, ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -620,13 +610,17 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 
 	runner := &mockBeeRunner{}
 	dispatchCh := make(chan task.DispatchTask, 8)
-	lookup := &mockWorkerLookup{worker: model.Worker{ID: "worker-tt", Name: "天天"}}
+	ws := store.NewWorkerStore(db)
+	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
 
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
-		bee.WithDirectDispatch(dispatchCh, lookup))
+		bee.WithDirectDispatch(dispatchCh, ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -643,8 +637,8 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 		t.Fatal("expected a DispatchTask in dispatchCh")
 	}
 	dt := <-dispatchCh
-	if dt.WorkerID != "worker-tt" {
-		t.Errorf("expected WorkerID worker-tt, got %s", dt.WorkerID)
+	if dt.WorkerID != w.ID {
+		t.Errorf("expected WorkerID %s, got %s", w.ID, dt.WorkerID)
 	}
 	if dt.Instruction != "write a report" {
 		t.Errorf("expected instruction 'write a report', got %q", dt.Instruction)
