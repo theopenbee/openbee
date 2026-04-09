@@ -103,6 +103,8 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				return nil
 			}
 
+			textContent = resolveMentions(textContent, msg.Mentions)
+
 			if textContent == "" {
 				return nil
 			}
