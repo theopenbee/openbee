@@ -52,7 +52,7 @@ export function MentionTextarea({
   const filteredWorkers = useMemo(() => {
     if (!mentionState) return []
     const q = mentionState.query.toLowerCase()
-    return workers.filter(w => w.name.toLowerCase().startsWith(q)).slice(0, 8)
+    return workers.filter(w => w.name.toLowerCase().includes(q)).slice(0, 8)
   }, [mentionState?.query, workers])
 
   const handleChange = useCallback(
