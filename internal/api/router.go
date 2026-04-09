@@ -24,7 +24,6 @@ type ServerParams struct {
 	StatsStore       *store.StatsStore
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
-	WorkerMCPServer  *mcp.MCPServer
 	TokenSecret string
 	StaticFS         fs.FS
 	LocalChatHandler *LocalChatHandler
@@ -43,8 +42,6 @@ func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/stream",
-		"/mcp/.*/sse",
-		"/mcp/.*/messages",
 	})))
 
 	s := &Server{
@@ -119,21 +116,11 @@ func (s *Server) registerDepartmentRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerMCPRoutes() {
-	beeGroup := s.router.Group(config.MCPBeeBasePath)
-	beeGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireBee())
-	beeGroup.GET("/sse", s.BeeMCPServer.HandleSSE)
-	beeGroup.POST("/messages", s.BeeMCPServer.HandleMessages)
-
 	s.router.POST(config.MCPBeeBasePath+"/call",
 		mcp.JWTAuthMiddleware(s.TokenSecret),
 		mcp.RequireBeeOrWorker(),
 		s.BeeMCPServer.HandleCall,
 	)
-
-	workerGroup := s.router.Group(config.MCPWorkerBasePath)
-	workerGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireWorker())
-	workerGroup.GET("/sse", s.WorkerMCPServer.HandleSSE)
-	workerGroup.POST("/messages", s.WorkerMCPServer.HandleMessages)
 }
 
 func (s *Server) registerStaticRoutes() error {
