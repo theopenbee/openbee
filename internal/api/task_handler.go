@@ -9,12 +9,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (s *Server) registerTaskRoutes(api *gin.RouterGroup) {
-	api.GET("/tasks", s.listTasks)
-	api.DELETE("/tasks/:id", s.cancelTask)
-	api.POST("/workers/:id/tasks/cancel-all", s.cancelWorkerTasks)
-}
-
 type taskResponse struct {
 	ID          string `json:"id"`
 	WorkerID    string `json:"worker_id"`
@@ -30,7 +24,17 @@ type taskResponse struct {
 	UpdatedAt   int64  `json:"updated_at"`
 }
 
-func (s *Server) listTasks(c *gin.Context) {
+// TaskHandler handles HTTP requests for task resources.
+type TaskHandler struct {
+	tasks   *store.TaskStore
+	workers *store.WorkerStore
+}
+
+func NewTaskHandler(ts *store.TaskStore, ws *store.WorkerStore) *TaskHandler {
+	return &TaskHandler{tasks: ts, workers: ws}
+}
+
+func (h *TaskHandler) List(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
 
 	taskType := c.DefaultQuery("type", model.TaskTypeScheduled+","+model.TaskTypeCountdown)
@@ -50,12 +54,12 @@ func (s *Server) listTasks(c *gin.Context) {
 	g, gCtx := errgroup.WithContext(c.Request.Context())
 	g.Go(func() error {
 		var err error
-		total, err = s.TaskStore.CountTasks(gCtx, filter)
+		total, err = h.tasks.CountTasks(gCtx, filter)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		tasks, err = s.TaskStore.List(gCtx, filter)
+		tasks, err = h.tasks.List(gCtx, filter)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -66,11 +70,11 @@ func (s *Server) listTasks(c *gin.Context) {
 	var workerNames map[string]string
 	if workerID != "" {
 		workerNames = make(map[string]string, 1)
-		if w, err := s.WorkerStore.GetByID(workerID); err == nil {
+		if w, err := h.workers.GetByID(workerID); err == nil {
 			workerNames[w.ID] = w.Name
 		}
 	} else {
-		workers, err := s.WorkerStore.List()
+		workers, err := h.workers.List()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -102,10 +106,10 @@ func (s *Server) listTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, paginatedResponse(items, total, page, pageSize))
 }
 
-func (s *Server) cancelTask(c *gin.Context) {
+func (h *TaskHandler) Cancel(c *gin.Context) {
 	id := c.Param("id")
 
-	task, err := s.TaskStore.GetByID(c.Request.Context(), id)
+	task, err := h.tasks.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
@@ -115,17 +119,17 @@ func (s *Server) cancelTask(c *gin.Context) {
 		return
 	}
 
-	if err := s.TaskStore.CancelTask(c.Request.Context(), id); err != nil {
+	if err := h.tasks.CancelTask(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-func (s *Server) cancelWorkerTasks(c *gin.Context) {
+func (h *TaskHandler) CancelByWorker(c *gin.Context) {
 	workerID := c.Param("id")
 
-	if err := s.TaskStore.CancelByWorkerID(c.Request.Context(), workerID); err != nil {
+	if err := h.tasks.CancelByWorkerID(c.Request.Context(), workerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
