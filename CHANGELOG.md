@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Improve MCP token generation interaction
+
 ### Removed
 - Remove MCP registration endpoint
 
