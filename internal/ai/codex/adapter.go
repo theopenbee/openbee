@@ -34,6 +34,10 @@ func (a *codexAdapter) Run(ctx context.Context, workDir, prompt string,
 	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)
 }
 
+func (a *codexAdapter) ExtractResult(logPath string) string {
+	return ExtractResultFromLog(logPath)
+}
+
 // Compile-time interface checks.
 var _ ai.EngineAdapter = (*codexAdapter)(nil)
 var _ ai.Process = (*Process)(nil)

@@ -30,6 +30,10 @@ func (p *BeeProcess) SetupWorkspace(workDir string, role ai.Role, opts ai.Worksp
 	return p.engine.SetupWorkspace(workDir, role, opts)
 }
 
+func (p *BeeProcess) ExtractResult(logPath string) string {
+	return p.engine.ExtractResult(logPath)
+}
+
 // Run injects a bee auth token then delegates to the engine.
 func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	token, err := auth.GenerateBeeToken(p.tokenSecret, p.tokenTTL)

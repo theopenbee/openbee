@@ -18,6 +18,7 @@ func (s *stubAdapter) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions)
 func (s *stubAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
 	return nil, nil, nil
 }
+func (s *stubAdapter) ExtractResult(_ string) string { return "" }
 
 func TestRegistry_NewReturnsRegisteredEngine(t *testing.T) {
 	r := ai.NewRegistry()

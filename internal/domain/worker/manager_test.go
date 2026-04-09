@@ -22,6 +22,8 @@ func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ stri
 	return &mockProcess{}, ch, nil
 }
 
+func (e *mockEngine) ExtractResult(_ string) string { return "" }
+
 type mockProcess struct{}
 
 func (p *mockProcess) PID() int    { return 0 }

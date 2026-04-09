@@ -84,6 +84,8 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 	return &mockProcess{}, ch, nil
 }
 
+func (m *mockBeeRunner) ExtractResult(_ string) string { return "" }
+
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -511,6 +513,8 @@ type callbackBeeRunner struct {
 func (r *callbackBeeRunner) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
 	return nil
 }
+
+func (r *callbackBeeRunner) ExtractResult(_ string) string { return "" }
 
 func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
 	ch := make(chan ai.Output, 1)

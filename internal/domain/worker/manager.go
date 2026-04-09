@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -169,11 +168,11 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	for out := range outputCh {
 		switch out.Type {
 		case ai.OutputDone:
-			result := claude.ExtractResultFromLog(logPath)
+			result := m.engine.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case ai.OutputError:
-			result := claude.ExtractResultFromLog(logPath)
+			result := m.engine.ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}

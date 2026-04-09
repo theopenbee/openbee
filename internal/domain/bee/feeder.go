@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -198,13 +197,16 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	drainErr := f.waitBeeOutput(outputCh)
+	engineSessionID, drainErr := f.waitBeeOutput(outputCh)
+	if engineSessionID != "" {
+		sessionID = engineSessionID
+	}
 
 	finalStatus := model.ExecStatusCompleted
 	resultMsg := ""
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
-		resultMsg = claude.ExtractResultFromLog(logPath)
+		resultMsg = f.runner.ExtractResult(logPath)
 		if resultMsg == "" {
 			resultMsg = drainErr.Error()
 		}
@@ -272,17 +274,20 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 }
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
-// Returns nil on OutputDone or channel close, non-nil error on OutputError.
-func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
+// Returns the engine-assigned session ID (if any), nil error on OutputDone, non-nil on OutputError.
+func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) (string, error) {
+	var engineSessionID string
 	for out := range ch {
 		switch out.Type {
 		case ai.OutputDone:
-			return nil
+			return engineSessionID, nil
 		case ai.OutputError:
-			return errors.New(out.Content)
+			return engineSessionID, errors.New(out.Content)
+		case ai.OutputSessionID:
+			engineSessionID = out.Content
 		}
 	}
-	return nil
+	return engineSessionID, nil
 }
 
 func messageIDs(msgs []store.ClaimedMessage) []string {

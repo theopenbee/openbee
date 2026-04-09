@@ -61,6 +61,10 @@ func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)
 }
 
+func (a *claudeAdapter) ExtractResult(logPath string) string {
+	return ExtractResultFromLog(logPath)
+}
+
 // writeCLAUDEMD creates workDir/CLAUDE.md with persona only if it does not exist.
 func writeCLAUDEMD(workDir, persona string) error {
 	if err := os.MkdirAll(workDir, 0o755); err != nil {

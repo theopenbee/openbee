@@ -56,4 +56,8 @@ type EngineAdapter interface {
 	// The channel is closed after the process exits.
 	Run(ctx context.Context, workDir, prompt string,
 		opts RunOptions, logPath string) (Process, <-chan Output, error)
+
+	// ExtractResult parses the engine-specific log file and returns the final
+	// result string, or "" if none found.
+	ExtractResult(logPath string) string
 }

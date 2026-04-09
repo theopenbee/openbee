@@ -50,7 +50,8 @@ type ClaudeConfig struct {
 }
 
 type CodexConfig struct {
-	Path string `yaml:"path"`
+	Path    string        `yaml:"path"`
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 type MediaConfig struct {
@@ -74,7 +75,12 @@ type BeeConfig struct {
 
 // WorkerTimeout returns the maximum duration for a single worker execution.
 func (b BeeConfig) WorkerTimeout() time.Duration {
-	return b.Claude.Timeout
+	switch b.EffectiveEngine() {
+	case "codex":
+		return b.Codex.Timeout
+	default:
+		return b.Claude.Timeout
+	}
 }
 
 // EffectiveEngine returns the configured engine name, defaulting to "claude".
