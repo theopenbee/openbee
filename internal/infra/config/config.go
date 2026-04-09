@@ -49,6 +49,10 @@ type ClaudeConfig struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+type CodexConfig struct {
+	Path string `yaml:"path"`
+}
+
 type MediaConfig struct {
 	FFprobePath string `yaml:"ffprobe_path"`
 	FFmpegPath  string `yaml:"ffmpeg_path"`
@@ -58,6 +62,7 @@ type BeeConfig struct {
 	MessageDebounce time.Duration   `yaml:"message_debounce"`
 	Engine          string          `yaml:"engine"`
 	Claude          ClaudeConfig    `yaml:"claude"`
+	Codex           CodexConfig     `yaml:"codex"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
 	MCP             MCPConfig       `yaml:"mcp"`
@@ -86,6 +91,10 @@ func (b BeeConfig) EngineConfigRaw() map[string]any {
 	case "claude":
 		return map[string]any{
 			"path": b.Claude.Path,
+		}
+	case "codex":
+		return map[string]any{
+			"path": b.Codex.Path,
 		}
 	default:
 		return nil
