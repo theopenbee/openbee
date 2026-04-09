@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"strings"
 	"sync"
 	"testing"
 
@@ -930,81 +929,10 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	}
 }
 
-// --- Worker server permission isolation ---
-
-func setupWorkerMCPServer(t *testing.T) *mcp.MCPServer {
-	t.Helper()
-	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	ts := store.NewTaskStore(db)
-	ms := store.NewMessageStore(db)
-	senders := make(map[string]platform.PlatformSenderAdapter)
-	memStore := store.NewMemoryStore(db)
-	ws := store.NewWorkerStore(db)
-	return mcp.NewWorkerServer(ts, ms, senders, memStore, ws)
-}
-
 func TestBeeToolSchemasCount(t *testing.T) {
 	schemas := mcp.ToolSchemas()
 	if len(schemas) != 23 {
 		t.Errorf("bee tool schemas: want 23 got %d", len(schemas))
-	}
-}
-
-func TestWorkerToolSchemasCount(t *testing.T) {
-	schemas := mcp.WorkerToolSchemas()
-	if len(schemas) != 4 {
-		t.Errorf("worker tool schemas: want 4 got %d", len(schemas))
-	}
-}
-
-func TestWorkerCannotCallBeeTools(t *testing.T) {
-	s := setupWorkerMCPServer(t)
-	beeOnlyTools := []string{
-		utils.ListWorkers,
-		utils.GetWorker,
-		utils.CreateWorker,
-		utils.UpdateWorker,
-		utils.DeleteWorker,
-		utils.CreateTask,
-		utils.ListTasks,
-		utils.CancelTask,
-		utils.ClearSession,
-		utils.GetWorkerStatus,
-		utils.GetSystemOverview,
-		utils.ListBeeExecutions,
-		utils.ListSessionContexts,
-		utils.ClearWorkerSession,
-	}
-	for _, tool := range beeOnlyTools {
-		_, err := s.CallTool(context.Background(), tool, mustMarshal(t, map[string]any{}))
-		if err == nil {
-			t.Errorf("worker should not be able to call %s", tool)
-		}
-		if !strings.Contains(err.Error(), "unknown tool") {
-			t.Errorf("CallTool(%s): want 'unknown tool' error, got: %v", tool, err)
-		}
-	}
-}
-
-func TestWorkerCanCallAllowedTools(t *testing.T) {
-	s := setupWorkerMCPServer(t)
-	workerTools := []string{
-		utils.SendMessage,
-		utils.SaveMemory,
-		utils.GetMemory,
-		utils.DeleteMemory,
-	}
-	for _, tool := range workerTools {
-		// Calls may fail due to missing params, but should NOT return "unknown tool"
-		_, err := s.CallTool(context.Background(), tool, mustMarshal(t, map[string]any{}))
-		if err != nil && strings.Contains(err.Error(), "unknown tool") {
-			t.Errorf("worker should be able to call %s, got unknown tool error", tool)
-		}
 	}
 }
 

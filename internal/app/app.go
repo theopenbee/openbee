@@ -113,7 +113,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform[local.PlatformID] = localSender
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
-	workerMCPSrv := mcp.NewWorkerServer(s.taskStore, s.msgStore, sendersByPlatform, s.memoryStore, s.workerStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
 
 	for _, p := range platforms {
@@ -151,7 +150,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler, cfg.Language)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, localChatHandler, cfg.Language)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -237,7 +236,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
@@ -251,7 +250,6 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		TaskStore:        s.taskStore,
 		Manager:          mgr,
 		BeeMCPServer:     beeMCPSrv,
-		WorkerMCPServer:  workerMCPSrv,
 		TokenSecret:      mcpCfg.TokenSecret,
 		StaticFS:         webui.DistFS,
 		LocalChatHandler: localChat,
