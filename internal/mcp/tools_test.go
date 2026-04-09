@@ -27,6 +27,7 @@ func (s *stubEngineAdapter) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOp
 func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
 	return nil, nil, nil
 }
+func (s *stubEngineAdapter) ExtractResult(_ string) string { return "" }
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Helper()
