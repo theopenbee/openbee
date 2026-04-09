@@ -28,7 +28,6 @@ function detectMention(value: string, caretPos: number): Omit<MentionState, "act
   if (atIndex === -1) return null
 
   const fragment = textBefore.slice(atIndex + 1)
-  // If there's a space or newline between @ and caret, the mention is finished
   if (fragment.includes(" ") || fragment.includes("\n")) return null
 
   return { query: fragment, triggerIndex: atIndex }
@@ -108,6 +107,7 @@ export function MentionTextarea({
 
   const handleBlur = useCallback(() => {
     // Delay so onMouseDown on a candidate fires before the panel closes
+    clearTimeout(blurTimerRef.current)
     blurTimerRef.current = setTimeout(() => setMentionState(null), 150)
   }, [])
 
