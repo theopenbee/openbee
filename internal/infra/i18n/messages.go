@@ -71,7 +71,8 @@ type PromptMessages struct {
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`
 	PasswordSetup         string `yaml:"password_setup"`
 	Password              string `yaml:"password"`
-	JWTRegenConfirm       string `yaml:"jwt_regen_confirm"`
+	JWTRegenConfirm          string `yaml:"jwt_regen_confirm"`
+	MCPTokenRegenConfirm     string `yaml:"mcp_token_regen_confirm"`
 	// Advanced
 	AdvancedConfirm     string `yaml:"advanced_confirm"`
 	ServerPort          string `yaml:"server_port"`
@@ -210,7 +211,8 @@ type ConfigOutput struct {
 	Written                 string `yaml:"written"`                  // contains %s
 	JWTRegenerated          string `yaml:"jwt_regenerated"`
 	JWTGenerated            string `yaml:"jwt_generated"`
-	MCPTokenSecretGenerated string `yaml:"mcp_token_secret_generated"` // contains %s
+	MCPTokenSecretGenerated    string `yaml:"mcp_token_secret_generated"`    // contains %s
+	MCPTokenSecretRegenerated  string `yaml:"mcp_token_secret_regenerated"`
 	PasswordGenerated       string `yaml:"password_generated"`       // contains %s
 	WeixinQRLogin           string `yaml:"weixin_qr_login"`
 	FetchingQR              string `yaml:"fetching_qr"`

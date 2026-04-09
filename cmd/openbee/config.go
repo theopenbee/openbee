@@ -503,7 +503,19 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if vals.MCPTokenSecret == "" {
+	if vals.MCPTokenSecret != "" {
+		var regenerate bool
+		if err := survey.AskOne(&survey.Confirm{
+			Message: i18n.M.Prompt.MCPTokenRegenConfirm,
+			Default: false,
+		}, &regenerate); err != nil {
+			return handleSurveyErr(err)
+		}
+		if regenerate {
+			vals.MCPTokenSecret = config.GenerateRandomSecret()
+			fmt.Println(i18n.M.Output.Config.MCPTokenSecretRegenerated)
+		}
+	} else {
 		vals.MCPTokenSecret = config.GenerateRandomSecret()
 		fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 	}
