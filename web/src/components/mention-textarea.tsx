@@ -81,8 +81,20 @@ export function MentionTextarea({
     [onChange, workers]
   )
 
+  // Temporary stub — replaced in Task 4
+  const handleSelect = useCallback((_worker: MentionWorker) => {
+    setMentionState(null)
+  }, [])
+
   return (
     <div className="relative">
+      {mentionState && filteredWorkers.length > 0 && (
+        <MentionPanel
+          workers={filteredWorkers}
+          activeIndex={mentionState.activeIndex}
+          onSelect={handleSelect}
+        />
+      )}
       <textarea
         ref={textareaRef}
         value={value}
@@ -92,6 +104,45 @@ export function MentionTextarea({
         disabled={disabled}
         className={className}
       />
+    </div>
+  )
+}
+
+function MentionPanel({
+  workers,
+  activeIndex,
+  onSelect,
+}: {
+  workers: MentionWorker[]
+  activeIndex: number
+  onSelect: (worker: MentionWorker) => void
+}) {
+  return (
+    <div
+      className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-2xl border border-border/70 bg-popover shadow-lg overflow-hidden"
+    >
+      <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
+        {workers.map((worker, index) => (
+          <li
+            key={worker.id}
+            role="option"
+            aria-selected={index === activeIndex}
+            className={cn(
+              "flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors",
+              index === activeIndex
+                ? "bg-accent text-accent-foreground"
+                : "hover:bg-accent/50"
+            )}
+            onMouseDown={(e) => {
+              // Prevent textarea blur before selection fires
+              e.preventDefault()
+              onSelect(worker)
+            }}
+          >
+            <span className="font-medium truncate">{worker.name}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
