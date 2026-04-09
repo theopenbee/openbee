@@ -35,9 +35,13 @@ import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage } from "@/lib/types"
+import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
+import { useWorkers } from "@/hooks/use-workers"
+import { MentionTextarea } from "@/components/mention-textarea"
+
+const EMPTY_WORKERS: Worker[] = []
 
 // Convert isolated single newlines to double newlines so Markdown renders them
 // as paragraph breaks. Fenced code blocks are left untouched.
@@ -215,6 +219,8 @@ export function LocalChat() {
   }, [])
   useLocalChatStream(handleReply)
 
+  const { data: workersData } = useWorkers()
+
   useEffect(() => {
     if (suppressScrollRef.current) {
       suppressScrollRef.current = false
@@ -317,6 +323,13 @@ export function LocalChat() {
     event.preventDefault()
     await uploadFiles(files)
   }, [uploadFiles])
+
+  const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      void handleSend()
+    }
+  }, [handleSend])
 
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
@@ -471,19 +484,16 @@ export function LocalChat() {
             )}
 
             <div className="rounded-3xl border border-border/70 bg-background/82 p-3">
-              <textarea
-                ref={textareaRef}
+              <MentionTextarea
+                textareaRef={textareaRef}
                 className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault()
-                    void handleSend()
-                  }
-                }}
+                onChange={setInput}
+                onKeyDown={handleComposerKeyDown}
                 onPaste={handlePaste}
+                workers={workersData ?? EMPTY_WORKERS}
+                disabled={isProcessing}
               />
 
               <div className="mt-3 flex flex-wrap gap-1.5 px-3">
