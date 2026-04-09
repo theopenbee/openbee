@@ -339,6 +339,9 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 		return "", "", false
 	}
 	instruction = strings.TrimSpace(rest[spaceIdx:])
+	if instruction == "" {
+		return "", "", false
+	}
 	return workerName, instruction, true
 }
 
@@ -347,6 +350,9 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 // Returns true if the message was handled; false means fall back to Bee.
 func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) bool {
 	if f.directDispatchCh == nil || f.workerLookup == nil {
+		return false
+	}
+	if len(msgs) == 0 {
 		return false
 	}
 
