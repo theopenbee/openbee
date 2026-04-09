@@ -199,7 +199,8 @@ func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
-		bee.WithFailureNotifier(failureNotifier))
+		bee.WithFailureNotifier(failureNotifier),
+		bee.WithDirectDispatch(dispatchCh, s.workerStore))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
