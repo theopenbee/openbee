@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react"
@@ -219,10 +218,6 @@ export function LocalChat() {
   useLocalChatStream(handleReply)
 
   const { data: workersData } = useWorkers()
-  const workerList = useMemo(
-    () => (workersData ?? []).map(w => ({ id: w.id, name: w.name })),
-    [workersData]
-  )
 
   useEffect(() => {
     if (suppressScrollRef.current) {
@@ -493,7 +488,7 @@ export function LocalChat() {
                   }
                 }}
                 onPaste={handlePaste}
-                workers={workerList}
+                workers={workersData ?? []}
                 disabled={isProcessing}
               />
 

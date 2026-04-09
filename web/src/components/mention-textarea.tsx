@@ -1,11 +1,8 @@
-// web/src/components/mention-textarea.tsx
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { cn } from "@/lib/utils"
+import type { Worker } from "@/lib/types"
 
-interface MentionWorker {
-  id: string
-  name: string
-}
+type MentionWorker = Pick<Worker, "id" | "name">
 
 interface MentionTextareaProps {
   value: string
@@ -20,9 +17,9 @@ interface MentionTextareaProps {
 }
 
 type MentionState = {
-  query: string        // text typed after @
-  triggerIndex: number // index of the @ character in value
-  activeIndex: number  // keyboard-highlighted candidate index
+  query: string
+  triggerIndex: number
+  activeIndex: number
 }
 
 function detectMention(value: string, caretPos: number): Omit<MentionState, "activeIndex"> | null {
@@ -49,13 +46,15 @@ export function MentionTextarea({
   className,
 }: MentionTextareaProps) {
   const [mentionState, setMentionState] = useState<MentionState | null>(null)
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => clearTimeout(blurTimerRef.current), [])
 
   const filteredWorkers = useMemo(() => {
     if (!mentionState) return []
-    return workers
-      .filter(w => w.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
-      .slice(0, 8)
-  }, [mentionState, workers])
+    const q = mentionState.query.toLowerCase()
+    return workers.filter(w => w.name.toLowerCase().startsWith(q)).slice(0, 8)
+  }, [mentionState?.query, workers])
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -66,13 +65,12 @@ export function MentionTextarea({
       const detected = detectMention(newValue, caret)
 
       if (detected) {
-        const matched = workers.filter(w =>
-          w.name.toLowerCase().startsWith(detected.query.toLowerCase())
-        )
-        if (matched.length > 0) {
+        const q = detected.query.toLowerCase()
+        const hasMatch = workers.some(w => w.name.toLowerCase().startsWith(q))
+        if (hasMatch) {
           setMentionState({ ...detected, activeIndex: 0 })
         } else {
-          setMentionState(null) // no match → auto-close
+          setMentionState(null)
         }
       } else {
         setMentionState(null)
@@ -95,7 +93,8 @@ export function MentionTextarea({
       onChange(newValue)
       setMentionState(null)
 
-      // Move caret to end of inserted text
+      // requestAnimationFrame defers until after React flushes the controlled value,
+      // so setSelectionRange lands on the updated DOM
       requestAnimationFrame(() => {
         if (textarea) {
           const pos = mentionState.triggerIndex + inserted.length
@@ -109,7 +108,7 @@ export function MentionTextarea({
 
   const handleBlur = useCallback(() => {
     // Delay so onMouseDown on a candidate fires before the panel closes
-    setTimeout(() => setMentionState(null), 150)
+    blurTimerRef.current = setTimeout(() => setMentionState(null), 150)
   }, [])
 
   const handleKeyDown = useCallback(
@@ -140,7 +139,6 @@ export function MentionTextarea({
           return
         }
       }
-      // Panel not active — forward to parent (e.g. Enter to send message)
       onKeyDown?.(e)
     },
     [mentionState, filteredWorkers, handleSelect, onKeyDown]
