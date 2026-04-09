@@ -311,7 +311,7 @@ func beeToolSchemas() []toolSchema {
 	}
 }
 
-// CallTool is exported for testing. Production code uses callToolFn via handleToolCall.
+// CallTool is exported for testing. Production code invokes callToolFn directly via HandleCall.
 func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	return s.callToolFn(ctx, name, args)
 }
