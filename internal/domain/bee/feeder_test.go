@@ -15,7 +15,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/domain/task"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
@@ -555,12 +554,11 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	insertMessage(t, db, "m1", "sk1", "hello world")
 
 	runner := &mockBeeRunner{}
-	dispatchCh := make(chan task.DispatchTask, 8)
 	ws := store.NewWorkerStore(db)
 
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
 		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
-	}, bee.WithDirectDispatch(dispatchCh, ws))
+	}, bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -571,10 +569,6 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	if len(runner.getCalls()) == 0 {
 		t.Error("expected bee runner to be called for non-@mention message")
 	}
-	// Nothing in dispatch channel
-	if len(dispatchCh) != 0 {
-		t.Error("expected no task in dispatchCh for non-@mention message")
-	}
 }
 
 func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
@@ -582,14 +576,13 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	insertMessage(t, db, "m1", "sk1", "@unknown do something")
 
 	runner := &mockBeeRunner{}
-	dispatchCh := make(chan task.DispatchTask, 8)
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
 
 	cfg := config.BeeConfig{}
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
-		bee.WithDirectDispatch(dispatchCh, ws))
+		bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -599,9 +592,6 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	if len(runner.getCalls()) == 0 {
 		t.Error("expected bee runner to be called when worker not found")
 	}
-	if len(dispatchCh) != 0 {
-		t.Error("expected no task in dispatchCh when worker not found")
-	}
 }
 
 func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
@@ -609,7 +599,6 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 	insertMessage(t, db, "m1", "sk1", "@天天 write a report")
 
 	runner := &mockBeeRunner{}
-	dispatchCh := make(chan task.DispatchTask, 8)
 	ws := store.NewWorkerStore(db)
 	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
 	if err != nil {
@@ -620,7 +609,7 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
-		bee.WithDirectDispatch(dispatchCh, ws))
+		bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -632,29 +621,24 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 		t.Error("expected bee runner NOT to be called for direct dispatch")
 	}
 
-	// Task must be in dispatchCh
-	if len(dispatchCh) == 0 {
-		t.Fatal("expected a DispatchTask in dispatchCh")
+	// A pending task must have been created in the DB for the worker
+	var workerID, instruction, status string
+	db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
+	if workerID != w.ID {
+		t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
 	}
-	dt := <-dispatchCh
-	if dt.WorkerID != w.ID {
-		t.Errorf("expected WorkerID %s, got %s", w.ID, dt.WorkerID)
+	if instruction != "write a report" {
+		t.Errorf("expected instruction 'write a report', got %q", instruction)
 	}
-	if dt.Instruction != "write a report" {
-		t.Errorf("expected instruction 'write a report', got %q", dt.Instruction)
-	}
-	if dt.SessionKey != "sk1" {
-		t.Errorf("expected SessionKey sk1, got %s", dt.SessionKey)
-	}
-	if dt.MessageID != "m1" {
-		t.Errorf("expected MessageID m1, got %s", dt.MessageID)
+	if status != "pending" {
+		t.Errorf("expected task status 'pending', got %q", status)
 	}
 
 	// Message must be marked bee_processed
-	var status string
-	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
-	if status != "bee_processed" {
-		t.Errorf("expected bee_processed, got %q", status)
+	var msgStatus string
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
+	if msgStatus != "bee_processed" {
+		t.Errorf("expected bee_processed, got %q", msgStatus)
 	}
 }
 

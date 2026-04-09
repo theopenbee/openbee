@@ -200,7 +200,7 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 	beeProcess := bee.NewBeeProcess(cfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier),
-		bee.WithDirectDispatch(dispatchCh, s.workerStore))
+		bee.WithWorkerDispatch(s.workerStore))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }

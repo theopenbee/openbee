@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/ai/claude"
-	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -36,9 +35,8 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-func WithDirectDispatch(ch chan<- task.DispatchTask, lookup *store.WorkerStore) Option {
+func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	return func(f *Feeder) {
-		f.directDispatchCh = ch
 		f.workerLookup = lookup
 	}
 }
@@ -52,10 +50,9 @@ type Feeder struct {
 	runner           BeeRunner
 	workDir          string
 	cfg              config.BeeConfig
-	failureNotifier  FailureNotifier
-	sem              chan struct{} // bounds concurrent bee processes
-	workerLookup     *store.WorkerStore
-	directDispatchCh chan<- task.DispatchTask
+	failureNotifier FailureNotifier
+	sem             chan struct{} // bounds concurrent bee processes
+	workerLookup    *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
@@ -149,7 +146,7 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
-	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
+	if f.tryDirectDispatch(ctx, msgs) {
 		return
 	}
 
@@ -336,8 +333,8 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 	return workerName, instruction, true
 }
 
-func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) bool {
-	if f.directDispatchCh == nil {
+func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMessage) bool {
+	if f.workerLookup == nil {
 		return false
 	}
 	if len(msgs) == 0 {
@@ -357,36 +354,19 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs 
 		return false
 	}
 
-	taskID, err := f.taskStore.Create(ctx, model.Task{
+	_, err = f.taskStore.Create(ctx, model.Task{
 		MessageID:   primary.ID,
 		WorkerID:    worker.ID,
 		Instruction: instruction,
 		Type:        model.TaskTypeImmediate,
-		Status:      model.TaskStatusRunning,
+		Status:      model.TaskStatusPending,
 	})
 	if err != nil {
 		log.Error("@mention: create task record", zap.Error(err))
 		return false
 	}
 
-	dt := task.DispatchTask{
-		TaskID:      taskID,
-		WorkerID:    worker.ID,
-		SessionKey:  sessionKey,
-		Instruction: instruction,
-		MessageID:   primary.ID,
-		TaskType:    model.TaskTypeImmediate,
-	}
-
-	select {
-	case f.directDispatchCh <- dt:
-	default:
-		log.Warn("@mention: dispatch channel full, falling back to bee",
-			zap.String("workerID", worker.ID))
-		return false
-	}
-
-	log.Info("@mention: direct dispatch to worker",
+	log.Info("@mention: dispatched task to worker via scheduler",
 		zap.String("name", workerName), zap.String("workerID", worker.ID))
 
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
