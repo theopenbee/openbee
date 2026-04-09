@@ -174,7 +174,6 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 			limit = n
 		}
 	}
-	// Query limit+1 to detect has_more without an extra COUNT query.
 	fetch := limit + 1
 
 	var inbound []store.InboundMessage
@@ -195,6 +194,16 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 		return
 	}
 
+	// Detect has_more per-store before merging; len(combined) > limit is not reliable
+	// because two stores returning limit items each would produce 2*limit combined.
+	hasMore := len(inbound) > limit || len(replies) > limit
+	if len(inbound) > limit {
+		inbound = inbound[:limit]
+	}
+	if len(replies) > limit {
+		replies = replies[:limit]
+	}
+
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
@@ -209,8 +218,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	}
 	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
-	hasMore := len(combined) > limit
-	if hasMore {
+	if len(combined) > limit {
 		combined = combined[len(combined)-limit:]
 	}
 

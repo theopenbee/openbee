@@ -123,7 +123,6 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 	if err != nil {
 		return nil, err
 	}
-	// Reverse DESC result to ASC for callers.
 	slices.Reverse(msgs)
 	return msgs, nil
 }
