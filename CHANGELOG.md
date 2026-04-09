@@ -4,6 +4,7 @@
 
 ### Changed
 - Improve MCP token generation interaction
+- Improve display name resolution for Feishu @mentions
 
 ### Removed
 - Remove MCP registration endpoint
