@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,17 +162,32 @@ type chatMessage struct {
 func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	before := int64(0)
+	if v := c.Query("before"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			before = n
+		}
+	}
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	// Query limit+1 to detect has_more without an extra COUNT query.
+	fetch := limit + 1
+
 	var inbound []store.InboundMessage
 	var replies []store.OutboundMessage
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, 0, 100)
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, 0, 100)
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -193,7 +209,12 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	}
 	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
-	c.JSON(http.StatusOK, combined)
+	hasMore := len(combined) > limit
+	if hasMore {
+		combined = combined[:limit]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
 func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
