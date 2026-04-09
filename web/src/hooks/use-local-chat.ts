@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
@@ -10,6 +10,40 @@ export function useLocalMessages() {
     queryKey: ["local-messages"],
     queryFn: () => api.localChat.getMessages(),
   })
+}
+
+/**
+ * useLoadMoreMessages manages incremental loading of older messages.
+ * Pass `initialHasMore` from the first query response to initialize the button state.
+ * Call `loadMore(earliestTs)` with the timestamp of the oldest message currently shown.
+ */
+export function useLoadMoreMessages(
+  onLoaded: (older: ChatMessage[]) => void,
+  initialHasMore = false,
+) {
+  const isLoadingRef = useRef(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+
+  useEffect(() => {
+    setHasMore(initialHasMore)
+  }, [initialHasMore])
+
+  const loadMore = useCallback(async (earliestTs: number) => {
+    if (isLoadingRef.current) return
+    isLoadingRef.current = true
+    setIsLoadingMore(true)
+    try {
+      const res = await api.localChat.getMessages(earliestTs)
+      setHasMore(res.has_more)
+      onLoaded(res.messages)
+    } finally {
+      isLoadingRef.current = false
+      setIsLoadingMore(false)
+    }
+  }, [onLoaded])
+
+  return { loadMore, hasMore, isLoadingMore }
 }
 
 export function useSendMessage() {

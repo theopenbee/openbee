@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, Task, Department, DepartmentTree, StatsOverview, StatsTrend } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -110,9 +110,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ content, media_paths: mediaPaths }),
       }),
-    getMessages: async () => {
-      const msgs = await fetchAPI<ChatMessage[] | null>("/local/messages")
-      return Array.isArray(msgs) ? msgs : []
+    getMessages: async (before?: number, limit = 50): Promise<LocalMessagesResponse> => {
+      const qs = new URLSearchParams({ limit: String(limit) })
+      if (before) qs.set("before", String(before))
+      const res = await fetchAPI<LocalMessagesResponse>(`/local/messages?${qs}`)
+      return { messages: Array.isArray(res?.messages) ? res.messages : [], has_more: res?.has_more ?? false }
     },
     uploadMedia: async (file: File) => {
       const form = new FormData()
