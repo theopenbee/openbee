@@ -15,7 +15,7 @@ interface MentionTextareaProps {
   workers: MentionWorker[]
   placeholder?: string
   disabled?: boolean
-  textareaRef?: React.RefObject<HTMLTextAreaElement>
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>
   className?: string
 }
 

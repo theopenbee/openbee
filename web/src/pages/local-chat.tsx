@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -38,6 +39,8 @@ import { tokenParam } from "@/lib/auth"
 import type { ChatMessage } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
+import { useWorkers } from "@/hooks/use-workers"
+import { MentionTextarea } from "@/components/mention-textarea"
 
 // Convert isolated single newlines to double newlines so Markdown renders them
 // as paragraph breaks. Fenced code blocks are left untouched.
@@ -214,6 +217,12 @@ export function LocalChat() {
     setIsProcessing(false)
   }, [])
   useLocalChatStream(handleReply)
+
+  const { data: workersData } = useWorkers()
+  const workerList = useMemo(
+    () => (workersData ?? []).map(w => ({ id: w.id, name: w.name })),
+    [workersData]
+  )
 
   useEffect(() => {
     if (suppressScrollRef.current) {
@@ -471,12 +480,12 @@ export function LocalChat() {
             )}
 
             <div className="rounded-3xl border border-border/70 bg-background/82 p-3">
-              <textarea
-                ref={textareaRef}
+              <MentionTextarea
+                textareaRef={textareaRef}
                 className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
-                onChange={(event) => setInput(event.target.value)}
+                onChange={setInput}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault()
@@ -484,6 +493,8 @@ export function LocalChat() {
                   }
                 }}
                 onPaste={handlePaste}
+                workers={workerList}
+                disabled={isProcessing}
               />
 
               <div className="mt-3 flex flex-wrap gap-1.5 px-3">
