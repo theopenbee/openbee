@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +69,8 @@ func (h *TaskHandler) List(c *gin.Context) {
 			w, err := h.workers.GetByID(workerID)
 			if err == nil {
 				workerList = []model.Worker{w}
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
 			}
 			return nil
 		})
