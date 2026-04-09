@@ -13,8 +13,7 @@ import (
 
 // MCP endpoint path prefixes.
 const (
-	MCPBeeBasePath    = "/mcp/bee"
-	MCPWorkerBasePath = "/mcp/worker"
+	MCPBeeBasePath = "/mcp/bee"
 )
 
 //go:embed config.yaml.tmpl
