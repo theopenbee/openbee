@@ -152,6 +152,16 @@ function handleBlur() {
 
 面板定位在输入框**上方**，与输入框等宽，最多显示 8 条候选（超出可滚动）。
 
+`filteredWorkers` 在渲染时推导：
+
+```ts
+const filteredWorkers = mentionState
+  ? workers
+      .filter(w => w.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
+      .slice(0, 8)
+  : []
+```
+
 ```tsx
 <div className="relative">
   {mentionState && filteredWorkers.length > 0 && (
