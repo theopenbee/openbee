@@ -101,17 +101,11 @@ export function MentionTextarea({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (mentionState && filteredWorkers.length > 0) {
-        if (e.key === "ArrowDown") {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault()
+          const delta = e.key === "ArrowDown" ? 1 : -1
           setMentionState(s =>
-            s ? { ...s, activeIndex: Math.min(s.activeIndex + 1, filteredWorkers.length - 1) } : null
-          )
-          return
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault()
-          setMentionState(s =>
-            s ? { ...s, activeIndex: Math.max(s.activeIndex - 1, 0) } : null
+            s ? { ...s, activeIndex: Math.min(Math.max(s.activeIndex + delta, 0), filteredWorkers.length - 1) } : null
           )
           return
         }
