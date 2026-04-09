@@ -8,6 +8,7 @@
 ### Changed
 - Improve MCP token generation interaction
 - Improve display name resolution for Feishu @mentions
+- Improve message list API with pagination support
 
 ### Removed
 - Remove MCP registration endpoint

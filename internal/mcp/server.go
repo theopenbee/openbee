@@ -36,8 +36,6 @@ type SessionClearer interface {
 
 // MCPServer dispatches tool calls.
 type MCPServer struct {
-	callToolFn func(ctx context.Context, name string, args json.RawMessage) (any, error)
-
 	workerStore     *store.WorkerStore
 	manager         *worker.Manager
 	taskStore       *store.TaskStore
@@ -67,7 +65,7 @@ func NewBeeServer(
 	sessionStore *store.SessionStore,
 	ds *store.DepartmentStore,
 ) *MCPServer {
-	s := &MCPServer{
+	return &MCPServer{
 		workerStore:     ws,
 		manager:         mgr,
 		taskStore:       ts,
@@ -80,8 +78,6 @@ func NewBeeServer(
 		sessionStore:    sessionStore,
 		departmentStore: ds,
 	}
-	s.callToolFn = s.beeCallTool
-	return s
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
@@ -98,7 +94,7 @@ func (s *MCPServer) HandleCall(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
 		return
 	}
-	result, err := s.callToolFn(s.workerIDContext(c), req.Name, req.Arguments)
+	result, err := s.beeCallTool(s.workerIDContext(c), req.Name, req.Arguments)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
 		return

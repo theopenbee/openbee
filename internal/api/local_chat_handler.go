@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	}
 }
 
-func (h *LocalChatHandler) sendMessage(c *gin.Context) {
+func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	var body struct {
 		Content    string   `json:"content" binding:"required"`
 		MediaPaths []string `json:"media_paths"`
@@ -158,25 +159,49 @@ type chatMessage struct {
 	Timestamp  int64    `json:"ts"`
 }
 
-func (h *LocalChatHandler) getMessages(c *gin.Context) {
+func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	ctx := c.Request.Context()
+
+	before := int64(0)
+	if v := c.Query("before"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			before = n
+		}
+	}
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	fetch := limit + 1
 
 	var inbound []store.InboundMessage
 	var replies []store.OutboundMessage
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey)
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, 0)
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	if err := g.Wait(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Detect has_more per-store before merging; len(combined) > limit is not reliable
+	// because two stores returning limit items each would produce 2*limit combined.
+	hasMore := len(inbound) > limit || len(replies) > limit
+	if len(inbound) > limit {
+		inbound = inbound[:limit]
+	}
+	if len(replies) > limit {
+		replies = replies[:limit]
 	}
 
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
@@ -193,10 +218,14 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	}
 	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
-	c.JSON(http.StatusOK, combined)
+	if len(combined) > limit {
+		combined = combined[len(combined)-limit:]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
-func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
+func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing 'file' field"})
@@ -231,7 +260,7 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"path": filename})
 }
 
-func (h *LocalChatHandler) serveMedia(c *gin.Context) {
+func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
 	filename := filepath.Base(c.Param("filename"))
 	if filename == "." || filename == ".." {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})

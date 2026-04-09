@@ -286,7 +286,9 @@
     "openAttachment": "打开附件",
     "removeAttachment": "移除附件",
     "quickCommandClear": "重置对话",
-    "quickCommandConfirm": "我已确认"
+    "quickCommandConfirm": "我已确认",
+    "loadMore": "加载更早消息",
+    "loadingMore": "加载中…"
   },
   "breadcrumb": {
     "detail": "详情"

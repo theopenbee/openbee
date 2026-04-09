@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
 	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/routes"
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/bee"
@@ -21,8 +22,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/mcp"
 	_ "github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
@@ -40,7 +41,7 @@ import (
 // App holds all wired-up components and runs the server.
 type App struct {
 	db      *sql.DB
-	server  *api.Server
+	server  *routes.Server
 	runners []func(ctx context.Context)
 	addr    string
 }
@@ -251,27 +252,26 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
-	password := serverCfg.Auth.Password
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
-	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, password, jwtSvc, rateLimiter)
+	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, serverCfg.Auth.Password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
+	mcpAuthMiddleware := mcp.JWTAuthMiddleware(mcpCfg.TokenSecret)
 
-	return api.NewServer(api.ServerParams{
-		WorkerStore:      s.workerStore,
-		ExecutionStore:   s.execStore,
-		TaskStore:        s.taskStore,
-		Manager:          mgr,
-		BeeMCPServer:     beeMCPSrv,
-		TokenSecret:      mcpCfg.TokenSecret,
-		StaticFS:         webui.DistFS,
-		LocalChatHandler: localChat,
-		AuthHandler:      authHandler,
-		JWTMiddleware:    jwtMiddleware,
-		DepartmentStore:  s.departmentStore,
-		Language:         language,
-		StatsStore:       s.statsStore,
+	return routes.NewServer(routes.ServerParams{
+		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr),
+		Executions:        api.NewExecutionHandler(s.execStore),
+		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore),
+		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
+		Stats:             api.NewStatsHandler(s.statsStore),
+		Config:            api.NewConfigHandler(language),
+		LocalChat:         localChat,
+		Auth:              authHandler,
+		BeeMCP:            beeMCPSrv,
+		MCPAuthMiddleware: mcpAuthMiddleware,
+		StaticFS:          webui.DistFS,
+		JWTMiddleware:     jwtMiddleware,
 	})
 }

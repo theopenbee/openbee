@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -92,24 +93,38 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 }
 
 // ListBySessionKey returns outbound messages for a session ordered by sent_at ascending.
-// Pass limit <= 0 to return all rows (use with caution on long-lived sessions).
-func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey string, limit int) ([]OutboundMessage, error) {
-	query := `SELECT ` + outboundMessageColumns + `
-		 FROM bee_outbound_messages
-		 WHERE session_key = ?
-		 ORDER BY sent_at ASC`
-	var args []any
-	args = append(args, sessionKey)
-	if limit > 0 {
-		query += ` LIMIT ?`
-		args = append(args, limit)
+// If before > 0, only messages with sent_at < before are returned.
+// limit must be > 0.
+// limit controls max rows returned. Callers typically pass limit+1 to enable has_more detection.
+func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey string, before int64, limit int) ([]OutboundMessage, error) {
+	var (
+		query string
+		args  []any
+	)
+	if before > 0 {
+		query = `SELECT ` + outboundMessageColumns + `
+			 FROM bee_outbound_messages
+			 WHERE session_key = ? AND sent_at < ?
+			 ORDER BY sent_at DESC LIMIT ?`
+		args = []any{sessionKey, before, limit}
+	} else {
+		query = `SELECT ` + outboundMessageColumns + `
+			 FROM bee_outbound_messages
+			 WHERE session_key = ?
+			 ORDER BY sent_at DESC LIMIT ?`
+		args = []any{sessionKey, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanOutboundMessages(rows)
+	msgs, err := scanOutboundMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	slices.Reverse(msgs)
+	return msgs, nil
 }
 
 // allowedFilterColumns is a whitelist of columns that listByColumn may filter on.

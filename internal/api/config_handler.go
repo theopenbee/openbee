@@ -10,8 +10,16 @@ type configResponse struct {
 	Language string `json:"language"`
 }
 
-func (s *Server) getConfig(c *gin.Context) {
-	lang := s.Language
+type ConfigHandler struct {
+	language string
+}
+
+func NewConfigHandler(lang string) *ConfigHandler {
+	return &ConfigHandler{language: lang}
+}
+
+func (h *ConfigHandler) Get(c *gin.Context) {
+	lang := h.language
 	if lang == "" {
 		lang = "en"
 	}

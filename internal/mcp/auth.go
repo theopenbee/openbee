@@ -36,16 +36,6 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 	}
 }
 
-// RequireBee aborts with 403 if the token type is not "bee".
-func RequireBee() gin.HandlerFunc {
-	return requireTypeIn(auth.TokenTypeBee)
-}
-
-// RequireWorker aborts with 403 if the token type is not "worker".
-func RequireWorker() gin.HandlerFunc {
-	return requireTypeIn(auth.TokenTypeWorker)
-}
-
 // RequireBeeOrWorker accepts tokens of either type.
 func RequireBeeOrWorker() gin.HandlerFunc {
 	return requireTypeIn(auth.TokenTypeBee, auth.TokenTypeWorker)
