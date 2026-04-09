@@ -7,7 +7,7 @@ import (
 
 func (s *Server) registerMCPRoutes() {
 	s.router.POST(config.MCPBeeBasePath+"/call",
-		mcp.JWTAuthMiddleware(s.TokenSecret),
+		s.MCPAuthMiddleware,
 		mcp.RequireBeeOrWorker(),
 		s.BeeMCP.HandleCall,
 	)

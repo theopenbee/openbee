@@ -21,10 +21,10 @@ type ServerParams struct {
 	Config      *api.ConfigHandler
 	LocalChat   *api.LocalChatHandler
 	Auth        *auth.AuthHandler
-	BeeMCP      *mcp.MCPServer
-	TokenSecret string
-	StaticFS    fs.FS
-	JWTMiddleware gin.HandlerFunc
+	BeeMCP          *mcp.MCPServer
+	MCPAuthMiddleware gin.HandlerFunc
+	StaticFS          fs.FS
+	JWTMiddleware     gin.HandlerFunc
 }
 
 type Server struct {

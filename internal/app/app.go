@@ -244,19 +244,20 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
 	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, serverCfg.Auth.Password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
+	mcpAuthMiddleware := mcp.JWTAuthMiddleware(mcpCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
-		Workers:       api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr),
-		Executions:    api.NewExecutionHandler(s.execStore),
-		Tasks:         api.NewTaskHandler(s.taskStore, s.workerStore),
-		Departments:   api.NewDepartmentHandler(s.departmentStore, s.workerStore),
-		Stats:         api.NewStatsHandler(s.statsStore),
-		Config:        api.NewConfigHandler(language),
-		LocalChat:     localChat,
-		Auth:          authHandler,
-		BeeMCP:        beeMCPSrv,
-		TokenSecret:   mcpCfg.TokenSecret,
-		StaticFS:      webui.DistFS,
-		JWTMiddleware: jwtMiddleware,
+		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr),
+		Executions:        api.NewExecutionHandler(s.execStore),
+		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore),
+		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
+		Stats:             api.NewStatsHandler(s.statsStore),
+		Config:            api.NewConfigHandler(language),
+		LocalChat:         localChat,
+		Auth:              authHandler,
+		BeeMCP:            beeMCPSrv,
+		MCPAuthMiddleware: mcpAuthMiddleware,
+		StaticFS:          webui.DistFS,
+		JWTMiddleware:     jwtMiddleware,
 	})
 }
