@@ -28,8 +28,9 @@ type RunOptions struct {
 type OutputType string
 
 const (
-	OutputDone  OutputType = "done"
-	OutputError OutputType = "error"
+	OutputDone      OutputType = "done"
+	OutputError     OutputType = "error"
+	OutputSessionID OutputType = "session_id"
 )
 
 // Output is a single lifecycle event.
