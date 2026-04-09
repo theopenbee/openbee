@@ -63,19 +63,9 @@ export function MentionTextarea({
       const caret = e.target.selectionStart ?? newValue.length
       const detected = detectMention(newValue, caret)
 
-      if (detected) {
-        const q = detected.query.toLowerCase()
-        const hasMatch = workers.some(w => w.name.toLowerCase().startsWith(q))
-        if (hasMatch) {
-          setMentionState({ ...detected, activeIndex: 0 })
-        } else {
-          setMentionState(null)
-        }
-      } else {
-        setMentionState(null)
-      }
+      setMentionState(detected ? { ...detected, activeIndex: 0 } : null)
     },
-    [onChange, workers]
+    [onChange]
   )
 
   const handleSelect = useCallback(
@@ -92,8 +82,6 @@ export function MentionTextarea({
       onChange(newValue)
       setMentionState(null)
 
-      // requestAnimationFrame defers until after React flushes the controlled value,
-      // so setSelectionRange lands on the updated DOM
       requestAnimationFrame(() => {
         if (textarea) {
           const pos = mentionState.triggerIndex + inserted.length
@@ -106,7 +94,6 @@ export function MentionTextarea({
   )
 
   const handleBlur = useCallback(() => {
-    // Delay so onMouseDown on a candidate fires before the panel closes
     clearTimeout(blurTimerRef.current)
     blurTimerRef.current = setTimeout(() => setMentionState(null), 150)
   }, [])
@@ -129,7 +116,7 @@ export function MentionTextarea({
           return
         }
         if (e.key === "Enter") {
-          e.preventDefault() // prevent message send while panel is open
+          e.preventDefault()
           handleSelect(filteredWorkers[mentionState.activeIndex])
           return
         }
@@ -179,7 +166,7 @@ function MentionPanel({
 }) {
   return (
     <div
-      className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-2xl border border-border/70 bg-popover shadow-lg overflow-hidden"
+      className="absolute bottom-full left-0 w-full mb-1 z-50 rounded-2xl border border-border/70 bg-popover shadow-lg overflow-hidden"
     >
       <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
         {workers.map((worker, index) => (
@@ -194,7 +181,6 @@ function MentionPanel({
                 : "hover:bg-accent/50"
             )}
             onMouseDown={(e) => {
-              // Prevent textarea blur before selection fires
               e.preventDefault()
               onSelect(worker)
             }}

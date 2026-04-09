@@ -35,11 +35,13 @@ import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage } from "@/lib/types"
+import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { isSameDay } from "@/lib/format"
 import { useWorkers } from "@/hooks/use-workers"
 import { MentionTextarea } from "@/components/mention-textarea"
+
+const EMPTY_WORKERS: Worker[] = []
 
 // Convert isolated single newlines to double newlines so Markdown renders them
 // as paragraph breaks. Fenced code blocks are left untouched.
@@ -322,6 +324,13 @@ export function LocalChat() {
     await uploadFiles(files)
   }, [uploadFiles])
 
+  const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      void handleSend()
+    }
+  }, [handleSend])
+
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
@@ -481,14 +490,9 @@ export function LocalChat() {
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
                 onChange={setInput}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault()
-                    void handleSend()
-                  }
-                }}
+                onKeyDown={handleComposerKeyDown}
                 onPaste={handlePaste}
-                workers={workersData ?? []}
+                workers={workersData ?? EMPTY_WORKERS}
                 disabled={isProcessing}
               />
 
