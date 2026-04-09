@@ -59,6 +59,11 @@ export interface ChatMessage {
   ts: number
 }
 
+export interface LocalMessagesResponse {
+  messages: ChatMessage[]
+  has_more: boolean
+}
+
 export type TaskType = "immediate" | "countdown" | "scheduled"
 export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
 
