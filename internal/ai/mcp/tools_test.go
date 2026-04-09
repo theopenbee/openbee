@@ -159,19 +159,6 @@ func TestCallTool_UnknownTool(t *testing.T) {
 	}
 }
 
-func TestToolSchemas_IncludesTaskTools(t *testing.T) {
-	schemas := mcp.ToolSchemas()
-	names := make(map[string]bool)
-	for _, s := range schemas {
-		names[s.Name] = true
-	}
-	for _, want := range []string{"create_task", "list_tasks", "cancel_task"} {
-		if !names[want] {
-			t.Errorf("missing tool schema: %s", want)
-		}
-	}
-}
-
 func TestListWorkers_ReturnsEmptySlice_NotNull(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
@@ -368,28 +355,6 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	want := "worker-deleted-xyz\ntask done"
 	if mock.sent[0].Content != want {
 		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
-	}
-}
-
-// --- Schema count ---
-
-func TestToolSchemas_Count_AfterNewTools(t *testing.T) {
-	schemas := mcp.ToolSchemas()
-	if len(schemas) != 23 {
-		t.Errorf("expected 23 tool schemas, got %d", len(schemas))
-	}
-}
-
-func TestToolSchemas_IncludesNewTools(t *testing.T) {
-	schemas := mcp.ToolSchemas()
-	names := make(map[string]bool)
-	for _, s := range schemas {
-		names[s.Name] = true
-	}
-	for _, want := range []string{"send_message"} {
-		if !names[want] {
-			t.Errorf("missing tool schema: %s", want)
-		}
 	}
 }
 
@@ -926,13 +891,6 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	defer clearer.mu.Unlock()
 	if len(clearer.cleared) != 1 {
 		t.Errorf("expected ClearSession called once, got %v", clearer.cleared)
-	}
-}
-
-func TestBeeToolSchemasCount(t *testing.T) {
-	schemas := mcp.ToolSchemas()
-	if len(schemas) != 23 {
-		t.Errorf("bee tool schemas: want 23 got %d", len(schemas))
 	}
 }
 

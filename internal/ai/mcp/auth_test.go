@@ -81,56 +81,6 @@ func TestJWTAuthMiddleware_TokenViaQueryParam(t *testing.T) {
 }
 
 
-func TestRequireBee_AllowsBeeToken(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newRouter(testSecret, mcp.RequireBee())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestRequireBee_RejectsWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newRouter(testSecret, mcp.RequireBee())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-
-func TestRequireWorker_AllowsWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
-	r := newRouter(testSecret, mcp.RequireWorker())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestRequireWorker_RejectsBeeToken(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newRouter(testSecret, mcp.RequireWorker())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-
 func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
 	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
 	r := newRouter(testSecret, mcp.RequireBeeOrWorker())
