@@ -2,6 +2,8 @@ package feishu
 
 import (
 	"testing"
+
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
 func TestParseMediaKeys(t *testing.T) {
@@ -167,6 +169,74 @@ func TestFeishuMediaMsgType(t *testing.T) {
 		t.Run(tt.fileType, func(t *testing.T) {
 			if got := feishuMediaMsgType(tt.fileType); got != tt.want {
 				t.Errorf("feishuMediaMsgType(%q) = %q, want %q", tt.fileType, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveMentions(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name     string
+		text     string
+		mentions []*larkim.MentionEvent
+		want     string
+	}{
+		{
+			name: "single mention replaced",
+			text: "@_user_1 hello",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+			},
+			want: "@Tom hello",
+		},
+		{
+			name: "multiple mentions replaced",
+			text: "@_user_1 and @_user_2",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+				{Key: strPtr("@_user_2"), Name: strPtr("Alice")},
+			},
+			want: "@Tom and @Alice",
+		},
+		{
+			name: "unknown key preserved",
+			text: "@_user_1 @_user_2",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+			},
+			want: "@Tom @_user_2",
+		},
+		{
+			name:     "empty mentions no change",
+			text:     "@_user_1 hello",
+			mentions: nil,
+			want:     "@_user_1 hello",
+		},
+		{
+			name: "nil key skipped",
+			text: "@_user_1 hello",
+			mentions: []*larkim.MentionEvent{
+				{Key: nil, Name: strPtr("Tom")},
+				{Key: strPtr("@_user_1"), Name: strPtr("Bob")},
+			},
+			want: "@Bob hello",
+		},
+		{
+			name: "nil name skipped",
+			text: "@_user_1 hello",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: nil},
+			},
+			want: "@_user_1 hello",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveMentions(tt.text, tt.mentions)
+			if got != tt.want {
+				t.Errorf("resolveMentions() = %q, want %q", got, tt.want)
 			}
 		})
 	}
