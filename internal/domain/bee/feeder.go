@@ -357,7 +357,20 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs 
 		return false
 	}
 
+	taskID, err := f.taskStore.Create(ctx, model.Task{
+		MessageID:   primary.ID,
+		WorkerID:    worker.ID,
+		Instruction: instruction,
+		Type:        model.TaskTypeImmediate,
+		Status:      model.TaskStatusRunning,
+	})
+	if err != nil {
+		log.Error("@mention: create task record", zap.Error(err))
+		return false
+	}
+
 	dt := task.DispatchTask{
+		TaskID:      taskID,
 		WorkerID:    worker.ID,
 		SessionKey:  sessionKey,
 		Instruction: instruction,

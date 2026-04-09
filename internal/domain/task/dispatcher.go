@@ -333,6 +333,13 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			return
 		case model.ExecStatusFailed:
+			// Persist session context even on failure so the next dispatch can attempt
+			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
+			if task.SessionKey != "" && task.WorkerID != "" {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+					log.Error("upsert session context on failure", zap.Error(err))
+				}
+			}
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
