@@ -24,6 +24,7 @@ import {
 import {
   useLocalMessages,
   useLocalChatStream,
+  useLoadMoreMessages,
   useSendMessage,
 } from "@/hooks/use-local-chat"
 import { DetailSection } from "@/components/detail-primitives"
@@ -175,7 +176,7 @@ const CollapsibleContent = memo(function CollapsibleContent({
 export function LocalChat() {
   const { t, i18n } = useTranslation()
 
-  const { data: history = [], isLoading } = useLocalMessages()
+  const { data, isLoading } = useLocalMessages()
   const sendMessage = useSendMessage()
 
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
@@ -186,10 +187,19 @@ export function LocalChat() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
+    setLocalMessages((prev) => [...older, ...prev])
+  }, [])
+
+  const { loadMore, hasMore, isLoadingMore, setInitialHasMore } = useLoadMoreMessages(handleOlderLoaded)
 
   useEffect(() => {
-    setLocalMessages(history)
-  }, [history])
+    if (!data) return
+    setLocalMessages(data.messages)
+    setInitialHasMore(data.has_more)
+  }, [data, setInitialHasMore])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -298,7 +308,7 @@ export function LocalChat() {
     <FadeIn>
       <PageHeader title={t("localChat.title")} />
       <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -319,6 +329,29 @@ export function LocalChat() {
               />
             ) : (
               <div className="space-y-4">
+                {hasMore && (
+                  <div className="flex justify-center pb-4">
+                    <button
+                      type="button"
+                      disabled={isLoadingMore}
+                      onClick={() => {
+                        const container = scrollContainerRef.current
+                        const prevScrollHeight = container?.scrollHeight ?? 0
+                        const earliestTs = localMessages[0]?.ts ?? Date.now()
+                        loadMore(earliestTs).then(() => {
+                          // Restore scroll position after prepend
+                          if (container) {
+                            const newScrollHeight = container.scrollHeight
+                            container.scrollTop += newScrollHeight - prevScrollHeight
+                          }
+                        })
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      {isLoadingMore ? t("localChat.loadingMore") : t("localChat.loadMore")}
+                    </button>
+                  </div>
+                )}
                 {localMessages.map((message, index) => {
                   const isUser = message.role === "user"
                   const hasContent = message.content.trim().length > 0

@@ -287,7 +287,9 @@
     "openAttachment": "Open attachment",
     "removeAttachment": "Remove attachment",
     "quickCommandClear": "clear",
-    "quickCommandConfirm": "confirm"
+    "quickCommandConfirm": "confirm",
+    "loadMore": "Load earlier messages",
+    "loadingMore": "Loading…"
   },
   "breadcrumb": {
     "detail": "Detail"
