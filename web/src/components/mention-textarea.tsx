@@ -112,12 +112,38 @@ export function MentionTextarea({
     setTimeout(() => setMentionState(null), 150)
   }, [])
 
-  // Temporary stub — replaced in Task 5
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (mentionState && filteredWorkers.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          setMentionState(s =>
+            s ? { ...s, activeIndex: Math.min(s.activeIndex + 1, filteredWorkers.length - 1) } : null
+          )
+          return
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          setMentionState(s =>
+            s ? { ...s, activeIndex: Math.max(s.activeIndex - 1, 0) } : null
+          )
+          return
+        }
+        if (e.key === "Enter") {
+          e.preventDefault() // prevent message send while panel is open
+          handleSelect(filteredWorkers[mentionState.activeIndex])
+          return
+        }
+        if (e.key === "Escape") {
+          e.preventDefault()
+          setMentionState(null)
+          return
+        }
+      }
+      // Panel not active — forward to parent (e.g. Enter to send message)
       onKeyDown?.(e)
     },
-    [onKeyDown]
+    [mentionState, filteredWorkers, handleSelect, onKeyDown]
   )
 
   return (
