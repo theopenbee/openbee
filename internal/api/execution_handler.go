@@ -31,7 +31,6 @@ func paginatedResponse(items any, total, page, pageSize int) gin.H {
 	}
 }
 
-// ExecutionHandler handles HTTP requests for execution resources.
 type ExecutionHandler struct {
 	executions *store.ExecutionStore
 }

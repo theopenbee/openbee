@@ -24,7 +24,6 @@ type taskResponse struct {
 	UpdatedAt   int64  `json:"updated_at"`
 }
 
-// TaskHandler handles HTTP requests for task resources.
 type TaskHandler struct {
 	tasks   *store.TaskStore
 	workers *store.WorkerStore
@@ -51,6 +50,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 
 	var total int
 	var tasks []model.Task
+	var workerList []model.Worker
 	g, gCtx := errgroup.WithContext(c.Request.Context())
 	g.Go(func() error {
 		var err error
@@ -62,27 +62,29 @@ func (h *TaskHandler) List(c *gin.Context) {
 		tasks, err = h.tasks.List(gCtx, filter)
 		return err
 	})
+	if workerID != "" {
+		g.Go(func() error {
+			w, err := h.workers.GetByID(workerID)
+			if err == nil {
+				workerList = []model.Worker{w}
+			}
+			return nil
+		})
+	} else {
+		g.Go(func() error {
+			var err error
+			workerList, err = h.workers.List()
+			return err
+		})
+	}
 	if err := g.Wait(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var workerNames map[string]string
-	if workerID != "" {
-		workerNames = make(map[string]string, 1)
-		if w, err := h.workers.GetByID(workerID); err == nil {
-			workerNames[w.ID] = w.Name
-		}
-	} else {
-		workers, err := h.workers.List()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		workerNames = make(map[string]string, len(workers))
-		for _, w := range workers {
-			workerNames[w.ID] = w.Name
-		}
+	workerNames := make(map[string]string, len(workerList))
+	for _, w := range workerList {
+		workerNames[w.ID] = w.Name
 	}
 
 	items := make([]taskResponse, len(tasks))

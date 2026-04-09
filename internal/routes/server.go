@@ -12,7 +12,6 @@ import (
 	"github.com/theopenbee/openbee/internal/mcp"
 )
 
-// ServerParams holds all dependencies needed to construct a Server.
 type ServerParams struct {
 	Workers     *api.WorkerHandler
 	Executions  *api.ExecutionHandler
@@ -28,7 +27,6 @@ type ServerParams struct {
 	JWTMiddleware gin.HandlerFunc
 }
 
-// Server is the HTTP server that wires routes to handlers.
 type Server struct {
 	router     *gin.Engine
 	httpServer *http.Server

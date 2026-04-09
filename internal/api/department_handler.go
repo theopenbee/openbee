@@ -15,7 +15,6 @@ type createDepartmentRequest struct {
 	SortOrder int     `json:"sort_order"`
 }
 
-// DepartmentHandler handles HTTP requests for department resources.
 type DepartmentHandler struct {
 	departments *store.DepartmentStore
 	workers     *store.WorkerStore

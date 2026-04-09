@@ -10,7 +10,6 @@ type configResponse struct {
 	Language string `json:"language"`
 }
 
-// ConfigHandler handles HTTP requests for server configuration.
 type ConfigHandler struct {
 	language string
 }

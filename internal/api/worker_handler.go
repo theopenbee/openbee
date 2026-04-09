@@ -34,7 +34,6 @@ type createWorkerRequest struct {
 	WorkDir     string `json:"work_dir"`
 }
 
-// WorkerHandler handles HTTP requests for worker resources.
 type WorkerHandler struct {
 	workers     *store.WorkerStore
 	departments *store.DepartmentStore

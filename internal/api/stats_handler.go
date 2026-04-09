@@ -8,7 +8,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-// StatsHandler handles HTTP requests for statistics.
 type StatsHandler struct {
 	stats *store.StatsStore
 }
