@@ -614,3 +614,16 @@ func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileN
 var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
+
+// resolveMentions replaces mention keys (e.g. "@_user_1") in text with
+// "@<display name>" using the mentions slice from the Feishu event.
+// Keys with no corresponding mention entry are left unchanged.
+func resolveMentions(text string, mentions []*larkim.MentionEvent) string {
+	for _, m := range mentions {
+		if m.Key == nil || m.Name == nil {
+			continue
+		}
+		text = strings.ReplaceAll(text, *m.Key, "@"+*m.Name)
+	}
+	return text
+}
