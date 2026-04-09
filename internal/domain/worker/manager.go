@@ -70,7 +70,7 @@ func (m *Manager) CreateWorker(
 		Description: description,
 		Memory:      memory,
 	}); err != nil {
-		log.Error("setup worker workspace", zap.String("op", "create"), zap.Error(err))
+		return model.Worker{}, fmt.Errorf("setup worker workspace: %w", err)
 	}
 
 	return m.workerStore.Create(model.Worker{

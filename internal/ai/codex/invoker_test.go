@@ -2,6 +2,7 @@ package codex
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -9,7 +10,7 @@ import (
 func TestBuildArgs_NewSession(t *testing.T) {
 	args := buildArgs("", false, "")
 	want := []string{"exec", "-", "--json", "--yolo"}
-	if !equalSlices(args, want) {
+	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
 }
@@ -17,7 +18,7 @@ func TestBuildArgs_NewSession(t *testing.T) {
 func TestBuildArgs_ResumeWithID(t *testing.T) {
 	args := buildArgs("sess-123", true, "")
 	want := []string{"exec", "resume", "sess-123", "--json", "--yolo"}
-	if !equalSlices(args, want) {
+	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
 }
@@ -25,7 +26,7 @@ func TestBuildArgs_ResumeWithID(t *testing.T) {
 func TestBuildArgs_ResumeWithIDAndPrompt(t *testing.T) {
 	args := buildArgs("sess-123", true, "do something")
 	want := []string{"exec", "resume", "sess-123", "--json", "--yolo", "do something"}
-	if !equalSlices(args, want) {
+	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
 }
@@ -54,16 +55,4 @@ func TestExtractResultFromLog(t *testing.T) {
 	if result != "hello world" {
 		t.Errorf("got %q, want %q", result, "hello world")
 	}
-}
-
-func equalSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

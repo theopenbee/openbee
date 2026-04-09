@@ -12,10 +12,8 @@ import (
 )
 
 const (
-	// SystemRulesFile is re-exported for backward compatibility with tests.
 	SystemRulesFile = ai.SystemRulesFile
-	// ImportLine is re-exported for backward compatibility with tests.
-	ImportLine = ai.ImportLine
+	ImportLine      = ai.ImportLine
 )
 
 // options holds optional parameters for EnsureSystemRules.

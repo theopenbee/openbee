@@ -11,7 +11,6 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// DefaultPersona is the default CLAUDE.md content for the bee workspace.
 const DefaultPersona = `You are B, an AI assistant.`
 
 func init() {
@@ -28,7 +27,6 @@ type claudeAdapter struct {
 	invoker *Invoker
 }
 
-// NewAdapter creates a claudeAdapter.
 func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
@@ -65,7 +63,6 @@ func (a *claudeAdapter) ExtractResult(logPath string) string {
 	return ExtractResultFromLog(logPath)
 }
 
-// writeCLAUDEMD creates workDir/CLAUDE.md with persona only if it does not exist.
 func writeCLAUDEMD(workDir, persona string) error {
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir bee workdir: %w", err)

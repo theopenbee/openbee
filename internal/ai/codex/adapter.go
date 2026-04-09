@@ -20,7 +20,6 @@ type codexAdapter struct {
 	invoker *Invoker
 }
 
-// NewAdapter creates a codexAdapter.
 func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &codexAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
@@ -38,5 +37,4 @@ func (a *codexAdapter) ExtractResult(logPath string) string {
 	return ExtractResultFromLog(logPath)
 }
 
-// Compile-time interface check.
 var _ ai.EngineAdapter = (*codexAdapter)(nil)
