@@ -5,15 +5,19 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func (s *Server) registerStatsRoutes(api *gin.RouterGroup) {
-	api.GET("/stats/overview", s.getStatsOverview)
-	api.GET("/stats/trend", s.getStatsTrend)
+type StatsHandler struct {
+	stats *store.StatsStore
 }
 
-func (s *Server) getStatsOverview(c *gin.Context) {
-	ov, err := s.StatsStore.GetOverview(c.Request.Context())
+func NewStatsHandler(ss *store.StatsStore) *StatsHandler {
+	return &StatsHandler{stats: ss}
+}
+
+func (h *StatsHandler) GetOverview(c *gin.Context) {
+	ov, err := h.stats.GetOverview(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -21,7 +25,7 @@ func (s *Server) getStatsOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, ov)
 }
 
-func (s *Server) getStatsTrend(c *gin.Context) {
+func (h *StatsHandler) GetTrend(c *gin.Context) {
 	daysStr := c.DefaultQuery("days", "7")
 	days, err := strconv.Atoi(daysStr)
 	if err != nil || (days != 7 && days != 15 && days != 30) {
@@ -29,7 +33,7 @@ func (s *Server) getStatsTrend(c *gin.Context) {
 		return
 	}
 
-	points, err := s.StatsStore.GetTrend(c.Request.Context(), days)
+	points, err := h.stats.GetTrend(c.Request.Context(), days)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

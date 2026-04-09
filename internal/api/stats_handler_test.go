@@ -11,7 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServerWithStats(t *testing.T) (*Server, *store.StatsStore, func()) {
+func newTestServerWithStats(t *testing.T) (*gin.Engine, *store.StatsStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -22,24 +22,22 @@ func newTestServerWithStats(t *testing.T) (*Server, *store.StatsStore, func()) {
 
 	ss := store.NewStatsStore(db)
 
+	h := NewStatsHandler(ss)
 	router := gin.New()
-	s := &Server{
-		router: router,
-		ServerParams: ServerParams{
-			StatsStore: ss,
-		},
-	}
-	s.registerStatsRoutes(router.Group("/api"))
-	return s, ss, func() { db.Close() }
+	api := router.Group("/api")
+	api.GET("/stats/overview", h.GetOverview)
+	api.GET("/stats/trend", h.GetTrend)
+
+	return router, ss, func() { db.Close() }
 }
 
 func TestGetStatsOverview_ReturnsOK(t *testing.T) {
-	s, _, cleanup := newTestServerWithStats(t)
+	router, _, cleanup := newTestServerWithStats(t)
 	defer cleanup()
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/stats/overview", nil)
-	s.router.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
@@ -59,13 +57,13 @@ func TestGetStatsOverview_ReturnsOK(t *testing.T) {
 }
 
 func TestGetStatsTrend_ValidDays(t *testing.T) {
-	s, _, cleanup := newTestServerWithStats(t)
+	router, _, cleanup := newTestServerWithStats(t)
 	defer cleanup()
 
 	for _, days := range []int{7, 15, 30} {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/stats/trend?days="+strconv.Itoa(days), nil)
-		s.router.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("days=%d: expected 200, got %d: %s", days, w.Code, w.Body.String())
@@ -85,13 +83,13 @@ func TestGetStatsTrend_ValidDays(t *testing.T) {
 }
 
 func TestGetStatsTrend_InvalidDays_Returns400(t *testing.T) {
-	s, _, cleanup := newTestServerWithStats(t)
+	router, _, cleanup := newTestServerWithStats(t)
 	defer cleanup()
 
 	for _, bad := range []string{"99", "0", "abc", "-1"} {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/stats/trend?days="+bad, nil)
-		s.router.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("days=%q: expected 400, got %d", bad, w.Code)

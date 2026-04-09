@@ -79,7 +79,7 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	}
 }
 
-func (h *LocalChatHandler) sendMessage(c *gin.Context) {
+func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	var body struct {
 		Content    string   `json:"content" binding:"required"`
 		MediaPaths []string `json:"media_paths"`
@@ -159,7 +159,7 @@ type chatMessage struct {
 	Timestamp  int64    `json:"ts"`
 }
 
-func (h *LocalChatHandler) getMessages(c *gin.Context) {
+func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	before := int64(0)
@@ -225,7 +225,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
-func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
+func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing 'file' field"})
@@ -260,7 +260,7 @@ func (h *LocalChatHandler) uploadMedia(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"path": filename})
 }
 
-func (h *LocalChatHandler) serveMedia(c *gin.Context) {
+func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
 	filename := filepath.Base(c.Param("filename"))
 	if filename == "." || filename == ".." {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})

@@ -13,7 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServerWithTasks(t *testing.T) (*Server, *store.TaskStore, func()) {
+func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -27,20 +27,18 @@ func newTestServerWithTasks(t *testing.T) (*Server, *store.TaskStore, func()) {
 	taskStore := store.NewTaskStore(db)
 	workerStore := store.NewWorkerStore(db)
 
+	h := NewTaskHandler(taskStore, workerStore)
 	router := gin.New()
-	s := &Server{
-		router: router,
-		ServerParams: ServerParams{
-			TaskStore:   taskStore,
-			WorkerStore: workerStore,
-		},
-	}
-	s.registerTaskRoutes(router.Group("/api"))
-	return s, taskStore, func() { db.Close() }
+	api := router.Group("/api")
+	api.GET("/tasks", h.List)
+	api.DELETE("/tasks/:id", h.Cancel)
+	api.POST("/workers/:id/tasks/cancel-all", h.CancelByWorker)
+
+	return router, taskStore, func() { db.Close() }
 }
 
 func TestListTasks_FiltersByTypeAndStatus(t *testing.T) {
-	s, ts, cleanup := newTestServerWithTasks(t)
+	router, ts, cleanup := newTestServerWithTasks(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -66,7 +64,7 @@ func TestListTasks_FiltersByTypeAndStatus(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/tasks", nil)
-	s.router.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
@@ -90,7 +88,7 @@ func TestListTasks_FiltersByTypeAndStatus(t *testing.T) {
 }
 
 func TestCancelTask_PendingSucceeds(t *testing.T) {
-	s, ts, cleanup := newTestServerWithTasks(t)
+	router, ts, cleanup := newTestServerWithTasks(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -103,7 +101,7 @@ func TestCancelTask_PendingSucceeds(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodDelete, "/api/tasks/"+id, nil)
-	s.router.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
@@ -116,7 +114,7 @@ func TestCancelTask_PendingSucceeds(t *testing.T) {
 }
 
 func TestCancelTask_NonPendingReturns409(t *testing.T) {
-	s, ts, cleanup := newTestServerWithTasks(t)
+	router, ts, cleanup := newTestServerWithTasks(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -131,7 +129,7 @@ func TestCancelTask_NonPendingReturns409(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodDelete, "/api/tasks/"+id, nil)
-	s.router.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", w.Code)
@@ -139,7 +137,7 @@ func TestCancelTask_NonPendingReturns409(t *testing.T) {
 }
 
 func TestCancelWorkerTasks_CancelsAllPending(t *testing.T) {
-	s, ts, cleanup := newTestServerWithTasks(t)
+	router, ts, cleanup := newTestServerWithTasks(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -154,7 +152,7 @@ func TestCancelWorkerTasks_CancelsAllPending(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/workers/w1/tasks/cancel-all", nil)
-	s.router.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())

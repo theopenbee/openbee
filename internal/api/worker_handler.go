@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 type workerResponse struct {
@@ -32,14 +34,24 @@ type createWorkerRequest struct {
 	WorkDir     string `json:"work_dir"`
 }
 
-func (s *Server) createWorker(c *gin.Context) {
+type WorkerHandler struct {
+	workers     *store.WorkerStore
+	departments *store.DepartmentStore
+	manager     *worker.Manager
+}
+
+func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager) *WorkerHandler {
+	return &WorkerHandler{workers: ws, departments: ds, manager: mgr}
+}
+
+func (h *WorkerHandler) Create(c *gin.Context) {
 	var req createWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	w, err := s.Manager.CreateWorker(
+	w, err := h.manager.CreateWorker(
 		req.Name, req.Description, req.Memory, req.WorkDir,
 	)
 	if err != nil {
@@ -50,15 +62,15 @@ func (s *Server) createWorker(c *gin.Context) {
 	c.JSON(http.StatusCreated, w)
 }
 
-func (s *Server) listWorkers(c *gin.Context) {
+func (h *WorkerHandler) List(c *gin.Context) {
 	deptID := c.Query("department_id")
 
 	var workers []model.Worker
 	var err error
 	if deptID != "" {
-		workers, err = s.WorkerStore.GetByDepartmentID(deptID)
+		workers, err = h.workers.GetByDepartmentID(deptID)
 	} else {
-		workers, err = s.WorkerStore.List()
+		workers, err = h.workers.List()
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -69,7 +81,7 @@ func (s *Server) listWorkers(c *gin.Context) {
 	for i, w := range workers {
 		workerIDs[i] = w.ID
 	}
-	deptMap, err := s.DepartmentStore.GetWorkersDepartments(workerIDs)
+	deptMap, err := h.departments.GetWorkersDepartments(workerIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -82,13 +94,13 @@ func (s *Server) listWorkers(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (s *Server) getWorker(c *gin.Context) {
-	w, err := s.WorkerStore.GetByID(c.Param("id"))
+func (h *WorkerHandler) Get(c *gin.Context) {
+	w, err := h.workers.GetByID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
 	}
-	depts, err := s.DepartmentStore.GetWorkerDepartments(w.ID)
+	depts, err := h.departments.GetWorkerDepartments(w.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -96,8 +108,8 @@ func (s *Server) getWorker(c *gin.Context) {
 	c.JSON(http.StatusOK, workerResponse{Worker: w, Departments: toDepartmentBriefs(depts)})
 }
 
-func (s *Server) updateWorker(c *gin.Context) {
-	w, err := s.WorkerStore.GetByID(c.Param("id"))
+func (h *WorkerHandler) Update(c *gin.Context) {
+	w, err := h.workers.GetByID(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
 		return
@@ -123,7 +135,7 @@ func (s *Server) updateWorker(c *gin.Context) {
 		w.Memory = *req.Memory
 	}
 
-	updated, err := s.WorkerStore.Update(w)
+	updated, err := h.workers.Update(w)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -132,14 +144,14 @@ func (s *Server) updateWorker(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-func (s *Server) deleteWorker(c *gin.Context) {
+func (h *WorkerHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	deleteWorkDir := c.Query("delete_work_dir") == "true"
-	if err := s.Manager.DeleteWorker(id, deleteWorkDir); err != nil {
+	if err := h.manager.DeleteWorker(id, deleteWorkDir); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if err := s.DepartmentStore.DeleteWorkerDepartments(id); err != nil {
+	if err := h.departments.DeleteWorkerDepartments(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
