@@ -326,19 +326,31 @@ type InboundMessage struct {
 	ReceivedAt int64
 }
 
-// ListBySessionKey returns all non-merged messages for a session, ordered by received_at ASC.
-func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string) ([]InboundMessage, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, content, received_at FROM bee_platform_messages
-         WHERE session_key = ? AND status != 'merged'
-         ORDER BY received_at ASC`,
-		sessionKey,
+// ListBySessionKey returns non-merged messages for a session.
+// If before > 0, only messages with received_at < before are returned.
+// Results are ordered by received_at ASC. limit must be > 0.
+func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, before int64, limit int) ([]InboundMessage, error) {
+	var (
+		query string
+		args  []any
 	)
+	if before > 0 {
+		query = `SELECT id, content, received_at FROM bee_platform_messages
+                 WHERE session_key = ? AND status != 'merged' AND received_at < ?
+                 ORDER BY received_at DESC LIMIT ?`
+		args = []any{sessionKey, before, limit}
+	} else {
+		query = `SELECT id, content, received_at FROM bee_platform_messages
+                 WHERE session_key = ? AND status != 'merged'
+                 ORDER BY received_at DESC LIMIT ?`
+		args = []any{sessionKey, limit}
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	msgs := []InboundMessage{}
+	var msgs []InboundMessage
 	for rows.Next() {
 		var m InboundMessage
 		if err := rows.Scan(&m.ID, &m.Content, &m.ReceivedAt); err != nil {
@@ -346,7 +358,14 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string) 
 		}
 		msgs = append(msgs, m)
 	}
-	return msgs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Reverse DESC result to ASC for callers.
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+	return msgs, nil
 }
 
 // DeleteBySessionKey removes all bee_platform_messages for the given session key.

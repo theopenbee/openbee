@@ -166,7 +166,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey)
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, 0, 100)
 		return err
 	})
 	g.Go(func() error {

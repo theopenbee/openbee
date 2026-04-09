@@ -16,7 +16,6 @@ func TestMessageStore_ListBySessionKey_ExcludesMerged(t *testing.T) {
 	s := store.NewMessageStore(db)
 	ctx := context.Background()
 
-	// Insert one received and one merged message for the same session
 	s.CreateBatch(ctx, []store.BatchMsg{ //nolint:errcheck
 		{ID: "m1", SessionKey: "local:s1", Platform: "local", Content: "hello",
 			Status: "received", MessageTime: 1000},
@@ -24,7 +23,7 @@ func TestMessageStore_ListBySessionKey_ExcludesMerged(t *testing.T) {
 			Status: "merged", MergedInto: "m1", MessageTime: 900},
 	})
 
-	msgs, err := s.ListBySessionKey(ctx, "local:s1")
+	msgs, err := s.ListBySessionKey(ctx, "local:s1", 0, 50)
 	if err != nil {
 		t.Fatalf("ListBySessionKey: %v", err)
 	}
@@ -33,6 +32,49 @@ func TestMessageStore_ListBySessionKey_ExcludesMerged(t *testing.T) {
 	}
 	if msgs[0].ID != "m1" {
 		t.Errorf("expected message m1, got %s", msgs[0].ID)
+	}
+}
+
+func TestMessageStore_ListBySessionKey_Pagination(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer db.Close()
+	s := store.NewMessageStore(db)
+	ctx := context.Background()
+
+	// Insert 5 messages with timestamps 100..500
+	s.CreateBatch(ctx, []store.BatchMsg{ //nolint:errcheck
+		{ID: "a", SessionKey: "local:s1", Platform: "local", Content: "1", Status: "received", MessageTime: 100},
+		{ID: "b", SessionKey: "local:s1", Platform: "local", Content: "2", Status: "received", MessageTime: 200},
+		{ID: "c", SessionKey: "local:s1", Platform: "local", Content: "3", Status: "received", MessageTime: 300},
+		{ID: "d", SessionKey: "local:s1", Platform: "local", Content: "4", Status: "received", MessageTime: 400},
+		{ID: "e", SessionKey: "local:s1", Platform: "local", Content: "5", Status: "received", MessageTime: 500},
+	})
+
+	// limit=3, no before -> latest 3: c,d,e (returned ASC)
+	msgs, err := s.ListBySessionKey(ctx, "local:s1", 0, 3)
+	if err != nil {
+		t.Fatalf("ListBySessionKey: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+	if msgs[0].ID != "c" || msgs[2].ID != "e" {
+		t.Errorf("expected c,d,e got %s,%s,%s", msgs[0].ID, msgs[1].ID, msgs[2].ID)
+	}
+
+	// before=300 (exclusive) -> latest 3 before ts 300: a,b (only 2 exist)
+	msgs2, err := s.ListBySessionKey(ctx, "local:s1", 300, 3)
+	if err != nil {
+		t.Fatalf("ListBySessionKey with before: %v", err)
+	}
+	if len(msgs2) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs2))
+	}
+	if msgs2[0].ID != "a" || msgs2[1].ID != "b" {
+		t.Errorf("expected a,b got %s,%s", msgs2[0].ID, msgs2[1].ID)
 	}
 }
 
@@ -56,11 +98,11 @@ func TestMessageStore_DeleteBySessionKey(t *testing.T) {
 		t.Fatalf("DeleteBySessionKey: %v", err)
 	}
 
-	msgs, _ := s.ListBySessionKey(ctx, "local:s1")
+	msgs, _ := s.ListBySessionKey(ctx, "local:s1", 0, 50)
 	if len(msgs) != 0 {
 		t.Errorf("expected 0 messages for s1, got %d", len(msgs))
 	}
-	msgs2, _ := s.ListBySessionKey(ctx, "local:s2")
+	msgs2, _ := s.ListBySessionKey(ctx, "local:s2", 0, 50)
 	if len(msgs2) != 1 {
 		t.Errorf("s2 should be unaffected, got %d", len(msgs2))
 	}
