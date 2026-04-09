@@ -255,6 +255,11 @@ FROM bee_local_replies`,
 -- The table is preserved for historical data only.
 SELECT 1`,
 	},
+	{
+		version: 28,
+		name:    "create_index_workers_name_lower",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_workers_name_lower ON bee_workers (LOWER(name))`,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.

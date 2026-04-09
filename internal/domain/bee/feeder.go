@@ -41,9 +41,6 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-// WithDirectDispatch enables @mention direct routing. When a message starts
-// with "@name ", the Feeder looks up the worker by name and dispatches
-// directly to ch, bypassing Bee. Falls back to Bee if the worker is not found.
 func WithDirectDispatch(ch chan<- task.DispatchTask, lookup WorkerNameLookup) Option {
 	return func(f *Feeder) {
 		f.directDispatchCh = ch
@@ -179,7 +176,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	// @mention check: route directly to the named worker, skipping Bee.
 	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
 		return
 	}
@@ -256,11 +252,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	msgIDs := make([]string, len(msgs))
-	for i, m := range msgs {
-		msgIDs[i] = m.ID
-	}
-	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
+	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 }
@@ -310,6 +302,14 @@ func (f *Feeder) waitBeeOutput(ch <-chan claude.Output) error {
 	return fmt.Errorf("bee output channel closed without completion signal")
 }
 
+func messageIDs(msgs []store.ClaimedMessage) []string {
+	ids := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	return ids
+}
+
 func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
 	for i, m := range msgs {
@@ -322,9 +322,6 @@ func buildPrompt(msgs []store.ClaimedMessage) string {
 	return sb.String()
 }
 
-// parseDirectMention checks whether content starts with "@name " and returns
-// the worker name and the remaining instruction (leading whitespace trimmed).
-// Returns ok=false if content does not match the pattern.
 func parseDirectMention(content string) (workerName, instruction string, ok bool) {
 	if len(content) < 2 || content[0] != '@' {
 		return "", "", false
@@ -345,11 +342,8 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 	return workerName, instruction, true
 }
 
-// tryDirectDispatch checks if the primary message starts with "@name " and,
-// if the named worker exists, dispatches to directDispatchCh instead of Bee.
-// Returns true if the message was handled; false means fall back to Bee.
 func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) bool {
-	if f.directDispatchCh == nil || f.workerLookup == nil {
+	if f.directDispatchCh == nil {
 		return false
 	}
 	if len(msgs) == 0 {
@@ -385,11 +379,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs 
 		return false
 	}
 
-	msgIDs := make([]string, len(msgs))
-	for i, m := range msgs {
-		msgIDs[i] = m.ID
-	}
-	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
+	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("@mention: mark bee_processed", zap.Error(err))
 	}
 
