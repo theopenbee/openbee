@@ -70,8 +70,6 @@ prompt:
   server_host: "Server Host:"
   debug_mode: "Debug mode?"
   db_path: "Database path:"
-  mcp_token_secret_setup: "MCP Token Secret setup:"
-  mcp_token_secret: "MCP Token Secret:"
   feeder_timeout: "Feeder timeout:"
   max_concurrent_bee: "Max concurrent bee processes:"
   message_debounce: "Message debounce:"

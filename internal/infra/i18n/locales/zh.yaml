@@ -70,8 +70,6 @@ prompt:
   server_host: "服务地址："
   debug_mode: "开启调试模式？"
   db_path: "数据库路径："
-  mcp_token_secret_setup: "MCP Token Secret 设置方式："
-  mcp_token_secret: "MCP Token Secret："
   feeder_timeout: "Feeder 超时时间："
   max_concurrent_bee: "最大并发 bee 数量："
   message_debounce: "消息防抖时间："

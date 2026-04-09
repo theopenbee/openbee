@@ -78,8 +78,6 @@ type PromptMessages struct {
 	ServerHost          string `yaml:"server_host"`
 	DebugMode           string `yaml:"debug_mode"`
 	DBPath              string `yaml:"db_path"`
-	MCPTokenSecretSetup string `yaml:"mcp_token_secret_setup"`
-	MCPTokenSecret      string `yaml:"mcp_token_secret"`
 	FeederTimeout       string `yaml:"feeder_timeout"`
 	MaxConcurrentBee    string `yaml:"max_concurrent_bee"`
 	MessageDebounce     string `yaml:"message_debounce"`
