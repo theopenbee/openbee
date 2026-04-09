@@ -87,6 +87,63 @@ func TestWorkerStore_Delete(t *testing.T) {
 	}
 }
 
+func TestWorkerStore_GetByName_ExactMatch(t *testing.T) {
+	s := setupTestDB(t)
+	s.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
+
+	got, err := s.GetByName("天天")
+	if err != nil {
+		t.Fatalf("GetByName: %v", err)
+	}
+	if got.Name != "天天" {
+		t.Errorf("expected 天天, got %s", got.Name)
+	}
+}
+
+func TestWorkerStore_GetByName_CaseInsensitive(t *testing.T) {
+	s := setupTestDB(t)
+	s.Create(model.Worker{Name: "Alice", WorkDir: "/tmp/alice"})
+
+	got, err := s.GetByName("alice")
+	if err != nil {
+		t.Fatalf("GetByName lowercase: %v", err)
+	}
+	if got.Name != "Alice" {
+		t.Errorf("expected Alice, got %s", got.Name)
+	}
+
+	got2, err := s.GetByName("ALICE")
+	if err != nil {
+		t.Fatalf("GetByName uppercase: %v", err)
+	}
+	if got2.Name != "Alice" {
+		t.Errorf("expected Alice, got %s", got2.Name)
+	}
+}
+
+func TestWorkerStore_GetByName_NotFound(t *testing.T) {
+	s := setupTestDB(t)
+
+	_, err := s.GetByName("nobody")
+	if err == nil {
+		t.Fatal("expected error for missing worker, got nil")
+	}
+}
+
+func TestWorkerStore_GetByName_DuplicateName_ReturnsEarliest(t *testing.T) {
+	s := setupTestDB(t)
+	first, _ := s.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot1"})
+	s.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot2"})
+
+	got, err := s.GetByName("bot")
+	if err != nil {
+		t.Fatalf("GetByName: %v", err)
+	}
+	if got.ID != first.ID {
+		t.Errorf("expected earliest worker %s, got %s", first.ID, got.ID)
+	}
+}
+
 func TestWorkerStore_CountByStatus(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {

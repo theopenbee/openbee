@@ -549,3 +549,96 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 }
 
+func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "hello world")
+
+	runner := &mockBeeRunner{}
+	ws := store.NewWorkerStore(db)
+
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
+		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
+	}, bee.WithWorkerDispatch(ws))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// Bee must have been called (normal flow)
+	if len(runner.getCalls()) == 0 {
+		t.Error("expected bee runner to be called for non-@mention message")
+	}
+}
+
+func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "@unknown do something")
+
+	runner := &mockBeeRunner{}
+	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+		bee.WithWorkerDispatch(ws))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	if len(runner.getCalls()) == 0 {
+		t.Error("expected bee runner to be called when worker not found")
+	}
+}
+
+func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "@天天 write a report")
+
+	runner := &mockBeeRunner{}
+	ws := store.NewWorkerStore(db)
+	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+		bee.WithWorkerDispatch(ws))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// Bee must NOT have been called
+	if len(runner.getCalls()) != 0 {
+		t.Error("expected bee runner NOT to be called for direct dispatch")
+	}
+
+	// A pending task must have been created in the DB for the worker
+	var workerID, instruction, status string
+	db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
+	if workerID != w.ID {
+		t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
+	}
+	if instruction != "write a report" {
+		t.Errorf("expected instruction 'write a report', got %q", instruction)
+	}
+	if status != "pending" {
+		t.Errorf("expected task status 'pending', got %q", status)
+	}
+
+	// Message must be marked bee_processed
+	var msgStatus string
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
+	if msgStatus != "bee_processed" {
+		t.Errorf("expected bee_processed, got %q", msgStatus)
+	}
+}
+

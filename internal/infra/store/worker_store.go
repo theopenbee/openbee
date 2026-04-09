@@ -51,6 +51,23 @@ func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	return w, nil
 }
 
+// GetByName looks up a worker by name (case-insensitive for ASCII).
+// When names collide, the earliest-created worker is returned.
+func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
+	row := s.db.QueryRow(
+		`SELECT `+workerColumns+` FROM bee_workers
+		 WHERE LOWER(name) = LOWER(?)
+		 ORDER BY created_at ASC, ROWID ASC
+		 LIMIT 1`,
+		name,
+	)
+	w, err := scanWorker(row)
+	if err != nil {
+		return model.Worker{}, fmt.Errorf("get worker by name: %w", err)
+	}
+	return w, nil
+}
+
 func (s *WorkerStore) GetByID(id string) (model.Worker, error) {
 	row := s.db.QueryRow(`SELECT `+workerColumns+` FROM bee_workers WHERE id = ?`, id)
 	w, err := scanWorker(row)
