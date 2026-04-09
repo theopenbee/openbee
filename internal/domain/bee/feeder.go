@@ -35,6 +35,7 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
+// WithWorkerDispatch enables @mention direct dispatch by providing the worker lookup store.
 func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	return func(f *Feeder) {
 		f.workerLookup = lookup

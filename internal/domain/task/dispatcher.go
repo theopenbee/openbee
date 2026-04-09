@@ -230,13 +230,13 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 // buildInstruction prepends task metadata to the instruction so workers
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
-	if t.TaskID == "" && t.MessageID == "" {
-		return t.Instruction
+	if t.TaskID != "" {
+		return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
 	}
-	if t.TaskID == "" {
+	if t.MessageID != "" {
 		return fmt.Sprintf("---\nmessage_id: %s\n---\n\n%s", t.MessageID, t.Instruction)
 	}
-	return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
+	return t.Instruction
 }
 
 func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {
