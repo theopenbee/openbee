@@ -346,7 +346,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	case utils.DeleteWorker:
 		return s.toolDeleteWorker(args)
 	case utils.CreateTask:
-		return s.toolCreateTask(args)
+		return s.toolCreateTask(ctx, args)
 	case utils.ListTasks:
 		return s.toolListTasks(args)
 	case utils.CancelTask:
@@ -479,6 +479,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -488,9 +489,11 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.Memory != nil {
 		w.Memory = *params.Memory
 	}
-	w, err = s.workerStore.Update(w)
-	if err != nil {
-		return nil, err
+	if fieldsChanged {
+		w, err = s.workerStore.Update(w)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if params.DepartmentIDs != nil {
 		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
@@ -517,7 +520,7 @@ func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "deleted"}, nil
 }
 
-func (s *MCPServer) toolCreateTask(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolCreateTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID       string `json:"message_id"`
 		WorkerID        string `json:"worker_id"`
@@ -574,7 +577,7 @@ func (s *MCPServer) toolCreateTask(args json.RawMessage) (any, error) {
 				CreatedAt:   nowMS,
 				UpdatedAt:   nowMS,
 			}
-			id, createErr := s.taskStore.Create(context.Background(), task)
+			id, createErr := s.taskStore.Create(ctx, task)
 			if createErr != nil {
 				return nil, fmt.Errorf("create cancelled task: %w", createErr)
 			}
@@ -593,11 +596,11 @@ func (s *MCPServer) toolCreateTask(args json.RawMessage) (any, error) {
 		ScheduledAt:     params.ScheduledAt,
 		CronExpr:        params.CronExpr,
 		NextRunAt:       nextRunAt,
-		CreatedAt: nowMS,
+		CreatedAt:       nowMS,
 		UpdatedAt:       nowMS,
 	}
 
-	id, err := s.taskStore.Create(context.Background(), task)
+	id, err := s.taskStore.Create(ctx, task)
 	if err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
 	}
@@ -809,7 +812,7 @@ func (s *MCPServer) toolGetWorkerStatus(args json.RawMessage) (any, error) {
 		WorkerID string `json:"worker_id"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
+		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	if p.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
@@ -950,7 +953,7 @@ func (s *MCPServer) toolSaveMemory(args json.RawMessage) (any, error) {
 		Value string `json:"value"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
+		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Scope == "" || p.Key == "" || p.Value == "" {
 		return nil, fmt.Errorf("scope, key, and value are required")
@@ -967,7 +970,7 @@ func (s *MCPServer) toolGetMemory(args json.RawMessage) (any, error) {
 		Key   string `json:"key"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
+		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Scope == "" {
 		return nil, fmt.Errorf("scope is required")
@@ -995,7 +998,7 @@ func (s *MCPServer) toolDeleteMemory(args json.RawMessage) (any, error) {
 		Key   string `json:"key"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
+		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Scope == "" || p.Key == "" {
 		return nil, fmt.Errorf("scope and key are required")
@@ -1253,7 +1256,7 @@ func departmentAncestorPath(deptMap map[string]model.Department, d model.Departm
 	var parts []string
 	cur := d
 	for {
-		parts = append([]string{cur.Name}, parts...)
+		parts = append(parts, cur.Name)
 		if cur.ParentID == nil {
 			break
 		}
@@ -1262,6 +1265,10 @@ func departmentAncestorPath(deptMap map[string]model.Department, d model.Departm
 			break
 		}
 		cur = parent
+	}
+	// Reverse: we collected child→root, want root→child.
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
 	}
 	return strings.Join(parts, " > ")
 }
