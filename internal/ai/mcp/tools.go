@@ -30,9 +30,6 @@ func ToolSchemas() []toolSchema {
 	return beeToolSchemas()
 }
 
-// WorkerToolSchemas returns the JSON Schema definitions for Worker MCP tools.
-func WorkerToolSchemas() []toolSchema { return workerToolSchemas() }
-
 func beeToolSchemas() []toolSchema {
 	return []toolSchema{
 		{
@@ -314,25 +311,6 @@ func beeToolSchemas() []toolSchema {
 	}
 }
 
-// workerToolNames is the allowlist of tools exposed to workers.
-var workerToolNames = map[string]bool{
-	utils.SendMessage:      true,
-	utils.SaveMemory:       true,
-	utils.GetMemory:        true,
-	utils.DeleteMemory:     true,
-}
-
-func workerToolSchemas() []toolSchema {
-	all := beeToolSchemas()
-	out := make([]toolSchema, 0, len(workerToolNames))
-	for _, s := range all {
-		if workerToolNames[s.Name] {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
 // CallTool is exported for testing. Production code uses callToolFn via handleToolCall.
 func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	return s.callToolFn(ctx, name, args)
@@ -406,14 +384,6 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
-}
-
-// workerCallTool delegates to beeCallTool after checking the worker allowlist.
-func (s *MCPServer) workerCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
-	if !workerToolNames[name] {
-		return nil, fmt.Errorf("unknown tool: %s", name)
-	}
-	return s.beeCallTool(ctx, name, args)
 }
 
 func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
