@@ -10,26 +10,29 @@ import (
 
 // CmdProcess implements Process for an os/exec.Cmd.
 type CmdProcess struct {
-	Cmd *exec.Cmd
+	cmd *exec.Cmd
 	mu  sync.Mutex
 }
 
-// PID returns the process ID, or 0 if the process has not started.
+// NewCmdProcess wraps an exec.Cmd as a Process.
+func NewCmdProcess(cmd *exec.Cmd) *CmdProcess {
+	return &CmdProcess{cmd: cmd}
+}
+
 func (p *CmdProcess) PID() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.Cmd != nil && p.Cmd.Process != nil {
-		return p.Cmd.Process.Pid
+	if p.cmd != nil && p.cmd.Process != nil {
+		return p.cmd.Process.Pid
 	}
 	return 0
 }
 
-// Stop kills the process.
 func (p *CmdProcess) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.Cmd != nil && p.Cmd.Process != nil {
-		return p.Cmd.Process.Kill()
+	if p.cmd != nil && p.cmd.Process != nil {
+		return p.cmd.Process.Kill()
 	}
 	return nil
 }
@@ -51,5 +54,6 @@ func BuildBaseEnv(openbeeURL string) []string {
 		env = append(env, sysEnv...)
 	}
 	env = append(env, "OPENBEE_URL="+openbeeURL)
-	return env
+	// Clip to length so concurrent append calls in Run() cannot share the backing array.
+	return env[:len(env):len(env)]
 }

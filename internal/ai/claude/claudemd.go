@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	SystemRulesFile = ".openbee.md"
-	ImportLine      = "@" + SystemRulesFile
+	// SystemRulesFile is re-exported for backward compatibility with tests.
+	SystemRulesFile = ai.SystemRulesFile
+	// ImportLine is re-exported for backward compatibility with tests.
+	ImportLine = ai.ImportLine
 )
 
 // options holds optional parameters for EnsureSystemRules.

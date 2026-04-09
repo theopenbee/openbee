@@ -1,11 +1,5 @@
 package claude
 
-func beeRules() string {
-	return beeRoleRules()
-}
+import ai "github.com/theopenbee/openbee/internal/ai"
 
-func beeRoleRules() string {
-	return `
-You are the coordinator and dispatcher of an AI team. Before processing each user message, you must invoke the Skill tool to load the openbee-bee skill and strictly follow all rules defined in that skill.
-`
-}
+func beeRules() string { return ai.BeeRules() }

@@ -2,6 +2,13 @@ package ai
 
 import "context"
 
+const (
+	// SystemRulesFile is the engine-agnostic rules file written to every workspace.
+	SystemRulesFile = ".openbee.md"
+	// ImportLine is the reference line engines embed in their config files.
+	ImportLine = "@" + SystemRulesFile
+)
+
 // Role identifies the openbee agent role for workspace setup.
 type Role string
 

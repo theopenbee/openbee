@@ -10,9 +10,9 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-const (
-	systemRulesFile = ".openbee.md"
-	importLine      = "@" + systemRulesFile
+var (
+	systemRulesFile = ai.SystemRulesFile
+	importLine      = ai.ImportLine
 )
 
 func setupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
@@ -59,20 +59,7 @@ func writeSystemRules(workDir, content string) error {
 	return nil
 }
 
-func beeRules() string {
-	return "You are the coordinator and dispatcher of an AI team. Before processing each user message, you must invoke the Skill tool to load the openbee-bee skill and strictly follow all rules defined in that skill.\n"
-}
-
+func beeRules() string     { return ai.BeeRules() }
 func workerRules(name, description, memory string) string {
-	rules := "You are a Worker in an AI team, responsible for executing tasks assigned to you. You must invoke the Skill tool to load the openbee-worker skill and strictly follow all rules defined in that skill.\n"
-	if name != "" {
-		rules += fmt.Sprintf("Name: %s\n", name)
-	}
-	if description != "" {
-		rules += fmt.Sprintf("Description: %s\n", description)
-	}
-	if memory != "" {
-		rules += fmt.Sprintf("\n## Memory Constraints\n%s\n", memory)
-	}
-	return rules
+	return ai.WorkerRules(name, description, memory)
 }

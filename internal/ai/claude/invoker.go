@@ -111,7 +111,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		return nil, nil, fmt.Errorf("start claude: %w", err)
 	}
 
-	proc := &ai.CmdProcess{Cmd: cmd}
+	proc := ai.NewCmdProcess(cmd)
 	ch := make(chan ai.Output, 1)
 
 	go func() {
