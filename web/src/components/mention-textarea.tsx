@@ -81,10 +81,44 @@ export function MentionTextarea({
     [onChange, workers]
   )
 
-  // Temporary stub — replaced in Task 4
-  const handleSelect = useCallback((_worker: MentionWorker) => {
-    setMentionState(null)
+  const handleSelect = useCallback(
+    (worker: MentionWorker) => {
+      if (!mentionState) return
+      const textarea = textareaRef?.current
+      const caret = textarea?.selectionStart ?? value.length
+
+      const before = value.slice(0, mentionState.triggerIndex)
+      const after = value.slice(caret)
+      const inserted = `@${worker.name} `
+      const newValue = before + inserted + after
+
+      onChange(newValue)
+      setMentionState(null)
+
+      // Move caret to end of inserted text
+      requestAnimationFrame(() => {
+        if (textarea) {
+          const pos = mentionState.triggerIndex + inserted.length
+          textarea.setSelectionRange(pos, pos)
+          textarea.focus()
+        }
+      })
+    },
+    [mentionState, value, onChange, textareaRef]
+  )
+
+  const handleBlur = useCallback(() => {
+    // Delay so onMouseDown on a candidate fires before the panel closes
+    setTimeout(() => setMentionState(null), 150)
   }, [])
+
+  // Temporary stub — replaced in Task 5
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      onKeyDown?.(e)
+    },
+    [onKeyDown]
+  )
 
   return (
     <div className="relative">
@@ -99,6 +133,8 @@ export function MentionTextarea({
         ref={textareaRef}
         value={value}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
         onPaste={onPaste}
         placeholder={placeholder}
         disabled={disabled}
