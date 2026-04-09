@@ -171,7 +171,7 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 	})
 	g.Go(func() error {
 		var err error
-		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, 0)
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, 0, 100)
 		return err
 	})
 	if err := g.Wait(); err != nil {
