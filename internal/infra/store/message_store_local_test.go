@@ -53,19 +53,19 @@ func TestMessageStore_ListBySessionKey_Pagination(t *testing.T) {
 		{ID: "e", SessionKey: "local:s1", Platform: "local", Content: "5", Status: "received", MessageTime: 500},
 	})
 
-	// limit=3, no before -> latest 3: c,d,e (returned ASC)
+	// limit=3, no before -> store fetches limit+1=4 rows (b,c,d,e ASC) so caller can detect has_more
 	msgs, err := s.ListBySessionKey(ctx, "local:s1", 0, 3)
 	if err != nil {
 		t.Fatalf("ListBySessionKey: %v", err)
 	}
-	if len(msgs) != 3 {
-		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	if len(msgs) != 4 {
+		t.Fatalf("expected 4 messages (limit+1 over-fetch), got %d", len(msgs))
 	}
-	if msgs[0].ID != "c" || msgs[2].ID != "e" {
-		t.Errorf("expected c,d,e got %s,%s,%s", msgs[0].ID, msgs[1].ID, msgs[2].ID)
+	if msgs[0].ID != "b" || msgs[3].ID != "e" {
+		t.Errorf("expected b,c,d,e got %s,...,%s", msgs[0].ID, msgs[3].ID)
 	}
 
-	// before=300 (exclusive) -> latest 3 before ts 300: a,b (only 2 exist)
+	// before=300 (exclusive) -> store fetches limit+1=4 before ts 300, but only 2 exist (a,b)
 	msgs2, err := s.ListBySessionKey(ctx, "local:s1", 300, 3)
 	if err != nil {
 		t.Fatalf("ListBySessionKey with before: %v", err)
