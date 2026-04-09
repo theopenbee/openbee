@@ -329,7 +329,7 @@ type InboundMessage struct {
 // ListBySessionKey returns non-merged messages for a session.
 // If before > 0, only messages with received_at < before are returned.
 // Results are ordered by received_at ASC. limit must be > 0.
-// Queries limit+1 rows so callers can detect has_more by checking len(result) > limit.
+// limit controls max rows returned. Callers typically pass limit+1 to enable has_more detection.
 func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, before int64, limit int) ([]InboundMessage, error) {
 	var (
 		query string
@@ -339,12 +339,12 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 		query = `SELECT id, content, received_at FROM bee_platform_messages
                  WHERE session_key = ? AND status != 'merged' AND received_at < ?
                  ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, before, limit + 1}
+		args = []any{sessionKey, before, limit}
 	} else {
 		query = `SELECT id, content, received_at FROM bee_platform_messages
                  WHERE session_key = ? AND status != 'merged'
                  ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, limit + 1}
+		args = []any{sessionKey, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

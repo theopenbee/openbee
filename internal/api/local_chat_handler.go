@@ -174,17 +174,20 @@ func (h *LocalChatHandler) getMessages(c *gin.Context) {
 			limit = n
 		}
 	}
+	// Query limit+1 to detect has_more without an extra COUNT query.
+	fetch := limit + 1
+
 	var inbound []store.InboundMessage
 	var replies []store.OutboundMessage
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, before, limit)
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, before, limit)
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
 		return err
 	})
 	if err := g.Wait(); err != nil {

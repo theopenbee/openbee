@@ -94,7 +94,7 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 // ListBySessionKey returns outbound messages for a session ordered by sent_at ascending.
 // If before > 0, only messages with sent_at < before are returned.
 // limit must be > 0.
-// Queries limit+1 rows so callers can detect has_more by checking len(result) > limit.
+// limit controls max rows returned. Callers typically pass limit+1 to enable has_more detection.
 func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey string, before int64, limit int) ([]OutboundMessage, error) {
 	var (
 		query string
@@ -105,13 +105,13 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 			 FROM bee_outbound_messages
 			 WHERE session_key = ? AND sent_at < ?
 			 ORDER BY sent_at DESC LIMIT ?`
-		args = []any{sessionKey, before, limit + 1}
+		args = []any{sessionKey, before, limit}
 	} else {
 		query = `SELECT ` + outboundMessageColumns + `
 			 FROM bee_outbound_messages
 			 WHERE session_key = ?
 			 ORDER BY sent_at DESC LIMIT ?`
-		args = []any{sessionKey, limit + 1}
+		args = []any{sessionKey, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
