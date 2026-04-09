@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -234,14 +233,10 @@ func buildInstruction(t DispatchTask) string {
 	if t.TaskID == "" && t.MessageID == "" {
 		return t.Instruction
 	}
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "---\nmessage_id: %s\n", t.MessageID)
-	if t.TaskID != "" {
-		fmt.Fprintf(&sb, "task_id: %s\n", t.TaskID)
+	if t.TaskID == "" {
+		return fmt.Sprintf("---\nmessage_id: %s\n---\n\n%s", t.MessageID, t.Instruction)
 	}
-	sb.WriteString("---\n\n")
-	sb.WriteString(t.Instruction)
-	return sb.String()
+	return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
 }
 
 func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {

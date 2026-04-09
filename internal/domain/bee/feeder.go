@@ -28,7 +28,6 @@ type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
-// WorkerNameLookup resolves a worker by display name.
 type WorkerNameLookup interface {
 	GetByName(name string) (model.Worker, error)
 }
@@ -165,6 +164,10 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		sessionID = uuid.New().String()
 	}
 
+	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
+		return
+	}
+
 	for i, m := range msgs {
 		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
 		if err != nil {
@@ -174,10 +177,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		if len(merged) > 0 {
 			msgs[i].Content = strings.Join(merged, "\n\n---\n\n") + "\n\n---\n\n" + m.Content
 		}
-	}
-
-	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
-		return
 	}
 
 	prompt := buildPrompt(msgs)
@@ -258,10 +257,9 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 }
 
 func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
-	ids := make([]string, len(msgs))
+	ids := messageIDs(msgs)
 	var failedMsgs []store.ClaimedMessage
-	for i, m := range msgs {
-		ids[i] = m.ID
+	for _, m := range msgs {
 		if m.RetryCount+1 >= MaxRetries {
 			failedMsgs = append(failedMsgs, m)
 		}
@@ -379,11 +377,11 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs 
 		return false
 	}
 
+	log.Info("@mention: direct dispatch to worker",
+		zap.String("name", workerName), zap.String("workerID", worker.ID))
+
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("@mention: mark bee_processed", zap.Error(err))
 	}
-
-	log.Info("@mention: direct dispatch to worker",
-		zap.String("name", workerName), zap.String("workerID", worker.ID))
 	return true
 }

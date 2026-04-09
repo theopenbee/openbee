@@ -51,10 +51,8 @@ func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	return w, nil
 }
 
-// GetByName returns the worker with the given name.
-// Name comparison is case-insensitive for ASCII characters.
-// If multiple workers share the same name, the one created earliest is returned (deterministic by ROWID).
-// Returns an error wrapping sql.ErrNoRows if no worker is found.
+// GetByName looks up a worker by name (case-insensitive for ASCII).
+// When names collide, the earliest-created worker is returned.
 func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
 	row := s.db.QueryRow(
 		`SELECT `+workerColumns+` FROM bee_workers
