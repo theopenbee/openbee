@@ -314,23 +314,16 @@ func buildPrompt(msgs []store.ClaimedMessage) string {
 }
 
 func parseDirectMention(content string) (workerName, instruction string, ok bool) {
-	if len(content) < 2 || content[0] != '@' {
+	rest, found := strings.CutPrefix(content, "@")
+	if !found {
 		return "", "", false
 	}
-	rest := content[1:]
-	spaceIdx := strings.IndexAny(rest, " \t\n\r")
-	if spaceIdx < 0 {
+	workerName, instruction, found = strings.Cut(rest, " ")
+	if !found || workerName == "" {
 		return "", "", false
 	}
-	workerName = rest[:spaceIdx]
-	if workerName == "" {
-		return "", "", false
-	}
-	instruction = strings.TrimSpace(rest[spaceIdx:])
-	if instruction == "" {
-		return "", "", false
-	}
-	return workerName, instruction, true
+	instruction = strings.TrimSpace(instruction)
+	return workerName, instruction, instruction != ""
 }
 
 func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMessage) bool {
@@ -349,7 +342,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 
 	worker, err := f.workerLookup.GetByName(workerName)
 	if err != nil {
-		log.Info("@mention: worker not found, falling back to bee",
+		log.Warn("@mention: worker not found, falling back to bee",
 			zap.String("name", workerName))
 		return false
 	}

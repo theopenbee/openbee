@@ -335,7 +335,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case model.ExecStatusFailed:
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
-			if task.SessionKey != "" && task.WorkerID != "" {
+			if task.SessionKey != "" && task.WorkerID != "" && exec.SessionID != "" {
 				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
 					log.Error("upsert session context on failure", zap.Error(err))
 				}
