@@ -458,32 +458,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
-		tokenSecretChoice := i18n.M.Prompt.OptionGenerateRandom
-		if vals.MCPTokenSecret != "" {
-			tokenSecretChoice = i18n.M.Prompt.OptionEnterManually
-		}
-		var tokenSecretMethod string
-		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Prompt.MCPTokenSecretSetup,
-			Options: []string{i18n.M.Prompt.OptionGenerateRandom, i18n.M.Prompt.OptionEnterManually},
-			Default: tokenSecretChoice,
-		}, &tokenSecretMethod); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		switch tokenSecretMethod {
-		case i18n.M.Prompt.OptionGenerateRandom:
-			vals.MCPTokenSecret = config.GenerateRandomSecret()
-			fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
-		case i18n.M.Prompt.OptionEnterManually:
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.MCPTokenSecret,
-				Default: vals.MCPTokenSecret,
-			}, &vals.MCPTokenSecret, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-		}
-
 		if err := survey.AskOne(&survey.Input{
 			Message: i18n.M.Prompt.FeederTimeout,
 			Default: vals.FeederTimeout,
@@ -529,7 +503,19 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if vals.MCPTokenSecret == "" {
+	if vals.MCPTokenSecret != "" {
+		var regenerate bool
+		if err := survey.AskOne(&survey.Confirm{
+			Message: i18n.M.Prompt.MCPTokenRegenConfirm,
+			Default: false,
+		}, &regenerate); err != nil {
+			return handleSurveyErr(err)
+		}
+		if regenerate {
+			vals.MCPTokenSecret = config.GenerateRandomSecret()
+			fmt.Println(i18n.M.Output.Config.MCPTokenSecretRegenerated)
+		}
+	} else {
 		vals.MCPTokenSecret = config.GenerateRandomSecret()
 		fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 	}
