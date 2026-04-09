@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -123,9 +124,7 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 		return nil, err
 	}
 	// Reverse DESC result to ASC for callers.
-	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
-		msgs[i], msgs[j] = msgs[j], msgs[i]
-	}
+	slices.Reverse(msgs)
 	return msgs, nil
 }
 

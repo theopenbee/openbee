@@ -9,38 +9,41 @@ export function useLocalMessages() {
   return useQuery({
     queryKey: ["local-messages"],
     queryFn: () => api.localChat.getMessages(),
-    select: (data) => data,
   })
 }
 
 /**
  * useLoadMoreMessages manages incremental loading of older messages.
- * Returns `loadMore`, `hasMore`, and `isLoadingMore`.
+ * Pass `initialHasMore` from the first query response to initialize the button state.
  * Call `loadMore(earliestTs)` with the timestamp of the oldest message currently shown.
  */
 export function useLoadMoreMessages(
-  onLoaded: (older: ChatMessage[]) => void
+  onLoaded: (older: ChatMessage[]) => void,
+  initialHasMore = false,
 ) {
+  const isLoadingRef = useRef(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialHasMore)
 
-  const setInitialHasMore = useCallback((value: boolean) => {
-    setHasMore(value)
-  }, [])
+  useEffect(() => {
+    setHasMore(initialHasMore)
+  }, [initialHasMore])
 
   const loadMore = useCallback(async (earliestTs: number) => {
-    if (isLoadingMore) return
+    if (isLoadingRef.current) return
+    isLoadingRef.current = true
     setIsLoadingMore(true)
     try {
       const res = await api.localChat.getMessages(earliestTs)
       setHasMore(res.has_more)
       onLoaded(res.messages)
     } finally {
+      isLoadingRef.current = false
       setIsLoadingMore(false)
     }
-  }, [isLoadingMore, onLoaded])
+  }, [onLoaded])
 
-  return { loadMore, hasMore, isLoadingMore, setInitialHasMore }
+  return { loadMore, hasMore, isLoadingMore }
 }
 
 export function useSendMessage() {

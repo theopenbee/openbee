@@ -188,18 +188,19 @@ export function LocalChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const suppressScrollRef = useRef(false)
 
   const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
+    suppressScrollRef.current = true
     setLocalMessages((prev) => [...older, ...prev])
   }, [])
 
-  const { loadMore, hasMore, isLoadingMore, setInitialHasMore } = useLoadMoreMessages(handleOlderLoaded)
+  const { loadMore, hasMore, isLoadingMore } = useLoadMoreMessages(handleOlderLoaded, data?.has_more ?? false)
 
   useEffect(() => {
     if (!data) return
     setLocalMessages(data.messages)
-    setInitialHasMore(data.has_more)
-  }, [data, setInitialHasMore])
+  }, [data])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -215,6 +216,10 @@ export function LocalChat() {
   useLocalChatStream(handleReply)
 
   useEffect(() => {
+    if (suppressScrollRef.current) {
+      suppressScrollRef.current = false
+      return
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [localMessages, isProcessing])
 
@@ -247,6 +252,19 @@ export function LocalChat() {
       setIsProcessing(false)
     }
   }, [input, pendingMediaPaths, sendMessage])
+
+  const handleLoadMore = useCallback(() => {
+    const container = scrollContainerRef.current
+    const prevScrollHeight = container?.scrollHeight ?? 0
+    const earliestTs = localMessages[0]?.ts ?? Date.now()
+    loadMore(earliestTs).then(() => {
+      if (container) {
+        container.scrollTop += container.scrollHeight - prevScrollHeight
+      }
+    }).catch(() => {
+      // scroll restoration skipped on error; hasMore remains true so user can retry
+    })
+  }, [loadMore, localMessages])
 
   const handleQuickCommand = useCallback(async (text: string) => {
     const userMessage: ChatMessage = {
@@ -334,18 +352,7 @@ export function LocalChat() {
                     <button
                       type="button"
                       disabled={isLoadingMore}
-                      onClick={() => {
-                        const container = scrollContainerRef.current
-                        const prevScrollHeight = container?.scrollHeight ?? 0
-                        const earliestTs = localMessages[0]?.ts ?? Date.now()
-                        loadMore(earliestTs).then(() => {
-                          // Restore scroll position after prepend
-                          if (container) {
-                            const newScrollHeight = container.scrollHeight
-                            container.scrollTop += newScrollHeight - prevScrollHeight
-                          }
-                        })
-                      }}
+                      onClick={handleLoadMore}
                       className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                     >
                       {isLoadingMore ? t("localChat.loadingMore") : t("localChat.loadMore")}
