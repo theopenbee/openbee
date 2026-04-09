@@ -114,7 +114,7 @@ func parsePostBody(body postBody) (*PostParseResult, error) {
 				if name == "" {
 					name, _ = elem["user_id"].(string)
 				}
-				paraText.WriteString("@" + name)
+				paraText.WriteString(mentionPrefix + name)
 
 			case "img":
 				key, _ := elem["image_key"].(string)
