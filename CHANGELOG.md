@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add direct worker dispatch via @mention syntax, bypassing the scheduler
+
 ### Changed
 - Improve MCP token generation interaction
 - Improve display name resolution for Feishu @mentions
