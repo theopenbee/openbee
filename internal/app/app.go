@@ -23,6 +23,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/media"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	_ "github.com/theopenbee/openbee/internal/ai/claude"
+	_ "github.com/theopenbee/openbee/internal/ai/codex"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
