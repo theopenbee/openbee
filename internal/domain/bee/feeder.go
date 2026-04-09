@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -27,6 +28,11 @@ type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
+// WorkerNameLookup resolves a worker by display name.
+type WorkerNameLookup interface {
+	GetByName(name string) (model.Worker, error)
+}
+
 // Option configures a Feeder.
 type Option func(*Feeder)
 
@@ -35,17 +41,29 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
+// WithDirectDispatch enables @mention direct routing. When a message starts
+// with "@name ", the Feeder looks up the worker by name and dispatches
+// directly to ch, bypassing Bee. Falls back to Bee if the worker is not found.
+func WithDirectDispatch(ch chan<- task.DispatchTask, lookup WorkerNameLookup) Option {
+	return func(f *Feeder) {
+		f.directDispatchCh = ch
+		f.workerLookup = lookup
+	}
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
-	msgStore        *store.MessageStore
-	taskStore       *store.TaskStore
-	sessionStore    *store.SessionStore
-	execStore       *store.ExecutionStore
-	runner          BeeRunner
-	workDir         string
-	cfg             config.BeeConfig
-	failureNotifier FailureNotifier
-	sem             chan struct{} // bounds concurrent bee processes
+	msgStore         *store.MessageStore
+	taskStore        *store.TaskStore
+	sessionStore     *store.SessionStore
+	execStore        *store.ExecutionStore
+	runner           BeeRunner
+	workDir          string
+	cfg              config.BeeConfig
+	failureNotifier  FailureNotifier
+	sem              chan struct{} // bounds concurrent bee processes
+	workerLookup     WorkerNameLookup
+	directDispatchCh chan<- task.DispatchTask
 }
 
 // NewFeeder creates a Feeder.
@@ -159,6 +177,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		if len(merged) > 0 {
 			msgs[i].Content = strings.Join(merged, "\n\n---\n\n") + "\n\n---\n\n" + m.Content
 		}
+	}
+
+	// @mention check: route directly to the named worker, skipping Bee.
+	if f.tryDirectDispatch(ctx, sessionKey, msgs) {
+		return
 	}
 
 	prompt := buildPrompt(msgs)
@@ -297,4 +320,74 @@ func buildPrompt(msgs []store.ClaimedMessage) string {
 			m.Platform, m.SessionKey, m.ID, m.Content)
 	}
 	return sb.String()
+}
+
+// parseDirectMention checks whether content starts with "@name " and returns
+// the worker name and the remaining instruction (leading whitespace trimmed).
+// Returns ok=false if content does not match the pattern.
+func parseDirectMention(content string) (workerName, instruction string, ok bool) {
+	if len(content) < 2 || content[0] != '@' {
+		return "", "", false
+	}
+	rest := content[1:]
+	spaceIdx := strings.IndexAny(rest, " \t\n\r")
+	if spaceIdx < 0 {
+		return "", "", false
+	}
+	workerName = rest[:spaceIdx]
+	if workerName == "" {
+		return "", "", false
+	}
+	instruction = strings.TrimSpace(rest[spaceIdx:])
+	return workerName, instruction, true
+}
+
+// tryDirectDispatch checks if the primary message starts with "@name " and,
+// if the named worker exists, dispatches to directDispatchCh instead of Bee.
+// Returns true if the message was handled; false means fall back to Bee.
+func (f *Feeder) tryDirectDispatch(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) bool {
+	if f.directDispatchCh == nil || f.workerLookup == nil {
+		return false
+	}
+
+	primary := msgs[len(msgs)-1]
+	workerName, instruction, ok := parseDirectMention(primary.Content)
+	if !ok {
+		return false
+	}
+
+	worker, err := f.workerLookup.GetByName(workerName)
+	if err != nil {
+		log.Info("@mention: worker not found, falling back to bee",
+			zap.String("name", workerName))
+		return false
+	}
+
+	dt := task.DispatchTask{
+		WorkerID:    worker.ID,
+		SessionKey:  sessionKey,
+		Instruction: instruction,
+		MessageID:   primary.ID,
+		TaskType:    model.TaskTypeImmediate,
+	}
+
+	select {
+	case f.directDispatchCh <- dt:
+	default:
+		log.Warn("@mention: dispatch channel full, falling back to bee",
+			zap.String("workerID", worker.ID))
+		return false
+	}
+
+	msgIDs := make([]string, len(msgs))
+	for i, m := range msgs {
+		msgIDs[i] = m.ID
+	}
+	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
+		log.Error("@mention: mark bee_processed", zap.Error(err))
+	}
+
+	log.Info("@mention: direct dispatch to worker",
+		zap.String("name", workerName), zap.String("workerID", worker.ID))
+	return true
 }

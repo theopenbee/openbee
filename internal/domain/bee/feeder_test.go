@@ -15,6 +15,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/domain/task"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
@@ -546,6 +547,120 @@ func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
 	}
 	if string(data) != bee.DefaultPersona {
 		t.Errorf("unexpected content: %q", string(data))
+	}
+}
+
+// mockWorkerLookup implements bee.WorkerNameLookup for tests.
+type mockWorkerLookup struct {
+	worker model.Worker
+	err    error
+}
+
+func (m *mockWorkerLookup) GetByName(_ string) (model.Worker, error) {
+	return m.worker, m.err
+}
+
+func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "hello world")
+
+	runner := &mockBeeRunner{}
+	dispatchCh := make(chan task.DispatchTask, 8)
+	lookup := &mockWorkerLookup{err: fmt.Errorf("not found")}
+
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
+		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
+	}, bee.WithDirectDispatch(dispatchCh, lookup))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// Bee must have been called (normal flow)
+	if len(runner.getCalls()) == 0 {
+		t.Error("expected bee runner to be called for non-@mention message")
+	}
+	// Nothing in dispatch channel
+	if len(dispatchCh) != 0 {
+		t.Error("expected no task in dispatchCh for non-@mention message")
+	}
+}
+
+func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "@unknown do something")
+
+	runner := &mockBeeRunner{}
+	dispatchCh := make(chan task.DispatchTask, 8)
+	lookup := &mockWorkerLookup{err: fmt.Errorf("sql: no rows")}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+		bee.WithDirectDispatch(dispatchCh, lookup))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	if len(runner.getCalls()) == 0 {
+		t.Error("expected bee runner to be called when worker not found")
+	}
+	if len(dispatchCh) != 0 {
+		t.Error("expected no task in dispatchCh when worker not found")
+	}
+}
+
+func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "@天天 write a report")
+
+	runner := &mockBeeRunner{}
+	dispatchCh := make(chan task.DispatchTask, 8)
+	lookup := &mockWorkerLookup{worker: model.Worker{ID: "worker-tt", Name: "天天"}}
+
+	cfg := config.BeeConfig{}
+	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+		bee.WithDirectDispatch(dispatchCh, lookup))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// Bee must NOT have been called
+	if len(runner.getCalls()) != 0 {
+		t.Error("expected bee runner NOT to be called for direct dispatch")
+	}
+
+	// Task must be in dispatchCh
+	if len(dispatchCh) == 0 {
+		t.Fatal("expected a DispatchTask in dispatchCh")
+	}
+	dt := <-dispatchCh
+	if dt.WorkerID != "worker-tt" {
+		t.Errorf("expected WorkerID worker-tt, got %s", dt.WorkerID)
+	}
+	if dt.Instruction != "write a report" {
+		t.Errorf("expected instruction 'write a report', got %q", dt.Instruction)
+	}
+	if dt.SessionKey != "sk1" {
+		t.Errorf("expected SessionKey sk1, got %s", dt.SessionKey)
+	}
+	if dt.MessageID != "m1" {
+		t.Errorf("expected MessageID m1, got %s", dt.MessageID)
+	}
+
+	// Message must be marked bee_processed
+	var status string
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
+	if status != "bee_processed" {
+		t.Errorf("expected bee_processed, got %q", status)
 	}
 }
 
