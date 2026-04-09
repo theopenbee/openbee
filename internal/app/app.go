@@ -118,8 +118,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore)
-	workerMCPSrv := mcp.NewWorkerServer(s.taskStore, s.msgStore, sendersByPlatform, s.memoryStore, s.workerStore)
+	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
 
 	for _, p := range platforms {
@@ -153,11 +152,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	localChatHandler := api.NewLocalChatHandler(
 		localReceiver, localHub,
-		s.localSessionStore, s.outboundMsgStore,
-		s.msgStore, s.sessionStore,
+		s.outboundMsgStore,
+		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, workerMCPSrv, localChatHandler, cfg.Language)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, localChatHandler, cfg.Language)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -169,14 +168,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 // appStores groups all store instances for passing to sub-builders.
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
-	workerStore       *store.WorkerStore
-	execStore         *store.ExecutionStore
-	msgStore          *store.MessageStore
-	taskStore         *store.TaskStore
-	sessionStore      *store.SessionStore
-	localSessionStore *store.LocalSessionStore
-	outboundMsgStore  *store.OutboundMessageStore
-	memoryStore       *store.MemoryStore
+	workerStore      *store.WorkerStore
+	execStore        *store.ExecutionStore
+	msgStore         *store.MessageStore
+	taskStore        *store.TaskStore
+	sessionStore     *store.SessionStore
+	outboundMsgStore *store.OutboundMessageStore
+	memoryStore      *store.MemoryStore
+	departmentStore  *store.DepartmentStore
+	statsStore       *store.StatsStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -185,14 +185,15 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		return nil, appStores{}, fmt.Errorf("init database: %w", err)
 	}
 	return db, appStores{
-		workerStore:       store.NewWorkerStore(db),
-		execStore:         store.NewExecutionStore(db, config.DefaultLogsDir()),
-		msgStore:          store.NewMessageStore(db),
-		taskStore:         store.NewTaskStore(db),
-		sessionStore:      store.NewSessionStore(db),
-		localSessionStore: store.NewLocalSessionStore(db),
-		outboundMsgStore:  store.NewOutboundMessageStore(db),
-		memoryStore:       store.NewMemoryStore(db),
+		workerStore:      store.NewWorkerStore(db),
+		execStore:        store.NewExecutionStore(db, config.DefaultLogsDir()),
+		msgStore:         store.NewMessageStore(db),
+		taskStore:        store.NewTaskStore(db),
+		sessionStore:     store.NewSessionStore(db),
+		outboundMsgStore: store.NewOutboundMessageStore(db),
+		memoryStore:      store.NewMemoryStore(db),
+		departmentStore:  store.NewDepartmentStore(db),
+		statsStore:       store.NewStatsStore(db),
 	}, nil
 }
 
@@ -211,7 +212,8 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter) (*bee.Feeder, *task.Scheduler) {
 	beeProcess := bee.NewBeeProcess(cfg, engine)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
-		bee.WithFailureNotifier(failureNotifier))
+		bee.WithFailureNotifier(failureNotifier),
+		bee.WithWorkerDispatch(s.workerStore))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
@@ -249,7 +251,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, workerMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string) (*api.Server, error) {
 	password := serverCfg.Auth.Password
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
@@ -263,12 +265,13 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		TaskStore:        s.taskStore,
 		Manager:          mgr,
 		BeeMCPServer:     beeMCPSrv,
-		WorkerMCPServer:  workerMCPSrv,
 		TokenSecret:      mcpCfg.TokenSecret,
 		StaticFS:         webui.DistFS,
 		LocalChatHandler: localChat,
 		AuthHandler:      authHandler,
 		JWTMiddleware:    jwtMiddleware,
+		DepartmentStore:  s.departmentStore,
 		Language:         language,
+		StatsStore:       s.statsStore,
 	})
 }

@@ -10,7 +10,6 @@ import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { ThemeSwitcher } from "@/components/theme-switcher"
 import { getStoredUsername, login } from "@/lib/auth"
 
 export function Login() {
@@ -61,27 +60,7 @@ export function Login() {
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-        <div className="animate-fade-in motion-reduce:animate-none">
-          <header className="flex items-center justify-between gap-4 py-3 sm:py-5">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-2xl border border-border/70 bg-background/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                <Gauge className="size-4 text-foreground" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                  {t("login.eyebrow")}
-                </p>
-                <p className="text-sm font-semibold tracking-[0.14em] text-foreground">
-                  OpenBee
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-full border border-border/70 bg-background/72 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <ThemeSwitcher />
-            </div>
-          </header>
-
+<div className="animate-fade-in motion-reduce:animate-none flex flex-1 flex-col">
           <main className="flex flex-1 items-center justify-center py-6 lg:py-10">
             <section
               className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-border/70 bg-card/82 p-5 shadow-[0_30px_80px_-52px_rgba(15,23,42,0.55)] backdrop-blur-sm sm:p-6 lg:p-7"

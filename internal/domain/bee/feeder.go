@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -31,6 +32,13 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
+// WithWorkerDispatch enables @mention direct dispatch by providing the worker lookup store.
+func WithWorkerDispatch(lookup *store.WorkerStore) Option {
+	return func(f *Feeder) {
+		f.workerLookup = lookup
+	}
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -42,6 +50,7 @@ type Feeder struct {
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
+	workerLookup    *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
@@ -129,6 +138,10 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
+	if f.tryDirectDispatch(ctx, msgs) {
+		return
+	}
+
 	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -191,7 +204,10 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	resultMsg := ""
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
-		resultMsg = drainErr.Error()
+		resultMsg = claude.ExtractResultFromLog(logPath)
+		if resultMsg == "" {
+			resultMsg = drainErr.Error()
+		}
 	}
 	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
 		log.Error("update execution result", zap.Error(resErr))
@@ -220,20 +236,15 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	msgIDs := make([]string, len(msgs))
-	for i, m := range msgs {
-		msgIDs[i] = m.ID
-	}
-	if err := f.msgStore.MarkBeeProcessed(ctx, msgIDs); err != nil {
+	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 }
 
 func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
-	ids := make([]string, len(msgs))
+	ids := messageIDs(msgs)
 	var failedMsgs []store.ClaimedMessage
-	for i, m := range msgs {
-		ids[i] = m.ID
+	for _, m := range msgs {
 		if m.RetryCount+1 >= MaxRetries {
 			failedMsgs = append(failedMsgs, m)
 		}
@@ -274,6 +285,14 @@ func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 	return nil
 }
 
+func messageIDs(msgs []store.ClaimedMessage) []string {
+	ids := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	return ids
+}
+
 func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
 	for i, m := range msgs {
@@ -284,4 +303,59 @@ func buildPrompt(msgs []store.ClaimedMessage) string {
 			m.Platform, m.SessionKey, m.ID, m.Content)
 	}
 	return sb.String()
+}
+
+func parseDirectMention(content string) (workerName, instruction string, ok bool) {
+	rest, found := strings.CutPrefix(content, "@")
+	if !found {
+		return "", "", false
+	}
+	workerName, instruction, found = strings.Cut(rest, " ")
+	if !found || workerName == "" {
+		return "", "", false
+	}
+	instruction = strings.TrimSpace(instruction)
+	return workerName, instruction, instruction != ""
+}
+
+func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMessage) bool {
+	if f.workerLookup == nil {
+		return false
+	}
+	if len(msgs) == 0 {
+		return false
+	}
+
+	primary := msgs[len(msgs)-1]
+	workerName, instruction, ok := parseDirectMention(primary.Content)
+	if !ok {
+		return false
+	}
+
+	worker, err := f.workerLookup.GetByName(workerName)
+	if err != nil {
+		log.Warn("@mention: worker not found, falling back to bee",
+			zap.String("name", workerName))
+		return false
+	}
+
+	_, err = f.taskStore.Create(ctx, model.Task{
+		MessageID:   primary.ID,
+		WorkerID:    worker.ID,
+		Instruction: instruction,
+		Type:        model.TaskTypeImmediate,
+		Status:      model.TaskStatusPending,
+	})
+	if err != nil {
+		log.Error("@mention: create task record", zap.Error(err))
+		return false
+	}
+
+	log.Info("@mention: dispatched task to worker via scheduler",
+		zap.String("name", workerName), zap.String("workerID", worker.ID))
+
+	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
+		log.Error("@mention: mark bee_processed", zap.Error(err))
+	}
+	return true
 }

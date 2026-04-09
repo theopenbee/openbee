@@ -20,9 +20,10 @@ type ServerParams struct {
 	WorkerStore      *store.WorkerStore
 	ExecutionStore   *store.ExecutionStore
 	TaskStore        *store.TaskStore
+	DepartmentStore  *store.DepartmentStore
+	StatsStore       *store.StatsStore
 	Manager          *worker.Manager
 	BeeMCPServer     *mcp.MCPServer
-	WorkerMCPServer  *mcp.MCPServer
 	TokenSecret string
 	StaticFS         fs.FS
 	LocalChatHandler *LocalChatHandler
@@ -40,9 +41,7 @@ type Server struct {
 func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
-		"/api/local/sessions/.+/stream",
-		"/mcp/.*/sse",
-		"/mcp/.*/messages",
+		"/api/local/stream",
 	})))
 
 	s := &Server{
@@ -65,7 +64,9 @@ func (s *Server) setupRoutes() error {
 		s.registerWorkerRoutes(api)
 		s.registerExecutionRoutes(api)
 		s.registerTaskRoutes(api)
+		s.registerDepartmentRoutes(api)
 		s.registerLocalChatRoutes(api)
+		s.registerStatsRoutes(api)
 	}
 
 	s.registerMCPRoutes()
@@ -96,32 +97,30 @@ func (s *Server) registerExecutionRoutes(api *gin.RouterGroup) {
 }
 
 func (s *Server) registerLocalChatRoutes(api *gin.RouterGroup) {
-	api.POST("/local/sessions", s.LocalChatHandler.createSession)
-	api.GET("/local/sessions", s.LocalChatHandler.listSessions)
-	api.DELETE("/local/sessions/:id", s.LocalChatHandler.deleteSession)
-	api.POST("/local/sessions/:id/messages", s.LocalChatHandler.sendMessage)
-	api.GET("/local/sessions/:id/messages", s.LocalChatHandler.getMessages)
-	api.POST("/local/sessions/:id/media", s.LocalChatHandler.uploadMedia)
-	api.GET("/local/sessions/:id/media/:filename", s.LocalChatHandler.serveMedia)
-	api.GET("/local/sessions/:id/stream", s.LocalChatHandler.StreamReplies)
+	api.POST("/local/messages", s.LocalChatHandler.sendMessage)
+	api.GET("/local/messages", s.LocalChatHandler.getMessages)
+	api.POST("/local/media", s.LocalChatHandler.uploadMedia)
+	api.GET("/local/media/:filename", s.LocalChatHandler.serveMedia)
+	api.GET("/local/stream", s.LocalChatHandler.StreamReplies)
+}
+
+func (s *Server) registerDepartmentRoutes(api *gin.RouterGroup) {
+	api.POST("/departments", s.createDepartment)
+	api.GET("/departments", s.listDepartments)
+	api.GET("/departments/:id", s.getDepartment)
+	api.PUT("/departments/:id", s.updateDepartment)
+	api.DELETE("/departments/:id", s.deleteDepartment)
+	api.PUT("/workers/:id/departments", s.setWorkerDepartments)
+	api.GET("/workers/:id/departments", s.getWorkerDepartments)
+	api.GET("/departments/:id/workers", s.getDepartmentWorkers)
 }
 
 func (s *Server) registerMCPRoutes() {
-	beeGroup := s.router.Group(config.MCPBeeBasePath)
-	beeGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireBee())
-	beeGroup.GET("/sse", s.BeeMCPServer.HandleSSE)
-	beeGroup.POST("/messages", s.BeeMCPServer.HandleMessages)
-
 	s.router.POST(config.MCPBeeBasePath+"/call",
 		mcp.JWTAuthMiddleware(s.TokenSecret),
 		mcp.RequireBeeOrWorker(),
 		s.BeeMCPServer.HandleCall,
 	)
-
-	workerGroup := s.router.Group(config.MCPWorkerBasePath)
-	workerGroup.Use(mcp.JWTAuthMiddleware(s.TokenSecret), mcp.RequireWorker())
-	workerGroup.GET("/sse", s.WorkerMCPServer.HandleSSE)
-	workerGroup.POST("/messages", s.WorkerMCPServer.HandleMessages)
 }
 
 func (s *Server) registerStaticRoutes() error {

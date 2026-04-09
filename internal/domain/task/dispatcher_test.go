@@ -792,6 +792,56 @@ func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
 	}
 }
 
+func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
+	dispatchCh := make(chan task.DispatchTask, 8)
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{
+			ID:        "exec-1",
+			SessionID: "sess-1",
+			Status:    model.ExecStatusCompleted,
+		},
+	}
+	querier := &mockExecutionQuerier{result: model.WorkerExecution{
+		ID:     "exec-1",
+		Status: model.ExecStatusCompleted,
+	}}
+	taskStore := &mockTaskStore{}
+	sessionStore := newMockSessionStore()
+
+	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	dispatchCh <- task.DispatchTask{
+		TaskID:      "",
+		MessageID:   "msg-abc",
+		WorkerID:    "w1",
+		SessionKey:  "sk1",
+		Instruction: "do something",
+		TaskType:    model.TaskTypeImmediate,
+	}
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("expected worker to be called")
+	}
+
+	mgr.mu.Lock()
+	instructions := mgr.executedInstructions
+	mgr.mu.Unlock()
+
+	if len(instructions) == 0 {
+		t.Fatal("expected worker to be called")
+	}
+	instr := instructions[0]
+	if !strings.Contains(instr, "message_id: msg-abc") {
+		t.Errorf("expected message_id header in instruction, got:\n%s", instr)
+	}
+	if strings.Contains(instr, "task_id:") {
+		t.Errorf("expected no task_id header when TaskID is empty, got:\n%s", instr)
+	}
+}
+
 func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},

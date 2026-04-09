@@ -12,7 +12,6 @@ const WorkerDetail = lazy(() => import("@/pages/worker-detail").then(m => ({ def
 const Executions = lazy(() => import("@/pages/executions").then(m => ({ default: m.Executions })))
 const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ default: m.SessionDetail })))
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
-const LocalChatDetail = lazy(() => import("@/pages/local-chat-detail").then(m => ({ default: m.LocalChatDetail })))
 const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks })))
 
 const queryClient = new QueryClient({
@@ -36,11 +35,10 @@ export function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/workers" element={<Workers />} />
                 <Route path="/workers/:id" element={<WorkerDetail />} />
-                <Route path="/executions" element={<Executions />} />
+                <Route path="/sessions" element={<Executions />} />
                 <Route path="/sessions/:sessionId" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
-                <Route path="/local-chat" element={<LocalChat />} />
-                <Route path="/local-chat/:id" element={<LocalChatDetail />} />
+                <Route path="/chat" element={<LocalChat />} />
               </Route>
             </Routes>
           </Suspense>

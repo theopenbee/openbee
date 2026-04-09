@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+### Added
+- Add direct worker dispatch via @mention syntax, bypassing the scheduler
+
+### Changed
+- Improve MCP token generation interaction
+- Improve display name resolution for Feishu @mentions
+
+### Removed
+- Remove MCP registration endpoint
+
+## [0.0.19] - 2026-04-08
+
+### Added
+
+- Added support for pasting images to upload in the chat input box
+- Added support for Kimi Code
+- Added collapsible support for long chat messages: messages exceeding a fixed height are clipped with a fade overlay and can be expanded or collapsed on demand
+
+### Fixed
+
+- Fixed execution error reporting to return more specific error messages
+- Fixed chat message newline rendering issue
+- Fixed chat message content overflow: long text, JSON, and code blocks no longer break out of message bubbles
+
+## [0.0.18] - 2026-04-07
+
+### Added
+
+- Add statistics data to dashboard page
+- Add department feature
+
+### Changed
+
+- Refactor web UI
+- Complete message lifecycle closed-loop
+- Refactor backend code
+
 ## [0.0.17] - 2026-04-02
 
 ### Added

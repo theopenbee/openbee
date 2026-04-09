@@ -51,6 +51,23 @@ func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	return w, nil
 }
 
+// GetByName looks up a worker by name (case-insensitive for ASCII).
+// When names collide, the earliest-created worker is returned.
+func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
+	row := s.db.QueryRow(
+		`SELECT `+workerColumns+` FROM bee_workers
+		 WHERE LOWER(name) = LOWER(?)
+		 ORDER BY created_at ASC, ROWID ASC
+		 LIMIT 1`,
+		name,
+	)
+	w, err := scanWorker(row)
+	if err != nil {
+		return model.Worker{}, fmt.Errorf("get worker by name: %w", err)
+	}
+	return w, nil
+}
+
 func (s *WorkerStore) GetByID(id string) (model.Worker, error) {
 	row := s.db.QueryRow(`SELECT `+workerColumns+` FROM bee_workers WHERE id = ?`, id)
 	w, err := scanWorker(row)
@@ -60,22 +77,56 @@ func (s *WorkerStore) GetByID(id string) (model.Worker, error) {
 	return w, nil
 }
 
+func scanWorkers(rows *sql.Rows) ([]model.Worker, error) {
+	var workers []model.Worker
+	for rows.Next() {
+		w, err := scanWorker(rows)
+		if err != nil {
+			return nil, err
+		}
+		workers = append(workers, w)
+	}
+	return workers, rows.Err()
+}
+
+func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT `+workerColumns+` FROM bee_workers WHERE id IN (`+inPlaceholders(len(ids))+`)`,
+		stringsToArgs(ids)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get workers by ids: %w", err)
+	}
+	defer rows.Close()
+	return scanWorkers(rows)
+}
+
+func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
+	rows, err := s.db.Query(
+		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.created_at, w.updated_at
+		 FROM bee_workers w
+		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
+		 WHERE wd.department_id = ?
+		 ORDER BY w.created_at DESC`,
+		deptID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get workers by department: %w", err)
+	}
+	defer rows.Close()
+	return scanWorkers(rows)
+}
+
 func (s *WorkerStore) List() ([]model.Worker, error) {
 	rows, err := s.db.Query(`SELECT ` + workerColumns + ` FROM bee_workers ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
 	defer rows.Close()
-
-	var workers []model.Worker
-	for rows.Next() {
-		w, err := scanWorker(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan worker: %w", err)
-		}
-		workers = append(workers, w)
-	}
-	return workers, rows.Err()
+	return scanWorkers(rows)
 }
 
 

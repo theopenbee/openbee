@@ -18,16 +18,9 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { Badge } from "@/components/ui/badge"
 import type { Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { STATUS_ROW_BORDER } from "@/lib/format"
 
 export const TASK_PAGE_SIZE = 20
-
-const STATUS_ROW_BORDER: Record<string, string> = {
-  pending: "border-l-transparent",
-  running: "border-l-status-working",
-  completed: "border-l-status-idle",
-  failed: "border-l-status-error",
-  cancelled: "border-l-transparent",
-}
 
 interface TaskListProps {
   workerId?: string
@@ -92,7 +85,7 @@ export function TaskList({
 
   return (
     <div>
-      {workerId && (
+      {workerId && !isLoading && tasks.length > 0 && (
         <div className="flex justify-end mb-4">
           <Button
             variant="outline"
@@ -106,7 +99,9 @@ export function TaskList({
       )}
 
       {(error || mutationError) && (
-        <p className="text-destructive mb-4">{(error || mutationError)?.message}</p>
+        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {(error || mutationError)?.message}
+        </div>
       )}
 
       {isLoading ? (
@@ -118,7 +113,7 @@ export function TaskList({
         />
       ) : (
         <>
-          <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
+          <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
             <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

@@ -20,11 +20,28 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "noWorkers": "No workers yet.",
-    "createOne": "Create one",
-    "summary_one": "{{count}} worker active",
-    "summary_other": "{{count}} workers active",
-    "summaryNone": "No active workers"
+    "departments": "Departments",
+    "workers": "Workers",
+    "scheduledTasks": "Scheduled Tasks",
+    "sessionsToday": "Sessions Today",
+    "activeWorkers": "Active Today",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "messages": "Messages Today",
+    "messagesReceived": "Received",
+    "messagesSent": "Sent",
+    "executions": "Executions Today",
+    "executionsTotal": "Total",
+    "executionsSuccess": "Success",
+    "executionsFailed": "Failed",
+    "systemStatus": "System",
+    "todayActivity": "Today",
+    "activityTrend": "Worker Activity Trend",
+    "days": "d",
+    "noTrendData": "No activity data",
+    "noTrendDataDesc": "Worker activity will appear here once tasks have been executed.",
+    "daysLabel": "Show last {{count}} days",
+    "activityTrendAriaLabel": "Worker activity trend for the last {{days}} days"
   },
   "workers": {
     "title": "Workers",
@@ -52,9 +69,11 @@
       "workDir": "Work Directory",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
-      "memory": "Memory",
+      "memory": "Static Memory",
       "memoryPlaceholder": "The instruction this worker will execute...",
-      "memoryHelper": "Persistent context loaded into the worker at the start of every session."
+      "memoryHelper": "Persistent context loaded into the worker at the start of every session.",
+      "sectionDepartment": "Department",
+      "departmentHelper": "Assign the worker to departments (optional)"
     },
     "deleteDialog": {
       "title": "Delete Worker",
@@ -98,10 +117,10 @@
     "id": "ID",
     "workDir": "Work Dir",
     "created": "Created",
-    "memory": "Memory",
-    "noMemory": "No memory configured",
+    "memory": "Static Memory",
+    "noMemory": "No static memory configured",
     "editDescription": "Edit description",
-    "editMemory": "Edit memory"
+    "editMemory": "Edit static memory"
   },
   "executionDetail": {
     "title": "Execution Detail",
@@ -195,7 +214,7 @@
     "cancelFailed": "Cannot cancel: task is not pending"
   },
   "localChat": {
-    "title": "Local Chat",
+    "title": "Chat",
     "subtitle": "Resume recent conversations and keep local sessions organized",
     "newChat": "New Chat",
     "sessionNamePlaceholder": "Session name",
@@ -258,13 +277,17 @@
     "queuePanelHint": "Review or remove uploads before they are attached to the next outgoing message.",
     "queueEmpty": "No files queued for the next message.",
     "noMessagesTitle": "Start the first exchange",
-    "noMessagesDescription": "Send a prompt or upload reference files to begin. Replies will stream into this timeline in order.",
+    "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "idleStatus": "Ready for next prompt",
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "openAttachment": "Open attachment",
-    "removeAttachment": "Remove attachment"
+    "removeAttachment": "Remove attachment",
+    "quickCommandClear": "clear",
+    "quickCommandConfirm": "confirm"
   },
   "breadcrumb": {
     "detail": "Detail"
@@ -287,9 +310,33 @@
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"
   },
+  "departments": {
+    "title": "Departments",
+    "allWorkers": "All Workers",
+    "ungrouped": "Ungrouped",
+    "manage": "Manage Departments",
+    "manageTitle": "Manage Departments",
+    "manageDescription": "Create, edit, and organize departments for your workers.",
+    "empty": "No departments yet. Create one to get started.",
+    "create": "Create Department",
+    "addChild": "Add Sub-department",
+    "rename": "Rename",
+    "form": {
+      "name": "Department Name",
+      "namePlaceholder": "e.g. Engineering",
+      "parent": "Parent Department",
+      "noParent": "None (Top Level)"
+    },
+    "deleteConfirm": {
+      "title": "Delete Department",
+      "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
+    }
+  },
   "emptyState": {
     "noWorkers": "No workers in the hive yet",
     "noWorkersDesc": "Create your first AI worker to get started",
+    "noWorkersInGroup": "No workers in this group",
+    "noWorkersInGroupDesc": "Switch groups or add workers to this group",
     "noExecutions": "No sessions recorded",
     "noExecutionsDesc": "Sessions will appear here when workers run tasks",
     "noSessions": "No chat sessions",

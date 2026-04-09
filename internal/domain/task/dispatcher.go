@@ -229,12 +229,14 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 
 // buildInstruction prepends task metadata to the instruction so workers
 // can call mark_task_success and send_message via MCP.
-func buildInstruction(task DispatchTask) string {
-	if task.TaskID == "" {
-		return task.Instruction
+func buildInstruction(t DispatchTask) string {
+	if t.TaskID != "" {
+		return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
 	}
-	return fmt.Sprintf("---\ntask_id: %s\nmessage_id: %s\n---\n\n%s",
-		task.TaskID, task.MessageID, task.Instruction)
+	if t.MessageID != "" {
+		return fmt.Sprintf("---\nmessage_id: %s\n---\n\n%s", t.MessageID, t.Instruction)
+	}
+	return t.Instruction
 }
 
 func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {
@@ -331,6 +333,13 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			return
 		case model.ExecStatusFailed:
+			// Persist session context even on failure so the next dispatch can attempt
+			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
+			if task.SessionKey != "" && task.WorkerID != "" && exec.SessionID != "" {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+					log.Error("upsert session context on failure", zap.Error(err))
+				}
+			}
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {

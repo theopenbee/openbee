@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Streamdown } from "streamdown"
-import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
+import { isActiveStatus } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 type ParsedEntry =
@@ -48,10 +48,6 @@ interface LogViewerProps {
   onComplete?: () => void
   autoScroll?: boolean
   variant?: LogViewerVariant
-}
-
-function isLiveStatus(status: ExecutionStatus) {
-  return status === "running" || status === "pending"
 }
 
 function parseStreamLine(line: string): ClaudeStreamEvent | null {
@@ -280,25 +276,6 @@ function ToolEntry({
   const meta = getToolMeta(entry.name)
   const summary = meta.summary(entry.input)
 
-  useEffect(() => {
-    if (entry.isError) {
-      setOpen(true)
-    }
-  }, [entry.isError])
-
-  const stateLabel =
-    entry.isError
-      ? t("logViewer.failed")
-      : entry.result !== undefined
-        ? t("logViewer.returned")
-        : t("logViewer.pending")
-
-  const stateClassName = entry.isError
-    ? "border-destructive/20 bg-destructive/10 text-destructive"
-    : entry.result !== undefined
-      ? "border-status-idle/20 bg-status-idle/10 text-status-idle"
-      : "border-border/70 bg-muted/60 text-muted-foreground"
-
   return (
     <TimelineRow markerClassName={entry.isError ? "bg-destructive" : entry.result ? "bg-status-idle" : "bg-primary/55"}>
       <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
@@ -318,9 +295,6 @@ function ToolEntry({
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 {t("logViewer.toolCall")}
               </p>
-              <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", stateClassName)}>
-                {stateLabel}
-              </span>
             </div>
 
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
@@ -401,7 +375,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
-  const lineCount = entry.content.split("\n").length
+  const lineCount = useMemo(() => entry.content.split("\n").length, [entry.content])
 
   return (
     <TimelineRow markerClassName={isError ? "bg-destructive/85" : "bg-muted-foreground/55"}>
@@ -511,7 +485,7 @@ export function LogViewer({
         const content = await api.executions.logs(executionId)
         if (disposed) return
 
-        const flushTail = !isLiveStatus(status)
+        const flushTail = !isActiveStatus(status)
         if (content.length < parsedLengthRef.current) {
           parsedLengthRef.current = content.length
           rebuildEntries(content, flushTail)
@@ -535,7 +509,7 @@ export function LogViewer({
 
     fetchLogs()
 
-    if (isLiveStatus(status)) {
+    if (isActiveStatus(status)) {
       const interval = setInterval(fetchLogs, 2000)
       return () => {
         disposed = true
@@ -549,7 +523,7 @@ export function LogViewer({
   }, [executionId, status])
 
   useEffect(() => {
-    if (isLiveStatus(prevStatusRef.current) && !isLiveStatus(status)) {
+    if (isActiveStatus(prevStatusRef.current) && !isActiveStatus(status)) {
       onComplete?.()
     }
     prevStatusRef.current = status
@@ -562,31 +536,31 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "auto" })
   }, [entries, autoScroll, followLive])
 
-  let narrativeCount = 0
-  let toolCount = 0
-  let rawCount = 0
-
-  for (const entry of entries) {
-    if (entry.kind === "text") narrativeCount += 1
-    if (entry.kind === "tool") toolCount += 1
-    if (entry.kind === "raw") rawCount += 1
-  }
-
-  const visibleEntries = entries.filter((entry) => {
-    if (entry.kind === "result") return true
-    if (filter === "all") return true
-    return entry.kind === filter
-  })
-
-  const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
-    { key: "all", label: t("logViewer.all"), count: entries.length },
-    { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
-    { key: "tool", label: t("logViewer.tools"), count: toolCount },
-    { key: "raw", label: t("logViewer.raw"), count: rawCount },
-  ]
+  const { filterOptions, visibleEntries } = useMemo(() => {
+    let narrativeCount = 0
+    let toolCount = 0
+    let rawCount = 0
+    for (const entry of entries) {
+      if (entry.kind === "text") narrativeCount += 1
+      if (entry.kind === "tool") toolCount += 1
+      if (entry.kind === "raw") rawCount += 1
+    }
+    const visibleEntries = entries.filter((entry) => {
+      if (entry.kind === "result") return true
+      if (filter === "all") return true
+      return entry.kind === filter
+    })
+    const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
+      { key: "all", label: t("logViewer.all"), count: entries.length },
+      { key: "text", label: t("logViewer.narrative"), count: narrativeCount },
+      { key: "tool", label: t("logViewer.tools"), count: toolCount },
+      { key: "raw", label: t("logViewer.raw"), count: rawCount },
+    ]
+    return { filterOptions, visibleEntries }
+  }, [entries, filter, t])
 
   const handleViewportScroll = () => {
-    if (!autoScroll || !isLiveStatus(status)) return
+    if (!autoScroll || !isActiveStatus(status)) return
     const viewport = viewportRef.current
     if (!viewport) return
 
@@ -613,15 +587,7 @@ export function LogViewer({
       <div className="border-b border-border/70 bg-muted/20 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <MetricChip label={t("logViewer.entries")} value={entries.length} />
-            <MetricChip label={t("logViewer.narrative")} value={narrativeCount} />
-            <MetricChip label={t("logViewer.tools")} value={toolCount} />
-            <MetricChip label={t("logViewer.raw")} value={rawCount} />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={status} />
-            {isLiveStatus(status) &&
+            {isActiveStatus(status) &&
               (followLive ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-status-working/20 bg-status-working/10 px-3 py-1.5 text-xs font-medium text-status-working">
                   <span className="size-1.5 rounded-full bg-current animate-pulse-amber" />
@@ -662,7 +628,7 @@ export function LogViewer({
       >
         {entries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
-            {isLiveStatus(status) ? (
+            {isActiveStatus(status) ? (
               <span className="inline-flex items-center gap-2">
                 <span className="size-1.5 rounded-full bg-primary animate-pulse-amber" />
                 {t("logViewer.waiting")}

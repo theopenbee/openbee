@@ -12,50 +12,11 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { cn } from "@/lib/utils"
+import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus } from "@/lib/format"
 
-function isActiveStatus(status: string) {
-  return status === "running" || status === "pending"
-}
-
-function formatTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString()
-}
-
-function formatCompactTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDuration(startMs: number | null | undefined, endMs: number | null | undefined) {
-  if (!startMs || !endMs) return "—"
-  const diff = endMs - startMs
-  if (diff < 0) return "—"
-  const totalSec = Math.floor(diff / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "running":
-      return "text-status-working"
-    case "completed":
-      return "text-status-idle"
-    case "failed":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
+function stripMetadataPrefix(input: string): string {
+  const match = input.match(/^---\n[\s\S]*?\n---\n\n?/)
+  return match ? input.slice(match[0].length) : input
 }
 
 export function SessionDetail() {
@@ -238,8 +199,8 @@ export function SessionDetail() {
         </DetailHero>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <aside className="xl:sticky xl:top-6 xl:self-start">
-            <DetailSection>
+          <aside className="xl:sticky xl:top-6">
+            <DetailSection className="h-full flex flex-col">
               <div className="border-b border-border/70 px-4 py-4 sm:px-5">
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {t("sessionDetail.turnNavigator")}
@@ -249,7 +210,7 @@ export function SessionDetail() {
                 </p>
               </div>
 
-              <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3 sm:p-4">
+              <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
                 {[...executions].reverse().map((exec, reverseIndex) => {
                   const turnNumber = executions.length - reverseIndex
                   const isSelected = exec.id === selectedExecution.id
@@ -292,7 +253,7 @@ export function SessionDetail() {
                           </div>
 
                           <p className="mt-1 truncate text-sm text-muted-foreground">
-                            {exec.trigger_input || t("sessionDetail.noTriggerInput")}
+                            {stripMetadataPrefix(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
                           </p>
 
                           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -414,17 +375,13 @@ export function SessionDetail() {
 
             <DetailSection>
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("executionDetail.logs")}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {t("sessionDetail.logsHint")}
-                    </p>
-                  </div>
-
-                  <span className="font-mono text-xs text-muted-foreground">{selectedExecution.id}</span>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {t("executionDetail.logs")}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {t("sessionDetail.logsHint")}
+                  </p>
                 </div>
               </div>
 

@@ -1,8 +1,12 @@
-import { useState, type FormEvent } from "react"
+import { useState, useMemo, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
-import { CheckIcon, CopyIcon, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
+import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { flattenDeptTree } from "@/lib/department-utils"
+import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
+import { DepartmentManageDialog } from "@/components/department-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -50,15 +54,24 @@ type DeleteStep = 1 | 2
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: workers = [], error: fetchError, isLoading } = useWorkers()
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
+  const [manageDeptOpen, setManageDeptOpen] = useState(false)
+  const { data: departments = [] } = useDepartments()
+  const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
+  const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
+  const displayedWorkers = selectedDeptId === UNGROUPED_FILTER
+    ? workers.filter((w) => !w.departments || w.departments.length === 0)
+    : workers
   const createWorker = useCreateWorker()
   const deleteWorker = useDeleteWorker()
+  const setWorkerDepts = useSetWorkerDepartments()
   const [open, setOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
-  const [copiedWorkerId, setCopiedWorkerId] = useState<string | null>(null)
+  const [selectedCreateDeptIds, setSelectedCreateDeptIds] = useState<Set<string>>(new Set())
+  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
 
   const resetDelete = () => {
     setDeleteTarget(null)
@@ -71,23 +84,30 @@ export function Workers() {
   const [memory, setMemory] = useState("")
   const [workDir, setWorkDir] = useState("")
 
-  const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || ""
-  const activeWorkers = workers.filter((worker) => worker.status === "working").length
+  const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || setWorkerDepts.error?.message || ""
+  const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
 
   const handleCreate = async (e?: FormEvent) => {
     e?.preventDefault()
-    await createWorker.mutateAsync({
-      name,
-      description,
-      memory: memory || undefined,
-      work_dir: workDir || undefined,
-    })
-    setOpen(false)
-    setName("")
-    setDescription("")
-    setMemory("")
-    setWorkDir("")
+    try {
+      const worker = await createWorker.mutateAsync({
+        name,
+        description,
+        memory: memory || undefined,
+        work_dir: workDir || undefined,
+      })
+      if (selectedCreateDeptIds.size > 0) {
+        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
+      }
+      setOpen(false)
+    } finally {
+      setName("")
+      setDescription("")
+      setMemory("")
+      setWorkDir("")
+      setSelectedCreateDeptIds(new Set())
+    }
   }
 
   const handleDeleteConfirm = async () => {
@@ -109,25 +129,24 @@ export function Workers() {
     setDeleteTarget(target)
   }
 
-  const handleCopyWorkDir = async (workerId: string, dir: string) => {
-    try {
-      await navigator.clipboard.writeText(dir)
-      setCopiedWorkerId(workerId)
-      window.setTimeout(() => {
-        setCopiedWorkerId((current) => current === workerId ? null : current)
-      }, 1500)
-    } catch {
-      setCopiedWorkerId(null)
-    }
-  }
-
   return (
     <FadeIn>
+      <div className="flex gap-6 h-full">
+        <div className="w-56 shrink-0 border-r pr-4">
+          <DepartmentTreeSidebar
+            departments={departments}
+            selectedId={selectedDeptId}
+            onSelect={setSelectedDeptId}
+            onManage={() => setManageDeptOpen(true)}
+          />
+        </div>
+
+        <div className="flex-1 min-w-0">
       <PageHeader
         title={t("workers.title")}
         subtitle={
-          workers.length > 0
-            ? t("workers.summary", { count: workers.length, active: activeWorkers })
+          displayedWorkers.length > 0
+            ? t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })
             : undefined
         }
         actions={
@@ -147,7 +166,6 @@ export function Workers() {
                   onSubmit={handleCreate}
                   className="flex-1 overflow-y-auto px-6 py-5 space-y-6"
                 >
-                  {/* Basic info */}
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                       {t("workers.form.sectionBasic")}
@@ -182,7 +200,6 @@ export function Workers() {
 
                   <Separator />
 
-                  {/* Configuration */}
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                       {t("workers.form.sectionConfig")}
@@ -210,6 +227,43 @@ export function Workers() {
                       <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
                     </div>
                   </div>
+
+                  {flatDepts.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("workers.form.sectionDepartment")}
+                        </p>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {flatDepts.map(({ dept, depth }) => (
+                            <div
+                              key={dept.id}
+                              className="flex items-center gap-2"
+                              style={{ paddingLeft: `${depth * 12}px` }}
+                            >
+                              <input
+                                type="checkbox"
+                                id={`create-dept-${dept.id}`}
+                                checked={selectedCreateDeptIds.has(dept.id)}
+                                onChange={(e) => {
+                                  const next = new Set(selectedCreateDeptIds)
+                                  if (e.target.checked) next.add(dept.id)
+                                  else next.delete(dept.id)
+                                  setSelectedCreateDeptIds(next)
+                                }}
+                                className="size-4 cursor-pointer rounded accent-primary"
+                              />
+                              <Label htmlFor={`create-dept-${dept.id}`} className="cursor-pointer text-sm font-normal">
+                                {dept.name}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+                      </div>
+                    </>
+                  )}
                 </form>
                 <Separator />
                 <SheetFooter className="px-6 py-4 flex-row gap-2">
@@ -224,7 +278,7 @@ export function Workers() {
                   <Button
                     type="submit"
                     form="create-worker-form"
-                    disabled={createWorker.isPending || !name.trim()}
+                    disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
                     className="flex-1"
                   >
                     {t("workers.createWorker")}
@@ -236,32 +290,38 @@ export function Workers() {
         }
       />
 
-      {error && <p className="text-destructive mb-4">{error}</p>}
+      {error && (
+        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
+      <div className="min-h-[320px]">
       {isLoading ? (
-        <SkeletonTable rows={6} columns={5} />
-      ) : workers.length === 0 && !error ? (
+        <SkeletonTable rows={6} columns={4} />
+      ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
-          title={t("emptyState.noWorkers")}
-          description={t("emptyState.noWorkersDesc")}
+          title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+          description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            selectedDeptId === null ? (
+              <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+            ) : undefined
           }
         />
       ) : (
-        <div className="rounded-xl bg-card ring-1 ring-foreground/5 overflow-hidden">
-          <Table className="min-w-[760px]">
+        <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+          <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead>{t("workers.columns.workDir")}</TableHead>
                 <TableHead>{t("workers.columns.status")}</TableHead>
                 <TableHead>{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workers.map((w) => (
+              {displayedWorkers.map((w) => (
                 <TableRow key={w.id} className="hover:bg-primary/5 transition-colors">
                   <TableCell className="min-w-[19rem]">
                     <div className="flex flex-col gap-1.5 py-1">
@@ -275,33 +335,6 @@ export function Workers() {
                         {w.description || "-"}
                       </p>
                     </div>
-                  </TableCell>
-                  <TableCell className="max-w-[20rem]">
-                    {w.work_dir ? (
-                      <div className="flex items-center gap-2">
-                        <span className="block max-w-[16rem] truncate font-mono text-xs text-muted-foreground">
-                          {w.work_dir}
-                        </span>
-                        <Button
-                          variant={copiedWorkerId === w.id ? "secondary" : "ghost"}
-                          size="icon-xs"
-                          className="shrink-0"
-                          aria-label={copiedWorkerId === w.id ? t("common.copied") : t("common.copy")}
-                          title={copiedWorkerId === w.id ? t("common.copied") : t("common.copy")}
-                          onClick={() => handleCopyWorkDir(w.id, w.work_dir)}
-                        >
-                          {copiedWorkerId === w.id ? (
-                            <CheckIcon className="size-3.5" />
-                          ) : (
-                            <CopyIcon className="size-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {t("workers.defaultWorkDir")}
-                      </span>
-                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={w.status} />
@@ -344,6 +377,7 @@ export function Workers() {
           </Table>
         </div>
       )}
+      </div>
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
         <DialogContent>
@@ -420,6 +454,10 @@ export function Workers() {
           )}
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
+
+      <DepartmentManageDialog open={manageDeptOpen} onOpenChange={setManageDeptOpen} />
     </FadeIn>
   )
 }

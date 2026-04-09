@@ -7,6 +7,22 @@ import (
 	"testing"
 )
 
+func TestProviderEnvMap_KimiCode(t *testing.T) {
+	env := kimiCodeEnv("sk-kimi-testkey")
+	if env["ANTHROPIC_API_KEY"] != "sk-kimi-testkey" {
+		t.Errorf("want sk-kimi-testkey, got %q", env["ANTHROPIC_API_KEY"])
+	}
+	if env["ANTHROPIC_BASE_URL"] != "https://api.kimi.com/coding/" {
+		t.Errorf("unexpected base url: %q", env["ANTHROPIC_BASE_URL"])
+	}
+	if env["ENABLE_TOOL_SEARCH"] != "false" {
+		t.Errorf("want ENABLE_TOOL_SEARCH=false, got %q", env["ENABLE_TOOL_SEARCH"])
+	}
+	if len(env) != 3 {
+		t.Errorf("kimicode env should have exactly 3 keys, got %d", len(env))
+	}
+}
+
 func TestProviderEnvMap_Moonshot(t *testing.T) {
 	env := moonshotEnv("test-key-123")
 	if env["ANTHROPIC_AUTH_TOKEN"] != "test-key-123" {

@@ -1,86 +1,268 @@
-import { Link } from "react-router-dom"
+import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { useWorkers } from "@/hooks/use-workers"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatusBadge } from "@/components/status-badge"
-import { EmptyState } from "@/components/empty-state"
-import { PageHeader } from "@/components/page-header"
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonCard } from "@/components/skeleton-loader"
-import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/page-header"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ActivityTrendChart } from "@/components/activity-trend-chart"
+import { useStatsOverview } from "@/hooks/use-stats"
+import { formatChange } from "@/lib/format"
+import type { StatsOverview } from "@/lib/types"
+
+const EMPTY: StatsOverview = {
+  departments: 0,
+  workers: 0,
+  active_workers_today: 0,
+  active_workers_yesterday: 0,
+  active_workers_change: null,
+  messages_received_today: 0,
+  messages_sent_today: 0,
+  sessions_new_today: 0,
+  executions_today: { total: 0, success: 0, failed: 0 },
+  scheduled_tasks: 0,
+}
+
+function SectionRule({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap select-none">
+        {children}
+      </span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
+function StatSkeleton() {
+  return (
+    <div>
+      <Skeleton className="h-2.5 w-20 mb-3" />
+      <Skeleton className="h-8 w-14" />
+    </div>
+  )
+}
 
 export function Dashboard() {
-  const { data: workers = [], error, isLoading, refetch } = useWorkers()
   const { t } = useTranslation()
+  const { data, isLoading } = useStatsOverview()
+  const ov = data ?? EMPTY
 
-  const activeCount = workers.filter((w) => w.status === "working").length
+  const change = ov.active_workers_change
+  const changeLabel = formatChange(change)
+  const ChangeIcon =
+    change === null ? null : change > 0 ? TrendingUp : change < 0 ? TrendingDown : Minus
+  const changeColor =
+    change === null
+      ? ""
+      : change > 0
+        ? "text-status-idle"
+        : change < 0
+          ? "text-status-error"
+          : "text-muted-foreground"
 
   return (
     <FadeIn>
-      <PageHeader
-        title={t("dashboard.title")}
-        subtitle={
-          workers.length > 0
-            ? activeCount > 0
-              ? t("dashboard.summary", { count: activeCount })
-              : t("dashboard.summaryNone")
-            : undefined
-        }
-        actions={
-          workers.length > 0 ? (
-            <Link to="/workers">
-              <Button>{t("workers.createWorker")}</Button>
-            </Link>
-          ) : undefined
-        }
-      />
+      <PageHeader title={t("dashboard.title")} />
 
-      {error && (
-        <div className="flex items-center gap-3 mb-4">
-          <p className="text-destructive text-sm">{t("common.loadError")}</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            {t("common.retry")}
-          </Button>
+      {/* ── System Status ─────────────────────────────────────────── */}
+      <div className="mb-10">
+        <SectionRule>{t("dashboard.systemStatus")}</SectionRule>
+        <div className="grid grid-cols-2 sm:grid-cols-4">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className={
+                  i % 2 !== 0
+                    ? "pl-6 border-l border-border/70 sm:pl-8"
+                    : i > 0
+                      ? "pl-6 sm:pl-8 sm:border-l sm:border-border/70"
+                      : ""
+                }
+              >
+                <StatSkeleton />
+              </div>
+            ))
+          ) : (
+            [
+              { label: t("dashboard.departments"), value: ov.departments },
+              { label: t("dashboard.workers"), value: ov.workers },
+              { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
+              { label: t("dashboard.sessionsToday"), value: ov.sessions_new_today },
+            ].map(({ label, value }, i) => (
+              <div
+                key={i}
+                className={[
+                  // On mobile: right column (odd index) gets left border
+                  i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
+                  // On sm+: all but first get left border and padding
+                  i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
+                  // Bottom padding for first row on mobile
+                  i < 2 ? "pb-6 sm:pb-0" : "",
+                ].join(" ")}
+                aria-label={label}
+              >
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
+                  {label}
+                </p>
+                <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      ) : workers.length === 0 && !error ? (
-        <EmptyState
-          title={t("emptyState.noWorkers")}
-          description={t("emptyState.noWorkersDesc")}
-          action={
-            <Link to="/workers">
-              <Button>{t("workers.createWorker")}</Button>
-            </Link>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {workers.map((w) => (
-            <Link key={w.id} to={`/workers/${w.id}`}>
-              <Card className="hover:ring-1 hover:ring-primary/30 transition-shadow duration-200 cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">{w.name}</CardTitle>
-                    <StatusBadge status={w.status} />
+      {/* ── Today ─────────────────────────────────────────────────── */}
+      <div className="mb-10">
+        <SectionRule>{t("dashboard.todayActivity")}</SectionRule>
+        <div
+          className="border border-border/70 rounded-3xl overflow-hidden"
+          role="region"
+          aria-label={t("dashboard.todayActivity")}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+
+            {/* Active Workers */}
+            <div className="p-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
+                {t("dashboard.activeWorkers")}
+              </p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-16" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-12" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {w.description || t("common.noDescription")}
+                </div>
+              ) : (
+                <div>
+                  <p
+                    className="text-5xl font-semibold tabular-nums leading-none mb-4"
+                    aria-label={`${t("dashboard.activeWorkers")}: ${ov.active_workers_today}`}
+                    aria-live="polite"
+                  >
+                    {ov.active_workers_today}
                   </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        {t("dashboard.yesterday")}
+                      </span>
+                      <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
+                        {ov.active_workers_yesterday}
+                      </span>
+                    </div>
+                    {changeLabel !== null && ChangeIcon && (
+                      <div
+                        className={`flex items-center gap-1 ${changeColor}`}
+                        aria-label={changeLabel}
+                      >
+                        <ChangeIcon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{changeLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Messages */}
+            <div className="p-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
+                {t("dashboard.messages")}
+              </p>
+              {isLoading ? (
+                <div className="space-y-5">
+                  <StatSkeleton />
+                  <StatSkeleton />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                      {t("dashboard.messagesReceived")}
+                    </p>
+                    <p
+                      className="text-3xl font-semibold tabular-nums leading-none"
+                      aria-live="polite"
+                    >
+                      {ov.messages_received_today}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                      {t("dashboard.messagesSent")}
+                    </p>
+                    <p
+                      className="text-3xl font-semibold tabular-nums leading-none"
+                      aria-live="polite"
+                    >
+                      {ov.messages_sent_today}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Executions */}
+            <div className="p-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
+                {t("dashboard.executions")}
+              </p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-16" />
+                  <div className="flex gap-6">
+                    <StatSkeleton />
+                    <StatSkeleton />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p
+                    className="text-5xl font-semibold tabular-nums leading-none mb-4"
+                    aria-label={`${t("dashboard.executionsTotal")}: ${ov.executions_today.total}`}
+                    aria-live="polite"
+                  >
+                    {ov.executions_today.total}
+                  </p>
+                  <div className="flex gap-6">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.executionsSuccess")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none text-status-idle"
+                        aria-label={`${t("dashboard.executionsSuccess")}: ${ov.executions_today.success}`}
+                        aria-live="polite"
+                      >
+                        {ov.executions_today.success}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.executionsFailed")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none text-status-error"
+                        aria-label={`${t("dashboard.executionsFailed")}: ${ov.executions_today.failed}`}
+                        aria-live="polite"
+                      >
+                        {ov.executions_today.failed}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* ── Activity Trend ─────────────────────────────────────────── */}
+      <ActivityTrendChart />
     </FadeIn>
   )
 }

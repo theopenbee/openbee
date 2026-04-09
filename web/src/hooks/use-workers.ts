@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
-export function useWorkers() {
+export function useWorkers(departmentId?: string) {
   return useQuery({
-    queryKey: ["workers"],
-    queryFn: api.workers.list,
+    queryKey: ["workers", { departmentId }],
+    queryFn: () => api.workers.list(departmentId),
   })
 }
 

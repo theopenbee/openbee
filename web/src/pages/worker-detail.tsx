@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, CalendarIcon, Check, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,26 +17,11 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
+import { formatTimestamp, groupExecutionsBySession, statusTone } from "@/lib/format"
+import { flattenDeptTree } from "@/lib/department-utils"
+import type { DepartmentTree } from "@/lib/types"
 
 const PAGE_SIZE = 20
-
-function formatTimestamp(value: number | null | undefined) {
-  if (!value) return "—"
-  return new Date(value).toLocaleString()
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case "idle":
-      return "text-status-idle"
-    case "working":
-      return "text-status-working"
-    case "error":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
 
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -65,24 +52,19 @@ export function WorkerDetail() {
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
   const latestExecution = executions[0]
 
-  const sessionGroups = useMemo(() => {
-    const map = new Map<string, typeof executions>()
-    for (const execution of executions) {
-      const group = map.get(execution.session_id) ?? []
-      group.push(execution)
-      map.set(execution.session_id, group)
-    }
-
-    return Array.from(map.values()).sort((left, right) => {
-      return (right[0].started_at ?? 0) - (left[0].started_at ?? 0)
-    })
-  }, [executions])
+  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
   const [isEditingDesc, setIsEditingDesc] = useState(false)
   const [editDesc, setEditDesc] = useState("")
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
+  const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
+  const { data: departments = [] } = useDepartments()
+  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
+  const setWorkerDepts = useSetWorkerDepartments()
+  const [deptDialogOpen, setDeptDialogOpen] = useState(false)
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
 
   if (!worker) return <SkeletonPage />
 
@@ -173,18 +155,37 @@ export function WorkerDetail() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {worker.work_dir ? (
-                  <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                    <FolderOpenIcon className="size-3.5 shrink-0" />
-                    <span className="max-w-80 truncate font-mono text-foreground">{worker.work_dir}</span>
+              <div className="flex flex-col gap-2">
+                {/* Department badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {t("departments.title")}
                   </span>
-                ) : null}
-
-                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                  <CalendarIcon className="size-3.5 shrink-0" />
-                  <span>{new Date(worker.created_at).toLocaleDateString()}</span>
-                </span>
+                  {worker.departments && worker.departments.length > 0 ? (
+                    worker.departments.map((d) => (
+                      <span
+                        key={d.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                      >
+                        <Building2 className="size-3 shrink-0" />
+                        {d.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedDeptIds(worker.departments?.map((d) => d.id) ?? [])
+                      setDeptDialogOpen(true)
+                    }}
+                  >
+                    <Pencil className="size-3" />
+                    {t("departments.manage")}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -201,7 +202,7 @@ export function WorkerDetail() {
               />
               <DetailOverviewStat
                 icon={Logs}
-                label={t("executions.columns.turns")}
+                label={t("workerDetail.sessions")}
                 value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
                 hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("executions.noExecutions")}
               />
@@ -209,7 +210,24 @@ export function WorkerDetail() {
                 icon={FolderOpenIcon}
                 label={t("workerDetail.workDir")}
                 valueClassName="font-mono text-sm leading-6 break-all"
-                value={worker.work_dir || "—"}
+                value={
+                  worker.work_dir ? (
+                    <div className="flex items-start gap-2">
+                      <span className="flex-1">{worker.work_dir}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(worker.work_dir)
+                          setCopiedWorkDir(true)
+                          setTimeout(() => setCopiedWorkDir(false), 2000)
+                        }}
+                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Copy"
+                      >
+                        {copiedWorkDir ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      </button>
+                    </div>
+                  ) : "—"
+                }
               />
               <DetailOverviewStat
                 icon={CalendarIcon}
@@ -390,6 +408,57 @@ export function WorkerDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={deptDialogOpen} onOpenChange={setDeptDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("departments.title")}</DialogTitle>
+            <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {flatDepts.map(({ dept, depth }) => (
+              <label
+                key={dept.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer"
+                style={{ paddingLeft: `${depth * 16 + 8}px` }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedDeptIds.includes(dept.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedDeptIds([...selectedDeptIds, dept.id])
+                    } else {
+                      setSelectedDeptIds(selectedDeptIds.filter((id) => id !== dept.id))
+                    }
+                  }}
+                  className="size-4 rounded accent-primary"
+                />
+                <span className="text-sm">{dept.name}</span>
+              </label>
+            ))}
+            {departments.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {t("departments.empty")}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeptDialogOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={async () => {
+                await setWorkerDepts.mutateAsync({ workerId: id!, departmentIds: selectedDeptIds })
+                setDeptDialogOpen(false)
+              }}
+              disabled={setWorkerDepts.isPending}
+            >
+              {t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </FadeIn>
   )
 }

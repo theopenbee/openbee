@@ -35,6 +35,8 @@ import (
 
 var log = logger.With(zap.String("component", "feishu"))
 
+const mentionPrefix = "@"
+
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
 	receiver         *FeishuReceiver
@@ -106,6 +108,8 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			if textContent == "" {
 				return nil
 			}
+
+			textContent = resolveMentions(textContent, msg.Mentions)
 			sender := event.Event.Sender
 			if sender == nil || sender.SenderId == nil || sender.SenderId.OpenId == nil {
 				log.Warn("skipping message with nil sender or OpenId")
@@ -614,3 +618,25 @@ func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileN
 var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
+
+// resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
+// human-readable names (e.g. "@Tom"). Feishu delivers @mentions as placeholder
+// keys in the message text and resolves them separately in the Mentions slice;
+// we need to stitch them back together before passing content upstream.
+// Keys with no corresponding entry in mentions are left unchanged.
+func resolveMentions(text string, mentions []*larkim.MentionEvent) string {
+	if len(mentions) == 0 {
+		return text
+	}
+	pairs := make([]string, 0, len(mentions)*2)
+	for _, m := range mentions {
+		if m.Key == nil || m.Name == nil {
+			continue
+		}
+		pairs = append(pairs, *m.Key, mentionPrefix+*m.Name)
+	}
+	if len(pairs) == 0 {
+		return text
+	}
+	return strings.NewReplacer(pairs...).Replace(text)
+}

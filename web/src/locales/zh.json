@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "员工",
-    "executions": "会话记录",
+    "executions": "会话",
     "tasks": "定时任务"
   },
   "common": {
@@ -19,12 +19,29 @@
     "retry": "重试"
   },
   "dashboard": {
-    "title": "仪表板",
-    "noWorkers": "还没有员工。",
-    "createOne": "创建一个",
-    "summary_one": "{{count}} 个员工活跃中",
-    "summary_other": "{{count}} 个员工活跃中",
-    "summaryNone": "暂无活跃员工"
+    "title": "仪表盘",
+    "departments": "部门数",
+    "workers": "员工数",
+    "scheduledTasks": "定时任务",
+    "sessionsToday": "今日会话",
+    "activeWorkers": "今日活跃",
+    "today": "今日",
+    "yesterday": "昨日",
+    "messages": "今日消息",
+    "messagesReceived": "收到",
+    "messagesSent": "发送",
+    "executions": "今日执行",
+    "executionsTotal": "总计",
+    "executionsSuccess": "成功",
+    "executionsFailed": "失败",
+    "systemStatus": "系统",
+    "todayActivity": "今日",
+    "activityTrend": "员工活跃趋势",
+    "days": "天",
+    "noTrendData": "暂无活跃数据",
+    "noTrendDataDesc": "任务执行后，员工活跃趋势将显示在此处。",
+    "daysLabel": "显示最近 {{count}} 天数据",
+    "activityTrendAriaLabel": "最近 {{days}} 天员工活跃趋势图"
   },
   "workers": {
     "title": "员工",
@@ -52,9 +69,11 @@
       "workDir": "工作目录",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
-      "memory": "记忆",
+      "memory": "静态记忆",
       "memoryPlaceholder": "这个员工执行的指令...",
-      "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。"
+      "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。",
+      "sectionDepartment": "部门",
+      "departmentHelper": "将员工分配到所属部门（可选）"
     },
     "deleteDialog": {
       "title": "删除员工",
@@ -98,10 +117,10 @@
     "id": "ID",
     "workDir": "工作目录",
     "created": "创建时间",
-    "memory": "记忆",
-    "noMemory": "未配置记忆",
+    "memory": "静态记忆",
+    "noMemory": "未配置静态记忆",
     "editDescription": "编辑描述",
-    "editMemory": "编辑记忆"
+    "editMemory": "编辑静态记忆"
   },
   "executionDetail": {
     "title": "执行详情",
@@ -195,7 +214,7 @@
     "cancelFailed": "任务已在运行或已完成，无法取消"
   },
   "localChat": {
-    "title": "本地对话",
+    "title": "聊天",
     "subtitle": "恢复最近会话，保持本地对话井然有序",
     "newChat": "新建对话",
     "sessionNamePlaceholder": "对话名称",
@@ -257,13 +276,17 @@
     "queuePanelHint": "发送前可在这里复核或移除附件，避免把无关文件带进下一条消息。",
     "queueEmpty": "下一条消息暂无待发送文件。",
     "noMessagesTitle": "开始第一轮对话",
-    "noMessagesDescription": "发送一条消息，或者先上传参考文件。Bee 的回复会按顺序流入这里。",
+    "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
     "beeLabel": "Bee",
+    "showMore": "展开全部",
+    "showLess": "收起",
     "idleStatus": "可继续发送",
     "composerHint": "回车发送，Shift+Enter 换行",
     "openAttachment": "打开附件",
-    "removeAttachment": "移除附件"
+    "removeAttachment": "移除附件",
+    "quickCommandClear": "重置对话",
+    "quickCommandConfirm": "我已确认"
   },
   "breadcrumb": {
     "detail": "详情"
@@ -286,9 +309,33 @@
     "error429": "尝试次数过多，请稍后再试",
     "errorGeneric": "登录失败"
   },
+  "departments": {
+    "title": "部门",
+    "allWorkers": "全部员工",
+    "ungrouped": "未分组",
+    "manage": "管理部门",
+    "manageTitle": "管理部门",
+    "manageDescription": "创建、编辑和组织 Worker 的部门结构。",
+    "empty": "暂无部门，创建一个开始使用。",
+    "create": "创建部门",
+    "addChild": "添加子部门",
+    "rename": "重命名",
+    "form": {
+      "name": "部门名称",
+      "namePlaceholder": "例如：技术部",
+      "parent": "上级部门",
+      "noParent": "无（顶级部门）"
+    },
+    "deleteConfirm": {
+      "title": "删除部门",
+      "description": "确定要删除部门「{{name}}」吗？此操作无法撤销。"
+    }
+  },
   "emptyState": {
     "noWorkers": "蜂巢中还没有员工",
     "noWorkersDesc": "创建你的第一个 AI 员工开始使用",
+    "noWorkersInGroup": "该分组下暂无员工",
+    "noWorkersInGroupDesc": "切换分组或将员工添加到此分组",
     "noExecutions": "暂无会话记录",
     "noExecutionsDesc": "当员工执行任务时，记录会显示在这里",
     "noSessions": "暂无对话",
