@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -119,8 +120,55 @@ func (inv *Invoker) buildEnv(apiKey string) []string {
 	return env[:len(env):len(env)]
 }
 
-// Run is implemented in Task 4.
+// Run starts a pi CLI process, redirecting stdout+stderr to logPath.
+// The session file path is either taken from opts.SessionID (resume) or generated fresh.
+// OutputSessionID is emitted before the process starts its goroutine.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	return nil, nil, fmt.Errorf("not implemented")
+
+	// Resolve session file path.
+	sessionPath := opts.SessionID
+	if sessionPath == "" {
+		var err error
+		sessionPath, err = newSessionPath()
+		if err != nil {
+			return nil, nil, fmt.Errorf("pi session path: %w", err)
+		}
+	}
+
+	args := buildArgs(prompt, sessionPath)
+
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open log file: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, inv.binary, args...)
+	cmd.Dir = workDir
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.Env = inv.buildEnv(opts.APIKey)
+
+	if err := cmd.Start(); err != nil {
+		logFile.Close()
+		return nil, nil, fmt.Errorf("start pi: %w", err)
+	}
+
+	proc := ai.NewCmdProcess(cmd)
+	ch := make(chan ai.Output, 2)
+
+	// Emit session ID immediately — path is known before process output.
+	ch <- ai.Output{Type: ai.OutputSessionID, Content: sessionPath}
+
+	go func() {
+		defer close(ch)
+		defer logFile.Close()
+		if err := cmd.Wait(); err != nil {
+			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
+		} else {
+			ch <- ai.Output{Type: ai.OutputDone}
+		}
+	}()
+
+	return proc, ch, nil
 }

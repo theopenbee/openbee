@@ -1,9 +1,13 @@
 package pi
 
 import (
+	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 func TestBuildArgs_NewSession(t *testing.T) {
@@ -67,6 +71,27 @@ func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 	result := ExtractResultFromLog(path)
 	if result != "" {
 		t.Errorf("got %q, want %q", result, "")
+	}
+}
+
+func TestInvoker_Run_EmitsSessionID(t *testing.T) {
+	// Use a dummy binary that exits immediately.
+	inv := NewInvoker("true", "http://localhost:8080", nil)
+	logPath := filepath.Join(t.TempDir(), "pi.log")
+
+	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello", ai.RunOptions{}, logPath)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var gotSessionID bool
+	for out := range ch {
+		if out.Type == ai.OutputSessionID && out.Content != "" {
+			gotSessionID = true
+		}
+	}
+	if !gotSessionID {
+		t.Error("expected OutputSessionID event")
 	}
 }
 
