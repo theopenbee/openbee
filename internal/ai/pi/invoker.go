@@ -3,8 +3,6 @@ package pi
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -88,7 +86,7 @@ func ExtractResultFromLog(logPath string) string {
 	return lastText
 }
 
-func newSessionPath() (string, error) {
+func resolveSessionPath(sessionID string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("user home dir: %w", err)
@@ -97,33 +95,19 @@ func newSessionPath() (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("mkdir session dir: %w", err)
 	}
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate session id: %w", err)
-	}
-	return filepath.Join(dir, hex.EncodeToString(b)+".jsonl"), nil
+	return filepath.Join(dir, sessionID+".jsonl"), nil
 }
 
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
-// For new sessions (Resume=false), a fresh session file is generated under
-// ~/.openbee/.pi/sessions/ and its path is emitted as OutputSessionID.
-// opts.SessionID is ignored for new sessions — pi's sessionId is the file path,
-// not an opaque UUID from the caller.
-// For resume sessions (Resume=true), opts.SessionID must be the path returned
-// from a previous OutputSessionID event.
+// opts.SessionID must be a UUID; the session file path is derived as
+// ~/.openbee/.pi/sessions/{sessionID}.jsonl. If the file already exists
+// and opts.Resume is true, pi resumes that session; otherwise pi creates it.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	sessionPath := opts.SessionID
-	if !opts.Resume {
-		// New session: always generate a fresh session file path.
-		// opts.SessionID may contain a UUID from the manager; ignore it —
-		// pi's sessionId is the file path, not an opaque UUID.
-		var err error
-		sessionPath, err = newSessionPath()
-		if err != nil {
-			return nil, nil, fmt.Errorf("pi session path: %w", err)
-		}
+	sessionPath, err := resolveSessionPath(opts.SessionID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("pi session path: %w", err)
 	}
 
 	args := buildArgs(prompt, sessionPath)
@@ -145,8 +129,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	}
 
 	proc := ai.NewCmdProcess(cmd)
-	ch := make(chan ai.Output, 2)
-	ch <- ai.Output{Type: ai.OutputSessionID, Content: sessionPath}
+	ch := make(chan ai.Output, 1)
 
 	go func() {
 		defer close(ch)
