@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>Run Agents as your digital workers</strong></p>
+  <p><strong>OpenBee is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.</strong></p>
 </div>
 
 <div align="center">
