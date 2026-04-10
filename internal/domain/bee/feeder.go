@@ -2,6 +2,7 @@ package bee
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -301,13 +302,18 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
+	type messageMeta struct {
+		From       string `json:"from"`
+		SessionKey string `json:"session_key"`
+		MessageID  string `json:"message_id"`
+	}
 	var sb strings.Builder
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		fmt.Fprintf(&sb, "---\nfrom: %s\nsession_key: %s\nmessage_id: %s\n---\n\n%s\n",
-			m.Platform, m.SessionKey, m.ID, m.Content)
+		b, _ := json.Marshal(messageMeta{From: m.Platform, SessionKey: m.SessionKey, MessageID: m.ID})
+		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
 	}
 	return sb.String()
 }
