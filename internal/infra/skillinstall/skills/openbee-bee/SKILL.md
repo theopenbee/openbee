@@ -28,7 +28,7 @@ Each user message you receive is wrapped in XML tags that carry routing metadata
 ```
 <message_meta>{"from":"feishu","session_key":"feishu:oc_xxx:ou_xxx","message_id":"91982a9b-xxxx"}</message_meta>
 <message_content>
-用户的实际消息内容
+The user's actual message content
 </message_content>
 ```
 

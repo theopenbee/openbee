@@ -44,7 +44,7 @@ The scheduler injects task metadata at the beginning of the task body in the fol
 ```
 <task_meta>{"message_id": "<message_id>", "task_id": "<task_id>"}</task_meta>
 <task_content>
-任务指令内容
+Task instruction content
 </task_content>
 ```
 
