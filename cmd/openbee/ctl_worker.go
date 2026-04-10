@@ -45,6 +45,8 @@ var (
 	workerCreateDescription string
 	workerCreateMemory      string
 	workerCreateWorkDir     string
+	workerCreateScopes      string
+	workerUpdateScopes      string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -63,6 +65,9 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		}
 		if workerCreateDepartment != "" {
 			a["department_ids"] = workerCreateDepartment
+		}
+		if workerCreateScopes != "" {
+			a["permission_scopes"] = workerCreateScopes
 		}
 		return ctlRun(utils.CreateWorker, a)
 	},
@@ -91,6 +96,9 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		}
 		if cmd.Flags().Changed("department") {
 			a["department_ids"] = workerUpdateDepartment
+		}
+		if cmd.Flags().Changed("scopes") {
+			a["permission_scopes"] = workerUpdateScopes
 		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
@@ -134,6 +142,8 @@ func init() {
 	ctlWorkerListCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
+	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
+	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,

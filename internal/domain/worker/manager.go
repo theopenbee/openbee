@@ -51,6 +51,7 @@ func NewManager(
 func (m *Manager) CreateWorker(
 	name, description, memory string,
 	workDir string,
+	permissionScopes string,
 ) (model.Worker, error) {
 	id := uuid.New().String()
 	if workDir == "" {
@@ -74,11 +75,12 @@ func (m *Manager) CreateWorker(
 	}
 
 	return m.workerStore.Create(model.Worker{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Memory:      memory,
-		WorkDir:     workDir,
+		ID:               id,
+		Name:             name,
+		Description:      description,
+		Memory:           memory,
+		WorkDir:          workDir,
+		PermissionScopes: permissionScopes,
 	})
 }
 

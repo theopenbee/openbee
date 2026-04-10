@@ -28,10 +28,11 @@ func toDepartmentBriefs(depts []model.Department) []departmentBrief {
 }
 
 type createWorkerRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
-	Memory      string `json:"memory"`
-	WorkDir     string `json:"work_dir"`
+	Name             string `json:"name" binding:"required"`
+	Description      string `json:"description"`
+	Memory           string `json:"memory"`
+	WorkDir          string `json:"work_dir"`
+	PermissionScopes string `json:"permission_scopes"`
 }
 
 type WorkerHandler struct {
@@ -52,7 +53,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 	}
 
 	w, err := h.manager.CreateWorker(
-		req.Name, req.Description, req.Memory, req.WorkDir,
+		req.Name, req.Description, req.Memory, req.WorkDir, req.PermissionScopes,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

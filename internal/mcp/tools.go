@@ -173,11 +173,12 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		Name          string `json:"name"`
-		Description   string `json:"description"`
-		Memory        string `json:"memory"`
-		WorkDir       string `json:"work_dir"`
-		DepartmentIDs string `json:"department_ids"`
+		Name             string `json:"name"`
+		Description      string `json:"description"`
+		Memory           string `json:"memory"`
+		WorkDir          string `json:"work_dir"`
+		DepartmentIDs    string `json:"department_ids"`
+		PermissionScopes string `json:"permission_scopes"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -185,7 +186,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir, params.PermissionScopes)
 	if err != nil {
 		return nil, err
 	}
@@ -199,11 +200,12 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID      string  `json:"worker_id"`
-		Name          *string `json:"name"`
-		Description   *string `json:"description"`
-		Memory        *string `json:"memory"`
-		DepartmentIDs *string `json:"department_ids"`
+		WorkerID         string  `json:"worker_id"`
+		Name             *string `json:"name"`
+		Description      *string `json:"description"`
+		Memory           *string `json:"memory"`
+		DepartmentIDs    *string `json:"department_ids"`
+		PermissionScopes *string `json:"permission_scopes"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -215,7 +217,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.PermissionScopes != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -224,6 +226,9 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	}
 	if params.Memory != nil {
 		w.Memory = *params.Memory
+	}
+	if params.PermissionScopes != nil {
+		w.PermissionScopes = *params.PermissionScopes
 	}
 	if fieldsChanged {
 		w, err = s.workerStore.Update(w)
