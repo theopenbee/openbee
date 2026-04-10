@@ -46,7 +46,7 @@ type FailureNotifier interface {
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
-	GetSessionContext(ctx context.Context, sessionKey, agentID string) (sessionID, engine string, err error)
+	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
 	ClearSessionContexts(ctx context.Context, sessionKey string) error
 }
@@ -289,16 +289,9 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 	}
-	sessionID, storedEngine, err := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
-	}
-	// Discard session if it belongs to a different engine. Empty storedEngine means
-	// legacy data with no engine recorded — skip the check to preserve existing sessions.
-	if sessionID != "" && storedEngine != "" && storedEngine != d.engineName {
-		log.Info("engine changed, discarding stale session",
-			zap.String("stored", storedEngine), zap.String("current", d.engineName))
-		sessionID = ""
 	}
 	if sessionID == "" {
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))

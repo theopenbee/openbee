@@ -75,11 +75,15 @@ func newMockSessionStore() *mockSessionStore {
 	return &mockSessionStore{data: make(map[string]string), engines: make(map[string]string)}
 }
 
-func (s *mockSessionStore) GetSessionContext(_ context.Context, sessionKey, agentID string) (sessionID, engine string, err error) {
+func (s *mockSessionStore) GetSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) (sessionID string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := sessionKey + "|" + agentID
-	return s.data[key], s.engines[key], nil
+	stored := s.engines[key]
+	if stored != "" && stored != engine {
+		return "", nil
+	}
+	return s.data[key], nil
 }
 func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, engine string) error {
 	s.mu.Lock()
