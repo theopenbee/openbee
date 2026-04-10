@@ -46,24 +46,8 @@ type piContent struct {
 	Text string `json:"text"`
 }
 
-// stripFrontmatter removes YAML-style frontmatter headers (---\nkey: value\n---\n)
-// from the prompt. Claude understands this format, but pi CLI does not and
-// treats the leading "---" as an unknown option.
-func stripFrontmatter(prompt string) string {
-	if !strings.HasPrefix(prompt, "---\n") {
-		return prompt
-	}
-	// Find the closing "---"
-	rest := prompt[4:] // skip the opening "---\n"
-	_, after, found := strings.Cut(rest, "\n---\n")
-	if !found {
-		return prompt
-	}
-	return strings.TrimLeft(after, "\n")
-}
-
 func buildArgs(prompt, sessionPath string) []string {
-	return []string{"--mode", "json", "--session", sessionPath, "-p", stripFrontmatter(prompt)}
+	return []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
 }
 
 // ExtractResultFromLog scans logPath for the last agent_end event and returns
