@@ -1,6 +1,7 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
   <p><strong>让 AI agent 成为你的数字员工</strong></p>
+  <p>OpenBee 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。</p>
 </div>
 
 <div align="center">
@@ -17,8 +18,6 @@
   <a href="https://docs.theopenbee.com">📖 文档</a> &nbsp;|&nbsp;
   <a href="https://x.com/0XTYZ">作者 @0XTYZ</a>
 </p>
-
-**OpenBee** 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。
 
 ## ✨ Features
 
