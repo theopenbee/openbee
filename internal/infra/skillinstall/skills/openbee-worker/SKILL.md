@@ -116,3 +116,36 @@ openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 # Send text and file together
 openbee ctl message send --message-id <id> --content "See attachment for details." --media-path /tmp/output.csv
 ```
+
+### Read-Only Query Commands (Requires Permission Scope)
+
+The following commands are available only if the administrator has granted the corresponding
+permission scope to this worker. The worker token in `OPENBEE_API_KEY` is used automatically —
+no additional configuration is needed.
+
+If a command returns a "permission denied" error, the worker has not been granted the required scope.
+Ask the administrator to run `openbee ctl worker update <id> --scopes <scope>`.
+
+**Requires `read:workers` scope:**
+
+```bash
+openbee ctl worker list                        # List all workers
+openbee ctl worker list --department <id>      # Filter by department ID or name
+openbee ctl worker get <id>                    # Get worker details by ID
+openbee ctl worker status <id>                 # Get worker current status (idle/working/error)
+```
+
+**Requires `read:departments` scope:**
+
+```bash
+openbee ctl department list                    # List all departments (tree structure)
+openbee ctl department get <id|name>           # Get department details by ID or name
+```
+
+**Requires `read:tasks` scope:**
+
+```bash
+openbee ctl task list --worker-id <id>         # List tasks assigned to a worker
+openbee ctl task list --status pending         # Filter tasks by status
+openbee ctl task list --session-key <key>      # Filter tasks by session key
+```
