@@ -24,12 +24,10 @@
 
 <div align="center">
 
-| | | |
-|:---:|:---:|:---:|
-| 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** |
-| Each Worker is a Claude Code agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real worker |
-| 🔧 **MCP Tool Invocation** | ⏰ **Scheduled Tasks** | 🖥️ **Web Console** |
-| Extend capabilities via MCP protocol — read files, call APIs, query databases | Cron-based scheduling for automatic, hands-free triggering | Visual interface for Worker management, task history, and real-time logs |
+| | | | |
+|:---:|:---:|:---:|:---:|
+| 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** | ⏰ **Scheduled Tasks** |
+| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real worker | Cron-based scheduling for automatic, hands-free triggering |
 
 </div>
 
