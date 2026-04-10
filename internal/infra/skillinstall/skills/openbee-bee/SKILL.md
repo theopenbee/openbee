@@ -21,6 +21,24 @@ You are running in a non-interactive background environment. The following rules
 
 ---
 
+## Incoming Message Format
+
+Each user message you receive is wrapped in XML tags that carry routing metadata:
+
+```
+<message_meta>{"from":"feishu","session_key":"feishu:oc_xxx:ou_xxx","message_id":"91982a9b-xxxx"}</message_meta>
+<message_content>
+用户的实际消息内容
+</message_content>
+```
+
+- `from` — the platform the message came from (e.g. `feishu`, `telegram`, `local`)
+- `session_key` — the session identifier; use this when calling `openbee ctl session list --session-key` or `openbee ctl memory get --scope`
+- `message_id` — use this when calling `openbee ctl message send --message-id` to reply to the user
+- The actual user text is inside `<message_content>` — this is what you analyze for task delegation
+
+---
+
 ## Task Delegation Flow
 
 Upon receiving a user message, first run `openbee ctl worker list` to get all workers, then evaluate the following rules in priority order from highest to lowest:
