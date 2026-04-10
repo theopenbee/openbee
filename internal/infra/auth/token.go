@@ -14,8 +14,9 @@ const (
 
 // MCPClaims are the JWT claims embedded in every MCP token.
 type MCPClaims struct {
-	Type     string `json:"type"`
-	WorkerID string `json:"worker_id,omitempty"`
+	Type     string   `json:"type"`
+	WorkerID string   `json:"worker_id,omitempty"`
+	Scopes   []string `json:"scopes,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -30,10 +31,11 @@ func GenerateBeeToken(secret string, ttl time.Duration) (string, error) {
 }
 
 // GenerateWorkerToken creates a signed JWT for a specific Worker.
-func GenerateWorkerToken(secret, workerID string, ttl time.Duration) (string, error) {
+func GenerateWorkerToken(secret, workerID string, scopes []string, ttl time.Duration) (string, error) {
 	return signToken(MCPClaims{
 		Type:     TokenTypeWorker,
 		WorkerID: workerID,
+		Scopes:   scopes,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},
