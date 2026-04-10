@@ -125,7 +125,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
-	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, m.beeCfg.MCP.TokenTTL)
+	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, nil, m.beeCfg.MCP.TokenTTL)
 	if err != nil {
 		return fmt.Errorf("generate worker token: %w", err)
 	}
