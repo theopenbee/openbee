@@ -1,9 +1,7 @@
 package codex
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -30,22 +28,13 @@ func setupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) erro
 	}
 }
 
-// writeAgentsMD creates workDir/AGENTS.md only if it does not already exist.
 func writeAgentsMD(workDir, content string) error {
-	path := filepath.Join(workDir, "AGENTS.md")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if errors.Is(err, fs.ErrExist) {
-		return nil
-	}
-	if err != nil {
+	if err := ai.CreateFileOnce(filepath.Join(workDir, "AGENTS.md"), content); err != nil {
 		return fmt.Errorf("create AGENTS.md: %w", err)
 	}
-	defer f.Close()
-	_, err = f.WriteString(content)
-	return err
+	return nil
 }
 
-// writeSystemRules always overwrites .openbee.md with the latest rules.
 func writeSystemRules(workDir, content string) error {
 	path := filepath.Join(workDir, ai.SystemRulesFile)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

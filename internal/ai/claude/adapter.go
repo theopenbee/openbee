@@ -2,9 +2,7 @@ package claude
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -65,15 +63,5 @@ func writeCLAUDEMD(workDir, persona string) error {
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir bee workdir: %w", err)
 	}
-	path := filepath.Join(workDir, "CLAUDE.md")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if errors.Is(err, fs.ErrExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(persona)
-	return err
+	return ai.CreateFileOnce(filepath.Join(workDir, "CLAUDE.md"), persona)
 }

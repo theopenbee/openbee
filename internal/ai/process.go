@@ -1,6 +1,8 @@
 package ai
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +37,21 @@ func (p *CmdProcess) Stop() error {
 		return p.cmd.Process.Kill()
 	}
 	return nil
+}
+
+// CreateFileOnce creates path with content only if it does not already exist.
+// Returns nil if the file already exists (idempotent).
+func CreateFileOnce(path, content string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if errors.Is(err, fs.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(content)
+	return err
 }
 
 // BuildBaseEnv constructs the base environment for engine subprocesses.

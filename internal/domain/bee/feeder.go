@@ -47,6 +47,7 @@ type Feeder struct {
 	runner          ai.EngineAdapter
 	workDir         string
 	cfg             config.BeeConfig
+	engineName      string
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
@@ -62,6 +63,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		runner:       runner,
 		workDir:      workDir,
 		cfg:          cfg,
+		engineName:   cfg.EffectiveEngine(),
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
 	}
 	for _, o := range opts {
@@ -141,8 +143,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	currentEngine := f.cfg.EffectiveEngine()
-	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, currentEngine)
+	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.engineName)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs, err.Error())
@@ -234,7 +235,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, currentEngine); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.engineName); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
@@ -288,7 +289,7 @@ func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) (string, error) {
 			engineSessionID = out.Content
 		}
 	}
-	return engineSessionID, nil
+	return engineSessionID, fmt.Errorf("output channel closed without completion signal")
 }
 
 func messageIDs(msgs []store.ClaimedMessage) []string {

@@ -645,8 +645,6 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
-// executablePathValidator returns a survey validator that checks a path is a
-// regular, executable file. Used by both Claude and Codex path prompts.
 func executablePathValidator(val any) error {
 	path, _ := val.(string)
 	info, err := os.Stat(path)
