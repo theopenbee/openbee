@@ -131,6 +131,15 @@ func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
 	return false
 }
 
+type mockWorkerLookup struct {
+	worker model.Worker
+	err    error
+}
+
+func (m *mockWorkerLookup) GetByID(_ string) (model.Worker, error) {
+	return m.worker, m.err
+}
+
 func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
@@ -1009,5 +1018,124 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	mgr.mu.Unlock()
 	if strings.HasPrefix(instruction, "use openbee-worker skill.") {
 		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
+	}
+}
+
+func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	lookup := &mockWorkerLookup{
+		worker: model.Worker{
+			ID:          "w1",
+			Name:        "毛毛",
+			Description: "负责 openbee 开发",
+			Memory:      "记住老板的偏好",
+		},
+	}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(),
+		task.WithWorkerLookup(lookup),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "do the thing")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	instr := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+
+	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	}
+	if !strings.Contains(instr, "<worker_persona>") {
+		t.Errorf("instruction missing <worker_persona> tag, got: %q", instr)
+	}
+	if !strings.Contains(instr, "Name: 毛毛") {
+		t.Errorf("instruction missing worker name, got: %q", instr)
+	}
+	if !strings.Contains(instr, "Description: 负责 openbee 开发") {
+		t.Errorf("instruction missing worker description, got: %q", instr)
+	}
+	if !strings.Contains(instr, "记住老板的偏好") {
+		t.Errorf("instruction missing worker memory, got: %q", instr)
+	}
+	if !strings.Contains(instr, "</worker_persona>") {
+		t.Errorf("instruction missing </worker_persona> tag, got: %q", instr)
+	}
+}
+
+func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "do the thing")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	instr := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+
+	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	}
+	if strings.Contains(instr, "<worker_persona>") {
+		t.Errorf("instruction should not contain <worker_persona> when lookup is nil, got: %q", instr)
+	}
+}
+
+func TestTaskDispatcher_NewSession_LookupError_FailsTask(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	lookup := &mockWorkerLookup{err: fmt.Errorf("worker not found")}
+	notifier := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(),
+		task.WithWorkerLookup(lookup),
+		task.WithFailureNotifier(notifier),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "do the thing")
+	t1.TaskID = "task-fail"
+	t1.MessageID = "msg-fail"
+	in <- t1
+
+	if !notifier.waitForCall(2 * time.Second) {
+		t.Fatal("failure notifier was not called within timeout")
+	}
+
+	ts.mu.Lock()
+	failed := ts.failedTasks
+	ts.mu.Unlock()
+	if len(failed) == 0 || failed[0] != "task-fail" {
+		t.Errorf("expected task-fail to be failed, got %v", failed)
+	}
+	mgr.mu.Lock()
+	execCount := len(mgr.executedInstructions)
+	mgr.mu.Unlock()
+	if execCount != 0 {
+		t.Errorf("ExecuteWorker should not be called on lookup error, got %d calls", execCount)
 	}
 }

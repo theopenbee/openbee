@@ -300,10 +300,28 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	d.waitForResult(taskCtx, exec.ID, task)
 }
 
-func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
+// workerSkillHint returns the skill hint for a new worker session.
+// If workerLookup is set, it fetches worker metadata and wraps it in a <worker_persona> block.
+// Returns an error if the lookup fails.
+func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
 	hint := ai.SkillHintPrefix(ai.RoleWorker)
+	if d.workerLookup == nil {
+		return hint, nil
+	}
+	w, err := d.workerLookup.GetByID(workerID)
+	if err != nil {
+		return "", fmt.Errorf("lookup worker for persona hint: %w", err)
+	}
+	persona := ai.WorkerPersona(w.Name, w.Description, w.Memory)
+	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
+}
 
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
+		hint, err := d.workerSkillHint(task.WorkerID)
+		if err != nil {
+			return model.WorkerExecution{}, err
+		}
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 	}
@@ -312,6 +330,10 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
+		hint, err := d.workerSkillHint(task.WorkerID)
+		if err != nil {
+			return model.WorkerExecution{}, err
+		}
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 	}
@@ -323,6 +345,10 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
 		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
+	}
+	hint, err := d.workerSkillHint(task.WorkerID)
+	if err != nil {
+		return model.WorkerExecution{}, err
 	}
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 }
