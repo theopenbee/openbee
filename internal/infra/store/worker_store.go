@@ -26,10 +26,10 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = w.CreatedAt
 
 	_, err := s.db.Exec(
-		`INSERT INTO bee_workers (id, name, description, memory, work_dir, status, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO bee_workers (id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		w.ID, w.Name, w.Description, w.Memory, w.WorkDir,
-		w.Status, w.CreatedAt, w.UpdatedAt,
+		w.Status, w.PermissionScopes, w.CreatedAt, w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("insert worker: %w", err)
@@ -37,13 +37,13 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	return w, nil
 }
 
-const workerColumns = `id, name, description, memory, work_dir, status, created_at, updated_at`
+const workerColumns = `id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at`
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
 	err := scanner.Scan(
 		&w.ID, &w.Name, &w.Description, &w.Memory,
-		&w.WorkDir, &w.Status, &w.CreatedAt, &w.UpdatedAt,
+		&w.WorkDir, &w.Status, &w.PermissionScopes, &w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, err
@@ -106,7 +106,7 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 
 func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
 	rows, err := s.db.Query(
-		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.created_at, w.updated_at
+		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.permission_scopes, w.created_at, w.updated_at
 		 FROM bee_workers w
 		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
 		 WHERE wd.department_id = ?
@@ -133,10 +133,10 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
 	_, err := s.db.Exec(
-		`UPDATE bee_workers SET name=?, description=?, memory=?, work_dir=?, status=?, updated_at=?
+		`UPDATE bee_workers SET name=?, description=?, memory=?, work_dir=?, status=?, permission_scopes=?, updated_at=?
 		 WHERE id=?`,
 		w.Name, w.Description, w.Memory, w.WorkDir,
-		w.Status, w.UpdatedAt, w.ID,
+		w.Status, w.PermissionScopes, w.UpdatedAt, w.ID,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("update worker: %w", err)

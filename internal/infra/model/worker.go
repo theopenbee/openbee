@@ -15,6 +15,7 @@ type Worker struct {
 	Memory              string       `json:"memory" db:"memory"`
 	WorkDir             string       `json:"work_dir" db:"work_dir"`
 	Status              WorkerStatus `json:"status" db:"status"`
+	PermissionScopes    string       `json:"permission_scopes" db:"permission_scopes"`
 	CreatedAt           int64        `json:"created_at" db:"created_at"`
 	UpdatedAt           int64        `json:"updated_at" db:"updated_at"`
 }
