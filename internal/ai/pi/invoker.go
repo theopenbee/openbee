@@ -15,18 +15,27 @@ import (
 
 // Invoker spawns pi CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary  string
-	baseEnv []string // pre-built env (openbee vars + extraEnv), without per-run API key
+	binary     string
+	baseEnv    []string // pre-built env (openbee vars + extraEnv), without per-run API key
+	sessionDir string   // ~/.openbee/.pi/sessions, created once at startup
 }
 
-func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker {
+func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) (*Invoker, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("user home dir: %w", err)
+	}
+	sessionDir := filepath.Join(home, ".openbee", ".pi", "sessions")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		return nil, fmt.Errorf("mkdir session dir: %w", err)
+	}
 	base := ai.BuildBaseEnv(openbeeURL)
 	for k, v := range extraEnv {
 		if v != "" {
 			base = append(base, k+"="+v)
 		}
 	}
-	return &Invoker{binary: binary, baseEnv: base}
+	return &Invoker{binary: binary, baseEnv: base, sessionDir: sessionDir}, nil
 }
 
 type piAgentEnd struct {
@@ -86,16 +95,8 @@ func ExtractResultFromLog(logPath string) string {
 	return lastText
 }
 
-func resolveSessionPath(sessionID string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("user home dir: %w", err)
-	}
-	dir := filepath.Join(home, ".openbee", ".pi", "sessions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("mkdir session dir: %w", err)
-	}
-	return filepath.Join(dir, sessionID+".jsonl"), nil
+func (inv *Invoker) sessionFilePath(sessionID string) string {
+	return filepath.Join(inv.sessionDir, sessionID+".jsonl")
 }
 
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
@@ -105,10 +106,7 @@ func resolveSessionPath(sessionID string) (string, error) {
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	sessionPath, err := resolveSessionPath(opts.SessionID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pi session path: %w", err)
-	}
+	sessionPath := inv.sessionFilePath(opts.SessionID)
 
 	args := buildArgs(prompt, sessionPath)
 

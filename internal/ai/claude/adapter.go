@@ -12,10 +12,10 @@ import (
 )
 
 func init() {
-	ai.Register("claude", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		path, _ := cfg.Raw["path"].(string)
 		if path == "" {
-			path = "claude"
+			path = ai.EngineClaude
 		}
 		return NewAdapter(path, cfg.OpenbeeURL), nil
 	})

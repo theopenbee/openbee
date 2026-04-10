@@ -39,6 +39,13 @@ const (
 	OutputSessionID OutputType = "session_id"
 )
 
+// Engine name constants used for registration and configuration.
+const (
+	EngineClaude = "claude"
+	EngineCodex  = "codex"
+	EnginePi     = "pi"
+)
+
 // Output is a single lifecycle event.
 type Output struct {
 	Type    OutputType `json:"type"`

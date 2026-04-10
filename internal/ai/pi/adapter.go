@@ -7,13 +7,13 @@ import (
 )
 
 func init() {
-	ai.Register("pi", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+	ai.Register(ai.EnginePi, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		path, _ := cfg.Raw["path"].(string)
 		if path == "" {
-			path = "pi"
+			path = ai.EnginePi
 		}
 		extraEnv, _ := cfg.Raw["env"].(map[string]string)
-		return NewAdapter(path, cfg.OpenbeeURL, extraEnv), nil
+		return NewAdapter(path, cfg.OpenbeeURL, extraEnv)
 	})
 }
 
@@ -21,8 +21,12 @@ type piAdapter struct {
 	invoker *Invoker
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
-	return &piAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
+func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.EngineAdapter, error) {
+	inv, err := NewInvoker(binaryPath, openbeeURL, extraEnv)
+	if err != nil {
+		return nil, err
+	}
+	return &piAdapter{invoker: inv}, nil
 }
 
 func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {

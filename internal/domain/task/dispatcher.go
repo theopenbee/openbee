@@ -316,26 +316,26 @@ func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
 	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
 }
 
+// executeWithHint fetches the worker skill hint + persona and starts a fresh execution.
+func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
+	hint, err := d.workerSkillHint(task.WorkerID)
+	if err != nil {
+		return model.WorkerExecution{}, err
+	}
+	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+}
+
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		hint, err := d.workerSkillHint(task.WorkerID)
-		if err != nil {
-			return model.WorkerExecution{}, err
-		}
-		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+		return d.executeWithHint(ctx, task, instruction)
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		hint, err := d.workerSkillHint(task.WorkerID)
-		if err != nil {
-			return model.WorkerExecution{}, err
-		}
-		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+		return d.executeWithHint(ctx, task, instruction)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
@@ -346,11 +346,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
 		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
 	}
-	hint, err := d.workerSkillHint(task.WorkerID)
-	if err != nil {
-		return model.WorkerExecution{}, err
-	}
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+	return d.executeWithHint(ctx, task, instruction)
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {

@@ -35,7 +35,6 @@ type codexItem struct {
 	Text string `json:"text,omitempty"`
 }
 
-// buildArgs constructs the codex CLI arguments.
 func buildArgs(sessionID string, resume bool, prompt string) []string {
 	if resume && sessionID != "" {
 		args := []string{"exec", "resume", sessionID, "--json", "--yolo"}
@@ -108,7 +107,6 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
 
-	// Tee stdout to both the log file and an in-memory pipe for session ID extraction.
 	pr, pw := io.Pipe()
 	writer := io.MultiWriter(logFile, pw)
 
@@ -118,7 +116,6 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Stderr = logFile
 	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
-	// For new sessions, pass prompt via stdin.
 	if !opts.Resume {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
@@ -138,9 +135,9 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		defer logFile.Close()
 
 		// Close pw after cmd.Wait so the pipe reader sees EOF.
-		waitCh := make(chan error, 1)
+		doneCh := make(chan error, 1)
 		go func() {
-			waitCh <- cmd.Wait()
+			doneCh <- cmd.Wait()
 			pw.Close()
 		}()
 
@@ -150,7 +147,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		}
 		io.Copy(io.Discard, pr)
 
-		if err := <-waitCh; err != nil {
+		if err := <-doneCh; err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
 		} else {
 			ch <- ai.Output{Type: ai.OutputDone}

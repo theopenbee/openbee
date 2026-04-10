@@ -76,10 +76,11 @@ func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 
 func TestResolveSessionPath_UsesUUID(t *testing.T) {
 	sessionID := "4d0ce91b-0856-44e2-b0d7-7765d824bba3"
-	got, err := resolveSessionPath(sessionID)
+	inv, err := NewInvoker("true", "http://localhost:8080", nil)
 	if err != nil {
-		t.Fatalf("resolveSessionPath: %v", err)
+		t.Fatalf("NewInvoker: %v", err)
 	}
+	got := inv.sessionFilePath(sessionID)
 	home, _ := os.UserHomeDir()
 	want := filepath.Join(home, ".openbee", ".pi", "sessions", sessionID+".jsonl")
 	if got != want {
@@ -88,7 +89,10 @@ func TestResolveSessionPath_UsesUUID(t *testing.T) {
 }
 
 func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
-	inv := NewInvoker("true", "http://localhost:8080", nil)
+	inv, err := NewInvoker("true", "http://localhost:8080", nil)
+	if err != nil {
+		t.Fatalf("NewInvoker: %v", err)
+	}
 	logPath := filepath.Join(t.TempDir(), "pi.log")
 
 	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello",

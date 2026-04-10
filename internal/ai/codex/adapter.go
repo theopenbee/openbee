@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	ai.Register("codex", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+	ai.Register(ai.EngineCodex, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		path, _ := cfg.Raw["path"].(string)
 		if path == "" {
-			path = "codex"
+			path = ai.EngineCodex
 		}
 		return NewAdapter(path, cfg.OpenbeeURL), nil
 	})
