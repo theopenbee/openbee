@@ -100,8 +100,8 @@ func resolveSessionPath(sessionID string) (string, error) {
 
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
 // opts.SessionID must be a UUID; the session file path is derived as
-// ~/.openbee/.pi/sessions/{sessionID}.jsonl. If the file already exists
-// and opts.Resume is true, pi resumes that session; otherwise pi creates it.
+// ~/.openbee/.pi/sessions/{sessionID}.jsonl. Resume vs. new session is
+// inferred by pi CLI from whether that file already exists.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
