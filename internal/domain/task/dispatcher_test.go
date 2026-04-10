@@ -215,14 +215,15 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, "---\n") {
-		t.Errorf("instruction missing frontmatter prefix, got: %q", instr)
+	wantMeta := `<task_meta>{"message_id":"msg-xyz","task_id":"task-abc"}</task_meta>`
+	if !strings.HasPrefix(instr, wantMeta) {
+		t.Errorf("instruction missing task_meta prefix, got: %q", instr)
 	}
-	if !strings.Contains(instr, "task_id: task-abc") {
-		t.Errorf("instruction missing task_id injection, got: %q", instr)
+	if !strings.Contains(instr, "<task_content>") {
+		t.Errorf("instruction missing task_content tag, got: %q", instr)
 	}
-	if !strings.Contains(instr, "message_id: msg-xyz") {
-		t.Errorf("instruction missing message_id injection, got: %q", instr)
+	if !strings.Contains(instr, "</task_content>") {
+		t.Errorf("instruction missing closing task_content tag, got: %q", instr)
 	}
 	if !strings.Contains(instr, "do the thing") {
 		t.Errorf("instruction missing original text, got: %q", instr)
@@ -842,11 +843,18 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 		t.Fatal("expected worker to be called")
 	}
 	instr := instructions[0]
-	if !strings.Contains(instr, "message_id: msg-abc") {
-		t.Errorf("expected message_id header in instruction, got:\n%s", instr)
+	wantMeta := `<task_meta>{"message_id":"msg-abc"}</task_meta>`
+	if !strings.HasPrefix(instr, wantMeta) {
+		t.Errorf("expected message_id in task_meta prefix, got:\n%s", instr)
 	}
-	if strings.Contains(instr, "task_id:") {
-		t.Errorf("expected no task_id header when TaskID is empty, got:\n%s", instr)
+	if !strings.Contains(instr, "<task_content>") {
+		t.Errorf("expected task_content tag in instruction, got:\n%s", instr)
+	}
+	if !strings.Contains(instr, "</task_content>") {
+		t.Errorf("instruction missing closing task_content tag, got: %q", instr)
+	}
+	if strings.Contains(instr, "task_id") {
+		t.Errorf("expected no task_id in instruction when TaskID is empty, got:\n%s", instr)
 	}
 }
 
@@ -907,5 +915,42 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	}
 	if fn.calls[0].info.Reason != "API Error: blocked" {
 		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].info.Reason)
+	}
+}
+
+func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- task.DispatchTask{
+		TaskID:      "",
+		MessageID:   "",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "raw instruction",
+		TaskType:    model.TaskTypeImmediate,
+	}
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("expected worker to be called")
+	}
+
+	mgr.mu.Lock()
+	instructions := mgr.executedInstructions
+	mgr.mu.Unlock()
+
+	if len(instructions) == 0 {
+		t.Fatal("expected worker to be called")
+	}
+	got := instructions[0]
+	if got != "raw instruction" {
+		t.Errorf("expected passthrough, got: %q", got)
 	}
 }

@@ -2,6 +2,7 @@ package bee
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +18,12 @@ import (
 )
 
 var log = logger.With(zap.String("component", "feeder"))
+
+type messageMeta struct {
+	From       string `json:"from"`
+	SessionKey string `json:"session_key"`
+	MessageID  string `json:"message_id"`
+}
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
 type FailureNotifier interface {
@@ -302,12 +309,13 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
+	sb.Grow(len(msgs) * 128)
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		fmt.Fprintf(&sb, "---\nfrom: %s\nsession_key: %s\nmessage_id: %s\n---\n\n%s\n",
-			m.Platform, m.SessionKey, m.ID, m.Content)
+		b, _ := json.Marshal(messageMeta{From: m.Platform, SessionKey: m.SessionKey, MessageID: m.ID})
+		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
 	}
 	return sb.String()
 }
