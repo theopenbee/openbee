@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"text/template"
@@ -661,6 +662,28 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeoutMsg string, pathDst, timeoutDst *string) error {
+	if found, err := exec.LookPath(binaryName); err == nil {
+		fmt.Printf(foundMsg+"\n", found)
+		*pathDst = found
+	} else {
+		fmt.Println(manualMsg)
+		if err := survey.AskOne(&survey.Input{
+			Message: pathMsg,
+			Default: *pathDst,
+		}, pathDst, survey.WithValidator(executablePathValidator)); err != nil {
+			return handleSurveyErr(err)
+		}
+	}
+	if err := survey.AskOne(&survey.Input{
+		Message: timeoutMsg,
+		Default: *timeoutDst,
+	}, timeoutDst); err != nil {
+		return handleSurveyErr(err)
+	}
+	return nil
 }
 
 func executablePathValidator(val any) error {

@@ -25,7 +25,7 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 }
 
 func (a *codexAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	return setupWorkspace(workDir, role, opts)
+	return ai.SetupWorkspace(workDir, role, opts)
 }
 
 func (a *codexAdapter) Run(ctx context.Context, workDir, prompt string,

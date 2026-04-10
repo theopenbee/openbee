@@ -17,17 +17,18 @@ import (
 
 // Invoker spawns pi CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary   string
-	baseEnv  []string
-	extraEnv map[string]string
+	binary  string
+	baseEnv []string // pre-built env (openbee vars + extraEnv), without per-run API key
 }
 
 func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker {
-	return &Invoker{
-		binary:   binary,
-		baseEnv:  ai.BuildBaseEnv(openbeeURL),
-		extraEnv: extraEnv,
+	base := ai.BuildBaseEnv(openbeeURL)
+	for k, v := range extraEnv {
+		if v != "" {
+			base = append(base, k+"="+v)
+		}
 	}
+	return &Invoker{binary: binary, baseEnv: base}
 }
 
 type piAgentEnd struct {
@@ -103,18 +104,6 @@ func newSessionPath() (string, error) {
 	return filepath.Join(dir, hex.EncodeToString(b)+".jsonl"), nil
 }
 
-func (inv *Invoker) buildEnv(apiKey string) []string {
-	env := make([]string, len(inv.baseEnv), len(inv.baseEnv)+1+len(inv.extraEnv))
-	copy(env, inv.baseEnv)
-	env = append(env, "OPENBEE_API_KEY="+apiKey)
-	for k, v := range inv.extraEnv {
-		if v != "" {
-			env = append(env, k+"="+v)
-		}
-	}
-	return env
-}
-
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
 // The session file path is either taken from opts.SessionID (resume) or generated fresh.
 // OutputSessionID is emitted before the process starts its goroutine.
@@ -141,7 +130,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd.Dir = workDir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = inv.buildEnv(opts.APIKey)
+	cmd.Env = append(append([]string{}, inv.baseEnv...), "OPENBEE_API_KEY="+opts.APIKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -150,8 +139,6 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 	proc := ai.NewCmdProcess(cmd)
 	ch := make(chan ai.Output, 2)
-
-	// Emit session ID immediately — path is known before process output.
 	ch <- ai.Output{Type: ai.OutputSessionID, Content: sessionPath}
 
 	go func() {
