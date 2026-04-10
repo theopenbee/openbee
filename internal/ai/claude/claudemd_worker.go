@@ -1,7 +1,5 @@
 package claude
 
-import ai "github.com/theopenbee/openbee/internal/ai"
-
 // WithName sets the worker name to embed directly in system rules.
 func WithName(name string) Option {
 	return func(o *options) {
@@ -21,8 +19,4 @@ func WithMemory(memory string) Option {
 	return func(o *options) {
 		o.memory = memory
 	}
-}
-
-func workerRules(name, description, memory string) string {
-	return ai.WorkerRules(name, description, memory)
 }

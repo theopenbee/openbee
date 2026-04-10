@@ -214,6 +214,12 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"
 	}
+	if cfg.Bee.Codex.Path == "" {
+		cfg.Bee.Codex.Path = "codex"
+	}
+	if cfg.Bee.Codex.Timeout == 0 {
+		cfg.Bee.Codex.Timeout = 30 * time.Minute
+	}
 	if cfg.Bee.Media.FFprobePath == "" {
 		cfg.Bee.Media.FFprobePath = "ffprobe"
 	}

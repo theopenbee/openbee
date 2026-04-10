@@ -10,26 +10,21 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-var (
-	systemRulesFile = ai.SystemRulesFile
-	importLine      = ai.ImportLine
-)
-
 func setupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir workdir: %w", err)
 	}
 	switch role {
 	case ai.RoleBee:
-		if err := writeAgentsMD(workDir, "You are B, an AI assistant.\n"+importLine+"\n"); err != nil {
+		if err := writeAgentsMD(workDir, ai.BeePersona+"\n"+ai.ImportLine+"\n"); err != nil {
 			return err
 		}
-		return writeSystemRules(workDir, beeRules())
+		return writeSystemRules(workDir, ai.BeeRules())
 	case ai.RoleWorker:
-		if err := writeAgentsMD(workDir, importLine+"\n"); err != nil {
+		if err := writeAgentsMD(workDir, ai.ImportLine+"\n"); err != nil {
 			return err
 		}
-		return writeSystemRules(workDir, workerRules(opts.Name, opts.Description, opts.Memory))
+		return writeSystemRules(workDir, ai.WorkerRules(opts.Name, opts.Description, opts.Memory))
 	default:
 		return fmt.Errorf("unknown role: %q", role)
 	}
@@ -52,14 +47,9 @@ func writeAgentsMD(workDir, content string) error {
 
 // writeSystemRules always overwrites .openbee.md with the latest rules.
 func writeSystemRules(workDir, content string) error {
-	path := filepath.Join(workDir, systemRulesFile)
+	path := filepath.Join(workDir, ai.SystemRulesFile)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", systemRulesFile, err)
+		return fmt.Errorf("write %s: %w", ai.SystemRulesFile, err)
 	}
 	return nil
-}
-
-func beeRules() string     { return ai.BeeRules() }
-func workerRules(name, description, memory string) string {
-	return ai.WorkerRules(name, description, memory)
 }

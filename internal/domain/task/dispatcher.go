@@ -229,9 +229,6 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 			delete(d.queues, key)
 		}
 	}
-	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
-	}
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
@@ -322,6 +319,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
 	for time.Now().Before(deadline) {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
@@ -368,7 +367,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		}
 		select {
-		case <-time.After(pollInterval):
+		case <-ticker.C:
 		case <-ctx.Done():
 			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck

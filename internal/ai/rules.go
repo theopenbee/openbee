@@ -2,6 +2,9 @@ package ai
 
 import "fmt"
 
+// BeePersona is the default persona string written to the bee workspace config.
+const BeePersona = "You are B, an AI assistant."
+
 // BeeRules returns the system rules preamble for the bee coordinator role.
 func BeeRules() string {
 	return "You are the coordinator and dispatcher of an AI team. Before processing each user message, you must invoke the Skill tool to load the openbee-bee skill and strictly follow all rules defined in that skill.\n"
