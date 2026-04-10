@@ -235,10 +235,12 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
 	if t.TaskID != "" {
-		return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
+		meta := fmt.Sprintf(`{"message_id":%q,"task_id":%q}`, t.MessageID, t.TaskID)
+		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", meta, t.Instruction)
 	}
 	if t.MessageID != "" {
-		return fmt.Sprintf("---\nmessage_id: %s\n---\n\n%s", t.MessageID, t.Instruction)
+		meta := fmt.Sprintf(`{"message_id":%q}`, t.MessageID)
+		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", meta, t.Instruction)
 	}
 	return t.Instruction
 }
