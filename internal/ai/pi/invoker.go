@@ -105,13 +105,20 @@ func newSessionPath() (string, error) {
 }
 
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
-// The session file path is either taken from opts.SessionID (resume) or generated fresh.
-// OutputSessionID is emitted before the process starts its goroutine.
+// For new sessions (Resume=false), a fresh session file is generated under
+// ~/.openbee/.pi/sessions/ and its path is emitted as OutputSessionID.
+// opts.SessionID is ignored for new sessions — pi's sessionId is the file path,
+// not an opaque UUID from the caller.
+// For resume sessions (Resume=true), opts.SessionID must be the path returned
+// from a previous OutputSessionID event.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
 	sessionPath := opts.SessionID
-	if sessionPath == "" {
+	if !opts.Resume {
+		// New session: always generate a fresh session file path.
+		// opts.SessionID may contain a UUID from the manager; ignore it —
+		// pi's sessionId is the file path, not an opaque UUID.
 		var err error
 		sessionPath, err = newSessionPath()
 		if err != nil {

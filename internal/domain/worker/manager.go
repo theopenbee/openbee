@@ -167,6 +167,12 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 
 	for out := range outputCh {
 		switch out.Type {
+		case ai.OutputSessionID:
+			// Persist the engine-assigned session identifier (e.g. pi session file path)
+			// so the dispatcher can store it for future resumes.
+			if err := m.executionStore.UpdateSessionID(exec.ID, out.Content); err != nil {
+				log.Error("update session id", zap.String("execID", exec.ID), zap.Error(err))
+			}
 		case ai.OutputDone:
 			result := m.engine.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)

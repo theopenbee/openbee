@@ -189,6 +189,14 @@ func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) e
 	return err
 }
 
+// UpdateSessionID overwrites the session_id for an execution.
+// Used when the engine returns its own session identifier (e.g. pi's session file path)
+// that differs from the placeholder set at creation time.
+func (s *ExecutionStore) UpdateSessionID(id, sessionID string) error {
+	_, err := s.db.Exec(`UPDATE bee_executions SET session_id=? WHERE id=?`, sessionID, id)
+	return err
+}
+
 func (s *ExecutionStore) UpdateResult(id string, result string, status model.ExecutionStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_executions SET result=?, status=?, completed_at=? WHERE id=?`, result, status, time.Now().UnixMilli(), id)
 	return err
