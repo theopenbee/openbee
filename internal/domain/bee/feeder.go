@@ -209,6 +209,9 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	engineSessionID, drainErr := f.waitBeeOutput(outputCh)
 	if engineSessionID != "" {
 		sessionID = engineSessionID
+		if err := f.execStore.UpdateSessionID(exec.ID, sessionID); err != nil {
+			log.Error("update execution session id", zap.String("execID", exec.ID), zap.Error(err))
+		}
 	}
 
 	finalStatus := model.ExecStatusCompleted
