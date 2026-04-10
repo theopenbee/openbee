@@ -233,6 +233,7 @@ func buildPipeline(
 	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
 		task.WithFailureNotifier(failureNotifier),
 		task.WithEngine(engineName),
+		task.WithWorkerLookup(s.workerStore),
 	)
 	return ingest, disp
 }
