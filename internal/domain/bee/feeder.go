@@ -19,6 +19,12 @@ import (
 
 var log = logger.With(zap.String("component", "feeder"))
 
+type messageMeta struct {
+	From       string `json:"from"`
+	SessionKey string `json:"session_key"`
+	MessageID  string `json:"message_id"`
+}
+
 // FailureNotifier sends a notification to the user when a message is permanently failed.
 type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
@@ -302,12 +308,8 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 }
 
 func buildPrompt(msgs []store.ClaimedMessage) string {
-	type messageMeta struct {
-		From       string `json:"from"`
-		SessionKey string `json:"session_key"`
-		MessageID  string `json:"message_id"`
-	}
 	var sb strings.Builder
+	sb.Grow(len(msgs) * 128)
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')

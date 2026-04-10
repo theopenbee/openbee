@@ -14,6 +14,11 @@ import (
 
 var log = logger.With(zap.String("component", "taskdispatcher"))
 
+type taskMeta struct {
+	MessageID string `json:"message_id"`
+	TaskID    string `json:"task_id,omitempty"`
+}
+
 const (
 	pollInterval = 2 * time.Second
 	pollTimeout  = 30 * time.Minute
@@ -235,10 +240,6 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 // buildInstruction prepends task metadata to the instruction so workers
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
-	type taskMeta struct {
-		MessageID string `json:"message_id"`
-		TaskID    string `json:"task_id,omitempty"`
-	}
 	if t.TaskID != "" || t.MessageID != "" {
 		b, _ := json.Marshal(taskMeta{MessageID: t.MessageID, TaskID: t.TaskID})
 		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)
