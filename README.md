@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🐝 OpenBee</h1>
-  <p><strong>OpenBee is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.</strong></p>
+  <p><strong>Run Agents as your digital workers</strong></p>
 </div>
 
 <div align="center">
@@ -18,7 +18,7 @@
   <a href="https://x.com/0XTYZ">Author @0XTYZ</a>
 </p>
 
-**OpenBee** is a digital worker solution that runs on your personal computer or server. You can communicate with it via Lark / DingTalk / WeCom / WeChat / Telegram to create workers, assign tasks, and much more — let your imagination run wild!
+**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
 
 ## ✨ Features
 
