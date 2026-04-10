@@ -75,6 +75,8 @@ type configValues struct {
 	ClaudeTimeout string
 	CodexPath     string
 	CodexTimeout  string
+	PiPath        string
+	PiTimeout     string
 
 	FeederTimeout          string
 	FeederMaxConcurrentBee int
@@ -146,6 +148,8 @@ func loadExistingConfig(path string) *configValues {
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
 		CodexPath:            cfg.Bee.Codex.Path,
 		CodexTimeout:         cfg.Bee.Codex.Timeout.String(),
+		PiPath:               cfg.Bee.Pi.Path,
+		PiTimeout:            cfg.Bee.Pi.Timeout.String(),
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
@@ -169,6 +173,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		ClaudeTimeout:          "30m",
 		CodexPath:              "codex",
 		CodexTimeout:           "30m",
+		PiPath:                 "pi",
+		PiTimeout:              "30m",
 		MCPTokenTTL:            "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
@@ -204,13 +210,20 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
 	defaultEngineOpt := i18n.M.Prompt.OptionEngineClaude
-	if vals.Engine == "codex" {
+	switch vals.Engine {
+	case "codex":
 		defaultEngineOpt = i18n.M.Prompt.OptionEngineCodex
+	case "pi":
+		defaultEngineOpt = i18n.M.Prompt.OptionEnginePi
 	}
 	var selectedEngine string
 	if err := survey.AskOne(&survey.Select{
 		Message: i18n.M.Prompt.EngineSelect,
-		Options: []string{i18n.M.Prompt.OptionEngineClaude, i18n.M.Prompt.OptionEngineCodex},
+		Options: []string{
+			i18n.M.Prompt.OptionEngineClaude,
+			i18n.M.Prompt.OptionEngineCodex,
+			i18n.M.Prompt.OptionEnginePi,
+		},
 		Default: defaultEngineOpt,
 	}, &selectedEngine); err != nil {
 		return handleSurveyErr(err)
@@ -228,6 +241,11 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	case i18n.M.Prompt.OptionEngineCodex:
 		vals.Engine = "codex"
 		if err := configureCodexExecutable(&vals); err != nil {
+			return err
+		}
+	case i18n.M.Prompt.OptionEnginePi:
+		vals.Engine = "pi"
+		if err := configurePiExecutable(&vals); err != nil {
 			return err
 		}
 	}
