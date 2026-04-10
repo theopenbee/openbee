@@ -48,9 +48,9 @@ The execution record's `session_id` is set at creation time with the UUID and ne
 
 ### Feeder (`internal/domain/bee/feeder.go`)
 
-**Remove**: `waitBeeOutput` logic that extracts `engineSessionID` and overwrites `sessionID`.
+**Simplify** `waitBeeOutput`: this function currently handles three output types — `OutputDone` (success), `OutputError` (failure), and `OutputSessionID` (capture file path). Remove the `OutputSessionID` case and its return value. The function signature changes from `(string, error)` to just `error`.
 
-**Replace with**: a simple drain of the output channel. The `sessionID` variable holds the correct UUID from the start and is persisted directly.
+Remove the post-call block that overwrites `sessionID` with `engineSessionID` and calls `UpdateSessionID`. The `sessionID` variable holds the correct UUID from the start and is persisted directly.
 
 ### Engine Interface (`internal/ai/engine.go`)
 
@@ -93,7 +93,7 @@ No data migration. Existing `bee_session_contexts` rows store PI file paths (not
 |------|--------|
 | `internal/ai/pi/invoker.go` | Remove `newSessionPath()`; add `sessionPath(uuid)`; stop emitting `OutputSessionID` |
 | `internal/domain/worker/manager.go` | Remove `OutputSessionID` monitoring and `UpdateSessionID` call |
-| `internal/domain/bee/feeder.go` | Remove `engineSessionID` overwrite logic; simple output drain |
+| `internal/domain/bee/feeder.go` | Simplify `waitBeeOutput`: remove `OutputSessionID` case and `engineSessionID` overwrite |
 | `internal/ai/pi/invoker_test.go` | Update tests to reflect new session path behavior |
 | `internal/ai/engine.go` | No change (constant kept for Codex) |
 | `internal/domain/task/dispatcher.go` | No change |
