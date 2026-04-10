@@ -67,22 +67,26 @@ func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { ret
 type mockSessionStore struct {
 	mu      sync.Mutex
 	data    map[string]string
+	engines map[string]string
 	cleared []string
 }
 
 func newMockSessionStore() *mockSessionStore {
-	return &mockSessionStore{data: make(map[string]string)}
+	return &mockSessionStore{data: make(map[string]string), engines: make(map[string]string)}
 }
 
-func (s *mockSessionStore) GetSessionContext(_ context.Context, sessionKey, agentID string) (string, error) {
+func (s *mockSessionStore) GetSessionContext(_ context.Context, sessionKey, agentID string) (sessionID, engine string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.data[sessionKey+"|"+agentID], nil
+	key := sessionKey + "|" + agentID
+	return s.data[key], s.engines[key], nil
 }
-func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID string) error {
+func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, engine string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[sessionKey+"|"+agentID] = sessionID
+	key := sessionKey + "|" + agentID
+	s.data[key] = sessionID
+	s.engines[key] = engine
 	return nil
 }
 func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey string) error {

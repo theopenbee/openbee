@@ -21,12 +21,15 @@ func setupSessionDB(t *testing.T) (*sql.DB, *store.SessionStore) {
 
 func TestSessionStore_GetSessionContext_MissReturnsEmpty(t *testing.T) {
 	_, ss := setupSessionDB(t)
-	got, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, engine, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got != "" {
 		t.Errorf("expected empty string on miss, got %q", got)
+	}
+	if engine != "" {
+		t.Errorf("expected empty engine on miss, got %q", engine)
 	}
 }
 
@@ -34,15 +37,18 @@ func TestSessionStore_UpsertAndGet(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "sess-abc"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "sess-abc", "claude"); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	got, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
+	got, engine, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if got != "sess-abc" {
 		t.Errorf("expected sess-abc, got %q", got)
+	}
+	if engine != "claude" {
+		t.Errorf("expected claude, got %q", engine)
 	}
 }
 
@@ -50,12 +56,15 @@ func TestSessionStore_Upsert_Overwrites(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "old") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "new") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "old", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "new", "codex")  //nolint:errcheck
 
-	got, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
+	got, engine, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
 	if got != "new" {
 		t.Errorf("expected new, got %q", got)
+	}
+	if engine != "codex" {
+		t.Errorf("expected codex, got %q", engine)
 	}
 }
 
@@ -63,11 +72,11 @@ func TestSessionStore_AgentsAreIsolated(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess")   //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "worker-1", "worker-sess")       //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess", "claude")  //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "worker-1", "worker-sess", "claude")     //nolint:errcheck
 
-	beeSess, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
-	workerSess, _ := ss.GetSessionContext(ctx, "k", "worker-1")
+	beeSess, _, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
+	workerSess, _, _ := ss.GetSessionContext(ctx, "k", "worker-1")
 	if beeSess != "bee-sess" {
 		t.Errorf("bee: expected bee-sess, got %q", beeSess)
 	}
@@ -80,17 +89,17 @@ func TestSessionStore_ClearSessionContexts(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess")  //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "worker-1", "w1-sess")          //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other")  //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "worker-1", "w1-sess", "claude")        //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other", "claude") //nolint:errcheck
 
 	if err := ss.ClearSessionContexts(ctx, "k"); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 
-	beeSess, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
-	w1Sess, _ := ss.GetSessionContext(ctx, "k", "worker-1")
-	otherSess, _ := ss.GetSessionContext(ctx, "other", store.BeeAgentID)
+	beeSess, _, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
+	w1Sess, _, _ := ss.GetSessionContext(ctx, "k", "worker-1")
+	otherSess, _, _ := ss.GetSessionContext(ctx, "other", store.BeeAgentID)
 
 	if beeSess != "" {
 		t.Errorf("expected bee session cleared, got %q", beeSess)
@@ -124,8 +133,8 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 		t.Fatalf("create worker: %v", err)
 	}
 
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid")   //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", w.ID, "worker-sid")            //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", w.ID, "worker-sid", "claude")          //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
 	if err != nil {
@@ -155,7 +164,7 @@ func TestSessionStore_ListSessionContexts_DeletedWorker(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", "ghost-worker-id", "sid") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "ghost-worker-id", "sid", "claude") //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
 	if err != nil {
@@ -176,18 +185,18 @@ func TestSessionStore_DeleteWorkerSessionContext_Basic(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid")   //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-sid")          //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-sid", "claude")        //nolint:errcheck
 
 	if err := ss.DeleteWorkerSessionContext(ctx, "sk", "worker-1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
-	w1, _ := ss.GetSessionContext(ctx, "sk", "worker-1")
+	w1, _, _ := ss.GetSessionContext(ctx, "sk", "worker-1")
 	if w1 != "" {
 		t.Errorf("expected worker-1 cleared, got %q", w1)
 	}
-	bee, _ := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
+	bee, _, _ := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
 	if bee != "bee-sid" {
 		t.Errorf("expected bee unaffected, got %q", bee)
 	}
@@ -199,5 +208,45 @@ func TestSessionStore_DeleteWorkerSessionContext_Idempotent(t *testing.T) {
 
 	if err := ss.DeleteWorkerSessionContext(ctx, "sk", "nobody"); err != nil {
 		t.Errorf("expected no error on missing row, got %v", err)
+	}
+}
+
+func TestSessionStore_EngineMismatch_SkipsLegacyRows(t *testing.T) {
+	_, ss := setupSessionDB(t)
+	ctx := context.Background()
+
+	// Insert with empty engine (simulates legacy row)
+	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "old-sid", ""); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	got, engine, err := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got != "old-sid" {
+		t.Errorf("expected old-sid, got %q", got)
+	}
+	// Empty engine means "unknown", callers skip the mismatch check
+	if engine != "" {
+		t.Errorf("expected empty engine for legacy row, got %q", engine)
+	}
+}
+
+func TestSessionStore_EngineOverwrite(t *testing.T) {
+	_, ss := setupSessionDB(t)
+	ctx := context.Background()
+
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "codex-sid", "codex")   //nolint:errcheck
+
+	got, engine, err := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got != "codex-sid" {
+		t.Errorf("expected codex-sid, got %q", got)
+	}
+	if engine != "codex" {
+		t.Errorf("expected codex, got %q", engine)
 	}
 }

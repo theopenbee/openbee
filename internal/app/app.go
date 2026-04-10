@@ -110,7 +110,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine)
-	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier)
+	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
@@ -222,13 +222,17 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 
 func buildPipeline(
 	debounce time.Duration,
+	engineName string,
 	s appStores,
 	mgr *worker.Manager,
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
 ) (*msgingest.Gateway, *task.TaskDispatcher) {
 	ingest := msgingest.New(s.msgStore, debounce)
-	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, task.WithFailureNotifier(failureNotifier))
+	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
+		task.WithFailureNotifier(failureNotifier),
+		task.WithEngine(engineName),
+	)
 	return ingest, disp
 }
 

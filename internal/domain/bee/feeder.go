@@ -141,11 +141,18 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+	sessionID, storedEngine, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs, err.Error())
 		return
+	}
+	// Discard session if it belongs to a different engine. Empty storedEngine means
+	// legacy data with no engine recorded — skip the check to preserve existing sessions.
+	if sessionID != "" && storedEngine != "" && storedEngine != f.cfg.EffectiveEngine() {
+		log.Info("engine changed, discarding stale bee session",
+			zap.String("stored", storedEngine), zap.String("current", f.cfg.EffectiveEngine()))
+		sessionID = ""
 	}
 	resume := sessionID != ""
 	if sessionID == "" {
@@ -225,7 +232,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
 	upsert := true
 	if resume {
-		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+		currentID, _, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))
@@ -233,7 +240,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
