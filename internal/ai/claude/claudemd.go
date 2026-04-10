@@ -46,3 +46,30 @@ func EnsureSystemRules(workDir string, role ai.Role, opts ai.WorkspaceOptions) e
 
 	return nil
 }
+
+// removeImportLine removes the "@.openbee.md" line from CLAUDE.md if present.
+// It is a no-op if CLAUDE.md does not exist or does not contain the line.
+func removeImportLine(workDir string) error {
+	claudePath := filepath.Join(workDir, "CLAUDE.md")
+	data, err := os.ReadFile(claudePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read CLAUDE.md: %w", err)
+	}
+
+	target := []byte(ai.ImportLine)
+	lines := bytes.Split(data, []byte("\n"))
+	out := lines[:0]
+	for _, line := range lines {
+		if !bytes.Equal(bytes.TrimRight(line, "\r"), target) {
+			out = append(out, line)
+		}
+	}
+	cleaned := bytes.Join(out, []byte("\n"))
+	if bytes.Equal(cleaned, data) {
+		return nil // nothing changed
+	}
+	return os.WriteFile(claudePath, cleaned, 0o644)
+}

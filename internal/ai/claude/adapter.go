@@ -2,6 +2,11 @@ package claude
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -24,8 +29,12 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
 
-func (a *claudeAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
+func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
+	rulesPath := filepath.Join(workDir, ai.SystemRulesFile)
+	if err := os.Remove(rulesPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove %s: %w", ai.SystemRulesFile, err)
+	}
+	return removeImportLine(workDir)
 }
 
 func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
