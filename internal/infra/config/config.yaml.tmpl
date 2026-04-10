@@ -15,9 +15,13 @@ database:
   path: {{.DBPath}}
 
 bee:
+  engine: {{.Engine}}
   claude:
     path: {{.ClaudePath}}
     timeout: {{.ClaudeTimeout}}
+  codex:
+    path: {{.CodexPath}}
+    timeout: {{.CodexTimeout}}
   mcp:
     token_secret: "{{.MCPTokenSecret}}"
     token_ttl: {{.MCPTokenTTL}}

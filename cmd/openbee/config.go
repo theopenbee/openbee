@@ -70,13 +70,17 @@ type configValues struct {
 	WeixinCDNBaseURL string
 	WeixinUserID     string
 
-	ClaudePath             string
-	ClaudeTimeout          string
+	Engine        string
+	ClaudePath    string
+	ClaudeTimeout string
+	CodexPath     string
+	CodexTimeout  string
+
 	FeederTimeout          string
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
-	FFprobePath     string
-	FFmpegPath      string
+	FFprobePath            string
+	FFmpegPath             string
 
 	AuthUsername   string
 	AuthPassword   string
@@ -137,9 +141,12 @@ func loadExistingConfig(path string) *configValues {
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
+		Engine:               cfg.Bee.Engine,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
-		FeederTimeout:          cfg.Bee.Feeder.Timeout.String(),
+		CodexPath:            cfg.Bee.Codex.Path,
+		CodexTimeout:         cfg.Bee.Codex.Timeout.String(),
+		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
@@ -154,20 +161,23 @@ func loadExistingConfig(path string) *configValues {
 
 func runConfig(cmd *cobra.Command, args []string) error {
 	vals := configValues{
-		ServerPort:      "8080",
-		ServerHost:      "localhost",
-		DBPath:          "./data/openbee.db",
-		ClaudePath:      "claude",
-		ClaudeTimeout:   "30m",
-		MCPTokenTTL:     "2h",
+		ServerPort:             "8080",
+		ServerHost:             "localhost",
+		DBPath:                 "./data/openbee.db",
+		Engine:                 "claude",
+		ClaudePath:             "claude",
+		ClaudeTimeout:          "30m",
+		CodexPath:              "codex",
+		CodexTimeout:           "30m",
+		MCPTokenTTL:            "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
-		MessageDebounce: "300ms",
-		FFprobePath:     "ffprobe",
-		FFmpegPath:      "ffmpeg",
-		AuthUsername:    "admin",
-		AuthAccessTTL:  "2h",
-		AuthRefreshTTL: "168h",
+		MessageDebounce:        "300ms",
+		FFprobePath:            "ffprobe",
+		FFmpegPath:             "ffmpeg",
+		AuthUsername:           "admin",
+		AuthAccessTTL:          "2h",
+		AuthRefreshTTL:         "168h",
 	}
 
 	// If an existing config file exists, load its values as defaults silently
@@ -190,14 +200,36 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
 	}
 
-	// Step 1 — Claude config
-	fmt.Println(i18n.M.Output.Config.SectionClaude)
+	// Step 1 — Engine config
+	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	if err := configureClaudeExecutable(&vals); err != nil {
-		return err
+	defaultEngineOpt := i18n.M.Prompt.OptionEngineClaude
+	if vals.Engine == "codex" {
+		defaultEngineOpt = i18n.M.Prompt.OptionEngineCodex
 	}
-	if err := configureClaudeProvider(&vals); err != nil {
-		return err
+	var selectedEngine string
+	if err := survey.AskOne(&survey.Select{
+		Message: i18n.M.Prompt.EngineSelect,
+		Options: []string{i18n.M.Prompt.OptionEngineClaude, i18n.M.Prompt.OptionEngineCodex},
+		Default: defaultEngineOpt,
+	}, &selectedEngine); err != nil {
+		return handleSurveyErr(err)
+	}
+
+	switch selectedEngine {
+	case i18n.M.Prompt.OptionEngineClaude:
+		vals.Engine = "claude"
+		if err := configureClaudeExecutable(&vals); err != nil {
+			return err
+		}
+		if err := configureClaudeProvider(&vals); err != nil {
+			return err
+		}
+	case i18n.M.Prompt.OptionEngineCodex:
+		vals.Engine = "codex"
+		if err := configureCodexExecutable(&vals); err != nil {
+			return err
+		}
 	}
 
 	// Step 2 — Platform config
