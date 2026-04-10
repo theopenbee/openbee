@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,6 +22,13 @@ var ctlMessageSendCmd = &cobra.Command{
 	Short: "Send a message to the user on the originating platform",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		a := map[string]any{"message_id": msgSendMessageID}
+		if msgSendContent == "-" {
+			b, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
+			msgSendContent = string(b)
+		}
 		if msgSendContent != "" {
 			a["content"] = strings.ReplaceAll(msgSendContent, `\n`, "\n")
 		}
@@ -32,7 +41,7 @@ var ctlMessageSendCmd = &cobra.Command{
 
 func init() {
 	ctlMessageSendCmd.Flags().StringVar(&msgSendMessageID, "message-id", "", "ID of the originating platform message (required)")
-	ctlMessageSendCmd.Flags().StringVar(&msgSendContent, "content", "", "Text content to send")
+	ctlMessageSendCmd.Flags().StringVar(&msgSendContent, "content", "", "Text content to send; use - to read from stdin")
 	ctlMessageSendCmd.Flags().StringVar(&msgSendMediaPath, "media-path", "", "Local file path to upload and send as media")
 	ctlMessageSendCmd.MarkFlagRequired("message-id")
 
