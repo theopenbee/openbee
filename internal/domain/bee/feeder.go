@@ -172,7 +172,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	prompt := buildPrompt(msgs)
+	hint := ""
+	if !resume {
+		hint = ai.SkillHintPrefix(ai.RoleBee)
+	}
+	prompt := buildPrompt(msgs, hint)
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
@@ -310,9 +314,13 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 	return ids
 }
 
-func buildPrompt(msgs []store.ClaimedMessage) string {
+func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 	var sb strings.Builder
 	sb.Grow(len(msgs) * 128)
+	if skillHint != "" {
+		sb.WriteString(skillHint)
+		sb.WriteByte('\n')
+	}
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
