@@ -645,6 +645,23 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
+// executablePathValidator returns a survey validator that checks a path is a
+// regular, executable file. Used by both Claude and Codex path prompts.
+func executablePathValidator(val any) error {
+	path, _ := val.(string)
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
+	}
+	if info.IsDir() {
+		return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
+	}
+	if info.Mode()&0111 == 0 {
+		return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
+	}
+	return nil
+}
+
 func installBuiltinSkills() {
 	results, err := skillinstall.InstallSkills("")
 	if err != nil {

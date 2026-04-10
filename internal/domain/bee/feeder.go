@@ -149,9 +149,10 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 	// Discard session if it belongs to a different engine. Empty storedEngine means
 	// legacy data with no engine recorded — skip the check to preserve existing sessions.
-	if sessionID != "" && storedEngine != "" && storedEngine != f.cfg.EffectiveEngine() {
+	currentEngine := f.cfg.EffectiveEngine()
+	if sessionID != "" && storedEngine != "" && storedEngine != currentEngine {
 		log.Info("engine changed, discarding stale bee session",
-			zap.String("stored", storedEngine), zap.String("current", f.cfg.EffectiveEngine()))
+			zap.String("stored", storedEngine), zap.String("current", currentEngine))
 		sessionID = ""
 	}
 	resume := sessionID != ""
@@ -240,7 +241,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, currentEngine); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
