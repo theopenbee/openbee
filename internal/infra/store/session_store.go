@@ -46,12 +46,11 @@ func (s *SessionStore) GetSessionContext(ctx context.Context, sessionKey, agentI
 }
 
 // GetSessionContextForEngine returns the session_id for (sessionKey, agentID) only when the
-// stored engine matches the requested engine. Rows with an empty engine (legacy data recorded
-// before engine tracking was added) are also returned to preserve backward compatibility.
+// stored engine matches the requested engine.
 // Returns ("", nil) when no matching row exists.
 func (s *SessionStore) GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error) {
 	err = s.db.QueryRowContext(ctx,
-		`SELECT session_id FROM bee_session_contexts WHERE session_key = ? AND agent_id = ? AND (engine = ? OR engine = '')`,
+		`SELECT session_id FROM bee_session_contexts WHERE session_key = ? AND agent_id = ? AND engine = ?`,
 		sessionKey, agentID, engine,
 	).Scan(&sessionID)
 	if err == sql.ErrNoRows {

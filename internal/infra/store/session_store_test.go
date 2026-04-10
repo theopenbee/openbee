@@ -211,24 +211,22 @@ func TestSessionStore_DeleteWorkerSessionContext_Idempotent(t *testing.T) {
 	}
 }
 
-func TestSessionStore_EngineMismatch_SkipsLegacyRows(t *testing.T) {
+func TestSessionStore_GetSessionContextForEngine_EngineMismatch(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	// Insert with empty engine (simulates legacy row)
-	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "old-sid", ""); err != nil {
+	// Store a claude session
+	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "claude"); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	got, engine, err := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
+
+	// Switching to codex must not reuse the claude session
+	got, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "codex")
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "old-sid" {
-		t.Errorf("expected old-sid, got %q", got)
-	}
-	// Empty engine means "unknown", callers skip the mismatch check
-	if engine != "" {
-		t.Errorf("expected empty engine for legacy row, got %q", engine)
+	if got != "" {
+		t.Errorf("expected empty session for codex after claude stored, got %q", got)
 	}
 }
 

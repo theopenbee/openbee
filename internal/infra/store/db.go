@@ -265,6 +265,11 @@ SELECT 1`,
 		name:    "add_engine_to_bee_session_contexts",
 		sql:     `ALTER TABLE bee_session_contexts ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
 	},
+	{
+		version: 30,
+		name:    "normalize_engine_empty_to_claude",
+		sql:     `UPDATE bee_session_contexts SET engine = 'claude' WHERE engine = ''`,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.
