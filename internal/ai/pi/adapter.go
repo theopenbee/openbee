@@ -6,6 +6,17 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
+func init() {
+	ai.Register("pi", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+		path, _ := cfg.Raw["path"].(string)
+		if path == "" {
+			path = "pi"
+		}
+		extraEnv, _ := cfg.Raw["env"].(map[string]string)
+		return NewAdapter(path, cfg.OpenbeeURL, extraEnv), nil
+	})
+}
+
 type piAdapter struct {
 	invoker *Invoker
 }
