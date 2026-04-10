@@ -22,8 +22,11 @@ func TestSetupWorkspace_Bee(t *testing.T) {
 	if !strings.Contains(content, "You are") {
 		t.Errorf("AGENTS.md missing bee persona, got: %q", content)
 	}
-	if !strings.Contains(content, "@.openbee.md") {
-		t.Errorf("AGENTS.md missing @.openbee.md import, got: %q", content)
+	if strings.Contains(content, "@.openbee.md") {
+		t.Errorf("AGENTS.md must not contain @.openbee.md import line, got: %q", content)
+	}
+	if !strings.Contains(content, LoadInstruction) {
+		t.Errorf("AGENTS.md missing mandatory load instruction, got: %q", content)
 	}
 
 	rules := filepath.Join(dir, ".openbee.md")
@@ -52,8 +55,11 @@ func TestSetupWorkspace_Worker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read AGENTS.md: %v", err)
 	}
-	if !strings.Contains(string(data), "@.openbee.md") {
-		t.Errorf("AGENTS.md missing @.openbee.md import, got: %q", string(data))
+	if strings.Contains(string(data), "@.openbee.md") {
+		t.Errorf("AGENTS.md must not contain @.openbee.md import line, got: %q", string(data))
+	}
+	if !strings.Contains(string(data), LoadInstruction) {
+		t.Errorf("AGENTS.md missing mandatory load instruction, got: %q", string(data))
 	}
 
 	rules := filepath.Join(dir, ".openbee.md")

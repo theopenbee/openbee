@@ -16,12 +16,12 @@ func SetupWorkspace(workDir string, role Role, opts WorkspaceOptions) error {
 	}
 	switch role {
 	case RoleBee:
-		if err := createAgentsMD(workDir, BeePersona+"\n"+ImportLine+"\n"); err != nil {
+		if err := createAgentsMD(workDir, BeePersona+"\n"+LoadInstruction+"\n"); err != nil {
 			return err
 		}
 		return writeSystemRules(workDir, BeeRules())
 	case RoleWorker:
-		if err := createAgentsMD(workDir, ImportLine+"\n"); err != nil {
+		if err := createAgentsMD(workDir, LoadInstruction+"\n"); err != nil {
 			return err
 		}
 		return writeSystemRules(workDir, WorkerRules(opts.Name, opts.Description, opts.Memory))

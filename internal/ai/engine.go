@@ -7,6 +7,10 @@ const (
 	SystemRulesFile = ".openbee.md"
 	// ImportLine is the reference line engines embed in their config files.
 	ImportLine = "@" + SystemRulesFile
+	// LoadInstruction is the mandatory directive written to AGENTS.md for engines
+	// that do not support @import syntax (e.g. Codex, Pi). It instructs the agent
+	// to explicitly read .openbee.md before each task.
+	LoadInstruction = "Before starting each task, you MUST read the file " + SystemRulesFile + " and strictly follow all rules defined in it."
 )
 
 // Role identifies the openbee agent role for workspace setup.
