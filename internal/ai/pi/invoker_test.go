@@ -26,6 +26,52 @@ func TestBuildArgs_WithPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_StripsFrontmatter(t *testing.T) {
+	prompt := "---\nmessage_id: abc\ntask_id: xyz\n---\n\nhello world"
+	args := buildArgs(prompt, "/tmp/session.jsonl")
+	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", "hello world"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestStripFrontmatter(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "no frontmatter",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "with frontmatter",
+			input: "---\nmessage_id: abc\ntask_id: xyz\n---\n\nhello world",
+			want:  "hello world",
+		},
+		{
+			name:  "frontmatter with single field",
+			input: "---\nmessage_id: abc\n---\n\ndo something",
+			want:  "do something",
+		},
+		{
+			name:  "unclosed frontmatter passes through",
+			input: "---\nmessage_id: abc\n",
+			want:  "---\nmessage_id: abc\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripFrontmatter(tc.input)
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractResultFromLog_BasicResult(t *testing.T) {
 	log := `{"type":"turn.started"}
 {"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"final answer"}]}]}
