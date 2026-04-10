@@ -13,8 +13,7 @@ func TestSetupWorkspace_Bee(t *testing.T) {
 		t.Fatalf("SetupWorkspace: %v", err)
 	}
 
-	agentsmd := filepath.Join(dir, "AGENTS.md")
-	data, err := os.ReadFile(agentsmd)
+	data, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if err != nil {
 		t.Fatalf("read AGENTS.md: %v", err)
 	}
@@ -22,17 +21,12 @@ func TestSetupWorkspace_Bee(t *testing.T) {
 	if !strings.Contains(content, "You are") {
 		t.Errorf("AGENTS.md missing bee persona, got: %q", content)
 	}
-	if !strings.Contains(content, LoadInstruction) {
-		t.Errorf("AGENTS.md missing mandatory load instruction, got: %q", content)
+	if strings.Contains(content, LoadInstruction) {
+		t.Errorf("AGENTS.md must NOT contain LoadInstruction for codex/pi engines, got: %q", content)
 	}
 
-	rules := filepath.Join(dir, ".openbee.md")
-	rulesData, err := os.ReadFile(rules)
-	if err != nil {
-		t.Fatalf("read .openbee.md: %v", err)
-	}
-	if !strings.Contains(string(rulesData), "openbee-bee") {
-		t.Errorf(".openbee.md missing bee rules, got: %q", string(rulesData))
+	if _, err := os.Stat(filepath.Join(dir, SystemRulesFile)); !os.IsNotExist(err) {
+		t.Errorf("%s must NOT be created for codex/pi engines", SystemRulesFile)
 	}
 }
 
@@ -47,32 +41,29 @@ func TestSetupWorkspace_Worker(t *testing.T) {
 		t.Fatalf("SetupWorkspace: %v", err)
 	}
 
-	agentsmd := filepath.Join(dir, "AGENTS.md")
-	data, err := os.ReadFile(agentsmd)
+	data, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if err != nil {
 		t.Fatalf("read AGENTS.md: %v", err)
 	}
-	if !strings.Contains(string(data), LoadInstruction) {
-		t.Errorf("AGENTS.md missing mandatory load instruction, got: %q", string(data))
+	content := string(data)
+	if strings.Contains(content, LoadInstruction) {
+		t.Errorf("AGENTS.md must NOT contain LoadInstruction, got: %q", content)
 	}
-
-	rules := filepath.Join(dir, ".openbee.md")
-	rulesData, err := os.ReadFile(rules)
-	if err != nil {
-		t.Fatalf("read .openbee.md: %v", err)
-	}
-	content := string(rulesData)
 	if !strings.Contains(content, "my-worker") {
-		t.Errorf(".openbee.md missing name, got: %q", content)
+		t.Errorf("AGENTS.md missing name, got: %q", content)
 	}
 	if !strings.Contains(content, "does things") {
-		t.Errorf(".openbee.md missing description, got: %q", content)
+		t.Errorf("AGENTS.md missing description, got: %q", content)
 	}
 	if !strings.Contains(content, "remember X") {
-		t.Errorf(".openbee.md missing memory, got: %q", content)
+		t.Errorf("AGENTS.md missing memory, got: %q", content)
 	}
-	if !strings.Contains(content, "openbee-worker") {
-		t.Errorf(".openbee.md missing worker rules, got: %q", content)
+	if strings.Contains(content, "openbee-worker") {
+		t.Errorf("AGENTS.md must NOT contain skill rule directive, got: %q", content)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, SystemRulesFile)); !os.IsNotExist(err) {
+		t.Errorf("%s must NOT be created for codex/pi engines", SystemRulesFile)
 	}
 }
 

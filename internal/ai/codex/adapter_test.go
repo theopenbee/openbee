@@ -17,8 +17,8 @@ func TestAdapter_SetupWorkspace_Bee(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Errorf("AGENTS.md not created: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); err != nil {
-		t.Errorf(".openbee.md not created: %v", err)
+	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); !os.IsNotExist(err) {
+		t.Errorf(".openbee.md must NOT be created by codex engine")
 	}
 }
 
@@ -32,8 +32,8 @@ func TestAdapter_SetupWorkspace_Worker(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
 		t.Errorf("AGENTS.md not created: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); err != nil {
-		t.Errorf(".openbee.md not created: %v", err)
+	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); !os.IsNotExist(err) {
+		t.Errorf(".openbee.md must NOT be created by codex engine")
 	}
 }
 
