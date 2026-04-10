@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -60,20 +59,7 @@ func promptClaudeManualPath(vals *configValues) error {
 	if err := survey.AskOne(&survey.Input{
 		Message: i18n.M.Prompt.ClaudePath,
 		Default: vals.ClaudePath,
-	}, &vals.ClaudePath, survey.WithValidator(func(val any) error {
-		path, _ := val.(string)
-		info, err := os.Stat(path)
-		if err != nil {
-			return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
-		}
-		if info.IsDir() {
-			return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
-		}
-		if info.Mode()&0111 == 0 {
-			return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
-		}
-		return nil
-	})); err != nil {
+	}, &vals.ClaudePath, survey.WithValidator(executablePathValidator)); err != nil {
 		return handleSurveyErr(err)
 	}
 	return nil

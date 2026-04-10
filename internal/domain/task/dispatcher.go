@@ -46,8 +46,8 @@ type FailureNotifier interface {
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
-	GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error)
-	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID string) error
+	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
+	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
 	ClearSessionContexts(ctx context.Context, sessionKey string) error
 }
 
@@ -69,6 +69,7 @@ type TaskDispatcher struct {
 	sessionStore     SessionStore                     // reads, writes, and cleans up session contexts
 	execStore        ExecutionQuerier                 // queries execution state by ID
 	failureNotifier  FailureNotifier                  // sends failure notifications (optional)
+	engineName       string                           // current engine name (e.g. "claude", "codex")
 	inCh             <-chan DispatchTask              // inbound task channel
 	resultsCh        chan internalResult              // internal completion signal channel; drives queue scheduling
 	queues           map[string]*queueState           // per-workerID serial queues
@@ -103,6 +104,12 @@ type Option func(*TaskDispatcher)
 // WithFailureNotifier sets the notifier used to inform users about task failures.
 func WithFailureNotifier(fn FailureNotifier) Option {
 	return func(d *TaskDispatcher) { d.failureNotifier = fn }
+}
+
+// WithEngine sets the active engine name so the dispatcher can detect engine
+// switches and discard stale session contexts from a different engine.
+func WithEngine(name string) Option {
+	return func(d *TaskDispatcher) { d.engineName = name }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
@@ -222,9 +229,6 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 			delete(d.queues, key)
 		}
 	}
-	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
-	}
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
@@ -285,7 +289,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
 	}
-	sessionID, err := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
@@ -308,6 +312,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
 	for time.Now().Before(deadline) {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
@@ -327,7 +333,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			// Persist session_id for future resume (only on success).
 			if task.SessionKey != "" && task.WorkerID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
 					log.Error("upsert session context", zap.Error(err))
 				}
 			}
@@ -336,7 +342,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
 			if task.SessionKey != "" && task.WorkerID != "" && exec.SessionID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
 					log.Error("upsert session context on failure", zap.Error(err))
 				}
 			}
@@ -354,7 +360,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		}
 		select {
-		case <-time.After(pollInterval):
+		case <-ticker.C:
 		case <-ctx.Done():
 			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck

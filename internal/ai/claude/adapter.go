@@ -11,8 +11,6 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-const DefaultPersona = `You are B, an AI assistant.`
-
 func init() {
 	ai.Register("claude", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		path, _ := cfg.Raw["path"].(string)
@@ -43,12 +41,12 @@ func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.Wor
 			WithMemory(opts.Memory),
 		)
 	case ai.RoleBee:
-		if err := writeCLAUDEMD(workDir, DefaultPersona+"\n"+ImportLine+"\n"); err != nil {
+		if err := writeCLAUDEMD(workDir, ai.BeePersona+"\n"+ImportLine+"\n"); err != nil {
 			return err
 		}
 		// Write .openbee.md directly; do not modify an existing CLAUDE.md.
 		rulesPath := filepath.Join(workDir, SystemRulesFile)
-		return os.WriteFile(rulesPath, []byte(beeRules()), 0o644)
+		return os.WriteFile(rulesPath, []byte(ai.BeeRules()), 0o644)
 	default:
 		return fmt.Errorf("unknown role: %q", role)
 	}

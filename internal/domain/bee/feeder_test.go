@@ -123,7 +123,7 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Error("expected resume=false on first call")
 	}
 
-	got, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
 		t.Fatalf("get session context: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 
@@ -187,7 +187,7 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 		t.Errorf("expected rollback to received, got %q", status)
 	}
 
-	got, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if got != "" {
 		t.Errorf("session context should not be written on failure, got %q", got)
 	}
@@ -211,8 +211,8 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 		t.Fatalf("expected 2 bee invocations (one per sessionKey), got %d", len(calls))
 	}
 
-	sess1, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
-	sess2, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
+	sess1, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
+	sess2, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
 	if sess1 == "" {
 		t.Error("session context for u1 should be set")
 	}

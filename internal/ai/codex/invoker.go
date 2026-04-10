@@ -51,7 +51,7 @@ func buildArgs(sessionID string, resume bool, prompt string) []string {
 // the first "thread.started" event, or "" if not found.
 func extractSessionID(r io.Reader) string {
 	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	scanner.Buffer(nil, 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {
@@ -79,7 +79,7 @@ func ExtractResultFromLog(logPath string) string {
 
 	var lastText string
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	scanner.Buffer(nil, 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "{") {

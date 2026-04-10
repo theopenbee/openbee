@@ -19,26 +19,40 @@ func NewSessionStore(db *sql.DB) *SessionStore {
 	return &SessionStore{db: db}
 }
 
-// UpsertSessionContext writes or overwrites the session_id for (sessionKey, agentID).
-func (s *SessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID string) error {
+// UpsertSessionContext writes or overwrites the session_id and engine for (sessionKey, agentID).
+func (s *SessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
-		 VALUES (?, ?, ?, ?)
+		`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, engine, updated_at)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(session_key, agent_id) DO UPDATE
-		 SET session_id = excluded.session_id, updated_at = excluded.updated_at`,
-		sessionKey, agentID, sessionID, time.Now().UnixMilli(),
+		 SET session_id = excluded.session_id, engine = excluded.engine, updated_at = excluded.updated_at`,
+		sessionKey, agentID, sessionID, engine, time.Now().UnixMilli(),
 	)
 	return err
 }
 
-// GetSessionContext returns the session_id for (sessionKey, agentID).
-// Returns ("", nil) when no row exists — this is normal for the first message,
+// GetSessionContext returns the session_id and engine for (sessionKey, agentID).
+// Returns ("", "", nil) when no row exists — this is normal for the first message,
 // not a database error. Returns non-nil error only on database failure.
-func (s *SessionStore) GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error) {
-	var sessionID string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT session_id FROM bee_session_contexts WHERE session_key = ? AND agent_id = ?`,
+func (s *SessionStore) GetSessionContext(ctx context.Context, sessionKey, agentID string) (sessionID, engine string, err error) {
+	err = s.db.QueryRowContext(ctx,
+		`SELECT session_id, engine FROM bee_session_contexts WHERE session_key = ? AND agent_id = ?`,
 		sessionKey, agentID,
+	).Scan(&sessionID, &engine)
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	return sessionID, engine, err
+}
+
+// GetSessionContextForEngine returns the session_id for (sessionKey, agentID) only when the
+// stored engine matches the requested engine. Rows with an empty engine (legacy data recorded
+// before engine tracking was added) are also returned to preserve backward compatibility.
+// Returns ("", nil) when no matching row exists.
+func (s *SessionStore) GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error) {
+	err = s.db.QueryRowContext(ctx,
+		`SELECT session_id FROM bee_session_contexts WHERE session_key = ? AND agent_id = ? AND (engine = ? OR engine = '')`,
+		sessionKey, agentID, engine,
 	).Scan(&sessionID)
 	if err == sql.ErrNoRows {
 		return "", nil

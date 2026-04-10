@@ -260,6 +260,11 @@ SELECT 1`,
 		name:    "create_index_workers_name_lower",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_workers_name_lower ON bee_workers (LOWER(name))`,
 	},
+	{
+		version: 29,
+		name:    "add_engine_to_bee_session_contexts",
+		sql:     `ALTER TABLE bee_session_contexts ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.

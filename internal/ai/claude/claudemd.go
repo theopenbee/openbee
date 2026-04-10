@@ -30,9 +30,9 @@ type Option func(*options)
 func rulesForRole(role ai.Role, opts options) string {
 	switch role {
 	case ai.RoleBee:
-		return beeRules()
+		return ai.BeeRules()
 	case ai.RoleWorker:
-		return workerRules(opts.name, opts.description, opts.memory)
+		return ai.WorkerRules(opts.name, opts.description, opts.memory)
 	default:
 		return ""
 	}

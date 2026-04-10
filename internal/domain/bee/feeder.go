@@ -141,7 +141,8 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+	currentEngine := f.cfg.EffectiveEngine()
+	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, currentEngine)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs, err.Error())
@@ -225,7 +226,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
 	upsert := true
 	if resume {
-		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+		currentID, _, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))
@@ -233,7 +234,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, currentEngine); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}

@@ -765,8 +765,8 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 
 	// Seed session contexts for both workers
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1") //nolint
-	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1", "") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "") //nolint
 
 	// Clear only w1
 	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
@@ -785,8 +785,8 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 	}
 
 	// w1 context should be gone; w2 should remain
-	w1sid, _ := ss.GetSessionContext(ctx, "sk", w1.ID)
-	w2sid, _ := ss.GetSessionContext(ctx, "sk", w2.ID)
+	w1sid, _, _ := ss.GetSessionContext(ctx, "sk", w1.ID)
+	w2sid, _, _ := ss.GetSessionContext(ctx, "sk", w2.ID)
 	if w1sid != "" {
 		t.Errorf("expected w1 context cleared, got %q", w1sid)
 	}
@@ -811,8 +811,8 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	w2 := workerResult2.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-C", w1.ID, "sid-w1") //nolint
-	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2") //nolint
+	ss.UpsertSessionContext(ctx, "session-C", w1.ID, "sid-w1", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2", "") //nolint
 
 	// Call without force — should get confirmation request, NOT clear.
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
@@ -855,8 +855,8 @@ func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
 	w2 := workerResult2.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1") //nolint
-	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2") //nolint
+	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2", "") //nolint
 
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-F",
@@ -888,7 +888,7 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	w := workerResult.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w") //nolint
+	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w", "") //nolint
 
 	// Only 1 worker — should clear without confirmation.
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
