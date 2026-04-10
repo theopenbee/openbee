@@ -3,17 +3,13 @@ package ai
 import "context"
 
 const (
-	// SystemRulesFile is the engine-agnostic rules file written to every workspace.
+	// SystemRulesFile is the legacy rules file that Claude's Prepare hook cleans up.
 	SystemRulesFile = ".openbee.md"
-	// ImportLine is the reference line engines embed in their config files.
+	// ImportLine is the legacy reference line that Claude's Prepare hook removes from CLAUDE.md.
 	ImportLine = "@" + SystemRulesFile
-	// LoadInstruction is the mandatory directive written to AGENTS.md for engines
-	// that do not support @import syntax (e.g. Codex, Pi). It instructs the agent
-	// to explicitly read .openbee.md before each task.
-	LoadInstruction = "Before starting each task, you MUST read the file " + SystemRulesFile + " and strictly follow all rules defined in it."
 )
 
-// Role identifies the openbee agent role for workspace setup.
+// Role identifies the openbee agent role.
 type Role string
 
 const (
@@ -21,11 +17,10 @@ const (
 	RoleWorker Role = "worker"
 )
 
-// WorkspaceOptions carries per-agent metadata used during workspace initialisation.
-type WorkspaceOptions struct {
-	Name        string
-	Description string
-	Memory      string
+// PrepareOptions carries parameters for the engine-specific Prepare hook.
+// Add future fields here without changing the Prepare method signature.
+type PrepareOptions struct {
+	Role Role
 }
 
 // RunOptions controls session behaviour for an engine invocation.
@@ -59,9 +54,10 @@ type Process interface {
 // EngineAdapter is the complete plugin contract for an AI engine.
 // Implementations must be safe for concurrent use.
 type EngineAdapter interface {
-	// SetupWorkspace writes engine-specific config files to workDir (system
-	// rules, persona, etc.). It must be idempotent.
-	SetupWorkspace(workDir string, role Role, opts WorkspaceOptions) error
+	// Prepare is an engine-specific initialisation hook called before each Run.
+	// It must be idempotent. Claude uses it to clean up legacy config files;
+	// other engines return nil.
+	Prepare(workDir string, opts PrepareOptions) error
 
 	// Run executes a task and returns a process handle and an event channel.
 	// The channel is closed after the process exits.

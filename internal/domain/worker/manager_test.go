@@ -11,7 +11,7 @@ import (
 
 type mockEngine struct{}
 
-func (e *mockEngine) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+func (e *mockEngine) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 

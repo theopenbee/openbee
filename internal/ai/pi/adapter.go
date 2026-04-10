@@ -25,8 +25,8 @@ func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.En
 	return &piAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
 }
 
-func (a *piAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	return ai.SetupWorkspace(workDir, role, opts)
+func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
 }
 
 func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,

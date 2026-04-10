@@ -12,7 +12,7 @@ import (
 // stubAdapter is a no-op EngineAdapter for registry tests.
 type stubAdapter struct{}
 
-func (s *stubAdapter) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+func (s *stubAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 func (s *stubAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {

@@ -26,8 +26,8 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter) *BeeProcess {
 	}
 }
 
-func (p *BeeProcess) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	return p.engine.SetupWorkspace(workDir, role, opts)
+func (p *BeeProcess) Prepare(workDir string, opts ai.PrepareOptions) error {
+	return p.engine.Prepare(workDir, opts)
 }
 
 func (p *BeeProcess) ExtractResult(logPath string) string {

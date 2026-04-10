@@ -2,9 +2,6 @@ package claude
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -27,22 +24,8 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
 
-func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	switch role {
-	case ai.RoleWorker:
-		if err := writeCLAUDEMD(workDir, ai.ImportLine+"\n"); err != nil {
-			return err
-		}
-		return EnsureSystemRules(workDir, ai.RoleWorker, opts)
-	case ai.RoleBee:
-		if err := writeCLAUDEMD(workDir, ai.BeePersona+"\n"+ai.ImportLine+"\n"); err != nil {
-			return err
-		}
-		rulesPath := filepath.Join(workDir, ai.SystemRulesFile)
-		return os.WriteFile(rulesPath, []byte(ai.BeeRules()), 0o644)
-	default:
-		return fmt.Errorf("unknown role: %q", role)
-	}
+func (a *claudeAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
 }
 
 func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
@@ -52,11 +35,4 @@ func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 
 func (a *claudeAdapter) ExtractResult(logPath string) string {
 	return ExtractResultFromLog(logPath)
-}
-
-func writeCLAUDEMD(workDir, persona string) error {
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir bee workdir: %w", err)
-	}
-	return ai.CreateFileOnce(filepath.Join(workDir, "CLAUDE.md"), persona)
 }

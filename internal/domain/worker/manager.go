@@ -65,12 +65,8 @@ func (m *Manager) CreateWorker(
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := m.engine.SetupWorkspace(workDir, ai.RoleWorker, ai.WorkspaceOptions{
-		Name:        name,
-		Description: description,
-		Memory:      memory,
-	}); err != nil {
-		return model.Worker{}, fmt.Errorf("setup worker workspace: %w", err)
+	if err := m.engine.Prepare(workDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}
 
 	return m.workerStore.Create(model.Worker{
@@ -104,12 +100,8 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := m.engine.SetupWorkspace(worker.WorkDir, ai.RoleWorker, ai.WorkspaceOptions{
-		Name:        worker.Name,
-		Description: worker.Description,
-		Memory:      worker.Memory,
-	}); err != nil {
-		log.Error("setup worker workspace", zap.String("op", "execute"), zap.Error(err))
+	if err := m.engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
 

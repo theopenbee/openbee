@@ -24,8 +24,8 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 	return &codexAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
 
-func (a *codexAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	return ai.SetupWorkspace(workDir, role, opts)
+func (a *codexAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
 }
 
 func (a *codexAdapter) Run(ctx context.Context, workDir, prompt string,

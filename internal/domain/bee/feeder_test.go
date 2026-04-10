@@ -59,7 +59,7 @@ type beeCall struct {
 	logPath string
 }
 
-func (m *mockBeeRunner) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 
@@ -510,7 +510,7 @@ type callbackBeeRunner struct {
 	done chan struct{}
 }
 
-func (r *callbackBeeRunner) SetupWorkspace(_ string, _ ai.Role, _ ai.WorkspaceOptions) error {
+func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 

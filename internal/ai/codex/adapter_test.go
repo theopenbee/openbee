@@ -1,4 +1,4 @@
-package codex
+package codex_test
 
 import (
 	"os"
@@ -6,42 +6,30 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/codex"
 )
 
-func TestAdapter_SetupWorkspace_Bee(t *testing.T) {
+func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
-	a := NewAdapter("codex", "http://localhost:8080")
-	if err := a.SetupWorkspace(dir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
-		t.Fatalf("SetupWorkspace: %v", err)
+	a := codex.NewAdapter("echo", "http://localhost:9999")
+
+	if err := a.Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
+		t.Fatalf("Prepare: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
-		t.Errorf("AGENTS.md not created: %v", err)
+	// Prepare must not create any files
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("Prepare must not create files, found: %v", entries)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); !os.IsNotExist(err) {
-		t.Errorf(".openbee.md must NOT be created by codex engine")
-	}
+	_ = filepath.Join(dir, "AGENTS.md") // Ensure path helpers compile
 }
 
-func TestAdapter_SetupWorkspace_Worker(t *testing.T) {
-	dir := t.TempDir()
-	a := NewAdapter("codex", "http://localhost:8080")
-	opts := ai.WorkspaceOptions{Name: "w1", Description: "desc", Memory: "mem"}
-	if err := a.SetupWorkspace(dir, ai.RoleWorker, opts); err != nil {
-		t.Fatalf("SetupWorkspace: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
-		t.Errorf("AGENTS.md not created: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".openbee.md")); !os.IsNotExist(err) {
-		t.Errorf(".openbee.md must NOT be created by codex engine")
-	}
-}
-
-func TestAdapter_SetupWorkspace_UnknownRole(t *testing.T) {
-	dir := t.TempDir()
-	a := NewAdapter("codex", "http://localhost:8080")
-	err := a.SetupWorkspace(dir, ai.Role("unknown"), ai.WorkspaceOptions{})
-	if err == nil {
-		t.Error("expected error for unknown role, got nil")
+func TestAdapter_Prepare_BothRoles(t *testing.T) {
+	a := codex.NewAdapter("echo", "http://localhost:9999")
+	for _, role := range []ai.Role{ai.RoleBee, ai.RoleWorker} {
+		dir := t.TempDir()
+		if err := a.Prepare(dir, ai.PrepareOptions{Role: role}); err != nil {
+			t.Errorf("Prepare(%s): %v", role, err)
+		}
 	}
 }

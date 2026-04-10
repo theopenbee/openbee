@@ -6,6 +6,18 @@ import (
 	"path/filepath"
 )
 
+// LoadInstruction is the mandatory directive written to AGENTS.md for engines
+// that do not support @import syntax (e.g. Codex, Pi). It instructs the agent
+// to explicitly read .openbee.md before each task.
+const LoadInstruction = "Before starting each task, you MUST read the file " + SystemRulesFile + " and strictly follow all rules defined in it."
+
+// WorkspaceOptions carries per-agent metadata used during workspace initialisation.
+type WorkspaceOptions struct {
+	Name        string
+	Description string
+	Memory      string
+}
+
 // SetupWorkspace initialises the AI engine workspace in workDir by writing the
 // AGENTS.md persona file. No system rules file (.openbee.md) is written;
 // rule injection is handled via the skill hint prefix on new sessions.
