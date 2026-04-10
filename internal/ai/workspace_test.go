@@ -1,18 +1,16 @@
-package codex
+package ai
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 func TestSetupWorkspace_Bee(t *testing.T) {
 	dir := t.TempDir()
-	if err := setupWorkspace(dir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
-		t.Fatalf("setupWorkspace: %v", err)
+	if err := SetupWorkspace(dir, RoleBee, WorkspaceOptions{}); err != nil {
+		t.Fatalf("SetupWorkspace: %v", err)
 	}
 
 	agentsmd := filepath.Join(dir, "AGENTS.md")
@@ -40,13 +38,13 @@ func TestSetupWorkspace_Bee(t *testing.T) {
 
 func TestSetupWorkspace_Worker(t *testing.T) {
 	dir := t.TempDir()
-	opts := ai.WorkspaceOptions{
+	opts := WorkspaceOptions{
 		Name:        "my-worker",
 		Description: "does things",
 		Memory:      "remember X",
 	}
-	if err := setupWorkspace(dir, ai.RoleWorker, opts); err != nil {
-		t.Fatalf("setupWorkspace: %v", err)
+	if err := SetupWorkspace(dir, RoleWorker, opts); err != nil {
+		t.Fatalf("SetupWorkspace: %v", err)
 	}
 
 	agentsmd := filepath.Join(dir, "AGENTS.md")
@@ -78,20 +76,28 @@ func TestSetupWorkspace_Worker(t *testing.T) {
 	}
 }
 
+func TestSetupWorkspace_UnknownRole(t *testing.T) {
+	dir := t.TempDir()
+	err := SetupWorkspace(dir, Role("unknown"), WorkspaceOptions{})
+	if err == nil {
+		t.Error("expected error for unknown role, got nil")
+	}
+}
+
 func TestSetupWorkspace_Idempotent(t *testing.T) {
 	dir := t.TempDir()
-	if err := setupWorkspace(dir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
-		t.Fatalf("first setupWorkspace: %v", err)
+	if err := SetupWorkspace(dir, RoleBee, WorkspaceOptions{}); err != nil {
+		t.Fatalf("first SetupWorkspace: %v", err)
 	}
 	agentsmd := filepath.Join(dir, "AGENTS.md")
 	if err := os.WriteFile(agentsmd, []byte("custom content"), 0o644); err != nil {
 		t.Fatalf("write custom content: %v", err)
 	}
-	if err := setupWorkspace(dir, ai.RoleBee, ai.WorkspaceOptions{}); err != nil {
-		t.Fatalf("second setupWorkspace: %v", err)
+	if err := SetupWorkspace(dir, RoleBee, WorkspaceOptions{}); err != nil {
+		t.Fatalf("second SetupWorkspace: %v", err)
 	}
 	data, _ := os.ReadFile(agentsmd)
 	if string(data) != "custom content" {
-		t.Errorf("setupWorkspace overwrote existing AGENTS.md")
+		t.Errorf("SetupWorkspace overwrote existing AGENTS.md")
 	}
 }
