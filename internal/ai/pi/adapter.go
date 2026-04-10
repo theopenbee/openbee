@@ -21,13 +21,12 @@ type piAdapter struct {
 	invoker *Invoker
 }
 
-// NewAdapter creates a piAdapter. extraEnv is injected into the subprocess environment.
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
 	return &piAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
 }
 
 func (a *piAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
-	return setupWorkspace(workDir, role, opts)
+	return ai.SetupWorkspace(workDir, role, opts)
 }
 
 func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,

@@ -1,7 +1,7 @@
 package pi
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -21,7 +22,6 @@ type Invoker struct {
 	extraEnv map[string]string
 }
 
-// NewInvoker creates an Invoker. extraEnv keys are injected if non-empty.
 func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker {
 	return &Invoker{
 		binary:   binary,
@@ -45,26 +45,29 @@ type piContent struct {
 	Text string `json:"text"`
 }
 
-// buildArgs constructs the pi CLI arguments.
 func buildArgs(prompt, sessionPath string) []string {
 	return []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
 }
 
-// ExtractResultFromLog scans logPath in reverse for the last agent_end event and
-// returns the text of the last assistant message's first text content item, or "".
+// ExtractResultFromLog scans logPath for the last agent_end event and returns
+// the text of the last assistant message's first text content item, or "".
 func ExtractResultFromLog(logPath string) string {
-	data, err := os.ReadFile(logPath)
+	f, err := os.Open(logPath)
 	if err != nil {
 		return ""
 	}
-	lines := bytes.Split(data, []byte("\n"))
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := bytes.TrimSpace(lines[i])
-		if len(line) == 0 || line[0] != '{' {
+	defer f.Close()
+
+	var lastText string
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(nil, 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "{") {
 			continue
 		}
 		var event piAgentEnd
-		if json.Unmarshal(line, &event) != nil || event.Type != "agent_end" {
+		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
 			continue
 		}
 		for j := len(event.Messages) - 1; j >= 0; j-- {
@@ -74,29 +77,22 @@ func ExtractResultFromLog(logPath string) string {
 			}
 			for _, c := range msg.Content {
 				if c.Type == "text" && c.Text != "" {
-					return c.Text
+					lastText = c.Text
+					goto nextLine
 				}
 			}
 		}
+	nextLine:
 	}
-	return ""
+	return lastText
 }
 
-// sessionDir returns ~/.openbee/.pi/sessions.
-func sessionDir() (string, error) {
+func newSessionPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("user home dir: %w", err)
 	}
-	return filepath.Join(home, ".openbee", ".pi", "sessions"), nil
-}
-
-// newSessionPath creates a new unique session file path inside sessionDir.
-func newSessionPath() (string, error) {
-	dir, err := sessionDir()
-	if err != nil {
-		return "", err
-	}
+	dir := filepath.Join(home, ".openbee", ".pi", "sessions")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("mkdir session dir: %w", err)
 	}
@@ -107,7 +103,6 @@ func newSessionPath() (string, error) {
 	return filepath.Join(dir, hex.EncodeToString(b)+".jsonl"), nil
 }
 
-// buildEnv assembles the subprocess environment.
 func (inv *Invoker) buildEnv(apiKey string) []string {
 	env := make([]string, len(inv.baseEnv), len(inv.baseEnv)+1+len(inv.extraEnv))
 	copy(env, inv.baseEnv)
@@ -117,7 +112,7 @@ func (inv *Invoker) buildEnv(apiKey string) []string {
 			env = append(env, k+"="+v)
 		}
 	}
-	return env[:len(env):len(env)]
+	return env
 }
 
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
@@ -126,7 +121,6 @@ func (inv *Invoker) buildEnv(apiKey string) []string {
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	// Resolve session file path.
 	sessionPath := opts.SessionID
 	if sessionPath == "" {
 		var err error
