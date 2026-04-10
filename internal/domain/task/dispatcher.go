@@ -58,6 +58,11 @@ type SessionStore interface {
 	ClearSessionContexts(ctx context.Context, sessionKey string) error
 }
 
+// WorkerLookup fetches worker metadata for persona injection on new sessions.
+type WorkerLookup interface {
+	GetByID(id string) (model.Worker, error)
+}
+
 type queueState struct {
 	executing    bool
 	pendingTasks []DispatchTask
@@ -77,6 +82,7 @@ type TaskDispatcher struct {
 	execStore        ExecutionQuerier                 // queries execution state by ID
 	failureNotifier  FailureNotifier                  // sends failure notifications (optional)
 	engineName       string                           // current engine name (e.g. "claude", "codex")
+	workerLookup     WorkerLookup                     // optional; if nil, only skill hint is injected
 	inCh             <-chan DispatchTask              // inbound task channel
 	resultsCh        chan internalResult              // internal completion signal channel; drives queue scheduling
 	queues           map[string]*queueState           // per-workerID serial queues
@@ -117,6 +123,11 @@ func WithFailureNotifier(fn FailureNotifier) Option {
 // switches and discard stale session contexts from a different engine.
 func WithEngine(name string) Option {
 	return func(d *TaskDispatcher) { d.engineName = name }
+}
+
+// WithWorkerLookup sets the lookup used to fetch worker metadata for persona injection.
+func WithWorkerLookup(lookup WorkerLookup) Option {
+	return func(d *TaskDispatcher) { d.workerLookup = lookup }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
