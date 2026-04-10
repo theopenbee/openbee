@@ -24,6 +24,10 @@ type ctxKey string
 // Exported so tests can construct contexts that simulate worker calls.
 const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
+type ctxScopesKey string
+
+const CtxScopesKey ctxScopesKey = CtxKeyScopesKey
+
 // ExecutionStopper can kill a running worker process by execution ID.
 type ExecutionStopper interface {
 	StopExecution(executionID string) error
@@ -81,7 +85,9 @@ func NewBeeServer(
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
-	return context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
+	ctx := context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
+	scopes, _ := c.Get(CtxKeyScopesKey)
+	return context.WithValue(ctx, CtxScopesKey, scopes)
 }
 
 // Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.
