@@ -24,7 +24,7 @@ Additionally, clean up residual Claude-specific files from existing workspaces.
 |----------|----------|
 | Existing `.openbee.md` / `CLAUDE.md` files in old workspaces | Claude's `Prepare` hook actively cleans them up (delete `.openbee.md`, remove `@.openbee.md` line from `CLAUDE.md`) |
 | Scope of file generation removal | All three engines: Claude removes CLAUDE.md/.openbee.md generation; Codex/PI remove AGENTS.md generation |
-| `SetupWorkspace` interface method | Renamed to `Prepare`, signature simplified to `Prepare(workDir string) error` (no `role` or `WorkspaceOptions`) |
+| `SetupWorkspace` interface method | Renamed to `Prepare`, signature simplified to `Prepare(workDir string, role Role) error` (no `WorkspaceOptions`; `role` retained for per-role behaviour) |
 | workDir creation responsibility | Moved to Manager (calls `os.MkdirAll` before `engine.Prepare`), not the engine's concern |
 | Existing AGENTS.md in Codex/PI workspaces | Left as-is (harmless, self-deprecating over time) |
 | `BeeRules()` / `WorkerRules()` in rules.go | Deleted (only used by file generation logic) |
@@ -44,7 +44,7 @@ type EngineAdapter interface {
 
 // After
 type EngineAdapter interface {
-    Prepare(workDir string) error  // engine-specific initialization hook; no-op for most engines
+    Prepare(workDir string, role Role) error  // engine-specific initialization hook; role kept for per-role behaviour
     Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (Process, <-chan Output, error)
     ExtractResult(logPath string) string
 }
@@ -52,16 +52,16 @@ type EngineAdapter interface {
 
 ### Manager: workDir Creation
 
-`Manager` calls `os.MkdirAll(workDir, 0755)` before calling `engine.Prepare(workDir)`. This is the Manager's responsibility as the execution context orchestrator.
+`Manager` calls `os.MkdirAll(workDir, 0755)` before calling `engine.Prepare(workDir, role)`. This is the Manager's responsibility as the execution context orchestrator.
 
 ### Claude Engine (`internal/ai/claude/`)
 
-`Prepare(workDir string) error` performs cleanup only:
+`Prepare(workDir string, role Role) error` performs cleanup only (same behaviour regardless of role, since the files being cleaned up apply to all roles):
 
 1. Delete `.openbee.md` if it exists (silent if absent)
 2. Remove the `@.openbee.md` line from `CLAUDE.md` if it exists (silent if file absent or line absent)
 
-No file creation. No rule injection. No persona writing.
+No file creation. No rule injection. No persona writing. The `role` parameter is available for future per-role divergence.
 
 `claudemd.go` cleanup:
 - Remove `writeCLAUDEMD()`, `EnsureSystemRules()`, and related file-writing helpers
@@ -70,13 +70,13 @@ No file creation. No rule injection. No persona writing.
 
 ### Codex Engine (`internal/ai/codex/`)
 
-`Prepare(workDir string) error` returns `nil` immediately (no-op).
+`Prepare(workDir string, role Role) error` returns `nil` immediately (no-op).
 
 Remove AGENTS.md writing logic from `adapter.go`. Delete or simplify `internal/ai/workspace.go` if it was shared only by Codex/PI for AGENTS.md generation.
 
 ### PI Agent Engine (`internal/ai/pi/`)
 
-`Prepare(workDir string) error` returns `nil` immediately (no-op).
+`Prepare(workDir string, role Role) error` returns `nil` immediately (no-op).
 
 Same as Codex: remove AGENTS.md writing logic.
 
@@ -102,19 +102,19 @@ The prompt-prefix injection mechanism is already in place and remains unchanged:
 
 | File | Change |
 |------|--------|
-| `internal/ai/engine.go` | Rename `SetupWorkspace` → `Prepare`; remove `role`, `WorkspaceOptions` params |
-| `internal/ai/claude/adapter.go` | `Prepare`: delete `.openbee.md`, remove `@.openbee.md` line from `CLAUDE.md` |
+| `internal/ai/engine.go` | Rename `SetupWorkspace` → `Prepare`; remove `WorkspaceOptions` param; keep `role Role` param |
+| `internal/ai/claude/adapter.go` | `Prepare(workDir, role)`: delete `.openbee.md`, remove `@.openbee.md` line from `CLAUDE.md` |
 | `internal/ai/claude/claudemd.go` | Remove write functions; keep/merge cleanup helpers; possibly delete file |
-| `internal/ai/codex/adapter.go` | `Prepare`: return nil; remove AGENTS.md write |
-| `internal/ai/pi/adapter.go` | `Prepare`: return nil; remove AGENTS.md write |
+| `internal/ai/codex/adapter.go` | `Prepare(workDir, role)`: return nil; remove AGENTS.md write |
+| `internal/ai/pi/adapter.go` | `Prepare(workDir, role)`: return nil; remove AGENTS.md write |
 | `internal/ai/workspace.go` | Delete entirely — the file only contained the shared `SetupWorkspace` / `createAgentsMD` functions, which are fully removed |
 | `internal/ai/rules.go` | Remove `BeeRules()`, `WorkerRules()` |
-| `internal/ai/manager.go` | Add `os.MkdirAll` before `engine.Prepare`; update call site |
+| `internal/ai/manager.go` | Add `os.MkdirAll` before `engine.Prepare`; update call site (pass `role`, drop `WorkspaceOptions`) |
 
 ## Testing
 
-- Verify Claude engine: on a workspace with existing `.openbee.md` and `CLAUDE.md` (with `@.openbee.md`), calling `Prepare` removes the file and the line
+- Verify Claude engine: on a workspace with existing `.openbee.md` and `CLAUDE.md` (with `@.openbee.md`), calling `Prepare` (any role) removes the file and the line
 - Verify Claude engine: on a workspace without these files, `Prepare` returns nil without error
-- Verify Codex/PI: `Prepare` returns nil
+- Verify Codex/PI: `Prepare` returns nil for both roles
 - Integration: new session with Claude engine receives skill hint via prompt prefix (not via CLAUDE.md)
 - Integration: resumed session with Claude engine does not receive prefix
