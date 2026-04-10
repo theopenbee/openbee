@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
 import { Activity, Bot, Clock3, Logs } from "lucide-react"
@@ -21,8 +21,8 @@ function stripMetadataPrefix(input: string): string {
 
 export function SessionDetail() {
   const { t } = useTranslation()
-  const { sessionId } = useParams<{ sessionId: string }>()
-  const currentSessionId = sessionId ?? ""
+  const [searchParams] = useSearchParams()
+  const currentSessionId = searchParams.get("session_id") ?? ""
   const queryClient = useQueryClient()
   const { data: executions = [], error, isLoading } = useSessionExecutions(currentSessionId)
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)

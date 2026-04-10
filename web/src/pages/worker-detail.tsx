@@ -286,7 +286,7 @@ export function WorkerDetail() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2.5">
                             <Link
-                              to={`/sessions/${latest.session_id}`}
+                              to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
                               className="font-mono text-sm text-primary transition-colors hover:text-primary/80 hover:underline"
                             >
                               {latest.session_id}

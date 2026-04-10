@@ -118,7 +118,7 @@ export function Executions() {
                         )}
                       >
                         <Link
-                          to={`/sessions/${latest.session_id}`}
+                          to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
                           aria-label={t("executions.viewSession", { id: latest.session_id })}
                           className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
                         >

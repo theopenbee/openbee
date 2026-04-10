@@ -63,7 +63,7 @@ func (h *ExecutionHandler) Get(c *gin.Context) {
 }
 
 func (h *ExecutionHandler) ListBySession(c *gin.Context) {
-	sessionID := c.Param("sessionId")
+	sessionID := c.Query("session_id")
 	execs, err := h.executions.ListBySessionID(sessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
