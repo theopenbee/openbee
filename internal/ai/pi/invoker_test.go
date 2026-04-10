@@ -74,24 +74,33 @@ func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 	}
 }
 
-func TestInvoker_Run_EmitsSessionID(t *testing.T) {
-	// Use a dummy binary that exits immediately.
+func TestResolveSessionPath_UsesUUID(t *testing.T) {
+	sessionID := "4d0ce91b-0856-44e2-b0d7-7765d824bba3"
+	got, err := resolveSessionPath(sessionID)
+	if err != nil {
+		t.Fatalf("resolveSessionPath: %v", err)
+	}
+	home, _ := os.UserHomeDir()
+	want := filepath.Join(home, ".openbee", ".pi", "sessions", sessionID+".jsonl")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
 	inv := NewInvoker("true", "http://localhost:8080", nil)
 	logPath := filepath.Join(t.TempDir(), "pi.log")
 
-	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello", ai.RunOptions{}, logPath)
+	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello",
+		ai.RunOptions{SessionID: "test-session-uuid"}, logPath)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	var gotSessionID bool
 	for out := range ch {
-		if out.Type == ai.OutputSessionID && out.Content != "" {
-			gotSessionID = true
+		if out.Type == ai.OutputSessionID {
+			t.Errorf("unexpected OutputSessionID event with content %q", out.Content)
 		}
-	}
-	if !gotSessionID {
-		t.Error("expected OutputSessionID event")
 	}
 }
 
