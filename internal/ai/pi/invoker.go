@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -39,5 +40,5 @@ func sessionDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("user home dir: %w", err)
 	}
-	return home + "/.openbee/.pi/sessions", nil
+	return filepath.Join(home, ".openbee", ".pi", "sessions"), nil
 }
