@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -234,13 +235,13 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 // buildInstruction prepends task metadata to the instruction so workers
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
-	if t.TaskID != "" {
-		meta := fmt.Sprintf(`{"message_id":%q,"task_id":%q}`, t.MessageID, t.TaskID)
-		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", meta, t.Instruction)
+	type taskMeta struct {
+		MessageID string `json:"message_id"`
+		TaskID    string `json:"task_id,omitempty"`
 	}
-	if t.MessageID != "" {
-		meta := fmt.Sprintf(`{"message_id":%q}`, t.MessageID)
-		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", meta, t.Instruction)
+	if t.TaskID != "" || t.MessageID != "" {
+		b, _ := json.Marshal(taskMeta{MessageID: t.MessageID, TaskID: t.TaskID})
+		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)
 	}
 	return t.Instruction
 }
