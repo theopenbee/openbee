@@ -1213,3 +1213,59 @@ func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
 		t.Errorf("expected 0 departments after clear, got %d", len(depts))
 	}
 }
+
+func workerCtx(workerID string, scopes []string) context.Context {
+	ctx := context.WithValue(context.Background(), mcp.CtxWorkerIDKey, workerID)
+	return context.WithValue(ctx, mcp.CtxScopesKey, scopes)
+}
+
+func TestCheckWorkerScope_WorkerWithScope_CanCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:workers"})
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestCheckWorkerScope_WorkerWithoutScope_CannotCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err == nil {
+		t.Error("expected permission denied error, got nil")
+	}
+}
+
+func TestCheckWorkerScope_WorkerWithWrongScope_CannotCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:tasks"}) // has tasks scope, not workers
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err == nil {
+		t.Error("expected permission denied error, got nil")
+	}
+}
+
+func TestCheckWorkerScope_BeeToken_AlwaysAllowed(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	// Bee token: no workerID in context
+	ctx := context.Background()
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Errorf("bee token should always be allowed, got: %v", err)
+	}
+}
+
+func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	// send_message is not in ToolScopeMap — existing behavior, worker can call it
+	_, err := s.CallTool(ctx, utils.SendMessage, mustMarshal(t, map[string]any{
+		"message_id": "nonexistent",
+		"content":    "test",
+	}))
+	// Should NOT be a permission denied error
+	if err != nil && err.Error() == "permission denied: scope read:workers required" {
+		t.Error("non-scoped tool should not return permission denied")
+	}
+}

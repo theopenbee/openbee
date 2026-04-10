@@ -11,6 +11,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -39,8 +40,36 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 	return name
 }
 
+// checkWorkerScope enforces scope-based access control for worker tokens.
+// Bee tokens (empty workerID in context) are always allowed.
+// Worker tokens must have the required scope for tools listed in auth.ToolScopeMap.
+// Tools not in ToolScopeMap are unaffected (existing access rules apply).
+func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
+	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
+	if workerID == "" {
+		return nil // bee token: always allowed
+	}
+	requiredScope, ok := auth.ToolScopeMap[toolName]
+	if !ok {
+		return nil // tool not in scope map: follow existing rules
+	}
+	var scopes []string
+	if v := ctx.Value(CtxScopesKey); v != nil {
+		scopes, _ = v.([]string)
+	}
+	for _, sc := range scopes {
+		if sc == requiredScope {
+			return nil
+		}
+	}
+	return fmt.Errorf("permission denied: scope %s required", requiredScope)
+}
+
 // beeCallTool dispatches to the named tool handler and returns the result.
 func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
+	if err := s.checkWorkerScope(ctx, name); err != nil {
+		return nil, err
+	}
 	switch name {
 	case utils.ListWorkers:
 		return s.toolListWorkers(args)
