@@ -92,7 +92,7 @@ func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "pi.log")
 
 	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello",
-		ai.RunOptions{SessionID: "test-session-uuid"}, logPath)
+		ai.RunOptions{SessionID: "4d0ce91b-0856-44e2-b0d7-7765d824bba3"}, logPath)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
