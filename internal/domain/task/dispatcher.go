@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -289,9 +290,11 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
+	hint := ai.SkillHintPrefix(ai.RoleWorker)
+
 	if task.TaskType != model.TaskTypeImmediate {
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
 	if err != nil {
@@ -299,7 +302,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	if sessionID == "" {
 		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+		return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
@@ -310,7 +313,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
 		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
 	}
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {

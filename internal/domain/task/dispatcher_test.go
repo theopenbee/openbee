@@ -216,8 +216,8 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	mgr.mu.Unlock()
 
 	wantMeta := `<task_meta>{"message_id":"msg-xyz","task_id":"task-abc"}</task_meta>`
-	if !strings.HasPrefix(instr, wantMeta) {
-		t.Errorf("instruction missing task_meta prefix, got: %q", instr)
+	if !strings.Contains(instr, wantMeta) {
+		t.Errorf("instruction missing task_meta, got: %q", instr)
 	}
 	if !strings.Contains(instr, "<task_content>") {
 		t.Errorf("instruction missing task_content tag, got: %q", instr)
@@ -844,8 +844,8 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 	}
 	instr := instructions[0]
 	wantMeta := `<task_meta>{"message_id":"msg-abc"}</task_meta>`
-	if !strings.HasPrefix(instr, wantMeta) {
-		t.Errorf("expected message_id in task_meta prefix, got:\n%s", instr)
+	if !strings.Contains(instr, wantMeta) {
+		t.Errorf("expected message_id in task_meta, got:\n%s", instr)
 	}
 	if !strings.Contains(instr, "<task_content>") {
 		t.Errorf("expected task_content tag in instruction, got:\n%s", instr)
@@ -950,7 +950,64 @@ func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
 		t.Fatal("expected worker to be called")
 	}
 	got := instructions[0]
-	if got != "raw instruction" {
-		t.Errorf("expected passthrough, got: %q", got)
+	// New sessions get the skill hint prefix; the raw instruction follows after the newline.
+	if !strings.Contains(got, "raw instruction") {
+		t.Errorf("expected instruction to contain original text, got: %q", got)
+	}
+}
+
+func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	// No prior session context — new session
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	tsk := immediateTask("sk-1", "worker-1", "do the thing")
+	in <- tsk
+
+	if !waitForExecCount(mgr, 1, 3*time.Second) {
+		t.Fatal("timeout waiting for execution")
+	}
+	mgr.mu.Lock()
+	instruction := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+	if !strings.HasPrefix(instruction, "use openbee-worker skill.\n") {
+		t.Errorf("new session must start with skill hint\ngot: %q", instruction)
+	}
+}
+
+func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	ss := newMockSessionStore()
+	// Pre-populate session context so this is a resume.
+	// Engine name must match the dispatcher's WithEngine option so
+	// GetSessionContextForEngine returns the stored session ID.
+	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("testengine"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	tsk := immediateTask("sk-1", "worker-1", "do the thing")
+	in <- tsk
+
+	if !waitForExecCount(mgr, 1, 3*time.Second) {
+		t.Fatal("timeout waiting for execution")
+	}
+	mgr.mu.Lock()
+	instruction := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+	if strings.HasPrefix(instruction, "use openbee-worker skill.") {
+		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
 	}
 }
