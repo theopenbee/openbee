@@ -125,7 +125,7 @@ Includes Lark, DingTalk, WeCom, WeChat, and Telegram. Users send messages throug
 Responsible for task scheduling — receives messages from the IM layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the IM layer.
 
 **3. Execution Layer**
-Each Worker is an independent AI Agent, equipped with persistent memory, tool invocation (MCP), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM layer — just like real workers.
+Each Worker is an independent AI Agent, equipped with persistent memory, tool invocation (CLI), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM layer — just like real workers.
 
 ## 🌟 Star History
 
