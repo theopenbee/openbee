@@ -137,9 +137,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		defer close(ch)
 		defer logFile.Close()
 
-		// Wait for process in a separate goroutine and close the pipe writer
-		// so the reader sees EOF. Without this, io.Copy(io.Discard, pr) blocks
-		// forever because pw is never closed after the process exits.
+		// Close pw after cmd.Wait so the pipe reader sees EOF.
 		waitCh := make(chan error, 1)
 		go func() {
 			waitCh <- cmd.Wait()

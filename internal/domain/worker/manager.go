@@ -83,7 +83,7 @@ func (m *Manager) CreateWorker(
 }
 
 // ExecuteWorker runs a worker. When sessionID is non-empty, it resumes the existing
-// Claude session (resume=true); otherwise it starts a fresh session.
+// AI engine session (resume=true); otherwise it starts a fresh session.
 func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {

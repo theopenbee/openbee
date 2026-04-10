@@ -30,20 +30,15 @@ func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
 func (a *claudeAdapter) SetupWorkspace(workDir string, role ai.Role, opts ai.WorkspaceOptions) error {
 	switch role {
 	case ai.RoleWorker:
-		if err := writeCLAUDEMD(workDir, ImportLine+"\n"); err != nil {
+		if err := writeCLAUDEMD(workDir, ai.ImportLine+"\n"); err != nil {
 			return err
 		}
-		return EnsureSystemRules(workDir, ai.RoleWorker,
-			WithName(opts.Name),
-			WithDescription(opts.Description),
-			WithMemory(opts.Memory),
-		)
+		return EnsureSystemRules(workDir, ai.RoleWorker, opts)
 	case ai.RoleBee:
-		if err := writeCLAUDEMD(workDir, ai.BeePersona+"\n"+ImportLine+"\n"); err != nil {
+		if err := writeCLAUDEMD(workDir, ai.BeePersona+"\n"+ai.ImportLine+"\n"); err != nil {
 			return err
 		}
-		// Write .openbee.md directly; do not modify an existing CLAUDE.md.
-		rulesPath := filepath.Join(workDir, SystemRulesFile)
+		rulesPath := filepath.Join(workDir, ai.SystemRulesFile)
 		return os.WriteFile(rulesPath, []byte(ai.BeeRules()), 0o644)
 	default:
 		return fmt.Errorf("unknown role: %q", role)

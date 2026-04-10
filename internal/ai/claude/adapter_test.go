@@ -30,7 +30,7 @@ func TestClaudeAdapter_SetupWorkspace_Worker(t *testing.T) {
 		t.Fatalf("SetupWorkspace: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, ai.SystemRulesFile))
 	if err != nil {
 		t.Fatalf("read system rules: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestClaudeAdapter_SetupWorkspace_Bee_CreatesCLAUDEMD(t *testing.T) {
 		t.Error("CLAUDE.md was not created for bee workspace")
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, claude.SystemRulesFile))
+	data, err := os.ReadFile(filepath.Join(dir, ai.SystemRulesFile))
 	if err != nil {
 		t.Fatalf("read system rules: %v", err)
 	}
