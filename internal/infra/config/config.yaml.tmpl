@@ -25,6 +25,12 @@ bee:
   pi:
     path: {{.PiPath}}
     timeout: {{.PiTimeout}}
+    {{- if .PiEnv}}
+    env:
+    {{- range $k, $v := .PiEnv}}
+      {{$k}}: "{{$v}}"
+    {{- end}}
+    {{- end}}
   mcp:
     token_secret: "{{.MCPTokenSecret}}"
     token_ttl: {{.MCPTokenTTL}}

@@ -78,6 +78,7 @@ type configValues struct {
 	CodexTimeout  string
 	PiPath        string
 	PiTimeout     string
+	PiEnv         map[string]string
 
 	FeederTimeout          string
 	FeederMaxConcurrentBee int
@@ -151,6 +152,7 @@ func loadExistingConfig(path string) *configValues {
 		CodexTimeout:         cfg.Bee.Codex.Timeout.String(),
 		PiPath:               cfg.Bee.Pi.Path,
 		PiTimeout:            cfg.Bee.Pi.Timeout.String(),
+		PiEnv:                cfg.Bee.Pi.Env,
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
