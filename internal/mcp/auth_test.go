@@ -132,7 +132,7 @@ func TestWorkerScopesStoredInContext(t *testing.T) {
 	r := gin.New()
 	r.Use(mcp.JWTAuthMiddleware(testSecret))
 	r.GET("/test", func(c *gin.Context) {
-		raw, _ := c.Get(mcp.CtxKeyScopesKey)
+		raw, _ := c.Get(mcp.CtxKeyScopes)
 		got, _ := raw.([]string)
 		if len(got) != 2 || got[0] != auth.ScopeReadWorkers || got[1] != auth.ScopeReadTasks {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "wrong scopes"})

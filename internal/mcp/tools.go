@@ -47,20 +47,15 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
 	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
 	if workerID == "" {
-		return nil // bee token: always allowed
+		return nil
 	}
 	requiredScope, ok := auth.ToolScopeMap[toolName]
 	if !ok {
-		return nil // tool not in scope map: follow existing rules
+		return nil
 	}
-	var scopes []string
-	if v := ctx.Value(CtxScopesKey); v != nil {
-		scopes, _ = v.([]string)
-	}
-	for _, sc := range scopes {
-		if sc == requiredScope {
-			return nil
-		}
+	scopes, _ := ctx.Value(CtxScopesKey).([]string)
+	if slices.Contains(scopes, requiredScope) {
+		return nil
 	}
 	return fmt.Errorf("permission denied: scope %s required", requiredScope)
 }

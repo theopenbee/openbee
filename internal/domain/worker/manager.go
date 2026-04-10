@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var log = logger.With(zap.String("component", "worker"))
@@ -128,18 +128,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
-	// Parse permission scopes from comma-separated string
-	var scopes []string
-	if worker.PermissionScopes != "" {
-		for _, s := range strings.Split(worker.PermissionScopes, ",") {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				scopes = append(scopes, s)
-			}
-		}
-	}
-
-	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, scopes, m.beeCfg.MCP.TokenTTL)
+	token, err := auth.GenerateWorkerToken(m.beeCfg.MCP.TokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), m.beeCfg.MCP.TokenTTL)
 	if err != nil {
 		return fmt.Errorf("generate worker token: %w", err)
 	}
