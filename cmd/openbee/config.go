@@ -704,7 +704,7 @@ func executablePathValidator(val any) error {
 }
 
 func installBuiltinSkills() {
-	results, err := skillinstall.InstallSkills("")
+	results, err := skillinstall.InstallSkillsToDefaults()
 	if err != nil {
 		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
 		return
