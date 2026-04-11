@@ -400,9 +400,9 @@ export function LogViewer({
   useEffect(() => {
     let disposed = false
 
-    const ensureParser = (firstLine: string): StreamParser => {
+    const ensureParser = (lines: string[]): StreamParser => {
       if (!parserRef.current) {
-        const engine = detectEngine(firstLine)
+        const engine = detectEngine(lines)
         parserRef.current =
           engine === "codex"
             ? new CodexParser()
@@ -415,7 +415,7 @@ export function LogViewer({
 
     const appendLines = (lines: string[]) => {
       if (lines.length === 0) return
-      const parser = ensureParser(lines[0])
+      const parser = ensureParser(lines)
       setEntries((previous) => {
         const next = [...previous]
         lines.forEach((line) => parser.parseLine(line, "stdout", next, toolMapRef.current))
@@ -456,7 +456,7 @@ export function LogViewer({
       const nextToolMap = new Map<string, number>()
       parserRef.current = null
       if (lines.length > 0) {
-        const parser = ensureParser(lines[0])
+        const parser = ensureParser(lines)
         lines.forEach((line) => parser.parseLine(line, "stdout", nextEntries, nextToolMap))
       }
       toolMapRef.current = nextToolMap
