@@ -36,7 +36,7 @@ export interface StreamParser {
 export function appendTextEntry(text: string, entries: ParsedEntry[]): void {
   const last = entries[entries.length - 1]
   if (last?.kind === "text") {
-    last.text = `${last.text}\n\n${text}`
+    entries[entries.length - 1] = { ...last, text: `${last.text}\n\n${text}` }
     return
   }
   entries.push({ kind: "text", text })
@@ -45,7 +45,7 @@ export function appendTextEntry(text: string, entries: ParsedEntry[]): void {
 export function appendRawEntry(content: string, logType: string, entries: ParsedEntry[]): void {
   const last = entries[entries.length - 1]
   if (last?.kind === "raw" && last.logType === logType) {
-    last.content = `${last.content}\n${content}`
+    entries[entries.length - 1] = { ...last, content: `${last.content}\n${content}` }
     return
   }
   entries.push({ kind: "raw", content, logType })

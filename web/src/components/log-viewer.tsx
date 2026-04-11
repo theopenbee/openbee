@@ -192,7 +192,11 @@ function CodexCommandEntry({
   entry: Extract<ParsedEntry, { kind: "codex-command" }>
 }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(entry.inProgress || Boolean(!entry.output))
+  const [open, setOpen] = useState(entry.inProgress)
+
+  useEffect(() => {
+    if (!entry.inProgress) setOpen(false)
+  }, [entry.inProgress])
 
   const markerClass = entry.inProgress
     ? "bg-primary/55"

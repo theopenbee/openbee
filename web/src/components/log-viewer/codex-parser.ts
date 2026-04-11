@@ -79,7 +79,6 @@ export class CodexParser implements StreamParser {
             return
           }
         }
-        // id not found in map — fall through to raw
       }
 
       appendRawEntry(line, logType, entries)
