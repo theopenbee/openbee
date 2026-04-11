@@ -34,9 +34,8 @@ type RunOptions struct {
 type OutputType string
 
 const (
-	OutputDone      OutputType = "done"
-	OutputError     OutputType = "error"
-	OutputSessionID OutputType = "session_id"
+	OutputDone  OutputType = "done"
+	OutputError OutputType = "error"
 )
 
 // Engine name constants used for registration and configuration.
