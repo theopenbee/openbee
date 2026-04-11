@@ -12,9 +12,6 @@ import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
 import { CodexParser } from "./log-viewer/codex-parser"
 
-// Re-export helpers still used by UI components in this file
-export { getToolMeta, stringify } from "./log-viewer/claude-parser"
-
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
 
@@ -363,8 +360,8 @@ export function LogViewer({
 
     const appendLines = (lines: string[]) => {
       if (lines.length === 0) return
+      const parser = ensureParser(lines[0])
       setEntries((previous) => {
-        const parser = ensureParser(lines[0])
         const next = [...previous]
         lines.forEach((line) => parser.parseLine(line, "stdout", next, toolMapRef.current))
         return next
@@ -583,7 +580,7 @@ export function LogViewer({
                 if (entry.kind === "text") return <AssistantEntry key={`text-${i}`} text={entry.text} />
                 if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
                 if (entry.kind === "result") return <ResultEntry key={`result-${i}`} entry={entry} />
-                if (entry.kind === "codex-command") return <CodexCommandEntry key={i} entry={entry} />
+                if (entry.kind === "codex-command") return <CodexCommandEntry key={entry.id} entry={entry} />
                 if (entry.kind === "codex-turn") return <CodexTurnEntry key={i} entry={entry} />
                 return <RawEntry key={`raw-${i}`} entry={entry} />
               })}

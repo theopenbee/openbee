@@ -1,5 +1,5 @@
 import type { ParsedEntry, StreamParser } from "./types"
-import { appendTextEntry, appendRawEntry } from "./types"
+import { appendTextEntry, appendRawEntry, parseJsonEvent } from "./types"
 
 interface CodexEvent {
   type: string
@@ -18,16 +18,6 @@ interface CodexEvent {
   }
 }
 
-function parseCodexLine(line: string): CodexEvent | null {
-  try {
-    const obj = JSON.parse(line)
-    if (obj && typeof obj.type === "string") return obj as CodexEvent
-    return null
-  } catch {
-    return null
-  }
-}
-
 export class CodexParser implements StreamParser {
   parseLine(
     line: string,
@@ -35,7 +25,12 @@ export class CodexParser implements StreamParser {
     entries: ParsedEntry[],
     itemMap: Map<string, number>
   ): void {
-    const event = parseCodexLine(line)
+    if (logType !== "stdout") {
+      appendRawEntry(line, logType, entries)
+      return
+    }
+
+    const event = parseJsonEvent<CodexEvent>(line)
 
     if (!event) {
       appendRawEntry(line, logType, entries)
@@ -78,6 +73,7 @@ export class CodexParser implements StreamParser {
           const existing = entries[idx]
           if (existing?.kind === "codex-command") {
             entries[idx] = { ...existing, inProgress: false, output: item.text ?? "" }
+            itemMap.delete(item.id)
             return
           }
         }

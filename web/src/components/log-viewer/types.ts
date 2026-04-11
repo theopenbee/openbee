@@ -50,3 +50,13 @@ export function appendRawEntry(content: string, logType: string, entries: Parsed
   }
   entries.push({ kind: "raw", content, logType })
 }
+
+export function parseJsonEvent<T extends { type: string }>(line: string): T | null {
+  try {
+    const obj = JSON.parse(line)
+    if (obj && typeof obj.type === "string") return obj as T
+    return null
+  } catch {
+    return null
+  }
+}

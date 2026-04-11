@@ -1,5 +1,5 @@
 import type { ParsedEntry, StreamParser } from "./types"
-import { appendTextEntry, appendRawEntry } from "./types"
+import { appendTextEntry, appendRawEntry, parseJsonEvent } from "./types"
 
 interface ClaudeStreamEvent {
   type: string
@@ -17,16 +17,6 @@ interface ClaudeStreamEvent {
     }>
   }
   result?: string
-}
-
-function parseStreamLine(line: string): ClaudeStreamEvent | null {
-  try {
-    const obj = JSON.parse(line)
-    if (obj && typeof obj.type === "string") return obj as ClaudeStreamEvent
-    return null
-  } catch {
-    return null
-  }
 }
 
 export function truncate(value: string, max = 96): string {
@@ -118,7 +108,7 @@ export class ClaudeParser implements StreamParser {
     itemMap: Map<string, number>
   ): void {
     if (logType === "stdout") {
-      const event = parseStreamLine(line)
+      const event = parseJsonEvent<ClaudeStreamEvent>(line)
       if (event) {
         if (event.type === "assistant" && event.message?.content) {
           for (const block of event.message.content) {

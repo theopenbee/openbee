@@ -1,9 +1,6 @@
+import { parseJsonEvent } from "./types"
+
 export function detectEngine(firstLine: string): "claude" | "codex" {
-  try {
-    const obj = JSON.parse(firstLine)
-    if (obj && obj.type === "thread.started") return "codex"
-  } catch {
-    // fall through
-  }
-  return "claude"
+  const event = parseJsonEvent<{ type: string }>(firstLine)
+  return event?.type === "thread.started" ? "codex" : "claude"
 }
