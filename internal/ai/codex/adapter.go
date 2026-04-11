@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"fmt"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -12,7 +13,7 @@ func init() {
 		if path == "" {
 			path = ai.EngineCodex
 		}
-		return NewAdapter(path, cfg.OpenbeeURL), nil
+		return NewAdapter(path, cfg.OpenbeeURL)
 	})
 }
 
@@ -20,8 +21,12 @@ type codexAdapter struct {
 	invoker *Invoker
 }
 
-func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
-	return &codexAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
+func NewAdapter(binaryPath, openbeeURL string) (ai.EngineAdapter, error) {
+	store, err := NewSessionStore()
+	if err != nil {
+		return nil, fmt.Errorf("init codex session store: %w", err)
+	}
+	return &codexAdapter{invoker: NewInvoker(binaryPath, openbeeURL, store)}, nil
 }
 
 func (a *codexAdapter) Prepare(_ string, _ ai.PrepareOptions) error {

@@ -42,6 +42,14 @@ func TestExtractSessionID(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_ResumeUsesThreadID(t *testing.T) {
+	args := buildArgs("thread-xyz-from-store", true, "follow up")
+	want := []string{"exec", "resume", "thread-xyz-from-store", "--json", "--dangerously-bypass-approvals-and-sandbox", "follow up"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
 func TestExtractResultFromLog(t *testing.T) {
 	jsonStream := `{"type":"thread.started","thread_id":"abc"}
 {"type":"item.completed","item":{"type":"agent_message","text":"hello world"}}

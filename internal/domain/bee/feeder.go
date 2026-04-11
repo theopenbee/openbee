@@ -208,13 +208,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	engineSessionID, drainErr := f.waitBeeOutput(outputCh)
-	if engineSessionID != "" {
-		sessionID = engineSessionID
-		if err := f.execStore.UpdateSessionID(exec.ID, engineSessionID); err != nil {
-			log.Error("update bee execution session id", zap.Error(err))
-		}
-	}
+	drainErr := f.waitBeeOutput(outputCh)
 
 	finalStatus := model.ExecStatusCompleted
 	resultMsg := ""
@@ -288,21 +282,17 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 }
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
-// Returns the engine session ID (if emitted) and nil on OutputDone,
-// or ("", error) on OutputError or channel close without signal.
-func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) (string, error) {
-	var engineSessionID string
+// Returns nil on OutputDone, or an error on OutputError or channel close without signal.
+func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 	for out := range ch {
 		switch out.Type {
 		case ai.OutputDone:
-			return engineSessionID, nil
+			return nil
 		case ai.OutputError:
-			return engineSessionID, errors.New(out.Content)
-		case ai.OutputSessionID:
-			engineSessionID = out.Content
+			return errors.New(out.Content)
 		}
 	}
-	return engineSessionID, fmt.Errorf("output channel closed without completion signal")
+	return fmt.Errorf("output channel closed without completion signal")
 }
 
 func messageIDs(msgs []store.ClaimedMessage) []string {

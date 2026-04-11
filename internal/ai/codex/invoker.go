@@ -10,17 +10,22 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"go.uber.org/zap"
 )
 
-// Invoker spawns Codex CLI processes. It is stateless and safe for concurrent use.
+var log = logger.With(zap.String("component", "codex"))
+
+// Invoker spawns Codex CLI processes and is safe for concurrent use.
 type Invoker struct {
 	binary  string
 	baseEnv []string
+	store   *SessionStore
 }
 
 // NewInvoker creates an Invoker. openbeeURL is injected as OPENBEE_URL into subprocesses.
-func NewInvoker(binary, openbeeURL string) *Invoker {
-	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL)}
+func NewInvoker(binary, openbeeURL string, store *SessionStore) *Invoker {
+	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL), store: store}
 }
 
 type codexEvent struct {
@@ -34,9 +39,9 @@ type codexItem struct {
 	Text string `json:"text,omitempty"`
 }
 
-func buildArgs(sessionID string, resume bool, prompt string) []string {
-	if resume && sessionID != "" {
-		args := []string{"exec", "resume", sessionID, "--json", "--dangerously-bypass-approvals-and-sandbox"}
+func buildArgs(threadID string, resume bool, prompt string) []string {
+	if resume && threadID != "" {
+		args := []string{"exec", "resume", threadID, "--json", "--dangerously-bypass-approvals-and-sandbox"}
 		if prompt != "" {
 			args = append(args, prompt)
 		}
@@ -88,10 +93,10 @@ func ExtractResultFromLog(logPath string) string {
 }
 
 // Run starts a Codex CLI process, redirecting output to logPath.
-// For new sessions (Resume=false), prompt is passed via stdin.
-// For resume sessions, prompt is passed as a follow-up argument (if non-empty).
+// For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	args := buildArgs(opts.SessionID, opts.Resume, prompt)
+	threadID, resume := inv.resolveThread(opts.SessionID, opts.Resume)
+	args := buildArgs(threadID, resume, prompt)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -107,7 +112,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Stderr = logFile
 	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
-	if !opts.Resume {
+	if !resume {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
 
@@ -125,16 +130,18 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		defer close(ch)
 		defer logFile.Close()
 
-		// Close pw after cmd.Wait so the pipe reader sees EOF.
 		doneCh := make(chan error, 1)
 		go func() {
 			doneCh <- cmd.Wait()
 			pw.Close()
 		}()
 
-		sessionID := extractSessionID(pr)
-		if sessionID != "" {
-			ch <- ai.Output{Type: ai.OutputSessionID, Content: sessionID}
+		if !resume {
+			if newThreadID := extractSessionID(pr); newThreadID != "" {
+				if err := inv.store.Set(opts.SessionID, newThreadID); err != nil {
+					log.Error("store codex session", zap.String("uuid", opts.SessionID), zap.Error(err))
+				}
+			}
 		}
 		io.Copy(io.Discard, pr)
 
@@ -146,4 +153,16 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	}()
 
 	return proc, ch, nil
+}
+
+func (inv *Invoker) resolveThread(openbeeUUID string, resume bool) (threadID string, resolvedResume bool) {
+	if !resume {
+		return "", false
+	}
+	threadID, ok := inv.store.Get(openbeeUUID)
+	if !ok {
+		log.Warn("codex session mapping not found, starting new session", zap.String("uuid", openbeeUUID))
+		return "", false
+	}
+	return threadID, true
 }

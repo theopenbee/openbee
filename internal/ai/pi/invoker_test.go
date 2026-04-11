@@ -101,10 +101,7 @@ func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	for out := range ch {
-		if out.Type == ai.OutputSessionID {
-			t.Errorf("unexpected OutputSessionID event with content %q", out.Content)
-		}
+	for range ch {
 	}
 }
 
