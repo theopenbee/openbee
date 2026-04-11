@@ -1,6 +1,7 @@
 package pi
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -111,9 +112,14 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
+
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		logFile.Close()
+		return nil, nil, fmt.Errorf("stdout pipe: %w", err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -126,6 +132,21 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	go func() {
 		defer close(ch)
 		defer logFile.Close()
+
+		// Filter out streaming delta events (message_update) before writing to
+		// the log file. These incremental chunks are superseded by the final
+		// content in message_end events, so dropping them keeps logs compact
+		// and readable without losing any useful information.
+		scanner := bufio.NewScanner(stdoutPipe)
+		scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if !isStreamingDelta(line) {
+				logFile.Write(line)
+				logFile.Write([]byte("\n"))
+			}
+		}
+
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
 		} else {
@@ -134,4 +155,18 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	}()
 
 	return proc, ch, nil
+}
+
+// isStreamingDelta reports whether a JSON log line is a streaming delta event
+// that should be filtered to keep log files compact. message_update events
+// contain incremental thinking/text deltas that are superseded by the complete
+// content in the corresponding message_end event.
+func isStreamingDelta(line []byte) bool {
+	var e struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(line, &e) != nil {
+		return false
+	}
+	return e.Type == "message_update"
 }
