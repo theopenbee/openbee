@@ -223,7 +223,7 @@ function CodexCommandEntry({
               ? t("logViewer.collapse", { name: t("logViewer.commandExecution") })
               : t("logViewer.expand", { name: t("logViewer.commandExecution") })
           }
-          onClick={() => setOpen((c) => !c)}
+          onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/25"
         >
           <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-background px-2.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
@@ -312,14 +312,12 @@ function PiThinkingEntry({
           type="button"
           aria-expanded={open}
           aria-label={open ? t("logViewer.collapse", { name: t("logViewer.thinking") }) : t("logViewer.expand", { name: t("logViewer.thinking") })}
-          onClick={() => setOpen((c) => !c)}
+          onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
         >
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
-              {t("logViewer.thinking")}
-            </p>
-          </div>
+          <p className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+            {t("logViewer.thinking")}
+          </p>
           <span className="mt-0.5 shrink-0 text-muted-foreground/60" aria-hidden="true">
             {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </span>
@@ -525,6 +523,7 @@ export function LogViewer({
     let narrativeCount = 0
     let toolCount = 0
     let rawCount = 0
+    const filterAlias: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
     const visibleItems: Array<{ entry: ParsedEntry; index: number }> = []
     entries.forEach((entry, i) => {
       if (entry.kind === "text" || entry.kind === "pi-thinking") narrativeCount += 1
@@ -533,13 +532,7 @@ export function LogViewer({
       const visible =
         entry.kind === "result" || entry.kind === "codex-turn"
           ? true
-          : filter === "all"
-            ? true
-            : entry.kind === "codex-command"
-              ? filter === "tool"
-              : entry.kind === "pi-thinking"
-                ? filter === "text"
-                : entry.kind === filter
+          : filter === "all" || (filterAlias[entry.kind] ?? entry.kind) === filter
       if (visible) visibleItems.push({ entry, index: i })
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [

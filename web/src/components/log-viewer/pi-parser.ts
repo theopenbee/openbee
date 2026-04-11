@@ -1,13 +1,10 @@
 import type { ParsedEntry, StreamParser } from "./types"
-import { appendRawEntry, parseJsonEvent } from "./types"
+import { appendRawEntry, appendTextEntry, parseJsonEvent } from "./types"
 
 interface PiContentBlock {
   type: string
   text?: string
   thinking?: string
-  id?: string
-  name?: string
-  input?: unknown
 }
 
 interface PiMessage {
@@ -78,7 +75,7 @@ export class PiParser implements StreamParser {
               thinking: block.thinking,
             })
           } else if (block.type === "text" && block.text) {
-            entries.push({ kind: "text", text: block.text })
+            appendTextEntry(block.text, entries)
           }
           // tool_use blocks are ignored — handled by tool_execution events
         })
@@ -98,10 +95,7 @@ export class PiParser implements StreamParser {
 
       case "tool_execution_end": {
         const { toolCallId, result, isError } = event
-        if (!toolCallId) {
-          appendRawEntry(line, logType, entries)
-          return
-        }
+        if (!toolCallId) return
         const idx = itemMap.get(toolCallId)
         if (idx === undefined) return
         const existing = entries[idx]
