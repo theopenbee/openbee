@@ -2,6 +2,7 @@ package pi
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -133,22 +134,23 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		defer close(ch)
 		defer logFile.Close()
 
-		// Filter out streaming delta events (message_update) before writing to
-		// the log file. These incremental chunks are superseded by the final
-		// content in message_end events, so dropping them keeps logs compact
-		// and readable without losing any useful information.
+		var writeErr error
 		scanner := bufio.NewScanner(stdoutPipe)
-		scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024)
+		scanner.Buffer(make([]byte, 64*1024), 64*1024)
 		for scanner.Scan() {
 			line := scanner.Bytes()
 			if !isStreamingDelta(line) {
-				logFile.Write(line)
-				logFile.Write([]byte("\n"))
+				if _, err := logFile.Write(append(line, '\n')); err != nil {
+					writeErr = err
+					break
+				}
 			}
 		}
 
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
+		} else if writeErr != nil {
+			ch <- ai.Output{Type: ai.OutputError, Content: fmt.Sprintf("write log: %v", writeErr)}
 		} else {
 			ch <- ai.Output{Type: ai.OutputDone}
 		}
@@ -162,11 +164,5 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 // contain incremental thinking/text deltas that are superseded by the complete
 // content in the corresponding message_end event.
 func isStreamingDelta(line []byte) bool {
-	var e struct {
-		Type string `json:"type"`
-	}
-	if json.Unmarshal(line, &e) != nil {
-		return false
-	}
-	return e.Type == "message_update"
+	return bytes.Contains(line, []byte(`"type":"message_update"`))
 }
