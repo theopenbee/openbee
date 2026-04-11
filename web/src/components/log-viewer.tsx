@@ -11,6 +11,7 @@ import type { ParsedEntry, StreamParser } from "./log-viewer/types"
 import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
 import { CodexParser } from "./log-viewer/codex-parser"
+import { PiParser } from "./log-viewer/pi-parser"
 
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
@@ -296,6 +297,46 @@ function CodexTurnEntry({
   )
 }
 
+function PiThinkingEntry({
+  entry,
+}: {
+  entry: Extract<ParsedEntry, { kind: "pi-thinking" }>
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <TimelineRow markerClassName="bg-muted-foreground/35">
+      <article className="overflow-hidden rounded-2xl border border-border/50 bg-muted/15">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? t("logViewer.collapse", { name: t("logViewer.thinking") }) : t("logViewer.expand", { name: t("logViewer.thinking") })}
+          onClick={() => setOpen((c) => !c)}
+          className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+              {t("logViewer.thinking")}
+            </p>
+          </div>
+          <span className="mt-0.5 shrink-0 text-muted-foreground/60" aria-hidden="true">
+            {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </span>
+        </button>
+
+        {open && (
+          <div className="border-t border-border/50 px-4 pb-4 pt-3">
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-muted/25 p-3 font-mono text-[12px] leading-6 text-muted-foreground">
+              {entry.thinking}
+            </pre>
+          </div>
+        )}
+      </article>
+    </TimelineRow>
+  )
+}
+
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
@@ -363,8 +404,13 @@ export function LogViewer({
 
     const ensureParser = (firstLine: string): StreamParser => {
       if (!parserRef.current) {
+        const engine = detectEngine(firstLine)
         parserRef.current =
-          detectEngine(firstLine) === "codex" ? new CodexParser() : new ClaudeParser()
+          engine === "codex"
+            ? new CodexParser()
+            : engine === "pi"
+              ? new PiParser()
+              : new ClaudeParser()
       }
       return parserRef.current
     }
@@ -481,7 +527,7 @@ export function LogViewer({
     let rawCount = 0
     const visibleItems: Array<{ entry: ParsedEntry; index: number }> = []
     entries.forEach((entry, i) => {
-      if (entry.kind === "text") narrativeCount += 1
+      if (entry.kind === "text" || entry.kind === "pi-thinking") narrativeCount += 1
       else if (entry.kind === "tool" || entry.kind === "codex-command") toolCount += 1
       else if (entry.kind === "raw") rawCount += 1
       const visible =
@@ -491,7 +537,9 @@ export function LogViewer({
             ? true
             : entry.kind === "codex-command"
               ? filter === "tool"
-              : entry.kind === filter
+              : entry.kind === "pi-thinking"
+                ? filter === "text"
+                : entry.kind === filter
       if (visible) visibleItems.push({ entry, index: i })
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
@@ -591,6 +639,7 @@ export function LogViewer({
 
             <div className="space-y-3">
               {visibleItems.map(({ entry, index: k }) => {
+                if (entry.kind === "pi-thinking") return <PiThinkingEntry key={entry.id} entry={entry} />
                 if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
                 if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
                 if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
