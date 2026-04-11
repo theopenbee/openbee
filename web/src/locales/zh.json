@@ -186,7 +186,13 @@
     "rawOutput": "原始输出",
     "pending": "等待结果",
     "returned": "已返回",
-    "failed": "执行失败"
+    "failed": "执行失败",
+    "commandExecution": "命令",
+    "running": "执行中...",
+    "turnUsage": "本轮用量",
+    "inputTokens": "输入",
+    "cachedTokens": "缓存",
+    "outputTokens": "输出"
   },
   "tasks": {
     "title": "定时任务",

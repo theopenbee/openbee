@@ -186,7 +186,13 @@
     "rawOutput": "Raw output",
     "pending": "Pending",
     "returned": "Returned",
-    "failed": "Failed"
+    "failed": "Failed",
+    "commandExecution": "Command",
+    "running": "Running...",
+    "turnUsage": "Turn",
+    "inputTokens": "input",
+    "cachedTokens": "cached",
+    "outputTokens": "output"
   },
   "tasks": {
     "title": "Scheduled tasks",

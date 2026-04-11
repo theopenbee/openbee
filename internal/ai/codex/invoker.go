@@ -35,8 +35,13 @@ type codexEvent struct {
 }
 
 type codexItem struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	ID               string `json:"id,omitempty"`
+	Type             string `json:"type"`
+	Text             string `json:"text,omitempty"`
+	Command          string `json:"command,omitempty"`
+	AggregatedOutput string `json:"aggregated_output,omitempty"`
+	ExitCode         *int   `json:"exit_code,omitempty"`
+	Status           string `json:"status,omitempty"`
 }
 
 func buildArgs(threadID string, resume bool, prompt string) []string {
