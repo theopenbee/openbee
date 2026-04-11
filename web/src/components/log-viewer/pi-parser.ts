@@ -76,7 +76,7 @@ export class PiParser implements StreamParser {
               id: `thinking-${messageIndex}-${blockIndex}`,
               thinking: block.thinking,
             })
-          } else if (block.type === "text" && block.text) {
+          } else if (block.type === "text" && block.text?.trim()) {
             appendTextEntry(block.text, entries)
           }
           // tool_use blocks are ignored — handled by tool_execution events
