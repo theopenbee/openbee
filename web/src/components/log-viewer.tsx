@@ -16,6 +16,8 @@ import { PiParser } from "./log-viewer/pi-parser"
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
 
+const FILTER_ALIAS: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
+
 interface LogViewerProps {
   executionId: string
   status: ExecutionStatus
@@ -311,7 +313,7 @@ function PiThinkingEntry({
         <button
           type="button"
           aria-expanded={open}
-          aria-label={open ? t("logViewer.collapse", { name: t("logViewer.thinking") }) : t("logViewer.expand", { name: t("logViewer.thinking") })}
+          aria-label={t(open ? "logViewer.collapse" : "logViewer.expand", { name: t("logViewer.thinking") })}
           onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
         >
@@ -523,7 +525,6 @@ export function LogViewer({
     let narrativeCount = 0
     let toolCount = 0
     let rawCount = 0
-    const filterAlias: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
     const visibleItems: Array<{ entry: ParsedEntry; index: number }> = []
     entries.forEach((entry, i) => {
       if (entry.kind === "text" || entry.kind === "pi-thinking") narrativeCount += 1
@@ -532,7 +533,7 @@ export function LogViewer({
       const visible =
         entry.kind === "result" || entry.kind === "codex-turn"
           ? true
-          : filter === "all" || (filterAlias[entry.kind] ?? entry.kind) === filter
+          : filter === "all" || (FILTER_ALIAS[entry.kind] ?? entry.kind) === filter
       if (visible) visibleItems.push({ entry, index: i })
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
