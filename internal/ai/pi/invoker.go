@@ -140,6 +140,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		for scanner.Scan() {
 			line := scanner.Bytes()
 			if !isStreamingDelta(line) {
+				line = stripThinkingSignature(line)
 				if _, err := logFile.Write(append(line, '\n')); err != nil {
 					writeErr = err
 					break
@@ -157,6 +158,69 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	}()
 
 	return proc, ch, nil
+}
+
+// stripThinkingSignature removes the thinkingSignature field from thinking
+// content blocks in log lines to keep log files compact.
+func stripThinkingSignature(line []byte) []byte {
+	if !bytes.Contains(line, []byte(`"thinkingSignature"`)) {
+		return line
+	}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(line, &raw) != nil {
+		return line
+	}
+	msgRaw, ok := raw["message"]
+	if !ok {
+		return line
+	}
+	var msg map[string]json.RawMessage
+	if json.Unmarshal(msgRaw, &msg) != nil {
+		return line
+	}
+	contentRaw, ok := msg["content"]
+	if !ok {
+		return line
+	}
+	var content []json.RawMessage
+	if json.Unmarshal(contentRaw, &content) != nil {
+		return line
+	}
+	changed := false
+	for i, item := range content {
+		var block map[string]json.RawMessage
+		if json.Unmarshal(item, &block) != nil {
+			continue
+		}
+		if _, has := block["thinkingSignature"]; !has {
+			continue
+		}
+		delete(block, "thinkingSignature")
+		newItem, err := json.Marshal(block)
+		if err != nil {
+			continue
+		}
+		content[i] = newItem
+		changed = true
+	}
+	if !changed {
+		return line
+	}
+	newContent, err := json.Marshal(content)
+	if err != nil {
+		return line
+	}
+	msg["content"] = newContent
+	newMsg, err := json.Marshal(msg)
+	if err != nil {
+		return line
+	}
+	raw["message"] = newMsg
+	result, err := json.Marshal(raw)
+	if err != nil {
+		return line
+	}
+	return result
 }
 
 // isStreamingDelta reports whether a JSON log line is a streaming delta event
