@@ -4,23 +4,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 // SessionStore maps openbee session UUIDs to codex thread IDs on disk.
-// Each session is stored as a single file named by the openbee UUID.
-// Per-session files eliminate concurrent write conflicts between sessions.
+// Per-session files avoid concurrent write conflicts between sessions.
 type SessionStore struct {
-	dir string // ~/.openbee/.codex/sessions/
+	dir string
 }
 
 // NewSessionStore creates a SessionStore rooted at the default location.
 func NewSessionStore() (*SessionStore, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("resolve home dir: %w", err)
-	}
-	dir := filepath.Join(home, ".openbee", ".codex", "sessions")
-	return newSessionStoreAt(dir)
+	return newSessionStoreAt(config.DefaultCodexSessionsDir())
 }
 
 func newSessionStoreAt(dir string) (*SessionStore, error) {
@@ -30,7 +26,6 @@ func newSessionStoreAt(dir string) (*SessionStore, error) {
 	return &SessionStore{dir: dir}, nil
 }
 
-// Get returns the codex thread_id for the given openbee UUID, or ("", false) if not found.
 func (s *SessionStore) Get(openbeeUUID string) (string, bool) {
 	data, err := os.ReadFile(filepath.Join(s.dir, openbeeUUID))
 	if err != nil {
@@ -43,11 +38,12 @@ func (s *SessionStore) Get(openbeeUUID string) (string, bool) {
 	return threadID, true
 }
 
-// Set atomically writes the codex thread_id for the given openbee UUID.
+// Set writes the codex thread_id for the given openbee UUID. Writes are atomic via temp-file rename.
 func (s *SessionStore) Set(openbeeUUID, threadID string) error {
 	dest := filepath.Join(s.dir, openbeeUUID)
 	tmp := dest + ".tmp"
 	if err := os.WriteFile(tmp, []byte(threadID), 0o644); err != nil {
+		os.Remove(tmp)
 		return fmt.Errorf("write temp session file: %w", err)
 	}
 	if err := os.Rename(tmp, dest); err != nil {

@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"go.uber.org/zap"
 )
 
-var log = zap.L().Named("codex")
+var log = logger.With(zap.String("component", "codex"))
 
 // Invoker spawns Codex CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
@@ -92,9 +93,7 @@ func ExtractResultFromLog(logPath string) string {
 }
 
 // Run starts a Codex CLI process, redirecting output to logPath.
-// For new sessions (Resume=false), prompt is passed via stdin.
-// For resume sessions, the codex thread_id is resolved from the SessionStore
-// using opts.SessionID (the openbee UUID) before building the command.
+// For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	threadID, resume := inv.resolveThread(opts.SessionID, opts.Resume)
 	args := buildArgs(threadID, resume, prompt)
@@ -156,8 +155,6 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	return proc, ch, nil
 }
 
-// resolveThread maps an openbee UUID to a codex thread_id for resume.
-// If the mapping is not found, it falls back to a new session and logs a warning.
 func (inv *Invoker) resolveThread(openbeeUUID string, resume bool) (threadID string, resolvedResume bool) {
 	if !resume {
 		return "", false

@@ -43,7 +43,6 @@ func TestExtractSessionID(t *testing.T) {
 }
 
 func TestBuildArgs_ResumeUsesThreadID(t *testing.T) {
-	// buildArgs receives the resolved thread_id, not the openbee UUID
 	args := buildArgs("thread-xyz-from-store", true, "follow up")
 	want := []string{"exec", "resume", "thread-xyz-from-store", "--json", "--dangerously-bypass-approvals-and-sandbox", "follow up"}
 	if !slices.Equal(args, want) {

@@ -37,6 +37,12 @@ func DefaultLogsDir() string {
 	return filepath.Join(home, ".openbee", "logs")
 }
 
+// DefaultCodexSessionsDir returns the codex session store directory: ~/.openbee/.codex/sessions
+func DefaultCodexSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", ".codex", "sessions")
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
