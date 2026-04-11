@@ -23,10 +23,16 @@ interface LogViewerProps {
   variant?: LogViewerVariant
 }
 
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}m`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`
+  return String(n)
+}
+
 function MetricChip({ label, value }: { label: string; value: number }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs">
-      <span className="font-mono text-foreground">{value}</span>
+    <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs" title={value.toLocaleString()}>
+      <span className="font-mono text-foreground">{formatCount(value)}</span>
       <span className="text-muted-foreground">{label}</span>
     </span>
   )
