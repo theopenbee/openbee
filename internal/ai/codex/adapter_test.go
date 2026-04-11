@@ -11,7 +11,10 @@ import (
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
-	a := codex.NewAdapter("echo", "http://localhost:9999")
+	a, err := codex.NewAdapter("echo", "http://localhost:9999")
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
 
 	if err := a.Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
 		t.Fatalf("Prepare: %v", err)
@@ -25,7 +28,10 @@ func TestAdapter_Prepare_NoOp(t *testing.T) {
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
-	a := codex.NewAdapter("echo", "http://localhost:9999")
+	a, err := codex.NewAdapter("echo", "http://localhost:9999")
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
 	for _, role := range []ai.Role{ai.RoleBee, ai.RoleWorker} {
 		dir := t.TempDir()
 		if err := a.Prepare(dir, ai.PrepareOptions{Role: role}); err != nil {
