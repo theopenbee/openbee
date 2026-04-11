@@ -17,7 +17,7 @@ func TestBuildArgs_NewSession(t *testing.T) {
 
 func TestBuildArgs_ResumeWithID(t *testing.T) {
 	args := buildArgs("sess-123", true, "")
-	want := []string{"exec", "resume", "sess-123", "--json", "--yolo"}
+	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
@@ -25,7 +25,7 @@ func TestBuildArgs_ResumeWithID(t *testing.T) {
 
 func TestBuildArgs_ResumeWithIDAndPrompt(t *testing.T) {
 	args := buildArgs("sess-123", true, "do something")
-	want := []string{"exec", "resume", "sess-123", "--json", "--yolo", "do something"}
+	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox", "do something"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}

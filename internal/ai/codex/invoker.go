@@ -36,7 +36,7 @@ type codexItem struct {
 
 func buildArgs(sessionID string, resume bool, prompt string) []string {
 	if resume && sessionID != "" {
-		args := []string{"exec", "resume", sessionID, "--json", "--yolo"}
+		args := []string{"exec", "resume", sessionID, "--json", "--dangerously-bypass-approvals-and-sandbox"}
 		if prompt != "" {
 			args = append(args, prompt)
 		}
