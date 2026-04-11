@@ -7,12 +7,17 @@ describe("detectEngine", () => {
     expect(detectEngine(line)).toBe("codex")
   })
 
+  it("returns 'pi' when first line is agent_start", () => {
+    const line = JSON.stringify({ type: "agent_start" })
+    expect(detectEngine(line)).toBe("pi")
+  })
+
   it("returns 'claude' for a Claude assistant event", () => {
     const line = JSON.stringify({ type: "assistant", message: { content: [] } })
     expect(detectEngine(line)).toBe("claude")
   })
 
-  it("returns 'claude' for any non-Codex type", () => {
+  it("returns 'claude' for any non-Codex non-pi type", () => {
     const line = JSON.stringify({ type: "system" })
     expect(detectEngine(line)).toBe("claude")
   })
