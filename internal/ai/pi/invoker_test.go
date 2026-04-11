@@ -105,6 +105,28 @@ func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
 	}
 }
 
+func TestIsStreamingDelta(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"message_update filtered", `{"type":"message_update","message":{}}`, true},
+		{"tool_execution_update filtered", `{"type":"tool_execution_update","toolCallId":"x","partialResult":{"content":[]}}`, true},
+		{"tool_execution_start not filtered", `{"type":"tool_execution_start","toolCallId":"x","toolName":"bash","args":{}}`, false},
+		{"tool_execution_end not filtered", `{"type":"tool_execution_end","toolCallId":"x","result":{"content":[]}}`, false},
+		{"message_end not filtered", `{"type":"message_end","message":{"role":"assistant","content":[]}}`, false},
+		{"plain JSON not filtered", `{"type":"agent_start"}`, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isStreamingDelta([]byte(tc.line)); got != tc.want {
+				t.Errorf("isStreamingDelta(%q) = %v, want %v", tc.line, got, tc.want)
+			}
+		})
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	f, err := os.CreateTemp(t.TempDir(), "pi-log-*.jsonl")

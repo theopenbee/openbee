@@ -58,12 +58,14 @@ export class PiParser implements StreamParser {
       case "turn_end":
       case "message_start":
       case "message_update":
+      case "tool_execution_update":
       case "queue_update":
       case "compaction_start":
       case "compaction_end":
         return
 
       case "message_end": {
+        if (event.message?.role !== "assistant") return
         const content = event.message?.content
         if (!Array.isArray(content)) return
         const messageIndex = this.messageCount++

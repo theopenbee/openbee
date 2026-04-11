@@ -160,9 +160,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 }
 
 // isStreamingDelta reports whether a JSON log line is a streaming delta event
-// that should be filtered to keep log files compact. message_update events
-// contain incremental thinking/text deltas that are superseded by the complete
-// content in the corresponding message_end event.
+// that should be filtered to keep log files compact. Both message_update and
+// tool_execution_update events contain incremental deltas that are superseded
+// by the complete content in the corresponding message_end / tool_execution_end event.
 func isStreamingDelta(line []byte) bool {
-	return bytes.Contains(line, []byte(`"type":"message_update"`))
+	return bytes.Contains(line, []byte(`"type":"message_update"`)) ||
+		bytes.Contains(line, []byte(`"type":"tool_execution_update"`))
 }

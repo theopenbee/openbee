@@ -37,6 +37,10 @@ describe("PiParser", () => {
     expect(run([JSON.stringify({ type: "message_update", message: {}, assistantMessageEvent: { type: "text_delta", delta: "hi" } })])).toHaveLength(0)
   })
 
+  it("ignores tool_execution_update", () => {
+    expect(run([JSON.stringify({ type: "tool_execution_update", toolCallId: "call_abc", toolName: "bash", args: { command: "ls" }, partialResult: { content: [] } })])).toHaveLength(0)
+  })
+
   it("ignores queue_update", () => {
     expect(run([JSON.stringify({ type: "queue_update", steering: [], followUp: [] })])).toHaveLength(0)
   })
@@ -126,6 +130,29 @@ describe("PiParser", () => {
 
   it("skips message_end when message has no content array", () => {
     const line = JSON.stringify({ type: "message_end", message: { role: "assistant" } })
+    expect(run([line])).toHaveLength(0)
+  })
+
+  it("skips message_end for user role (avoids showing raw message_meta XML)", () => {
+    const line = JSON.stringify({
+      type: "message_end",
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "<message_meta>{}</message_meta>\n<message_content>\nhello\n</message_content>\n" }],
+      },
+    })
+    expect(run([line])).toHaveLength(0)
+  })
+
+  it("skips message_end for toolResult role", () => {
+    const line = JSON.stringify({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call_abc",
+        content: [{ type: "text", text: "some result" }],
+      },
+    })
     expect(run([line])).toHaveLength(0)
   })
 
