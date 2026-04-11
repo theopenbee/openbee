@@ -159,6 +159,10 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 
 	for out := range outputCh {
 		switch out.Type {
+		case ai.OutputSessionID:
+			if err := m.executionStore.UpdateSessionID(exec.ID, out.Content); err != nil {
+				log.Error("update execution session id", zap.String("execID", exec.ID), zap.Error(err))
+			}
 		case ai.OutputDone:
 			result := m.engine.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)

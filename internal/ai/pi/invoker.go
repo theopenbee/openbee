@@ -1,14 +1,12 @@
 package pi
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -35,6 +33,8 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) (*Invoker
 			base = append(base, k+"="+v)
 		}
 	}
+	// Re-clip so concurrent Run() appends cannot share the backing array.
+	base = base[:len(base):len(base)]
 	return &Invoker{binary: binary, baseEnv: base, sessionDir: sessionDir}, nil
 }
 
@@ -67,16 +67,10 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastText string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(nil, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
+	ai.ScanJSONLines(f, func(line string) bool {
 		var event piAgentEnd
 		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
-			continue
+			return true
 		}
 		for j := len(event.Messages) - 1; j >= 0; j-- {
 			msg := event.Messages[j]
@@ -86,12 +80,12 @@ func ExtractResultFromLog(logPath string) string {
 			for _, c := range msg.Content {
 				if c.Type == "text" && c.Text != "" {
 					lastText = c.Text
-					goto nextLine
+					return true
 				}
 			}
 		}
-	nextLine:
-	}
+		return true
+	})
 	return lastText
 }
 
@@ -119,7 +113,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd.Dir = workDir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = append(append([]string{}, inv.baseEnv...), "OPENBEE_API_KEY="+opts.APIKey)
+	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

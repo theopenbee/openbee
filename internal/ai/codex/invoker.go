@@ -1,7 +1,6 @@
 package codex
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,22 +48,19 @@ func buildArgs(sessionID string, resume bool, prompt string) []string {
 // extractSessionID reads a Codex JSON stream and returns the thread_id from
 // the first "thread.started" event, or "" if not found.
 func extractSessionID(r io.Reader) string {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(nil, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
+	var threadID string
+	ai.ScanJSONLines(r, func(line string) bool {
 		var event codexEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
-			continue
+			return true
 		}
 		if event.Type == "thread.started" && event.ThreadID != "" {
-			return event.ThreadID
+			threadID = event.ThreadID
+			return false
 		}
-	}
-	return ""
+		return true
+	})
+	return threadID
 }
 
 // ExtractResultFromLog scans a Codex JSON log file and returns the text of the
@@ -77,22 +73,17 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastText string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(nil, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
+	ai.ScanJSONLines(f, func(line string) bool {
 		var event codexEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
-			continue
+			return true
 		}
 		if event.Type == "item.completed" && event.Item != nil &&
 			event.Item.Type == "agent_message" && event.Item.Text != "" {
 			lastText = event.Item.Text
 		}
-	}
+		return true
+	})
 	return lastText
 }
 
