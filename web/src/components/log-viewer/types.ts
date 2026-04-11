@@ -23,6 +23,7 @@ export type ParsedEntry =
       cachedInputTokens: number
       outputTokens: number
     }
+  | { kind: "pi-thinking"; id: string; thinking: string }
 
 export interface StreamParser {
   parseLine(
