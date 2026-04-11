@@ -9,7 +9,7 @@ export type ParsedEntry =
       isError?: boolean
     }
   | { kind: "result"; text: string; subtype: string }
-  | { kind: "raw"; content: string; logType: string }
+  | { kind: "raw"; content: string; logType: string; lineCount: number }
   | {
       kind: "codex-command"
       id: string
@@ -45,10 +45,10 @@ export function appendTextEntry(text: string, entries: ParsedEntry[]): void {
 export function appendRawEntry(content: string, logType: string, entries: ParsedEntry[]): void {
   const last = entries[entries.length - 1]
   if (last?.kind === "raw" && last.logType === logType) {
-    entries[entries.length - 1] = { ...last, content: `${last.content}\n${content}` }
+    entries[entries.length - 1] = { ...last, content: `${last.content}\n${content}`, lineCount: last.lineCount + 1 }
     return
   }
-  entries.push({ kind: "raw", content, logType })
+  entries.push({ kind: "raw", content, logType, lineCount: 1 })
 }
 
 export function parseJsonEvent<T extends { type: string }>(line: string): T | null {

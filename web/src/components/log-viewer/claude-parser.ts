@@ -19,10 +19,6 @@ interface ClaudeStreamEvent {
   result?: string
 }
 
-export function truncate(value: string, max = 96): string {
-  return value.length > max ? `${value.slice(0, max)}…` : value
-}
-
 export function stringify(value: unknown): string {
   if (typeof value === "string") return value
   try {
@@ -41,11 +37,9 @@ export function getToolMeta(name: string): {
       return {
         label: "SH",
         summary: (input: unknown) =>
-          truncate(
-            (input as { command?: string; cmd?: string })?.command ??
-              (input as { command?: string; cmd?: string })?.cmd ??
-              stringify(input)
-          ),
+          (input as { command?: string; cmd?: string })?.command ??
+          (input as { command?: string; cmd?: string })?.cmd ??
+          stringify(input),
       }
     case "Read":
     case "Write":
@@ -56,13 +50,7 @@ export function getToolMeta(name: string): {
         label: "FS",
         summary: (input: unknown) => {
           const record = input as Record<string, string>
-          return truncate(
-            record?.file_path ??
-              record?.path ??
-              record?.pattern ??
-              record?.glob ??
-              stringify(input)
-          )
+          return record?.file_path ?? record?.path ?? record?.pattern ?? record?.glob ?? stringify(input)
         },
       }
     case "WebSearch":
@@ -71,13 +59,13 @@ export function getToolMeta(name: string): {
         label: "WEB",
         summary: (input: unknown) => {
           const record = input as Record<string, string>
-          return truncate(record?.query ?? record?.url ?? stringify(input))
+          return record?.query ?? record?.url ?? stringify(input)
         },
       }
     default:
       return {
         label: "TOOL",
-        summary: (input: unknown) => truncate(stringify(input)),
+        summary: (input: unknown) => stringify(input),
       }
   }
 }

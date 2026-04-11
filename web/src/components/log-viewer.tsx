@@ -105,11 +105,9 @@ function ToolEntry({
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                {t("logViewer.toolCall")}
-              </p>
-            </div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              {t("logViewer.toolCall")}
+            </p>
 
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
               <p className="text-sm font-medium text-foreground">{entry.name}</p>
@@ -215,7 +213,7 @@ function CodexCommandEntry({
           className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/25"
         >
           <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-background px-2.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-            {getToolMeta("Bash").label}
+            SH
           </span>
 
           <div className="min-w-0 flex-1">
@@ -295,7 +293,6 @@ function CodexTurnEntry({
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
-  const lineCount = useMemo(() => entry.content.split("\n").length, [entry.content])
 
   return (
     <TimelineRow markerClassName={isError ? "bg-destructive/85" : "bg-muted-foreground/55"}>
@@ -309,7 +306,7 @@ function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
           </div>
 
           <span className="rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-            {lineCount}
+            {entry.lineCount}
           </span>
         </div>
 
@@ -407,7 +404,6 @@ export function LogViewer({
       const lines = segments.filter(Boolean)
       const nextEntries: ParsedEntry[] = []
       const nextToolMap = new Map<string, number>()
-      // Reset parser so engine is re-detected from the full stream
       parserRef.current = null
       if (lines.length > 0) {
         const parser = ensureParser(lines[0])
@@ -473,18 +469,15 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "auto" })
   }, [entries, autoScroll, followLive])
 
-  const { filterOptions, visibleEntries, visibleIndices } = useMemo(() => {
+  const { filterOptions, visibleItems } = useMemo(() => {
     let narrativeCount = 0
     let toolCount = 0
     let rawCount = 0
-    for (const entry of entries) {
-      if (entry.kind === "text") narrativeCount += 1
-      if (entry.kind === "tool" || entry.kind === "codex-command") toolCount += 1
-      if (entry.kind === "raw") rawCount += 1
-    }
-    const visibleEntries: ParsedEntry[] = []
-    const visibleIndices: number[] = []
+    const visibleItems: Array<{ entry: ParsedEntry; index: number }> = []
     entries.forEach((entry, i) => {
+      if (entry.kind === "text") narrativeCount += 1
+      else if (entry.kind === "tool" || entry.kind === "codex-command") toolCount += 1
+      else if (entry.kind === "raw") rawCount += 1
       const visible =
         entry.kind === "result" || entry.kind === "codex-turn"
           ? true
@@ -493,10 +486,7 @@ export function LogViewer({
             : entry.kind === "codex-command"
               ? filter === "tool"
               : entry.kind === filter
-      if (visible) {
-        visibleEntries.push(entry)
-        visibleIndices.push(i)
-      }
+      if (visible) visibleItems.push({ entry, index: i })
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
       { key: "all", label: t("logViewer.all"), count: entries.length },
@@ -504,7 +494,7 @@ export function LogViewer({
       { key: "tool", label: t("logViewer.tools"), count: toolCount },
       { key: "raw", label: t("logViewer.raw"), count: rawCount },
     ]
-    return { filterOptions, visibleEntries, visibleIndices }
+    return { filterOptions, visibleItems }
   }, [entries, filter, t])
 
   const handleViewportScroll = () => {
@@ -585,7 +575,7 @@ export function LogViewer({
               t("logViewer.noLogs")
             )}
           </div>
-        ) : visibleEntries.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
             {t("logViewer.noMatches")}
           </div>
@@ -594,8 +584,7 @@ export function LogViewer({
             <div className="pointer-events-none absolute bottom-4 left-[0.375rem] top-4 w-px bg-border/60" />
 
             <div className="space-y-3">
-              {visibleEntries.map((entry, i) => {
-                const k = visibleIndices[i]
+              {visibleItems.map(({ entry, index: k }) => {
                 if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
                 if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
                 if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
