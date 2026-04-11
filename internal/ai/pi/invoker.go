@@ -161,7 +161,9 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 }
 
 // stripThinkingSignature removes the thinkingSignature field from thinking
-// content blocks in log lines to keep log files compact.
+// content blocks in log lines to keep log files compact. It handles both
+// message_end events (single "message" object) and agent_end events
+// ("messages" array).
 func stripThinkingSignature(line []byte) []byte {
 	if !bytes.Contains(line, []byte(`"thinkingSignature"`)) {
 		return line
@@ -170,21 +172,68 @@ func stripThinkingSignature(line []byte) []byte {
 	if json.Unmarshal(line, &raw) != nil {
 		return line
 	}
-	msgRaw, ok := raw["message"]
-	if !ok {
-		return line
+
+	// Handle message_end: single "message" object.
+	if msgRaw, ok := raw["message"]; ok {
+		newMsgRaw, changed := stripThinkingSignatureFromMessage(msgRaw)
+		if !changed {
+			return line
+		}
+		raw["message"] = newMsgRaw
+		result, err := json.Marshal(raw)
+		if err != nil {
+			return line
+		}
+		return result
 	}
+
+	// Handle agent_end: "messages" array.
+	if msgsRaw, ok := raw["messages"]; ok {
+		var msgs []json.RawMessage
+		if json.Unmarshal(msgsRaw, &msgs) != nil {
+			return line
+		}
+		changed := false
+		for i, msgRaw := range msgs {
+			newMsgRaw, ok := stripThinkingSignatureFromMessage(msgRaw)
+			if ok {
+				msgs[i] = newMsgRaw
+				changed = true
+			}
+		}
+		if !changed {
+			return line
+		}
+		newMsgs, err := json.Marshal(msgs)
+		if err != nil {
+			return line
+		}
+		raw["messages"] = newMsgs
+		result, err := json.Marshal(raw)
+		if err != nil {
+			return line
+		}
+		return result
+	}
+
+	return line
+}
+
+// stripThinkingSignatureFromMessage removes thinkingSignature from all content
+// blocks within a single message JSON object. Returns the modified message and
+// whether any change was made.
+func stripThinkingSignatureFromMessage(msgRaw json.RawMessage) (json.RawMessage, bool) {
 	var msg map[string]json.RawMessage
 	if json.Unmarshal(msgRaw, &msg) != nil {
-		return line
+		return msgRaw, false
 	}
 	contentRaw, ok := msg["content"]
 	if !ok {
-		return line
+		return msgRaw, false
 	}
 	var content []json.RawMessage
 	if json.Unmarshal(contentRaw, &content) != nil {
-		return line
+		return msgRaw, false
 	}
 	changed := false
 	for i, item := range content {
@@ -204,23 +253,18 @@ func stripThinkingSignature(line []byte) []byte {
 		changed = true
 	}
 	if !changed {
-		return line
+		return msgRaw, false
 	}
 	newContent, err := json.Marshal(content)
 	if err != nil {
-		return line
+		return msgRaw, false
 	}
 	msg["content"] = newContent
 	newMsg, err := json.Marshal(msg)
 	if err != nil {
-		return line
+		return msgRaw, false
 	}
-	raw["message"] = newMsg
-	result, err := json.Marshal(raw)
-	if err != nil {
-		return line
-	}
-	return result
+	return newMsg, true
 }
 
 // isStreamingDelta reports whether a JSON log line is a streaming delta event
