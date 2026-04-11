@@ -121,20 +121,13 @@ function ToolEntry({
         </button>
 
         {open && (
-          <div className="grid gap-3 border-t border-border/70 px-4 pb-4 pt-3 md:grid-cols-2 animate-fade-in">
-            <section className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {t("logViewer.input")}
-              </p>
+          <ExpandedDetails
+            input={
               <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
                 {stringify(entry.input)}
               </pre>
-            </section>
-
-            <section className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {t("logViewer.output")}
-              </p>
+            }
+            output={
               <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
                 {entry.result !== undefined ? (
                   <pre
@@ -149,11 +142,31 @@ function ToolEntry({
                   <p className="text-sm text-muted-foreground">{t("logViewer.waiting")}</p>
                 )}
               </div>
-            </section>
-          </div>
+            }
+          />
         )}
       </article>
     </TimelineRow>
+  )
+}
+
+function ExpandedDetails({ input, output }: { input: ReactNode; output: ReactNode }) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid gap-3 border-t border-border/70 px-4 pb-4 pt-3 md:grid-cols-2 animate-fade-in">
+      <section className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {t("logViewer.input")}
+        </p>
+        {input}
+      </section>
+      <section className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {t("logViewer.output")}
+        </p>
+        {output}
+      </section>
+    </div>
   )
 }
 
@@ -236,20 +249,13 @@ function CodexCommandEntry({
         </button>
 
         {open && (
-          <div className="grid gap-3 border-t border-border/70 px-4 pb-4 pt-3 md:grid-cols-2 animate-fade-in">
-            <section className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {t("logViewer.input")}
-              </p>
+          <ExpandedDetails
+            input={
               <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
                 {entry.command}
               </pre>
-            </section>
-
-            <section className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {t("logViewer.output")}
-              </p>
+            }
+            output={
               <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
                 {entry.inProgress ? (
                   <p className="text-sm text-muted-foreground">{t("logViewer.running")}</p>
@@ -259,8 +265,8 @@ function CodexCommandEntry({
                   </pre>
                 )}
               </div>
-            </section>
-          </div>
+            }
+          />
         )}
       </article>
     </TimelineRow>
@@ -420,8 +426,8 @@ export function LogViewer({
 
         const flushTail = !isActiveStatus(status)
         if (content.length < parsedLengthRef.current) {
-          parsedLengthRef.current = content.length
           rebuildEntries(content, flushTail)
+          parsedLengthRef.current = content.length
           return
         }
 
