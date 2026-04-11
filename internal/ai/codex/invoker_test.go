@@ -9,7 +9,7 @@ import (
 
 func TestBuildArgs_NewSession(t *testing.T) {
 	args := buildArgs("", false, "")
-	want := []string{"exec", "-", "--json", "--yolo"}
+	want := []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}

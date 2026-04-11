@@ -42,7 +42,7 @@ func buildArgs(sessionID string, resume bool, prompt string) []string {
 		}
 		return args
 	}
-	return []string{"exec", "-", "--json", "--yolo"}
+	return []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 }
 
 // extractSessionID reads a Codex JSON stream and returns the thread_id from
