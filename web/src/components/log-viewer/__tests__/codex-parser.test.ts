@@ -110,6 +110,14 @@ describe("CodexParser", () => {
     expect(run([line])).toHaveLength(0)
   })
 
+  it("skips codex-turn when turn.completed usage is missing a field", () => {
+    const line = JSON.stringify({
+      type: "turn.completed",
+      usage: { input_tokens: 100, output_tokens: 20 },
+    })
+    expect(run([line])).toHaveLength(0)
+  })
+
   it("falls back to raw for completely unknown event type", () => {
     const line = JSON.stringify({ type: "weird.event" })
     const entries = run([line])

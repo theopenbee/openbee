@@ -74,4 +74,14 @@ describe("ClaudeParser", () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ kind: "raw", logType: "stdout" })
   })
+
+  it("silently ignores tool_result for unregistered tool_use_id", () => {
+    const userLine = JSON.stringify({
+      type: "user",
+      message: {
+        content: [{ type: "tool_result", tool_use_id: "unknown_id", content: "result" }],
+      },
+    })
+    expect(run([userLine])).toHaveLength(0)
+  })
 })

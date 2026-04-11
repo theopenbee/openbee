@@ -12,7 +12,7 @@ interface ClaudeStreamEvent {
       name?: string
       input?: unknown
       tool_use_id?: string
-      content?: string | unknown
+      content?: unknown
       is_error?: boolean
     }>
   }

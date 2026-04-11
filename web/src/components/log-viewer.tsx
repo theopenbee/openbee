@@ -198,11 +198,7 @@ function CodexCommandEntry({
     if (!entry.inProgress) setOpen(false)
   }, [entry.inProgress])
 
-  const markerClass = entry.inProgress
-    ? "bg-primary/55"
-    : entry.output !== undefined
-      ? "bg-status-idle"
-      : "bg-muted-foreground/55"
+  const markerClass = entry.inProgress ? "bg-primary/55" : "bg-status-idle"
 
   return (
     <TimelineRow markerClassName={markerClass}>
@@ -219,7 +215,7 @@ function CodexCommandEntry({
           className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/25"
         >
           <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-background px-2.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-            SH
+            {getToolMeta("Bash").label}
           </span>
 
           <div className="min-w-0 flex-1">
@@ -287,7 +283,9 @@ function CodexTurnEntry({
           {t("logViewer.turnUsage")}
         </span>
         <MetricChip label={t("logViewer.inputTokens")} value={entry.inputTokens} />
-        <MetricChip label={t("logViewer.cachedTokens")} value={entry.cachedInputTokens} />
+        {entry.cachedInputTokens > 0 && (
+          <MetricChip label={t("logViewer.cachedTokens")} value={entry.cachedInputTokens} />
+        )}
         <MetricChip label={t("logViewer.outputTokens")} value={entry.outputTokens} />
       </div>
     </TimelineRow>
@@ -475,7 +473,7 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "auto" })
   }, [entries, autoScroll, followLive])
 
-  const { filterOptions, visibleEntries } = useMemo(() => {
+  const { filterOptions, visibleEntries, visibleIndices } = useMemo(() => {
     let narrativeCount = 0
     let toolCount = 0
     let rawCount = 0
@@ -484,11 +482,21 @@ export function LogViewer({
       if (entry.kind === "tool" || entry.kind === "codex-command") toolCount += 1
       if (entry.kind === "raw") rawCount += 1
     }
-    const visibleEntries = entries.filter((entry) => {
-      if (entry.kind === "result" || entry.kind === "codex-turn") return true
-      if (filter === "all") return true
-      if (entry.kind === "codex-command") return filter === "tool"
-      return entry.kind === filter
+    const visibleEntries: ParsedEntry[] = []
+    const visibleIndices: number[] = []
+    entries.forEach((entry, i) => {
+      const visible =
+        entry.kind === "result" || entry.kind === "codex-turn"
+          ? true
+          : filter === "all"
+            ? true
+            : entry.kind === "codex-command"
+              ? filter === "tool"
+              : entry.kind === filter
+      if (visible) {
+        visibleEntries.push(entry)
+        visibleIndices.push(i)
+      }
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
       { key: "all", label: t("logViewer.all"), count: entries.length },
@@ -496,7 +504,7 @@ export function LogViewer({
       { key: "tool", label: t("logViewer.tools"), count: toolCount },
       { key: "raw", label: t("logViewer.raw"), count: rawCount },
     ]
-    return { filterOptions, visibleEntries }
+    return { filterOptions, visibleEntries, visibleIndices }
   }, [entries, filter, t])
 
   const handleViewportScroll = () => {
@@ -587,12 +595,13 @@ export function LogViewer({
 
             <div className="space-y-3">
               {visibleEntries.map((entry, i) => {
-                if (entry.kind === "text") return <AssistantEntry key={`text-${i}`} text={entry.text} />
+                const k = visibleIndices[i]
+                if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
                 if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
-                if (entry.kind === "result") return <ResultEntry key={`result-${i}`} entry={entry} />
+                if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
                 if (entry.kind === "codex-command") return <CodexCommandEntry key={entry.id} entry={entry} />
-                if (entry.kind === "codex-turn") return <CodexTurnEntry key={i} entry={entry} />
-                return <RawEntry key={`raw-${i}`} entry={entry} />
+                if (entry.kind === "codex-turn") return <CodexTurnEntry key={`codex-turn-${k}`} entry={entry} />
+                return <RawEntry key={`raw-${k}`} entry={entry} />
               })}
             </div>
           </div>
