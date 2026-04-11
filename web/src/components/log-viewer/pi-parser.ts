@@ -67,9 +67,9 @@ export class PiParser implements StreamParser {
         return
 
       case "message_end": {
-        const messageIndex = this.messageCount++
         const content = event.message?.content
         if (!Array.isArray(content)) return
+        const messageIndex = this.messageCount++
         content.forEach((block, blockIndex) => {
           if (block.type === "thinking" && block.thinking) {
             entries.push({
