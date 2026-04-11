@@ -31,11 +31,10 @@ func (s *SessionStore) Get(openbeeUUID string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	threadID := string(data)
-	if threadID == "" {
+	if len(data) == 0 {
 		return "", false
 	}
-	return threadID, true
+	return string(data), true
 }
 
 // Set writes the codex thread_id for the given openbee UUID. Writes are atomic via temp-file rename.

@@ -16,7 +16,7 @@ import (
 
 var log = logger.With(zap.String("component", "codex"))
 
-// Invoker spawns Codex CLI processes. It is stateless and safe for concurrent use.
+// Invoker spawns Codex CLI processes and is safe for concurrent use.
 type Invoker struct {
 	binary  string
 	baseEnv []string
