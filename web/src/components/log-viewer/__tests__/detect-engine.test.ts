@@ -4,24 +4,35 @@ import { detectEngine } from "../detect-engine"
 describe("detectEngine", () => {
   it("returns 'codex' when first line is thread.started", () => {
     const line = JSON.stringify({ type: "thread.started", thread_id: "abc-123" })
-    expect(detectEngine(line)).toBe("codex")
+    expect(detectEngine([line])).toBe("codex")
+  })
+
+  it("returns 'pi' when first line is agent_start", () => {
+    const line = JSON.stringify({ type: "agent_start" })
+    expect(detectEngine([line])).toBe("pi")
+  })
+
+  it("returns 'pi' when agent_start appears on the second line", () => {
+    const firstLine = JSON.stringify({ type: "some_metadata" })
+    const secondLine = JSON.stringify({ type: "agent_start" })
+    expect(detectEngine([firstLine, secondLine])).toBe("pi")
   })
 
   it("returns 'claude' for a Claude assistant event", () => {
     const line = JSON.stringify({ type: "assistant", message: { content: [] } })
-    expect(detectEngine(line)).toBe("claude")
+    expect(detectEngine([line])).toBe("claude")
   })
 
-  it("returns 'claude' for any non-Codex type", () => {
+  it("returns 'claude' for any non-Codex non-pi type", () => {
     const line = JSON.stringify({ type: "system" })
-    expect(detectEngine(line)).toBe("claude")
+    expect(detectEngine([line])).toBe("claude")
   })
 
   it("returns 'claude' when JSON is malformed", () => {
-    expect(detectEngine("not json at all")).toBe("claude")
+    expect(detectEngine(["not json at all"])).toBe("claude")
   })
 
-  it("returns 'claude' for an empty string", () => {
-    expect(detectEngine("")).toBe("claude")
+  it("returns 'claude' for an empty array", () => {
+    expect(detectEngine([])).toBe("claude")
   })
 })

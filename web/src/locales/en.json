@@ -192,7 +192,8 @@
     "turnUsage": "Turn",
     "inputTokens": "input",
     "cachedTokens": "cached",
-    "outputTokens": "output"
+    "outputTokens": "output",
+    "thinking": "Thinking"
   },
   "tasks": {
     "title": "Scheduled tasks",

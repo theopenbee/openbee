@@ -192,7 +192,8 @@
     "turnUsage": "本轮用量",
     "inputTokens": "输入",
     "cachedTokens": "缓存",
-    "outputTokens": "输出"
+    "outputTokens": "输出",
+    "thinking": "思考过程"
   },
   "tasks": {
     "title": "定时任务",

@@ -11,9 +11,12 @@ import type { ParsedEntry, StreamParser } from "./log-viewer/types"
 import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
 import { CodexParser } from "./log-viewer/codex-parser"
+import { PiParser } from "./log-viewer/pi-parser"
 
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
+
+const FILTER_ALIAS: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
 
 interface LogViewerProps {
   executionId: string
@@ -222,7 +225,7 @@ function CodexCommandEntry({
               ? t("logViewer.collapse", { name: t("logViewer.commandExecution") })
               : t("logViewer.expand", { name: t("logViewer.commandExecution") })
           }
-          onClick={() => setOpen((c) => !c)}
+          onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/25"
         >
           <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-border/70 bg-background px-2.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
@@ -296,6 +299,44 @@ function CodexTurnEntry({
   )
 }
 
+function PiThinkingEntry({
+  entry,
+}: {
+  entry: Extract<ParsedEntry, { kind: "pi-thinking" }>
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <TimelineRow markerClassName="bg-muted-foreground/35">
+      <article className="overflow-hidden rounded-2xl border border-border/50 bg-muted/15">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={t(open ? "logViewer.collapse" : "logViewer.expand", { name: t("logViewer.thinking") })}
+          onClick={() => setOpen((current) => !current)}
+          className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
+        >
+          <p className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+            {t("logViewer.thinking")}
+          </p>
+          <span className="mt-0.5 shrink-0 text-muted-foreground/60" aria-hidden="true">
+            {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </span>
+        </button>
+
+        {open && (
+          <div className="border-t border-border/50 px-4 pb-4 pt-3">
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-muted/25 p-3 font-mono text-[12px] leading-6 text-muted-foreground">
+              {entry.thinking}
+            </pre>
+          </div>
+        )}
+      </article>
+    </TimelineRow>
+  )
+}
+
 function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
   const { t } = useTranslation()
   const isError = entry.logType === "stderr" || entry.logType === "error"
@@ -361,17 +402,22 @@ export function LogViewer({
   useEffect(() => {
     let disposed = false
 
-    const ensureParser = (firstLine: string): StreamParser => {
+    const ensureParser = (lines: string[]): StreamParser => {
       if (!parserRef.current) {
+        const engine = detectEngine(lines)
         parserRef.current =
-          detectEngine(firstLine) === "codex" ? new CodexParser() : new ClaudeParser()
+          engine === "codex"
+            ? new CodexParser()
+            : engine === "pi"
+              ? new PiParser()
+              : new ClaudeParser()
       }
       return parserRef.current
     }
 
     const appendLines = (lines: string[]) => {
       if (lines.length === 0) return
-      const parser = ensureParser(lines[0])
+      const parser = ensureParser(lines)
       setEntries((previous) => {
         const next = [...previous]
         lines.forEach((line) => parser.parseLine(line, "stdout", next, toolMapRef.current))
@@ -412,7 +458,7 @@ export function LogViewer({
       const nextToolMap = new Map<string, number>()
       parserRef.current = null
       if (lines.length > 0) {
-        const parser = ensureParser(lines[0])
+        const parser = ensureParser(lines)
         lines.forEach((line) => parser.parseLine(line, "stdout", nextEntries, nextToolMap))
       }
       toolMapRef.current = nextToolMap
@@ -481,17 +527,13 @@ export function LogViewer({
     let rawCount = 0
     const visibleItems: Array<{ entry: ParsedEntry; index: number }> = []
     entries.forEach((entry, i) => {
-      if (entry.kind === "text") narrativeCount += 1
+      if (entry.kind === "text" || entry.kind === "pi-thinking") narrativeCount += 1
       else if (entry.kind === "tool" || entry.kind === "codex-command") toolCount += 1
       else if (entry.kind === "raw") rawCount += 1
       const visible =
         entry.kind === "result" || entry.kind === "codex-turn"
           ? true
-          : filter === "all"
-            ? true
-            : entry.kind === "codex-command"
-              ? filter === "tool"
-              : entry.kind === filter
+          : filter === "all" || (FILTER_ALIAS[entry.kind] ?? entry.kind) === filter
       if (visible) visibleItems.push({ entry, index: i })
     })
     const filterOptions: Array<{ key: LogFilter; label: string; count: number }> = [
@@ -591,6 +633,7 @@ export function LogViewer({
 
             <div className="space-y-3">
               {visibleItems.map(({ entry, index: k }) => {
+                if (entry.kind === "pi-thinking") return <PiThinkingEntry key={entry.id} entry={entry} />
                 if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
                 if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
                 if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
