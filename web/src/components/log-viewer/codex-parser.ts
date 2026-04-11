@@ -9,6 +9,8 @@ interface CodexEvent {
     type?: string
     command?: string
     text?: string
+    aggregated_output?: string
+    exit_code?: number
     status?: string
   }
   usage?: {
@@ -72,7 +74,7 @@ export class CodexParser implements StreamParser {
         if (idx !== undefined) {
           const existing = entries[idx]
           if (existing?.kind === "codex-command") {
-            entries[idx] = { ...existing, inProgress: false, output: item.text ?? "" }
+            entries[idx] = { ...existing, inProgress: false, output: item.aggregated_output ?? item.text ?? "" }
             itemMap.delete(item.id)
             return
           }

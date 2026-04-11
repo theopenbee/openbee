@@ -36,14 +36,14 @@ describe("CodexParser", () => {
     })
   })
 
-  it("updates codex-command entry when item.completed command_execution arrives", () => {
+  it("updates codex-command entry using aggregated_output when item.completed arrives", () => {
     const startLine = JSON.stringify({
       type: "item.started",
       item: { id: "item_1", type: "command_execution", command: "ls -la", status: "in_progress" },
     })
     const completeLine = JSON.stringify({
       type: "item.completed",
-      item: { id: "item_1", type: "command_execution", text: "file1\nfile2" },
+      item: { id: "item_1", type: "command_execution", aggregated_output: "file1\nfile2", exit_code: 0, status: "completed" },
     })
     const entries = run([startLine, completeLine])
     expect(entries).toHaveLength(1)
@@ -54,6 +54,20 @@ describe("CodexParser", () => {
       inProgress: false,
       output: "file1\nfile2",
     })
+  })
+
+  it("falls back to text field when aggregated_output is absent", () => {
+    const startLine = JSON.stringify({
+      type: "item.started",
+      item: { id: "item_2", type: "command_execution", command: "echo hi", status: "in_progress" },
+    })
+    const completeLine = JSON.stringify({
+      type: "item.completed",
+      item: { id: "item_2", type: "command_execution", text: "hi" },
+    })
+    const entries = run([startLine, completeLine])
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ kind: "codex-command", inProgress: false, output: "hi" })
   })
 
   it("creates text entry for item.completed agent_message", () => {
