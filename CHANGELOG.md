@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.20] - 2026-04-09
+
 ### Added
 - Add direct worker dispatch via @mention syntax, bypassing the scheduler
 

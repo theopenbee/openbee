@@ -26,7 +26,13 @@ The following tools are unavailable in background Worker mode. Use these alterna
 **BEFORE** producing any output addressed to the user — including questions, status updates, design proposals, clarifications, or results — you **MUST** first execute a Bash call:
 
 ```bash
+# Simple content (no special characters):
 openbee ctl message send --message-id <id> --content "..."
+
+# Content with backticks, $(...), code blocks, or other shell-special characters — use heredoc:
+openbee ctl message send --message-id <id> --content - << 'EOF'
+message content here
+EOF
 ```
 
 There is **NO other way** to communicate with the user. Text output is **INVISIBLE**.
@@ -116,3 +122,17 @@ openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 # Send text and file together
 openbee ctl message send --message-id <id> --content "See attachment for details." --media-path /tmp/output.csv
 ```
+
+### ⚠️ Sending Content with Special Characters (backticks, code blocks, $, etc.)
+
+When message content contains backticks `` ` ``, `$(...)`, code blocks, or other shell-special characters, **do NOT** pass the content directly as a `--content "..."` argument — the shell will expand or misinterpret it.
+
+**Always use `--content -` with a heredoc** for any content that may contain special characters:
+
+```bash
+openbee ctl message send --message-id <id> --content - << 'EOF'
+Your message here, with `backticks`, $(variables), code blocks, etc.
+EOF
+```
+
+The single-quoted `'EOF'` delimiter prevents the shell from expanding anything inside the heredoc. This is the safe, canonical way to send rich content.
