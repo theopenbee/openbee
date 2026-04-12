@@ -533,23 +533,46 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}, &vals.FFmpegPath); err != nil {
 			return handleSurveyErr(err)
 		}
-	}
 
-	if vals.MCPTokenSecret != "" {
-		var regenerate bool
-		if err := survey.AskOne(&survey.Confirm{
-			Message: i18n.M.Prompt.MCPTokenRegenConfirm,
-			Default: false,
-		}, &regenerate); err != nil {
-			return handleSurveyErr(err)
+		// JWT Secret
+		if vals.AuthJWTSecret != "" {
+			var regenerate bool
+			if err := survey.AskOne(&survey.Confirm{
+				Message: i18n.M.Prompt.JWTRegenConfirm,
+				Default: false,
+			}, &regenerate); err != nil {
+				return handleSurveyErr(err)
+			}
+			if regenerate {
+				b := make([]byte, 32)
+				rand.Read(b)
+				vals.AuthJWTSecret = hex.EncodeToString(b)
+				fmt.Println(i18n.M.Output.Config.JWTRegenerated)
+			}
+		} else {
+			b := make([]byte, 32)
+			rand.Read(b)
+			vals.AuthJWTSecret = hex.EncodeToString(b)
+			fmt.Println(i18n.M.Output.Config.JWTGenerated)
 		}
-		if regenerate {
+
+		// MCP Token Secret
+		if vals.MCPTokenSecret != "" {
+			var regenerate bool
+			if err := survey.AskOne(&survey.Confirm{
+				Message: i18n.M.Prompt.MCPTokenRegenConfirm,
+				Default: false,
+			}, &regenerate); err != nil {
+				return handleSurveyErr(err)
+			}
+			if regenerate {
+				vals.MCPTokenSecret = config.GenerateRandomSecret()
+				fmt.Println(i18n.M.Output.Config.MCPTokenSecretRegenerated)
+			}
+		} else {
 			vals.MCPTokenSecret = config.GenerateRandomSecret()
-			fmt.Println(i18n.M.Output.Config.MCPTokenSecretRegenerated)
+			fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 		}
-	} else {
-		vals.MCPTokenSecret = config.GenerateRandomSecret()
-		fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
 	}
 
 	// Step 4 — Confirm write
