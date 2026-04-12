@@ -270,6 +270,23 @@ SELECT 1`,
 		name:    "normalize_engine_empty_to_claude",
 		sql:     `UPDATE bee_session_contexts SET engine = 'claude' WHERE engine = ''`,
 	},
+	{
+		version: 31,
+		name:    "rekey_bee_session_contexts_by_engine",
+		sql: `CREATE TABLE bee_session_contexts_new (
+	session_key TEXT NOT NULL,
+	agent_id    TEXT NOT NULL,
+	engine      TEXT NOT NULL,
+	session_id  TEXT NOT NULL,
+	updated_at  INTEGER NOT NULL,
+	PRIMARY KEY (session_key, agent_id, engine)
+);
+INSERT INTO bee_session_contexts_new (session_key, agent_id, engine, session_id, updated_at)
+SELECT session_key, agent_id, COALESCE(NULLIF(engine, ''), 'claude'), session_id, updated_at
+FROM bee_session_contexts;
+DROP TABLE bee_session_contexts;
+ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.

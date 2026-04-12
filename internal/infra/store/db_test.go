@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"os"
 	"testing"
 )
@@ -130,5 +131,70 @@ func TestMigrations_SkipsApplied(t *testing.T) {
 	}
 	if countAfter != 1 {
 		t.Errorf("version 1 should appear exactly once after re-run, got %d", countAfter)
+	}
+}
+
+func TestMigration_RekeysSessionContextsByEngine(t *testing.T) {
+	dbPath := t.TempDir() + "/legacy.db"
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(`CREATE TABLE bee_migrations (
+		version INTEGER PRIMARY KEY,
+		name    TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create bee_migrations: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE bee_session_contexts (
+		session_key TEXT NOT NULL,
+		agent_id    TEXT NOT NULL,
+		session_id  TEXT NOT NULL,
+		updated_at  INTEGER NOT NULL,
+		engine      TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (session_key, agent_id)
+	)`); err != nil {
+		t.Fatalf("create legacy session table: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at, engine)
+		VALUES ('sk', 'bee', 'legacy-sid', 1, '')`); err != nil {
+		t.Fatalf("seed legacy session row: %v", err)
+	}
+	for _, m := range migrations {
+		if m.version >= 31 {
+			break
+		}
+		if _, err := db.Exec(`INSERT INTO bee_migrations (version, name) VALUES (?, ?)`, m.version, m.name); err != nil {
+			t.Fatalf("seed migration %d: %v", m.version, err)
+		}
+	}
+
+	if err := migrate(db); err != nil {
+		t.Fatalf("run migrate: %v", err)
+	}
+
+	var sessionID, engine string
+	if err := db.QueryRow(`SELECT session_id, engine
+		FROM bee_session_contexts
+		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = 'claude'`).Scan(&sessionID, &engine); err != nil {
+		t.Fatalf("query migrated row: %v", err)
+	}
+	if sessionID != "legacy-sid" || engine != "claude" {
+		t.Fatalf("unexpected migrated row: session_id=%q engine=%q", sessionID, engine)
+	}
+
+	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at, engine)
+		VALUES ('sk', 'bee', 'codex-sid', 2, 'codex')`); err != nil {
+		t.Fatalf("insert codex row after migration: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_session_contexts WHERE session_key = 'sk' AND agent_id = 'bee'`).Scan(&count); err != nil {
+		t.Fatalf("count migrated rows: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 per-engine rows after migration, got %d", count)
 	}
 }

@@ -13,9 +13,9 @@ import (
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // CallTool is exported for testing only.
@@ -229,12 +229,12 @@ func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolCreateTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		MessageID       string `json:"message_id"`
-		WorkerID        string `json:"worker_id"`
-		Instruction     string `json:"instruction"`
-		Type            string `json:"type"`
-		ScheduledAt     *int64 `json:"scheduled_at"`
-		CronExpr        string `json:"cron_expr"`
+		MessageID   string `json:"message_id"`
+		WorkerID    string `json:"worker_id"`
+		Instruction string `json:"instruction"`
+		Type        string `json:"type"`
+		ScheduledAt *int64 `json:"scheduled_at"`
+		CronExpr    string `json:"cron_expr"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -295,16 +295,16 @@ func (s *MCPServer) toolCreateTask(ctx context.Context, args json.RawMessage) (a
 	}
 
 	task := model.Task{
-		MessageID:       params.MessageID,
-		WorkerID:        params.WorkerID,
-		Instruction:     params.Instruction,
-		Type:            params.Type,
-		Status:          model.TaskStatusPending,
-		ScheduledAt:     params.ScheduledAt,
-		CronExpr:        params.CronExpr,
-		NextRunAt:       nextRunAt,
-		CreatedAt:       nowMS,
-		UpdatedAt:       nowMS,
+		MessageID:   params.MessageID,
+		WorkerID:    params.WorkerID,
+		Instruction: params.Instruction,
+		Type:        params.Type,
+		Status:      model.TaskStatusPending,
+		ScheduledAt: params.ScheduledAt,
+		CronExpr:    params.CronExpr,
+		NextRunAt:   nextRunAt,
+		CreatedAt:   nowMS,
+		UpdatedAt:   nowMS,
 	}
 
 	id, err := s.taskStore.Create(ctx, task)
@@ -463,8 +463,13 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 			return nil, fmt.Errorf("list session contexts: %w", err)
 		}
 		var workers []map[string]string
+		seenWorkers := make(map[string]struct{})
 		for _, a := range agents {
 			if a.AgentType == "worker" {
+				if _, exists := seenWorkers[a.AgentID]; exists {
+					continue
+				}
+				seenWorkers[a.AgentID] = struct{}{}
 				workers = append(workers, map[string]string{
 					"worker_id": a.AgentID,
 					"name":      a.Name,

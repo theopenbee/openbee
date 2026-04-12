@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/domain/bee"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -93,7 +93,12 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 }
 
 func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter) *bee.Feeder {
+	return newFeederWithEngine(ms, ts, ss, es, runner, "")
+}
+
+func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
+	cfg.Engine = engine
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
@@ -166,6 +171,75 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	}
 	if !call.opts.Resume {
 		t.Error("expected resume=true on second call")
+	}
+}
+
+func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	ctx := context.Background()
+
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	insertMessage(t, db, "m1", "feishu:c:u", "switch to codex")
+
+	codexRunner := &mockBeeRunner{}
+	codexFeeder := newFeederWithEngine(ms, ts, ss, es, codexRunner, "codex")
+
+	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	go codexFeeder.Run(tickCtx)
+	time.Sleep(700 * time.Millisecond)
+
+	codexCalls := codexRunner.getCalls()
+	if len(codexCalls) == 0 {
+		t.Fatal("expected codex bee runner to be called")
+	}
+	codexCall := codexCalls[0]
+	if codexCall.opts.Resume {
+		t.Error("expected codex run to start fresh on engine switch")
+	}
+	if codexCall.opts.SessionID == "claude-session" {
+		t.Error("expected codex run to use a new session ID")
+	}
+
+	claudeSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "claude")
+	if err != nil {
+		t.Fatalf("get claude session: %v", err)
+	}
+	codexSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "codex")
+	if err != nil {
+		t.Fatalf("get codex session: %v", err)
+	}
+	if claudeSID != "claude-session" {
+		t.Errorf("expected claude session preserved, got %q", claudeSID)
+	}
+	if codexSID != codexCall.opts.SessionID {
+		t.Errorf("expected codex session persisted, got %q want %q", codexSID, codexCall.opts.SessionID)
+	}
+
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+
+	insertMessage(t, db, "m2", "feishu:c:u", "switch back to claude")
+
+	claudeRunner := &mockBeeRunner{}
+	claudeFeeder := newFeederWithEngine(ms, ts, ss, es, claudeRunner, "claude")
+
+	tickCtx2, cancel2 := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel2()
+	go claudeFeeder.Run(tickCtx2)
+	time.Sleep(700 * time.Millisecond)
+
+	claudeCalls := claudeRunner.getCalls()
+	if len(claudeCalls) == 0 {
+		t.Fatal("expected claude bee runner to be called")
+	}
+	if !claudeCalls[0].opts.Resume {
+		t.Error("expected claude run to resume original claude session")
+	}
+	if claudeCalls[0].opts.SessionID != "claude-session" {
+		t.Errorf("expected original claude session, got %q", claudeCalls[0].opts.SessionID)
 	}
 }
 
@@ -621,4 +695,3 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 		t.Errorf("expected bee_processed, got %q", msgStatus)
 	}
 }
-

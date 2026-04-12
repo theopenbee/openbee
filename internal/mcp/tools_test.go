@@ -7,15 +7,15 @@ import (
 	"sync"
 	"testing"
 
-	_ "modernc.org/sqlite"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/platform"
+	_ "modernc.org/sqlite"
 )
 
 // stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
@@ -765,8 +765,9 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 
 	// Seed session contexts for both workers
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1", "") //nolint
-	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-claude", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-codex", "codex")   //nolint
+	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "claude")        //nolint
 
 	// Clear only w1
 	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
@@ -784,11 +785,12 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 		t.Errorf("expected worker_name=W1, got %v", m["worker_name"])
 	}
 
-	// w1 context should be gone; w2 should remain
-	w1sid, _, _ := ss.GetSessionContext(ctx, "sk", w1.ID)
-	w2sid, _, _ := ss.GetSessionContext(ctx, "sk", w2.ID)
-	if w1sid != "" {
-		t.Errorf("expected w1 context cleared, got %q", w1sid)
+	// w1 context should be gone across engines; w2 should remain
+	w1Claude, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "claude")
+	w1Codex, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "codex")
+	w2sid, _ := ss.GetSessionContextForEngine(ctx, "sk", w2.ID, "claude")
+	if w1Claude != "" || w1Codex != "" {
+		t.Errorf("expected w1 context cleared across engines, got claude=%q codex=%q", w1Claude, w1Codex)
 	}
 	if w2sid != "sid-w2" {
 		t.Errorf("expected w2 context intact, got %q", w2sid)
@@ -839,6 +841,41 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	defer clearer.mu.Unlock()
 	if len(clearer.cleared) != 0 {
 		t.Errorf("ClearSession must not be called on confirmation prompt, got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_DedupesWorkersAcrossEngines(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-dedupe", "session-D", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	w1 := workerResult.(model.Worker)
+
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-claude", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-codex", "codex")   //nolint
+
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-D",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] == true {
+		t.Fatalf("expected no confirmation for one worker across multiple engines, got %v", m)
+	}
+	if m["cleared"] != true {
+		t.Fatalf("expected clear to proceed, got %v", m)
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-D" {
+		t.Fatalf("expected clear invoked once for session-D, got %v", clearer.cleared)
 	}
 }
 
