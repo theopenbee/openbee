@@ -43,11 +43,9 @@ func BuildBaseEnv(openbeeURL string) []string {
 	sysEnv := os.Environ()
 	env := make([]string, 0, len(sysEnv)+2)
 	if exePath, err := os.Executable(); err == nil {
-		var oldPath string
+		oldPath := os.Getenv("PATH")
 		for _, e := range sysEnv {
-			if strings.HasPrefix(e, "PATH=") {
-				oldPath = e[len("PATH="):]
-			} else {
+			if !strings.HasPrefix(e, "PATH=") {
 				env = append(env, e)
 			}
 		}

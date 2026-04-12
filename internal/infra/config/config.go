@@ -43,6 +43,12 @@ func DefaultCodexSessionsDir() string {
 	return filepath.Join(home, ".openbee", ".codex", "sessions")
 }
 
+// DefaultPiSessionsDir returns the pi session store directory: ~/.openbee/.pi/sessions
+func DefaultPiSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", ".pi", "sessions")
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`

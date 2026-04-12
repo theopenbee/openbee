@@ -11,8 +11,6 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// removeImportLine removes the "@.openbee.md" line from CLAUDE.md if present.
-// It is a no-op if CLAUDE.md does not exist or does not contain the line.
 func removeImportLine(workDir string) error {
 	claudePath := filepath.Join(workDir, "CLAUDE.md")
 	data, err := os.ReadFile(claudePath)

@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -48,16 +47,10 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastAssistantText, streamResult string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
+	ai.ScanJSONLines(f, func(line string) bool {
 		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
-			continue
+			return true
 		}
 		switch event.Type {
 		case "assistant":
@@ -71,7 +64,8 @@ func ExtractResultFromLog(logPath string) string {
 				streamResult = event.Result
 			}
 		}
-	}
+		return true
+	})
 	if streamResult != "" {
 		return streamResult
 	}
@@ -120,7 +114,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
 		} else {
-			ch <- ai.Output{Type: ai.OutputDone, Content: ""}
+			ch <- ai.Output{Type: ai.OutputDone}
 		}
 	}()
 

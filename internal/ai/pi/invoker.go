@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 // Invoker spawns pi CLI processes. It is stateless and safe for concurrent use.
@@ -21,11 +22,7 @@ type Invoker struct {
 }
 
 func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) (*Invoker, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("user home dir: %w", err)
-	}
-	sessionDir := filepath.Join(home, ".openbee", ".pi", "sessions")
+	sessionDir := config.DefaultPiSessionsDir()
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
@@ -136,15 +133,21 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 		var writeErr error
 		scanner := bufio.NewScanner(stdoutPipe)
-		scanner.Buffer(make([]byte, 64*1024), 64*1024)
+		scanner.Buffer(nil, 1024*1024)
+		newline := []byte{'\n'}
 		for scanner.Scan() {
 			line := scanner.Bytes()
-			if !isStreamingDelta(line) {
-				line = stripThinkingSignature(line)
-				if _, err := logFile.Write(append(line, '\n')); err != nil {
-					writeErr = err
-					break
-				}
+			if isStreamingDelta(line) {
+				continue
+			}
+			line = stripThinkingSignature(line)
+			if _, err := logFile.Write(line); err != nil {
+				writeErr = err
+				break
+			}
+			if _, err := logFile.Write(newline); err != nil {
+				writeErr = err
+				break
 			}
 		}
 
