@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"os"
 	"testing"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 func TestInitDB(t *testing.T) {
@@ -134,7 +136,7 @@ func TestMigrations_SkipsApplied(t *testing.T) {
 	}
 }
 
-func TestMigration_RekeysSessionContextsByEngine(t *testing.T) {
+func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	dbPath := t.TempDir() + "/legacy.db"
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -153,17 +155,16 @@ func TestMigration_RekeysSessionContextsByEngine(t *testing.T) {
 		agent_id    TEXT NOT NULL,
 		session_id  TEXT NOT NULL,
 		updated_at  INTEGER NOT NULL,
-		engine      TEXT NOT NULL DEFAULT '',
 		PRIMARY KEY (session_key, agent_id)
 	)`); err != nil {
 		t.Fatalf("create legacy session table: %v", err)
 	}
-	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at, engine)
-		VALUES ('sk', 'bee', 'legacy-sid', 1, '')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
+		VALUES ('sk', 'bee', 'legacy-sid', 1)`); err != nil {
 		t.Fatalf("seed legacy session row: %v", err)
 	}
 	for _, m := range migrations {
-		if m.version >= 31 {
+		if m.version >= 29 {
 			break
 		}
 		if _, err := db.Exec(`INSERT INTO bee_migrations (version, name) VALUES (?, ?)`, m.version, m.name); err != nil {
@@ -178,10 +179,10 @@ func TestMigration_RekeysSessionContextsByEngine(t *testing.T) {
 	var sessionID, engine string
 	if err := db.QueryRow(`SELECT session_id, engine
 		FROM bee_session_contexts
-		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = 'claude'`).Scan(&sessionID, &engine); err != nil {
+		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = ?`, ai.EngineClaude).Scan(&sessionID, &engine); err != nil {
 		t.Fatalf("query migrated row: %v", err)
 	}
-	if sessionID != "legacy-sid" || engine != "claude" {
+	if sessionID != "legacy-sid" || engine != ai.EngineClaude {
 		t.Fatalf("unexpected migrated row: session_id=%q engine=%q", sessionID, engine)
 	}
 

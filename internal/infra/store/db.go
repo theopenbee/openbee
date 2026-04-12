@@ -263,17 +263,7 @@ SELECT 1`,
 	},
 	{
 		version: 29,
-		name:    "add_engine_to_bee_session_contexts",
-		sql:     `ALTER TABLE bee_session_contexts ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
-	},
-	{
-		version: 30,
-		name:    "normalize_engine_empty_to_claude",
-		sql:     fmt.Sprintf(`UPDATE bee_session_contexts SET engine = '%s' WHERE engine = ''`, ai.EngineClaude),
-	},
-	{
-		version: 31,
-		name:    "rekey_bee_session_contexts_by_engine",
+		name:    "migrate_bee_session_contexts_to_engine_keyed_schema",
 		sql: fmt.Sprintf(`CREATE TABLE bee_session_contexts_new (
 	session_key TEXT NOT NULL,
 	agent_id    TEXT NOT NULL,
@@ -283,7 +273,7 @@ SELECT 1`,
 	PRIMARY KEY (session_key, agent_id, engine)
 );
 INSERT INTO bee_session_contexts_new (session_key, agent_id, engine, session_id, updated_at)
-SELECT session_key, agent_id, COALESCE(NULLIF(engine, ''), '%s'), session_id, updated_at
+SELECT session_key, agent_id, '%s', session_id, updated_at
 FROM bee_session_contexts;
 DROP TABLE bee_session_contexts;
 ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.EngineClaude),
