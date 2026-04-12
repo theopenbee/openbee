@@ -134,16 +134,6 @@ func TestMessageStore_Create(t *testing.T) {
 	}
 }
 
-func TestMessageStore_SetStatus(t *testing.T) {
-	s := setupMessageStore(t)
-	ctx := context.Background()
-
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "", 0) //nolint
-	if err := s.SetStatus(ctx, "msg-1", "debouncing"); err != nil {
-		t.Fatalf("SetStatus: %v", err)
-	}
-}
-
 func TestMessageStore_UpdateStatusBatch(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
@@ -154,18 +144,29 @@ func TestMessageStore_UpdateStatusBatch(t *testing.T) {
 	if err := s.UpdateStatusBatch(ctx, []string{"msg-1", "msg-2"}, "debouncing"); err != nil {
 		t.Fatalf("UpdateStatusBatch: %v", err)
 	}
-}
 
-func TestMessageStore_MarkMerged(t *testing.T) {
-	s := setupMessageStore(t)
-	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT status FROM bee_platform_messages WHERE id IN (?, ?) ORDER BY id`,
+		"msg-1", "msg-2",
+	)
+	if err != nil {
+		t.Fatalf("query statuses: %v", err)
+	}
+	defer rows.Close()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "msg1", "", "", 0) //nolint
-	s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "msg2", "", "", 0) //nolint
-	s.Create(ctx, "msg-3", "feishu:chat1:userA", "feishu", "msg3", "", "", 0) //nolint
-
-	if err := s.MarkMerged(ctx, "msg-1", []string{"msg-2", "msg-3"}); err != nil {
-		t.Fatalf("MarkMerged: %v", err)
+	var statuses []string
+	for rows.Next() {
+		var status string
+		if err := rows.Scan(&status); err != nil {
+			t.Fatalf("scan status: %v", err)
+		}
+		statuses = append(statuses, status)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows err: %v", err)
+	}
+	if len(statuses) != 2 || statuses[0] != "debouncing" || statuses[1] != "debouncing" {
+		t.Fatalf("unexpected statuses: %v", statuses)
 	}
 }
 

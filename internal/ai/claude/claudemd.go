@@ -2,72 +2,36 @@ package claude
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-const (
-	RoleBee    = "bee"
-	RoleWorker = "worker"
-
-	SystemRulesFile = ".openbee.md"
-	ImportLine      = "@" + SystemRulesFile
-)
-
-// options holds optional parameters for EnsureSystemRules.
-type options struct {
-	name        string
-	description string
-	memory      string
-}
-
-// Option configures EnsureSystemRules behavior.
-type Option func(*options)
-
-// rulesForRole returns the combined rules content for the given role.
-func rulesForRole(role string, opts options) string {
-	switch role {
-	case RoleBee:
-		return beeRules()
-	case RoleWorker:
-		return workerRules(opts.name, opts.description, opts.memory)
-	default:
-		return ""
-	}
-}
-
-// EnsureSystemRules writes .openbee.md with the latest system rules
-// for the given role, and ensures CLAUDE.md contains the @import reference.
-// It does NOT create CLAUDE.md if it doesn't exist.
-func EnsureSystemRules(workDir, role string, optFns ...Option) error {
-	var opts options
-	for _, fn := range optFns {
-		fn(&opts)
-	}
-	// 1. Write .openbee.md (always overwrite)
-	rulesPath := filepath.Join(workDir, SystemRulesFile)
-	if err := os.WriteFile(rulesPath, []byte(rulesForRole(role, opts)), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", SystemRulesFile, err)
-	}
-
-	// 2. Check CLAUDE.md for import reference
+func removeImportLine(workDir string) error {
 	claudePath := filepath.Join(workDir, "CLAUDE.md")
 	data, err := os.ReadFile(claudePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // CLAUDE.md doesn't exist, skip
-		}
 		return fmt.Errorf("read CLAUDE.md: %w", err)
 	}
 
-	// 3. Append import if missing
-	if !bytes.Contains(data, []byte(ImportLine)) {
-		data = append(data, []byte("\n"+ImportLine+"\n")...)
-		if err := os.WriteFile(claudePath, data, 0o644); err != nil {
-			return fmt.Errorf("update CLAUDE.md: %w", err)
+	target := []byte(ai.ImportLine)
+	lines := bytes.Split(data, []byte("\n"))
+	out := lines[:0]
+	for _, line := range lines {
+		if !bytes.Equal(bytes.TrimRight(line, "\r"), target) {
+			out = append(out, line)
 		}
 	}
-
-	return nil
+	cleaned := bytes.Join(out, []byte("\n"))
+	if bytes.Equal(cleaned, data) {
+		return nil // nothing changed
+	}
+	return os.WriteFile(claudePath, cleaned, 0o644)
 }

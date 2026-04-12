@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/bee"
-	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -40,48 +40,51 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 	}
 }
 
+type mockProcess struct{}
+
+func (m *mockProcess) PID() int    { return 0 }
+func (m *mockProcess) Stop() error { return nil }
+
 // mockBeeRunner records all Run calls.
 type mockBeeRunner struct {
 	mu          sync.Mutex
 	calls       []beeCall
 	err         error
-	outputLines []claude.Output
+	outputLines []ai.Output
 }
 
 type beeCall struct {
-	prompt    string
-	sessionID string
-	resume    bool
-	logPath   string
+	prompt  string
+	opts    ai.RunOptions
+	logPath string
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
+func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
+}
+
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	m.mu.Lock()
-	m.calls = append(m.calls, beeCall{
-		prompt:    prompt,
-		sessionID: opts.SessionID,
-		resume:    opts.Resume,
-		logPath:   logPath,
-	})
-	customLines := m.outputLines
+	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
 	m.mu.Unlock()
-
-	var lines []claude.Output
-	if customLines != nil {
-		lines = customLines
-	} else if m.err != nil {
-		lines = []claude.Output{{Type: claude.OutputError, Content: m.err.Error()}}
-	} else {
-		lines = []claude.Output{{Type: claude.OutputDone}}
+	if m.err != nil {
+		return nil, nil, m.err
 	}
-
-	ch := make(chan claude.Output, len(lines))
+	var lines []ai.Output
+	if len(m.outputLines) > 0 {
+		lines = m.outputLines
+	} else {
+		lines = []ai.Output{{Type: ai.OutputDone}}
+	}
+	ch := make(chan ai.Output, len(lines))
 	for _, l := range lines {
 		ch <- l
 	}
 	close(ch)
-	return &claude.Process{}, ch, nil
+	return &mockProcess{}, ch, nil
 }
+
+func (m *mockBeeRunner) ExtractResult(_ string) string { return "" }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
@@ -89,8 +92,13 @@ func (m *mockBeeRunner) getCalls() []beeCall {
 	return append([]beeCall{}, m.calls...)
 }
 
-func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner bee.BeeRunner) *bee.Feeder {
+func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter) *bee.Feeder {
+	return newFeederWithEngine(ms, ts, ss, es, runner, "")
+}
+
+func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
+	cfg.Engine = engine
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
@@ -113,19 +121,19 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.sessionID == "" {
+	if call.opts.SessionID == "" {
 		t.Error("expected non-empty sessionID on first call")
 	}
-	if call.resume {
+	if call.opts.Resume {
 		t.Error("expected resume=false on first call")
 	}
 
-	got, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
 		t.Fatalf("get session context: %v", err)
 	}
-	if got != call.sessionID {
-		t.Errorf("persisted sessionID mismatch: want %q got %q", call.sessionID, got)
+	if got != call.opts.SessionID {
+		t.Errorf("persisted sessionID mismatch: want %q got %q", call.opts.SessionID, got)
 	}
 
 	var status string
@@ -139,7 +147,7 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 
@@ -158,11 +166,80 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.sessionID != "existing-session" {
-		t.Errorf("expected existing-session, got %q", call.sessionID)
+	if call.opts.SessionID != "existing-session" {
+		t.Errorf("expected existing-session, got %q", call.opts.SessionID)
 	}
-	if !call.resume {
+	if !call.opts.Resume {
 		t.Error("expected resume=true on second call")
+	}
+}
+
+func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	ctx := context.Background()
+
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	insertMessage(t, db, "m1", "feishu:c:u", "switch to codex")
+
+	codexRunner := &mockBeeRunner{}
+	codexFeeder := newFeederWithEngine(ms, ts, ss, es, codexRunner, "codex")
+
+	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	go codexFeeder.Run(tickCtx)
+	time.Sleep(700 * time.Millisecond)
+
+	codexCalls := codexRunner.getCalls()
+	if len(codexCalls) == 0 {
+		t.Fatal("expected codex bee runner to be called")
+	}
+	codexCall := codexCalls[0]
+	if codexCall.opts.Resume {
+		t.Error("expected codex run to start fresh on engine switch")
+	}
+	if codexCall.opts.SessionID == "claude-session" {
+		t.Error("expected codex run to use a new session ID")
+	}
+
+	claudeSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "claude")
+	if err != nil {
+		t.Fatalf("get claude session: %v", err)
+	}
+	codexSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "codex")
+	if err != nil {
+		t.Fatalf("get codex session: %v", err)
+	}
+	if claudeSID != "claude-session" {
+		t.Errorf("expected claude session preserved, got %q", claudeSID)
+	}
+	if codexSID != codexCall.opts.SessionID {
+		t.Errorf("expected codex session persisted, got %q want %q", codexSID, codexCall.opts.SessionID)
+	}
+
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+
+	insertMessage(t, db, "m2", "feishu:c:u", "switch back to claude")
+
+	claudeRunner := &mockBeeRunner{}
+	claudeFeeder := newFeederWithEngine(ms, ts, ss, es, claudeRunner, "claude")
+
+	tickCtx2, cancel2 := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel2()
+	go claudeFeeder.Run(tickCtx2)
+	time.Sleep(700 * time.Millisecond)
+
+	claudeCalls := claudeRunner.getCalls()
+	if len(claudeCalls) == 0 {
+		t.Fatal("expected claude bee runner to be called")
+	}
+	if !claudeCalls[0].opts.Resume {
+		t.Error("expected claude run to resume original claude session")
+	}
+	if claudeCalls[0].opts.SessionID != "claude-session" {
+		t.Errorf("expected original claude session, got %q", claudeCalls[0].opts.SessionID)
 	}
 }
 
@@ -184,7 +261,7 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 		t.Errorf("expected rollback to received, got %q", status)
 	}
 
-	got, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if got != "" {
 		t.Errorf("session context should not be written on failure, got %q", got)
 	}
@@ -208,8 +285,8 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 		t.Fatalf("expected 2 bee invocations (one per sessionKey), got %d", len(calls))
 	}
 
-	sess1, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
-	sess2, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
+	sess1, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
+	sess2, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
 	if sess1 == "" {
 		t.Error("session context for u1 should be set")
 	}
@@ -503,50 +580,27 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 
 // callbackBeeRunner invokes fn synchronously inside Run, then signals done.
 type callbackBeeRunner struct {
-	fn func()
+	fn   func()
+	done chan struct{}
 }
 
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ claude.RunOptions, _ string) (*claude.Process, <-chan claude.Output, error) {
-	ch := make(chan claude.Output, 1)
+func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
+}
+
+func (r *callbackBeeRunner) ExtractResult(_ string) string { return "" }
+
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
+	ch := make(chan ai.Output, 1)
 	go func() {
-		if r.fn != nil {
-			r.fn()
+		r.fn()
+		if r.done != nil {
+			close(r.done)
 		}
-		ch <- claude.Output{Type: claude.OutputDone}
+		ch <- ai.Output{Type: ai.OutputDone}
 		close(ch)
 	}()
-	return &claude.Process{}, ch, nil
-}
-
-func TestWriteCLAUDEMD_DoesNotOverwriteExisting(t *testing.T) {
-	dir := t.TempDir()
-	original := "user-edited content"
-	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(original), 0644)
-
-	if err := bee.WriteCLAUDEMD(dir, "new persona"); err != nil {
-		t.Fatal(err)
-	}
-
-	data, _ := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if string(data) != original {
-		t.Error("WriteCLAUDEMD should not overwrite existing file")
-	}
-}
-
-func TestWriteCLAUDEMD_CreatesWhenMissing(t *testing.T) {
-	dir := t.TempDir()
-
-	if err := bee.WriteCLAUDEMD(dir, bee.DefaultPersona); err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if err != nil {
-		t.Fatalf("CLAUDE.md should be created: %v", err)
-	}
-	if string(data) != bee.DefaultPersona {
-		t.Errorf("unexpected content: %q", string(data))
-	}
+	return &mockProcess{}, ch, nil
 }
 
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
@@ -641,4 +695,3 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 		t.Errorf("expected bee_processed, got %q", msgStatus)
 	}
 }
-

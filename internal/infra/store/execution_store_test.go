@@ -125,7 +125,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	}
 }
 
-func TestExecutionStore_GetBySessionID(t *testing.T) {
+func TestExecutionStore_ListBySessionID(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {
 		t.Fatal(err)
@@ -138,12 +138,15 @@ func TestExecutionStore_GetBySessionID(t *testing.T) {
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	exec, _ := es.Create(w.ID, "test message", uuid.New().String())
 
-	got, err := es.GetBySessionID(exec.SessionID)
+	got, err := es.ListBySessionID(exec.SessionID)
 	if err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
+		t.Fatalf("ListBySessionID: %v", err)
 	}
-	if got.ID != exec.ID {
-		t.Errorf("expected ID %s, got %s", exec.ID, got.ID)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 execution, got %d", len(got))
+	}
+	if got[0].ID != exec.ID {
+		t.Errorf("expected ID %s, got %s", exec.ID, got[0].ID)
 	}
 }
 

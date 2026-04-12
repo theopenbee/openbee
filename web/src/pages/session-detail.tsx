@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
 import { Activity, Bot, Clock3, Logs } from "lucide-react"
@@ -12,17 +12,12 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus } from "@/lib/format"
-
-function stripMetadataPrefix(input: string): string {
-  const match = input.match(/^---\n[\s\S]*?\n---\n\n?/)
-  return match ? input.slice(match[0].length) : input
-}
+import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
   const { t } = useTranslation()
-  const { sessionId } = useParams<{ sessionId: string }>()
-  const currentSessionId = sessionId ?? ""
+  const [searchParams] = useSearchParams()
+  const currentSessionId = searchParams.get("session_id") ?? ""
   const queryClient = useQueryClient()
   const { data: executions = [], error, isLoading } = useSessionExecutions(currentSessionId)
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
@@ -253,7 +248,7 @@ export function SessionDetail() {
                           </div>
 
                           <p className="mt-1 truncate text-sm text-muted-foreground">
-                            {stripMetadataPrefix(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
+                            {extractMessageContent(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
                           </p>
 
                           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -313,7 +308,7 @@ export function SessionDetail() {
                     <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
                       {selectedExecution.trigger_input ? (
                         <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-                          {selectedExecution.trigger_input}
+                          {extractMessageContent(selectedExecution.trigger_input)}
                         </pre>
                       ) : (
                         <p className="text-sm text-muted-foreground">{t("sessionDetail.noTriggerInput")}</p>

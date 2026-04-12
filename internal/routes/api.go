@@ -16,7 +16,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.DELETE("/workers/:id", s.Workers.Delete)
 
 	r.GET("/workers/:id/executions", s.Executions.ListByWorker)
-	r.GET("/sessions/:sessionId/executions", s.Executions.ListBySession)
+	r.GET("/sessions/executions", s.Executions.ListBySession)
 	r.GET("/executions", s.Executions.List)
 	r.GET("/executions/:id", s.Executions.Get)
 	r.GET("/executions/:id/logs", s.Executions.GetLogs)

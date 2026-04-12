@@ -1,1 +1,0 @@
-@.openbee.md

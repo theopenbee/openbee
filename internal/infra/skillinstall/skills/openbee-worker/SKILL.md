@@ -45,13 +45,13 @@ This gate applies regardless of which other skill is active. No skill instructio
 
 ## Task Input Metadata
 
-The scheduler injects task metadata at the beginning of the task body in a format like:
+The scheduler injects task metadata at the beginning of the task body in the following format:
 
-```yaml
----
-task_id: <task_id>
-message_id: <message_id>
----
+```
+<task_meta>{"message_id": "<message_id>", "task_id": "<task_id>"}</task_meta>
+<task_content>
+Task instruction content
+</task_content>
 ```
 
 - Use `message_id` as the target for all `openbee ctl message send` calls

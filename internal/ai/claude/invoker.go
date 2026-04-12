@@ -1,39 +1,15 @@
 package claude
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
-	"sync"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
-
-// OutputType classifies a line of output from a Claude CLI process.
-type OutputType string
-
-const (
-	OutputStdout OutputType = "stdout"
-	OutputStderr OutputType = "stderr"
-	OutputDone   OutputType = "done"
-	OutputError  OutputType = "error"
-)
-
-// Output is a single output event from a Claude CLI process.
-type Output struct {
-	Type    OutputType `json:"type"`
-	Content string     `json:"content"`
-}
-
-// RunOptions controls session behaviour for a Claude CLI invocation.
-type RunOptions struct {
-	SessionID string
-	Resume    bool
-	APIKey    string
-}
 
 // Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
@@ -41,50 +17,9 @@ type Invoker struct {
 	baseEnv []string
 }
 
-// NewInvoker creates an Invoker. openbeeURL is the openbee server base URL
-// (e.g. "http://host:port") injected as OPENBEE_URL into the subprocess.
+// NewInvoker creates an Invoker. openbeeURL is injected as OPENBEE_URL into subprocesses.
 func NewInvoker(binary, openbeeURL string) *Invoker {
-	sysEnv := os.Environ()
-	env := make([]string, 0, len(sysEnv)+3)
-	if exePath, err := os.Executable(); err == nil {
-		patchedPath := "PATH=" + filepath.Dir(exePath) + string(os.PathListSeparator) + os.Getenv("PATH")
-		for _, e := range sysEnv {
-			if !strings.HasPrefix(e, "PATH=") {
-				env = append(env, e)
-			}
-		}
-		env = append(env, patchedPath)
-	} else {
-		env = append(env, sysEnv...)
-	}
-	env = append(env, "OPENBEE_URL="+openbeeURL)
-	return &Invoker{binary: binary, baseEnv: env}
-}
-
-// Process represents a running Claude CLI invocation.
-type Process struct {
-	cmd *exec.Cmd
-	mu  sync.Mutex
-}
-
-// PID returns the process ID, or 0 if the process has not started.
-func (p *Process) PID() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
-		return p.cmd.Process.Pid
-	}
-	return 0
-}
-
-// Stop kills the process.
-func (p *Process) Stop() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
-		return p.cmd.Process.Kill()
-	}
-	return nil
+	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL)}
 }
 
 type streamEvent struct {
@@ -112,16 +47,10 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastAssistantText, streamResult string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
+	ai.ScanJSONLines(f, func(line string) bool {
 		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
-			continue
+			return true
 		}
 		switch event.Type {
 		case "assistant":
@@ -135,17 +64,16 @@ func ExtractResultFromLog(logPath string) string {
 				streamResult = event.Result
 			}
 		}
-	}
+		return true
+	})
 	if streamResult != "" {
 		return streamResult
 	}
 	return lastAssistantText
 }
 
-// Run starts a Claude CLI process, redirecting its stdout and stderr to logPath.
-// The returned channel carries only lifecycle events: OutputDone on success,
-// OutputError on failure. The channel is closed after the process exits.
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (*Process, <-chan Output, error) {
+// Run starts a Claude CLI process, redirecting output to logPath.
+func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
@@ -177,17 +105,16 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts RunOpt
 		return nil, nil, fmt.Errorf("start claude: %w", err)
 	}
 
-	proc := &Process{cmd: cmd}
-	ch := make(chan Output, 1)
+	proc := ai.NewCmdProcess(cmd)
+	ch := make(chan ai.Output, 1)
 
 	go func() {
 		defer close(ch)
 		defer logFile.Close()
-
 		if err := cmd.Wait(); err != nil {
-			ch <- Output{Type: OutputError, Content: err.Error()}
+			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
 		} else {
-			ch <- Output{Type: OutputDone, Content: ""}
+			ch <- ai.Output{Type: ai.OutputDone}
 		}
 	}()
 

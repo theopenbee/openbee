@@ -2,12 +2,14 @@ package bee
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -17,9 +19,10 @@ import (
 
 var log = logger.With(zap.String("component", "feeder"))
 
-// BeeRunner abstracts the bee process invocation (real or test double).
-type BeeRunner interface {
-	Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error)
+type messageMeta struct {
+	From       string `json:"from"`
+	SessionKey string `json:"session_key"`
+	MessageID  string `json:"message_id"`
 }
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
@@ -44,20 +47,20 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
-	msgStore         *store.MessageStore
-	taskStore        *store.TaskStore
-	sessionStore     *store.SessionStore
-	execStore        *store.ExecutionStore
-	runner           BeeRunner
-	workDir          string
-	cfg              config.BeeConfig
+	msgStore        *store.MessageStore
+	taskStore       *store.TaskStore
+	sessionStore    *store.SessionStore
+	execStore       *store.ExecutionStore
+	runner          ai.EngineAdapter
+	workDir         string
+	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner BeeRunner, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
@@ -93,6 +96,9 @@ func (f *Feeder) RecoverFeeding(ctx context.Context) {
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
 func (f *Feeder) Run(ctx context.Context) {
+	if err := f.runner.Prepare(f.workDir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
+		log.Error("setup bee workspace", zap.Error(err))
+	}
 	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
 	for {
@@ -127,15 +133,6 @@ func (f *Feeder) tick(ctx context.Context) {
 		return
 	}
 
-	if err := WriteCLAUDEMD(f.workDir, DefaultPersona); err != nil {
-		log.Error("write CLAUDE.md", zap.Error(err))
-		f.rollback(ctx, msgs, err.Error())
-		return
-	}
-	if err := claude.EnsureSystemRules(f.workDir, claude.RoleBee); err != nil {
-		log.Error("ensure system rules", zap.Error(err))
-	}
-
 	for _, m := range msgs {
 		f.sem <- struct{}{} // always succeeds: len(msgs) <= available slots
 		go func() {
@@ -151,7 +148,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	sessionID, err := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.rollback(ctx, msgs, err.Error())
@@ -173,7 +170,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	prompt := buildPrompt(msgs)
+	hint := ""
+	if !resume {
+		hint = ai.SkillHintPrefix(ai.RoleBee)
+	}
+	prompt := buildPrompt(msgs, hint)
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
@@ -195,7 +196,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
 	defer cancel()
 
-	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, claude.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -213,7 +214,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	resultMsg := ""
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
-		resultMsg = claude.ExtractResultFromLog(logPath)
+		resultMsg = f.runner.ExtractResult(logPath)
 		if resultMsg == "" {
 			resultMsg = drainErr.Error()
 		}
@@ -228,19 +229,18 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	// Persist session_id before marking messages processed.
+	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
+	upsert := true
 	if resume {
-		currentID, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+		currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))
-		} else {
-			if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
-				log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-			}
+			upsert = false
 		}
-	} else {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID); err != nil {
+	}
+	if upsert {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
@@ -281,17 +281,17 @@ func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reas
 }
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
-// Returns nil on OutputDone, non-nil error on OutputError or unexpected channel close.
-func (f *Feeder) waitBeeOutput(ch <-chan claude.Output) error {
+// Returns nil on OutputDone, or an error on OutputError or channel close without signal.
+func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
 	for out := range ch {
 		switch out.Type {
-		case claude.OutputDone:
+		case ai.OutputDone:
 			return nil
-		case claude.OutputError:
-			return fmt.Errorf("bee exited with error: %s", out.Content)
+		case ai.OutputError:
+			return errors.New(out.Content)
 		}
 	}
-	return fmt.Errorf("bee output channel closed without completion signal")
+	return fmt.Errorf("output channel closed without completion signal")
 }
 
 func messageIDs(msgs []store.ClaimedMessage) []string {
@@ -302,14 +302,19 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 	return ids
 }
 
-func buildPrompt(msgs []store.ClaimedMessage) string {
+func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 	var sb strings.Builder
+	sb.Grow(len(msgs) * 128)
+	if skillHint != "" {
+		sb.WriteString(skillHint)
+		sb.WriteByte('\n')
+	}
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		fmt.Fprintf(&sb, "---\nfrom: %s\nsession_key: %s\nmessage_id: %s\n---\n\n%s\n",
-			m.Platform, m.SessionKey, m.ID, m.Content)
+		b, _ := json.Marshal(messageMeta{From: m.Platform, SessionKey: m.SessionKey, MessageID: m.ID})
+		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
 	}
 	return sb.String()
 }

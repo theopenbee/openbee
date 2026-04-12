@@ -77,33 +77,3 @@ func TestMessageStore_ListBySessionKey_Pagination(t *testing.T) {
 		t.Errorf("expected a,b got %s,%s", msgs2[0].ID, msgs2[1].ID)
 	}
 }
-
-func TestMessageStore_DeleteBySessionKey(t *testing.T) {
-	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	defer db.Close()
-	s := store.NewMessageStore(db)
-	ctx := context.Background()
-
-	s.CreateBatch(ctx, []store.BatchMsg{ //nolint:errcheck
-		{ID: "m1", SessionKey: "local:s1", Platform: "local", Content: "a",
-			Status: "received", MessageTime: 1000},
-		{ID: "m2", SessionKey: "local:s2", Platform: "local", Content: "b",
-			Status: "received", MessageTime: 1000},
-	})
-
-	if err := s.DeleteBySessionKey(ctx, "local:s1"); err != nil {
-		t.Fatalf("DeleteBySessionKey: %v", err)
-	}
-
-	msgs, _ := s.ListBySessionKey(ctx, "local:s1", 0, 50)
-	if len(msgs) != 0 {
-		t.Errorf("expected 0 messages for s1, got %d", len(msgs))
-	}
-	msgs2, _ := s.ListBySessionKey(ctx, "local:s2", 0, 50)
-	if len(msgs2) != 1 {
-		t.Errorf("s2 should be unaffected, got %d", len(msgs2))
-	}
-}

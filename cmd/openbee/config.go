@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"text/template"
@@ -70,13 +71,20 @@ type configValues struct {
 	WeixinCDNBaseURL string
 	WeixinUserID     string
 
-	ClaudePath             string
-	ClaudeTimeout          string
+	Engine        string
+	ClaudePath    string
+	ClaudeTimeout string
+	CodexPath     string
+	CodexTimeout  string
+	PiPath        string
+	PiTimeout     string
+	PiEnv         map[string]string
+
 	FeederTimeout          string
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
-	FFprobePath     string
-	FFmpegPath      string
+	FFprobePath            string
+	FFmpegPath             string
 
 	AuthUsername   string
 	AuthPassword   string
@@ -137,9 +145,15 @@ func loadExistingConfig(path string) *configValues {
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
+		Engine:               cfg.Bee.Engine,
 		ClaudePath:           cfg.Bee.Claude.Path,
 		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
-		FeederTimeout:          cfg.Bee.Feeder.Timeout.String(),
+		CodexPath:            cfg.Bee.Codex.Path,
+		CodexTimeout:         cfg.Bee.Codex.Timeout.String(),
+		PiPath:               cfg.Bee.Pi.Path,
+		PiTimeout:            cfg.Bee.Pi.Timeout.String(),
+		PiEnv:                cfg.Bee.Pi.Env,
+		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
@@ -154,20 +168,25 @@ func loadExistingConfig(path string) *configValues {
 
 func runConfig(cmd *cobra.Command, args []string) error {
 	vals := configValues{
-		ServerPort:      "8080",
-		ServerHost:      "localhost",
-		DBPath:          "./data/openbee.db",
-		ClaudePath:      "claude",
-		ClaudeTimeout:   "30m",
-		MCPTokenTTL:     "2h",
+		ServerPort:             "8080",
+		ServerHost:             "localhost",
+		DBPath:                 "./data/openbee.db",
+		Engine:                 "claude",
+		ClaudePath:             "claude",
+		ClaudeTimeout:          "30m",
+		CodexPath:              "codex",
+		CodexTimeout:           "30m",
+		PiPath:                 "pi",
+		PiTimeout:              "30m",
+		MCPTokenTTL:            "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
-		MessageDebounce: "300ms",
-		FFprobePath:     "ffprobe",
-		FFmpegPath:      "ffmpeg",
-		AuthUsername:    "admin",
-		AuthAccessTTL:  "2h",
-		AuthRefreshTTL: "168h",
+		MessageDebounce:        "300ms",
+		FFprobePath:            "ffprobe",
+		FFmpegPath:             "ffmpeg",
+		AuthUsername:           "admin",
+		AuthAccessTTL:          "2h",
+		AuthRefreshTTL:         "168h",
 	}
 
 	// If an existing config file exists, load its values as defaults silently
@@ -190,14 +209,48 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
 	}
 
-	// Step 1 — Claude config
-	fmt.Println(i18n.M.Output.Config.SectionClaude)
+	// Step 1 — Engine config
+	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	if err := configureClaudeExecutable(&vals); err != nil {
-		return err
+	defaultEngineOpt := i18n.M.Prompt.OptionEngineClaude
+	switch vals.Engine {
+	case "codex":
+		defaultEngineOpt = i18n.M.Prompt.OptionEngineCodex
+	case "pi":
+		defaultEngineOpt = i18n.M.Prompt.OptionEnginePi
 	}
-	if err := configureClaudeProvider(&vals); err != nil {
-		return err
+	var selectedEngine string
+	if err := survey.AskOne(&survey.Select{
+		Message: i18n.M.Prompt.EngineSelect,
+		Options: []string{
+			i18n.M.Prompt.OptionEngineClaude,
+			i18n.M.Prompt.OptionEngineCodex,
+			i18n.M.Prompt.OptionEnginePi,
+		},
+		Default: defaultEngineOpt,
+	}, &selectedEngine); err != nil {
+		return handleSurveyErr(err)
+	}
+
+	switch selectedEngine {
+	case i18n.M.Prompt.OptionEngineClaude:
+		vals.Engine = "claude"
+		if err := configureClaudeExecutable(&vals); err != nil {
+			return err
+		}
+		if err := configureClaudeProvider(&vals); err != nil {
+			return err
+		}
+	case i18n.M.Prompt.OptionEngineCodex:
+		vals.Engine = "codex"
+		if err := configureCodexExecutable(&vals); err != nil {
+			return err
+		}
+	case i18n.M.Prompt.OptionEnginePi:
+		vals.Engine = "pi"
+		if err := configurePiExecutable(&vals); err != nil {
+			return err
+		}
 	}
 
 	// Step 2 — Platform config
@@ -613,8 +666,45 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
+func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeoutMsg string, pathDst, timeoutDst *string) error {
+	if found, err := exec.LookPath(binaryName); err == nil {
+		fmt.Printf(foundMsg+"\n", found)
+		*pathDst = found
+	} else {
+		fmt.Println(manualMsg)
+		if err := survey.AskOne(&survey.Input{
+			Message: pathMsg,
+			Default: *pathDst,
+		}, pathDst, survey.WithValidator(executablePathValidator)); err != nil {
+			return handleSurveyErr(err)
+		}
+	}
+	if err := survey.AskOne(&survey.Input{
+		Message: timeoutMsg,
+		Default: *timeoutDst,
+	}, timeoutDst); err != nil {
+		return handleSurveyErr(err)
+	}
+	return nil
+}
+
+func executablePathValidator(val any) error {
+	path, _ := val.(string)
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
+	}
+	if info.IsDir() {
+		return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
+	}
+	if info.Mode()&0111 == 0 {
+		return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
+	}
+	return nil
+}
+
 func installBuiltinSkills() {
-	results, err := skillinstall.InstallSkills("")
+	results, err := skillinstall.InstallSkillsToDefaults()
 	if err != nil {
 		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
 		return
