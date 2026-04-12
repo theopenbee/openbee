@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, groupExecutionsBySession, statusTone } from "@/lib/format"
+import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 
@@ -302,7 +302,7 @@ export function WorkerDetail() {
                                 <span className="mr-2 font-mono text-xs">{formatTimestamp(oldest.started_at)}</span>
                               ) : null}
                               {oldest.trigger_input ? (
-                                <span>{oldest.trigger_input}</span>
+                                <span>{extractMessageContent(oldest.trigger_input)}</span>
                               ) : null}
                             </p>
                           ) : null}
