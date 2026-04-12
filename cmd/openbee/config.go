@@ -444,27 +444,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if vals.AuthJWTSecret != "" {
-		var regenerate bool
-		if err := survey.AskOne(&survey.Confirm{
-			Message: i18n.M.Prompt.JWTRegenConfirm,
-			Default: false,
-		}, &regenerate); err != nil {
-			return handleSurveyErr(err)
-		}
-		if regenerate {
-			b := make([]byte, 32)
-			rand.Read(b)
-			vals.AuthJWTSecret = hex.EncodeToString(b)
-			fmt.Println(i18n.M.Output.Config.JWTRegenerated)
-		}
-	} else {
-		b := make([]byte, 32)
-		rand.Read(b)
-		vals.AuthJWTSecret = hex.EncodeToString(b)
-		fmt.Println(i18n.M.Output.Config.JWTGenerated)
-	}
-
 	// Step 4 — Advanced config
 	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
 
