@@ -83,15 +83,6 @@ func (s *ExecutionStore) GetByID(id string) (model.WorkerExecution, error) {
 	return e, nil
 }
 
-func (s *ExecutionStore) GetBySessionID(sessionID string) (model.WorkerExecution, error) {
-	row := s.db.QueryRow(execSelect+` WHERE e.session_id = ?`, sessionID)
-	e, err := scanExecution(row)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("get execution by session: %w", err)
-	}
-	return e, nil
-}
-
 func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(execSelect + ` ORDER BY e.started_at DESC`)
 	if err != nil {
@@ -131,15 +122,6 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 	rows, err := s.db.Query(execSelect+` WHERE e.session_id = ? ORDER BY e.started_at ASC`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("list executions by session: %w", err)
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}
-
-func (s *ExecutionStore) ListByWorkerID(workerID string) ([]model.WorkerExecution, error) {
-	rows, err := s.db.Query(execSelect+` WHERE e.worker_id = ? ORDER BY e.started_at DESC`, workerID)
-	if err != nil {
-		return nil, fmt.Errorf("list executions by worker: %w", err)
 	}
 	defer rows.Close()
 	return scanExecutions(rows)
@@ -279,4 +261,3 @@ func (s *ExecutionStore) ListRecent(limit int) ([]model.WorkerExecution, error) 
 	defer rows.Close()
 	return scanExecutions(rows)
 }
-
