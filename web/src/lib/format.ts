@@ -100,15 +100,11 @@ export const STATUS_ROW_BORDER: Record<string, string> = {
 export function extractMessageContent(input: string): string {
   if (!input) return input
 
-  // New format: extract <message_content> or <task_content> inner text
-  const newFormatMatch =
-    input.match(/<message_content>\n?([\s\S]*?)\n?<\/message_content>/) ||
-    input.match(/<task_content>\n?([\s\S]*?)\n?<\/task_content>/)
-  if (newFormatMatch) return newFormatMatch[1].trim()
+  const newFormatMatch = input.match(/<(message_content|task_content)>\n?([\s\S]*?)\n?<\/\1>/)
+  if (newFormatMatch) return newFormatMatch[2].trim()
 
-  // Old format: strip frontmatter ---...---
   const oldFormatMatch = input.match(/^---\n[\s\S]*?\n---\n\n?/)
-  if (oldFormatMatch) return input.slice(oldFormatMatch[0].length)
+  if (oldFormatMatch) return input.slice(oldFormatMatch[0].length).trim()
 
   return input
 }
