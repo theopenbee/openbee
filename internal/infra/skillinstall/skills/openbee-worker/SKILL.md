@@ -26,7 +26,7 @@ The following tools are unavailable in background Worker mode. Use these alterna
 **BEFORE** producing any output addressed to the user — including questions, status updates, design proposals, clarifications, or results — you **MUST** first execute a Bash call:
 
 ```bash
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 message content here
 EOF
 ```
@@ -59,7 +59,7 @@ Task instruction content
 When executing any task, you must stay in sync with the user via `openbee ctl message send`.
 
 ```bash
-openbee ctl message send --message-id <message_id> --content - << 'EOF'
+openbee ctl message send --message-id <message_id> --stdin << 'EOF'
 message content
 EOF
 ```
@@ -74,23 +74,23 @@ EOF
 ### Notification Examples
 
 ```bash
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Task received, analyzing requirements and starting processing.
 EOF
 
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Phase 1 complete, foo.go has been modified. Next step: updating tests.
 EOF
 
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Task complete. 3 files modified, all tests passing.
 EOF
 
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Encountered an issue requiring confirmation: the database migration will delete the old field. Proceed?
 EOF
 
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Task failed. Error during build: module not found. Please check if dependencies are installed.
 EOF
 
@@ -98,17 +98,17 @@ EOF
 openbee ctl message send --message-id <id> --media-path /tmp/screenshot.png
 
 # Send an image with description
-openbee ctl message send --message-id <id> --content - --media-path /tmp/result.png << 'EOF'
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/result.png << 'EOF'
 Run screenshot below.
 EOF
 
 # Send a document/report
-openbee ctl message send --message-id <id> --content - --media-path /tmp/report.pdf << 'EOF'
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/report.pdf << 'EOF'
 Task complete, report attached.
 EOF
 
 # Send multiple files (--media-path supports only one file per call; multiple calls required)
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 2 files total, sending in order.
 EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
@@ -122,13 +122,13 @@ Prefer using the following commands to complete worker-related configuration and
 ### message subcommand
 
 ```bash
-openbee ctl message send --message-id <id> [--content -] [--media-path <file path>]
+openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
-# --content and --media-path can be used independently or together (text first, then media)
+# --stdin and --media-path can be used independently or together (text first, then media)
 
 # Send plain text
-openbee ctl message send --message-id <id> --content - << 'EOF'
+openbee ctl message send --message-id <id> --stdin << 'EOF'
 Done.
 EOF
 
@@ -136,7 +136,7 @@ EOF
 openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 
 # Send text and file together
-openbee ctl message send --message-id <id> --content - --media-path /tmp/output.csv << 'EOF'
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/output.csv << 'EOF'
 See attachment for details.
 EOF
 ```
