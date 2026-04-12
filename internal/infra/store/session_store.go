@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 // BeeAgentID is the agent_id value used for bee brain session tracking.
 const BeeAgentID = "bee"
 
-const defaultSessionEngine = "claude"
+const defaultSessionEngine = ai.EngineClaude
 
 // SessionStore persists session context to the session_contexts table.
 type SessionStore struct {

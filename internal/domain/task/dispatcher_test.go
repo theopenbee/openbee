@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -66,56 +67,85 @@ func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { ret
 
 type mockSessionStore struct {
 	mu      sync.Mutex
-	data    map[string]string
+	data    map[mockSessionRef]string
 	cleared []string
-	deleted []string
+	deleted []mockSessionRef
 }
 
 func newMockSessionStore() *mockSessionStore {
-	return &mockSessionStore{data: make(map[string]string)}
+	return &mockSessionStore{data: make(map[mockSessionRef]string)}
+}
+
+type mockSessionRef struct {
+	sessionKey string
+	agentID    string
+	engine     string
 }
 
 func normalizeMockEngine(engine string) string {
 	if engine == "" {
-		return "claude"
+		return ai.EngineClaude
 	}
 	return engine
 }
 
-func sessionStoreKey(sessionKey, agentID, engine string) string {
-	return sessionKey + "|" + agentID + "|" + normalizeMockEngine(engine)
+func newMockSessionRef(sessionKey, agentID, engine string) mockSessionRef {
+	return mockSessionRef{
+		sessionKey: sessionKey,
+		agentID:    agentID,
+		engine:     normalizeMockEngine(engine),
+	}
 }
 
 func (s *mockSessionStore) GetSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) (sessionID string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.data[sessionStoreKey(sessionKey, agentID, engine)], nil
+	return s.data[newMockSessionRef(sessionKey, agentID, engine)], nil
 }
 func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, engine string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[sessionStoreKey(sessionKey, agentID, engine)] = sessionID
+	s.data[newMockSessionRef(sessionKey, agentID, engine)] = sessionID
 	return nil
 }
 func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := sessionStoreKey(sessionKey, agentID, engine)
-	delete(s.data, key)
-	s.deleted = append(s.deleted, key)
+	ref := newMockSessionRef(sessionKey, agentID, engine)
+	delete(s.data, ref)
+	s.deleted = append(s.deleted, ref)
 	return nil
 }
 func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleared = append(s.cleared, sessionKey)
-	prefix := sessionKey + "|"
-	for key := range s.data {
-		if strings.HasPrefix(key, prefix) {
-			delete(s.data, key)
+	for ref := range s.data {
+		if ref.sessionKey == sessionKey {
+			delete(s.data, ref)
 		}
 	}
 	return nil
+}
+
+func (s *mockSessionStore) sessionID(sessionKey, agentID, engine string) string {
+	sessionID, _ := s.GetSessionContextForEngine(context.Background(), sessionKey, agentID, engine)
+	return sessionID
+}
+
+func (s *mockSessionStore) deleteCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.deleted)
+}
+
+func (s *mockSessionStore) deletedRef(index int) (mockSessionRef, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.deleted) {
+		return mockSessionRef{}, false
+	}
+	return s.deleted[index], true
 }
 
 type mockFailureNotifier struct {
@@ -393,21 +423,16 @@ func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *test
 
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		ss.mu.Lock()
-		codex := ss.data[sessionStoreKey("s1", "w1", "codex")]
-		ss.mu.Unlock()
-		if codex == "codex-session-id" {
+		if ss.sessionID("s1", "w1", "codex") == "codex-session-id" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
-	if got := ss.data[sessionStoreKey("s1", "w1", "claude")]; got != "claude-session-id" {
+	if got := ss.sessionID("s1", "w1", "claude"); got != "claude-session-id" {
 		t.Errorf("expected claude session preserved, got %q", got)
 	}
-	if got := ss.data[sessionStoreKey("s1", "w1", "codex")]; got != "codex-session-id" {
+	if got := ss.sessionID("s1", "w1", "codex"); got != "codex-session-id" {
 		t.Errorf("expected codex session stored, got %q", got)
 	}
 }
@@ -473,27 +498,22 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	// Stale codex session should be deleted before the fresh run is started.
 	deadline = time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		ss.mu.Lock()
-		deleted := len(ss.deleted)
-		codex := ss.data[sessionStoreKey("s1", "w1", "codex")]
-		ss.mu.Unlock()
-		if deleted > 0 && codex == "new-session" {
+		if ss.deleteCount() > 0 && ss.sessionID("s1", "w1", "codex") == "new-session" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
-	if len(ss.deleted) == 0 || ss.deleted[0] != sessionStoreKey("s1", "w1", "codex") {
+	deletedRef, ok := ss.deletedRef(0)
+	if !ok || deletedRef != newMockSessionRef("s1", "w1", "codex") {
 		t.Errorf("expected codex session deleted after resume failure, got %v", ss.deleted)
 	}
 	if len(ss.cleared) != 0 {
 		t.Errorf("did not expect full session clear on resume failure, got %v", ss.cleared)
 	}
-	if got := ss.data[sessionStoreKey("s1", "w1", "claude")]; got != "claude-session-id" {
+	if got := ss.sessionID("s1", "w1", "claude"); got != "claude-session-id" {
 		t.Errorf("expected claude session preserved, got %q", got)
 	}
-	if got := ss.data[sessionStoreKey("s1", "w1", "codex")]; got != "new-session" {
+	if got := ss.sessionID("s1", "w1", "codex"); got != "new-session" {
 		t.Errorf("expected codex session refreshed after fallback, got %q", got)
 	}
 }
