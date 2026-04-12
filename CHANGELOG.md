@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Plugin-based underlying engine, added support for Codex and Pi Agent
+
+### Changed
+- Optimized advanced configuration interaction
+- Optimized ctl message sending, fixed a bug where message content would be escaped and executed
+
 ## [0.0.20] - 2026-04-09
 
 ### Added
