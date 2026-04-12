@@ -297,21 +297,29 @@ openbee ctl system executions [--limit <count>]
 ### message subcommand
 
 ```bash
-openbee ctl message send --message-id <id> [--content <text content>] [--media-path <file path>]
+openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 
 # Scenario 1: Text-only notification
-openbee ctl message send --message-id <id> --content "Task has been dispatched to Maomao, please wait."
+openbee ctl message send --message-id <id> --stdin << 'EOF'
+Task has been dispatched to Maomao, please wait.
+EOF
 
 # Scenario 2: Send a screenshot (with description)
-openbee ctl message send --message-id <id> --content "System status screenshot attached." --media-path /tmp/overview.png
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/overview.png << 'EOF'
+System status screenshot attached.
+EOF
 
 # Scenario 3: Send a file (e.g., logs, CSV report)
-openbee ctl message send --message-id <id> --content "Here is the exported task list." --media-path /tmp/tasks.csv
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/tasks.csv << 'EOF'
+Here is the exported task list.
+EOF
 
 # Scenario 4: Send multiple files (multiple calls required)
-openbee ctl message send --message-id <id> --content "2 attachments in total, sending in order."
+openbee ctl message send --message-id <id> --stdin << 'EOF'
+2 attachments in total, sending in order.
+EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
 ```
