@@ -229,7 +229,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	// Persist session_id before marking messages processed.
 	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
 	upsert := true
 	if resume {

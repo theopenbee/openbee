@@ -16,7 +16,6 @@ func newTestAdapter(t *testing.T) ai.EngineAdapter {
 }
 
 func TestClaudeAdapter_Prepare_Stub(t *testing.T) {
-	// Placeholder — replaced in Task 3 with real cleanup tests.
 	dir := t.TempDir()
 	adapter := newTestAdapter(t)
 	if err := adapter.Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
