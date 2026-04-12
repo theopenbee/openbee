@@ -575,6 +575,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if !customAdvanced {
+		if vals.AuthJWTSecret == "" {
+			b := make([]byte, 32)
+			rand.Read(b)
+			vals.AuthJWTSecret = hex.EncodeToString(b)
+		}
+		if vals.MCPTokenSecret == "" {
+			vals.MCPTokenSecret = config.GenerateRandomSecret()
+		}
+	}
+
 	// Step 4 — Confirm write
 	fmt.Println(i18n.M.Output.Config.SectionWrite)
 	fmt.Printf(i18n.M.Output.Config.OutputFile+"\n", configOutputPath)
