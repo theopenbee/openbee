@@ -233,7 +233,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
 	upsert := true
 	if resume {
-		currentID, _, checkErr := f.sessionStore.GetSessionContext(ctx, sessionKey, store.BeeAgentID)
+		currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))

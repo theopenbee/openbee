@@ -55,6 +55,7 @@ type FailureNotifier interface {
 type SessionStore interface {
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
+	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
 	ClearSessionContexts(ctx context.Context, sessionKey string) error
 }
 
@@ -75,20 +76,20 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx              context.Context                  // injected by Run; controls the dispatcher lifecycle
-	manager          ExecutionManager                 // launches worker executions
-	taskStore        TaskStore                        // persists task-to-execution mapping and state
-	sessionStore     SessionStore                     // reads, writes, and cleans up session contexts
-	execStore        ExecutionQuerier                 // queries execution state by ID
-	failureNotifier  FailureNotifier                  // sends failure notifications (optional)
-	engineName       string                           // current engine name (e.g. "claude", "codex")
-	workerLookup     WorkerLookup                     // optional; if nil, only skill hint is injected
-	inCh             <-chan DispatchTask              // inbound task channel
-	resultsCh        chan internalResult              // internal completion signal channel; drives queue scheduling
-	queues           map[string]*queueState           // per-workerID serial queues
-	clearCh          chan string                      // receives sessionKey signals that need to be cleaned up
-	cancelFuncs      map[string]context.CancelFunc   // taskID → cancel func; owned by Run loop
-	cancelCh         chan string                      // receives taskID cancel requests
+	ctx             context.Context               // injected by Run; controls the dispatcher lifecycle
+	manager         ExecutionManager              // launches worker executions
+	taskStore       TaskStore                     // persists task-to-execution mapping and state
+	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
+	execStore       ExecutionQuerier              // queries execution state by ID
+	failureNotifier FailureNotifier               // sends failure notifications (optional)
+	engineName      string                        // current engine name (e.g. "claude", "codex")
+	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
+	inCh            <-chan DispatchTask           // inbound task channel
+	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
+	queues          map[string]*queueState        // per-workerID serial queues
+	clearCh         chan string                   // receives sessionKey signals that need to be cleaned up
+	cancelFuncs     map[string]context.CancelFunc // taskID → cancel func; owned by Run loop
+	cancelCh        chan string                   // receives taskID cancel requests
 }
 
 // New constructs a TaskDispatcher.
@@ -343,8 +344,10 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return exec, nil
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
-	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
+	if task.SessionKey != "" && task.WorkerID != "" {
+		if clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName); clearErr != nil {
+			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", d.engineName), zap.Error(clearErr))
+		}
 	}
 	return d.executeWithHint(ctx, task, instruction)
 }
