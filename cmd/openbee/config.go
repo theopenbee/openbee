@@ -534,7 +534,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
-		// JWT Secret
 		if vals.AuthJWTSecret != "" {
 			var regenerate bool
 			if err := survey.AskOne(&survey.Confirm{
@@ -544,19 +543,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				return handleSurveyErr(err)
 			}
 			if regenerate {
-				b := make([]byte, 32)
-				rand.Read(b)
-				vals.AuthJWTSecret = hex.EncodeToString(b)
+				vals.AuthJWTSecret = config.GenerateRandomSecret()
 				fmt.Println(i18n.M.Output.Config.JWTRegenerated)
 			}
 		} else {
-			b := make([]byte, 32)
-			rand.Read(b)
-			vals.AuthJWTSecret = hex.EncodeToString(b)
+			vals.AuthJWTSecret = config.GenerateRandomSecret()
 			fmt.Println(i18n.M.Output.Config.JWTGenerated)
 		}
 
-		// MCP Token Secret
 		if vals.MCPTokenSecret != "" {
 			var regenerate bool
 			if err := survey.AskOne(&survey.Confirm{
@@ -577,9 +571,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	if !customAdvanced {
 		if vals.AuthJWTSecret == "" {
-			b := make([]byte, 32)
-			rand.Read(b)
-			vals.AuthJWTSecret = hex.EncodeToString(b)
+			vals.AuthJWTSecret = config.GenerateRandomSecret()
 		}
 		if vals.MCPTokenSecret == "" {
 			vals.MCPTokenSecret = config.GenerateRandomSecret()
