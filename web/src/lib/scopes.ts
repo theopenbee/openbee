@@ -20,6 +20,16 @@ export const KNOWN_SCOPES: ScopeDef[] = [
     titleKey: "scopes.readTasks.title",
     descriptionKey: "scopes.readTasks.description",
   },
+  {
+    id: "read:messages",
+    titleKey: "scopes.readMessages.title",
+    descriptionKey: "scopes.readMessages.description",
+  },
+  {
+    id: "read:executions",
+    titleKey: "scopes.readExecutions.title",
+    descriptionKey: "scopes.readExecutions.description",
+  },
 ]
 
 export function parseScopes(raw: string): string[] {

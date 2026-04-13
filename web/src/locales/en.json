@@ -370,6 +370,14 @@
     "readTasks": {
       "title": "Read Tasks",
       "description": "Allows listing and viewing task records"
+    },
+    "readMessages": {
+      "title": "Read Messages",
+      "description": "Allows listing and viewing message records"
+    },
+    "readExecutions": {
+      "title": "Read Executions",
+      "description": "Allows listing and viewing execution records"
     }
   }
 }
