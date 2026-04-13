@@ -149,23 +149,19 @@ func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 
 	if params.DepartmentID != "" {
 		recursive := params.Recursive == nil || *params.Recursive
-		var deptWorkers []model.Worker
+		var workerIDs []string
 		var err error
 		if recursive {
-			deptWorkers, err = s.listWorkersRecursive(params.DepartmentID)
+			workerIDs, err = s.listWorkersRecursive(params.DepartmentID)
 		} else {
 			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			deptWorkers, err = s.workerStore.GetByDepartmentID(deptID)
+			workerIDs, err = s.departmentStore.GetWorkerIDsForDepartments([]string{deptID})
 		}
 		if err != nil {
 			return nil, fmt.Errorf("list workers: %w", err)
-		}
-		workerIDs := make([]string, len(deptWorkers))
-		for i, w := range deptWorkers {
-			workerIDs[i] = w.ID
 		}
 		filter.WorkerIDs = workerIDs
 	}
@@ -201,9 +197,9 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get worker departments: %w", err)
 	}
-	deptBriefs := make([]departmentBriefMap, 0, len(depts))
+	deptBriefs := make([]departmentBrief, 0, len(depts))
 	for _, d := range depts {
-		deptBriefs = append(deptBriefs, departmentBriefMap{ID: d.ID, Name: d.Name})
+		deptBriefs = append(deptBriefs, departmentBrief{ID: d.ID, Name: d.Name})
 	}
 	return workerDetailResponse{
 		ID:               w.ID,
@@ -219,22 +215,22 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	}, nil
 }
 
-type departmentBriefMap struct {
+type departmentBrief struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 type workerDetailResponse struct {
-	ID               string               `json:"id"`
-	Name             string               `json:"name"`
-	Description      string               `json:"description"`
-	Memory           string               `json:"memory"`
-	WorkDir          string               `json:"work_dir"`
-	Status           string               `json:"status"`
-	PermissionScopes string               `json:"permission_scopes"`
-	CreatedAt        int64                `json:"created_at"`
-	UpdatedAt        int64                `json:"updated_at"`
-	Departments      []departmentBriefMap `json:"departments"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	Memory           string            `json:"memory"`
+	WorkDir          string            `json:"work_dir"`
+	Status           string            `json:"status"`
+	PermissionScopes string            `json:"permission_scopes"`
+	CreatedAt        int64             `json:"created_at"`
+	UpdatedAt        int64             `json:"updated_at"`
+	Departments      []departmentBrief `json:"departments"`
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -1124,7 +1120,7 @@ func collectDescendantIDs(all []model.Department, rootID string) []string {
 	return ids
 }
 
-func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error) {
+func (s *MCPServer) listWorkersRecursive(idOrName string) ([]string, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
@@ -1138,7 +1134,7 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 	if err != nil {
 		return nil, fmt.Errorf("get department workers: %w", err)
 	}
-	return s.workerStore.GetByIDs(workerIDs)
+	return workerIDs, nil
 }
 
 func pagedResult(items any, total, page, pageSize int) map[string]any {

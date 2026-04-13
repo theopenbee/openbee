@@ -15,10 +15,6 @@ func NewMessageHandler(ms *store.MessageStore) *MessageHandler {
 	return &MessageHandler{messages: ms}
 }
 
-// List handles GET /api/messages with optional filters:
-//   - session_key, platform, status (exact match)
-//   - received_at_from, received_at_to (Unix ms, inclusive range)
-//   - page, page_size (pagination)
 func (h *MessageHandler) List(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
 
