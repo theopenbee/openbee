@@ -112,7 +112,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine, envSvc)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
@@ -216,8 +216,8 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapte
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter) (*bee.Feeder, *task.Scheduler) {
-	beeProcess := bee.NewBeeProcess(cfg, engine)
+	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
+	beeProcess := bee.NewBeeProcess(cfg, engine, envSvc)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore))
