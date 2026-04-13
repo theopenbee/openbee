@@ -98,7 +98,8 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
+	cmd.Env = append(inv.baseEnv, opts.ExtraEnv...)
+	cmd.Env = append(cmd.Env, "OPENBEE_API_KEY="+opts.APIKey)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

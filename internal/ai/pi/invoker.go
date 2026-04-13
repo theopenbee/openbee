@@ -111,7 +111,8 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stderr = logFile
-	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
+	cmd.Env = append(inv.baseEnv, opts.ExtraEnv...)
+	cmd.Env = append(cmd.Env, "OPENBEE_API_KEY="+opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
