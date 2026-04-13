@@ -1,8 +1,8 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/env"
@@ -73,8 +73,7 @@ func (h *EnvHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.svc.UpdateValue(id, req.Value); err != nil {
-		// check if it's a not-found error
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, env.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
@@ -88,7 +87,7 @@ func (h *EnvHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := h.svc.Delete(id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, env.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}

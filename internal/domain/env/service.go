@@ -76,7 +76,7 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 		return fmt.Errorf("get env config: %w", err)
 	}
 	if existing == nil {
-		return fmt.Errorf("env config not found: %s", id)
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == "OPENBEE_API_KEY" {
 		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
@@ -110,7 +110,7 @@ func (s *Service) Delete(id string) error {
 		return fmt.Errorf("get env config: %w", err)
 	}
 	if existing == nil {
-		return fmt.Errorf("env config not found: %s", id)
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == "OPENBEE_API_KEY" {
 		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be deleted")

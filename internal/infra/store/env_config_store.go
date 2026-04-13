@@ -62,10 +62,19 @@ func (s *EnvConfigStore) Create(cfg *model.EnvConfig) error {
 }
 
 func (s *EnvConfigStore) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
-	rows, err := s.db.Query(
-		`SELECT `+envConfigColumns+` FROM bee_env_configs WHERE scope = ? AND scope_id = ? ORDER BY created_at ASC`,
-		scope, scopeID,
-	)
+	var rows *sql.Rows
+	var err error
+	if scopeID == nil {
+		rows, err = s.db.Query(
+			`SELECT `+envConfigColumns+` FROM bee_env_configs WHERE scope = ? AND scope_id IS NULL ORDER BY created_at ASC`,
+			scope,
+		)
+	} else {
+		rows, err = s.db.Query(
+			`SELECT `+envConfigColumns+` FROM bee_env_configs WHERE scope = ? AND scope_id = ? ORDER BY created_at ASC`,
+			scope, *scopeID,
+		)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("list env configs: %w", err)
 	}
