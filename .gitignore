@@ -4,6 +4,7 @@ data/workers/
 /server
 .worktrees/
 config.yaml
+config.yaml.bak
 openclaw/
 .openbee.md
 .superpowers/

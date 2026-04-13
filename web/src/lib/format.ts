@@ -96,3 +96,18 @@ export const STATUS_ROW_BORDER: Record<string, string> = {
   failed: "border-l-status-error",
   cancelled: "border-l-transparent",
 }
+
+const CONTENT_TAG_RE = /<(message_content|task_content)>([\s\S]*?)<\/\1>/
+const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n\n?/
+
+export function extractMessageContent(input: string): string {
+  if (!input) return input
+
+  const newFormatMatch = input.match(CONTENT_TAG_RE)
+  if (newFormatMatch) return newFormatMatch[2].trim()
+
+  const oldFormatMatch = input.match(FRONTMATTER_RE)
+  if (oldFormatMatch) return input.slice(oldFormatMatch[0].length).trim()
+
+  return input
+}

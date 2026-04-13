@@ -152,23 +152,6 @@ func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
 	return count, err
 }
 
-// ListByMessageID returns tasks for a given message, optionally filtered by status and/or type.
-func (s *TaskStore) ListByMessageID(ctx context.Context, messageID, status, taskType string) ([]model.Task, error) {
-	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t WHERE t.message_id = ?`
-	args := []any{messageID}
-	q, args = appendCSVFilter(q, args, "status", status)
-	q, args = appendCSVFilter(q, args, "type", taskType)
-	rows, err := s.db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list tasks: %w", err)
-	}
-	defer rows.Close()
-	return scanTasks(rows)
-}
-
 // ListBySessionKey returns tasks whose originating message belongs to the given session.
 // status and taskType support comma-separated values (e.g., "pending,running"); empty means all.
 func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error) {

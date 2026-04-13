@@ -279,27 +279,6 @@ func (s *DepartmentStore) GetWorkersDepartments(workerIDs []string) (map[string]
 	return result, rows.Err()
 }
 
-// GetDepartmentWorkerIDs returns the IDs of workers directly associated with a department.
-func (s *DepartmentStore) GetDepartmentWorkerIDs(deptID string) ([]string, error) {
-	rows, err := s.db.Query(
-		`SELECT worker_id FROM bee_worker_departments WHERE department_id = ?`, deptID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
 // GetWorkerIDsForDepartments returns the unique worker IDs associated with any of the given departments.
 func (s *DepartmentStore) GetWorkerIDsForDepartments(deptIDs []string) ([]string, error) {
 	if len(deptIDs) == 0 {

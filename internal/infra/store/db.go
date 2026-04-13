@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	_ "modernc.org/sqlite"
 )
 
@@ -262,6 +263,23 @@ SELECT 1`,
 	},
 	{
 		version: 29,
+		name:    "migrate_bee_session_contexts_to_engine_keyed_schema",
+		sql: fmt.Sprintf(`CREATE TABLE bee_session_contexts_new (
+	session_key TEXT NOT NULL,
+	agent_id    TEXT NOT NULL,
+	engine      TEXT NOT NULL,
+	session_id  TEXT NOT NULL,
+	updated_at  INTEGER NOT NULL,
+	PRIMARY KEY (session_key, agent_id, engine)
+);
+INSERT INTO bee_session_contexts_new (session_key, agent_id, engine, session_id, updated_at)
+SELECT session_key, agent_id, '%s', session_id, updated_at
+FROM bee_session_contexts;
+DROP TABLE bee_session_contexts;
+ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.EngineClaude),
+	},
+	{
+		version: 30,
 		name:    "add_permission_scopes_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN permission_scopes TEXT NOT NULL DEFAULT ''`,
 	},

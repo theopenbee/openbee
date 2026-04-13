@@ -36,7 +36,7 @@ export function App() {
                 <Route path="/workers" element={<Workers />} />
                 <Route path="/workers/:id" element={<WorkerDetail />} />
                 <Route path="/sessions" element={<Executions />} />
-                <Route path="/sessions/:sessionId" element={<SessionDetail />} />
+                <Route path="/sessions/detail" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/chat" element={<LocalChat />} />
               </Route>

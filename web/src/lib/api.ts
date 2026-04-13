@@ -100,7 +100,7 @@ export const api = {
   },
   sessions: {
     executions: async (sessionId: string) => {
-      const execs = await fetchAPI<WorkerExecution[] | null>(`/sessions/${sessionId}/executions`)
+      const execs = await fetchAPI<WorkerExecution[] | null>(`/sessions/executions?session_id=${encodeURIComponent(sessionId)}`)
       return Array.isArray(execs) ? execs : []
     },
   },

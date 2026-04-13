@@ -2,16 +2,23 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"go.uber.org/zap"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 var log = logger.With(zap.String("component", "taskdispatcher"))
+
+type taskMeta struct {
+	MessageID string `json:"message_id"`
+	TaskID    string `json:"task_id,omitempty"`
+}
 
 const (
 	pollInterval = 2 * time.Second
@@ -46,9 +53,15 @@ type FailureNotifier interface {
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
-	GetSessionContext(ctx context.Context, sessionKey, agentID string) (string, error)
-	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID string) error
+	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
+	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
+	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
 	ClearSessionContexts(ctx context.Context, sessionKey string) error
+}
+
+// WorkerLookup fetches worker metadata for persona injection on new sessions.
+type WorkerLookup interface {
+	GetByID(id string) (model.Worker, error)
 }
 
 type queueState struct {
@@ -63,18 +76,20 @@ type internalResult struct {
 
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx              context.Context                  // injected by Run; controls the dispatcher lifecycle
-	manager          ExecutionManager                 // launches worker executions
-	taskStore        TaskStore                        // persists task-to-execution mapping and state
-	sessionStore     SessionStore                     // reads, writes, and cleans up session contexts
-	execStore        ExecutionQuerier                 // queries execution state by ID
-	failureNotifier  FailureNotifier                  // sends failure notifications (optional)
-	inCh             <-chan DispatchTask              // inbound task channel
-	resultsCh        chan internalResult              // internal completion signal channel; drives queue scheduling
-	queues           map[string]*queueState           // per-workerID serial queues
-	clearCh          chan string                      // receives sessionKey signals that need to be cleaned up
-	cancelFuncs      map[string]context.CancelFunc   // taskID → cancel func; owned by Run loop
-	cancelCh         chan string                      // receives taskID cancel requests
+	ctx             context.Context               // injected by Run; controls the dispatcher lifecycle
+	manager         ExecutionManager              // launches worker executions
+	taskStore       TaskStore                     // persists task-to-execution mapping and state
+	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
+	execStore       ExecutionQuerier              // queries execution state by ID
+	failureNotifier FailureNotifier               // sends failure notifications (optional)
+	engineName      string                        // current engine name (e.g. "claude", "codex")
+	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
+	inCh            <-chan DispatchTask           // inbound task channel
+	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
+	queues          map[string]*queueState        // per-workerID serial queues
+	clearCh         chan string                   // receives sessionKey signals that need to be cleaned up
+	cancelFuncs     map[string]context.CancelFunc // taskID → cancel func; owned by Run loop
+	cancelCh        chan string                   // receives taskID cancel requests
 }
 
 // New constructs a TaskDispatcher.
@@ -103,6 +118,17 @@ type Option func(*TaskDispatcher)
 // WithFailureNotifier sets the notifier used to inform users about task failures.
 func WithFailureNotifier(fn FailureNotifier) Option {
 	return func(d *TaskDispatcher) { d.failureNotifier = fn }
+}
+
+// WithEngine sets the active engine name so the dispatcher can detect engine
+// switches and discard stale session contexts from a different engine.
+func WithEngine(name string) Option {
+	return func(d *TaskDispatcher) { d.engineName = name }
+}
+
+// WithWorkerLookup sets the lookup used to fetch worker metadata for persona injection.
+func WithWorkerLookup(lookup WorkerLookup) Option {
+	return func(d *TaskDispatcher) { d.workerLookup = lookup }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
@@ -222,19 +248,14 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 			delete(d.queues, key)
 		}
 	}
-	if err := d.sessionStore.ClearSessionContexts(d.ctx, sessionKey); err != nil {
-		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
-	}
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
-	if t.TaskID != "" {
-		return fmt.Sprintf("---\nmessage_id: %s\ntask_id: %s\n---\n\n%s", t.MessageID, t.TaskID, t.Instruction)
-	}
-	if t.MessageID != "" {
-		return fmt.Sprintf("---\nmessage_id: %s\n---\n\n%s", t.MessageID, t.Instruction)
+	if t.TaskID != "" || t.MessageID != "" {
+		b, _ := json.Marshal(taskMeta{MessageID: t.MessageID, TaskID: t.TaskID})
+		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)
 	}
 	return t.Instruction
 }
@@ -280,18 +301,42 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	d.waitForResult(taskCtx, exec.ID, task)
 }
 
+// workerSkillHint returns the skill hint for a new worker session.
+// If workerLookup is set, it fetches worker metadata and wraps it in a <worker_persona> block.
+// Returns an error if the lookup fails.
+func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
+	hint := ai.SkillHintPrefix(ai.RoleWorker)
+	if d.workerLookup == nil {
+		return hint, nil
+	}
+	w, err := d.workerLookup.GetByID(workerID)
+	if err != nil {
+		return "", fmt.Errorf("lookup worker for persona hint: %w", err)
+	}
+	persona := ai.WorkerPersona(w.Name, w.Description, w.Memory)
+	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
+}
+
+// executeWithHint fetches the worker skill hint + persona and starts a fresh execution.
+func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
+	hint, err := d.workerSkillHint(task.WorkerID)
+	if err != nil {
+		return model.WorkerExecution{}, err
+	}
+	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+}
+
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+		return d.executeWithHint(ctx, task, instruction)
 	}
-	sessionID, err := d.sessionStore.GetSessionContext(ctx, task.SessionKey, task.WorkerID)
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-		return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+		return d.executeWithHint(ctx, task, instruction)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
@@ -299,15 +344,19 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return exec, nil
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
-	if clearErr := d.sessionStore.ClearSessionContexts(ctx, task.SessionKey); clearErr != nil {
-		log.Error("clear stale session contexts", zap.String("sessionKey", task.SessionKey), zap.Error(clearErr))
+	if task.SessionKey != "" && task.WorkerID != "" {
+		if clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName); clearErr != nil {
+			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", d.engineName), zap.Error(clearErr))
+		}
 	}
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, "")
+	return d.executeWithHint(ctx, task, instruction)
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask) {
 	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
 	for time.Now().Before(deadline) {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
@@ -327,7 +376,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			// Persist session_id for future resume (only on success).
 			if task.SessionKey != "" && task.WorkerID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
 					log.Error("upsert session context", zap.Error(err))
 				}
 			}
@@ -336,7 +385,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
 			if task.SessionKey != "" && task.WorkerID != "" && exec.SessionID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID); err != nil {
+				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
 					log.Error("upsert session context on failure", zap.Error(err))
 				}
 			}
@@ -354,7 +403,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		}
 		select {
-		case <-time.After(pollInterval):
+		case <-ticker.C:
 		case <-ctx.Done():
 			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck

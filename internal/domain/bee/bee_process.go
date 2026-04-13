@@ -3,53 +3,43 @@ package bee
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
-// DefaultPersona is the hardcoded bee persona content for CLAUDE.md.
-const DefaultPersona = `You are B, an AI assistant.`
-
-// BeeProcess represents a single short-lived bee Claude invocation.
+// BeeProcess wraps an EngineAdapter and injects a short-lived auth token into each Run call.
 type BeeProcess struct {
-	invoker     *claude.Invoker
+	engine      ai.EngineAdapter
 	tokenSecret string
 	tokenTTL    time.Duration
 }
 
 // NewBeeProcess creates a BeeProcess.
-func NewBeeProcess(cfg config.BeeConfig) *BeeProcess {
+func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter) *BeeProcess {
 	return &BeeProcess{
-		invoker:     claude.NewInvoker(cfg.Claude.Path, cfg.MCPBaseURL),
+		engine:      engine,
 		tokenSecret: cfg.MCP.TokenSecret,
 		tokenTTL:    cfg.MCP.TokenTTL,
 	}
 }
 
-// WriteCLAUDEMD creates the CLAUDE.md file in workDir with persona content
-// only if it does not already exist. This preserves any user edits.
-func WriteCLAUDEMD(workDir, persona string) error {
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir bee workdir: %w", err)
-	}
-	path := filepath.Join(workDir, "CLAUDE.md")
-	if _, err := os.Stat(path); err == nil {
-		return nil // already exists, do not overwrite
-	}
-	return os.WriteFile(path, []byte(persona), 0o644)
+func (p *BeeProcess) Prepare(workDir string, opts ai.PrepareOptions) error {
+	return p.engine.Prepare(workDir, opts)
 }
 
-// Run spawns the bee process, redirecting output to logPath.
-func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts claude.RunOptions, logPath string) (*claude.Process, <-chan claude.Output, error) {
+func (p *BeeProcess) ExtractResult(logPath string) string {
+	return p.engine.ExtractResult(logPath)
+}
+
+// Run injects a bee auth token then delegates to the engine.
+func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	token, err := auth.GenerateBeeToken(p.tokenSecret, p.tokenTTL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate bee token: %w", err)
 	}
 	opts.APIKey = token
-	return p.invoker.Run(ctx, workDir, prompt, opts, logPath)
+	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }

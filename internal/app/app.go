@@ -21,6 +21,10 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
+	ai "github.com/theopenbee/openbee/internal/ai"
+	_ "github.com/theopenbee/openbee/internal/ai/claude"
+	_ "github.com/theopenbee/openbee/internal/ai/codex"
+	_ "github.com/theopenbee/openbee/internal/ai/pi"
 	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -94,7 +98,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	mgr := buildWorkerManager(cfg.Bee, s)
+	engine, err := buildEngine(cfg.Bee)
+	if err != nil {
+		return nil, fmt.Errorf("init engine: %w", err)
+	}
+	mgr := buildWorkerManager(cfg.Bee, s, engine)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -102,8 +110,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier)
-	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine)
+	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
@@ -192,12 +200,20 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore)
+func buildEngine(cfg config.BeeConfig) (ai.EngineAdapter, error) {
+	return ai.New(cfg.EffectiveEngine(), ai.EngineConfig{
+		OpenbeeURL: cfg.MCPBaseURL,
+		Raw:        cfg.EngineConfigRaw(),
+	})
 }
 
-func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask, failureNotifier bee.FailureNotifier) (*bee.Feeder, *task.Scheduler) {
-	beeProcess := bee.NewBeeProcess(cfg)
+func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapter) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine)
+}
+
+func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
+	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter) (*bee.Feeder, *task.Scheduler) {
+	beeProcess := bee.NewBeeProcess(cfg, engine)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore))
@@ -207,13 +223,18 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 
 func buildPipeline(
 	debounce time.Duration,
+	engineName string,
 	s appStores,
 	mgr *worker.Manager,
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
 ) (*msgingest.Gateway, *task.TaskDispatcher) {
 	ingest := msgingest.New(s.msgStore, debounce)
-	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, task.WithFailureNotifier(failureNotifier))
+	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
+		task.WithFailureNotifier(failureNotifier),
+		task.WithEngine(engineName),
+		task.WithWorkerLookup(s.workerStore),
+	)
 	return ingest, disp
 }
 

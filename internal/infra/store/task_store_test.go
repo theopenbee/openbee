@@ -149,7 +149,7 @@ func TestTaskStore_DeleteByMessageIDs(t *testing.T) {
 	}
 }
 
-func TestTaskStore_ListByMessageID(t *testing.T) {
+func TestTaskStore_List_ByMessageIDFilter(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()
 
@@ -165,9 +165,9 @@ func TestTaskStore_ListByMessageID(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ListByMessageID(context.Background(), "m1", "", "")
+	tasks, err := ts.List(context.Background(), TaskFilter{MessageID: "m1"})
 	if err != nil {
-		t.Fatalf("ListByMessageID: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 tasks, got %d", len(tasks))
@@ -391,7 +391,7 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	}
 }
 
-func TestTaskStore_ListByMessageID_CommaSeparatedStatus(t *testing.T) {
+func TestTaskStore_List_MessageIDFilter_CommaSeparatedStatus(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()
 	ctx := context.Background()
@@ -413,9 +413,9 @@ func TestTaskStore_ListByMessageID_CommaSeparatedStatus(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ListByMessageID(ctx, "m1", "pending,running", "")
+	tasks, err := ts.List(ctx, TaskFilter{MessageID: "m1", Status: "pending,running"})
 	if err != nil {
-		t.Fatalf("ListByMessageID: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 tasks (pending+running), got %d", len(tasks))
@@ -532,7 +532,7 @@ func TestTaskStore_FailTask_ScheduledTask_WithCron_ResetsToPending(t *testing.T)
 	id, _ := ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "x",
 		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
-		Status: model.TaskStatusRunning,
+		Status:    model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 
@@ -554,7 +554,7 @@ func TestTaskStore_FailTask_ScheduledTask_NoCron_MarksAsFailed(t *testing.T) {
 	id, _ := ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "x",
 		Type: model.TaskTypeScheduled, CronExpr: "",
-		Status: model.TaskStatusRunning,
+		Status:    model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 
@@ -576,7 +576,7 @@ func TestTaskStore_FailTask_ScheduledTask_Cancelled_NoChange(t *testing.T) {
 	id, _ := ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "x",
 		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
-		Status: model.TaskStatusCancelled,
+		Status:    model.TaskStatusCancelled,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 
@@ -673,7 +673,7 @@ func TestTaskStore_PeekDueScheduledTasks_ReturnsDueOnly(t *testing.T) {
 	ts.Create(context.Background(), model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "null-run-at",
 		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CronExpr: expr,
+		CronExpr:  expr,
 		CreatedAt: now, UpdatedAt: now,
 	})
 

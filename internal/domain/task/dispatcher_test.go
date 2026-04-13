@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -66,30 +67,85 @@ func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { ret
 
 type mockSessionStore struct {
 	mu      sync.Mutex
-	data    map[string]string
+	data    map[mockSessionRef]string
 	cleared []string
+	deleted []mockSessionRef
 }
 
 func newMockSessionStore() *mockSessionStore {
-	return &mockSessionStore{data: make(map[string]string)}
+	return &mockSessionStore{data: make(map[mockSessionRef]string)}
 }
 
-func (s *mockSessionStore) GetSessionContext(_ context.Context, sessionKey, agentID string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.data[sessionKey+"|"+agentID], nil
+type mockSessionRef struct {
+	sessionKey string
+	agentID    string
+	engine     string
 }
-func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID string) error {
+
+func normalizeMockEngine(engine string) string {
+	if engine == "" {
+		return ai.EngineClaude
+	}
+	return engine
+}
+
+func newMockSessionRef(sessionKey, agentID, engine string) mockSessionRef {
+	return mockSessionRef{
+		sessionKey: sessionKey,
+		agentID:    agentID,
+		engine:     normalizeMockEngine(engine),
+	}
+}
+
+func (s *mockSessionStore) GetSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) (sessionID string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[sessionKey+"|"+agentID] = sessionID
+	return s.data[newMockSessionRef(sessionKey, agentID, engine)], nil
+}
+func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[newMockSessionRef(sessionKey, agentID, engine)] = sessionID
+	return nil
+}
+func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ref := newMockSessionRef(sessionKey, agentID, engine)
+	delete(s.data, ref)
+	s.deleted = append(s.deleted, ref)
 	return nil
 }
 func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleared = append(s.cleared, sessionKey)
+	for ref := range s.data {
+		if ref.sessionKey == sessionKey {
+			delete(s.data, ref)
+		}
+	}
 	return nil
+}
+
+func (s *mockSessionStore) sessionID(sessionKey, agentID, engine string) string {
+	sessionID, _ := s.GetSessionContextForEngine(context.Background(), sessionKey, agentID, engine)
+	return sessionID
+}
+
+func (s *mockSessionStore) deleteCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.deleted)
+}
+
+func (s *mockSessionStore) deletedRef(index int) (mockSessionRef, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.deleted) {
+		return mockSessionRef{}, false
+	}
+	return s.deleted[index], true
 }
 
 type mockFailureNotifier struct {
@@ -121,6 +177,15 @@ func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+type mockWorkerLookup struct {
+	worker model.Worker
+	err    error
+}
+
+func (m *mockWorkerLookup) GetByID(_ string) (model.Worker, error) {
+	return m.worker, m.err
 }
 
 func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
@@ -207,14 +272,15 @@ func TestTaskDispatcher_InstructionInjection(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, "---\n") {
-		t.Errorf("instruction missing frontmatter prefix, got: %q", instr)
+	wantMeta := `<task_meta>{"message_id":"msg-xyz","task_id":"task-abc"}</task_meta>`
+	if !strings.Contains(instr, wantMeta) {
+		t.Errorf("instruction missing task_meta, got: %q", instr)
 	}
-	if !strings.Contains(instr, "task_id: task-abc") {
-		t.Errorf("instruction missing task_id injection, got: %q", instr)
+	if !strings.Contains(instr, "<task_content>") {
+		t.Errorf("instruction missing task_content tag, got: %q", instr)
 	}
-	if !strings.Contains(instr, "message_id: msg-xyz") {
-		t.Errorf("instruction missing message_id injection, got: %q", instr)
+	if !strings.Contains(instr, "</task_content>") {
+		t.Errorf("instruction missing closing task_content tag, got: %q", instr)
 	}
 	if !strings.Contains(instr, "do the thing") {
 		t.Errorf("instruction missing original text, got: %q", instr)
@@ -301,13 +367,13 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 
 func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 	ss := newMockSessionStore()
-	ss.data["s1|w1"] = "prior-session-id"
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "claude")
 
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
-	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("claude"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -325,6 +391,49 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 
 	if resumed != "prior-session-id" {
 		t.Errorf("expected ExecuteWorkerWithSession with prior-session-id, got %q", resumed)
+	}
+}
+
+func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *testing.T) {
+	ss := newMockSessionStore()
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "claude")
+
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id", Status: model.ExecStatusCompleted, Result: "fresh!"}}
+	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("codex"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "switch engine")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	resumed := mgr.resumedWithSessionID
+	mgr.mu.Unlock()
+	if resumed != "" {
+		t.Errorf("expected fresh start on engine switch, got resume session %q", resumed)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if ss.sessionID("s1", "w1", "codex") == "codex-session-id" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if got := ss.sessionID("s1", "w1", "claude"); got != "claude-session-id" {
+		t.Errorf("expected claude session preserved, got %q", got)
+	}
+	if got := ss.sessionID("s1", "w1", "codex"); got != "codex-session-id" {
+		t.Errorf("expected codex session stored, got %q", got)
 	}
 }
 
@@ -357,15 +466,16 @@ func TestTaskDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
 
 func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
 	ss := newMockSessionStore()
-	ss.data["s1|w1"] = "broken-session-id"
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "claude")
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "broken-session-id", "codex")
 
 	mgr := &fallbackExecManager{
 		freshResult: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session"},
 	}
-	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, task.WithEngine("codex"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -385,21 +495,26 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 		t.Fatal("fallback ExecuteWorker was never called")
 	}
 
-	// Stale session should be cleared
+	// Stale codex session should be deleted before the fresh run is started.
 	deadline = time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		ss.mu.Lock()
-		cleared := len(ss.cleared)
-		ss.mu.Unlock()
-		if cleared > 0 {
+		if ss.deleteCount() > 0 && ss.sessionID("s1", "w1", "codex") == "new-session" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
-	if len(ss.cleared) == 0 {
-		t.Error("expected ClearSessionContexts called after resume failure")
+	deletedRef, ok := ss.deletedRef(0)
+	if !ok || deletedRef != newMockSessionRef("s1", "w1", "codex") {
+		t.Errorf("expected codex session deleted after resume failure, got %v", ss.deleted)
+	}
+	if len(ss.cleared) != 0 {
+		t.Errorf("did not expect full session clear on resume failure, got %v", ss.cleared)
+	}
+	if got := ss.sessionID("s1", "w1", "claude"); got != "claude-session-id" {
+		t.Errorf("expected claude session preserved, got %q", got)
+	}
+	if got := ss.sessionID("s1", "w1", "codex"); got != "new-session" {
+		t.Errorf("expected codex session refreshed after fallback, got %q", got)
 	}
 }
 
@@ -834,11 +949,18 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 		t.Fatal("expected worker to be called")
 	}
 	instr := instructions[0]
-	if !strings.Contains(instr, "message_id: msg-abc") {
-		t.Errorf("expected message_id header in instruction, got:\n%s", instr)
+	wantMeta := `<task_meta>{"message_id":"msg-abc"}</task_meta>`
+	if !strings.Contains(instr, wantMeta) {
+		t.Errorf("expected message_id in task_meta, got:\n%s", instr)
 	}
-	if strings.Contains(instr, "task_id:") {
-		t.Errorf("expected no task_id header when TaskID is empty, got:\n%s", instr)
+	if !strings.Contains(instr, "<task_content>") {
+		t.Errorf("expected task_content tag in instruction, got:\n%s", instr)
+	}
+	if !strings.Contains(instr, "</task_content>") {
+		t.Errorf("instruction missing closing task_content tag, got: %q", instr)
+	}
+	if strings.Contains(instr, "task_id") {
+		t.Errorf("expected no task_id in instruction when TaskID is empty, got:\n%s", instr)
 	}
 }
 
@@ -899,5 +1021,218 @@ func TestTaskDispatcher_ExecStatusFailed_CallsFailTask(t *testing.T) {
 	}
 	if fn.calls[0].info.Reason != "API Error: blocked" {
 		t.Errorf("expected reason='API Error: blocked', got %s", fn.calls[0].info.Reason)
+	}
+}
+
+func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- task.DispatchTask{
+		TaskID:      "",
+		MessageID:   "",
+		WorkerID:    "w1",
+		SessionKey:  "s1",
+		Instruction: "raw instruction",
+		TaskType:    model.TaskTypeImmediate,
+	}
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("expected worker to be called")
+	}
+
+	mgr.mu.Lock()
+	instructions := mgr.executedInstructions
+	mgr.mu.Unlock()
+
+	if len(instructions) == 0 {
+		t.Fatal("expected worker to be called")
+	}
+	got := instructions[0]
+	// New sessions get the skill hint prefix; the raw instruction follows after the newline.
+	if !strings.Contains(got, "raw instruction") {
+		t.Errorf("expected instruction to contain original text, got: %q", got)
+	}
+}
+
+func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	// No prior session context — new session
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	tsk := immediateTask("sk-1", "worker-1", "do the thing")
+	in <- tsk
+
+	if !waitForExecCount(mgr, 1, 3*time.Second) {
+		t.Fatal("timeout waiting for execution")
+	}
+	mgr.mu.Lock()
+	instruction := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+	if !strings.HasPrefix(instruction, "use openbee-worker skill.\n") {
+		t.Errorf("new session must start with skill hint\ngot: %q", instruction)
+	}
+}
+
+func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	ss := newMockSessionStore()
+	// Pre-populate session context so this is a resume.
+	// Engine name must match the dispatcher's WithEngine option so
+	// GetSessionContextForEngine returns the stored session ID.
+	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("testengine"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	tsk := immediateTask("sk-1", "worker-1", "do the thing")
+	in <- tsk
+
+	if !waitForExecCount(mgr, 1, 3*time.Second) {
+		t.Fatal("timeout waiting for execution")
+	}
+	mgr.mu.Lock()
+	instruction := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+	if strings.HasPrefix(instruction, "use openbee-worker skill.") {
+		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
+	}
+}
+
+func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	lookup := &mockWorkerLookup{
+		worker: model.Worker{
+			ID:          "w1",
+			Name:        "毛毛",
+			Description: "负责 openbee 开发",
+			Memory:      "记住老板的偏好",
+		},
+	}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(),
+		task.WithWorkerLookup(lookup),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "do the thing")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	instr := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+
+	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	}
+	if !strings.Contains(instr, "<worker_persona>") {
+		t.Errorf("instruction missing <worker_persona> tag, got: %q", instr)
+	}
+	if !strings.Contains(instr, "Name: 毛毛") {
+		t.Errorf("instruction missing worker name, got: %q", instr)
+	}
+	if !strings.Contains(instr, "Description: 负责 openbee 开发") {
+		t.Errorf("instruction missing worker description, got: %q", instr)
+	}
+	if !strings.Contains(instr, "记住老板的偏好") {
+		t.Errorf("instruction missing worker memory, got: %q", instr)
+	}
+	if !strings.Contains(instr, "</worker_persona>") {
+		t.Errorf("instruction missing </worker_persona> tag, got: %q", instr)
+	}
+}
+
+func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "do the thing")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	instr := mgr.executedInstructions[0]
+	mgr.mu.Unlock()
+
+	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	}
+	if strings.Contains(instr, "<worker_persona>") {
+		t.Errorf("instruction should not contain <worker_persona> when lookup is nil, got: %q", instr)
+	}
+}
+
+func TestTaskDispatcher_NewSession_LookupError_FailsTask(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1"},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	lookup := &mockWorkerLookup{err: fmt.Errorf("worker not found")}
+	notifier := &mockFailureNotifier{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(),
+		task.WithWorkerLookup(lookup),
+		task.WithFailureNotifier(notifier),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "do the thing")
+	t1.TaskID = "task-fail"
+	t1.MessageID = "msg-fail"
+	in <- t1
+
+	if !notifier.waitForCall(2 * time.Second) {
+		t.Fatal("failure notifier was not called within timeout")
+	}
+
+	ts.mu.Lock()
+	failed := ts.failedTasks
+	ts.mu.Unlock()
+	if len(failed) == 0 || failed[0] != "task-fail" {
+		t.Errorf("expected task-fail to be failed, got %v", failed)
+	}
+	mgr.mu.Lock()
+	execCount := len(mgr.executedInstructions)
+	mgr.mu.Unlock()
+	if execCount != 0 {
+		t.Errorf("ExecuteWorker should not be called on lookup error, got %d calls", execCount)
 	}
 }

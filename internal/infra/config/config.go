@@ -37,6 +37,18 @@ func DefaultLogsDir() string {
 	return filepath.Join(home, ".openbee", "logs")
 }
 
+// DefaultCodexSessionsDir returns the codex session store directory: ~/.openbee/.codex/sessions
+func DefaultCodexSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", ".codex", "sessions")
+}
+
+// DefaultPiSessionsDir returns the pi session store directory: ~/.openbee/.pi/sessions
+func DefaultPiSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", ".pi", "sessions")
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
@@ -49,6 +61,17 @@ type ClaudeConfig struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+type CodexConfig struct {
+	Path    string        `yaml:"path"`
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+type PiConfig struct {
+	Path    string            `yaml:"path"`
+	Timeout time.Duration     `yaml:"timeout"`
+	Env     map[string]string `yaml:"env"`
+}
+
 type MediaConfig struct {
 	FFprobePath string `yaml:"ffprobe_path"`
 	FFmpegPath  string `yaml:"ffmpeg_path"`
@@ -56,7 +79,10 @@ type MediaConfig struct {
 
 type BeeConfig struct {
 	MessageDebounce time.Duration   `yaml:"message_debounce"`
+	Engine          string          `yaml:"engine"`
 	Claude          ClaudeConfig    `yaml:"claude"`
+	Codex           CodexConfig     `yaml:"codex"`
+	Pi              PiConfig        `yaml:"pi"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
 	MCP             MCPConfig       `yaml:"mcp"`
@@ -64,6 +90,47 @@ type BeeConfig struct {
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
+}
+
+// WorkerTimeout returns the maximum duration for a single worker execution.
+func (b BeeConfig) WorkerTimeout() time.Duration {
+	switch b.EffectiveEngine() {
+	case "codex":
+		return b.Codex.Timeout
+	case "pi":
+		return b.Pi.Timeout
+	default:
+		return b.Claude.Timeout
+	}
+}
+
+// EffectiveEngine returns the configured engine name, defaulting to "claude".
+func (b BeeConfig) EffectiveEngine() string {
+	if b.Engine != "" {
+		return b.Engine
+	}
+	return "claude"
+}
+
+// EngineConfigRaw returns the raw config map for the selected engine.
+func (b BeeConfig) EngineConfigRaw() map[string]any {
+	switch b.EffectiveEngine() {
+	case "claude":
+		return map[string]any{
+			"path": b.Claude.Path,
+		}
+	case "codex":
+		return map[string]any{
+			"path": b.Codex.Path,
+		}
+	case "pi":
+		return map[string]any{
+			"path": b.Pi.Path,
+			"env":  b.Pi.Env,
+		}
+	default:
+		return nil
+	}
 }
 
 type PlatformsConfig struct {
@@ -121,7 +188,6 @@ type MCPConfig struct {
 	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
 }
 
-
 type AuthConfig struct {
 	Username        string        `yaml:"username"`          // login username; default "admin"
 	Password        string        `yaml:"password"`          // login password; empty = auto-generated on startup
@@ -140,7 +206,6 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	Path string `yaml:"path"`
 }
-
 
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
@@ -174,6 +239,18 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Claude.Path == "" {
 		cfg.Bee.Claude.Path = "claude"
+	}
+	if cfg.Bee.Codex.Path == "" {
+		cfg.Bee.Codex.Path = "codex"
+	}
+	if cfg.Bee.Codex.Timeout == 0 {
+		cfg.Bee.Codex.Timeout = 30 * time.Minute
+	}
+	if cfg.Bee.Pi.Path == "" {
+		cfg.Bee.Pi.Path = "pi"
+	}
+	if cfg.Bee.Pi.Timeout == 0 {
+		cfg.Bee.Pi.Timeout = 30 * time.Minute
 	}
 	if cfg.Bee.Media.FFprobePath == "" {
 		cfg.Bee.Media.FFprobePath = "ffprobe"

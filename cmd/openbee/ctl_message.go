@@ -1,7 +1,8 @@
 package main
 
 import (
-	"strings"
+	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/utils"
@@ -11,7 +12,7 @@ var ctlMessageCmd = &cobra.Command{Use: "message", Short: ""}
 
 var (
 	msgSendMessageID string
-	msgSendContent   string
+	msgSendStdin     bool
 	msgSendMediaPath string
 )
 
@@ -20,8 +21,14 @@ var ctlMessageSendCmd = &cobra.Command{
 	Short: "Send a message to the user on the originating platform",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		a := map[string]any{"message_id": msgSendMessageID}
-		if msgSendContent != "" {
-			a["content"] = strings.ReplaceAll(msgSendContent, `\n`, "\n")
+		if msgSendStdin {
+			b, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
+			if len(b) > 0 {
+				a["content"] = string(b)
+			}
 		}
 		if msgSendMediaPath != "" {
 			a["media_path"] = msgSendMediaPath
@@ -32,7 +39,7 @@ var ctlMessageSendCmd = &cobra.Command{
 
 func init() {
 	ctlMessageSendCmd.Flags().StringVar(&msgSendMessageID, "message-id", "", "ID of the originating platform message (required)")
-	ctlMessageSendCmd.Flags().StringVar(&msgSendContent, "content", "", "Text content to send")
+	ctlMessageSendCmd.Flags().BoolVar(&msgSendStdin, "stdin", false, "Read text content from stdin (use with heredoc)")
 	ctlMessageSendCmd.Flags().StringVar(&msgSendMediaPath, "media-path", "", "Local file path to upload and send as media")
 	ctlMessageSendCmd.MarkFlagRequired("message-id")
 

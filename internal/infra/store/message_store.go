@@ -56,15 +56,6 @@ func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, con
 	return n == 1, nil
 }
 
-// SetStatus updates the status of a single message.
-func (s *MessageStore) SetStatus(ctx context.Context, id, status string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id = ?`,
-		status, time.Now().UnixMilli(), id,
-	)
-	return err
-}
-
 // UpdateStatusBatch sets the same status on all provided message IDs.
 func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, status string) error {
 	if len(ids) == 0 {
@@ -80,25 +71,6 @@ func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, stat
 		args...,
 	)
 	return err
-}
-
-// MarkMerged sets primaryID status to "merged" and records merged_into on all mergedIDs.
-func (s *MessageStore) MarkMerged(ctx context.Context, primaryID string, mergedIDs []string) error {
-	now := time.Now().UnixMilli()
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = 'merged', updated_at = ? WHERE id = ?`, now, primaryID,
-	); err != nil {
-		return err
-	}
-	for _, id := range mergedIDs {
-		if _, err := s.db.ExecContext(ctx,
-			`UPDATE bee_platform_messages SET status = 'merged', merged_into = ?, updated_at = ? WHERE id = ?`,
-			primaryID, now, id,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // FetchMergedContent returns the content of all messages merged into the given primary ID,
@@ -123,7 +95,6 @@ func (s *MessageStore) FetchMergedContent(ctx context.Context, primaryID string)
 	return contents, rows.Err()
 }
 
-// CreateBatch inserts multiple message rows in a single transaction using
 // ClaimedMessage is a bee_platform_messages row claimed by the Feeder.
 type ClaimedMessage struct {
 	ID         string
@@ -197,11 +168,6 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 // MarkBeeProcessed sets status to 'bee_processed' for the given message IDs.
 func (s *MessageStore) MarkBeeProcessed(ctx context.Context, ids []string) error {
 	return s.UpdateStatusBatch(ctx, ids, "bee_processed")
-}
-
-// ResetFeedingBatch restores 'feeding' messages back to 'received'.
-func (s *MessageStore) ResetFeedingBatch(ctx context.Context, ids []string) error {
-	return s.UpdateStatusBatch(ctx, ids, "received")
 }
 
 // RollbackWithRetry increments retry_count for each message and resets status to
@@ -365,12 +331,4 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	}
 	slices.Reverse(msgs)
 	return msgs, nil
-}
-
-// DeleteBySessionKey removes all bee_platform_messages for the given session key.
-func (s *MessageStore) DeleteBySessionKey(ctx context.Context, sessionKey string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_platform_messages WHERE session_key = ?`, sessionKey,
-	)
-	return err
 }
