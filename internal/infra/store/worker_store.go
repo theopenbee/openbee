@@ -130,6 +130,45 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
+// WorkerFilter holds optional filter criteria for listing workers.
+type WorkerFilter struct {
+	Name      string   // case-insensitive partial match; empty means no filter
+	ID        string   // exact match; empty means no filter
+	WorkerIDs []string // nil means no restriction; non-nil (even empty) restricts to these IDs
+}
+
+// ListFiltered returns workers matching the filter with pagination, plus the total count.
+func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]model.Worker, int, error) {
+	if filter.WorkerIDs != nil && len(filter.WorkerIDs) == 0 {
+		return []model.Worker{}, 0, nil
+	}
+
+	var b whereBuilder
+	if filter.ID != ""   { b.add("id = ?", filter.ID) }
+	if filter.Name != "" { b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%") }
+	if filter.WorkerIDs != nil {
+		b.addAll("id IN ("+inPlaceholders(len(filter.WorkerIDs))+")", stringsToArgs(filter.WorkerIDs)...)
+	}
+	where, args := b.build()
+
+	var total int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM bee_workers"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count workers: %w", err)
+	}
+
+	queryArgs := append(args[:len(args):len(args)], limit, offset)
+	rows, err := s.db.Query(
+		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		queryArgs...,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list workers filtered: %w", err)
+	}
+	defer rows.Close()
+	workers, err := scanWorkers(rows)
+	return workers, total, err
+}
+
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
 	_, err := s.db.Exec(

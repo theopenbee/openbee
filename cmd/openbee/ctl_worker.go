@@ -18,6 +18,18 @@ var ctlWorkerListCmd = &cobra.Command{
 				a["recursive"] = false
 			}
 		}
+		if workerListName != "" {
+			a["name"] = workerListName
+		}
+		if workerListID != "" {
+			a["id"] = workerListID
+		}
+		if workerListPage > 0 {
+			a["page"] = workerListPage
+		}
+		if workerListPageSize > 0 {
+			a["page_size"] = workerListPageSize
+		}
 		return ctlRun(utils.ListWorkers, a)
 	},
 }
@@ -107,6 +119,10 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 var (
 	workerListDepartment   string
 	workerListNoRecursive  bool
+	workerListName         string
+	workerListID           string
+	workerListPage         int
+	workerListPageSize     int
 	workerCreateDepartment string
 	workerUpdateDepartment string
 )
@@ -140,6 +156,10 @@ func init() {
 
 	ctlWorkerListCmd.Flags().StringVar(&workerListDepartment, "department", "", "Filter by department ID or name")
 	ctlWorkerListCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
+	ctlWorkerListCmd.Flags().StringVar(&workerListName, "name", "", "Filter by name (case-insensitive partial match)")
+	ctlWorkerListCmd.Flags().StringVar(&workerListID, "id", "", "Filter by exact worker ID")
+	ctlWorkerListCmd.Flags().IntVar(&workerListPage, "page", 0, "Page number (default: 1)")
+	ctlWorkerListCmd.Flags().IntVar(&workerListPageSize, "page-size", 0, "Page size (default: 50, max: 200)")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")

@@ -298,6 +298,7 @@ openbee ctl system executions [--limit <count>]
 
 ```bash
 openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 
@@ -322,4 +323,43 @@ openbee ctl message send --message-id <id> --stdin << 'EOF'
 EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
+
+# Scenario 5: Query message history (single filter)
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --status received
+openbee ctl message list --platform feishu --received-from 1700000000000
+
+# Scenario 6: Query message history (multiple filters combined)
+openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
+
+# Scenario 7: Pagination (default 50 per page, max 100)
+openbee ctl message list --platform feishu --page 2 --page-size 20
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
+```
+
+### execution subcommand
+
+```bash
+openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- `--status` accepts: `pending`, `running`, `completed`, `failed`
+- All timestamp flags use Unix milliseconds
+- Pagination: default 50 per page, max 100; use `--page` and `--page-size` to paginate
+- Returns paginated results with `items`, `total`, `page`, `page_size` fields
+- All filter flags can be combined freely in a single command
+
+```bash
+# Single filter
+openbee ctl execution list --worker-id abc123
+openbee ctl execution list --status running
+
+# Multiple filters combined
+openbee ctl execution list --worker-id abc123 --status completed
+openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
+openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
+
+# Pagination
+openbee ctl execution list --status completed --page 2 --page-size 20
+openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
 ```

@@ -112,45 +112,71 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolUpdateDepartment(args)
 	case utils.DeleteDepartment:
 		return s.toolDeleteDepartment(args)
+	case utils.ListMessages:
+		return s.toolListMessages(ctx, args)
+	case utils.ListExecutions:
+		return s.toolListExecutions(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+type workerBrief struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 	var params struct {
 		DepartmentID string `json:"department_id"`
 		Recursive    *bool  `json:"recursive"`
+		Name         string `json:"name"`
+		ID           string `json:"id"`
+		Page         int    `json:"page"`
+		PageSize     int    `json:"page_size"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 
-	var workers []model.Worker
-	var err error
+	page, pageSize, offset := normalizePage(params.Page, params.PageSize, 200)
+
+	filter := store.WorkerFilter{
+		Name: params.Name,
+		ID:   params.ID,
+	}
 
 	if params.DepartmentID != "" {
 		recursive := params.Recursive == nil || *params.Recursive
+		var workerIDs []string
+		var err error
 		if recursive {
-			workers, err = s.listWorkersRecursive(params.DepartmentID)
+			workerIDs, err = s.listWorkersRecursive(params.DepartmentID)
 		} else {
 			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			workers, err = s.workerStore.GetByDepartmentID(deptID)
+			workerIDs, err = s.departmentStore.GetWorkerIDsForDepartments([]string{deptID})
 		}
-	} else {
-		workers, err = s.workerStore.List()
+		if err != nil {
+			return nil, fmt.Errorf("list workers: %w", err)
+		}
+		filter.WorkerIDs = workerIDs
 	}
 
+	workers, total, err := s.workerStore.ListFiltered(filter, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
-	if workers == nil {
-		workers = []model.Worker{}
+
+	briefs := make([]workerBrief, 0, len(workers))
+	for _, w := range workers {
+		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
 	}
-	return workers, nil
+
+	return pagedResult(briefs, total, page, pageSize), nil
 }
 
 func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
@@ -163,7 +189,29 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	return s.workerStore.GetByID(params.WorkerID)
+	w, err := s.workerStore.GetByID(params.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("worker not found: %w", err)
+	}
+	depts, err := s.departmentStore.GetWorkerDepartments(w.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get worker departments: %w", err)
+	}
+	deptBriefs := make([]departmentBrief, 0, len(depts))
+	for _, d := range depts {
+		deptBriefs = append(deptBriefs, departmentBrief{ID: d.ID, Name: d.Name})
+	}
+	return workerDetailResponse{Worker: w, Departments: deptBriefs}, nil
+}
+
+type departmentBrief struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type workerDetailResponse struct {
+	model.Worker
+	Departments []departmentBrief `json:"departments"`
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -180,6 +228,9 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	}
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
+	}
+	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
+		return nil, err
 	}
 	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir, params.PermissionScopes)
 	if err != nil {
@@ -223,6 +274,9 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		w.Memory = *params.Memory
 	}
 	if params.PermissionScopes != nil {
+		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {
+			return nil, err
+		}
 		w.PermissionScopes = *params.PermissionScopes
 	}
 	if fieldsChanged {
@@ -799,16 +853,33 @@ func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMes
 	}, nil
 }
 
+type deptTreeBrief struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	SortOrder int             `json:"sort_order"`
+	Children  []deptTreeBrief `json:"children"`
+}
+
+func toDeptTreeBriefs(nodes []model.DepartmentTree) []deptTreeBrief {
+	result := make([]deptTreeBrief, 0, len(nodes))
+	for _, n := range nodes {
+		result = append(result, deptTreeBrief{
+			ID:        n.ID,
+			Name:      n.Name,
+			SortOrder: n.SortOrder,
+			Children:  toDeptTreeBriefs(n.Children),
+		})
+	}
+	return result
+}
+
 func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
 	tree := s.departmentStore.BuildTree(all)
-	if tree == nil {
-		tree = []model.DepartmentTree{}
-	}
-	return tree, nil
+	return toDeptTreeBriefs(tree), nil
 }
 
 func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
@@ -1030,7 +1101,7 @@ func collectDescendantIDs(all []model.Department, rootID string) []string {
 	return ids
 }
 
-func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error) {
+func (s *MCPServer) listWorkersRecursive(idOrName string) ([]string, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
@@ -1044,5 +1115,88 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 	if err != nil {
 		return nil, fmt.Errorf("get department workers: %w", err)
 	}
-	return s.workerStore.GetByIDs(workerIDs)
+	return workerIDs, nil
+}
+
+func pagedResult(items any, total, page, pageSize int) map[string]any {
+	return map[string]any{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}
+}
+
+// normalizePage clamps page/pageSize to valid ranges and returns the offset.
+func normalizePage(page, pageSize, maxPageSize int) (int, int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	return page, pageSize, (page - 1) * pageSize
+}
+
+func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey     string `json:"session_key"`
+		Platform       string `json:"platform"`
+		Status         string `json:"status"`
+		ReceivedAtFrom int64  `json:"received_at_from"`
+		ReceivedAtTo   int64  `json:"received_at_to"`
+		Page           int    `json:"page"`
+		PageSize       int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	msgs, total, err := s.messageStore.ListFiltered(ctx, store.MessageFilter{
+		SessionKey:     params.SessionKey,
+		Platform:       params.Platform,
+		Status:         params.Status,
+		ReceivedAtFrom: params.ReceivedAtFrom,
+		ReceivedAtTo:   params.ReceivedAtTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	return pagedResult(msgs, total, params.Page, params.PageSize), nil
+}
+
+func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		WorkerID      string `json:"worker_id"`
+		SessionID     string `json:"session_id"`
+		Status        string `json:"status"`
+		StartedFrom   int64  `json:"started_at_from"`
+		StartedTo     int64  `json:"started_at_to"`
+		CompletedFrom int64  `json:"completed_at_from"`
+		CompletedTo   int64  `json:"completed_at_to"`
+		Page          int    `json:"page"`
+		PageSize      int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	execs, total, err := s.executionStore.ListFiltered(ctx, store.ExecutionFilter{
+		WorkerID:      params.WorkerID,
+		SessionID:     params.SessionID,
+		Status:        params.Status,
+		StartedFrom:   params.StartedFrom,
+		StartedTo:     params.StartedTo,
+		CompletedFrom: params.CompletedFrom,
+		CompletedTo:   params.CompletedTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list executions: %w", err)
+	}
+	return pagedResult(execs, total, params.Page, params.PageSize), nil
 }

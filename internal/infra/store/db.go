@@ -285,6 +285,28 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 	},
 }
 
+type whereBuilder struct {
+	clauses []string
+	args    []any
+}
+
+func (b *whereBuilder) add(clause string, arg any) {
+	b.clauses = append(b.clauses, clause)
+	b.args = append(b.args, arg)
+}
+
+func (b *whereBuilder) addAll(clause string, args ...any) {
+	b.clauses = append(b.clauses, clause)
+	b.args = append(b.args, args...)
+}
+
+func (b *whereBuilder) build() (string, []any) {
+	if len(b.clauses) == 0 {
+		return "", nil
+	}
+	return " WHERE " + strings.Join(b.clauses, " AND "), b.args
+}
+
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.
 func stringsToArgs(ss []string) []any {
 	args := make([]any, len(ss))
