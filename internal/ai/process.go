@@ -37,6 +37,16 @@ func (p *CmdProcess) Stop() error {
 	return nil
 }
 
+// BuildRunEnv assembles the final env slice for a subprocess run:
+// baseEnv (from BuildBaseEnv) + extraEnv + OPENBEE_API_KEY.
+func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
+	env := make([]string, 0, len(baseEnv)+len(extraEnv)+1)
+	env = append(env, baseEnv...)
+	env = append(env, extraEnv...)
+	env = append(env, "OPENBEE_API_KEY="+apiKey)
+	return env
+}
+
 // BuildBaseEnv constructs the base environment for engine subprocesses.
 // It prepends the current executable's directory to PATH and appends OPENBEE_URL.
 func BuildBaseEnv(openbeeURL string) []string {

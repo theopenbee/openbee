@@ -111,11 +111,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stderr = logFile
-	env := make([]string, 0, len(inv.baseEnv)+len(opts.ExtraEnv)+1)
-	env = append(env, inv.baseEnv...)
-	env = append(env, opts.ExtraEnv...)
-	env = append(env, "OPENBEE_API_KEY="+opts.APIKey)
-	cmd.Env = env
+	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

@@ -9,25 +9,27 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
+// reservedKey is the env var name that openbee manages internally and must
+// never be overridden by user-supplied env configs.
+const reservedKey = "OPENBEE_API_KEY"
+
 type Service struct {
-	store       *store.EnvConfigStore
-	workerStore *store.WorkerStore
-	deptStore   *store.DepartmentStore
-	encKey      string // config.Advanced.EnvSecret
+	store     *store.EnvConfigStore
+	deptStore *store.DepartmentStore
+	encKey    string // config.Advanced.EnvSecret
 }
 
-func NewService(envStore *store.EnvConfigStore, ws *store.WorkerStore, ds *store.DepartmentStore, encKey string) *Service {
+func NewService(envStore *store.EnvConfigStore, _ *store.WorkerStore, ds *store.DepartmentStore, encKey string) *Service {
 	return &Service{
-		store:       envStore,
-		workerStore: ws,
-		deptStore:   ds,
-		encKey:      encKey,
+		store:     envStore,
+		deptStore: ds,
+		encKey:    encKey,
 	}
 }
 
 // Create encrypts plainValue and persists the env config.
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
-	if key == "OPENBEE_API_KEY" {
+	if key == reservedKey {
 		return nil, fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
 	}
 
@@ -78,7 +80,7 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 	if existing == nil {
 		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
-	if existing.Key == "OPENBEE_API_KEY" {
+	if existing.Key == reservedKey {
 		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
 	}
 
@@ -103,7 +105,7 @@ func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error
 }
 
 // Delete removes an env config by ID.
-// Returns error if the config's key is "OPENBEE_API_KEY".
+// Returns error if the config's key is reservedKey.
 func (s *Service) Delete(id string) error {
 	existing, err := s.store.Get(id)
 	if err != nil {
@@ -112,7 +114,7 @@ func (s *Service) Delete(id string) error {
 	if existing == nil {
 		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
-	if existing.Key == "OPENBEE_API_KEY" {
+	if existing.Key == reservedKey {
 		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be deleted")
 	}
 	return s.store.Delete(id)
@@ -153,40 +155,27 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	}
 
 	// Merge: global <- depts <- worker
-	merged := merge(globalEnvs, deptEnvs, workerEnvs)
-
-	// Decrypt and format as KEY=VALUE
-	result := make([]string, 0, len(merged))
-	for k, encVal := range merged {
-		plainVal, err := crypto.Decrypt(s.encKey, encVal)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt env value for key %s: %w", k, err)
-		}
-		result = append(result, k+"="+plainVal)
-	}
-
-	return result, nil
+	return s.decryptMerged(merge(globalEnvs, deptEnvs, workerEnvs))
 }
 
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
 // Resolution chain: global <- bee
 func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
-	// Get global envs
 	globalEnvs, err := s.store.List("global", nil)
 	if err != nil {
 		return nil, fmt.Errorf("list global env configs: %w", err)
 	}
 
-	// Get bee envs
 	beeEnvs, err := s.store.List("bee", &beeID)
 	if err != nil {
 		return nil, fmt.Errorf("list bee env configs: %w", err)
 	}
 
-	// Merge: global <- bee
-	merged := merge(globalEnvs, beeEnvs)
+	return s.decryptMerged(merge(globalEnvs, beeEnvs))
+}
 
-	// Decrypt and format as KEY=VALUE
+// decryptMerged decrypts a merged map of key -> encValue and returns KEY=VALUE strings.
+func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	result := make([]string, 0, len(merged))
 	for k, encVal := range merged {
 		plainVal, err := crypto.Decrypt(s.encKey, encVal)
@@ -195,7 +184,6 @@ func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
 		}
 		result = append(result, k+"="+plainVal)
 	}
-
 	return result, nil
 }
 
