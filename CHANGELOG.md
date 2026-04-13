@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.21] - 2026-04-12
+
 ### Added
 - Plugin-based underlying engine, added support for Codex and Pi Agent
 
