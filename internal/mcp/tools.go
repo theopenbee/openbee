@@ -121,7 +121,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 }
 
 const (
-	ClearReasonRunningTasks    = "running_tasks"
+	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
 )
 
@@ -547,10 +547,8 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 
 	// Two-step confirmation: require explicit force flag when active tasks or
 	// multiple worker session contexts would be disrupted.
-	var runningTasks []model.Task
+	var tasksToStop []model.Task
 	if !params.Force {
-		// Detect active tasks first; cancelling them is destructive so require
-		// explicit confirmation before proceeding.
 		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
 			model.TaskStatusActive, "")
 		if err != nil {
@@ -567,22 +565,23 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 			}
 			return map[string]any{
 				"requires_confirmation": true,
-				"reason":                ClearReasonRunningTasks,
+				"reason":                ClearReasonActiveTasks,
 				"running_tasks":         summaries,
 				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
 			}, nil
 		}
 
-		// If more than one worker has a session context, require confirmation
-		// before resetting all their conversation histories.
 		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
 		if err != nil {
 			return nil, fmt.Errorf("list session contexts: %w", err)
 		}
 		var workers []LinkedWorkerSummary
-		seenWorkers := make(map[string]struct{})
+		var seenWorkers map[string]struct{}
 		for _, a := range agents {
 			if a.AgentType == store.WorkerAgentType {
+				if seenWorkers == nil {
+					seenWorkers = make(map[string]struct{})
+				}
 				if _, exists := seenWorkers[a.AgentID]; exists {
 					continue
 				}
@@ -601,14 +600,14 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	} else {
 		var err error
-		runningTasks, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
+		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
 		if err != nil {
 			return nil, fmt.Errorf("list running tasks: %w", err)
 		}
 	}
 
 	// Step 2: Stop running worker processes
-	for _, t := range runningTasks {
+	for _, t := range tasksToStop {
 		if t.ExecutionID != "" {
 			if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
 				log.Error("stop execution", zap.String("op", "clear_session"), zap.String("executionID", t.ExecutionID), zap.Error(err))
