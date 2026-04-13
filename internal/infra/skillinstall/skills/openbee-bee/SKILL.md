@@ -108,34 +108,6 @@ If no suitable worker exists and the task is not in the Rule 4 whitelist, per th
 
 ---
 
-## Precise Filtering for Task Queries
-
-When the user queries a specific type of task (e.g., "scheduled tasks", "immediate tasks"), you must use the `--type` parameter with `openbee ctl task list` to precisely filter and return only the type the user asked about. Do not return task types the user did not ask for.
-
-- "Scheduled tasks" → `--type scheduled`
-- "Immediate tasks" → `--type immediate`
-- "Delayed tasks" → `--type countdown`
-- "All tasks" or unspecified type → omit `--type`
-
----
-
-## Instruction Extraction Rules for Scheduled/Delayed Tasks
-
-When a user message contains scheduled or countdown intent, you must separate the scheduling semantics from the execution action:
-
-- **Scheduling semantics** (e.g., "run once per minute", "after 5 minutes") → map to `--type`, `--cron`, `--scheduled-at` parameters
-- **Execution action** (the actual operation the user wants the worker to perform each time) → put in `--instruction`
-
-`--instruction` must never contain descriptions like "create a scheduled task", "run every X", etc. Otherwise, workers will mistakenly think they need to create a new task each time they execute.
-
-Example:
-- User says: "Run every minute and get the system time for me"
-  - `--type scheduled --cron "* * * * *"`
-  - `--instruction "Get the current system time and report it to the user"` (✓ only the execution action)
-  - Wrong: `--instruction "Create a scheduled task, run every minute, get system time..."` (✗ contains scheduling description)
-
----
-
 ## Notification Spec
 
 During coordination and dispatching, you must stay in sync with the user via `openbee ctl message send`. This is mandatory and cannot be omitted.
@@ -147,10 +119,10 @@ During coordination and dispatching, you must stay in sync with the user via `op
 3. **When dispatch encounters a problem** — No matching worker, user needs to select from candidates, or user needs to provide more information: notify immediately and explain the situation
 4. **When a meta-operation completes** — After you handle an operation yourself (session management, configuration update, status query, simple greeting, etc.), inform the user of the result
 5. **At each key node of session/context operations** — When executing session clearing or context reset, send a notification at each of the following four moments:
-   - **When active tasks are found before clearing**: Before actually executing the clear, inform the user which tasks are currently running and ask whether to proceed. Example: "There are currently 2 tasks being processed (Task IDs: abc123, def456). Clearing the context will terminate these tasks. Do you confirm continuing?"
-   - **When clearing requires second confirmation (requires_confirmation=true)**: Display the list of workers whose context will be reset, inform the user of the operation's scope, and ask the user to confirm before executing with --force. Example: "This operation will reset the conversation context of the following workers:\nXiao Ming (worker-001)\nXiao Hong (worker-002)\nPlease confirm whether to continue. After confirmation, the history of all the above workers will be cleared."
-   - **When clearing succeeds**: Explicitly inform the user that the session has been successfully cleared. Example: "Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
-   - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset. Example: "Xiao Ming (worker-001)'s conversation context has been reset. The next interaction with them will start from a fresh state."
+   - **When active tasks are found before clearing**: Notify the user which tasks are currently running and ask whether to proceed
+   - **When clearing requires second confirmation (requires_confirmation=true)**: Show the list of affected workers and ask user to confirm before executing with --force
+   - **When clearing succeeds**: Inform the user that the session has been successfully cleared
+   - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset
 6. **When an operation errors** — If any `openbee ctl` command returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
 
 ---
@@ -170,306 +142,41 @@ Note: Only modify what the user explicitly requested; do not alter any other par
 
 ---
 
-## Session Context Management
+## Quick CLI Reference
 
-### View Current Context State
-
-When the user asks "which workers have context", "what conversation history exists", etc., run the following command to list all coordinators and workers with conversation records in the current session:
+Most common commands for daily use:
 
 ```bash
-openbee ctl session list --session-key <session_key>
-```
+# List all workers
+openbee ctl worker list
 
-### Clear Entire Session
+# Create a task and assign to a worker
+openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type immediate
 
-When the user sends a message indicating they want to clear/reset the entire conversation (e.g., "clear", "reset context", etc.):
-
-1. Run `openbee ctl task list --session-key <key> --status pending,running` to check for active tasks. If any exist, per notification spec (item 5 — active tasks found before clearing), notify the user via `openbee ctl message send` before proceeding: "There are N tasks currently being processed (Task IDs: ...). Clearing the context will terminate these tasks. Do you confirm continuing?" Then wait for user confirmation before proceeding.
-
-2. Run `openbee ctl session clear --session-key <key>` (without `--force` by default):
-   - If it returns `requires_confirmation=true`: per notification spec (item 5 — clearing requires second confirmation), via `openbee ctl message send`, show the user the list of affected workers and inform them "This operation will reset the conversation context of the following workers: [list]. Please confirm whether to continue. After confirmation, the history of all the above workers will be cleared." After user confirms, re-run with `--force`.
-   - If it returns `cleared=true`: per notification spec (item 5 — clearing succeeds), inform the user: "Session cleared. All workers' conversation contexts have been reset; you can start a new conversation."
-
-### Reset a Single Worker's Context
-
-When the user wants to reset only one worker's conversation memory (e.g., "reset XX's context", "make XX forget the previous conversation"):
-
-```bash
-openbee ctl session clear-worker --session-key <key> --worker-id <id>
-```
-
-Per notification spec (item 5 — single worker context reset completes), inform the user that this worker's context has been reset and the next interaction will start from a fresh state.
-
----
-
-## Memory Management
-
-You have a persistent memory system that can accumulate experience and remember user preferences across sessions.
-
-### Usage Rules
-
-- Before processing a message, load relevant memories:
-
-```bash
-openbee ctl memory get --scope <session_key>   # Get user preferences
-openbee ctl memory get --scope global          # Get global experience
-```
-
-- When you discover user preferences, proactively save them:
-
-```bash
-openbee ctl memory save --scope <scope> --key <key> --value <value>
-```
-
-- When reflecting, store conclusions as global memory; delete stale memories:
-
-```bash
-openbee ctl memory delete --scope <scope> --key <key>
-```
-
-- Use descriptive keys, such as `user_language_preference`, `task_assignment_insight`
-
----
-
-## System Status Overview
-
-You can view the system's running state to make better decisions.
-
-```bash
-# View worker current status
-openbee ctl worker status <id>
-
-# View overall system overview (worker distribution, task stats, recent executions)
-openbee ctl system overview
-
-# View your own execution history (can add --limit to restrict count)
-openbee ctl system executions [--limit <n>]
-```
-
-### Usage Scenarios
-- When the user asks about task status, use `worker status` or `system overview`
-- When doing self-reflection, use `system executions` to review history, then directly read the log_path file in the returned result for details
-- Before assigning tasks, you can check `system overview` to understand each worker's load
-
----
-
-## Core Concepts & Entity Relationships
-
-Understanding the relationships between the core entities helps you make better routing, querying, and coordination decisions.
-
-### Entity Overview
-
-| Entity | Description |
-|--------|-------------|
-| **Message** | An inbound message received from an external platform (e.g. Feishu, Telegram). Carries a `session_key` that identifies the conversation. This is the starting point of every user interaction. |
-| **Outbound Message** | A reply sent from the system (Bee, Worker, or system) back to the user on the originating platform. Linked to the originating Message via `inbound_msg_id`; `source_type` distinguishes whether it came from `bee`, `worker`, or `system`. |
-| **Task** | A unit of work created by the Bee from a Message and assigned to a Worker. Carries `instruction`, `type` (immediate / countdown / scheduled), and `status`. Links back to the originating Message via `message_id` and to the assigned Worker via `worker_id`. |
-| **Execution** | The runtime instance that is created when a Task is actually dispatched and run. Records the process lifecycle: PID, log path, start/end time, result, and final status (`pending` / `running` / `completed` / `failed`). One Task produces one Execution. |
-| **Worker** | An AI agent that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `memory`. |
-| **Department** | A hierarchical grouping of Workers (tree structure). A Worker can belong to multiple Departments. Used for organizational management and worker filtering. |
-| **Session** | Per-agent conversation context, keyed by `(session_key, agent_id)`. Both the Bee and each Worker maintain their own independent Session so multi-turn conversations remain coherent. Clearing a session resets an agent's memory of prior exchanges. |
-
-### Data Flow
-
-```
-External Platform
-       │  (user sends a message)
-       ▼
-  Message  ── session_key ──► Session (Bee context, keyed by session_key)
-       │
-       │  Bee reads & creates
-       ▼
-    Task  ── worker_id ──► Worker ── department_id ──► Department
-       │
-       │  Scheduler dispatches
-       ▼
-  Execution  ── worker_id ──► Worker
-       │                           └── Session (Worker context, keyed by session_key + worker_id)
-       │  Worker completes
-       ▼
-Outbound Message  ── inbound_msg_id ──► Message
-       │  (source_type = "worker", source_id = worker_id)
-       ▼
-External Platform
-       │  (user receives reply)
-```
-
-### Key Relationships at a Glance
-
-- **Message → Task**: one Message can produce one or more Tasks (e.g. the Bee creates tasks for multiple workers)
-- **Task → Execution**: one Task produces exactly one Execution when dispatched
-- **Task → Worker**: each Task is assigned to exactly one Worker
-- **Worker ↔ Department**: many-to-many; a Worker can belong to multiple Departments
-- **Outbound Message → Message**: each outbound reply references the inbound Message that triggered it
-- **Session**: both Bee and Workers each have their own Session per `session_key`; clearing the session resets conversation history for all agents in that session
-
-### Practical Implications for the Bee
-
-- Use `session_key` from the incoming `<message_meta>` to scope memory, session, and task queries to the current conversation
-- When querying task history for a conversation, filter by `--session-key` on `openbee ctl task list`
-- When querying outbound message history, use `--source-type worker --source-id <id>` to isolate a specific worker's replies
-- `openbee ctl execution list` lets you inspect runtime details (logs, timing, status) for any Worker's executions
-- `openbee ctl system overview` aggregates worker load and task stats across all workers and departments
-
----
-
-## openbee ctl CLI Complete Reference
-
-`openbee ctl` is the command-line tool for operating the openbee system, outputting in JSON format. All subcommands use `-c config.yaml` to specify the config file (default: `config.yaml`).
-
-### worker subcommand
-
-```bash
-openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
-openbee ctl worker get <id>
-openbee ctl worker status <id>
-openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>] [--department <id|name>] [--scopes <scopes>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>] [--department <id|name>] [--scopes <scopes>]
-openbee ctl worker delete <id> [--delete-work-dir]
-```
-
-- `--department` accepts an ID or name; comma-separated for multiple departments
-- `--no-recursive` (only for `worker list`): return only workers directly in the department, excluding child departments; default is recursive
-- `--name` (only for `worker list`): filter by name (case-insensitive partial match)
-- `--id` (only for `worker list`): filter by exact worker ID
-- `--page` / `--page-size` (only for `worker list`): pagination; default page 1, default 50 per page, max 200
-- `--scopes` (create/update): comma-separated permission scope list granted to this worker; pass empty string to clear all scopes
-
-#### Worker Permission Scopes
-
-Permission scopes control which read-only query tools a worker token is allowed to call. Bee tokens are never scope-restricted — only worker tokens are subject to scope enforcement.
-
-Available scopes:
-
-| Scope | Grants access to |
-|---|---|
-| `read:workers` | `list_workers`, `get_worker`, `get_worker_status` |
-| `read:departments` | `list_departments`, `get_department` |
-| `read:tasks` | `list_tasks` |
-| `read:messages` | `list_messages`, `list_outbound_messages` |
-| `read:executions` | `list_executions` |
-
-If a worker token calls a tool without the required scope, the call returns: `permission denied: scope <scope> required`.
-
-```bash
-# Grant a worker access to workers and tasks
-openbee ctl worker update <id> --scopes read:workers,read:tasks
-
-# Grant all read scopes
-openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks,read:messages,read:executions
-
-# Clear all scopes
-openbee ctl worker update <id> --scopes ""
-```
-
-### department subcommand
-
-```bash
-openbee ctl department list
-openbee ctl department get <id|name>
-openbee ctl department create --name <name> [--parent <id|name>] [--sort-order <n>]
-openbee ctl department update <id|name> [--name <name>] [--parent <id|name>] [--sort-order <n>]
-openbee ctl department delete <id|name>
-```
-
-### task subcommand
-
-```bash
-openbee ctl task list [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>]
-openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type <immediate|countdown|scheduled> [--scheduled-at <unix milliseconds>] [--cron <cron expression>]
-openbee ctl task cancel <id>
-```
-
-### memory subcommand
-
-```bash
-openbee ctl memory get --scope <global|session_key> [--key <key>]
-openbee ctl memory save --scope <global|session_key> --key <key> --value <value>
-openbee ctl memory delete --scope <global|session_key> --key <key>
-```
-
-### session subcommand
-
-```bash
-openbee ctl session list --session-key <key>
-openbee ctl session clear --session-key <key> [--force]
-openbee ctl session clear-worker --session-key <key> --worker-id <id>
-```
-
-### system subcommand
-
-```bash
-openbee ctl system overview
-openbee ctl system executions [--limit <count>]
-```
-
-### message subcommand
-
-```bash
-openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
-openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
-openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
-
-# Note: --media-path supports only one file per call; sending multiple files requires multiple calls
-
-# Scenario 1: Text-only notification
+# Send a message to the user
 openbee ctl message send --message-id <id> --stdin << 'EOF'
-Task has been dispatched to Maomao, please wait.
+message content
 EOF
 
-# Scenario 2: Send a screenshot (with description)
-openbee ctl message send --message-id <id> --stdin --media-path /tmp/overview.png << 'EOF'
-System status screenshot attached.
-EOF
-
-# Scenario 3: Send a file (e.g., logs, CSV report)
-openbee ctl message send --message-id <id> --stdin --media-path /tmp/tasks.csv << 'EOF'
-Here is the exported task list.
-EOF
-
-# Scenario 4: Send multiple files (multiple calls required)
-openbee ctl message send --message-id <id> --stdin << 'EOF'
-2 attachments in total, sending in order.
-EOF
-openbee ctl message send --message-id <id> --media-path /tmp/file1.png
-openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
-
-# Scenario 5: Query message history (single filter)
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --status received
-openbee ctl message list --platform feishu --received-from 1700000000000
-
-# Scenario 6: Query message history (multiple filters combined)
-openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
-openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
-
-# Scenario 7: Pagination (default 50 per page, max 100)
-openbee ctl message list --platform feishu --page 2 --page-size 20
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
+# Create/update/delete a worker
+openbee ctl worker create --name <name> [--description <desc>] [--department <id|name>]
+openbee ctl worker update <id> [--name <name>] [--description <desc>]
+openbee ctl worker delete <id>
 ```
 
-### execution subcommand
+For the full CLI reference including all subcommands, parameters, and examples, read `references/cli-reference.md`.
 
-```bash
-openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
-```
+---
 
-- `--status` accepts: `pending`, `running`, `completed`, `failed`
-- All timestamp flags use Unix milliseconds
-- Pagination: default 50 per page, max 100; use `--page` and `--page-size` to paginate
-- Returns paginated results with `items`, `total`, `page`, `page_size` fields
-- All filter flags can be combined freely in a single command
+## Reference Documents
 
-```bash
-# Single filter
-openbee ctl execution list --worker-id abc123
-openbee ctl execution list --status running
+Read these sub-documents on demand when the scenario arises — they are not needed for every task:
 
-# Multiple filters combined
-openbee ctl execution list --worker-id abc123 --status completed
-openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
-openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
-
-# Pagination
-openbee ctl execution list --status completed --page 2 --page-size 20
-openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
-```
+| When you need... | Read |
+|-----------------|------|
+| Full CLI command syntax, all parameters and examples | `references/cli-reference.md` |
+| Handling session clear / context reset operations | `references/session-management.md` |
+| Reading or saving memory across sessions | `references/memory-management.md` |
+| Viewing system status, worker load, or execution history | `references/system-status.md` |
+| Understanding entity relationships (Message / Task / Execution / Worker) | `references/entity-relationships.md` |
+| Creating scheduled / countdown tasks, or filtering tasks by type | `references/task-scheduling.md` |
