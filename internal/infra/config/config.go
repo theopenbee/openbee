@@ -54,6 +54,11 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Bee      BeeConfig      `yaml:"bee"`
+	Advanced AdvancedConfig `yaml:"advanced"`
+}
+
+type AdvancedConfig struct {
+	EnvSecret string `yaml:"env_secret"`
 }
 
 type ClaudeConfig struct {
@@ -289,6 +294,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.MCP.TokenSecret == "" {
 		cfg.Bee.MCP.TokenSecret = GenerateRandomSecret()
+	}
+	if cfg.Advanced.EnvSecret == "" {
+		cfg.Advanced.EnvSecret = GenerateRandomSecret()
 	}
 	if cfg.Bee.MCP.TokenTTL == 0 {
 		cfg.Bee.MCP.TokenTTL = 2 * time.Hour

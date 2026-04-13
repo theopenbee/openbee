@@ -46,8 +46,9 @@ type configValues struct {
 	ServerHost string
 	Debug      bool
 	DBPath     string
-	MCPTokenSecret string
-	MCPTokenTTL    string
+	MCPTokenSecret   string
+	MCPTokenTTL      string
+	AdvancedEnvSecret string
 
 	FeishuEnabled   bool
 	FeishuAppID     string
@@ -126,8 +127,9 @@ func loadExistingConfig(path string) *configValues {
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
 		DBPath:               cfg.Database.Path,
-		MCPTokenSecret:       cfg.Bee.MCP.TokenSecret,
-		MCPTokenTTL:          cfg.Bee.MCP.TokenTTL.String(),
+		MCPTokenSecret:        cfg.Bee.MCP.TokenSecret,
+		MCPTokenTTL:           cfg.Bee.MCP.TokenTTL.String(),
+		AdvancedEnvSecret:     cfg.Advanced.EnvSecret,
 		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
 		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
 		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
@@ -575,6 +577,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 		if vals.MCPTokenSecret == "" {
 			vals.MCPTokenSecret = config.GenerateRandomSecret()
+		}
+		if vals.AdvancedEnvSecret == "" {
+			vals.AdvancedEnvSecret = config.GenerateRandomSecret()
 		}
 	}
 

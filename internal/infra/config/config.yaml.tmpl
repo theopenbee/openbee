@@ -64,3 +64,6 @@ bee:
     ffprobe_path: {{.FFprobePath}}
     ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}
+
+advanced:
+  env_secret: "{{.AdvancedEnvSecret}}"  # AES-256-GCM secret for env var encryption; auto-generated if empty
