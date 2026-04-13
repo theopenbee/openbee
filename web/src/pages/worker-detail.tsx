@@ -63,11 +63,6 @@ export function WorkerDetail() {
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
-  const [scopesSaved, setScopesSaved] = useState(false)
-  const isScopesDirty = useMemo(() => {
-    const saved = parseScopes(worker?.permission_scopes ?? "").sort()
-    return serializeScopes([...localScopes].sort()) !== serializeScopes(saved)
-  }, [localScopes, worker?.permission_scopes])
 
   useEffect(() => {
     setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
@@ -428,12 +423,6 @@ export function WorkerDetail() {
                   {t("workerDetail.permissions")}
                 </p>
 
-                {!localScopes.length && (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-                    {t("workerDetail.permissionsEmpty")}
-                  </div>
-                )}
-
                 <div className="space-y-2">
                   {KNOWN_SCOPES.map((scope) => (
                     <ScopeToggleCard
@@ -441,50 +430,19 @@ export function WorkerDetail() {
                       scope={scope}
                       checked={localScopes.includes(scope.id)}
                       onToggle={(scopeId, val) => {
-                        setScopesSaved(false)
-                        setLocalScopes((prev) =>
-                          val ? [...prev, scopeId] : prev.filter((s) => s !== scopeId)
-                        )
+                        const newScopes = val
+                          ? [...localScopes, scopeId]
+                          : localScopes.filter((s) => s !== scopeId)
+                        setLocalScopes(newScopes)
+                        updateWorker.mutateAsync({
+                          id: id!,
+                          data: { permission_scopes: serializeScopes(newScopes) },
+                        })
                       }}
                       disabled={updateWorker.isPending}
                     />
                   ))}
                 </div>
-
-                {isScopesDirty && (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        await updateWorker.mutateAsync({
-                          id: id!,
-                          data: { permission_scopes: serializeScopes(localScopes) },
-                        })
-                        setScopesSaved(true)
-                      }}
-                      disabled={updateWorker.isPending}
-                    >
-                      <Check className="size-3" />
-                      {t("common.save")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setLocalScopes(parseScopes(worker.permission_scopes ?? ""))
-                        setScopesSaved(false)
-                      }}
-                      disabled={updateWorker.isPending}
-                    >
-                      <X className="size-3" />
-                      {t("common.cancel")}
-                    </Button>
-                  </div>
-                )}
-
-                {scopesSaved && !isScopesDirty && (
-                  <p className="text-xs text-muted-foreground">{t("workerDetail.permissionsSaved")}</p>
-                )}
               </div>
             </DetailSection>
           </TabsContent>

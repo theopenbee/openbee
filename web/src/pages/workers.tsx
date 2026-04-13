@@ -254,7 +254,6 @@ export function Workers() {
                         />
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
                   </div>
 
                   {flatDepts.length > 0 && (
