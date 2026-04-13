@@ -73,7 +73,9 @@
       "memoryPlaceholder": "这个员工执行的指令...",
       "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。",
       "sectionDepartment": "部门",
-      "departmentHelper": "将员工分配到所属部门（可选）"
+      "departmentHelper": "将员工分配到所属部门（可选）",
+      "sectionPermissions": "权限配置",
+      "permissionsHelper": "未勾选任何权限时，Worker token 禁止访问任何系统内置工具"
     },
     "deleteDialog": {
       "title": "删除员工",
@@ -120,7 +122,10 @@
     "memory": "静态记忆",
     "noMemory": "未配置静态记忆",
     "editDescription": "编辑描述",
-    "editMemory": "编辑静态记忆"
+    "editMemory": "编辑静态记忆",
+    "permissions": "权限",
+    "permissionsEmpty": "未配置任何权限，Worker token 将禁止访问任何系统内置工具。请根据需要开启对应权限。",
+    "permissionsSaved": "已保存"
   },
   "executionDetail": {
     "title": "执行详情",
@@ -351,5 +356,19 @@
     "noSessionsDesc": "开始与你的 AI 员工对话",
     "noTasks": "暂无任务",
     "noTasksDesc": "定时任务和倒计时任务将在此显示"
+  },
+  "scopes": {
+    "readWorkers": {
+      "title": "查询 Worker",
+      "description": "允许列出和查看 Worker 的基本信息与状态"
+    },
+    "readDepartments": {
+      "title": "查询部门",
+      "description": "允许列出和查看部门信息"
+    },
+    "readTasks": {
+      "title": "查询任务",
+      "description": "允许列出和查看任务记录"
+    }
   }
 }
