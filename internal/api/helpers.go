@@ -19,6 +19,15 @@ func parsePagination(c *gin.Context) (page, pageSize, offset int) {
 	return
 }
 
+func parseInt64Query(c *gin.Context, key string) int64 {
+	if v := c.Query(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
 func paginatedResponse(items any, total, page, pageSize int) gin.H {
 	return gin.H{
 		"items":     items,

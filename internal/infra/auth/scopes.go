@@ -24,19 +24,25 @@ var AllScopes = []string{
 	ScopeReadExecutions,
 }
 
+// validScopeSet is a pre-built lookup set for O(1) scope validation.
+var validScopeSet map[string]struct{}
+
+func init() {
+	validScopeSet = make(map[string]struct{}, len(AllScopes))
+	for _, s := range AllScopes {
+		validScopeSet[s] = struct{}{}
+	}
+}
+
 // ValidatePermissionScopes checks that every scope in the comma-separated string
 // is a recognised value. Returns an error listing any invalid scopes found.
 func ValidatePermissionScopes(scopes string) error {
 	if scopes == "" {
 		return nil
 	}
-	valid := make(map[string]struct{}, len(AllScopes))
-	for _, s := range AllScopes {
-		valid[s] = struct{}{}
-	}
 	var invalid []string
 	for _, s := range utils.SplitAndTrim(scopes) {
-		if _, ok := valid[s]; !ok {
+		if _, ok := validScopeSet[s]; !ok {
 			invalid = append(invalid, s)
 		}
 	}
