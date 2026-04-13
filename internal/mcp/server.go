@@ -38,17 +38,18 @@ type SessionClearer interface {
 
 // MCPServer dispatches tool calls.
 type MCPServer struct {
-	workerStore     *store.WorkerStore
-	manager         *worker.Manager
-	taskStore       *store.TaskStore
-	messageStore    *store.MessageStore
-	senders         map[string]platform.PlatformSenderAdapter
-	execStopper     ExecutionStopper
-	sessionClearer  SessionClearer
-	executionStore  *store.ExecutionStore
-	memoryStore     *store.MemoryStore
-	sessionStore    *store.SessionStore
-	departmentStore *store.DepartmentStore
+	workerStore          *store.WorkerStore
+	manager              *worker.Manager
+	taskStore            *store.TaskStore
+	messageStore         *store.MessageStore
+	outboundMessageStore *store.OutboundMessageStore
+	senders              map[string]platform.PlatformSenderAdapter
+	execStopper          ExecutionStopper
+	sessionClearer       SessionClearer
+	executionStore       *store.ExecutionStore
+	memoryStore          *store.MemoryStore
+	sessionStore         *store.SessionStore
+	departmentStore      *store.DepartmentStore
 
 	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
@@ -59,6 +60,7 @@ func NewBeeServer(
 	mgr *worker.Manager,
 	ts *store.TaskStore,
 	ms *store.MessageStore,
+	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
 	execStopper ExecutionStopper,
 	sessionClearer SessionClearer,
@@ -68,17 +70,18 @@ func NewBeeServer(
 	ds *store.DepartmentStore,
 ) *MCPServer {
 	return &MCPServer{
-		workerStore:     ws,
-		manager:         mgr,
-		taskStore:       ts,
-		messageStore:    ms,
-		senders:         senders,
-		execStopper:     execStopper,
-		sessionClearer:  sessionClearer,
-		executionStore:  es,
-		memoryStore:     memStore,
-		sessionStore:    sessionStore,
-		departmentStore: ds,
+		workerStore:          ws,
+		manager:              mgr,
+		taskStore:            ts,
+		messageStore:         ms,
+		outboundMessageStore: oms,
+		senders:              senders,
+		execStopper:          execStopper,
+		sessionClearer:       sessionClearer,
+		executionStore:       es,
+		memoryStore:          memStore,
+		sessionStore:         sessionStore,
+		departmentStore:      ds,
 	}
 }
 
