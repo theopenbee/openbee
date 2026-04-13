@@ -117,9 +117,10 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		Memory      *string `json:"memory"`
+		Name             *string `json:"name"`
+		Description      *string `json:"description"`
+		Memory           *string `json:"memory"`
+		PermissionScopes *string `json:"permission_scopes"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -134,6 +135,9 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	}
 	if req.Memory != nil {
 		w.Memory = *req.Memory
+	}
+	if req.PermissionScopes != nil {
+		w.PermissionScopes = *req.PermissionScopes
 	}
 
 	updated, err := h.workers.Update(w)
