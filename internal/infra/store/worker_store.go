@@ -38,6 +38,7 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 }
 
 const workerColumns = `id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at`
+const workerColumnsAliased = `w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.permission_scopes, w.created_at, w.updated_at`
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
@@ -106,7 +107,7 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 
 func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
 	rows, err := s.db.Query(
-		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.permission_scopes, w.created_at, w.updated_at
+		`SELECT `+workerColumnsAliased+`
 		 FROM bee_workers w
 		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
 		 WHERE wd.department_id = ?
@@ -128,7 +129,6 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 	defer rows.Close()
 	return scanWorkers(rows)
 }
-
 
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
