@@ -123,6 +123,7 @@ Prefer using the following commands to complete worker-related configuration and
 
 ```bash
 openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 # --stdin and --media-path can be used independently or together (text first, then media)
@@ -172,4 +173,28 @@ openbee ctl department get <id|name>           # Get department details by ID or
 openbee ctl task list --worker-id <id>         # List tasks assigned to a worker
 openbee ctl task list --status pending         # Filter tasks by status
 openbee ctl task list --session-key <key>      # Filter tasks by session key
+```
+
+**Requires `read:messages` scope:**
+
+```bash
+openbee ctl message list                                      # List platform messages
+openbee ctl message list --session-key <key>                  # Filter by session key
+openbee ctl message list --platform <platform>                # Filter by platform (e.g. feishu, local)
+openbee ctl message list --status <status>                    # Filter by status (received, feeding, bee_processed, merged, failed)
+openbee ctl message list --received-from <unix ms>            # Filter received_at >= value
+openbee ctl message list --received-to <unix ms>              # Filter received_at <= value
+```
+
+**Requires `read:executions` scope:**
+
+```bash
+openbee ctl execution list                                    # List worker executions
+openbee ctl execution list --worker-id <id>                   # Filter by worker ID
+openbee ctl execution list --session-id <id>                  # Filter by session ID
+openbee ctl execution list --status <status>                  # Filter by status (pending, running, completed, failed)
+openbee ctl execution list --started-from <unix ms>           # Filter started_at >= value
+openbee ctl execution list --started-to <unix ms>             # Filter started_at <= value
+openbee ctl execution list --completed-from <unix ms>         # Filter completed_at >= value
+openbee ctl execution list --completed-to <unix ms>           # Filter completed_at <= value
 ```

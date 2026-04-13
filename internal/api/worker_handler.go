@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
@@ -48,6 +49,11 @@ func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *wor
 func (h *WorkerHandler) Create(c *gin.Context) {
 	var req createWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := auth.ValidatePermissionScopes(req.PermissionScopes); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -137,6 +143,10 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		w.Memory = *req.Memory
 	}
 	if req.PermissionScopes != nil {
+		if err := auth.ValidatePermissionScopes(*req.PermissionScopes); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		w.PermissionScopes = *req.PermissionScopes
 	}
 

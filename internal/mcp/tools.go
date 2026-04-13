@@ -185,6 +185,9 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
+	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
+		return nil, err
+	}
 	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir, params.PermissionScopes)
 	if err != nil {
 		return nil, err
@@ -227,6 +230,9 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		w.Memory = *params.Memory
 	}
 	if params.PermissionScopes != nil {
+		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {
+			return nil, err
+		}
 		w.PermissionScopes = *params.PermissionScopes
 	}
 	if fieldsChanged {

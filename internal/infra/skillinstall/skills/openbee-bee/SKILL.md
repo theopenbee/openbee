@@ -298,6 +298,7 @@ openbee ctl system executions [--limit <count>]
 
 ```bash
 openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 
@@ -322,4 +323,18 @@ openbee ctl message send --message-id <id> --stdin << 'EOF'
 EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
+
+# Scenario 5: Query message history
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --status received
+openbee ctl message list --platform feishu --received-from 1700000000000
 ```
+
+### execution subcommand
+
+```bash
+openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>]
+```
+
+- `--status` accepts: `pending`, `running`, `completed`, `failed`
+- All timestamp flags use Unix milliseconds
+- Returns paginated results with `items`, `total`, `page`, `page_size` fields
