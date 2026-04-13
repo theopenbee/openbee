@@ -41,7 +41,8 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 	return name
 }
 
-// Bee tokens (empty workerID in context) are always allowed.
+// checkWorkerScope enforces per-tool scope restrictions for worker tokens.
+// Bee tokens carry no workerID and are always fully trusted — only worker tokens are scope-restricted.
 func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
 	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
 	if workerID == "" {
@@ -204,15 +205,32 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	w, err := s.workerStore.GetByID(params.WorkerID)
-	if err != nil {
-		return nil, fmt.Errorf("worker not found: %w", err)
+	type workerResult struct {
+		w   model.Worker
+		err error
 	}
-	depts, err := s.departmentStore.GetWorkerDepartments(w.ID)
-	if err != nil {
-		return nil, fmt.Errorf("get worker departments: %w", err)
+	type deptsResult struct {
+		depts []model.Department
+		err   error
 	}
-	return model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(depts)}, nil
+	wCh := make(chan workerResult, 1)
+	dCh := make(chan deptsResult, 1)
+	go func() {
+		w, err := s.workerStore.GetByID(params.WorkerID)
+		wCh <- workerResult{w, err}
+	}()
+	go func() {
+		depts, err := s.departmentStore.GetWorkerDepartments(params.WorkerID)
+		dCh <- deptsResult{depts, err}
+	}()
+	wr, dr := <-wCh, <-dCh
+	if wr.err != nil {
+		return nil, fmt.Errorf("worker not found: %w", wr.err)
+	}
+	if dr.err != nil {
+		return nil, fmt.Errorf("get worker departments: %w", dr.err)
+	}
+	return model.WorkerWithDepartments{Worker: wr.w, Departments: model.ToDepartmentBriefs(dr.depts)}, nil
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -601,7 +619,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	}
 
-	// Step 2: Stop running worker processes
+	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
 	for _, t := range tasksToStop {
 		if t.ExecutionID != "" {
 			if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
@@ -610,13 +628,11 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	}
 
-	// Step 3: Cancel all pending/running tasks in DB
 	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey)
 	if err != nil {
 		return nil, fmt.Errorf("cancel tasks: %w", err)
 	}
 
-	// Step 4: Clear dispatcher queues + session contexts
 	if s.sessionClearer != nil {
 		s.sessionClearer.ClearSession(params.SessionKey)
 	}
@@ -638,38 +654,60 @@ func (s *MCPServer) toolGetWorkerStatus(ctx context.Context, args json.RawMessag
 		return nil, fmt.Errorf("worker_id is required")
 	}
 
-	worker, err := s.workerStore.GetByID(p.WorkerID)
-	if err != nil {
-		return nil, fmt.Errorf("worker not found: %w", err)
+	type workerRes struct {
+		w   model.Worker
+		err error
 	}
+	type execRes struct {
+		exec *model.WorkerExecution
+		err  error
+	}
+	type pendingRes struct {
+		count int
+		err   error
+	}
+	wCh := make(chan workerRes, 1)
+	eCh := make(chan execRes, 1)
+	pCh := make(chan pendingRes, 1)
+	go func() {
+		w, err := s.workerStore.GetByID(p.WorkerID)
+		wCh <- workerRes{w, err}
+	}()
+	go func() {
+		exec, err := s.executionStore.GetRunningByWorkerID(p.WorkerID)
+		eCh <- execRes{exec, err}
+	}()
+	go func() {
+		count, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
+		pCh <- pendingRes{count, err}
+	}()
+	wr, er, pr := <-wCh, <-eCh, <-pCh
+	if wr.err != nil {
+		return nil, fmt.Errorf("worker not found: %w", wr.err)
+	}
+	pendingCount := pr.count
 
 	result := map[string]any{
-		"worker_id":         worker.ID,
-		"name":              worker.Name,
-		"status":            string(worker.Status),
-		"current_execution": nil,
+		"worker_id":           wr.w.ID,
+		"name":                wr.w.Name,
+		"status":              string(wr.w.Status),
+		"current_execution":   nil,
+		"pending_tasks_count": pendingCount,
 	}
 
-	runningExec, err := s.executionStore.GetRunningByWorkerID(worker.ID)
-	if err == nil && runningExec != nil {
+	if er.err == nil && er.exec != nil {
 		execInfo := map[string]any{
-			"id":          runningExec.ID,
+			"id":          er.exec.ID,
 			"task_id":     nil,
-			"instruction": runningExec.TriggerInput,
-			"started_at":  runningExec.StartedAt,
+			"instruction": er.exec.TriggerInput,
+			"started_at":  er.exec.StartedAt,
 		}
-		task, terr := s.taskStore.GetTaskByExecutionID(ctx, runningExec.ID)
+		task, terr := s.taskStore.GetTaskByExecutionID(ctx, er.exec.ID)
 		if terr == nil && task != nil {
 			execInfo["task_id"] = task.ID
 		}
 		result["current_execution"] = execInfo
 	}
-
-	pendingCount, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
-	if err != nil {
-		pendingCount = 0
-	}
-	result["pending_tasks_count"] = pendingCount
 
 	return result, nil
 }
@@ -709,9 +747,9 @@ func (s *MCPServer) toolGetSystemOverview(ctx context.Context) (any, error) {
 	return map[string]any{
 		"workers": map[string]any{
 			"total":   total,
-			"idle":    workerCounts["idle"],
-			"working": workerCounts["working"],
-			"error":   workerCounts["error"],
+			"idle":    workerCounts[string(model.WorkerStatusIdle)],
+			"working": workerCounts[string(model.WorkerStatusWorking)],
+			"error":   workerCounts[string(model.WorkerStatusError)],
 		},
 		"tasks": map[string]any{
 			"pending":          taskCounts["pending"],
@@ -862,11 +900,7 @@ func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMes
 		return nil, fmt.Errorf("cannot clear bee session context with this tool, use clear_session instead")
 	}
 
-	// Resolve worker name regardless of whether a session row exists.
-	workerName := "(deleted)"
-	if w, err := s.workerStore.GetByID(params.WorkerID); err == nil {
-		workerName = w.Name
-	}
+	workerName := s.workerDisplayName(params.WorkerID)
 
 	if err := s.sessionStore.DeleteWorkerSessionContext(ctx, params.SessionKey, params.WorkerID); err != nil {
 		return nil, fmt.Errorf("delete worker session context: %w", err)
