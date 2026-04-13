@@ -114,6 +114,8 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolDeleteDepartment(args)
 	case utils.ListMessages:
 		return s.toolListMessages(ctx, args)
+	case utils.ListOutboundMessages:
+		return s.toolListOutboundMessages(ctx, args)
 	case utils.ListExecutions:
 		return s.toolListExecutions(ctx, args)
 	default:
@@ -1165,6 +1167,38 @@ func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) 
 	}, params.PageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	return pagedResult(msgs, total, params.Page, params.PageSize), nil
+}
+
+func (s *MCPServer) toolListOutboundMessages(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey string `json:"session_key"`
+		Platform   string `json:"platform"`
+		Status     string `json:"status"`
+		SourceType string `json:"source_type"`
+		SourceID   string `json:"source_id"`
+		SentAtFrom int64  `json:"sent_at_from"`
+		SentAtTo   int64  `json:"sent_at_to"`
+		Page       int    `json:"page"`
+		PageSize   int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	msgs, total, err := s.outboundMessageStore.ListFiltered(ctx, store.OutboundMessageFilter{
+		SessionKey: params.SessionKey,
+		Platform:   params.Platform,
+		Status:     params.Status,
+		SourceType: params.SourceType,
+		SourceID:   params.SourceID,
+		SentAtFrom: params.SentAtFrom,
+		SentAtTo:   params.SentAtTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list outbound messages: %w", err)
 	}
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }

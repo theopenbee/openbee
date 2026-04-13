@@ -48,7 +48,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		&stubEngineAdapter{},
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -234,7 +234,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		&stubEngineAdapter{},
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -484,7 +484,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
@@ -1355,5 +1355,63 @@ func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
 	// Should NOT be a permission denied error
 	if err != nil && err.Error() == "permission denied: scope read:workers required" {
 		t.Error("non-scoped tool should not return permission denied")
+	}
+}
+
+func TestCallTool_ListOutboundMessages(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	oms := store.NewOutboundMessageStore(db)
+	if err := oms.Create(ctx, store.OutboundMessage{
+		ID: "out-1", SessionKey: "sk1", Platform: "feishu",
+		Content: "reply", Status: store.OutboundStatusSent,
+		SourceType: store.SourceTypeWorker, SourceID: "worker-X",
+		SentAt: 1000,
+	}); err != nil {
+		t.Fatalf("seed outbound: %v", err)
+	}
+	if err := oms.Create(ctx, store.OutboundMessage{
+		ID: "out-2", SessionKey: "sk2", Platform: "local",
+		Content: "hi", Status: store.OutboundStatusFailed,
+		SourceType: store.SourceTypeBee,
+		SentAt: 2000,
+	}); err != nil {
+		t.Fatalf("seed outbound: %v", err)
+	}
+
+	decodeResult := func(t *testing.T, result any) map[string]any {
+		t.Helper()
+		b, err := json.Marshal(result)
+		if err != nil {
+			t.Fatalf("marshal result: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatalf("unmarshal result: %v", err)
+		}
+		return m
+	}
+
+	// No filter — returns all
+	result, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	m := decodeResult(t, result)
+	if m["total"].(float64) != 2 {
+		t.Errorf("total: want 2, got %v", m["total"])
+	}
+
+	// Filter by source_type=worker
+	result2, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{
+		"source_type": "worker",
+	}))
+	if err != nil {
+		t.Fatalf("CallTool filter: %v", err)
+	}
+	m2 := decodeResult(t, result2)
+	if m2["total"].(float64) != 1 {
+		t.Errorf("filtered total: want 1, got %v", m2["total"])
 	}
 }
