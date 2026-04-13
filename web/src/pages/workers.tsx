@@ -159,10 +159,7 @@ export function Workers() {
             <Button onClick={() => setOpen(true)}>
               {t("workers.createWorker")}
             </Button>
-            <Sheet open={open} onOpenChange={(val) => {
-                setOpen(val)
-                if (!val) setSelectedScopes([])
-              }}>
+            <Sheet open={open} onOpenChange={setOpen}>
               <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
                 <SheetHeader className="px-6 pt-6 pb-4">
                   <SheetTitle>{t("workers.createWorker")}</SheetTitle>

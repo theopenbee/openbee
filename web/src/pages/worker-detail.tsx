@@ -62,18 +62,15 @@ export function WorkerDetail() {
   const [editMemory, setEditMemory] = useState("")
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
-  const [localScopes, setLocalScopes] = useState<string[]>(() =>
-    parseScopes(worker?.permission_scopes ?? "")
-  )
+  const [localScopes, setLocalScopes] = useState<string[]>([])
   const [scopesSaved, setScopesSaved] = useState(false)
-  const isScopesDirty =
-    serializeScopes([...localScopes].sort()) !==
-    serializeScopes(parseScopes(worker?.permission_scopes ?? "").sort())
+  const isScopesDirty = useMemo(() => {
+    const saved = parseScopes(worker?.permission_scopes ?? "").sort()
+    return serializeScopes([...localScopes].sort()) !== serializeScopes(saved)
+  }, [localScopes, worker?.permission_scopes])
 
   useEffect(() => {
-    if (worker) {
-      setLocalScopes(parseScopes(worker.permission_scopes ?? ""))
-    }
+    setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
   }, [worker?.permission_scopes])
 
   const { data: departments = [] } = useDepartments()

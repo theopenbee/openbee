@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import type { Worker } from "@/lib/types"
 
 export function useWorkers(departmentId?: string) {
   return useQuery({
@@ -45,7 +46,7 @@ export function useDeleteWorker() {
 export function useUpdateWorker() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { description?: string; memory?: string; permission_scopes?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<Worker> }) =>
       api.workers.update(id, data),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["workers", id] })
