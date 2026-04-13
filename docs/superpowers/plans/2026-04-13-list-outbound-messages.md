@@ -18,6 +18,8 @@
 | Modify | `internal/infra/utils/toolnames.go` | Add `ListOutboundMessages` constant |
 | Modify | `internal/infra/auth/scopes.go` | Add `ListOutboundMessages` to `ToolScopeMap` |
 | Modify | `internal/mcp/server.go` | Add `outboundMessageStore` field; update `NewBeeServer` signature |
+| Modify | `internal/infra/skillinstall/skills/openbee-bee/SKILL.md` | Add `list-outbound` to message subcommand reference; add `list_outbound_messages` to `read:messages` scope table |
+| Modify | `internal/infra/skillinstall/skills/openbee-worker/SKILL.md` | Add `list-outbound` to message subcommand reference; add `list-outbound` to `read:messages` scope section |
 | Modify | `internal/mcp/tools.go` | Add `toolListOutboundMessages`; add case to `beeCallTool` switch |
 | Modify | `internal/app/app.go` | Pass `s.outboundMsgStore` to `NewBeeServer` |
 | Modify | `cmd/openbee/ctl_message.go` | Add `list-outbound` subcommand |
@@ -711,7 +713,97 @@ git commit -m "feat: add ctl message list-outbound CLI command"
 
 ---
 
-### Task 6: Final Verification
+### Task 6: Update Skill Files (openbee-bee and openbee-worker)
+
+**Files:**
+- Modify: `internal/infra/skillinstall/skills/openbee-bee/SKILL.md`
+- Modify: `internal/infra/skillinstall/skills/openbee-worker/SKILL.md`
+
+- [ ] **Step 1: Update openbee-bee — message subcommand reference**
+
+In `internal/infra/skillinstall/skills/openbee-bee/SKILL.md`, find the `### message subcommand` section. The current command block starts with:
+
+```bash
+openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] ...
+```
+
+Add `list-outbound` on the line after `list`:
+
+```bash
+openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
+openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- [ ] **Step 2: Update openbee-bee — Worker Permission Scopes table**
+
+In `internal/infra/skillinstall/skills/openbee-bee/SKILL.md`, find the `#### Worker Permission Scopes` section. The current table row for `read:messages` is:
+
+```
+| `read:messages` | `list_messages` |
+```
+
+Change it to:
+
+```
+| `read:messages` | `list_messages`, `list_outbound_messages` |
+```
+
+- [ ] **Step 3: Update openbee-worker — message subcommand reference**
+
+In `internal/infra/skillinstall/skills/openbee-worker/SKILL.md`, find the `### message subcommand` section. The current command block includes:
+
+```bash
+openbee ctl message list [--session-key <key>] ...
+```
+
+Add `list-outbound` on the line after `list`:
+
+```bash
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
+openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- [ ] **Step 4: Update openbee-worker — read:messages scope section**
+
+In `internal/infra/skillinstall/skills/openbee-worker/SKILL.md`, find the `**Requires \`read:messages\` scope:**` section. After the existing `message list` example block, add the new command:
+
+```bash
+openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+Also update the accompanying description bullet:
+
+```
+- `--status` (for `list`): accepts `received`, `feeding`, `bee_processed`, `merged`, `failed`
+- `--status` (for `list-outbound`): accepts `sent`, `failed`
+- `--source-type` (for `list-outbound`): accepts `bee`, `worker`, `system`
+- `--source-id` (for `list-outbound`): filter by the ID of the source worker or system
+- Pagination: default 50 per page, max 100; returns `items`, `total`, `page`, `page_size`
+- All filter flags can be combined freely in a single command
+```
+
+Add a usage example after the existing `message list` examples:
+
+```bash
+# list-outbound examples
+openbee ctl message list-outbound --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list-outbound --source-type worker --source-id <worker_id>
+openbee ctl message list-outbound --status failed
+openbee ctl message list-outbound --platform feishu --sent-from 1700000000000 --sent-to 1700086400000
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/infra/skillinstall/skills/openbee-bee/SKILL.md internal/infra/skillinstall/skills/openbee-worker/SKILL.md
+git commit -m "docs: update openbee-bee and openbee-worker skills with list-outbound-messages command"
+```
+
+---
+
+### Task 7: Final Verification
 
 - [ ] **Step 1: Run all tests**
 
@@ -728,3 +820,21 @@ If no changes needed, skip. Otherwise:
 git add -p
 git commit -m "fix: address final review feedback"
 ```
+
+---
+
+## Summary of All Changes
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `internal/infra/store/outbound_message_store.go` | Add filter/list structs + `ListFiltered` method |
+| 2 | `internal/infra/store/outbound_message_store_test.go` | 6 unit tests for `ListFiltered` |
+| 3 | `internal/infra/utils/toolnames.go` | Add `ListOutboundMessages` constant |
+| 4 | `internal/infra/auth/scopes.go` | Map `ListOutboundMessages` → `ScopeReadMessages` |
+| 5 | `internal/mcp/server.go` | Add `outboundMessageStore` field + update `NewBeeServer` |
+| 6 | `internal/app/app.go` | Pass `s.outboundMsgStore` to `NewBeeServer` |
+| 7 | `internal/mcp/tools.go` | Add `toolListOutboundMessages` + dispatch case |
+| 8 | `internal/mcp/tools_test.go` | Update 3 helpers + add integration test |
+| 9 | `cmd/openbee/ctl_message.go` | Add `list-outbound` subcommand |
+| 10 | `internal/infra/skillinstall/skills/openbee-bee/SKILL.md` | Add `list-outbound` to CLI ref + update scope table |
+| 11 | `internal/infra/skillinstall/skills/openbee-worker/SKILL.md` | Add `list-outbound` to CLI ref + `read:messages` section |
