@@ -517,6 +517,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-Y",
+		"force":       true,
 	}))
 	if err != nil {
 		t.Fatalf("clear_session: %v", err)

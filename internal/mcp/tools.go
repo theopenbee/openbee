@@ -455,9 +455,34 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		return nil, fmt.Errorf("session_key is required")
 	}
 
-	// Two-step confirmation: if more than one worker has a session context and
-	// force is not set, return a confirmation prompt without clearing anything.
+	// Two-step confirmation: require explicit force flag when active tasks or
+	// multiple worker session contexts would be disrupted.
 	if !params.Force {
+		// Detect active tasks first; cancelling them is destructive so require
+		// explicit confirmation before proceeding.
+		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "pending,running", "")
+		if err != nil {
+			return nil, fmt.Errorf("list active tasks: %w", err)
+		}
+		if len(activeTasks) > 0 {
+			taskSummaries := make([]map[string]string, 0, len(activeTasks))
+			for _, t := range activeTasks {
+				taskSummaries = append(taskSummaries, map[string]string{
+					"task_id":     t.ID,
+					"instruction": t.Instruction,
+					"status":      t.Status,
+				})
+			}
+			return map[string]any{
+				"requires_confirmation": true,
+				"reason":               "running_tasks",
+				"running_tasks":        taskSummaries,
+				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
+			}, nil
+		}
+
+		// If more than one worker has a session context, require confirmation
+		// before resetting all their conversation histories.
 		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
 		if err != nil {
 			return nil, fmt.Errorf("list session contexts: %w", err)
@@ -479,9 +504,10 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		if len(workers) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
-				"worker_count":          len(workers),
-				"linked_workers":        workers,
-				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
+				"reason":               "multiple_workers",
+				"worker_count":         len(workers),
+				"linked_workers":       workers,
+				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
 	}
