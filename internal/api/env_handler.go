@@ -27,10 +27,27 @@ type updateEnvRequest struct {
 	Value string `json:"value" binding:"required"`
 }
 
+func respondEnvError(c *gin.Context, err error) {
+	if errors.Is(err, env.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, env.ErrValidation) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
 func (h *EnvHandler) List(c *gin.Context) {
 	scope := c.Query("scope")
-	if scope == "" {
+	switch scope {
+	case "global", "bee", "department", "worker":
+	case "":
 		c.JSON(http.StatusBadRequest, gin.H{"error": "scope query parameter is required"})
+		return
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scope: must be one of global, bee, department, worker"})
 		return
 	}
 	scopeID := c.Query("scope_id")
@@ -77,15 +94,7 @@ func (h *EnvHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.svc.UpdateValue(id, req.Value); err != nil {
-		if errors.Is(err, env.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
-		if errors.Is(err, env.ErrValidation) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondEnvError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -95,15 +104,7 @@ func (h *EnvHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := h.svc.Delete(id); err != nil {
-		if errors.Is(err, env.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
-		if errors.Is(err, env.ErrValidation) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondEnvError(c, err)
 		return
 	}
 

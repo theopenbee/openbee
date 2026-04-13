@@ -30,6 +30,30 @@ func newGCM(key string) (cipher.AEAD, error) {
 	return gcm, nil
 }
 
+// NewGCM creates a reusable AES-256-GCM cipher from a hex-encoded key.
+// Use DecryptGCM to decrypt multiple ciphertexts with the same key efficiently.
+func NewGCM(key string) (cipher.AEAD, error) {
+	return newGCM(key)
+}
+
+// DecryptGCM decrypts a ciphertext produced by Encrypt using a pre-created GCM cipher.
+func DecryptGCM(gcm cipher.AEAD, ciphertext string) (string, error) {
+	combined, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(combined) < nonceSize {
+		return "", errors.New("ciphertext too short")
+	}
+	nonce, ciphertextWithTag := combined[:nonceSize], combined[nonceSize:]
+	plainBytes, err := gcm.Open(nil, nonce, ciphertextWithTag, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plainBytes), nil
+}
+
 // Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
 // key must be a 64-character hex string (32 bytes).
 func Encrypt(key, plaintext string) (string, error) {

@@ -71,17 +71,25 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 	return cfg, nil
 }
 
-// UpdateValue updates the encrypted value for an existing env config.
-func (s *Service) UpdateValue(id, plainValue string) error {
+// getEditable fetches an env config by ID and verifies it exists and is not reserved.
+func (s *Service) getEditable(id string) (*model.EnvConfig, error) {
 	existing, err := s.store.Get(id)
 	if err != nil {
-		return fmt.Errorf("get env config: %w", err)
+		return nil, fmt.Errorf("get env config: %w", err)
 	}
 	if existing == nil {
-		return fmt.Errorf("%w: %s", ErrNotFound, id)
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == reservedKey {
-		return fmt.Errorf("%w: %s is reserved and cannot be set", ErrValidation, reservedKey)
+		return nil, fmt.Errorf("%w: %s is reserved", ErrValidation, reservedKey)
+	}
+	return existing, nil
+}
+
+// UpdateValue updates the encrypted value for an existing env config.
+func (s *Service) UpdateValue(id, plainValue string) error {
+	if _, err := s.getEditable(id); err != nil {
+		return err
 	}
 
 	encValue, err := crypto.Encrypt(s.encKey, plainValue)
@@ -107,21 +115,14 @@ func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error
 // Delete removes an env config by ID.
 // Returns error if the config's key is reservedKey.
 func (s *Service) Delete(id string) error {
-	existing, err := s.store.Get(id)
-	if err != nil {
-		return fmt.Errorf("get env config: %w", err)
-	}
-	if existing == nil {
-		return fmt.Errorf("%w: %s", ErrNotFound, id)
-	}
-	if existing.Key == reservedKey {
-		return fmt.Errorf("%w: %s is reserved and cannot be deleted", ErrValidation, reservedKey)
+	if _, err := s.getEditable(id); err != nil {
+		return err
 	}
 	return s.store.Delete(id)
 }
 
 // ResolveWorkerEnv returns complete env vars for Worker execution (KEY=VALUE slice).
-// Resolution chain: global <- department (sorted by dept_id) <- worker
+// Resolution chain: global <- department (last dept alphabetically by ID wins) <- worker
 func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	depts, err := s.deptStore.GetWorkerDepartments(workerID)
 	if err != nil {
@@ -166,29 +167,46 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
 // Resolution chain: global <- bee
 func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
-	globalEnvs, err := s.store.List("global", nil)
-	if err != nil {
-		return nil, fmt.Errorf("list global env configs: %w", err)
+	type result struct {
+		envs []*model.EnvConfig
+		err  error
+	}
+	globalCh := make(chan result, 1)
+	beeCh := make(chan result, 1)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); e, err := s.store.List("global", nil); globalCh <- result{e, err} }()
+	go func() { defer wg.Done(); e, err := s.store.List("bee", &beeID); beeCh <- result{e, err} }()
+	wg.Wait()
+
+	gr, br := <-globalCh, <-beeCh
+	if gr.err != nil {
+		return nil, fmt.Errorf("list global env configs: %w", gr.err)
+	}
+	if br.err != nil {
+		return nil, fmt.Errorf("list bee env configs: %w", br.err)
 	}
 
-	beeEnvs, err := s.store.List("bee", &beeID)
-	if err != nil {
-		return nil, fmt.Errorf("list bee env configs: %w", err)
-	}
-
-	return s.decryptMerged(merge(globalEnvs, beeEnvs))
+	return s.decryptMerged(merge(gr.envs, br.envs))
 }
 
 // decryptMerged decrypts a merged map of key -> encValue and returns KEY=VALUE strings.
+// Output is sorted for deterministic ordering.
 func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
+	gcm, err := crypto.NewGCM(s.encKey)
+	if err != nil {
+		return nil, fmt.Errorf("init decrypt cipher: %w", err)
+	}
 	result := make([]string, 0, len(merged))
 	for k, encVal := range merged {
-		plainVal, err := crypto.Decrypt(s.encKey, encVal)
+		plainVal, err := crypto.DecryptGCM(gcm, encVal)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt env value for key %s: %w", k, err)
 		}
 		result = append(result, k+"="+plainVal)
 	}
+	sort.Strings(result)
 	return result, nil
 }
 
