@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -144,26 +143,13 @@ func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]mo
 		return []model.Worker{}, 0, nil
 	}
 
-	var clauses []string
-	var args []any
-
-	if filter.ID != "" {
-		clauses = append(clauses, "id = ?")
-		args = append(args, filter.ID)
-	}
-	if filter.Name != "" {
-		clauses = append(clauses, "LOWER(name) LIKE LOWER(?)")
-		args = append(args, "%"+filter.Name+"%")
-	}
+	var b whereBuilder
+	if filter.ID != ""   { b.add("id = ?", filter.ID) }
+	if filter.Name != "" { b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%") }
 	if filter.WorkerIDs != nil {
-		clauses = append(clauses, "id IN ("+inPlaceholders(len(filter.WorkerIDs))+")")
-		args = append(args, stringsToArgs(filter.WorkerIDs)...)
+		b.addAll("id IN ("+inPlaceholders(len(filter.WorkerIDs))+")", stringsToArgs(filter.WorkerIDs)...)
 	}
-
-	where := ""
-	if len(clauses) > 0 {
-		where = " WHERE " + strings.Join(clauses, " AND ")
-	}
+	where, args := b.build()
 
 	var total int
 	if err := s.db.QueryRow("SELECT COUNT(*) FROM bee_workers"+where, args...).Scan(&total); err != nil {

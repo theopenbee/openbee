@@ -115,7 +115,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	case utils.ListMessages:
 		return s.toolListMessages(ctx, args)
 	case utils.ListExecutions:
-		return s.toolListExecutions(args)
+		return s.toolListExecutions(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1169,7 +1169,7 @@ func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) 
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
 
-func (s *MCPServer) toolListExecutions(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string `json:"worker_id"`
 		SessionID     string `json:"session_id"`
@@ -1186,7 +1186,7 @@ func (s *MCPServer) toolListExecutions(args json.RawMessage) (any, error) {
 	}
 	var offset int
 	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
-	execs, total, err := s.executionStore.ListFiltered(store.ExecutionFilter{
+	execs, total, err := s.executionStore.ListFiltered(ctx, store.ExecutionFilter{
 		WorkerID:      params.WorkerID,
 		SessionID:     params.SessionID,
 		Status:        params.Status,

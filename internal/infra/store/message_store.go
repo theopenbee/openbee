@@ -346,32 +346,13 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 }
 
 func messageFilterWhere(f MessageFilter) (string, []any) {
-	var clauses []string
-	var args []any
-	if f.SessionKey != "" {
-		clauses = append(clauses, "session_key = ?")
-		args = append(args, f.SessionKey)
-	}
-	if f.Platform != "" {
-		clauses = append(clauses, "platform = ?")
-		args = append(args, f.Platform)
-	}
-	if f.Status != "" {
-		clauses = append(clauses, "status = ?")
-		args = append(args, f.Status)
-	}
-	if f.ReceivedAtFrom > 0 {
-		clauses = append(clauses, "received_at >= ?")
-		args = append(args, f.ReceivedAtFrom)
-	}
-	if f.ReceivedAtTo > 0 {
-		clauses = append(clauses, "received_at <= ?")
-		args = append(args, f.ReceivedAtTo)
-	}
-	if len(clauses) == 0 {
-		return "", args
-	}
-	return " WHERE " + strings.Join(clauses, " AND "), args
+	var b whereBuilder
+	if f.SessionKey != ""   { b.add("session_key = ?", f.SessionKey) }
+	if f.Platform != ""     { b.add("platform = ?", f.Platform) }
+	if f.Status != ""       { b.add("status = ?", f.Status) }
+	if f.ReceivedAtFrom > 0 { b.add("received_at >= ?", f.ReceivedAtFrom) }
+	if f.ReceivedAtTo > 0   { b.add("received_at <= ?", f.ReceivedAtTo) }
+	return b.build()
 }
 
 // ListBySessionKey returns non-merged messages for a session.

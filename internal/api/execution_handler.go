@@ -48,7 +48,7 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		CompletedTo:   parseInt64Query(c, "completed_at_to"),
 	}
 
-	execs, total, err := h.executions.ListFiltered(f, pageSize, offset)
+	execs, total, err := h.executions.ListFiltered(c.Request.Context(), f, pageSize, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
