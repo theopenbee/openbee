@@ -63,6 +63,7 @@ var ToolScopeMap = map[string]string{
 	utils.ListDepartments: ScopeReadDepartments,
 	utils.GetDepartment:   ScopeReadDepartments,
 	utils.ListTasks:       ScopeReadTasks,
-	utils.ListMessages:    ScopeReadMessages,
-	utils.ListExecutions:  ScopeReadExecutions,
+	utils.ListMessages:         ScopeReadMessages,
+	utils.ListOutboundMessages: ScopeReadMessages,
+	utils.ListExecutions:       ScopeReadExecutions,
 }

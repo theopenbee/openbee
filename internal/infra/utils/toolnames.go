@@ -25,6 +25,7 @@ const (
 	CreateDepartment    = "create_department"
 	UpdateDepartment    = "update_department"
 	DeleteDepartment    = "delete_department"
-	ListMessages        = "list_messages"
-	ListExecutions      = "list_executions"
+	ListMessages         = "list_messages"
+	ListOutboundMessages = "list_outbound_messages"
+	ListExecutions       = "list_executions"
 )
