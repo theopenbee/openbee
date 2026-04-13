@@ -91,6 +91,77 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	return err
 }
 
+// OutboundMessageFilter holds optional filter criteria for ListFiltered.
+// Zero values are ignored.
+type OutboundMessageFilter struct {
+	SessionKey string
+	Platform   string
+	Status     string // "sent" | "failed"
+	SourceType string // "bee" | "worker" | "system"
+	SourceID   string
+	SentAtFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	SentAtTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+}
+
+// ListedOutboundMessage is a bee_outbound_messages row for admin/API listing purposes.
+type ListedOutboundMessage struct {
+	ID           string `json:"id"`
+	SessionKey   string `json:"session_key"`
+	Platform     string `json:"platform"`
+	Content      string `json:"content"`
+	Status       string `json:"status"`
+	SourceType   string `json:"source_type"`
+	SourceID     string `json:"source_id"`
+	InboundMsgID string `json:"inbound_msg_id"`
+	Error        string `json:"error"`
+	SentAt       int64  `json:"sent_at"`
+}
+
+// ListFiltered returns paginated outbound messages matching the given filters,
+// ordered by sent_at DESC.
+func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessageFilter, limit, offset int) ([]ListedOutboundMessage, int, error) {
+	where, args := outboundFilterWhere(f)
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM bee_outbound_messages"+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	queryArgs := append(args[:len(args):len(args)], limit, offset)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, session_key, platform, content, status, source_type, source_id, inbound_msg_id, error, sent_at
+		 FROM bee_outbound_messages`+where+` ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
+		queryArgs...,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var msgs []ListedOutboundMessage
+	for rows.Next() {
+		var m ListedOutboundMessage
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status,
+			&m.SourceType, &m.SourceID, &m.InboundMsgID, &m.Error, &m.SentAt); err != nil {
+			return nil, 0, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, total, rows.Err()
+}
+
+func outboundFilterWhere(f OutboundMessageFilter) (string, []any) {
+	var b whereBuilder
+	if f.SessionKey != "" { b.add("session_key = ?", f.SessionKey) }
+	if f.Platform != ""   { b.add("platform = ?", f.Platform) }
+	if f.Status != ""     { b.add("status = ?", f.Status) }
+	if f.SourceType != "" { b.add("source_type = ?", f.SourceType) }
+	if f.SourceID != ""   { b.add("source_id = ?", f.SourceID) }
+	if f.SentAtFrom > 0   { b.add("sent_at >= ?", f.SentAtFrom) }
+	if f.SentAtTo > 0     { b.add("sent_at <= ?", f.SentAtTo) }
+	return b.build()
+}
+
 // ListBySessionKey returns outbound messages for a session ordered by sent_at ascending.
 // If before > 0, only messages with sent_at < before are returned.
 // limit must be > 0.
