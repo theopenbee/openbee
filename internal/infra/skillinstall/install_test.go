@@ -12,34 +12,30 @@ func TestInstallSkills_FirstInstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
+	if len(results) != len(embeddedSkills) {
+		t.Fatalf("expected %d results, got %d", len(embeddedSkills), len(results))
 	}
 	for _, r := range results {
 		if r.Action != ActionInstalled {
 			t.Errorf("skill %s: expected action 'installed', got %q", r.Name, r.Action)
 		}
-		content, err := os.ReadFile(filepath.Join(dir, r.Name, "SKILL.md"))
-		if err != nil {
-			t.Errorf("skill %s: SKILL.md not created: %v", r.Name, err)
-			continue
-		}
-		if len(content) == 0 {
-			t.Errorf("skill %s: SKILL.md is empty", r.Name)
-		}
 	}
 
-	// Verify reference files are installed for each skill.
-	for _, skill := range embeddedSkills {
-		for refName, refContent := range skill.references {
-			refPath := filepath.Join(dir, skill.name, "references", refName)
-			got, err := os.ReadFile(refPath)
+	// Verify all embedded files were installed for each skill.
+	for _, name := range embeddedSkills {
+		embedded, err := collectEmbeddedFiles("skills/" + name)
+		if err != nil {
+			t.Fatalf("skill %s: collect embedded files: %v", name, err)
+		}
+		for relPath, wantContent := range embedded {
+			p := filepath.Join(dir, name, filepath.FromSlash(relPath))
+			got, err := os.ReadFile(p)
 			if err != nil {
-				t.Errorf("skill %s: reference %s not created: %v", skill.name, refName, err)
+				t.Errorf("skill %s: file %s not created: %v", name, relPath, err)
 				continue
 			}
-			if string(got) != refContent {
-				t.Errorf("skill %s: reference %s content mismatch", skill.name, refName)
+			if string(got) != wantContent {
+				t.Errorf("skill %s: file %s content mismatch", name, relPath)
 			}
 		}
 	}
@@ -47,11 +43,9 @@ func TestInstallSkills_FirstInstall(t *testing.T) {
 
 func TestInstallSkills_UpToDate(t *testing.T) {
 	dir := t.TempDir()
-	// First install
 	if _, err := InstallSkills(dir); err != nil {
 		t.Fatalf("first install failed: %v", err)
 	}
-	// Second install — content unchanged
 	results, err := InstallSkills(dir)
 	if err != nil {
 		t.Fatalf("second install failed: %v", err)
@@ -63,18 +57,16 @@ func TestInstallSkills_UpToDate(t *testing.T) {
 	}
 }
 
-func TestInstallSkills_UpdatedWhenReferenceMissing(t *testing.T) {
+func TestInstallSkills_UpdatedWhenFileMissing(t *testing.T) {
 	dir := t.TempDir()
-	// First install
 	if _, err := InstallSkills(dir); err != nil {
 		t.Fatalf("first install failed: %v", err)
 	}
-	// Delete one reference file from openbee-bee
-	beeRef := filepath.Join(dir, "openbee-bee", "references", "cli-reference.md")
-	if err := os.Remove(beeRef); err != nil {
+	// Delete a reference file from openbee-bee.
+	missing := filepath.Join(dir, "openbee-bee", "references", "cli-reference.md")
+	if err := os.Remove(missing); err != nil {
 		t.Fatal(err)
 	}
-	// Second install should detect the missing reference and update
 	results, err := InstallSkills(dir)
 	if err != nil {
 		t.Fatalf("reinstall failed: %v", err)
@@ -86,21 +78,44 @@ func TestInstallSkills_UpdatedWhenReferenceMissing(t *testing.T) {
 		}
 	}
 	if beeResult.Action != ActionUpdated {
-		t.Errorf("expected 'updated' for openbee-bee when reference missing, got %q", beeResult.Action)
+		t.Errorf("expected 'updated' for openbee-bee when file missing, got %q", beeResult.Action)
 	}
-	// Verify the reference was restored
-	got, err := os.ReadFile(beeRef)
+	if _, err := os.Stat(missing); err != nil {
+		t.Errorf("missing file was not restored: %v", err)
+	}
+}
+
+func TestInstallSkills_PrunesStaleFile(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := InstallSkills(dir); err != nil {
+		t.Fatalf("first install failed: %v", err)
+	}
+	// Plant a stale file that is not in the embedded FS.
+	stale := filepath.Join(dir, "openbee-worker", "references", "old-removed.md")
+	if err := os.WriteFile(stale, []byte("stale content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	results, err := InstallSkills(dir)
 	if err != nil {
-		t.Fatalf("reference not restored: %v", err)
+		t.Fatalf("reinstall failed: %v", err)
 	}
-	if len(got) == 0 {
-		t.Error("restored reference is empty")
+	var workerResult SkillResult
+	for _, r := range results {
+		if r.Name == "openbee-worker" {
+			workerResult = r
+		}
+	}
+	if workerResult.Action != ActionUpdated {
+		t.Errorf("expected 'updated' for openbee-worker when stale file present, got %q", workerResult.Action)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("stale file was not pruned")
 	}
 }
 
 func TestInstallSkills_Updated(t *testing.T) {
 	dir := t.TempDir()
-	// Write stale content for "openbee-bee"
+	// Write stale SKILL.md for openbee-bee.
 	beeDir := filepath.Join(dir, "openbee-bee")
 	if err := os.MkdirAll(beeDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -121,9 +136,10 @@ func TestInstallSkills_Updated(t *testing.T) {
 	if beeResult.Action != ActionUpdated {
 		t.Errorf("expected 'updated' for openbee-bee, got %q", beeResult.Action)
 	}
-	// Verify file now contains embedded content
+	// Verify SKILL.md now matches embedded content.
+	embedded, _ := collectEmbeddedFiles("skills/openbee-bee")
 	got, _ := os.ReadFile(filepath.Join(beeDir, "SKILL.md"))
-	if string(got) != beeSkillMD {
+	if string(got) != embedded["SKILL.md"] {
 		t.Error("openbee-bee SKILL.md content not updated to embedded content")
 	}
 	var workerResult SkillResult
@@ -138,7 +154,6 @@ func TestInstallSkills_Updated(t *testing.T) {
 }
 
 func TestInstallSkillsToDefaults(t *testing.T) {
-	// Override home so both default paths resolve under our temp dir.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -146,9 +161,10 @@ func TestInstallSkillsToDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Two dirs × two skills = four results.
-	if len(results) != 4 {
-		t.Fatalf("expected 4 results (2 skills × 2 dirs), got %d", len(results))
+	// Two dirs × number of skills = total results.
+	want := 2 * len(embeddedSkills)
+	if len(results) != want {
+		t.Fatalf("expected %d results (%d skills × 2 dirs), got %d", want, len(embeddedSkills), len(results))
 	}
 	for _, r := range results {
 		if r.Action != ActionInstalled {
@@ -156,19 +172,19 @@ func TestInstallSkillsToDefaults(t *testing.T) {
 		}
 	}
 
-	// Verify SKILL.md and reference files exist in both target directories.
+	// Verify all embedded files exist in both target directories.
 	claudeSkills := filepath.Join(home, ".claude", "skills")
 	agentsSkills := filepath.Join(home, ".agents", "skills")
 	for _, dir := range []string{claudeSkills, agentsSkills} {
-		for _, skill := range embeddedSkills {
-			p := filepath.Join(dir, skill.name, "SKILL.md")
-			if _, err := os.Stat(p); err != nil {
-				t.Errorf("expected file %s to exist: %v", p, err)
+		for _, name := range embeddedSkills {
+			embedded, err := collectEmbeddedFiles("skills/" + name)
+			if err != nil {
+				t.Fatalf("skill %s: collect embedded files: %v", name, err)
 			}
-			for refName := range skill.references {
-				rp := filepath.Join(dir, skill.name, "references", refName)
-				if _, err := os.Stat(rp); err != nil {
-					t.Errorf("expected reference %s/%s to exist: %v", skill.name, refName, err)
+			for relPath := range embedded {
+				p := filepath.Join(dir, name, filepath.FromSlash(relPath))
+				if _, err := os.Stat(p); err != nil {
+					t.Errorf("expected %s to exist: %v", p, err)
 				}
 			}
 		}
@@ -177,8 +193,7 @@ func TestInstallSkillsToDefaults(t *testing.T) {
 
 func TestInstallSkills_WriteError(t *testing.T) {
 	dir := t.TempDir()
-	// Place a regular file at the path where the "openbee-bee" directory would be created,
-	// so MkdirAll will fail with ENOTDIR.
+	// Block dir creation for openbee-bee by placing a file where the dir would go.
 	if err := os.WriteFile(filepath.Join(dir, "openbee-bee"), []byte("block"), 0o644); err != nil {
 		t.Fatal(err)
 	}
