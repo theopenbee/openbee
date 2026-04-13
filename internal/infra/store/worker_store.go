@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,14 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 }
 
 const workerColumns = `id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at`
-const workerColumnsAliased = `w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.permission_scopes, w.created_at, w.updated_at`
+
+var workerColumnsAliased = func() string {
+	cols := strings.Split(workerColumns, ", ")
+	for i, c := range cols {
+		cols[i] = "w." + c
+	}
+	return strings.Join(cols, ", ")
+}()
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker

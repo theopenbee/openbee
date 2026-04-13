@@ -31,6 +31,8 @@ var validScopeSet = func() map[string]struct{} {
 	return m
 }()
 
+var allowedScopesStr = strings.Join(AllScopes, ", ")
+
 // ValidatePermissionScopes checks that every scope in the comma-separated string
 // is a recognised value. Returns an error listing any invalid scopes found.
 func ValidatePermissionScopes(scopes string) error {
@@ -45,7 +47,7 @@ func ValidatePermissionScopes(scopes string) error {
 	}
 	if len(invalid) > 0 {
 		return fmt.Errorf("invalid permission scope(s): %s; allowed values: %s",
-			strings.Join(invalid, ", "), strings.Join(AllScopes, ", "))
+			strings.Join(invalid, ", "), allowedScopesStr)
 	}
 	return nil
 }
