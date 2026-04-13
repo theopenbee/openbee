@@ -11,8 +11,6 @@ const (
 	TaskStatusFailed    = "failed"
 	TaskStatusCancelled = "cancelled"
 
-	// TaskStatusActive is a comma-separated filter value for pending and running tasks,
-	// accepted by store functions that support CSV status filters.
 	TaskStatusActive = TaskStatusPending + "," + TaskStatusRunning
 )
 

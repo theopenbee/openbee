@@ -120,8 +120,6 @@ func installSkill(baseDir string, name string) (SkillResult, error) {
 	return SkillResult{Name: name, Action: action}, nil
 }
 
-// collectEmbeddedFiles walks the embedded FS under root and returns
-// a map of slash-separated relative paths to file contents.
 func collectEmbeddedFiles(root string) (map[string]string, error) {
 	files := make(map[string]string)
 	err := fs.WalkDir(skillsFS, root, func(path string, d fs.DirEntry, err error) error {
@@ -139,8 +137,7 @@ func collectEmbeddedFiles(root string) (map[string]string, error) {
 	return files, err
 }
 
-// collectDiskFiles walks skillDir and returns a map of slash-separated relative
-// file paths to their SHA-256 hashes. Returns an empty map if the directory does not exist.
+// Returns an empty map if the directory does not exist.
 func collectDiskFiles(skillDir string) (map[string][32]byte, error) {
 	files := make(map[string][32]byte)
 	err := filepath.WalkDir(skillDir, func(path string, d fs.DirEntry, err error) error {

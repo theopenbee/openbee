@@ -1539,7 +1539,7 @@ func TestCallTool_ListOutboundMessages(t *testing.T) {
 
 	// Filter by source_type=worker
 	result2, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{
-		"source_type": "worker",
+		"source_type": store.SourceTypeWorker,
 	}))
 	if err != nil {
 		t.Fatalf("CallTool filter: %v", err)

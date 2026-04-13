@@ -545,8 +545,6 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		return nil, fmt.Errorf("session_key is required")
 	}
 
-	// Two-step confirmation: require explicit force flag when active tasks or
-	// multiple worker session contexts would be disrupted.
 	var tasksToStop []model.Task
 	if !params.Force {
 		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
@@ -576,12 +574,9 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 			return nil, fmt.Errorf("list session contexts: %w", err)
 		}
 		var workers []LinkedWorkerSummary
-		var seenWorkers map[string]struct{}
+		seenWorkers := make(map[string]struct{})
 		for _, a := range agents {
 			if a.AgentType == store.WorkerAgentType {
-				if seenWorkers == nil {
-					seenWorkers = make(map[string]struct{})
-				}
 				if _, exists := seenWorkers[a.AgentID]; exists {
 					continue
 				}

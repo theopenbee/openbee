@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// Inbound message status constants.
 const (
 	MsgStatusReceived     = "received"
 	MsgStatusFeeding      = "feeding"
