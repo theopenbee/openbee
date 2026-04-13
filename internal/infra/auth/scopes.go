@@ -6,6 +6,8 @@ const (
 	ScopeReadWorkers     = "read:workers"
 	ScopeReadDepartments = "read:departments"
 	ScopeReadTasks       = "read:tasks"
+	ScopeReadMessages    = "read:messages"
+	ScopeReadExecutions  = "read:executions"
 )
 
 // ToolScopeMap maps tool names to the scope required for worker-token callers.
@@ -19,4 +21,6 @@ var ToolScopeMap = map[string]string{
 	utils.ListDepartments: ScopeReadDepartments,
 	utils.GetDepartment:   ScopeReadDepartments,
 	utils.ListTasks:       ScopeReadTasks,
+	utils.ListMessages:    ScopeReadMessages,
+	utils.ListExecutions:  ScopeReadExecutions,
 }

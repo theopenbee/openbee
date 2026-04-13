@@ -293,6 +293,88 @@ type InboundMessage struct {
 	ReceivedAt int64
 }
 
+// ListedMessage is a bee_platform_messages row for admin/API listing purposes.
+type ListedMessage struct {
+	ID         string `json:"id"`
+	SessionKey string `json:"session_key"`
+	Platform   string `json:"platform"`
+	Content    string `json:"content"`
+	Status     string `json:"status"`
+	ReceivedAt int64  `json:"received_at"`
+}
+
+// MessageFilter holds optional filter criteria for ListFiltered.
+// Zero values are ignored (no filtering on that field).
+type MessageFilter struct {
+	SessionKey      string
+	Platform        string
+	Status          string
+	ReceivedAtFrom  int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	ReceivedAtTo    int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+}
+
+// ListFiltered returns paginated messages matching the given filters.
+// It also returns the total count of matching rows.
+func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit, offset int) ([]ListedMessage, int, error) {
+	where, args := messageFilterWhere(f)
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM bee_platform_messages" + where
+	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	queryArgs := append(args, limit, offset)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, session_key, platform, content, status, received_at
+		 FROM bee_platform_messages`+where+` ORDER BY received_at DESC LIMIT ? OFFSET ?`,
+		queryArgs...,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var msgs []ListedMessage
+	for rows.Next() {
+		var m ListedMessage
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status, &m.ReceivedAt); err != nil {
+			return nil, 0, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, total, rows.Err()
+}
+
+func messageFilterWhere(f MessageFilter) (string, []any) {
+	var clauses []string
+	var args []any
+	if f.SessionKey != "" {
+		clauses = append(clauses, "session_key = ?")
+		args = append(args, f.SessionKey)
+	}
+	if f.Platform != "" {
+		clauses = append(clauses, "platform = ?")
+		args = append(args, f.Platform)
+	}
+	if f.Status != "" {
+		clauses = append(clauses, "status = ?")
+		args = append(args, f.Status)
+	}
+	if f.ReceivedAtFrom > 0 {
+		clauses = append(clauses, "received_at >= ?")
+		args = append(args, f.ReceivedAtFrom)
+	}
+	if f.ReceivedAtTo > 0 {
+		clauses = append(clauses, "received_at <= ?")
+		args = append(args, f.ReceivedAtTo)
+	}
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
+}
+
 // ListBySessionKey returns non-merged messages for a session.
 // If before > 0, only messages with received_at < before are returned.
 // Results are ordered by received_at ASC. limit must be > 0.

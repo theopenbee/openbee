@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -222,6 +223,74 @@ func (s *ExecutionStore) PrepareLogPath(id string, startedAt *int64) (string, er
 		return "", fmt.Errorf("set log_path: %w", err)
 	}
 	return logPath, nil
+}
+
+// ExecutionFilter holds optional filter criteria for ListFiltered.
+// Zero/empty values are ignored (no filtering on that field).
+type ExecutionFilter struct {
+	WorkerID      string
+	SessionID     string
+	Status        string
+	StartedFrom   int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	StartedTo     int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+	CompletedFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	CompletedTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+}
+
+// ListFiltered returns paginated executions matching the given filters and the total count.
+func (s *ExecutionStore) ListFiltered(f ExecutionFilter, limit, offset int) ([]model.WorkerExecution, int, error) {
+	where, args := executionFilterWhere(f)
+
+	var total int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM bee_executions e"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count filtered executions: %w", err)
+	}
+
+	queryArgs := append(args, limit, offset)
+	rows, err := s.db.Query(execSelect+where+" ORDER BY e.started_at DESC LIMIT ? OFFSET ?", queryArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list filtered executions: %w", err)
+	}
+	defer rows.Close()
+	execs, err := scanExecutions(rows)
+	return execs, total, err
+}
+
+func executionFilterWhere(f ExecutionFilter) (string, []any) {
+	var clauses []string
+	var args []any
+	if f.WorkerID != "" {
+		clauses = append(clauses, "e.worker_id = ?")
+		args = append(args, f.WorkerID)
+	}
+	if f.SessionID != "" {
+		clauses = append(clauses, "e.session_id = ?")
+		args = append(args, f.SessionID)
+	}
+	if f.Status != "" {
+		clauses = append(clauses, "e.status = ?")
+		args = append(args, f.Status)
+	}
+	if f.StartedFrom > 0 {
+		clauses = append(clauses, "e.started_at >= ?")
+		args = append(args, f.StartedFrom)
+	}
+	if f.StartedTo > 0 {
+		clauses = append(clauses, "e.started_at <= ?")
+		args = append(args, f.StartedTo)
+	}
+	if f.CompletedFrom > 0 {
+		clauses = append(clauses, "e.completed_at >= ?")
+		args = append(args, f.CompletedFrom)
+	}
+	if f.CompletedTo > 0 {
+		clauses = append(clauses, "e.completed_at <= ?")
+		args = append(args, f.CompletedTo)
+	}
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
 func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {

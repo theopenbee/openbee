@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -37,6 +38,36 @@ func (h *ExecutionHandler) ListByWorker(c *gin.Context) {
 
 func (h *ExecutionHandler) List(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
+
+	f := store.ExecutionFilter{
+		WorkerID:  c.Query("worker_id"),
+		SessionID: c.Query("session_id"),
+		Status:    c.Query("status"),
+	}
+	parseInt64Query := func(key string) int64 {
+		if v := c.Query(key); v != "" {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return n
+			}
+		}
+		return 0
+	}
+	f.StartedFrom = parseInt64Query("started_at_from")
+	f.StartedTo = parseInt64Query("started_at_to")
+	f.CompletedFrom = parseInt64Query("completed_at_from")
+	f.CompletedTo = parseInt64Query("completed_at_to")
+
+	// Use filtered list when any filter is set, fall back to session-paginated list otherwise.
+	if f.WorkerID != "" || f.SessionID != "" || f.Status != "" ||
+		f.StartedFrom > 0 || f.StartedTo > 0 || f.CompletedFrom > 0 || f.CompletedTo > 0 {
+		execs, total, err := h.executions.ListFiltered(f, pageSize, offset)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
+		return
+	}
 
 	total, err := h.executions.CountSessions()
 	if err != nil {

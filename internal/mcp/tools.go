@@ -112,6 +112,10 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolUpdateDepartment(args)
 	case utils.DeleteDepartment:
 		return s.toolDeleteDepartment(args)
+	case utils.ListMessages:
+		return s.toolListMessages(ctx, args)
+	case utils.ListExecutions:
+		return s.toolListExecutions(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1045,4 +1049,84 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 		return nil, fmt.Errorf("get department workers: %w", err)
 	}
 	return s.workerStore.GetByIDs(workerIDs)
+}
+
+func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey     string `json:"session_key"`
+		Platform       string `json:"platform"`
+		Status         string `json:"status"`
+		ReceivedAtFrom int64  `json:"received_at_from"`
+		ReceivedAtTo   int64  `json:"received_at_to"`
+		Page           int    `json:"page"`
+		PageSize       int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.PageSize < 1 || params.PageSize > 100 {
+		params.PageSize = 20
+	}
+	offset := (params.Page - 1) * params.PageSize
+	msgs, total, err := s.messageStore.ListFiltered(ctx, store.MessageFilter{
+		SessionKey:     params.SessionKey,
+		Platform:       params.Platform,
+		Status:         params.Status,
+		ReceivedAtFrom: params.ReceivedAtFrom,
+		ReceivedAtTo:   params.ReceivedAtTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	return map[string]any{
+		"items":     msgs,
+		"total":     total,
+		"page":      params.Page,
+		"page_size": params.PageSize,
+	}, nil
+}
+
+func (s *MCPServer) toolListExecutions(args json.RawMessage) (any, error) {
+	var params struct {
+		WorkerID      string `json:"worker_id"`
+		SessionID     string `json:"session_id"`
+		Status        string `json:"status"`
+		StartedFrom   int64  `json:"started_at_from"`
+		StartedTo     int64  `json:"started_at_to"`
+		CompletedFrom int64  `json:"completed_at_from"`
+		CompletedTo   int64  `json:"completed_at_to"`
+		Page          int    `json:"page"`
+		PageSize      int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.PageSize < 1 || params.PageSize > 100 {
+		params.PageSize = 20
+	}
+	offset := (params.Page - 1) * params.PageSize
+	execs, total, err := s.executionStore.ListFiltered(store.ExecutionFilter{
+		WorkerID:      params.WorkerID,
+		SessionID:     params.SessionID,
+		Status:        params.Status,
+		StartedFrom:   params.StartedFrom,
+		StartedTo:     params.StartedTo,
+		CompletedFrom: params.CompletedFrom,
+		CompletedTo:   params.CompletedTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list executions: %w", err)
+	}
+	return map[string]any{
+		"items":     execs,
+		"total":     total,
+		"page":      params.Page,
+		"page_size": params.PageSize,
+	}, nil
 }
