@@ -15,7 +15,7 @@ The backend already fully supports `permission_scopes` on the Worker model:
   - `read:workers` — required to list/get Worker info via MCP tools
   - `read:departments` — required to list/get Department info via MCP tools
   - `read:tasks` — required to list/get Task info via MCP tools
-- When `permission_scopes` is empty, Worker tokens have unrestricted access to all tools (existing behavior, unchanged)
+- When `permission_scopes` is empty, Worker tokens are **denied** access to all system built-in tools (tools listed in `auth.ToolScopeMap`)
 
 The Web admin UI currently exposes **none** of this. This spec covers adding permission configuration to the Web UI.
 
@@ -26,14 +26,14 @@ The Web admin UI currently exposes **none** of this. This spec covers adding per
 1. Let admins configure `permission_scopes` when **creating** a Worker
 2. Let admins view and edit `permission_scopes` on the **Worker Detail** page
 3. Use a toggle-card UI (one card per scope) for clarity — admins see what each scope does at a glance
-4. When no scopes are configured, display a warning that the token has unrestricted access
+4. When no scopes are configured, display a warning that the token is denied access to all system built-in tools
 
 ---
 
 ## Non-Goals
 
 - Adding a backend API to expose the scope list (hardcoded on the frontend for now)
-- Changing backend behavior (empty scopes = unrestricted access remains unchanged)
+- Changing backend behavior (empty scopes = denied for system built-in tools, already the current behavior)
 - Supporting custom/arbitrary scopes outside the known set
 
 ---
@@ -114,7 +114,7 @@ Add a new **Permissions** section between the Config section and the Department 
 │  查询任务                     [Toggle] │
 │  允许列出和查看任务记录                 │
 └────────────────────────────────────────┘
-helper: 未勾选任何权限时，Worker token 默认可访问所有工具
+helper: 未勾选任何权限时，Worker token 禁止访问任何系统内置工具
 ```
 
 State: `const [selectedScopes, setSelectedScopes] = useState<string[]>([])`
@@ -132,7 +132,7 @@ Add a fourth tab `Permissions` alongside Sessions / Tasks / Memory.
 **Tab content:**
 
 1. **Warning banner** (shown only when the **saved** `worker.permission_scopes` is empty — based on server data, not local unsaved state):
-   > "未配置任何权限，Worker token 默认可访问所有工具。建议按最小权限原则配置。"
+   > "未配置任何权限，Worker token 将禁止访问任何系统内置工具。请根据需要开启对应权限。"
 
 2. **Toggle cards** — one per scope in `KNOWN_SCOPES`, initialized from `parseScopes(worker.permission_scopes)`
 
@@ -164,10 +164,10 @@ Add to both `locales/zh.json` and `locales/en.json`:
   "scopes.readTasks.description": "允许列出和查看任务记录",
 
   "workers.form.sectionPermissions": "权限配置",
-  "workers.form.permissionsHelper": "未勾选任何权限时，Worker token 默认可访问所有工具",
+  "workers.form.permissionsHelper": "未勾选任何权限时，Worker token 禁止访问任何系统内置工具",
 
   "workerDetail.permissions": "权限",
-  "workerDetail.permissionsEmpty": "未配置任何权限，Worker token 默认可访问所有工具。建议按最小权限原则配置。",
+  "workerDetail.permissionsEmpty": "未配置任何权限，Worker token 将禁止访问任何系统内置工具。请根据需要开启对应权限。",
   "workerDetail.permissionsSaved": "已保存"
 }
 ```
@@ -183,10 +183,10 @@ English equivalents:
   "scopes.readTasks.description": "Allows listing and viewing task records",
 
   "workers.form.sectionPermissions": "Permissions",
-  "workers.form.permissionsHelper": "When no permissions are selected, the Worker token can access all tools by default",
+  "workers.form.permissionsHelper": "When no permissions are selected, the Worker token is denied access to all system built-in tools",
 
   "workerDetail.permissions": "Permissions",
-  "workerDetail.permissionsEmpty": "No permissions configured. The Worker token can access all tools by default. Consider applying the principle of least privilege.",
+  "workerDetail.permissionsEmpty": "No permissions configured. The Worker token will be denied access to all system built-in tools. Enable the permissions your Worker needs.",
   "workerDetail.permissionsSaved": "Saved"
 }
 ```
