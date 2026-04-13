@@ -16,7 +16,7 @@ const reservedKey = "OPENBEE_API_KEY"
 type Service struct {
 	store     *store.EnvConfigStore
 	deptStore *store.DepartmentStore
-	encKey    string // config.Advanced.EnvSecret
+	encKey    string
 }
 
 func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKey string) *Service {
@@ -30,18 +30,18 @@ func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKe
 // Create encrypts plainValue and persists the env config.
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
 	if key == reservedKey {
-		return nil, fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
+		return nil, fmt.Errorf("%w: OPENBEE_API_KEY is reserved and cannot be set", ErrValidation)
 	}
 
 	switch scope {
 	case "global", "bee", "department", "worker":
 		// valid
 	default:
-		return nil, fmt.Errorf("invalid scope %q: must be one of global, bee, department, worker", scope)
+		return nil, fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
 	}
 
 	if scope != "global" && scopeID == "" {
-		return nil, fmt.Errorf("scope_id is required for scope %q", scope)
+		return nil, fmt.Errorf("%w: scope_id is required for scope %q", ErrValidation, scope)
 	}
 
 	encValue, err := crypto.Encrypt(s.encKey, plainValue)

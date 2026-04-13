@@ -95,7 +95,7 @@ func TestMaskShortString(t *testing.T) {
 
 func TestMaskExactlyEight(t *testing.T) {
 	// len == 8 -> first4 + "****" + last4
-	assert.Equal(t, "exac****tly8", Mask("exactly8")) // Hmm, "exactly8" is 8 chars. Wait: e-x-a-c-t-l-y-8 = 8 chars; first 4 = "exac", last 4 = "tly8"
+	assert.Equal(t, "exac****tly8", Mask("exactly8"))
 }
 
 func TestMaskLongString(t *testing.T) {

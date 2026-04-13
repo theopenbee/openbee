@@ -21,7 +21,6 @@ type BeeProcess struct {
 	tokenSecret string
 	tokenTTL    time.Duration
 	envService  *env.Service
-	beeID       string
 }
 
 // NewBeeProcess creates a BeeProcess.
@@ -31,7 +30,6 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Se
 		tokenSecret: cfg.MCP.TokenSecret,
 		tokenTTL:    cfg.MCP.TokenTTL,
 		envService:  envSvc,
-		beeID:       defaultBeeID,
 	}
 }
 
@@ -51,7 +49,7 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	}
 
 	if p.envService != nil {
-		extraEnv, err := p.envService.ResolveBeeEnv(p.beeID)
+		extraEnv, err := p.envService.ResolveBeeEnv(defaultBeeID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolve bee env: %w", err)
 		}
