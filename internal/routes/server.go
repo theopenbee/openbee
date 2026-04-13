@@ -21,6 +21,7 @@ type ServerParams struct {
 	Config      *api.ConfigHandler
 	LocalChat   *api.LocalChatHandler
 	Auth        *auth.AuthHandler
+	Envs        *api.EnvHandler
 	BeeMCP          *mcp.MCPServer
 	MCPAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
