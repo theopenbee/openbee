@@ -60,6 +60,19 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 	return b
 }
 
+func decodeResult(t *testing.T, result any) map[string]any {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	return m
+}
+
 func decodeListWorkersResult(t *testing.T, result any) (items []any, total int) {
 	t.Helper()
 	b, err := json.Marshal(result)
@@ -1378,19 +1391,6 @@ func TestCallTool_ListOutboundMessages(t *testing.T) {
 		SentAt: 2000,
 	}); err != nil {
 		t.Fatalf("seed outbound: %v", err)
-	}
-
-	decodeResult := func(t *testing.T, result any) map[string]any {
-		t.Helper()
-		b, err := json.Marshal(result)
-		if err != nil {
-			t.Fatalf("marshal result: %v", err)
-		}
-		var m map[string]any
-		if err := json.Unmarshal(b, &m); err != nil {
-			t.Fatalf("unmarshal result: %v", err)
-		}
-		return m
 	}
 
 	// No filter — returns all

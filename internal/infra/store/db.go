@@ -316,6 +316,11 @@ func stringsToArgs(ss []string) []any {
 	return args
 }
 
+// appendPaginationArgs appends limit and offset to a safe copy of args.
+func appendPaginationArgs(args []any, limit, offset int) []any {
+	return append(args[:len(args):len(args)], limit, offset)
+}
+
 // inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".
 func inPlaceholders(n int) string {
 	if n == 0 {

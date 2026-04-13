@@ -125,11 +125,10 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 		return nil, 0, err
 	}
 
-	queryArgs := append(args[:len(args):len(args)], limit, offset)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_key, platform, content, status, source_type, source_id, inbound_msg_id, error, sent_at
 		 FROM bee_outbound_messages`+where+` ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
-		queryArgs...,
+		appendPaginationArgs(args, limit, offset)...,
 	)
 	if err != nil {
 		return nil, 0, err

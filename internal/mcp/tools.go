@@ -11,6 +11,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -42,8 +43,6 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 
 // checkWorkerScope enforces scope-based access control for worker tokens.
 // Bee tokens (empty workerID in context) are always allowed.
-// Worker tokens must have the required scope for tools listed in auth.ToolScopeMap.
-// Tools not in ToolScopeMap are unaffected (existing access rules apply).
 func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
 	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
 	if workerID == "" {
@@ -199,16 +198,7 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get worker departments: %w", err)
 	}
-	deptBriefs := make([]model.DepartmentBrief, 0, len(depts))
-	for _, d := range depts {
-		deptBriefs = append(deptBriefs, model.DepartmentBrief{ID: d.ID, Name: d.Name})
-	}
-	return workerDetailResponse{Worker: w, Departments: deptBriefs}, nil
-}
-
-type workerDetailResponse struct {
-	model.Worker
-	Departments []model.DepartmentBrief `json:"departments"`
+	return model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(depts)}, nil
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -229,7 +219,13 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
 		return nil, err
 	}
-	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir, params.PermissionScopes)
+	w, err := s.manager.CreateWorker(worker.CreateWorkerParams{
+		Name:             params.Name,
+		Description:      params.Description,
+		Memory:           params.Memory,
+		WorkDir:          params.WorkDir,
+		PermissionScopes: params.PermissionScopes,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -24,14 +24,13 @@ var AllScopes = []string{
 	ScopeReadExecutions,
 }
 
-var validScopeSet map[string]struct{}
-
-func init() {
-	validScopeSet = make(map[string]struct{}, len(AllScopes))
+var validScopeSet = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(AllScopes))
 	for _, s := range AllScopes {
-		validScopeSet[s] = struct{}{}
+		m[s] = struct{}{}
 	}
-}
+	return m
+}()
 
 // ValidatePermissionScopes checks that every scope in the comma-separated string
 // is a recognised value. Returns an error listing any invalid scopes found.
@@ -52,10 +51,8 @@ func ValidatePermissionScopes(scopes string) error {
 	return nil
 }
 
-// ToolScopeMap maps tool names to the scope required for worker-token callers.
-// Tools in this map require the listed scope when called with a worker token.
-// Tools absent from this map follow existing access rules (unchanged behavior).
-// Must not be mutated after package initialization.
+// ToolScopeMap maps tool names to their required worker-token scope.
+// Tools absent from this map follow existing access rules. Must not be mutated after init.
 var ToolScopeMap = map[string]string{
 	utils.ListWorkers:          ScopeReadWorkers,
 	utils.GetWorker:            ScopeReadWorkers,

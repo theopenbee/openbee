@@ -28,3 +28,12 @@ type WorkerDepartment struct {
 	DepartmentID string `json:"department_id" db:"department_id"`
 	CreatedAt    int64  `json:"created_at" db:"created_at"`
 }
+
+// ToDepartmentBriefs converts a slice of Department to a slice of DepartmentBrief.
+func ToDepartmentBriefs(depts []Department) []DepartmentBrief {
+	briefs := make([]DepartmentBrief, 0, len(depts))
+	for _, d := range depts {
+		briefs = append(briefs, DepartmentBrief{ID: d.ID, Name: d.Name})
+	}
+	return briefs
+}

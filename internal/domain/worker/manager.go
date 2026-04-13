@@ -53,31 +53,36 @@ func NewManager(
 	}
 }
 
-func (m *Manager) CreateWorker(
-	name, description, memory string,
-	workDir string,
-	permissionScopes string,
-) (model.Worker, error) {
+// CreateWorkerParams holds the inputs for creating a new worker.
+type CreateWorkerParams struct {
+	Name             string
+	Description      string
+	Memory           string
+	WorkDir          string
+	PermissionScopes string
+}
+
+func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	id := uuid.New().String()
-	if workDir == "" {
-		workDir = filepath.Join(m.workerBaseDir, id)
+	if p.WorkDir == "" {
+		p.WorkDir = filepath.Join(m.workerBaseDir, id)
 	}
 
-	if err := os.MkdirAll(workDir, 0755); err != nil {
+	if err := os.MkdirAll(p.WorkDir, 0755); err != nil {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := m.engine.Prepare(workDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	if err := m.engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}
 
 	return m.workerStore.Create(model.Worker{
 		ID:               id,
-		Name:             name,
-		Description:      description,
-		Memory:           memory,
-		WorkDir:          workDir,
-		PermissionScopes: permissionScopes,
+		Name:             p.Name,
+		Description:      p.Description,
+		Memory:           p.Memory,
+		WorkDir:          p.WorkDir,
+		PermissionScopes: p.PermissionScopes,
 	})
 }
 

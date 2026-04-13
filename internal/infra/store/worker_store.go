@@ -156,10 +156,9 @@ func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]mo
 		return nil, 0, fmt.Errorf("count workers: %w", err)
 	}
 
-	queryArgs := append(args[:len(args):len(args)], limit, offset)
 	rows, err := s.db.Query(
 		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
-		queryArgs...,
+		appendPaginationArgs(args, limit, offset)...,
 	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list workers filtered: %w", err)

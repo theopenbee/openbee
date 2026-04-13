@@ -417,32 +417,30 @@ export function WorkerDetail() {
           </TabsContent>
 
           <TabsContent value="permissions" className="mt-6">
-            <DetailSection className="p-5 sm:p-6">
-              <div className="flex flex-col gap-6">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  {t("workerDetail.permissions")}
-                </p>
+            <DetailSection className="space-y-6 p-5 sm:p-6">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t("workerDetail.permissions")}
+              </p>
 
-                <div className="space-y-2">
-                  {KNOWN_SCOPES.map((scope) => (
-                    <ScopeToggleCard
-                      key={scope.id}
-                      scope={scope}
-                      checked={localScopes.includes(scope.id)}
-                      onToggle={(scopeId, val) => {
-                        const newScopes = val
-                          ? [...localScopes, scopeId]
-                          : localScopes.filter((s) => s !== scopeId)
-                        setLocalScopes(newScopes)
-                        updateWorker.mutate({
-                          id: id!,
-                          data: { permission_scopes: serializeScopes(newScopes) },
-                        })
-                      }}
-                      disabled={updateWorker.isPending}
-                    />
-                  ))}
-                </div>
+              <div className="space-y-2">
+                {KNOWN_SCOPES.map((scope) => (
+                  <ScopeToggleCard
+                    key={scope.id}
+                    scope={scope}
+                    checked={localScopes.includes(scope.id)}
+                    onToggle={(scopeId, val) => {
+                      const newScopes = val
+                        ? [...localScopes, scopeId]
+                        : localScopes.filter((s) => s !== scopeId)
+                      setLocalScopes(newScopes)
+                      updateWorker.mutate({
+                        id: id!,
+                        data: { permission_scopes: serializeScopes(newScopes) },
+                      })
+                    }}
+                    disabled={updateWorker.isPending}
+                  />
+                ))}
               </div>
             </DetailSection>
           </TabsContent>

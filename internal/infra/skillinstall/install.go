@@ -74,32 +74,31 @@ func installSkill(baseDir string, name string) (SkillResult, error) {
 	skillDir := filepath.Join(baseDir, name)
 	fsRoot := "skills/" + name
 
-	// Determine whether this is a first install.
-	_, err := os.Stat(skillDir)
-	firstInstall := errors.Is(err, os.ErrNotExist)
-
-	// Collect all files embedded under this skill (relPath -> content).
 	embeddedFiles, err := collectEmbeddedFiles(fsRoot)
 	if err != nil {
 		return SkillResult{}, fmt.Errorf("read embedded skill %s: %w", name, err)
 	}
 
-	// Collect all files currently on disk under skillDir (relPath -> exists).
 	diskFiles, err := collectDiskFiles(skillDir)
 	if err != nil {
 		return SkillResult{}, fmt.Errorf("scan skill dir %s: %w", name, err)
 	}
 
+	firstInstall := len(diskFiles) == 0
 	changed := false
 
-	// Write or update files from embedded FS.
+	seenDirs := make(map[string]bool)
 	for relPath, content := range embeddedFiles {
-		target := filepath.Join(skillDir, filepath.FromSlash(relPath))
-		if diskHashMatches(target, content) {
+		if diskFiles[relPath] == sha256.Sum256([]byte(content)) {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return SkillResult{}, fmt.Errorf("create dir for %s/%s: %w", name, relPath, err)
+		target := filepath.Join(skillDir, filepath.FromSlash(relPath))
+		dir := filepath.Dir(target)
+		if !seenDirs[dir] {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return SkillResult{}, fmt.Errorf("create dir for %s/%s: %w", name, relPath, err)
+			}
+			seenDirs[dir] = true
 		}
 		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
 			return SkillResult{}, fmt.Errorf("write %s/%s: %w", name, relPath, err)
@@ -107,7 +106,6 @@ func installSkill(baseDir string, name string) (SkillResult, error) {
 		changed = true
 	}
 
-	// Remove disk files not present in the embedded FS.
 	for relPath := range diskFiles {
 		if _, ok := embeddedFiles[relPath]; !ok {
 			target := filepath.Join(skillDir, filepath.FromSlash(relPath))
@@ -134,7 +132,6 @@ func collectEmbeddedFiles(root string) (map[string]string, error) {
 		if err != nil {
 			return err
 		}
-		// relPath is relative to the skill root, using forward slashes.
 		relPath := path[len(root)+1:]
 		files[relPath] = string(data)
 		return nil
@@ -142,10 +139,10 @@ func collectEmbeddedFiles(root string) (map[string]string, error) {
 	return files, err
 }
 
-// collectDiskFiles walks skillDir and returns a set of slash-separated
-// relative file paths. Returns an empty map if the directory does not exist.
-func collectDiskFiles(skillDir string) (map[string]struct{}, error) {
-	files := make(map[string]struct{})
+// collectDiskFiles walks skillDir and returns a map of slash-separated relative
+// file paths to their SHA-256 hashes. Returns an empty map if the directory does not exist.
+func collectDiskFiles(skillDir string) (map[string][32]byte, error) {
+	files := make(map[string][32]byte)
 	err := filepath.WalkDir(skillDir, func(path string, d fs.DirEntry, err error) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -157,22 +154,17 @@ func collectDiskFiles(skillDir string) (map[string]struct{}, error) {
 		if err != nil {
 			return err
 		}
-		files[filepath.ToSlash(rel)] = struct{}{}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[filepath.ToSlash(rel)] = sha256.Sum256(data)
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
 		return files, nil
 	}
 	return files, err
-}
-
-// diskHashMatches reports whether the file at path has the same SHA-256 as content.
-func diskHashMatches(path string, content string) bool {
-	existing, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	return sha256.Sum256(existing) == sha256.Sum256([]byte(content))
 }
 
 func actionFor(firstInstall, changed bool) Action {

@@ -246,8 +246,7 @@ func (s *ExecutionStore) ListFiltered(ctx context.Context, f ExecutionFilter, li
 		return nil, 0, fmt.Errorf("count filtered executions: %w", err)
 	}
 
-	queryArgs := append(args[:len(args):len(args)], limit, offset)
-	rows, err := s.db.QueryContext(ctx, execSelect+where+" ORDER BY e.started_at DESC LIMIT ? OFFSET ?", queryArgs...)
+	rows, err := s.db.QueryContext(ctx, execSelect+where+" ORDER BY e.started_at DESC LIMIT ? OFFSET ?", appendPaginationArgs(args, limit, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list filtered executions: %w", err)
 	}

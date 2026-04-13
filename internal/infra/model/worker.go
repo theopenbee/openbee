@@ -19,3 +19,9 @@ type Worker struct {
 	CreatedAt           int64        `json:"created_at" db:"created_at"`
 	UpdatedAt           int64        `json:"updated_at" db:"updated_at"`
 }
+
+// WorkerWithDepartments is a Worker with its associated department summaries.
+type WorkerWithDepartments struct {
+	Worker
+	Departments []DepartmentBrief `json:"departments"`
+}

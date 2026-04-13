@@ -10,19 +10,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-type workerResponse struct {
-	model.Worker
-	Departments []model.DepartmentBrief `json:"departments"`
-}
-
-func toDepartmentBriefs(depts []model.Department) []model.DepartmentBrief {
-	briefs := make([]model.DepartmentBrief, 0, len(depts))
-	for _, d := range depts {
-		briefs = append(briefs, model.DepartmentBrief{ID: d.ID, Name: d.Name})
-	}
-	return briefs
-}
-
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
 	Description      string `json:"description"`
@@ -53,9 +40,13 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
-	w, err := h.manager.CreateWorker(
-		req.Name, req.Description, req.Memory, req.WorkDir, req.PermissionScopes,
-	)
+	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
+		Name:             req.Name,
+		Description:      req.Description,
+		Memory:           req.Memory,
+		WorkDir:          req.WorkDir,
+		PermissionScopes: req.PermissionScopes,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -89,9 +80,9 @@ func (h *WorkerHandler) List(c *gin.Context) {
 		return
 	}
 
-	result := make([]workerResponse, 0, len(workers))
+	result := make([]model.WorkerWithDepartments, 0, len(workers))
 	for _, w := range workers {
-		result = append(result, workerResponse{Worker: w, Departments: toDepartmentBriefs(deptMap[w.ID])})
+		result = append(result, model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(deptMap[w.ID])})
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -107,7 +98,7 @@ func (h *WorkerHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, workerResponse{Worker: w, Departments: toDepartmentBriefs(depts)})
+	c.JSON(http.StatusOK, model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(depts)})
 }
 
 func (h *WorkerHandler) Update(c *gin.Context) {
