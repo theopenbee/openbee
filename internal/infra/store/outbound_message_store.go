@@ -96,8 +96,8 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 type OutboundMessageFilter struct {
 	SessionKey string
 	Platform   string
-	Status     string // "sent" | "failed"
-	SourceType string // "bee" | "worker" | "system"
+	Status     string // OutboundStatusSent or OutboundStatusFailed
+	SourceType string // SourceTypeBee, SourceTypeWorker, or SourceTypeSystem
 	SourceID   string
 	SentAtFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
 	SentAtTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
