@@ -48,29 +48,11 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		CompletedTo:   parseInt64Query(c, "completed_at_to"),
 	}
 
-	if f.WorkerID != "" || f.SessionID != "" || f.Status != "" ||
-		f.StartedFrom > 0 || f.StartedTo > 0 || f.CompletedFrom > 0 || f.CompletedTo > 0 {
-		execs, total, err := h.executions.ListFiltered(f, pageSize, offset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
-		return
-	}
-
-	total, err := h.executions.CountSessions()
+	execs, total, err := h.executions.ListFiltered(f, pageSize, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	execs, err := h.executions.ListPaginated(pageSize, offset)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
 	c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
 }
 

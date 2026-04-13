@@ -140,18 +140,7 @@ func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 
-	page := params.Page
-	pageSize := params.PageSize
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 50
-	}
-	if pageSize > 200 {
-		pageSize = 200
-	}
-	offset := (page - 1) * pageSize
+	page, pageSize, offset := normalizePage(params.Page, params.PageSize, 200)
 
 	filter := store.WorkerFilter{
 		Name: params.Name,
@@ -1158,15 +1147,15 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 }
 
 // normalizePage clamps page/pageSize to valid ranges and returns the offset.
-func normalizePage(page, pageSize int) (int, int, int) {
+func normalizePage(page, pageSize, maxPageSize int) (int, int, int) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 {
 		pageSize = 50
 	}
-	if pageSize > 100 {
-		pageSize = 100
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 	return page, pageSize, (page - 1) * pageSize
 }
@@ -1185,7 +1174,7 @@ func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) 
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	var offset int
-	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize)
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
 	msgs, total, err := s.messageStore.ListFiltered(ctx, store.MessageFilter{
 		SessionKey:     params.SessionKey,
 		Platform:       params.Platform,
@@ -1220,7 +1209,7 @@ func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 	var offset int
-	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize)
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
 	execs, total, err := s.executionStore.ListFiltered(store.ExecutionFilter{
 		WorkerID:      params.WorkerID,
 		SessionID:     params.SessionID,
