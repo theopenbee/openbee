@@ -278,6 +278,25 @@ FROM bee_session_contexts;
 DROP TABLE bee_session_contexts;
 ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.EngineClaude),
 	},
+	{
+		version: 30,
+		name:    "create_bee_env_configs_table",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_env_configs (
+            id          TEXT PRIMARY KEY,
+            scope       TEXT NOT NULL,
+            scope_id    TEXT,
+            key         TEXT NOT NULL,
+            enc_value   TEXT NOT NULL,
+            masked      TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL,
+            UNIQUE(scope, scope_id, key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bee_env_configs_scope
+            ON bee_env_configs(scope, scope_id);
+    `,
+	},
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.
