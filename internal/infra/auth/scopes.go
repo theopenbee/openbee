@@ -57,12 +57,12 @@ func ValidatePermissionScopes(scopes string) error {
 // Tools absent from this map follow existing access rules (unchanged behavior).
 // Must not be mutated after package initialization.
 var ToolScopeMap = map[string]string{
-	utils.ListWorkers:     ScopeReadWorkers,
-	utils.GetWorker:       ScopeReadWorkers,
-	utils.GetWorkerStatus: ScopeReadWorkers,
-	utils.ListDepartments: ScopeReadDepartments,
-	utils.GetDepartment:   ScopeReadDepartments,
-	utils.ListTasks:       ScopeReadTasks,
+	utils.ListWorkers:          ScopeReadWorkers,
+	utils.GetWorker:            ScopeReadWorkers,
+	utils.GetWorkerStatus:      ScopeReadWorkers,
+	utils.ListDepartments:      ScopeReadDepartments,
+	utils.GetDepartment:        ScopeReadDepartments,
+	utils.ListTasks:            ScopeReadTasks,
 	utils.ListMessages:         ScopeReadMessages,
 	utils.ListOutboundMessages: ScopeReadMessages,
 	utils.ListExecutions:       ScopeReadExecutions,

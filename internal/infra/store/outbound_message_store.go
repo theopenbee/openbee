@@ -117,8 +117,6 @@ type ListedOutboundMessage struct {
 	SentAt       int64  `json:"sent_at"`
 }
 
-// ListFiltered returns paginated outbound messages matching the given filters,
-// ordered by sent_at DESC.
 func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessageFilter, limit, offset int) ([]ListedOutboundMessage, int, error) {
 	where, args := outboundFilterWhere(f)
 
@@ -138,7 +136,7 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 	}
 	defer rows.Close()
 
-	var msgs []ListedOutboundMessage
+	msgs := make([]ListedOutboundMessage, 0, limit)
 	for rows.Next() {
 		var m ListedOutboundMessage
 		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status,
@@ -152,13 +150,27 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 
 func outboundFilterWhere(f OutboundMessageFilter) (string, []any) {
 	var b whereBuilder
-	if f.SessionKey != "" { b.add("session_key = ?", f.SessionKey) }
-	if f.Platform != ""   { b.add("platform = ?", f.Platform) }
-	if f.Status != ""     { b.add("status = ?", f.Status) }
-	if f.SourceType != "" { b.add("source_type = ?", f.SourceType) }
-	if f.SourceID != ""   { b.add("source_id = ?", f.SourceID) }
-	if f.SentAtFrom > 0   { b.add("sent_at >= ?", f.SentAtFrom) }
-	if f.SentAtTo > 0     { b.add("sent_at <= ?", f.SentAtTo) }
+	if f.SessionKey != "" {
+		b.add("session_key = ?", f.SessionKey)
+	}
+	if f.Platform != "" {
+		b.add("platform = ?", f.Platform)
+	}
+	if f.Status != "" {
+		b.add("status = ?", f.Status)
+	}
+	if f.SourceType != "" {
+		b.add("source_type = ?", f.SourceType)
+	}
+	if f.SourceID != "" {
+		b.add("source_id = ?", f.SourceID)
+	}
+	if f.SentAtFrom > 0 {
+		b.add("sent_at >= ?", f.SentAtFrom)
+	}
+	if f.SentAtTo > 0 {
+		b.add("sent_at <= ?", f.SentAtTo)
+	}
 	return b.build()
 }
 
