@@ -314,7 +314,6 @@ type MessageFilter struct {
 }
 
 // ListFiltered returns paginated messages matching the given filters.
-// It also returns the total count of matching rows.
 func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit, offset int) ([]ListedMessage, int, error) {
 	where, args := messageFilterWhere(f)
 

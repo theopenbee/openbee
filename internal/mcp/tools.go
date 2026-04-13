@@ -115,7 +115,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	case utils.ListMessages:
 		return s.toolListMessages(ctx, args)
 	case utils.ListExecutions:
-		return s.toolListExecutions(ctx, args)
+		return s.toolListExecutions(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -180,12 +180,7 @@ func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
 	}
 
-	return map[string]any{
-		"items":     briefs,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	}, nil
+	return pagedResult(briefs, total, page, pageSize), nil
 }
 
 func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
@@ -1146,6 +1141,15 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 	return s.workerStore.GetByIDs(workerIDs)
 }
 
+func pagedResult(items any, total, page, pageSize int) map[string]any {
+	return map[string]any{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}
+}
+
 // normalizePage clamps page/pageSize to valid ranges and returns the offset.
 func normalizePage(page, pageSize, maxPageSize int) (int, int, int) {
 	if page < 1 {
@@ -1185,15 +1189,10 @@ func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) 
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
 	}
-	return map[string]any{
-		"items":     msgs,
-		"total":     total,
-		"page":      params.Page,
-		"page_size": params.PageSize,
-	}, nil
+	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
 
-func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *MCPServer) toolListExecutions(args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string `json:"worker_id"`
 		SessionID     string `json:"session_id"`
@@ -1222,10 +1221,5 @@ func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage
 	if err != nil {
 		return nil, fmt.Errorf("list executions: %w", err)
 	}
-	return map[string]any{
-		"items":     execs,
-		"total":     total,
-		"page":      params.Page,
-		"page_size": params.PageSize,
-	}, nil
+	return pagedResult(execs, total, params.Page, params.PageSize), nil
 }

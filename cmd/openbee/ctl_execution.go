@@ -5,7 +5,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-var ctlExecutionCmd = &cobra.Command{Use: "execution", Short: ""}
+var ctlExecutionCmd = &cobra.Command{Use: "execution", Short: "Manage worker executions"}
 
 var (
 	execListWorkerID      string
