@@ -149,13 +149,27 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 
 func outboundFilterWhere(f OutboundMessageFilter) (string, []any) {
 	var b whereBuilder
-	if f.SessionKey != "" { b.add("session_key = ?", f.SessionKey) }
-	if f.Platform != ""   { b.add("platform = ?", f.Platform) }
-	if f.Status != ""     { b.add("status = ?", f.Status) }
-	if f.SourceType != "" { b.add("source_type = ?", f.SourceType) }
-	if f.SourceID != ""   { b.add("source_id = ?", f.SourceID) }
-	if f.SentAtFrom > 0   { b.add("sent_at >= ?", f.SentAtFrom) }
-	if f.SentAtTo > 0     { b.add("sent_at <= ?", f.SentAtTo) }
+	if f.SessionKey != "" {
+		b.add("session_key = ?", f.SessionKey)
+	}
+	if f.Platform != "" {
+		b.add("platform = ?", f.Platform)
+	}
+	if f.Status != "" {
+		b.add("status = ?", f.Status)
+	}
+	if f.SourceType != "" {
+		b.add("source_type = ?", f.SourceType)
+	}
+	if f.SourceID != "" {
+		b.add("source_id = ?", f.SourceID)
+	}
+	if f.SentAtFrom > 0 {
+		b.add("sent_at >= ?", f.SentAtFrom)
+	}
+	if f.SentAtTo > 0 {
+		b.add("sent_at <= ?", f.SentAtTo)
+	}
 	return b.build()
 }
 

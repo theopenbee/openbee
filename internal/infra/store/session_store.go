@@ -11,6 +11,9 @@ import (
 // BeeAgentID is the agent_id value used for bee brain session tracking.
 const BeeAgentID = "bee"
 
+// WorkerAgentType is the AgentType value for worker agents in session contexts.
+const WorkerAgentType = "worker"
+
 const defaultSessionEngine = ai.EngineClaude
 
 // SessionStore persists session context to the session_contexts table.
@@ -132,9 +135,9 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 			return nil, err
 		}
 		if a.AgentID == BeeAgentID {
-			a.AgentType = "bee"
+			a.AgentType = BeeAgentID
 		} else {
-			a.AgentType = "worker"
+			a.AgentType = WorkerAgentType
 		}
 		result = append(result, a)
 	}

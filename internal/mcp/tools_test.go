@@ -864,7 +864,7 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	if workerCount != 2 {
 		t.Errorf("expected worker_count=2, got %v", m["worker_count"])
 	}
-	linkedWorkers, _ := m["linked_workers"].([]map[string]string)
+	linkedWorkers, _ := m["linked_workers"].([]mcp.LinkedWorkerSummary)
 	if len(linkedWorkers) != 2 {
 		t.Errorf("expected 2 linked_workers, got %v", m["linked_workers"])
 	}
@@ -1011,15 +1011,15 @@ func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
 	if m["reason"] != "running_tasks" {
 		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
 	}
-	tasks, ok := m["running_tasks"].([]map[string]string)
+	tasks, ok := m["running_tasks"].([]mcp.ActiveTaskSummary)
 	if !ok || len(tasks) != 1 {
 		t.Errorf("expected running_tasks with 1 entry, got %v", m["running_tasks"])
 	} else {
-		if tasks[0]["instruction"] != "long running task" {
-			t.Errorf("expected instruction='long running task', got %v", tasks[0]["instruction"])
+		if tasks[0].Instruction != "long running task" {
+			t.Errorf("expected instruction='long running task', got %v", tasks[0].Instruction)
 		}
-		if tasks[0]["status"] != "running" {
-			t.Errorf("expected status=running, got %v", tasks[0]["status"])
+		if tasks[0].Status != "running" {
+			t.Errorf("expected status=running, got %v", tasks[0].Status)
 		}
 	}
 

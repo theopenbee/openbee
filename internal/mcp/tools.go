@@ -64,7 +64,7 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	}
 	switch name {
 	case utils.ListWorkers:
-		return s.toolListWorkers(args)
+		return s.toolListWorkers(ctx, args)
 	case utils.GetWorker:
 		return s.toolGetWorker(args)
 	case utils.CreateWorker:
@@ -120,13 +120,29 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	}
 }
 
+const (
+	clearReasonRunningTasks    = "running_tasks"
+	clearReasonMultipleWorkers = "multiple_workers"
+)
+
 type workerBrief struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
-func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
+type ActiveTaskSummary struct {
+	TaskID      string `json:"task_id"`
+	Instruction string `json:"instruction"`
+	Status      string `json:"status"`
+}
+
+type LinkedWorkerSummary struct {
+	WorkerID string `json:"worker_id"`
+	Name     string `json:"name"`
+}
+
+func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		DepartmentID string `json:"department_id"`
 		Recursive    *bool  `json:"recursive"`
@@ -165,7 +181,7 @@ func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 		filter.WorkerIDs = workerIDs
 	}
 
-	workers, total, err := s.workerStore.ListFiltered(filter, pageSize, offset)
+	workers, total, err := s.workerStore.ListFiltered(ctx, filter, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
@@ -531,26 +547,28 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 
 	// Two-step confirmation: require explicit force flag when active tasks or
 	// multiple worker session contexts would be disrupted.
+	var runningTasks []model.Task
 	if !params.Force {
 		// Detect active tasks first; cancelling them is destructive so require
 		// explicit confirmation before proceeding.
-		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "pending,running", "")
+		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
+			model.TaskStatusPending+","+model.TaskStatusRunning, "")
 		if err != nil {
 			return nil, fmt.Errorf("list active tasks: %w", err)
 		}
 		if len(activeTasks) > 0 {
-			taskSummaries := make([]map[string]string, 0, len(activeTasks))
+			summaries := make([]ActiveTaskSummary, 0, len(activeTasks))
 			for _, t := range activeTasks {
-				taskSummaries = append(taskSummaries, map[string]string{
-					"task_id":     t.ID,
-					"instruction": t.Instruction,
-					"status":      t.Status,
+				summaries = append(summaries, ActiveTaskSummary{
+					TaskID:      t.ID,
+					Instruction: t.Instruction,
+					Status:      t.Status,
 				})
 			}
 			return map[string]any{
 				"requires_confirmation": true,
-				"reason":               "running_tasks",
-				"running_tasks":        taskSummaries,
+				"reason":               clearReasonRunningTasks,
+				"running_tasks":        summaries,
 				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
 			}, nil
 		}
@@ -561,35 +579,34 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		if err != nil {
 			return nil, fmt.Errorf("list session contexts: %w", err)
 		}
-		var workers []map[string]string
+		var workers []LinkedWorkerSummary
 		seenWorkers := make(map[string]struct{})
 		for _, a := range agents {
-			if a.AgentType == "worker" {
+			if a.AgentType == store.WorkerAgentType {
 				if _, exists := seenWorkers[a.AgentID]; exists {
 					continue
 				}
 				seenWorkers[a.AgentID] = struct{}{}
-				workers = append(workers, map[string]string{
-					"worker_id": a.AgentID,
-					"name":      a.Name,
-				})
+				workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
 			}
 		}
 		if len(workers) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
-				"reason":               "multiple_workers",
+				"reason":               clearReasonMultipleWorkers,
 				"worker_count":         len(workers),
 				"linked_workers":       workers,
 				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
-	}
-
-	// Step 1: Collect running tasks with execution IDs (before cancelling)
-	runningTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "running", "")
-	if err != nil {
-		return nil, fmt.Errorf("list running tasks: %w", err)
+		// activeTasks is empty here, so runningTasks is also empty — skip the query.
+	} else {
+		// Step 1: Collect running tasks with execution IDs (before cancelling)
+		var err error
+		runningTasks, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
+		if err != nil {
+			return nil, fmt.Errorf("list running tasks: %w", err)
+		}
 	}
 
 	// Step 2: Stop running worker processes
