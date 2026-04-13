@@ -11,7 +11,6 @@ import (
 	"io"
 )
 
-// newGCM decodes a hex key, creates an AES-256-GCM cipher, and validates key length.
 func newGCM(key string) (cipher.AEAD, error) {
 	keyBytes, err := hex.DecodeString(key)
 	if err != nil {
@@ -31,7 +30,7 @@ func newGCM(key string) (cipher.AEAD, error) {
 	return gcm, nil
 }
 
-// Encrypt encrypts plaintext using AES-256-GCM, returns base64-encoded ciphertext with nonce prefix.
+// Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
 // key must be a 64-character hex string (32 bytes).
 func Encrypt(key, plaintext string) (string, error) {
 	gcm, err := newGCM(key)
@@ -47,7 +46,7 @@ func Encrypt(key, plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(combined), nil
 }
 
-// Decrypt decrypts ciphertext produced by Encrypt, returns plaintext.
+// Decrypt decrypts ciphertext produced by Encrypt.
 // key must be a 64-character hex string (32 bytes).
 func Decrypt(key, ciphertext string) (string, error) {
 	gcm, err := newGCM(key)
@@ -70,9 +69,8 @@ func Decrypt(key, ciphertext string) (string, error) {
 	return string(plainBytes), nil
 }
 
-// Mask generates a masked display value.
-// If len(value) >= 8: returns first 4 chars + "****" + last 4 chars.
-// If len(value) < 8: returns "****".
+// Mask returns a display-safe version of value.
+// If len(value) >= 8: first4 + "****" + last4. Otherwise "****".
 func Mask(value string) string {
 	runes := []rune(value)
 	if len(runes) < 8 {

@@ -3,6 +3,7 @@ package env
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/theopenbee/openbee/internal/infra/crypto"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -35,7 +36,6 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 
 	switch scope {
 	case "global", "bee", "department", "worker":
-		// valid
 	default:
 		return nil, fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
 	}
@@ -81,7 +81,7 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == reservedKey {
-		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
+		return fmt.Errorf("%w: %s is reserved and cannot be set", ErrValidation, reservedKey)
 	}
 
 	encValue, err := crypto.Encrypt(s.encKey, plainValue)
@@ -115,7 +115,7 @@ func (s *Service) Delete(id string) error {
 		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == reservedKey {
-		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be deleted")
+		return fmt.Errorf("%w: %s is reserved and cannot be deleted", ErrValidation, reservedKey)
 	}
 	return s.store.Delete(id)
 }
@@ -134,22 +134,33 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	}
 	sort.Strings(deptIDs)
 
-	globalEnvs, err := s.store.List("global", nil)
-	if err != nil {
-		return nil, fmt.Errorf("list global env configs: %w", err)
+	type result struct {
+		envs []*model.EnvConfig
+		err  error
+	}
+	globalCh := make(chan result, 1)
+	deptCh := make(chan result, 1)
+	workerCh := make(chan result, 1)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); e, err := s.store.List("global", nil); globalCh <- result{e, err} }()
+	go func() { defer wg.Done(); e, err := s.store.ListForDepartments(deptIDs); deptCh <- result{e, err} }()
+	go func() { defer wg.Done(); e, err := s.store.List("worker", &workerID); workerCh <- result{e, err} }()
+	wg.Wait()
+
+	gr, dr, wr := <-globalCh, <-deptCh, <-workerCh
+	if gr.err != nil {
+		return nil, fmt.Errorf("list global env configs: %w", gr.err)
+	}
+	if dr.err != nil {
+		return nil, fmt.Errorf("list department env configs: %w", dr.err)
+	}
+	if wr.err != nil {
+		return nil, fmt.Errorf("list worker env configs: %w", wr.err)
 	}
 
-	deptEnvs, err := s.store.ListForDepartments(deptIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list department env configs: %w", err)
-	}
-
-	workerEnvs, err := s.store.List("worker", &workerID)
-	if err != nil {
-		return nil, fmt.Errorf("list worker env configs: %w", err)
-	}
-
-	return s.decryptMerged(merge(globalEnvs, deptEnvs, workerEnvs))
+	return s.decryptMerged(merge(gr.envs, dr.envs, wr.envs))
 }
 
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
