@@ -424,11 +424,9 @@ export function WorkerDetail() {
           <TabsContent value="permissions" className="mt-6">
             <DetailSection className="p-5 sm:p-6">
               <div className="flex flex-col gap-6">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    {t("workerDetail.permissions")}
-                  </p>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("workerDetail.permissions")}
+                </p>
 
                 {!localScopes.length && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">

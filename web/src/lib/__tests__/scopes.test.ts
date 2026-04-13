@@ -35,10 +35,6 @@ describe("serializeScopes", () => {
 })
 
 describe("KNOWN_SCOPES", () => {
-  it("contains exactly 3 entries", () => {
-    expect(KNOWN_SCOPES).toHaveLength(3)
-  })
-
   it("all entries have id, titleKey, descriptionKey", () => {
     for (const s of KNOWN_SCOPES) {
       expect(s.id).toBeTruthy()

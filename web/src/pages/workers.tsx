@@ -245,9 +245,9 @@ export function Workers() {
                           key={scope.id}
                           scope={scope}
                           checked={selectedScopes.includes(scope.id)}
-                          onToggle={(id, val) =>
+                          onToggle={(scopeId, val) =>
                             setSelectedScopes((prev) =>
-                              val ? [...prev, id] : prev.filter((s) => s !== id)
+                              val ? [...prev, scopeId] : prev.filter((s) => s !== scopeId)
                             )
                           }
                           disabled={createWorker.isPending}
