@@ -216,3 +216,4 @@ runtime:
     file_sent: "📎 File sent, please check."
   mcp:
     clear_session_confirm: "This session has %d workers linked. Clearing will reset all worker and bee conversation contexts. Confirm by re-calling with force=true."
+    clear_session_tasks_confirm: "There are %d active tasks in this session. Clearing will terminate them. Confirm by re-calling with force=true."

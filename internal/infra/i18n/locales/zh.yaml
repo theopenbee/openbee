@@ -216,3 +216,4 @@ runtime:
     file_sent: "📎 文件已发送，请查收。"
   mcp:
     clear_session_confirm: "此会话链接了 %d 位员工，清空将重置所有员工和 bee 的对话上下文。请确认后以 force=true 重新调用。"
+    clear_session_tasks_confirm: "此会话有 %d 个任务正在运行，清空将终止这些任务。请确认后以 force=true 重新调用。"

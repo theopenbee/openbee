@@ -298,5 +298,6 @@ type WeComRuntimeMessages struct {
 
 // MCPRuntimeMessages holds MCP tool runtime text sent back to the bee agent.
 type MCPRuntimeMessages struct {
-	ClearSessionConfirm string `yaml:"clear_session_confirm"` // confirmation prompt; contains %d
+	ClearSessionConfirm      string `yaml:"clear_session_confirm"`       // confirmation prompt; contains %d (worker count)
+	ClearSessionTasksConfirm string `yaml:"clear_session_tasks_confirm"` // task confirmation prompt; contains %d (task count)
 }
