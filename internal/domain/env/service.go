@@ -4,7 +4,8 @@ import (
 	"crypto/cipher"
 	"fmt"
 	"sort"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/infra/crypto"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -33,6 +34,14 @@ func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKe
 	}, nil
 }
 
+func (s *Service) encryptAndMask(plainValue string) (encValue, masked string, err error) {
+	encValue, err = crypto.EncryptGCM(s.gcm, plainValue)
+	if err != nil {
+		return "", "", fmt.Errorf("encrypt env value: %w", err)
+	}
+	return encValue, crypto.Mask(plainValue), nil
+}
+
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
 	if key == reservedKey {
 		return nil, fmt.Errorf("%w: OPENBEE_API_KEY is reserved and cannot be set", ErrValidation)
@@ -48,12 +57,10 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 		return nil, fmt.Errorf("%w: scope_id is required for scope %q", ErrValidation, scope)
 	}
 
-	encValue, err := crypto.EncryptGCM(s.gcm, plainValue)
+	encValue, masked, err := s.encryptAndMask(plainValue)
 	if err != nil {
-		return nil, fmt.Errorf("encrypt env value: %w", err)
+		return nil, err
 	}
-
-	masked := crypto.Mask(plainValue)
 
 	var scopeIDPtr *string
 	if scope != ScopeGlobal {
@@ -94,12 +101,10 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 		return err
 	}
 
-	encValue, err := crypto.EncryptGCM(s.gcm, plainValue)
+	encValue, masked, err := s.encryptAndMask(plainValue)
 	if err != nil {
-		return fmt.Errorf("encrypt env value: %w", err)
+		return err
 	}
-
-	masked := crypto.Mask(plainValue)
 
 	if err := s.store.Update(id, encValue, masked); err != nil {
 		return fmt.Errorf("update env config: %w", err)
@@ -173,29 +178,19 @@ func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 }
 
 // fetchParallel runs each fetcher concurrently and returns results in input order.
-// Returns on the first error (in input order).
+// Returns on the first error encountered.
 func fetchParallel(fetchers ...func() ([]*model.EnvConfig, error)) ([][]*model.EnvConfig, error) {
-	type result struct {
-		envs []*model.EnvConfig
-		err  error
-	}
-	chs := make([]chan result, len(fetchers))
-	var wg sync.WaitGroup
-	wg.Add(len(fetchers))
-	for i, f := range fetchers {
-		chs[i] = make(chan result, 1)
-		ch, fn := chs[i], f
-		go func() { defer wg.Done(); e, err := fn(); ch <- result{e, err} }()
-	}
-	wg.Wait()
-
 	out := make([][]*model.EnvConfig, len(fetchers))
-	for i, ch := range chs {
-		r := <-ch
-		if r.err != nil {
-			return nil, r.err
-		}
-		out[i] = r.envs
+	var g errgroup.Group
+	for i, f := range fetchers {
+		g.Go(func() error {
+			envs, err := f()
+			out[i] = envs
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
