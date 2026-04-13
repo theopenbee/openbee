@@ -39,12 +39,12 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 	}
 
 	switch scope {
-	case "global", "bee", "department", "worker":
+	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
 	default:
 		return nil, fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
 	}
 
-	if scope != "global" && scopeID == "" {
+	if scope != ScopeGlobal && scopeID == "" {
 		return nil, fmt.Errorf("%w: scope_id is required for scope %q", ErrValidation, scope)
 	}
 
@@ -56,7 +56,7 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 	masked := crypto.Mask(plainValue)
 
 	var scopeIDPtr *string
-	if scope != "global" {
+	if scope != ScopeGlobal {
 		scopeIDPtr = &scopeID
 	}
 
@@ -133,60 +133,28 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	}
 	sort.Strings(deptIDs)
 
-	type result struct {
-		envs []*model.EnvConfig
-		err  error
+	layers, err := fetchParallel(
+		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeGlobal, nil) },
+		func() ([]*model.EnvConfig, error) { return s.store.ListForDepartments(deptIDs) },
+		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeWorker, &workerID) },
+	)
+	if err != nil {
+		return nil, err
 	}
-	globalCh := make(chan result, 1)
-	deptCh := make(chan result, 1)
-	workerCh := make(chan result, 1)
-
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() { defer wg.Done(); e, err := s.store.List("global", nil); globalCh <- result{e, err} }()
-	go func() { defer wg.Done(); e, err := s.store.ListForDepartments(deptIDs); deptCh <- result{e, err} }()
-	go func() { defer wg.Done(); e, err := s.store.List("worker", &workerID); workerCh <- result{e, err} }()
-	wg.Wait()
-
-	gr, dr, wr := <-globalCh, <-deptCh, <-workerCh
-	if gr.err != nil {
-		return nil, fmt.Errorf("list global env configs: %w", gr.err)
-	}
-	if dr.err != nil {
-		return nil, fmt.Errorf("list department env configs: %w", dr.err)
-	}
-	if wr.err != nil {
-		return nil, fmt.Errorf("list worker env configs: %w", wr.err)
-	}
-
-	return s.decryptMerged(merge(gr.envs, dr.envs, wr.envs))
+	return s.decryptMerged(merge(layers...))
 }
 
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
 // Resolution chain: global <- bee
 func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
-	type result struct {
-		envs []*model.EnvConfig
-		err  error
+	layers, err := fetchParallel(
+		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeGlobal, nil) },
+		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeBee, &beeID) },
+	)
+	if err != nil {
+		return nil, err
 	}
-	globalCh := make(chan result, 1)
-	beeCh := make(chan result, 1)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); e, err := s.store.List("global", nil); globalCh <- result{e, err} }()
-	go func() { defer wg.Done(); e, err := s.store.List("bee", &beeID); beeCh <- result{e, err} }()
-	wg.Wait()
-
-	gr, br := <-globalCh, <-beeCh
-	if gr.err != nil {
-		return nil, fmt.Errorf("list global env configs: %w", gr.err)
-	}
-	if br.err != nil {
-		return nil, fmt.Errorf("list bee env configs: %w", br.err)
-	}
-
-	return s.decryptMerged(merge(gr.envs, br.envs))
+	return s.decryptMerged(merge(layers...))
 }
 
 // decryptMerged decrypts a merged map and returns sorted KEY=VALUE strings.
@@ -204,8 +172,35 @@ func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	return result, nil
 }
 
+// fetchParallel runs each fetcher concurrently and returns results in input order.
+// Returns on the first error (in input order).
+func fetchParallel(fetchers ...func() ([]*model.EnvConfig, error)) ([][]*model.EnvConfig, error) {
+	type result struct {
+		envs []*model.EnvConfig
+		err  error
+	}
+	chs := make([]chan result, len(fetchers))
+	var wg sync.WaitGroup
+	wg.Add(len(fetchers))
+	for i, f := range fetchers {
+		chs[i] = make(chan result, 1)
+		ch, fn := chs[i], f
+		go func() { defer wg.Done(); e, err := fn(); ch <- result{e, err} }()
+	}
+	wg.Wait()
+
+	out := make([][]*model.EnvConfig, len(fetchers))
+	for i, ch := range chs {
+		r := <-ch
+		if r.err != nil {
+			return nil, r.err
+		}
+		out[i] = r.envs
+	}
+	return out, nil
+}
+
 // merge merges multiple layers of env configs. Later layers override earlier ones for the same key.
-// Stores EncValue; callers are responsible for decrypting.
 func merge(layers ...[]*model.EnvConfig) map[string]string {
 	result := make(map[string]string)
 	for _, layer := range layers {

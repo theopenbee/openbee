@@ -42,7 +42,7 @@ func respondEnvError(c *gin.Context, err error) {
 func (h *EnvHandler) List(c *gin.Context) {
 	scope := c.Query("scope")
 	switch scope {
-	case "global", "bee", "department", "worker":
+	case env.ScopeGlobal, env.ScopeBee, env.ScopeDepartment, env.ScopeWorker:
 	case "":
 		c.JSON(http.StatusBadRequest, gin.H{"error": "scope query parameter is required"})
 		return

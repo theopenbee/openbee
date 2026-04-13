@@ -48,14 +48,11 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 		return nil, nil, fmt.Errorf("generate bee token: %w", err)
 	}
 
-	if p.envService != nil {
-		extraEnv, err := p.envService.ResolveBeeEnv(defaultBeeID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("resolve bee env: %w", err)
-		}
-		opts.ExtraEnv = extraEnv
+	extraEnv, err := p.envService.ResolveBeeEnv(defaultBeeID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve bee env: %w", err)
 	}
-
+	opts.ExtraEnv = extraEnv
 	opts.APIKey = token
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
