@@ -21,11 +21,26 @@ func TestInstallSkills_FirstInstall(t *testing.T) {
 		}
 		content, err := os.ReadFile(filepath.Join(dir, r.Name, "SKILL.md"))
 		if err != nil {
-			t.Errorf("skill %s: file not created: %v", r.Name, err)
+			t.Errorf("skill %s: SKILL.md not created: %v", r.Name, err)
 			continue
 		}
 		if len(content) == 0 {
-			t.Errorf("skill %s: file is empty", r.Name)
+			t.Errorf("skill %s: SKILL.md is empty", r.Name)
+		}
+	}
+
+	// Verify reference files are installed for each skill.
+	for _, skill := range embeddedSkills {
+		for refName, refContent := range skill.references {
+			refPath := filepath.Join(dir, skill.name, "references", refName)
+			got, err := os.ReadFile(refPath)
+			if err != nil {
+				t.Errorf("skill %s: reference %s not created: %v", skill.name, refName, err)
+				continue
+			}
+			if string(got) != refContent {
+				t.Errorf("skill %s: reference %s content mismatch", skill.name, refName)
+			}
 		}
 	}
 }
@@ -45,6 +60,41 @@ func TestInstallSkills_UpToDate(t *testing.T) {
 		if r.Action != ActionUpToDate {
 			t.Errorf("skill %s: expected 'up-to-date', got %q", r.Name, r.Action)
 		}
+	}
+}
+
+func TestInstallSkills_UpdatedWhenReferenceMissing(t *testing.T) {
+	dir := t.TempDir()
+	// First install
+	if _, err := InstallSkills(dir); err != nil {
+		t.Fatalf("first install failed: %v", err)
+	}
+	// Delete one reference file from openbee-bee
+	beeRef := filepath.Join(dir, "openbee-bee", "references", "cli-reference.md")
+	if err := os.Remove(beeRef); err != nil {
+		t.Fatal(err)
+	}
+	// Second install should detect the missing reference and update
+	results, err := InstallSkills(dir)
+	if err != nil {
+		t.Fatalf("reinstall failed: %v", err)
+	}
+	var beeResult SkillResult
+	for _, r := range results {
+		if r.Name == "openbee-bee" {
+			beeResult = r
+		}
+	}
+	if beeResult.Action != ActionUpdated {
+		t.Errorf("expected 'updated' for openbee-bee when reference missing, got %q", beeResult.Action)
+	}
+	// Verify the reference was restored
+	got, err := os.ReadFile(beeRef)
+	if err != nil {
+		t.Fatalf("reference not restored: %v", err)
+	}
+	if len(got) == 0 {
+		t.Error("restored reference is empty")
 	}
 }
 
@@ -106,14 +156,20 @@ func TestInstallSkillsToDefaults(t *testing.T) {
 		}
 	}
 
-	// Verify files exist in both target directories.
+	// Verify SKILL.md and reference files exist in both target directories.
 	claudeSkills := filepath.Join(home, ".claude", "skills")
 	agentsSkills := filepath.Join(home, ".agents", "skills")
 	for _, dir := range []string{claudeSkills, agentsSkills} {
-		for _, name := range []string{"openbee-bee", "openbee-worker"} {
-			p := filepath.Join(dir, name, "SKILL.md")
+		for _, skill := range embeddedSkills {
+			p := filepath.Join(dir, skill.name, "SKILL.md")
 			if _, err := os.Stat(p); err != nil {
 				t.Errorf("expected file %s to exist: %v", p, err)
+			}
+			for refName := range skill.references {
+				rp := filepath.Join(dir, skill.name, "references", refName)
+				if _, err := os.Stat(rp); err != nil {
+					t.Errorf("expected reference %s/%s to exist: %v", skill.name, refName, err)
+				}
 			}
 		}
 	}
