@@ -18,7 +18,7 @@ The following tools are unavailable in background Worker mode. Use these alterna
 
 ### Mandatory Requirements
 
-- All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash)
+- All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash). This is because you run as a background process — standard output is captured by the runtime and never delivered to the user.
 - Text output will not reach anyone; do not communicate with the user via text output
 
 ### ⛔ Communication Hard Gate
