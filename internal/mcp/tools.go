@@ -121,40 +121,82 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 	}
 }
 
+type workerBrief struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
 	var params struct {
 		DepartmentID string `json:"department_id"`
 		Recursive    *bool  `json:"recursive"`
+		Name         string `json:"name"`
+		ID           string `json:"id"`
+		Page         int    `json:"page"`
+		PageSize     int    `json:"page_size"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 
-	var workers []model.Worker
-	var err error
+	page := params.Page
+	pageSize := params.PageSize
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	offset := (page - 1) * pageSize
+
+	filter := store.WorkerFilter{
+		Name: params.Name,
+		ID:   params.ID,
+	}
 
 	if params.DepartmentID != "" {
 		recursive := params.Recursive == nil || *params.Recursive
+		var deptWorkers []model.Worker
+		var err error
 		if recursive {
-			workers, err = s.listWorkersRecursive(params.DepartmentID)
+			deptWorkers, err = s.listWorkersRecursive(params.DepartmentID)
 		} else {
 			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			workers, err = s.workerStore.GetByDepartmentID(deptID)
+			deptWorkers, err = s.workerStore.GetByDepartmentID(deptID)
 		}
-	} else {
-		workers, err = s.workerStore.List()
+		if err != nil {
+			return nil, fmt.Errorf("list workers: %w", err)
+		}
+		workerIDs := make([]string, len(deptWorkers))
+		for i, w := range deptWorkers {
+			workerIDs[i] = w.ID
+		}
+		filter.WorkerIDs = workerIDs
 	}
 
+	workers, total, err := s.workerStore.ListFiltered(filter, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
-	if workers == nil {
-		workers = []model.Worker{}
+
+	briefs := make([]workerBrief, 0, len(workers))
+	for _, w := range workers {
+		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
 	}
-	return workers, nil
+
+	return map[string]any{
+		"items":     briefs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}, nil
 }
 
 func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
@@ -167,7 +209,48 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	return s.workerStore.GetByID(params.WorkerID)
+	w, err := s.workerStore.GetByID(params.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("worker not found: %w", err)
+	}
+	depts, err := s.departmentStore.GetWorkerDepartments(w.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get worker departments: %w", err)
+	}
+	deptBriefs := make([]departmentBriefMap, 0, len(depts))
+	for _, d := range depts {
+		deptBriefs = append(deptBriefs, departmentBriefMap{ID: d.ID, Name: d.Name})
+	}
+	return workerDetailResponse{
+		ID:               w.ID,
+		Name:             w.Name,
+		Description:      w.Description,
+		Memory:           w.Memory,
+		WorkDir:          w.WorkDir,
+		Status:           string(w.Status),
+		PermissionScopes: w.PermissionScopes,
+		CreatedAt:        w.CreatedAt,
+		UpdatedAt:        w.UpdatedAt,
+		Departments:      deptBriefs,
+	}, nil
+}
+
+type departmentBriefMap struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type workerDetailResponse struct {
+	ID               string               `json:"id"`
+	Name             string               `json:"name"`
+	Description      string               `json:"description"`
+	Memory           string               `json:"memory"`
+	WorkDir          string               `json:"work_dir"`
+	Status           string               `json:"status"`
+	PermissionScopes string               `json:"permission_scopes"`
+	CreatedAt        int64                `json:"created_at"`
+	UpdatedAt        int64                `json:"updated_at"`
+	Departments      []departmentBriefMap `json:"departments"`
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -809,16 +892,33 @@ func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMes
 	}, nil
 }
 
+type deptTreeBrief struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	SortOrder int             `json:"sort_order"`
+	Children  []deptTreeBrief `json:"children"`
+}
+
+func toDeptTreeBriefs(nodes []model.DepartmentTree) []deptTreeBrief {
+	result := make([]deptTreeBrief, 0, len(nodes))
+	for _, n := range nodes {
+		result = append(result, deptTreeBrief{
+			ID:        n.ID,
+			Name:      n.Name,
+			SortOrder: n.SortOrder,
+			Children:  toDeptTreeBriefs(n.Children),
+		})
+	}
+	return result
+}
+
 func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
 	tree := s.departmentStore.BuildTree(all)
-	if tree == nil {
-		tree = []model.DepartmentTree{}
-	}
-	return tree, nil
+	return toDeptTreeBriefs(tree), nil
 }
 
 func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {

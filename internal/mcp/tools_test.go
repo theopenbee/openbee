@@ -60,18 +60,33 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 	return b
 }
 
+func decodeListWorkersResult(t *testing.T, result any) (items []any, total int) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal list_workers result: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal list_workers result: %v", err)
+	}
+	items = m["items"].([]any)
+	total = int(m["total"].(float64))
+	return
+}
+
 func TestCallTool_ListWorkers_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
-	workers, ok := result.([]model.Worker)
-	if !ok {
-		t.Fatalf("expected []model.Worker, got %T", result)
+	items, total := decodeListWorkersResult(t, result)
+	if len(items) != 0 {
+		t.Errorf("expected empty items, got %d", len(items))
 	}
-	if len(workers) != 0 {
-		t.Errorf("expected empty slice, got %d workers", len(workers))
+	if total != 0 {
+		t.Errorf("expected total 0, got %d", total)
 	}
 }
 
@@ -106,12 +121,16 @@ func TestCallTool_GetWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
-	fetched, ok := result.(model.Worker)
-	if !ok {
-		t.Fatalf("expected model.Worker, got %T", result)
+	b, _ := json.Marshal(result)
+	var fetched map[string]any
+	if err := json.Unmarshal(b, &fetched); err != nil {
+		t.Fatalf("unmarshal get_worker result: %v", err)
 	}
-	if fetched.ID != w.ID {
-		t.Errorf("expected ID %s, got %s", w.ID, fetched.ID)
+	if fetched["id"].(string) != w.ID {
+		t.Errorf("expected ID %s, got %s", w.ID, fetched["id"])
+	}
+	if _, ok := fetched["departments"]; !ok {
+		t.Error("expected departments field in get_worker response")
 	}
 }
 
@@ -178,9 +197,9 @@ func TestListWorkers_ReturnsEmptySlice_NotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	workers := result.([]model.Worker)
-	if workers == nil {
-		t.Error("expected non-nil slice, got nil")
+	items, _ := decodeListWorkersResult(t, result)
+	if items == nil {
+		t.Error("expected non-nil items, got nil")
 	}
 }
 
@@ -1001,16 +1020,26 @@ func TestResolveDepartmentID_NotFound(t *testing.T) {
 	}
 }
 
+func decodeDeptTree(t *testing.T, result any) []map[string]any {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal list_departments result: %v", err)
+	}
+	var tree []map[string]any
+	if err := json.Unmarshal(b, &tree); err != nil {
+		t.Fatalf("unmarshal list_departments result: %v", err)
+	}
+	return tree
+}
+
 func TestCallTool_ListDepartments_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("list_departments: %v", err)
 	}
-	tree, ok := result.([]model.DepartmentTree)
-	if !ok {
-		t.Fatalf("expected []model.DepartmentTree, got %T", result)
-	}
+	tree := decodeDeptTree(t, result)
 	if len(tree) != 0 {
 		t.Errorf("expected empty tree, got %d roots", len(tree))
 	}
@@ -1028,18 +1057,23 @@ func TestCallTool_ListDepartments_Tree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_departments: %v", err)
 	}
-	tree, ok := result.([]model.DepartmentTree)
-	if !ok {
-		t.Fatalf("expected []model.DepartmentTree, got %T", result)
-	}
+	tree := decodeDeptTree(t, result)
 	if len(tree) != 1 {
 		t.Fatalf("expected 1 root, got %d", len(tree))
 	}
-	if tree[0].Name != "R&D" {
-		t.Errorf("expected root name R&D, got %s", tree[0].Name)
+	if tree[0]["name"].(string) != "R&D" {
+		t.Errorf("expected root name R&D, got %s", tree[0]["name"])
 	}
-	if len(tree[0].Children) != 2 {
-		t.Errorf("expected 2 children, got %d", len(tree[0].Children))
+	children := tree[0]["children"].([]any)
+	if len(children) != 2 {
+		t.Errorf("expected 2 children, got %d", len(children))
+	}
+	// Verify slim fields (no parent_id, created_at, updated_at)
+	if _, hasParentID := tree[0]["parent_id"]; hasParentID {
+		t.Error("expected no parent_id in department list response")
+	}
+	if _, hasCreatedAt := tree[0]["created_at"]; hasCreatedAt {
+		t.Error("expected no created_at in department list response")
 	}
 }
 
@@ -1148,15 +1182,16 @@ func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers with dept filter: %v", err)
 	}
-	workers, ok := result.([]model.Worker)
-	if !ok {
-		t.Fatalf("expected []model.Worker, got %T", result)
+	items, total := decodeListWorkersResult(t, result)
+	if total != 1 {
+		t.Fatalf("expected total 1, got %d", total)
 	}
-	if len(workers) != 1 {
-		t.Fatalf("expected 1 worker, got %d", len(workers))
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
 	}
-	if workers[0].Name != "Alice" {
-		t.Errorf("expected Alice, got %s", workers[0].Name)
+	item := items[0].(map[string]any)
+	if item["name"].(string) != "Alice" {
+		t.Errorf("expected Alice, got %s", item["name"])
 	}
 }
 
@@ -1179,9 +1214,9 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers recursive: %v", err)
 	}
-	workers := result.([]model.Worker)
-	if len(workers) != 2 {
-		t.Errorf("expected 2 workers (recursive), got %d", len(workers))
+	items, _ := decodeListWorkersResult(t, result)
+	if len(items) != 2 {
+		t.Errorf("expected 2 workers (recursive), got %d", len(items))
 	}
 
 	// non-recursive: should return only Alice
@@ -1190,12 +1225,13 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers non-recursive: %v", err)
 	}
-	workers2 := result2.([]model.Worker)
-	if len(workers2) != 1 {
-		t.Errorf("expected 1 worker (non-recursive), got %d", len(workers2))
+	items2, _ := decodeListWorkersResult(t, result2)
+	if len(items2) != 1 {
+		t.Errorf("expected 1 worker (non-recursive), got %d", len(items2))
 	}
-	if workers2[0].Name != "Alice" {
-		t.Errorf("expected Alice, got %s", workers2[0].Name)
+	item2 := items2[0].(map[string]any)
+	if item2["name"].(string) != "Alice" {
+		t.Errorf("expected Alice, got %s", item2["name"])
 	}
 }
 
