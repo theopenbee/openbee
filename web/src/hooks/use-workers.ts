@@ -23,6 +23,7 @@ export function useCreateWorker() {
       description: string
       memory?: string
       work_dir?: string
+      permission_scopes?: string
     }) => api.workers.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
@@ -44,7 +45,7 @@ export function useDeleteWorker() {
 export function useUpdateWorker() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { description?: string; memory?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { description?: string; memory?: string; permission_scopes?: string } }) =>
       api.workers.update(id, data),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["workers", id] })

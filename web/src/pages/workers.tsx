@@ -43,6 +43,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ScopeToggleCard } from "@/components/scope-toggle-card"
+import { KNOWN_SCOPES, serializeScopes } from "@/lib/scopes"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
@@ -83,6 +85,7 @@ export function Workers() {
   const [description, setDescription] = useState("")
   const [memory, setMemory] = useState("")
   const [workDir, setWorkDir] = useState("")
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
 
   const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || setWorkerDepts.error?.message || ""
   const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
@@ -96,6 +99,7 @@ export function Workers() {
         description,
         memory: memory || undefined,
         work_dir: workDir || undefined,
+        permission_scopes: serializeScopes(selectedScopes) || undefined,
       })
       if (selectedCreateDeptIds.size > 0) {
         await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
@@ -107,6 +111,7 @@ export function Workers() {
       setMemory("")
       setWorkDir("")
       setSelectedCreateDeptIds(new Set())
+      setSelectedScopes([])
     }
   }
 
@@ -154,7 +159,10 @@ export function Workers() {
             <Button onClick={() => setOpen(true)}>
               {t("workers.createWorker")}
             </Button>
-            <Sheet open={open} onOpenChange={setOpen}>
+            <Sheet open={open} onOpenChange={(val) => {
+                setOpen(val)
+                if (!val) setSelectedScopes([])
+              }}>
               <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
                 <SheetHeader className="px-6 pt-6 pb-4">
                   <SheetTitle>{t("workers.createWorker")}</SheetTitle>
@@ -226,6 +234,30 @@ export function Workers() {
                       />
                       <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
                     </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                      {t("workers.form.sectionPermissions")}
+                    </p>
+                    <div className="space-y-2">
+                      {KNOWN_SCOPES.map((scope) => (
+                        <ScopeToggleCard
+                          key={scope.id}
+                          scope={scope}
+                          checked={selectedScopes.includes(scope.id)}
+                          onToggle={(id, val) =>
+                            setSelectedScopes((prev) =>
+                              val ? [...prev, id] : prev.filter((s) => s !== id)
+                            )
+                          }
+                          disabled={createWorker.isPending}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
                   </div>
 
                   {flatDepts.length > 0 && (
