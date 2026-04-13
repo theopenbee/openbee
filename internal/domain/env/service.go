@@ -19,7 +19,7 @@ type Service struct {
 	encKey    string // config.Advanced.EnvSecret
 }
 
-func NewService(envStore *store.EnvConfigStore, _ *store.WorkerStore, ds *store.DepartmentStore, encKey string) *Service {
+func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKey string) *Service {
 	return &Service{
 		store:     envStore,
 		deptStore: ds,
@@ -123,38 +123,32 @@ func (s *Service) Delete(id string) error {
 // ResolveWorkerEnv returns complete env vars for Worker execution (KEY=VALUE slice).
 // Resolution chain: global <- department (sorted by dept_id) <- worker
 func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
-	// Get worker's departments
 	depts, err := s.deptStore.GetWorkerDepartments(workerID)
 	if err != nil {
 		return nil, fmt.Errorf("get worker departments: %w", err)
 	}
 
-	// Extract and sort department IDs for determinism
 	deptIDs := make([]string, 0, len(depts))
 	for _, d := range depts {
 		deptIDs = append(deptIDs, d.ID)
 	}
 	sort.Strings(deptIDs)
 
-	// Get global envs
 	globalEnvs, err := s.store.List("global", nil)
 	if err != nil {
 		return nil, fmt.Errorf("list global env configs: %w", err)
 	}
 
-	// Get department envs
 	deptEnvs, err := s.store.ListForDepartments(deptIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list department env configs: %w", err)
 	}
 
-	// Get worker envs
 	workerEnvs, err := s.store.List("worker", &workerID)
 	if err != nil {
 		return nil, fmt.Errorf("list worker env configs: %w", err)
 	}
 
-	// Merge: global <- depts <- worker
 	return s.decryptMerged(merge(globalEnvs, deptEnvs, workerEnvs))
 }
 
