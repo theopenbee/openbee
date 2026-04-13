@@ -16,6 +16,12 @@ type DepartmentTree struct {
 	Children []DepartmentTree `json:"children"`
 }
 
+// DepartmentBrief is a lightweight department summary used in list and detail responses.
+type DepartmentBrief struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // WorkerDepartment represents the many-to-many link between a Worker and a Department.
 type WorkerDepartment struct {
 	WorkerID     string `json:"worker_id" db:"worker_id"`

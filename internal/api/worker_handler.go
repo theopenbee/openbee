@@ -12,18 +12,13 @@ import (
 
 type workerResponse struct {
 	model.Worker
-	Departments []departmentBrief `json:"departments"`
+	Departments []model.DepartmentBrief `json:"departments"`
 }
 
-type departmentBrief struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-func toDepartmentBriefs(depts []model.Department) []departmentBrief {
-	briefs := make([]departmentBrief, 0, len(depts))
+func toDepartmentBriefs(depts []model.Department) []model.DepartmentBrief {
+	briefs := make([]model.DepartmentBrief, 0, len(depts))
 	for _, d := range depts {
-		briefs = append(briefs, departmentBrief{ID: d.ID, Name: d.Name})
+		briefs = append(briefs, model.DepartmentBrief{ID: d.ID, Name: d.Name})
 	}
 	return briefs
 }

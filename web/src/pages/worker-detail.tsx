@@ -434,7 +434,7 @@ export function WorkerDetail() {
                           ? [...localScopes, scopeId]
                           : localScopes.filter((s) => s !== scopeId)
                         setLocalScopes(newScopes)
-                        updateWorker.mutateAsync({
+                        updateWorker.mutate({
                           id: id!,
                           data: { permission_scopes: serializeScopes(newScopes) },
                         })

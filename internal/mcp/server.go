@@ -24,6 +24,8 @@ type ctxKey string
 // Exported so tests can construct contexts that simulate worker calls.
 const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
+// CtxScopesKey carries the caller's permission scopes through tool dispatch.
+// Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
 // ExecutionStopper can kill a running worker process by execution ID.
