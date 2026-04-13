@@ -946,6 +946,139 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	}
 }
 
+// --- clear_session task detection ---
+
+func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-rt1", "session-RT", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-rt1", WorkerID: w.ID, Instruction: "long running task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-RT",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true, got %v", m)
+	}
+	if m["reason"] != "running_tasks" {
+		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
+	}
+	tasks, ok := m["running_tasks"].([]map[string]string)
+	if !ok || len(tasks) != 1 {
+		t.Errorf("expected running_tasks with 1 entry, got %v", m["running_tasks"])
+	} else {
+		if tasks[0]["instruction"] != "long running task" {
+			t.Errorf("expected instruction='long running task', got %v", tasks[0]["instruction"])
+		}
+		if tasks[0]["status"] != "running" {
+			t.Errorf("expected status=running, got %v", tasks[0]["status"])
+		}
+	}
+
+	// ClearSession must NOT have been called.
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called on confirmation prompt, got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_PendingTaskRequiresConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-pt1", "session-PT", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-pt1", WorkerID: w.ID, Instruction: "queued task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-PT",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true for pending task, got %v", m)
+	}
+	if m["reason"] != "running_tasks" {
+		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called on confirmation prompt")
+	}
+}
+
+func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
+	s, db, stopper, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-fsd1", "session-FSD", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	taskID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-fsd1", WorkerID: w.ID, Instruction: "long task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	ts.SetExecution(ctx, taskID, "exec-fsd-1", model.TaskStatusRunning) //nolint
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-FSD",
+		"force":       true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true with force=true, got %v", m)
+	}
+
+	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
+	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-fsd-1" {
+		t.Errorf("expected StopExecution(exec-fsd-1), got %v", stopper.stopped)
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-FSD" {
+		t.Errorf("expected ClearSession(session-FSD), got %v", clearer.cleared)
+	}
+}
+
 func TestResolveDepartmentID_ByID(t *testing.T) {
 	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
 	ds := store.NewDepartmentStore(db)
