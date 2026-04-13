@@ -1008,7 +1008,7 @@ func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
 	if m["requires_confirmation"] != true {
 		t.Errorf("expected requires_confirmation=true, got %v", m)
 	}
-	if m["reason"] != "running_tasks" {
+	if m["reason"] != mcp.ClearReasonRunningTasks {
 		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
 	}
 	tasks, ok := m["running_tasks"].([]mcp.ActiveTaskSummary)
@@ -1018,7 +1018,7 @@ func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
 		if tasks[0].Instruction != "long running task" {
 			t.Errorf("expected instruction='long running task', got %v", tasks[0].Instruction)
 		}
-		if tasks[0].Status != "running" {
+		if tasks[0].Status != model.TaskStatusRunning {
 			t.Errorf("expected status=running, got %v", tasks[0].Status)
 		}
 	}
@@ -1058,7 +1058,7 @@ func TestCallTool_ClearSession_PendingTaskRequiresConfirmation(t *testing.T) {
 	if m["requires_confirmation"] != true {
 		t.Errorf("expected requires_confirmation=true for pending task, got %v", m)
 	}
-	if m["reason"] != "running_tasks" {
+	if m["reason"] != mcp.ClearReasonRunningTasks {
 		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
 	}
 

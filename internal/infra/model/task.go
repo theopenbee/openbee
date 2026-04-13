@@ -10,22 +10,26 @@ const (
 	TaskStatusCompleted = "completed"
 	TaskStatusFailed    = "failed"
 	TaskStatusCancelled = "cancelled"
+
+	// TaskStatusActive is a comma-separated filter value for pending and running tasks,
+	// accepted by store functions that support CSV status filters.
+	TaskStatusActive = TaskStatusPending + "," + TaskStatusRunning
 )
 
 // Task represents a unit of work created by bee and dispatched to a worker.
 type Task struct {
-	ID              string
-	MessageID       string
-	WorkerID        string
-	Instruction     string
-	Type            string // TaskTypeImmediate | TaskTypeCountdown | TaskTypeScheduled
-	Status          string // TaskStatus*
-	ScheduledAt     *int64 // ms; countdown: absolute trigger time
-	CronExpr        string
-	NextRunAt       *int64 // ms; scheduled tasks only
+	ID          string
+	MessageID   string
+	WorkerID    string
+	Instruction string
+	Type        string // TaskTypeImmediate | TaskTypeCountdown | TaskTypeScheduled
+	Status      string // TaskStatus*
+	ScheduledAt *int64 // ms; countdown: absolute trigger time
+	CronExpr    string
+	NextRunAt   *int64 // ms; scheduled tasks only
 	ExecutionID string
-	CreatedAt       int64
-	UpdatedAt       int64
+	CreatedAt   int64
+	UpdatedAt   int64
 }
 
 // ClaimedTask is a Task joined with data from its originating platform_messages row,

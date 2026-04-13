@@ -121,8 +121,8 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 }
 
 const (
-	clearReasonRunningTasks    = "running_tasks"
-	clearReasonMultipleWorkers = "multiple_workers"
+	ClearReasonRunningTasks    = "running_tasks"
+	ClearReasonMultipleWorkers = "multiple_workers"
 )
 
 type workerBrief struct {
@@ -552,7 +552,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		// Detect active tasks first; cancelling them is destructive so require
 		// explicit confirmation before proceeding.
 		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
-			model.TaskStatusPending+","+model.TaskStatusRunning, "")
+			model.TaskStatusActive, "")
 		if err != nil {
 			return nil, fmt.Errorf("list active tasks: %w", err)
 		}
@@ -567,9 +567,9 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 			}
 			return map[string]any{
 				"requires_confirmation": true,
-				"reason":               clearReasonRunningTasks,
-				"running_tasks":        summaries,
-				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
+				"reason":                ClearReasonRunningTasks,
+				"running_tasks":         summaries,
+				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
 			}, nil
 		}
 
@@ -593,15 +593,13 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		if len(workers) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
-				"reason":               clearReasonMultipleWorkers,
-				"worker_count":         len(workers),
-				"linked_workers":       workers,
-				"message":              fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
+				"reason":                ClearReasonMultipleWorkers,
+				"worker_count":          len(workers),
+				"linked_workers":        workers,
+				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
-		// activeTasks is empty here, so runningTasks is also empty — skip the query.
 	} else {
-		// Step 1: Collect running tasks with execution IDs (before cancelling)
 		var err error
 		runningTasks, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
 		if err != nil {
