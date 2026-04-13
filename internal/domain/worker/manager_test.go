@@ -44,7 +44,7 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	defer db.Close()
 	ws := store.NewWorkerStore(db)
 	es := store.NewExecutionStore(db, dir)
-	mgr := NewManager(dir, cfg, ws, es, &mockEngine{})
+	mgr := NewManager(dir, cfg, ws, es, &mockEngine{}, nil)
 
 	err = mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
 	if err == nil {

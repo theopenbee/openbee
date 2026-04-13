@@ -35,6 +35,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	webui "github.com/theopenbee/openbee/web"
@@ -102,7 +103,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init engine: %w", err)
 	}
-	mgr := buildWorkerManager(cfg.Bee, s, engine)
+	envSvc := env.NewService(s.envConfigStore, s.workerStore, s.departmentStore, cfg.Advanced.EnvSecret)
+	mgr := buildWorkerManager(cfg.Bee, s, engine, envSvc)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -172,6 +174,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
 	workerStore      *store.WorkerStore
+	envConfigStore   *store.EnvConfigStore
 	execStore        *store.ExecutionStore
 	msgStore         *store.MessageStore
 	taskStore        *store.TaskStore
@@ -197,6 +200,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		memoryStore:      store.NewMemoryStore(db),
 		departmentStore:  store.NewDepartmentStore(db),
 		statsStore:       store.NewStatsStore(db),
+		envConfigStore:   store.NewEnvConfigStore(db),
 	}, nil
 }
 
@@ -207,8 +211,8 @@ func buildEngine(cfg config.BeeConfig) (ai.EngineAdapter, error) {
 	})
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapter) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine)
+func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapter, envSvc *env.Service) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine, envSvc)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
