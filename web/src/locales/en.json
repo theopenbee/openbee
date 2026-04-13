@@ -73,7 +73,9 @@
       "memoryPlaceholder": "The instruction this worker will execute...",
       "memoryHelper": "Persistent context loaded into the worker at the start of every session.",
       "sectionDepartment": "Department",
-      "departmentHelper": "Assign the worker to departments (optional)"
+      "departmentHelper": "Assign the worker to departments (optional)",
+      "sectionPermissions": "Permissions",
+      "permissionsHelper": "When no permissions are selected, the Worker token is denied access to all system built-in tools"
     },
     "deleteDialog": {
       "title": "Delete Worker",
@@ -120,7 +122,10 @@
     "memory": "Static Memory",
     "noMemory": "No static memory configured",
     "editDescription": "Edit description",
-    "editMemory": "Edit static memory"
+    "editMemory": "Edit static memory",
+    "permissions": "Permissions",
+    "permissionsEmpty": "No permissions configured. The Worker token will be denied access to all system built-in tools. Enable the permissions your Worker needs.",
+    "permissionsSaved": "Saved"
   },
   "executionDetail": {
     "title": "Execution Detail",
@@ -352,5 +357,19 @@
     "noSessionsDesc": "Start a new conversation with your AI workers",
     "noTasks": "No active tasks",
     "noTasksDesc": "Scheduled and countdown tasks will appear here"
+  },
+  "scopes": {
+    "readWorkers": {
+      "title": "Read Workers",
+      "description": "Allows listing and viewing Worker information and status"
+    },
+    "readDepartments": {
+      "title": "Read Departments",
+      "description": "Allows listing and viewing department information"
+    },
+    "readTasks": {
+      "title": "Read Tasks",
+      "description": "Allows listing and viewing task records"
+    }
   }
 }
