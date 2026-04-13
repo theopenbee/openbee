@@ -44,7 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
-import { KNOWN_SCOPES, serializeScopes } from "@/lib/scopes"
+import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
@@ -246,9 +246,7 @@ export function Workers() {
                           scope={scope}
                           checked={selectedScopes.includes(scope.id)}
                           onToggle={(scopeId, val) =>
-                            setSelectedScopes((prev) =>
-                              val ? [...prev, scopeId] : prev.filter((s) => s !== scopeId)
-                            )
+                            setSelectedScopes((prev) => toggleScope(prev, scopeId, val))
                           }
                           disabled={createWorker.isPending}
                         />

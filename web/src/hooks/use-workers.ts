@@ -49,6 +49,7 @@ export function useUpdateWorker() {
     mutationFn: ({ id, data }: { id: string; data: Partial<Worker> }) =>
       api.workers.update(id, data),
     onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["workers"] })
       queryClient.invalidateQueries({ queryKey: ["workers", id] })
     },
   })

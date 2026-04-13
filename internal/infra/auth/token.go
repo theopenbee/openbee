@@ -20,7 +20,6 @@ type MCPClaims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateBeeToken creates a signed JWT for the Bee process.
 func GenerateBeeToken(secret string, ttl time.Duration) (string, error) {
 	return signToken(MCPClaims{
 		Type: TokenTypeBee,
@@ -30,7 +29,6 @@ func GenerateBeeToken(secret string, ttl time.Duration) (string, error) {
 	}, secret)
 }
 
-// GenerateWorkerToken creates a signed JWT for a specific Worker.
 func GenerateWorkerToken(secret, workerID string, scopes []string, ttl time.Duration) (string, error) {
 	return signToken(MCPClaims{
 		Type:     TokenTypeWorker,
@@ -42,7 +40,6 @@ func GenerateWorkerToken(secret, workerID string, scopes []string, ttl time.Dura
 	}, secret)
 }
 
-// ValidateToken parses and validates a JWT, returning its claims.
 func ValidateToken(tokenStr, secret string) (*MCPClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &MCPClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

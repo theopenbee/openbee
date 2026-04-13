@@ -15,7 +15,6 @@ const (
 	ScopeReadExecutions  = "read:executions"
 )
 
-// AllScopes is the complete list of valid permission scope values.
 var AllScopes = []string{
 	ScopeReadWorkers,
 	ScopeReadDepartments,

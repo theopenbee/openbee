@@ -45,3 +45,7 @@ export function parseScopes(raw: string): string[] {
 export function serializeScopes(scopes: string[]): string {
   return scopes.join(",")
 }
+
+export function toggleScope(scopes: string[], scopeId: string, val: boolean): string[] {
+  return val ? [...scopes, scopeId] : scopes.filter((s) => s !== scopeId)
+}

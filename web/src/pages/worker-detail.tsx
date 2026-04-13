@@ -21,7 +21,7 @@ import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageCo
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
-import { KNOWN_SCOPES, parseScopes, serializeScopes } from "@/lib/scopes"
+import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 
 const PAGE_SIZE = 20
 
@@ -429,14 +429,13 @@ export function WorkerDetail() {
                     scope={scope}
                     checked={localScopes.includes(scope.id)}
                     onToggle={(scopeId, val) => {
-                      const newScopes = val
-                        ? [...localScopes, scopeId]
-                        : localScopes.filter((s) => s !== scopeId)
+                      const prevScopes = localScopes
+                      const newScopes = toggleScope(localScopes, scopeId, val)
                       setLocalScopes(newScopes)
-                      updateWorker.mutate({
-                        id: id!,
-                        data: { permission_scopes: serializeScopes(newScopes) },
-                      })
+                      updateWorker.mutate(
+                        { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
+                        { onError: () => setLocalScopes(prevScopes) }
+                      )
                     }}
                     disabled={updateWorker.isPending}
                   />

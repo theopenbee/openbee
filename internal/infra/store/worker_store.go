@@ -192,7 +192,6 @@ func (s *WorkerStore) Delete(id string) error {
 	return err
 }
 
-// CountByStatus returns a map of worker status to count.
 func (s *WorkerStore) CountByStatus() (map[string]int, error) {
 	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM bee_workers GROUP BY status`)
 	if err != nil {

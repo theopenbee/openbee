@@ -41,7 +41,6 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 	return name
 }
 
-// checkWorkerScope enforces scope-based access control for worker tokens.
 // Bee tokens (empty workerID in context) are always allowed.
 func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
 	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
@@ -59,7 +58,6 @@ func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error
 	return fmt.Errorf("permission denied: scope %s required", requiredScope)
 }
 
-// beeCallTool dispatches to the named tool handler and returns the result.
 func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	if err := s.checkWorkerScope(ctx, name); err != nil {
 		return nil, err

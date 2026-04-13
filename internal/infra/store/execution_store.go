@@ -156,7 +156,7 @@ func (s *ExecutionStore) ListPaginatedByWorkerID(workerID string, limit, offset 
 
 // GetRunningByWorkerID returns the currently running execution for a worker, or nil if none.
 func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExecution, error) {
-	row := s.db.QueryRow(execSelect+` WHERE e.worker_id = ? AND e.status = 'running' LIMIT 1`, workerID)
+	row := s.db.QueryRow(execSelect+` WHERE e.worker_id = ? AND e.status = ? LIMIT 1`, workerID, model.ExecStatusRunning)
 	e, err := scanExecution(row)
 	if err == sql.ErrNoRows {
 		return nil, nil

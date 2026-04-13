@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+// Inbound message status constants.
+const (
+	MsgStatusReceived     = "received"
+	MsgStatusFeeding      = "feeding"
+	MsgStatusMerged       = "merged"
+	MsgStatusBeeProcessed = "bee_processed"
+	MsgStatusFailed       = "failed"
+)
+
 // BatchMsg is a single row for a bulk insert via CreateBatch.
 type BatchMsg struct {
 	ID            string
@@ -78,8 +87,8 @@ func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, stat
 func (s *MessageStore) FetchMergedContent(ctx context.Context, primaryID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT content FROM bee_platform_messages
-         WHERE merged_into = ? AND status = 'merged'
-         ORDER BY received_at ASC`, primaryID)
+         WHERE merged_into = ? AND status = ?
+         ORDER BY received_at ASC`, primaryID, MsgStatusMerged)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +163,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		ids[i] = m.ID
 	}
 	args := make([]any, 0, len(ids)+2)
-	args = append(args, "feeding", time.Now().UnixMilli())
+	args = append(args, MsgStatusFeeding, time.Now().UnixMilli())
 	for _, id := range ids {
 		args = append(args, id)
 	}
@@ -167,7 +176,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 
 // MarkBeeProcessed sets status to 'bee_processed' for the given message IDs.
 func (s *MessageStore) MarkBeeProcessed(ctx context.Context, ids []string) error {
-	return s.UpdateStatusBatch(ctx, ids, "bee_processed")
+	return s.UpdateStatusBatch(ctx, ids, MsgStatusBeeProcessed)
 }
 
 // RollbackWithRetry increments retry_count for each message and resets status to
@@ -200,7 +209,7 @@ func (s *MessageStore) RollbackWithRetry(ctx context.Context, ids []string, maxR
 // Returns the IDs of affected rows so the caller can delete orphaned pending tasks.
 func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id FROM bee_platform_messages WHERE status = 'feeding'`)
+		`SELECT id FROM bee_platform_messages WHERE status = ?`, MsgStatusFeeding)
 	if err != nil {
 		return nil, fmt.Errorf("select feeding: %w", err)
 	}
@@ -220,7 +229,7 @@ func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, er
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	if err := s.UpdateStatusBatch(ctx, ids, "received"); err != nil {
+	if err := s.UpdateStatusBatch(ctx, ids, MsgStatusReceived); err != nil {
 		return nil, fmt.Errorf("reset feeding: %w", err)
 	}
 	return ids, nil
@@ -230,7 +239,7 @@ func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, er
 func (s *MessageStore) CountReceived(ctx context.Context) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM bee_platform_messages WHERE status = 'received'`).Scan(&count)
+		`SELECT COUNT(*) FROM bee_platform_messages WHERE status = ?`, MsgStatusReceived).Scan(&count)
 	return count, err
 }
 
@@ -365,14 +374,14 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	)
 	if before > 0 {
 		query = `SELECT id, content, received_at FROM bee_platform_messages
-                 WHERE session_key = ? AND status != 'merged' AND received_at < ?
+                 WHERE session_key = ? AND status != ? AND received_at < ?
                  ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, before, limit}
+		args = []any{sessionKey, MsgStatusMerged, before, limit}
 	} else {
 		query = `SELECT id, content, received_at FROM bee_platform_messages
-                 WHERE session_key = ? AND status != 'merged'
+                 WHERE session_key = ? AND status != ?
                  ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, limit}
+		args = []any{sessionKey, MsgStatusMerged, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

@@ -18,13 +18,11 @@ var log = logger.With(zap.String("component", "mcp"))
 
 type ctxKey string
 
-// CtxWorkerIDKey carries the caller's worker ID through tool dispatch.
-// It uses the same string value as CtxKeyWorkerID (set by auth middleware on gin.Context)
+// Uses the same string value as CtxKeyWorkerID (auth middleware on gin.Context)
 // so the two stay in sync without a hard import dependency between packages.
 // Exported so tests can construct contexts that simulate worker calls.
 const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
-// CtxScopesKey carries the caller's permission scopes through tool dispatch.
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
