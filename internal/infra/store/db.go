@@ -278,6 +278,33 @@ FROM bee_session_contexts;
 DROP TABLE bee_session_contexts;
 ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.EngineClaude),
 	},
+	{
+		version: 30,
+		name:    "add_permission_scopes_to_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN permission_scopes TEXT NOT NULL DEFAULT ''`,
+	},
+}
+
+type whereBuilder struct {
+	clauses []string
+	args    []any
+}
+
+func (b *whereBuilder) add(clause string, arg any) {
+	b.clauses = append(b.clauses, clause)
+	b.args = append(b.args, arg)
+}
+
+func (b *whereBuilder) addAll(clause string, args ...any) {
+	b.clauses = append(b.clauses, clause)
+	b.args = append(b.args, args...)
+}
+
+func (b *whereBuilder) build() (string, []any) {
+	if len(b.clauses) == 0 {
+		return "", nil
+	}
+	return " WHERE " + strings.Join(b.clauses, " AND "), b.args
 }
 
 // stringsToArgs converts a string slice to a []any slice for use as SQL query arguments.
@@ -287,6 +314,11 @@ func stringsToArgs(ss []string) []any {
 		args[i] = s
 	}
 	return args
+}
+
+// appendPaginationArgs appends limit and offset to a safe copy of args.
+func appendPaginationArgs(args []any, limit, offset int) []any {
+	return append(args[:len(args):len(args)], limit, offset)
 }
 
 // inPlaceholders returns n comma-separated "?" for SQL IN clauses, e.g. inPlaceholders(3) == "?,?,?".

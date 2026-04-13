@@ -11,11 +11,12 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var log = logger.With(zap.String("component", "worker"))
@@ -52,29 +53,36 @@ func NewManager(
 	}
 }
 
-func (m *Manager) CreateWorker(
-	name, description, memory string,
-	workDir string,
-) (model.Worker, error) {
+// CreateWorkerParams holds the inputs for creating a new worker.
+type CreateWorkerParams struct {
+	Name             string
+	Description      string
+	Memory           string
+	WorkDir          string
+	PermissionScopes string
+}
+
+func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	id := uuid.New().String()
-	if workDir == "" {
-		workDir = filepath.Join(m.workerBaseDir, id)
+	if p.WorkDir == "" {
+		p.WorkDir = filepath.Join(m.workerBaseDir, id)
 	}
 
-	if err := os.MkdirAll(workDir, 0755); err != nil {
+	if err := os.MkdirAll(p.WorkDir, 0755); err != nil {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := m.engine.Prepare(workDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	if err := m.engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}
 
 	return m.workerStore.Create(model.Worker{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Memory:      memory,
-		WorkDir:     workDir,
+		ID:               id,
+		Name:             p.Name,
+		Description:      p.Description,
+		Memory:           p.Memory,
+		WorkDir:          p.WorkDir,
+		PermissionScopes: p.PermissionScopes,
 	})
 }
 
@@ -122,7 +130,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
-	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, m.tokenTTL)
+	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), m.tokenTTL)
 	if err != nil {
 		return fmt.Errorf("generate worker token: %w", err)
 	}

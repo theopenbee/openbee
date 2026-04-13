@@ -18,6 +18,18 @@ var ctlWorkerListCmd = &cobra.Command{
 				a["recursive"] = false
 			}
 		}
+		if workerListName != "" {
+			a["name"] = workerListName
+		}
+		if workerListID != "" {
+			a["id"] = workerListID
+		}
+		if workerListPage > 0 {
+			a["page"] = workerListPage
+		}
+		if workerListPageSize > 0 {
+			a["page_size"] = workerListPageSize
+		}
 		return ctlRun(utils.ListWorkers, a)
 	},
 }
@@ -45,6 +57,7 @@ var (
 	workerCreateDescription string
 	workerCreateMemory      string
 	workerCreateWorkDir     string
+	workerCreateScopes      string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -64,6 +77,9 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateDepartment != "" {
 			a["department_ids"] = workerCreateDepartment
 		}
+		if workerCreateScopes != "" {
+			a["permission_scopes"] = workerCreateScopes
+		}
 		return ctlRun(utils.CreateWorker, a)
 	},
 }
@@ -72,6 +88,7 @@ var (
 	workerUpdateName        string
 	workerUpdateDescription string
 	workerUpdateMemory      string
+	workerUpdateScopes      string
 )
 
 var ctlWorkerUpdateCmd = &cobra.Command{
@@ -92,6 +109,9 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("department") {
 			a["department_ids"] = workerUpdateDepartment
 		}
+		if cmd.Flags().Changed("scopes") {
+			a["permission_scopes"] = workerUpdateScopes
+		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
 }
@@ -99,6 +119,10 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 var (
 	workerListDepartment   string
 	workerListNoRecursive  bool
+	workerListName         string
+	workerListID           string
+	workerListPage         int
+	workerListPageSize     int
 	workerCreateDepartment string
 	workerUpdateDepartment string
 )
@@ -132,8 +156,14 @@ func init() {
 
 	ctlWorkerListCmd.Flags().StringVar(&workerListDepartment, "department", "", "Filter by department ID or name")
 	ctlWorkerListCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
+	ctlWorkerListCmd.Flags().StringVar(&workerListName, "name", "", "Filter by name (case-insensitive partial match)")
+	ctlWorkerListCmd.Flags().StringVar(&workerListID, "id", "", "Filter by exact worker ID")
+	ctlWorkerListCmd.Flags().IntVar(&workerListPage, "page", 0, "Page number (default: 1)")
+	ctlWorkerListCmd.Flags().IntVar(&workerListPageSize, "page-size", 0, "Page size (default: 50, max: 200)")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
+	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
+	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,

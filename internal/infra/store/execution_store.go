@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -155,7 +156,7 @@ func (s *ExecutionStore) ListPaginatedByWorkerID(workerID string, limit, offset 
 
 // GetRunningByWorkerID returns the currently running execution for a worker, or nil if none.
 func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExecution, error) {
-	row := s.db.QueryRow(execSelect+` WHERE e.worker_id = ? AND e.status = 'running' LIMIT 1`, workerID)
+	row := s.db.QueryRow(execSelect+` WHERE e.worker_id = ? AND e.status = ? LIMIT 1`, workerID, model.ExecStatusRunning)
 	e, err := scanExecution(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -222,6 +223,48 @@ func (s *ExecutionStore) PrepareLogPath(id string, startedAt *int64) (string, er
 		return "", fmt.Errorf("set log_path: %w", err)
 	}
 	return logPath, nil
+}
+
+// ExecutionFilter holds optional filter criteria for ListFiltered.
+// Zero/empty values are ignored (no filtering on that field).
+type ExecutionFilter struct {
+	WorkerID      string
+	SessionID     string
+	Status        string
+	StartedFrom   int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	StartedTo     int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+	CompletedFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	CompletedTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+}
+
+// ListFiltered returns paginated executions matching the given filters and the total count.
+func (s *ExecutionStore) ListFiltered(ctx context.Context, f ExecutionFilter, limit, offset int) ([]model.WorkerExecution, int, error) {
+	where, args := executionFilterWhere(f)
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM bee_executions e"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count filtered executions: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, execSelect+where+" ORDER BY e.started_at DESC LIMIT ? OFFSET ?", appendPaginationArgs(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list filtered executions: %w", err)
+	}
+	defer rows.Close()
+	execs, err := scanExecutions(rows)
+	return execs, total, err
+}
+
+func executionFilterWhere(f ExecutionFilter) (string, []any) {
+	var b whereBuilder
+	if f.WorkerID != ""    { b.add("e.worker_id = ?", f.WorkerID) }
+	if f.SessionID != ""   { b.add("e.session_id = ?", f.SessionID) }
+	if f.Status != ""      { b.add("e.status = ?", f.Status) }
+	if f.StartedFrom > 0   { b.add("e.started_at >= ?", f.StartedFrom) }
+	if f.StartedTo > 0     { b.add("e.started_at <= ?", f.StartedTo) }
+	if f.CompletedFrom > 0 { b.add("e.completed_at >= ?", f.CompletedFrom) }
+	if f.CompletedTo > 0   { b.add("e.completed_at <= ?", f.CompletedTo) }
+	return b.build()
 }
 
 func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {

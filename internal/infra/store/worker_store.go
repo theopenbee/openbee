@@ -26,10 +26,10 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = w.CreatedAt
 
 	_, err := s.db.Exec(
-		`INSERT INTO bee_workers (id, name, description, memory, work_dir, status, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO bee_workers (id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		w.ID, w.Name, w.Description, w.Memory, w.WorkDir,
-		w.Status, w.CreatedAt, w.UpdatedAt,
+		w.Status, w.PermissionScopes, w.CreatedAt, w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("insert worker: %w", err)
@@ -37,13 +37,14 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	return w, nil
 }
 
-const workerColumns = `id, name, description, memory, work_dir, status, created_at, updated_at`
+const workerColumns = `id, name, description, memory, work_dir, status, permission_scopes, created_at, updated_at`
+const workerColumnsAliased = `w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.permission_scopes, w.created_at, w.updated_at`
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
 	err := scanner.Scan(
 		&w.ID, &w.Name, &w.Description, &w.Memory,
-		&w.WorkDir, &w.Status, &w.CreatedAt, &w.UpdatedAt,
+		&w.WorkDir, &w.Status, &w.PermissionScopes, &w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, err
@@ -106,7 +107,7 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 
 func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
 	rows, err := s.db.Query(
-		`SELECT w.id, w.name, w.description, w.memory, w.work_dir, w.status, w.created_at, w.updated_at
+		`SELECT `+workerColumnsAliased+`
 		 FROM bee_workers w
 		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
 		 WHERE wd.department_id = ?
@@ -129,14 +130,51 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
+// WorkerFilter holds optional filter criteria for listing workers.
+type WorkerFilter struct {
+	Name      string   // case-insensitive partial match; empty means no filter
+	ID        string   // exact match; empty means no filter
+	WorkerIDs []string // nil means no restriction; non-nil (even empty) restricts to these IDs
+}
+
+// ListFiltered returns workers matching the filter with pagination, plus the total count.
+func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]model.Worker, int, error) {
+	if filter.WorkerIDs != nil && len(filter.WorkerIDs) == 0 {
+		return []model.Worker{}, 0, nil
+	}
+
+	var b whereBuilder
+	if filter.ID != ""   { b.add("id = ?", filter.ID) }
+	if filter.Name != "" { b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%") }
+	if filter.WorkerIDs != nil {
+		b.addAll("id IN ("+inPlaceholders(len(filter.WorkerIDs))+")", stringsToArgs(filter.WorkerIDs)...)
+	}
+	where, args := b.build()
+
+	var total int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM bee_workers"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count workers: %w", err)
+	}
+
+	rows, err := s.db.Query(
+		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		appendPaginationArgs(args, limit, offset)...,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list workers filtered: %w", err)
+	}
+	defer rows.Close()
+	workers, err := scanWorkers(rows)
+	return workers, total, err
+}
 
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
 	_, err := s.db.Exec(
-		`UPDATE bee_workers SET name=?, description=?, memory=?, work_dir=?, status=?, updated_at=?
+		`UPDATE bee_workers SET name=?, description=?, memory=?, work_dir=?, status=?, permission_scopes=?, updated_at=?
 		 WHERE id=?`,
 		w.Name, w.Description, w.Memory, w.WorkDir,
-		w.Status, w.UpdatedAt, w.ID,
+		w.Status, w.PermissionScopes, w.UpdatedAt, w.ID,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("update worker: %w", err)
@@ -154,7 +192,6 @@ func (s *WorkerStore) Delete(id string) error {
 	return err
 }
 
-// CountByStatus returns a map of worker status to count.
 func (s *WorkerStore) CountByStatus() (map[string]int, error) {
 	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM bee_workers GROUP BY status`)
 	if err != nil {

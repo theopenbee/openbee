@@ -1,0 +1,160 @@
+# openbee ctl CLI Complete Reference
+
+`openbee ctl` is the command-line tool for operating the openbee system, outputting in JSON format. All subcommands use `-c config.yaml` to specify the config file (default: `config.yaml`).
+
+## worker subcommand
+
+```bash
+openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
+openbee ctl worker get <id>
+openbee ctl worker status <id>
+openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>] [--department <id|name>] [--scopes <scopes>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>] [--department <id|name>] [--scopes <scopes>]
+openbee ctl worker delete <id> [--delete-work-dir]
+```
+
+- `--department` accepts an ID or name; comma-separated for multiple departments
+- `--no-recursive` (only for `worker list`): return only workers directly in the department, excluding child departments; default is recursive
+- `--name` (only for `worker list`): filter by name (case-insensitive partial match)
+- `--id` (only for `worker list`): filter by exact worker ID
+- `--page` / `--page-size` (only for `worker list`): pagination; default page 1, default 50 per page, max 200
+- `--scopes` (create/update): comma-separated permission scope list granted to this worker; pass empty string to clear all scopes
+
+### Worker Permission Scopes
+
+Permission scopes control which read-only query tools a worker token is allowed to call. Bee tokens are never scope-restricted — only worker tokens are subject to scope enforcement.
+
+Available scopes:
+
+| Scope | Grants access to |
+|---|---|
+| `read:workers` | `list_workers`, `get_worker`, `get_worker_status` |
+| `read:departments` | `list_departments`, `get_department` |
+| `read:tasks` | `list_tasks` |
+| `read:messages` | `list_messages`, `list_outbound_messages` |
+| `read:executions` | `list_executions` |
+
+If a worker token calls a tool without the required scope, the call returns: `permission denied: scope <scope> required`.
+
+```bash
+# Grant a worker access to workers and tasks
+openbee ctl worker update <id> --scopes read:workers,read:tasks
+
+# Grant all read scopes
+openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks,read:messages,read:executions
+
+# Clear all scopes
+openbee ctl worker update <id> --scopes ""
+```
+
+## department subcommand
+
+```bash
+openbee ctl department list
+openbee ctl department get <id|name>
+openbee ctl department create --name <name> [--parent <id|name>] [--sort-order <n>]
+openbee ctl department update <id|name> [--name <name>] [--parent <id|name>] [--sort-order <n>]
+openbee ctl department delete <id|name>
+```
+
+## task subcommand
+
+```bash
+openbee ctl task list [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>]
+openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type <immediate|countdown|scheduled> [--scheduled-at <unix milliseconds>] [--cron <cron expression>]
+openbee ctl task cancel <id>
+```
+
+## memory subcommand
+
+```bash
+openbee ctl memory get --scope <global|session_key> [--key <key>]
+openbee ctl memory save --scope <global|session_key> --key <key> --value <value>
+openbee ctl memory delete --scope <global|session_key> --key <key>
+```
+
+## session subcommand
+
+```bash
+openbee ctl session list --session-key <key>
+openbee ctl session clear --session-key <key> [--force]
+openbee ctl session clear-worker --session-key <key> --worker-id <id>
+```
+
+## system subcommand
+
+```bash
+openbee ctl system overview
+openbee ctl system executions [--limit <count>]
+```
+
+## message subcommand
+
+```bash
+openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
+openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
+
+# Note: --media-path supports only one file per call; sending multiple files requires multiple calls
+
+# Scenario 1: Text-only notification
+openbee ctl message send --message-id <id> --stdin << 'EOF'
+Task has been dispatched to Maomao, please wait.
+EOF
+
+# Scenario 2: Send a screenshot (with description)
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/overview.png << 'EOF'
+System status screenshot attached.
+EOF
+
+# Scenario 3: Send a file (e.g., logs, CSV report)
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/tasks.csv << 'EOF'
+Here is the exported task list.
+EOF
+
+# Scenario 4: Send multiple files (multiple calls required)
+openbee ctl message send --message-id <id> --stdin << 'EOF'
+2 attachments in total, sending in order.
+EOF
+openbee ctl message send --message-id <id> --media-path /tmp/file1.png
+openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
+
+# Scenario 5: Query message history (single filter)
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --status received
+openbee ctl message list --platform feishu --received-from 1700000000000
+
+# Scenario 6: Query message history (multiple filters combined)
+openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
+
+# Scenario 7: Pagination (default 50 per page, max 100)
+openbee ctl message list --platform feishu --page 2 --page-size 20
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
+```
+
+## execution subcommand
+
+```bash
+openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- `--status` accepts: `pending`, `running`, `completed`, `failed`
+- All timestamp flags use Unix milliseconds
+- Pagination: default 50 per page, max 100; use `--page` and `--page-size` to paginate
+- Returns paginated results with `items`, `total`, `page`, `page_size` fields
+- All filter flags can be combined freely in a single command
+
+```bash
+# Single filter
+openbee ctl execution list --worker-id abc123
+openbee ctl execution list --status running
+
+# Multiple filters combined
+openbee ctl execution list --worker-id abc123 --status completed
+openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
+openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
+
+# Pagination
+openbee ctl execution list --status completed --page 2 --page-size 20
+openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
+```

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -35,8 +36,8 @@ func InstallSkills(baseDir string) ([]SkillResult, error) {
 	}
 
 	var results []SkillResult
-	for _, skill := range embeddedSkills {
-		result, err := installSkill(baseDir, skill)
+	for _, name := range embeddedSkills {
+		result, err := installSkill(baseDir, name)
 		if err != nil {
 			return results, err
 		}
@@ -69,29 +70,109 @@ func InstallSkillsToDefaults() ([]SkillResult, error) {
 	return allResults, nil
 }
 
-func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
-	targetPath := filepath.Join(baseDir, skill.name, "SKILL.md")
-	newContent := []byte(skill.content)
-	newHash := sha256.Sum256(newContent)
+func installSkill(baseDir string, name string) (SkillResult, error) {
+	skillDir := filepath.Join(baseDir, name)
+	fsRoot := "skills/" + name
 
-	action := ActionInstalled
-	existing, err := os.ReadFile(targetPath)
-	if err == nil {
-		if sha256.Sum256(existing) == newHash {
-			return SkillResult{Name: skill.name, Action: ActionUpToDate}, nil
-		}
-		action = ActionUpdated
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return SkillResult{}, fmt.Errorf("read skill %s: %w", skill.name, err)
-	}
-	if action == ActionInstalled {
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-			return SkillResult{}, fmt.Errorf("create skill dir %s: %w", skill.name, err)
-		}
+	embeddedFiles, err := collectEmbeddedFiles(fsRoot)
+	if err != nil {
+		return SkillResult{}, fmt.Errorf("read embedded skill %s: %w", name, err)
 	}
 
-	if err := os.WriteFile(targetPath, newContent, 0o644); err != nil {
-		return SkillResult{}, fmt.Errorf("%s skill %s: %w", action, skill.name, err)
+	diskFiles, err := collectDiskFiles(skillDir)
+	if err != nil {
+		return SkillResult{}, fmt.Errorf("scan skill dir %s: %w", name, err)
 	}
-	return SkillResult{Name: skill.name, Action: action}, nil
+
+	firstInstall := len(diskFiles) == 0
+	changed := false
+
+	seenDirs := make(map[string]bool)
+	for relPath, content := range embeddedFiles {
+		if diskFiles[relPath] == sha256.Sum256([]byte(content)) {
+			continue
+		}
+		target := filepath.Join(skillDir, filepath.FromSlash(relPath))
+		dir := filepath.Dir(target)
+		if !seenDirs[dir] {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return SkillResult{}, fmt.Errorf("create dir for %s/%s: %w", name, relPath, err)
+			}
+			seenDirs[dir] = true
+		}
+		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+			return SkillResult{}, fmt.Errorf("write %s/%s: %w", name, relPath, err)
+		}
+		changed = true
+	}
+
+	for relPath := range diskFiles {
+		if _, ok := embeddedFiles[relPath]; !ok {
+			target := filepath.Join(skillDir, filepath.FromSlash(relPath))
+			if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return SkillResult{}, fmt.Errorf("remove stale %s/%s: %w", name, relPath, err)
+			}
+			changed = true
+		}
+	}
+
+	action := actionFor(firstInstall, changed)
+	return SkillResult{Name: name, Action: action}, nil
+}
+
+// collectEmbeddedFiles walks the embedded FS under root and returns
+// a map of slash-separated relative paths to file contents.
+func collectEmbeddedFiles(root string) (map[string]string, error) {
+	files := make(map[string]string)
+	err := fs.WalkDir(skillsFS, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := skillsFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		relPath := path[len(root)+1:]
+		files[relPath] = string(data)
+		return nil
+	})
+	return files, err
+}
+
+// collectDiskFiles walks skillDir and returns a map of slash-separated relative
+// file paths to their SHA-256 hashes. Returns an empty map if the directory does not exist.
+func collectDiskFiles(skillDir string) (map[string][32]byte, error) {
+	files := make(map[string][32]byte)
+	err := filepath.WalkDir(skillDir, func(path string, d fs.DirEntry, err error) error {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(skillDir, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[filepath.ToSlash(rel)] = sha256.Sum256(data)
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return files, nil
+	}
+	return files, err
+}
+
+func actionFor(firstInstall, changed bool) Action {
+	if firstInstall {
+		return ActionInstalled
+	}
+	if changed {
+		return ActionUpdated
+	}
+	return ActionUpToDate
 }
