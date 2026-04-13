@@ -144,25 +144,25 @@ func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]mo
 		return []model.Worker{}, 0, nil
 	}
 
-	var conditions []string
+	var clauses []string
 	var args []any
 
 	if filter.ID != "" {
-		conditions = append(conditions, "id = ?")
+		clauses = append(clauses, "id = ?")
 		args = append(args, filter.ID)
 	}
 	if filter.Name != "" {
-		conditions = append(conditions, "LOWER(name) LIKE LOWER(?)")
+		clauses = append(clauses, "LOWER(name) LIKE LOWER(?)")
 		args = append(args, "%"+filter.Name+"%")
 	}
 	if filter.WorkerIDs != nil {
-		conditions = append(conditions, "id IN ("+inPlaceholders(len(filter.WorkerIDs))+")")
+		clauses = append(clauses, "id IN ("+inPlaceholders(len(filter.WorkerIDs))+")")
 		args = append(args, stringsToArgs(filter.WorkerIDs)...)
 	}
 
 	where := ""
-	if len(conditions) > 0 {
-		where = " WHERE " + strings.Join(conditions, " AND ")
+	if len(clauses) > 0 {
+		where = " WHERE " + strings.Join(clauses, " AND ")
 	}
 
 	var total int

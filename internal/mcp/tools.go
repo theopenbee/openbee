@@ -201,18 +201,7 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	for _, d := range depts {
 		deptBriefs = append(deptBriefs, departmentBrief{ID: d.ID, Name: d.Name})
 	}
-	return workerDetailResponse{
-		ID:               w.ID,
-		Name:             w.Name,
-		Description:      w.Description,
-		Memory:           w.Memory,
-		WorkDir:          w.WorkDir,
-		Status:           string(w.Status),
-		PermissionScopes: w.PermissionScopes,
-		CreatedAt:        w.CreatedAt,
-		UpdatedAt:        w.UpdatedAt,
-		Departments:      deptBriefs,
-	}, nil
+	return workerDetailResponse{Worker: w, Departments: deptBriefs}, nil
 }
 
 type departmentBrief struct {
@@ -221,16 +210,8 @@ type departmentBrief struct {
 }
 
 type workerDetailResponse struct {
-	ID               string            `json:"id"`
-	Name             string            `json:"name"`
-	Description      string            `json:"description"`
-	Memory           string            `json:"memory"`
-	WorkDir          string            `json:"work_dir"`
-	Status           string            `json:"status"`
-	PermissionScopes string            `json:"permission_scopes"`
-	CreatedAt        int64             `json:"created_at"`
-	UpdatedAt        int64             `json:"updated_at"`
-	Departments      []departmentBrief `json:"departments"`
+	model.Worker
+	Departments []departmentBrief `json:"departments"`
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {

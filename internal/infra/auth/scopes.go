@@ -24,7 +24,6 @@ var AllScopes = []string{
 	ScopeReadExecutions,
 }
 
-// validScopeSet is a pre-built lookup set for O(1) scope validation.
 var validScopeSet map[string]struct{}
 
 func init() {
