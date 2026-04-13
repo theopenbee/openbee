@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -60,7 +61,7 @@ func (s *EnvConfigStore) Create(cfg *model.EnvConfig) error {
 	return nil
 }
 
-func (s *EnvConfigStore) List(scope, scopeID string) ([]*model.EnvConfig, error) {
+func (s *EnvConfigStore) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
 	rows, err := s.db.Query(
 		`SELECT `+envConfigColumns+` FROM bee_env_configs WHERE scope = ? AND scope_id = ? ORDER BY created_at ASC`,
 		scope, scopeID,
@@ -76,6 +77,9 @@ func (s *EnvConfigStore) Get(id string) (*model.EnvConfig, error) {
 	row := s.db.QueryRow(`SELECT `+envConfigColumns+` FROM bee_env_configs WHERE id = ?`, id)
 	cfg, err := scanEnvConfig(row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("get env config: %w", err)
 	}
 	return cfg, nil
