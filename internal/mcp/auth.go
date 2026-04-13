@@ -10,7 +10,7 @@ import (
 const (
 	CtxKeyTokenType = "mcp.token.type"
 	CtxKeyWorkerID  = "mcp.token.worker_id"
-	CtxKeyScopes = "mcp.token.scopes"
+	CtxKeyScopes    = "mcp.token.scopes"
 )
 
 // JWTAuthMiddleware validates the MCP JWT and writes claims to gin.Context.
