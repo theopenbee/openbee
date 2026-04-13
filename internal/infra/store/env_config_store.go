@@ -114,7 +114,7 @@ func (s *EnvConfigStore) ListForDepartments(departmentIDs []string) ([]*model.En
 	rows, err := s.db.Query(
 		`SELECT `+envConfigColumns+` FROM bee_env_configs
 		 WHERE scope = ? AND scope_id IN (`+inPlaceholders(len(departmentIDs))+`)
-		 ORDER BY scope_id ASC`,
+		 ORDER BY scope_id DESC`,
 		args...,
 	)
 	if err != nil {

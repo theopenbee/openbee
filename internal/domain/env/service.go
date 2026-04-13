@@ -31,6 +31,17 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 		return nil, fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be set")
 	}
 
+	switch scope {
+	case "global", "bee", "department", "worker":
+		// valid
+	default:
+		return nil, fmt.Errorf("invalid scope %q: must be one of global, bee, department, worker", scope)
+	}
+
+	if scope != "global" && scopeID == "" {
+		return nil, fmt.Errorf("scope_id is required for scope %q", scope)
+	}
+
 	encValue, err := crypto.Encrypt(s.encKey, plainValue)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt env value: %w", err)
