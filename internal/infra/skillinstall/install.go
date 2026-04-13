@@ -45,6 +45,30 @@ func InstallSkills(baseDir string) ([]SkillResult, error) {
 	return results, nil
 }
 
+// InstallSkillsToDefaults installs embedded skills to all default locations:
+//
+//	~/.claude/skills  (Claude Code)
+//	~/.agents/skills  (agents runtime)
+func InstallSkillsToDefaults() ([]SkillResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve home dir: %w", err)
+	}
+	dirs := []string{
+		filepath.Join(home, ".claude", "skills"),
+		filepath.Join(home, ".agents", "skills"),
+	}
+	var allResults []SkillResult
+	for _, dir := range dirs {
+		results, err := InstallSkills(dir)
+		allResults = append(allResults, results...)
+		if err != nil {
+			return allResults, err
+		}
+	}
+	return allResults, nil
+}
+
 func installSkill(baseDir string, skill skillDef) (SkillResult, error) {
 	targetPath := filepath.Join(baseDir, skill.name, "SKILL.md")
 	newContent := []byte(skill.content)

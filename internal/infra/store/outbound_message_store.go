@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"slices"
 	"time"
 )
@@ -125,48 +124,4 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 	}
 	slices.Reverse(msgs)
 	return msgs, nil
-}
-
-// allowedFilterColumns is a whitelist of columns that listByColumn may filter on.
-var allowedFilterColumns = map[string]bool{
-	"platform":  true,
-	"source_id": true,
-}
-
-// listByColumn returns outbound messages filtered by a single column, ordered by sent_at descending.
-func (s *OutboundMessageStore) listByColumn(ctx context.Context, column, value string, limit int) ([]OutboundMessage, error) {
-	if !allowedFilterColumns[column] {
-		return nil, fmt.Errorf("invalid filter column: %q", column)
-	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+outboundMessageColumns+`
-		 FROM bee_outbound_messages
-		 WHERE `+column+` = ?
-		 ORDER BY sent_at DESC
-		 LIMIT ?`,
-		value, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanOutboundMessages(rows)
-}
-
-// ListByPlatform returns outbound messages for a platform ordered by sent_at descending.
-func (s *OutboundMessageStore) ListByPlatform(ctx context.Context, platform string, limit int) ([]OutboundMessage, error) {
-	return s.listByColumn(ctx, "platform", platform, limit)
-}
-
-// ListBySourceID returns outbound messages sent by a specific source (worker/bee) ordered by sent_at descending.
-func (s *OutboundMessageStore) ListBySourceID(ctx context.Context, sourceID string, limit int) ([]OutboundMessage, error) {
-	return s.listByColumn(ctx, "source_id", sourceID, limit)
-}
-
-// DeleteBySessionKey removes all outbound messages for the given session key.
-func (s *OutboundMessageStore) DeleteBySessionKey(ctx context.Context, sessionKey string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_outbound_messages WHERE session_key = ?`, sessionKey,
-	)
-	return err
 }

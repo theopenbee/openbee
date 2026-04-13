@@ -87,6 +87,38 @@ func TestInstallSkills_Updated(t *testing.T) {
 	}
 }
 
+func TestInstallSkillsToDefaults(t *testing.T) {
+	// Override home so both default paths resolve under our temp dir.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	results, err := InstallSkillsToDefaults()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Two dirs × two skills = four results.
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results (2 skills × 2 dirs), got %d", len(results))
+	}
+	for _, r := range results {
+		if r.Action != ActionInstalled {
+			t.Errorf("skill %s: expected 'installed', got %q", r.Name, r.Action)
+		}
+	}
+
+	// Verify files exist in both target directories.
+	claudeSkills := filepath.Join(home, ".claude", "skills")
+	agentsSkills := filepath.Join(home, ".agents", "skills")
+	for _, dir := range []string{claudeSkills, agentsSkills} {
+		for _, name := range []string{"openbee-bee", "openbee-worker"} {
+			p := filepath.Join(dir, name, "SKILL.md")
+			if _, err := os.Stat(p); err != nil {
+				t.Errorf("expected file %s to exist: %v", p, err)
+			}
+		}
+	}
+}
+
 func TestInstallSkills_WriteError(t *testing.T) {
 	dir := t.TempDir()
 	// Place a regular file at the path where the "openbee-bee" directory would be created,

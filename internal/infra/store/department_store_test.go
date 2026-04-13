@@ -162,7 +162,7 @@ func TestDepartmentStore_SetWorkerDepartments(t *testing.T) {
 	}
 }
 
-func TestDepartmentStore_GetDepartmentWorkerIDs(t *testing.T) {
+func TestDepartmentStore_GetWorkerIDsForDepartments(t *testing.T) {
 	ds, ws := setupDeptTestDB(t)
 	dept, _ := ds.Create(model.Department{Name: "Dept"})
 	w1, _ := ws.Create(model.Worker{Name: "Bot1", WorkDir: "/tmp/b1"})
@@ -171,9 +171,9 @@ func TestDepartmentStore_GetDepartmentWorkerIDs(t *testing.T) {
 	ds.SetWorkerDepartments(w1.ID, []string{dept.ID})
 	ds.SetWorkerDepartments(w2.ID, []string{dept.ID})
 
-	ids, err := ds.GetDepartmentWorkerIDs(dept.ID)
+	ids, err := ds.GetWorkerIDsForDepartments([]string{dept.ID})
 	if err != nil {
-		t.Fatalf("GetDepartmentWorkerIDs: %v", err)
+		t.Fatalf("GetWorkerIDsForDepartments: %v", err)
 	}
 	if len(ids) != 2 {
 		t.Errorf("expected 2 worker IDs, got %d", len(ids))

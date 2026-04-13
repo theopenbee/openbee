@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, groupExecutionsBySession, statusTone } from "@/lib/format"
+import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 
@@ -286,7 +286,7 @@ export function WorkerDetail() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2.5">
                             <Link
-                              to={`/sessions/${latest.session_id}`}
+                              to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
                               className="font-mono text-sm text-primary transition-colors hover:text-primary/80 hover:underline"
                             >
                               {latest.session_id}
@@ -302,7 +302,7 @@ export function WorkerDetail() {
                                 <span className="mr-2 font-mono text-xs">{formatTimestamp(oldest.started_at)}</span>
                               ) : null}
                               {oldest.trigger_input ? (
-                                <span>{oldest.trigger_input}</span>
+                                <span>{extractMessageContent(oldest.trigger_input)}</span>
                               ) : null}
                             </p>
                           ) : null}
