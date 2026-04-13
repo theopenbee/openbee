@@ -123,7 +123,7 @@ Prefer using the following commands to complete worker-related configuration and
 
 ```bash
 openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
-openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>]
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 # --stdin and --media-path can be used independently or together (text first, then media)
@@ -178,23 +178,48 @@ openbee ctl task list --session-key <key>      # Filter tasks by session key
 **Requires `read:messages` scope:**
 
 ```bash
-openbee ctl message list                                      # List platform messages
-openbee ctl message list --session-key <key>                  # Filter by session key
-openbee ctl message list --platform <platform>                # Filter by platform (e.g. feishu, local)
-openbee ctl message list --status <status>                    # Filter by status (received, feeding, bee_processed, merged, failed)
-openbee ctl message list --received-from <unix ms>            # Filter received_at >= value
-openbee ctl message list --received-to <unix ms>              # Filter received_at <= value
+openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- `--status` accepts: `received`, `feeding`, `bee_processed`, `merged`, `failed`
+- Pagination: default 50 per page, max 100; returns `items`, `total`, `page`, `page_size`
+- All filter flags can be combined freely in a single command
+
+```bash
+# Single filter
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list --status received
+
+# Multiple filters combined
+openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
+
+# Pagination (default 50/page, max 100)
+openbee ctl message list --platform feishu --page 2 --page-size 20
+openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
 ```
 
 **Requires `read:executions` scope:**
 
 ```bash
-openbee ctl execution list                                    # List worker executions
-openbee ctl execution list --worker-id <id>                   # Filter by worker ID
-openbee ctl execution list --session-id <id>                  # Filter by session ID
-openbee ctl execution list --status <status>                  # Filter by status (pending, running, completed, failed)
-openbee ctl execution list --started-from <unix ms>           # Filter started_at >= value
-openbee ctl execution list --started-to <unix ms>             # Filter started_at <= value
-openbee ctl execution list --completed-from <unix ms>         # Filter completed_at >= value
-openbee ctl execution list --completed-to <unix ms>           # Filter completed_at <= value
+openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
+```
+
+- `--status` accepts: `pending`, `running`, `completed`, `failed`
+- Pagination: default 50 per page, max 100; returns `items`, `total`, `page`, `page_size`
+- All filter flags can be combined freely in a single command
+
+```bash
+# Single filter
+openbee ctl execution list --worker-id abc123
+openbee ctl execution list --status running
+
+# Multiple filters combined
+openbee ctl execution list --worker-id abc123 --status completed
+openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
+openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
+
+# Pagination (default 50/page, max 100)
+openbee ctl execution list --status completed --page 2 --page-size 20
+openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
 ```

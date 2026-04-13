@@ -22,6 +22,8 @@ var (
 	msgListStatus        string
 	msgListReceivedFrom  int64
 	msgListReceivedTo    int64
+	msgListPage          int
+	msgListPageSize      int
 )
 
 var ctlMessageSendCmd = &cobra.Command{
@@ -65,6 +67,12 @@ var ctlMessageListCmd = &cobra.Command{
 		if msgListReceivedTo > 0 {
 			a["received_at_to"] = msgListReceivedTo
 		}
+		if msgListPage > 0 {
+			a["page"] = msgListPage
+		}
+		if msgListPageSize > 0 {
+			a["page_size"] = msgListPageSize
+		}
 		return ctlRun(utils.ListMessages, a)
 	},
 }
@@ -80,6 +88,8 @@ func init() {
 	ctlMessageListCmd.Flags().StringVar(&msgListStatus, "status", "", "Filter by status (received, feeding, bee_processed, merged, failed)")
 	ctlMessageListCmd.Flags().Int64Var(&msgListReceivedFrom, "received-from", 0, "Filter received_at >= value (Unix ms)")
 	ctlMessageListCmd.Flags().Int64Var(&msgListReceivedTo, "received-to", 0, "Filter received_at <= value (Unix ms)")
+	ctlMessageListCmd.Flags().IntVar(&msgListPage, "page", 0, "Page number (default: 1)")
+	ctlMessageListCmd.Flags().IntVar(&msgListPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
 
 	ctlMessageCmd.AddCommand(ctlMessageSendCmd, ctlMessageListCmd)
 	ctlCmd.AddCommand(ctlMessageCmd)

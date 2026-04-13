@@ -15,6 +15,8 @@ var (
 	execListStartedTo     int64
 	execListCompletedFrom int64
 	execListCompletedTo   int64
+	execListPage          int
+	execListPageSize      int
 )
 
 var ctlExecutionListCmd = &cobra.Command{
@@ -43,6 +45,12 @@ var ctlExecutionListCmd = &cobra.Command{
 		if execListCompletedTo > 0 {
 			a["completed_at_to"] = execListCompletedTo
 		}
+		if execListPage > 0 {
+			a["page"] = execListPage
+		}
+		if execListPageSize > 0 {
+			a["page_size"] = execListPageSize
+		}
 		return ctlRun(utils.ListExecutions, a)
 	},
 }
@@ -55,6 +63,8 @@ func init() {
 	ctlExecutionListCmd.Flags().Int64Var(&execListStartedTo, "started-to", 0, "Filter started_at <= value (Unix ms)")
 	ctlExecutionListCmd.Flags().Int64Var(&execListCompletedFrom, "completed-from", 0, "Filter completed_at >= value (Unix ms)")
 	ctlExecutionListCmd.Flags().Int64Var(&execListCompletedTo, "completed-to", 0, "Filter completed_at <= value (Unix ms)")
+	ctlExecutionListCmd.Flags().IntVar(&execListPage, "page", 0, "Page number (default: 1)")
+	ctlExecutionListCmd.Flags().IntVar(&execListPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
 
 	ctlExecutionCmd.AddCommand(ctlExecutionListCmd)
 	ctlCmd.AddCommand(ctlExecutionCmd)
