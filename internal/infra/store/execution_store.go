@@ -257,13 +257,27 @@ func (s *ExecutionStore) ListFiltered(ctx context.Context, f ExecutionFilter, li
 
 func executionFilterWhere(f ExecutionFilter) (string, []any) {
 	var b whereBuilder
-	if f.WorkerID != ""    { b.add("e.worker_id = ?", f.WorkerID) }
-	if f.SessionID != ""   { b.add("e.session_id = ?", f.SessionID) }
-	if f.Status != ""      { b.add("e.status = ?", f.Status) }
-	if f.StartedFrom > 0   { b.add("e.started_at >= ?", f.StartedFrom) }
-	if f.StartedTo > 0     { b.add("e.started_at <= ?", f.StartedTo) }
-	if f.CompletedFrom > 0 { b.add("e.completed_at >= ?", f.CompletedFrom) }
-	if f.CompletedTo > 0   { b.add("e.completed_at <= ?", f.CompletedTo) }
+	if f.WorkerID != "" {
+		b.add("e.worker_id = ?", f.WorkerID)
+	}
+	if f.SessionID != "" {
+		b.add("e.session_id = ?", f.SessionID)
+	}
+	if f.Status != "" {
+		b.add("e.status = ?", f.Status)
+	}
+	if f.StartedFrom > 0 {
+		b.add("e.started_at >= ?", f.StartedFrom)
+	}
+	if f.StartedTo > 0 {
+		b.add("e.started_at <= ?", f.StartedTo)
+	}
+	if f.CompletedFrom > 0 {
+		b.add("e.completed_at >= ?", f.CompletedFrom)
+	}
+	if f.CompletedTo > 0 {
+		b.add("e.completed_at <= ?", f.CompletedTo)
+	}
 	return b.build()
 }
 

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -138,25 +139,29 @@ type WorkerFilter struct {
 }
 
 // ListFiltered returns workers matching the filter with pagination, plus the total count.
-func (s *WorkerStore) ListFiltered(filter WorkerFilter, limit, offset int) ([]model.Worker, int, error) {
+func (s *WorkerStore) ListFiltered(ctx context.Context, filter WorkerFilter, limit, offset int) ([]model.Worker, int, error) {
 	if filter.WorkerIDs != nil && len(filter.WorkerIDs) == 0 {
 		return []model.Worker{}, 0, nil
 	}
 
 	var b whereBuilder
-	if filter.ID != ""   { b.add("id = ?", filter.ID) }
-	if filter.Name != "" { b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%") }
+	if filter.ID != "" {
+		b.add("id = ?", filter.ID)
+	}
+	if filter.Name != "" {
+		b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%")
+	}
 	if filter.WorkerIDs != nil {
 		b.addAll("id IN ("+inPlaceholders(len(filter.WorkerIDs))+")", stringsToArgs(filter.WorkerIDs)...)
 	}
 	where, args := b.build()
 
 	var total int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM bee_workers"+where, args...).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM bee_workers"+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count workers: %w", err)
 	}
 
-	rows, err := s.db.Query(
+	rows, err := s.db.QueryContext(ctx,
 		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
 		appendPaginationArgs(args, limit, offset)...,
 	)

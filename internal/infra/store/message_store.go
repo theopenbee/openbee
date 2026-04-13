@@ -327,8 +327,7 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 	where, args := messageFilterWhere(f)
 
 	var total int
-	countSQL := "SELECT COUNT(*) FROM bee_platform_messages" + where
-	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM bee_platform_messages"+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -355,11 +354,21 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 
 func messageFilterWhere(f MessageFilter) (string, []any) {
 	var b whereBuilder
-	if f.SessionKey != ""   { b.add("session_key = ?", f.SessionKey) }
-	if f.Platform != ""     { b.add("platform = ?", f.Platform) }
-	if f.Status != ""       { b.add("status = ?", f.Status) }
-	if f.ReceivedAtFrom > 0 { b.add("received_at >= ?", f.ReceivedAtFrom) }
-	if f.ReceivedAtTo > 0   { b.add("received_at <= ?", f.ReceivedAtTo) }
+	if f.SessionKey != "" {
+		b.add("session_key = ?", f.SessionKey)
+	}
+	if f.Platform != "" {
+		b.add("platform = ?", f.Platform)
+	}
+	if f.Status != "" {
+		b.add("status = ?", f.Status)
+	}
+	if f.ReceivedAtFrom > 0 {
+		b.add("received_at >= ?", f.ReceivedAtFrom)
+	}
+	if f.ReceivedAtTo > 0 {
+		b.add("received_at <= ?", f.ReceivedAtTo)
+	}
 	return b.build()
 }
 
