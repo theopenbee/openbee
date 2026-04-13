@@ -96,6 +96,28 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 	return nil
 }
 
+// List returns env configs for the given scope/scopeID.
+// scopeID can be nil (for global scope).
+func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
+	return s.store.List(scope, scopeID)
+}
+
+// Delete removes an env config by ID.
+// Returns error if the config's key is "OPENBEE_API_KEY".
+func (s *Service) Delete(id string) error {
+	existing, err := s.store.Get(id)
+	if err != nil {
+		return fmt.Errorf("get env config: %w", err)
+	}
+	if existing == nil {
+		return fmt.Errorf("env config not found: %s", id)
+	}
+	if existing.Key == "OPENBEE_API_KEY" {
+		return fmt.Errorf("OPENBEE_API_KEY is reserved and cannot be deleted")
+	}
+	return s.store.Delete(id)
+}
+
 // ResolveWorkerEnv returns complete env vars for Worker execution (KEY=VALUE slice).
 // Resolution chain: global <- department (sorted by dept_id) <- worker
 func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {

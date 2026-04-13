@@ -2,19 +2,18 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/env"
-	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
 type EnvHandler struct {
-	svc   *env.Service
-	store *store.EnvConfigStore
+	svc *env.Service
 }
 
-func NewEnvHandler(svc *env.Service, store *store.EnvConfigStore) *EnvHandler {
-	return &EnvHandler{svc: svc, store: store}
+func NewEnvHandler(svc *env.Service) *EnvHandler {
+	return &EnvHandler{svc: svc}
 }
 
 type createEnvRequest struct {
@@ -30,6 +29,10 @@ type updateEnvRequest struct {
 
 func (h *EnvHandler) List(c *gin.Context) {
 	scope := c.Query("scope")
+	if scope == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "scope query parameter is required"})
+		return
+	}
 	scopeID := c.Query("scope_id")
 
 	var scopeIDPtr *string
@@ -37,7 +40,7 @@ func (h *EnvHandler) List(c *gin.Context) {
 		scopeIDPtr = &scopeID
 	}
 
-	configs, err := h.store.List(scope, scopeIDPtr)
+	configs, err := h.svc.List(scope, scopeIDPtr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -64,25 +67,31 @@ func (h *EnvHandler) Create(c *gin.Context) {
 
 func (h *EnvHandler) Update(c *gin.Context) {
 	id := c.Param("id")
-
 	var req updateEnvRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	if err := h.svc.UpdateValue(id, req.Value); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// check if it's a not-found error
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (h *EnvHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
-	if err := h.store.Delete(id); err != nil {
+	if err := h.svc.Delete(id); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
