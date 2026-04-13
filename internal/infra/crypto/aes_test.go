@@ -57,6 +57,15 @@ func TestEncryptInvalidKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestEncryptInvalidKeyLength(t *testing.T) {
+	// 48 hex chars = 24 bytes, should fail with a "got 24" message
+	key24bytes := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f" // 64 chars = 32 bytes, adjust:
+	key24bytes = key24bytes[:48]                                                         // 48 hex chars = 24 bytes
+	_, err := Encrypt(key24bytes, "plaintext")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "got 24")
+}
+
 func TestDecryptInvalidBase64(t *testing.T) {
 	_, err := Decrypt(validKey, "!!!not-base64!!!")
 	assert.Error(t, err)
