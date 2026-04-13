@@ -268,7 +268,7 @@ Available scopes:
 | `read:workers` | `list_workers`, `get_worker`, `get_worker_status` |
 | `read:departments` | `list_departments`, `get_department` |
 | `read:tasks` | `list_tasks` |
-| `read:messages` | `list_messages` |
+| `read:messages` | `list_messages`, `list_outbound_messages` |
 | `read:executions` | `list_executions` |
 
 If a worker token calls a tool without the required scope, the call returns: `permission denied: scope <scope> required`.
@@ -330,6 +330,7 @@ openbee ctl system executions [--limit <count>]
 ```bash
 openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
 openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
+openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 
