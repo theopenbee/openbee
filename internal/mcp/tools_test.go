@@ -1360,7 +1360,7 @@ func TestCheckWorkerScope_BeeToken_AlwaysAllowed(t *testing.T) {
 func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	ctx := workerCtx("wid-1", nil) // no scopes
-	// send_message is not in ToolScopeMap — existing behavior, worker can call it
+	// send_message has no scope requirement — existing behavior, worker can call it
 	_, err := s.CallTool(ctx, utils.SendMessage, mustMarshal(t, map[string]any{
 		"message_id": "nonexistent",
 		"content":    "test",

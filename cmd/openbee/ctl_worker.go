@@ -58,7 +58,6 @@ var (
 	workerCreateMemory      string
 	workerCreateWorkDir     string
 	workerCreateScopes      string
-	workerUpdateScopes      string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -89,6 +88,7 @@ var (
 	workerUpdateName        string
 	workerUpdateDescription string
 	workerUpdateMemory      string
+	workerUpdateScopes      string
 )
 
 var ctlWorkerUpdateCmd = &cobra.Command{

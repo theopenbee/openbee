@@ -50,9 +50,9 @@ func ValidatePermissionScopes(scopes string) error {
 	return nil
 }
 
-// ToolScopeMap maps tool names to their required worker-token scope.
-// Tools absent from this map follow existing access rules. Must not be mutated after init.
-var ToolScopeMap = map[string]string{
+// toolScopeMap maps tool names to their required worker-token scope.
+// Tools absent from this map follow existing access rules.
+var toolScopeMap = map[string]string{
 	utils.ListWorkers:          ScopeReadWorkers,
 	utils.GetWorker:            ScopeReadWorkers,
 	utils.GetWorkerStatus:      ScopeReadWorkers,
@@ -62,4 +62,11 @@ var ToolScopeMap = map[string]string{
 	utils.ListMessages:         ScopeReadMessages,
 	utils.ListOutboundMessages: ScopeReadMessages,
 	utils.ListExecutions:       ScopeReadExecutions,
+}
+
+// ScopeForTool returns the permission scope required to call the named tool,
+// and whether the tool has a scope requirement at all.
+func ScopeForTool(name string) (string, bool) {
+	s, ok := toolScopeMap[name]
+	return s, ok
 }

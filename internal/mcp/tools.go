@@ -47,7 +47,7 @@ func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error
 	if workerID == "" {
 		return nil
 	}
-	requiredScope, ok := auth.ToolScopeMap[toolName]
+	requiredScope, ok := auth.ScopeForTool(toolName)
 	if !ok {
 		return nil
 	}

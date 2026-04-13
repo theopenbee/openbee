@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func parsePagination(c *gin.Context) (page, pageSize, offset int) {
@@ -20,12 +21,8 @@ func parsePagination(c *gin.Context) (page, pageSize, offset int) {
 }
 
 func parseInt64Query(c *gin.Context, key string) int64 {
-	if v := c.Query(key); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return n
-		}
-	}
-	return 0
+	v := c.Query(key)
+	return utils.ParseMillis(&v)
 }
 
 func paginatedResponse(items any, total, page, pageSize int) gin.H {
