@@ -38,7 +38,7 @@ func Encrypt(key, plaintext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	nonce := make([]byte, gcm.NonceSize()) // 12 bytes
+	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}

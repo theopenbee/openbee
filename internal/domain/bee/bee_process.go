@@ -11,6 +11,10 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
+// defaultBeeID is the scope_id used for bee-scoped env configs. Since there is a
+// single bee instance, all bee-scoped configs are stored under this well-known ID.
+const defaultBeeID = "default"
+
 // BeeProcess wraps an EngineAdapter and injects a short-lived auth token into each Run call.
 type BeeProcess struct {
 	engine      ai.EngineAdapter
@@ -27,7 +31,7 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Se
 		tokenSecret: cfg.MCP.TokenSecret,
 		tokenTTL:    cfg.MCP.TokenTTL,
 		envService:  envSvc,
-		beeID:       "default",
+		beeID:       defaultBeeID,
 	}
 }
 
