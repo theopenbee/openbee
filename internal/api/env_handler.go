@@ -75,11 +75,7 @@ func (h *EnvHandler) Create(c *gin.Context) {
 
 	cfg, err := h.svc.Create(req.Scope, req.ScopeID, req.Key, req.Value)
 	if err != nil {
-		if errors.Is(err, env.ErrValidation) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondEnvError(c, err)
 		return
 	}
 

@@ -103,7 +103,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init engine: %w", err)
 	}
-	envSvc := env.NewService(s.envConfigStore, s.departmentStore, cfg.Advanced.EnvSecret)
+	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Advanced.EnvSecret)
+	if err != nil {
+		return nil, fmt.Errorf("init env service: %w", err)
+	}
 	mgr := buildWorkerManager(cfg.Bee, s, engine, envSvc)
 
 	dispatchCh := make(chan task.DispatchTask, 128)

@@ -1,6 +1,7 @@
 package env
 
 import (
+	"crypto/cipher"
 	"fmt"
 	"sort"
 	"sync"
@@ -17,18 +18,21 @@ const reservedKey = "OPENBEE_API_KEY"
 type Service struct {
 	store     *store.EnvConfigStore
 	deptStore *store.DepartmentStore
-	encKey    string
+	gcm       cipher.AEAD
 }
 
-func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKey string) *Service {
+func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKey string) (*Service, error) {
+	gcm, err := crypto.NewGCM(encKey)
+	if err != nil {
+		return nil, fmt.Errorf("init env service: %w", err)
+	}
 	return &Service{
 		store:     envStore,
 		deptStore: ds,
-		encKey:    encKey,
-	}
+		gcm:       gcm,
+	}, nil
 }
 
-// Create encrypts plainValue and persists the env config.
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
 	if key == reservedKey {
 		return nil, fmt.Errorf("%w: OPENBEE_API_KEY is reserved and cannot be set", ErrValidation)
@@ -44,7 +48,7 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 		return nil, fmt.Errorf("%w: scope_id is required for scope %q", ErrValidation, scope)
 	}
 
-	encValue, err := crypto.Encrypt(s.encKey, plainValue)
+	encValue, err := crypto.EncryptGCM(s.gcm, plainValue)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt env value: %w", err)
 	}
@@ -71,7 +75,6 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 	return cfg, nil
 }
 
-// getEditable fetches an env config by ID and verifies it exists and is not reserved.
 func (s *Service) getEditable(id string) (*model.EnvConfig, error) {
 	existing, err := s.store.Get(id)
 	if err != nil {
@@ -86,13 +89,12 @@ func (s *Service) getEditable(id string) (*model.EnvConfig, error) {
 	return existing, nil
 }
 
-// UpdateValue updates the encrypted value for an existing env config.
 func (s *Service) UpdateValue(id, plainValue string) error {
 	if _, err := s.getEditable(id); err != nil {
 		return err
 	}
 
-	encValue, err := crypto.Encrypt(s.encKey, plainValue)
+	encValue, err := crypto.EncryptGCM(s.gcm, plainValue)
 	if err != nil {
 		return fmt.Errorf("encrypt env value: %w", err)
 	}
@@ -106,14 +108,10 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 	return nil
 }
 
-// List returns env configs for the given scope/scopeID.
-// scopeID can be nil (for global scope).
 func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
 	return s.store.List(scope, scopeID)
 }
 
-// Delete removes an env config by ID.
-// Returns error if the config's key is reservedKey.
 func (s *Service) Delete(id string) error {
 	if _, err := s.getEditable(id); err != nil {
 		return err
@@ -191,16 +189,12 @@ func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
 	return s.decryptMerged(merge(gr.envs, br.envs))
 }
 
-// decryptMerged decrypts a merged map of key -> encValue and returns KEY=VALUE strings.
-// Output is sorted for deterministic ordering.
+// decryptMerged decrypts a merged map and returns sorted KEY=VALUE strings.
+// Sorted for deterministic ordering so subprocess env is predictable.
 func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
-	gcm, err := crypto.NewGCM(s.encKey)
-	if err != nil {
-		return nil, fmt.Errorf("init decrypt cipher: %w", err)
-	}
 	result := make([]string, 0, len(merged))
 	for k, encVal := range merged {
-		plainVal, err := crypto.DecryptGCM(gcm, encVal)
+		plainVal, err := crypto.DecryptGCM(s.gcm, encVal)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt env value for key %s: %w", k, err)
 		}

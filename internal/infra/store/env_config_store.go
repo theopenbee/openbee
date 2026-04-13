@@ -95,20 +95,34 @@ func (s *EnvConfigStore) Get(id string) (*model.EnvConfig, error) {
 }
 
 func (s *EnvConfigStore) Update(id, encValue, masked string) error {
-	_, err := s.db.Exec(
+	res, err := s.db.Exec(
 		`UPDATE bee_env_configs SET enc_value = ?, masked = ?, updated_at = ? WHERE id = ?`,
 		encValue, masked, time.Now().UnixMilli(), id,
 	)
 	if err != nil {
 		return fmt.Errorf("update env config: %w", err)
 	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update env config rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("update env config: not found: %s", id)
+	}
 	return nil
 }
 
 func (s *EnvConfigStore) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM bee_env_configs WHERE id = ?`, id)
+	res, err := s.db.Exec(`DELETE FROM bee_env_configs WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete env config: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete env config rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("delete env config: not found: %s", id)
 	}
 	return nil
 }

@@ -11,7 +11,9 @@ import (
 	"io"
 )
 
-func newGCM(key string) (cipher.AEAD, error) {
+// NewGCM creates a reusable AES-256-GCM cipher from a hex-encoded key.
+// Use EncryptGCM/DecryptGCM to encrypt/decrypt multiple values with the same key.
+func NewGCM(key string) (cipher.AEAD, error) {
 	keyBytes, err := hex.DecodeString(key)
 	if err != nil {
 		return nil, fmt.Errorf("crypto: invalid hex key: %w", err)
@@ -30,10 +32,14 @@ func newGCM(key string) (cipher.AEAD, error) {
 	return gcm, nil
 }
 
-// NewGCM creates a reusable AES-256-GCM cipher from a hex-encoded key.
-// Use DecryptGCM to decrypt multiple ciphertexts with the same key efficiently.
-func NewGCM(key string) (cipher.AEAD, error) {
-	return newGCM(key)
+// EncryptGCM encrypts plaintext using a pre-created GCM cipher.
+func EncryptGCM(gcm cipher.AEAD, plaintext string) (string, error) {
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertextWithTag := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(append(nonce, ciphertextWithTag...)), nil
 }
 
 // DecryptGCM decrypts a ciphertext produced by Encrypt using a pre-created GCM cipher.
@@ -57,40 +63,21 @@ func DecryptGCM(gcm cipher.AEAD, ciphertext string) (string, error) {
 // Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
 // key must be a 64-character hex string (32 bytes).
 func Encrypt(key, plaintext string) (string, error) {
-	gcm, err := newGCM(key)
+	gcm, err := NewGCM(key)
 	if err != nil {
 		return "", err
 	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	ciphertextWithTag := gcm.Seal(nil, nonce, []byte(plaintext), nil)
-	combined := append(nonce, ciphertextWithTag...)
-	return base64.StdEncoding.EncodeToString(combined), nil
+	return EncryptGCM(gcm, plaintext)
 }
 
 // Decrypt decrypts ciphertext produced by Encrypt.
 // key must be a 64-character hex string (32 bytes).
 func Decrypt(key, ciphertext string) (string, error) {
-	gcm, err := newGCM(key)
+	gcm, err := NewGCM(key)
 	if err != nil {
 		return "", err
 	}
-	combined, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", err
-	}
-	nonceSize := gcm.NonceSize()
-	if len(combined) < nonceSize {
-		return "", errors.New("ciphertext too short")
-	}
-	nonce, ciphertextWithTag := combined[:nonceSize], combined[nonceSize:]
-	plainBytes, err := gcm.Open(nil, nonce, ciphertextWithTag, nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plainBytes), nil
+	return DecryptGCM(gcm, ciphertext)
 }
 
 // Mask returns a display-safe version of value.
