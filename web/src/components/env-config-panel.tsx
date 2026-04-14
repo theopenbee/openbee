@@ -62,7 +62,7 @@ function SecretInput({ id, value, onChange, autoFocus, placeholder }: {
 interface AddEnvDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  scope: "global" | "department" | "worker"
+  scope: "global" | "bee" | "department" | "worker"
   scopeId?: string
   existingKeys: string[]
 }
@@ -187,7 +187,7 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
 interface EditEnvDialogProps {
   target: EnvConfig | null
   onClose: () => void
-  scope: "global" | "department" | "worker"
+  scope: "global" | "bee" | "department" | "worker"
   scopeId?: string
 }
 
@@ -270,7 +270,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
 }
 
 interface EnvConfigPanelProps {
-  scope: "global" | "department" | "worker"
+  scope: "global" | "bee" | "department" | "worker"
   scopeId?: string
 }
 

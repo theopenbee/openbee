@@ -23,6 +23,18 @@ export function Settings() {
           </div>
           <EnvConfigPanel scope="global" />
         </DetailSection>
+
+        <DetailSection className="p-5 sm:p-6 space-y-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              {t("envConfig.beeTitle")}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {t("envConfig.beeHint")}
+            </p>
+          </div>
+          <EnvConfigPanel scope="bee" scopeId="default" />
+        </DetailSection>
       </div>
     </FadeIn>
   )

@@ -6,7 +6,7 @@
     "tasks": "定时任务",
     "departments": "部门",
     "directory": "通讯录",
-    "settings": "系统设置"
+    "settings": "环境变量"
   },
   "common": {
     "save": "保存",
@@ -406,6 +406,8 @@
     "effectiveTitle": "生效变量预览",
     "effectiveHint": "该员工运行时实际生效的合并环境变量。后置作用域会覆盖前面的同名变量。",
     "globalHint": "全局环境变量会被所有部门和员工继承。员工级或部门级变量会覆盖全局同名变量。",
+    "beeTitle": "Bee 环境变量",
+    "beeHint": "Bee 级别的环境变量，覆盖全局同名变量。",
     "sourceGlobal": "全局",
     "sourceDepartment": "部门",
     "sourceWorker": "员工",

@@ -6,7 +6,7 @@
     "tasks": "Scheduled Tasks",
     "departments": "Departments",
     "directory": "Directory",
-    "settings": "Settings"
+    "settings": "Env Variables"
   },
   "common": {
     "save": "Save",
@@ -407,6 +407,8 @@
     "effectiveTitle": "Effective Variables",
     "effectiveHint": "Final merged env vars this worker receives at runtime. Later scopes override earlier ones.",
     "globalHint": "Global env variables are inherited by all departments and workers. Worker-level or department-level variables override these.",
+    "beeTitle": "Bee Env Variables",
+    "beeHint": "Bee-scoped variables override global variables with the same name.",
     "sourceGlobal": "global",
     "sourceDepartment": "dept",
     "sourceWorker": "worker",

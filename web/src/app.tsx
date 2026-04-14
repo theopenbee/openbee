@@ -42,7 +42,7 @@ export function App() {
                 <Route path="/sessions/detail" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/chat" element={<LocalChat />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route path="/env" element={<Settings />} />
               </Route>
             </Routes>
           </Suspense>
