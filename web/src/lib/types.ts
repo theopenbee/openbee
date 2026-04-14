@@ -98,6 +98,7 @@ export interface StatsOverview {
   messages_received_today: number
   messages_sent_today: number
   messages_total_today: number
+  messages_total_global: number
   executions_today: ExecStats
   exec_duration_today_ms: number
   exec_duration_yesterday_ms: number

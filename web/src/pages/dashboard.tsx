@@ -4,8 +4,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ActivityTrendChart } from "@/components/activity-trend-chart"
-import { ExecutionDurationTrendChart } from "@/components/execution-duration-trend-chart"
+import { CombinedTrendChart } from "@/components/combined-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
 import { formatChange, formatTotalDuration } from "@/lib/format"
 import type { StatsOverview } from "@/lib/types"
@@ -19,6 +18,7 @@ const EMPTY: StatsOverview = {
   messages_received_today: 0,
   messages_sent_today: 0,
   messages_total_today: 0,
+  messages_total_global: 0,
   executions_today: { total: 0, success: 0, failed: 0 },
   exec_duration_today_ms: 0,
   exec_duration_yesterday_ms: 0,
@@ -71,9 +71,9 @@ export function Dashboard() {
       {/* ── System Status ─────────────────────────────────────────── */}
       <div className="mb-10">
         <SectionRule>{t("dashboard.systemStatus")}</SectionRule>
-        <div className="grid grid-cols-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5">
           {isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => (
+            Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
                 className={
@@ -92,13 +92,15 @@ export function Dashboard() {
               { label: t("dashboard.departments"), value: ov.departments },
               { label: t("dashboard.workers"), value: ov.workers },
               { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
+              { label: t("dashboard.totalMessages"), value: ov.messages_total_global },
+              { label: t("dashboard.totalWorkDuration"), value: formatTotalDuration(ov.exec_duration_total_ms) },
             ].map(({ label, value }, i) => (
               <div
                 key={i}
                 className={[
                   i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
                   i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
-                  i < 2 ? "pb-6 sm:pb-0" : "",
+                  i < 4 ? "pb-6 sm:pb-0" : "",
                 ].join(" ")}
                 aria-label={label}
               >
@@ -324,9 +326,8 @@ export function Dashboard() {
       </div>
 
       {/* ── Activity Trend ─────────────────────────────────────────── */}
-      <div className="space-y-6">
-        <ActivityTrendChart />
-        <ExecutionDurationTrendChart />
+      <div>
+        <CombinedTrendChart />
       </div>
     </FadeIn>
   )

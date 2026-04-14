@@ -38,6 +38,7 @@ type StatsOverview struct {
 	MessagesReceivedToday   int       `json:"messages_received_today"`
 	MessagesSentToday       int       `json:"messages_sent_today"`
 	MessagesTotalToday      int       `json:"messages_total_today"`
+	MessagesTotalGlobal     int       `json:"messages_total_global"`
 	ExecutionsToday         ExecStats `json:"executions_today"`
 	ExecDurationTodayMS     int64     `json:"exec_duration_today_ms"`
 	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
@@ -107,6 +108,15 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
 			todayStart, todayEnd,
 		).Scan(&ov.MessagesSentToday)
+	})
+
+	var globalReceived, globalSent int
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_outbound_messages`).Scan(&globalSent)
 	})
 
 	durationQuery := `
@@ -180,6 +190,7 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	}
 
 	ov.MessagesTotalToday = ov.MessagesReceivedToday + ov.MessagesSentToday
+	ov.MessagesTotalGlobal = globalReceived + globalSent
 
 	if ov.ActiveWorkersYesterday > 0 {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)
