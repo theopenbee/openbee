@@ -339,9 +339,7 @@ export function Dashboard() {
       </div>
 
       {/* ── Activity Trend ─────────────────────────────────────────── */}
-      <div>
-        <CombinedTrendChart />
-      </div>
+      <CombinedTrendChart />
     </FadeIn>
   )
 }

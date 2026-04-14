@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import {
   LineChart,
@@ -13,21 +14,24 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
 
-const DAY_OPTIONS = [7, 15, 30] as const
+export const DAY_OPTIONS = [7, 15, 30] as const
 
 interface TrendLineCardProps {
   title: string
   ariaLabel: string
   emptyTitle: string
   emptyDesc: string
-  dataKey: string
-  tooltipLabel: string
-  chartData: Record<string, unknown>[]
+  chartData: readonly unknown[]
   isLoading: boolean
   days: 7 | 15 | 30
   onDaysChange: (d: 7 | 15 | 30) => void
+  // Used when rendering the built-in single-line chart (no children):
+  dataKey?: string
+  tooltipLabel?: string
   yAxisFormatter?: (v: number) => string
   tooltipFormatter?: (value: number) => string | number
+  // Pass a custom chart as children to replace the built-in single-line chart:
+  children?: ReactNode
 }
 
 export function TrendLineCard({
@@ -43,6 +47,7 @@ export function TrendLineCard({
   onDaysChange,
   yAxisFormatter,
   tooltipFormatter,
+  children,
 }: TrendLineCardProps) {
   const { t } = useTranslation()
 
@@ -81,44 +86,46 @@ export function TrendLineCard({
         ) : (
           // left: -20 offsets the YAxis tick label width so the chart aligns flush with card edges
           <div role="img" aria-label={ariaLabel}>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v: string) => v.slice(5)}
-                  className="text-muted-foreground"
-                />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  allowDecimals={false}
-                  tickFormatter={yAxisFormatter}
-                  className="text-muted-foreground"
-                />
-                <Tooltip
-                  labelFormatter={(label) => String(label)}
-                  formatter={(value) => [
-                    tooltipFormatter ? tooltipFormatter(Number(value)) : value,
-                    tooltipLabel,
-                  ]}
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    color: "var(--card-foreground)",
-                    fontSize: 12,
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey={dataKey}
-                  strokeWidth={2}
-                  dot={false}
-                  stroke="var(--primary)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {children ?? (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={chartData as Record<string, unknown>[]} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v: string) => v.slice(5)}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    allowDecimals={false}
+                    tickFormatter={yAxisFormatter}
+                    className="text-muted-foreground"
+                  />
+                  <Tooltip
+                    labelFormatter={(label) => String(label)}
+                    formatter={(value) => [
+                      tooltipFormatter ? tooltipFormatter(Number(value)) : value,
+                      tooltipLabel,
+                    ]}
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      color: "var(--card-foreground)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={dataKey}
+                    strokeWidth={2}
+                    dot={false}
+                    stroke="var(--primary)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         )}
       </CardContent>

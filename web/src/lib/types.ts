@@ -109,7 +109,6 @@ export interface StatsOverview {
 export interface TrendPoint {
   date: string
   active_workers: number
-  [key: string]: unknown
 }
 
 export interface StatsTrend {
@@ -120,7 +119,6 @@ export interface StatsTrend {
 export interface ExecDurationTrendPoint {
   date: string
   total_duration_ms: number
-  [key: string]: unknown
 }
 
 export interface ExecDurationTrend {
