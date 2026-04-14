@@ -5,6 +5,7 @@ import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityTrendChart } from "@/components/activity-trend-chart"
+import { ExecutionDurationTrendChart } from "@/components/execution-duration-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
 import { formatChange, formatTotalDuration } from "@/lib/format"
 import type { StatsOverview } from "@/lib/types"
@@ -119,7 +120,7 @@ export function Dashboard() {
           role="region"
           aria-label={t("dashboard.todayActivity")}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
 
             {/* Active Workers */}
             <div className="p-6">
@@ -268,12 +269,65 @@ export function Dashboard() {
               )}
             </div>
 
+            {/* Execution Duration */}
+            <div className="p-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
+                {t("dashboard.executionDuration")}
+              </p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-28" />
+                  <div className="flex gap-6">
+                    <StatSkeleton />
+                    <StatSkeleton />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p
+                    className="text-5xl font-semibold tabular-nums leading-none mb-4"
+                    aria-label={`${t("dashboard.execDurationToday")}: ${formatTotalDuration(ov.exec_duration_today_ms)}`}
+                    aria-live="polite"
+                  >
+                    {formatTotalDuration(ov.exec_duration_today_ms)}
+                  </p>
+                  <div className="flex gap-6">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.execDurationYesterday")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none text-muted-foreground"
+                        aria-live="polite"
+                      >
+                        {formatTotalDuration(ov.exec_duration_yesterday_ms)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.execDurationTotal")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none"
+                        aria-live="polite"
+                      >
+                        {formatTotalDuration(ov.exec_duration_total_ms)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
 
       {/* ── Activity Trend ─────────────────────────────────────────── */}
       <ActivityTrendChart />
+      <div className="mt-6">
+        <ExecutionDurationTrendChart />
+      </div>
     </FadeIn>
   )
 }
