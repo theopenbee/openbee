@@ -1112,6 +1112,76 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 	}
 }
 
+func TestCallTool_ClearSession_ScheduledTaskDoesNotBlock(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-sched1", "session-SCHED", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-sched1", WorkerID: w.ID, Instruction: "daily report",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-SCHED",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("scheduled pending task should not block clear, got %v", m)
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-SCHED" {
+		t.Errorf("expected ClearSession(session-SCHED), got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_CountdownTaskDoesNotBlock(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-cd1", "session-CD", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-cd1", WorkerID: w.ID, Instruction: "remind me later",
+		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-CD",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("countdown pending task should not block clear, got %v", m)
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-CD" {
+		t.Errorf("expected ClearSession(session-CD), got %v", clearer.cleared)
+	}
+}
+
 func TestResolveDepartmentID_ByID(t *testing.T) {
 	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
 	ds := store.NewDepartmentStore(db)
