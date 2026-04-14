@@ -566,7 +566,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 	var tasksToStop []model.Task
 	if !params.Force {
 		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
-			model.TaskStatusActive, "")
+			model.TaskStatusActive, model.TaskTypeImmediate)
 		if err != nil {
 			return nil, fmt.Errorf("list active tasks: %w", err)
 		}
