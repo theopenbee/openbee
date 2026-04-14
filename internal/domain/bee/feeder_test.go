@@ -243,7 +243,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	}
 }
 
-func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
+func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
@@ -257,8 +257,8 @@ func TestFeeder_OnBeeFailure_RollsBackAndDoesNotUpdateSession(t *testing.T) {
 
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
-	if status != "received" {
-		t.Errorf("expected rollback to received, got %q", status)
+	if status != "failed" {
+		t.Errorf("expected status=failed on bee failure, got %q", status)
 	}
 
 	got, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
@@ -425,7 +425,7 @@ func (m *mockFailureNotifier) getCalls() []failureNotifyCall {
 	return append([]failureNotifyCall{}, m.calls...)
 }
 
-func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
+func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
@@ -436,16 +436,17 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, bee.WithFailureNotifier(notifier))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	go f.Run(ctx)
 
-	time.Sleep(time.Duration(bee.MaxRetries+1)*bee.PollInterval + 500*time.Millisecond)
+	// One poll cycle is enough — failure must be immediate, no retries.
+	time.Sleep(bee.PollInterval + 500*time.Millisecond)
 
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
 	if status != "failed" {
-		t.Errorf("expected status=failed after exhausting retries, got %q", status)
+		t.Errorf("expected status=failed immediately after one failure, got %q", status)
 	}
 
 	calls := notifier.getCalls()
@@ -457,12 +458,6 @@ func TestFeeder_ExhaustsRetries_MarksFailedAndNotifies(t *testing.T) {
 	}
 	if calls[0].info.Reason == "" {
 		t.Error("expected non-empty Reason in FailureInfo")
-	}
-	if calls[0].info.RetryCount != bee.MaxRetries {
-		t.Errorf("expected RetryCount=%d, got %d", bee.MaxRetries, calls[0].info.RetryCount)
-	}
-	if calls[0].info.MaxRetries != bee.MaxRetries {
-		t.Errorf("expected MaxRetries=%d, got %d", bee.MaxRetries, calls[0].info.MaxRetries)
 	}
 }
 
