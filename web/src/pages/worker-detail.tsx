@@ -35,10 +35,10 @@ import {
 
 const PAGE_SIZE = 20
 
-const SOURCE_COLOR: Record<string, string> = {
-  global: "text-blue-500",
-  department: "text-amber-500",
-  worker: "text-green-500",
+const SOURCE_CONFIG: Record<string, { color: string; labelKey: string }> = {
+  global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
+  department: { color: "text-amber-500", labelKey: "envConfig.sourceDepartment" },
+  worker: { color: "text-green-500", labelKey: "envConfig.sourceWorker" },
 }
 
 function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
@@ -67,12 +67,6 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
     return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [globalEnvs, workerEnvs, deptEnvsList])
 
-  const sourceLabel: Record<string, string> = {
-    global: t("envConfig.sourceGlobal"),
-    department: t("envConfig.sourceDepartment"),
-    worker: t("envConfig.sourceWorker"),
-  }
-
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
@@ -97,8 +91,8 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
               <TableCell className="font-mono text-sm">{key}</TableCell>
               <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
               <TableCell>
-                <span className={`text-xs font-medium ${SOURCE_COLOR[source] ?? ""}`}>
-                  {sourceLabel[source] ?? source}
+                <span className={`text-xs font-medium ${SOURCE_CONFIG[source]?.color ?? ""}`}>
+                  {SOURCE_CONFIG[source] ? t(SOURCE_CONFIG[source].labelKey) : source}
                 </span>
               </TableCell>
             </TableRow>

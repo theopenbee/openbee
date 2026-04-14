@@ -44,8 +44,8 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
   const updateEnv = useUpdateEnv(scope, scopeId)
   const deleteEnv = useDeleteEnv(scope, scopeId)
 
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<EnvConfig | null>(null)
+  // undefined = closed, null = add mode, EnvConfig = edit mode
+  const [sheetTarget, setSheetTarget] = useState<EnvConfig | null | undefined>(undefined)
   const [formKey, setFormKey] = useState("")
   const [formValue, setFormValue] = useState("")
   const [showValue, setShowValue] = useState(false)
@@ -54,17 +54,15 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<EnvConfig | null>(null)
 
   const openSheet = (target: EnvConfig | null) => {
-    setEditTarget(target)
     setFormKey(target?.key ?? "")
     setFormValue("")
     setShowValue(false)
     setFormError("")
-    setSheetOpen(true)
+    setSheetTarget(target)
   }
 
   const closeSheet = () => {
-    setSheetOpen(false)
-    setEditTarget(null)
+    setSheetTarget(undefined)
     setFormKey("")
     setFormValue("")
     setShowValue(false)
@@ -75,8 +73,8 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
     e.preventDefault()
     setFormError("")
     try {
-      if (editTarget) {
-        await updateEnv.mutateAsync({ id: editTarget.id, value: formValue })
+      if (sheetTarget) {
+        await updateEnv.mutateAsync({ id: sheetTarget.id, value: formValue })
       } else {
         await createEnv.mutateAsync({
           scope,
@@ -155,14 +153,14 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
         </div>
       )}
 
-      <Sheet open={sheetOpen} onOpenChange={(open) => { if (!open) closeSheet() }}>
+      <Sheet open={sheetTarget !== undefined} onOpenChange={(open) => { if (!open) closeSheet() }}>
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
-              {editTarget ? t("envConfig.editTitle") : t("envConfig.addTitle")}
+              {sheetTarget ? t("envConfig.editTitle") : t("envConfig.addTitle")}
             </SheetTitle>
             <SheetDescription>
-              {editTarget ? editTarget.key : t("envConfig.keyPlaceholder")}
+              {sheetTarget ? sheetTarget.key : t("envConfig.keyPlaceholder")}
             </SheetDescription>
           </SheetHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-4 py-6">
@@ -171,7 +169,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                 {formError}
               </div>
             )}
-            {!editTarget && (
+            {!sheetTarget && (
               <div className="space-y-1.5">
                 <Label htmlFor="env-key">{t("envConfig.key")}</Label>
                 <Input
@@ -195,7 +193,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                   onChange={(e) => setFormValue(e.target.value)}
                   placeholder={t("envConfig.valuePlaceholder")}
                   required
-                  autoFocus={!!editTarget}
+                  autoFocus={!!sheetTarget}
                   className="font-mono pr-10"
                 />
                 <button
@@ -212,8 +210,8 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
               <Button type="button" variant="outline" onClick={closeSheet}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit" disabled={isPending || !formValue || (!editTarget && !formKey.trim())}>
-                {editTarget ? t("common.save") : t("common.create")}
+              <Button type="submit" disabled={isPending || !formValue || (!sheetTarget && !formKey.trim())}>
+                {sheetTarget ? t("common.save") : t("common.create")}
               </Button>
             </SheetFooter>
           </form>
