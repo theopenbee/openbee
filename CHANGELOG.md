@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.0.22] - 2026-04-13
+
+### Added
+- Add system data query permission and grant access to employees
+
+### Changed
+- Optimize session clearing logic to improve clearing efficiency
+- Improve openbee ctl command output results
+- Improve openbee ctl command filter and deletion
+
 ## [0.0.21] - 2026-04-12
 
 ### Added

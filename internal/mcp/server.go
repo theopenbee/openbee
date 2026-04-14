@@ -18,11 +18,13 @@ var log = logger.With(zap.String("component", "mcp"))
 
 type ctxKey string
 
-// CtxWorkerIDKey carries the caller's worker ID through tool dispatch.
-// It uses the same string value as CtxKeyWorkerID (set by auth middleware on gin.Context)
+// Uses the same string value as CtxKeyWorkerID (auth middleware on gin.Context)
 // so the two stay in sync without a hard import dependency between packages.
 // Exported so tests can construct contexts that simulate worker calls.
 const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
+
+// Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
+const CtxScopesKey ctxKey = CtxKeyScopes
 
 // ExecutionStopper can kill a running worker process by execution ID.
 type ExecutionStopper interface {
@@ -36,17 +38,18 @@ type SessionClearer interface {
 
 // MCPServer dispatches tool calls.
 type MCPServer struct {
-	workerStore     *store.WorkerStore
-	manager         *worker.Manager
-	taskStore       *store.TaskStore
-	messageStore    *store.MessageStore
-	senders         map[string]platform.PlatformSenderAdapter
-	execStopper     ExecutionStopper
-	sessionClearer  SessionClearer
-	executionStore  *store.ExecutionStore
-	memoryStore     *store.MemoryStore
-	sessionStore    *store.SessionStore
-	departmentStore *store.DepartmentStore
+	workerStore          *store.WorkerStore
+	manager              *worker.Manager
+	taskStore            *store.TaskStore
+	messageStore         *store.MessageStore
+	outboundMessageStore *store.OutboundMessageStore
+	senders              map[string]platform.PlatformSenderAdapter
+	execStopper          ExecutionStopper
+	sessionClearer       SessionClearer
+	executionStore       *store.ExecutionStore
+	memoryStore          *store.MemoryStore
+	sessionStore         *store.SessionStore
+	departmentStore      *store.DepartmentStore
 
 	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
@@ -57,6 +60,7 @@ func NewBeeServer(
 	mgr *worker.Manager,
 	ts *store.TaskStore,
 	ms *store.MessageStore,
+	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
 	execStopper ExecutionStopper,
 	sessionClearer SessionClearer,
@@ -66,22 +70,25 @@ func NewBeeServer(
 	ds *store.DepartmentStore,
 ) *MCPServer {
 	return &MCPServer{
-		workerStore:     ws,
-		manager:         mgr,
-		taskStore:       ts,
-		messageStore:    ms,
-		senders:         senders,
-		execStopper:     execStopper,
-		sessionClearer:  sessionClearer,
-		executionStore:  es,
-		memoryStore:     memStore,
-		sessionStore:    sessionStore,
-		departmentStore: ds,
+		workerStore:          ws,
+		manager:              mgr,
+		taskStore:            ts,
+		messageStore:         ms,
+		outboundMessageStore: oms,
+		senders:              senders,
+		execStopper:          execStopper,
+		sessionClearer:       sessionClearer,
+		executionStore:       es,
+		memoryStore:          memStore,
+		sessionStore:         sessionStore,
+		departmentStore:      ds,
 	}
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
-	return context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
+	ctx := context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
+	scopes, _ := c.Get(CtxKeyScopes)
+	return context.WithValue(ctx, CtxScopesKey, scopes)
 }
 
 // Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.

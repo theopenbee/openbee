@@ -7,6 +7,7 @@ export interface Worker {
   description: string
   memory: string
   work_dir: string
+  permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
   created_at: number

@@ -18,7 +18,7 @@ The following tools are unavailable in background Worker mode. Use these alterna
 
 ### Mandatory Requirements
 
-- All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash)
+- All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash). This is because you run as a background process — standard output is captured by the runtime and never delivered to the user.
 - Text output will not reach anyone; do not communicate with the user via text output
 
 ### ⛔ Communication Hard Gate
@@ -57,12 +57,6 @@ Task instruction content
 ## Task Notification Spec
 
 When executing any task, you must stay in sync with the user via `openbee ctl message send`.
-
-```bash
-openbee ctl message send --message-id <message_id> --stdin << 'EOF'
-message content
-EOF
-```
 
 ### When to Notify
 
@@ -115,28 +109,13 @@ openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.csv
 ```
 
-## openbee ctl CLI Reference
+---
 
-Prefer using the following commands to complete worker-related configuration and user notifications.
+## Reference Documents
 
-### message subcommand
+Read these sub-documents on demand when the scenario arises — they are not needed for every task:
 
-```bash
-openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
-
-# Note: --media-path supports only one file per call; sending multiple files requires multiple calls
-# --stdin and --media-path can be used independently or together (text first, then media)
-
-# Send plain text
-openbee ctl message send --message-id <id> --stdin << 'EOF'
-Done.
-EOF
-
-# Send an image file
-openbee ctl message send --message-id <id> --media-path /tmp/chart.png
-
-# Send text and file together
-openbee ctl message send --message-id <id> --stdin --media-path /tmp/output.csv << 'EOF'
-See attachment for details.
-EOF
-```
+| When you need... | Read |
+|-----------------|------|
+| Full CLI command syntax, read-only query commands and examples | `references/cli-reference.md` |
+| Understanding entity relationships (Message / Task / Execution / Worker / Session) | `references/entity-relationships.md` |

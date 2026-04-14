@@ -48,7 +48,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		&stubEngineAdapter{}, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -60,18 +60,46 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 	return b
 }
 
+func decodeResult(t *testing.T, result any) map[string]any {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	return m
+}
+
+func decodeListWorkersResult(t *testing.T, result any) (items []any, total int) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal list_workers result: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal list_workers result: %v", err)
+	}
+	items = m["items"].([]any)
+	total = int(m["total"].(float64))
+	return
+}
+
 func TestCallTool_ListWorkers_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
-	workers, ok := result.([]model.Worker)
-	if !ok {
-		t.Fatalf("expected []model.Worker, got %T", result)
+	items, total := decodeListWorkersResult(t, result)
+	if len(items) != 0 {
+		t.Errorf("expected empty items, got %d", len(items))
 	}
-	if len(workers) != 0 {
-		t.Errorf("expected empty slice, got %d workers", len(workers))
+	if total != 0 {
+		t.Errorf("expected total 0, got %d", total)
 	}
 }
 
@@ -106,12 +134,16 @@ func TestCallTool_GetWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
 	}
-	fetched, ok := result.(model.Worker)
-	if !ok {
-		t.Fatalf("expected model.Worker, got %T", result)
+	b, _ := json.Marshal(result)
+	var fetched map[string]any
+	if err := json.Unmarshal(b, &fetched); err != nil {
+		t.Fatalf("unmarshal get_worker result: %v", err)
 	}
-	if fetched.ID != w.ID {
-		t.Errorf("expected ID %s, got %s", w.ID, fetched.ID)
+	if fetched["id"].(string) != w.ID {
+		t.Errorf("expected ID %s, got %s", w.ID, fetched["id"])
+	}
+	if _, ok := fetched["departments"]; !ok {
+		t.Error("expected departments field in get_worker response")
 	}
 }
 
@@ -178,9 +210,9 @@ func TestListWorkers_ReturnsEmptySlice_NotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	workers := result.([]model.Worker)
-	if workers == nil {
-		t.Error("expected non-nil slice, got nil")
+	items, _ := decodeListWorkersResult(t, result)
+	if items == nil {
+		t.Error("expected non-nil items, got nil")
 	}
 }
 
@@ -215,7 +247,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		&stubEngineAdapter{}, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -465,7 +497,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
@@ -517,6 +549,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-Y",
+		"force":       true,
 	}))
 	if err != nil {
 		t.Fatalf("clear_session: %v", err)
@@ -831,7 +864,7 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	if workerCount != 2 {
 		t.Errorf("expected worker_count=2, got %v", m["worker_count"])
 	}
-	linkedWorkers, _ := m["linked_workers"].([]map[string]string)
+	linkedWorkers, _ := m["linked_workers"].([]mcp.LinkedWorkerSummary)
 	if len(linkedWorkers) != 2 {
 		t.Errorf("expected 2 linked_workers, got %v", m["linked_workers"])
 	}
@@ -946,6 +979,139 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	}
 }
 
+// --- clear_session task detection ---
+
+func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-rt1", "session-RT", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-rt1", WorkerID: w.ID, Instruction: "long running task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-RT",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true, got %v", m)
+	}
+	if m["reason"] != mcp.ClearReasonActiveTasks {
+		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
+	}
+	tasks, ok := m["running_tasks"].([]mcp.ActiveTaskSummary)
+	if !ok || len(tasks) != 1 {
+		t.Errorf("expected running_tasks with 1 entry, got %v", m["running_tasks"])
+	} else {
+		if tasks[0].Instruction != "long running task" {
+			t.Errorf("expected instruction='long running task', got %v", tasks[0].Instruction)
+		}
+		if tasks[0].Status != model.TaskStatusRunning {
+			t.Errorf("expected status=running, got %v", tasks[0].Status)
+		}
+	}
+
+	// ClearSession must NOT have been called.
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called on confirmation prompt, got %v", clearer.cleared)
+	}
+}
+
+func TestCallTool_ClearSession_PendingTaskRequiresConfirmation(t *testing.T) {
+	s, db, _, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-pt1", "session-PT", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-pt1", WorkerID: w.ID, Instruction: "queued task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-PT",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true for pending task, got %v", m)
+	}
+	if m["reason"] != mcp.ClearReasonActiveTasks {
+		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called on confirmation prompt")
+	}
+}
+
+func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
+	s, db, stopper, clearer := setupMCPServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-fsd1", "session-FSD", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ts := store.NewTaskStore(db)
+	taskID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-fsd1", WorkerID: w.ID, Instruction: "long task",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	ts.SetExecution(ctx, taskID, "exec-fsd-1", model.TaskStatusRunning) //nolint
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-FSD",
+		"force":       true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true with force=true, got %v", m)
+	}
+
+	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
+	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-fsd-1" {
+		t.Errorf("expected StopExecution(exec-fsd-1), got %v", stopper.stopped)
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 1 || clearer.cleared[0] != "session-FSD" {
+		t.Errorf("expected ClearSession(session-FSD), got %v", clearer.cleared)
+	}
+}
+
 func TestResolveDepartmentID_ByID(t *testing.T) {
 	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
 	ds := store.NewDepartmentStore(db)
@@ -1001,16 +1167,26 @@ func TestResolveDepartmentID_NotFound(t *testing.T) {
 	}
 }
 
+func decodeDeptTree(t *testing.T, result any) []map[string]any {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal list_departments result: %v", err)
+	}
+	var tree []map[string]any
+	if err := json.Unmarshal(b, &tree); err != nil {
+		t.Fatalf("unmarshal list_departments result: %v", err)
+	}
+	return tree
+}
+
 func TestCallTool_ListDepartments_Empty(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
 	if err != nil {
 		t.Fatalf("list_departments: %v", err)
 	}
-	tree, ok := result.([]model.DepartmentTree)
-	if !ok {
-		t.Fatalf("expected []model.DepartmentTree, got %T", result)
-	}
+	tree := decodeDeptTree(t, result)
 	if len(tree) != 0 {
 		t.Errorf("expected empty tree, got %d roots", len(tree))
 	}
@@ -1028,18 +1204,23 @@ func TestCallTool_ListDepartments_Tree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_departments: %v", err)
 	}
-	tree, ok := result.([]model.DepartmentTree)
-	if !ok {
-		t.Fatalf("expected []model.DepartmentTree, got %T", result)
-	}
+	tree := decodeDeptTree(t, result)
 	if len(tree) != 1 {
 		t.Fatalf("expected 1 root, got %d", len(tree))
 	}
-	if tree[0].Name != "R&D" {
-		t.Errorf("expected root name R&D, got %s", tree[0].Name)
+	if tree[0]["name"].(string) != "R&D" {
+		t.Errorf("expected root name R&D, got %s", tree[0]["name"])
 	}
-	if len(tree[0].Children) != 2 {
-		t.Errorf("expected 2 children, got %d", len(tree[0].Children))
+	children := tree[0]["children"].([]any)
+	if len(children) != 2 {
+		t.Errorf("expected 2 children, got %d", len(children))
+	}
+	// Verify slim fields (no parent_id, created_at, updated_at)
+	if _, hasParentID := tree[0]["parent_id"]; hasParentID {
+		t.Error("expected no parent_id in department list response")
+	}
+	if _, hasCreatedAt := tree[0]["created_at"]; hasCreatedAt {
+		t.Error("expected no created_at in department list response")
 	}
 }
 
@@ -1148,15 +1329,16 @@ func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers with dept filter: %v", err)
 	}
-	workers, ok := result.([]model.Worker)
-	if !ok {
-		t.Fatalf("expected []model.Worker, got %T", result)
+	items, total := decodeListWorkersResult(t, result)
+	if total != 1 {
+		t.Fatalf("expected total 1, got %d", total)
 	}
-	if len(workers) != 1 {
-		t.Fatalf("expected 1 worker, got %d", len(workers))
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
 	}
-	if workers[0].Name != "Alice" {
-		t.Errorf("expected Alice, got %s", workers[0].Name)
+	item := items[0].(map[string]any)
+	if item["name"].(string) != "Alice" {
+		t.Errorf("expected Alice, got %s", item["name"])
 	}
 }
 
@@ -1179,9 +1361,9 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers recursive: %v", err)
 	}
-	workers := result.([]model.Worker)
-	if len(workers) != 2 {
-		t.Errorf("expected 2 workers (recursive), got %d", len(workers))
+	items, _ := decodeListWorkersResult(t, result)
+	if len(items) != 2 {
+		t.Errorf("expected 2 workers (recursive), got %d", len(items))
 	}
 
 	// non-recursive: should return only Alice
@@ -1190,12 +1372,13 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_workers non-recursive: %v", err)
 	}
-	workers2 := result2.([]model.Worker)
-	if len(workers2) != 1 {
-		t.Errorf("expected 1 worker (non-recursive), got %d", len(workers2))
+	items2, _ := decodeListWorkersResult(t, result2)
+	if len(items2) != 1 {
+		t.Errorf("expected 1 worker (non-recursive), got %d", len(items2))
 	}
-	if workers2[0].Name != "Alice" {
-		t.Errorf("expected Alice, got %s", workers2[0].Name)
+	item2 := items2[0].(map[string]any)
+	if item2["name"].(string) != "Alice" {
+		t.Errorf("expected Alice, got %s", item2["name"])
 	}
 }
 
@@ -1263,5 +1446,106 @@ func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
 	depts, _ := ds.GetWorkerDepartments(w.ID)
 	if len(depts) != 0 {
 		t.Errorf("expected 0 departments after clear, got %d", len(depts))
+	}
+}
+
+func workerCtx(workerID string, scopes []string) context.Context {
+	ctx := context.WithValue(context.Background(), mcp.CtxWorkerIDKey, workerID)
+	return context.WithValue(ctx, mcp.CtxScopesKey, scopes)
+}
+
+func TestCheckWorkerScope_WorkerWithScope_CanCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:workers"})
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestCheckWorkerScope_WorkerWithoutScope_CannotCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err == nil {
+		t.Error("expected permission denied error, got nil")
+	}
+}
+
+func TestCheckWorkerScope_WorkerWithWrongScope_CannotCallScopedTool(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:tasks"}) // has tasks scope, not workers
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err == nil {
+		t.Error("expected permission denied error, got nil")
+	}
+}
+
+func TestCheckWorkerScope_BeeToken_AlwaysAllowed(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	// Bee token: no workerID in context
+	ctx := context.Background()
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Errorf("bee token should always be allowed, got: %v", err)
+	}
+}
+
+func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	// send_message has no scope requirement — existing behavior, worker can call it
+	_, err := s.CallTool(ctx, utils.SendMessage, mustMarshal(t, map[string]any{
+		"message_id": "nonexistent",
+		"content":    "test",
+	}))
+	// Should NOT be a permission denied error
+	if err != nil && err.Error() == "permission denied: scope read:workers required" {
+		t.Error("non-scoped tool should not return permission denied")
+	}
+}
+
+func TestCallTool_ListOutboundMessages(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	oms := store.NewOutboundMessageStore(db)
+	if err := oms.Create(ctx, store.OutboundMessage{
+		ID: "out-1", SessionKey: "sk1", Platform: "feishu",
+		Content: "reply", Status: store.OutboundStatusSent,
+		SourceType: store.SourceTypeWorker, SourceID: "worker-X",
+		SentAt: 1000,
+	}); err != nil {
+		t.Fatalf("seed outbound: %v", err)
+	}
+	if err := oms.Create(ctx, store.OutboundMessage{
+		ID: "out-2", SessionKey: "sk2", Platform: "local",
+		Content: "hi", Status: store.OutboundStatusFailed,
+		SourceType: store.SourceTypeBee,
+		SentAt: 2000,
+	}); err != nil {
+		t.Fatalf("seed outbound: %v", err)
+	}
+
+	// No filter — returns all
+	result, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	m := decodeResult(t, result)
+	if m["total"].(float64) != 2 {
+		t.Errorf("total: want 2, got %v", m["total"])
+	}
+
+	// Filter by source_type=worker
+	result2, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{
+		"source_type": store.SourceTypeWorker,
+	}))
+	if err != nil {
+		t.Fatalf("CallTool filter: %v", err)
+	}
+	m2 := decodeResult(t, result2)
+	if m2["total"].(float64) != 1 {
+		t.Errorf("filtered total: want 1, got %v", m2["total"])
 	}
 }

@@ -40,6 +40,8 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/local/media/:filename", s.LocalChat.ServeMedia)
 	r.GET("/local/stream", s.LocalChat.StreamReplies)
 
+	r.GET("/messages", s.Messages.List)
+
 	r.GET("/stats/overview", s.Stats.GetOverview)
 	r.GET("/stats/trend", s.Stats.GetTrend)
 

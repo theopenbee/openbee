@@ -58,7 +58,7 @@ func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
 }
 
 func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
 	r := newRouter(testSecret)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -94,7 +94,7 @@ func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
 }
 
 func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
 	r := newRouter(testSecret, mcp.RequireBeeOrWorker())
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
@@ -106,13 +106,36 @@ func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
 }
 
 func TestWorkerIDStoredInContext(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-999", time.Hour)
+	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-999", nil, time.Hour)
 	r := gin.New()
 	r.Use(mcp.JWTAuthMiddleware(testSecret))
 	r.GET("/test", func(c *gin.Context) {
 		wid, _ := c.Get(mcp.CtxKeyWorkerID)
 		if wid != "worker-999" {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "wrong worker id"})
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-API-Key", tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestWorkerScopesStoredInContext(t *testing.T) {
+	scopes := []string{auth.ScopeReadWorkers, auth.ScopeReadTasks}
+	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-scoped", scopes, time.Hour)
+	r := gin.New()
+	r.Use(mcp.JWTAuthMiddleware(testSecret))
+	r.GET("/test", func(c *gin.Context) {
+		raw, _ := c.Get(mcp.CtxKeyScopes)
+		got, _ := raw.([]string)
+		if len(got) != 2 || got[0] != auth.ScopeReadWorkers || got[1] != auth.ScopeReadTasks {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "wrong scopes"})
 			return
 		}
 		c.Status(http.StatusOK)

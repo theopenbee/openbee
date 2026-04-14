@@ -11,6 +11,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -39,11 +41,31 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 	return name
 }
 
-// beeCallTool dispatches to the named tool handler and returns the result.
+// checkWorkerScope enforces per-tool scope restrictions for worker tokens.
+// Bee tokens carry no workerID and are always fully trusted — only worker tokens are scope-restricted.
+func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
+	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
+	if workerID == "" {
+		return nil
+	}
+	requiredScope, ok := auth.ScopeForTool(toolName)
+	if !ok {
+		return nil
+	}
+	scopes, _ := ctx.Value(CtxScopesKey).([]string)
+	if slices.Contains(scopes, requiredScope) {
+		return nil
+	}
+	return fmt.Errorf("permission denied: scope %s required", requiredScope)
+}
+
 func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
+	if err := s.checkWorkerScope(ctx, name); err != nil {
+		return nil, err
+	}
 	switch name {
 	case utils.ListWorkers:
-		return s.toolListWorkers(args)
+		return s.toolListWorkers(ctx, args)
 	case utils.GetWorker:
 		return s.toolGetWorker(args)
 	case utils.CreateWorker:
@@ -88,45 +110,89 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolUpdateDepartment(args)
 	case utils.DeleteDepartment:
 		return s.toolDeleteDepartment(args)
+	case utils.ListMessages:
+		return s.toolListMessages(ctx, args)
+	case utils.ListOutboundMessages:
+		return s.toolListOutboundMessages(ctx, args)
+	case utils.ListExecutions:
+		return s.toolListExecutions(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
 }
 
-func (s *MCPServer) toolListWorkers(args json.RawMessage) (any, error) {
+const (
+	ClearReasonActiveTasks     = "active_tasks"
+	ClearReasonMultipleWorkers = "multiple_workers"
+)
+
+type workerBrief struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type ActiveTaskSummary struct {
+	TaskID      string `json:"task_id"`
+	Instruction string `json:"instruction"`
+	Status      string `json:"status"`
+}
+
+type LinkedWorkerSummary struct {
+	WorkerID string `json:"worker_id"`
+	Name     string `json:"name"`
+}
+
+func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		DepartmentID string `json:"department_id"`
 		Recursive    *bool  `json:"recursive"`
+		Name         string `json:"name"`
+		ID           string `json:"id"`
+		Page         int    `json:"page"`
+		PageSize     int    `json:"page_size"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
 
-	var workers []model.Worker
-	var err error
+	page, pageSize, offset := normalizePage(params.Page, params.PageSize, 200)
+
+	filter := store.WorkerFilter{
+		Name: params.Name,
+		ID:   params.ID,
+	}
 
 	if params.DepartmentID != "" {
 		recursive := params.Recursive == nil || *params.Recursive
+		var workerIDs []string
+		var err error
 		if recursive {
-			workers, err = s.listWorkersRecursive(params.DepartmentID)
+			workerIDs, err = s.listWorkersRecursive(params.DepartmentID)
 		} else {
 			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			workers, err = s.workerStore.GetByDepartmentID(deptID)
+			workerIDs, err = s.departmentStore.GetWorkerIDsForDepartments([]string{deptID})
 		}
-	} else {
-		workers, err = s.workerStore.List()
+		if err != nil {
+			return nil, fmt.Errorf("list workers: %w", err)
+		}
+		filter.WorkerIDs = workerIDs
 	}
 
+	workers, total, err := s.workerStore.ListFiltered(ctx, filter, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
-	if workers == nil {
-		workers = []model.Worker{}
+
+	briefs := make([]workerBrief, 0, len(workers))
+	for _, w := range workers {
+		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
 	}
-	return workers, nil
+
+	return pagedResult(briefs, total, page, pageSize), nil
 }
 
 func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
@@ -139,16 +205,42 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	return s.workerStore.GetByID(params.WorkerID)
+	type workerResult struct {
+		w   model.Worker
+		err error
+	}
+	type deptsResult struct {
+		depts []model.Department
+		err   error
+	}
+	wCh := make(chan workerResult, 1)
+	dCh := make(chan deptsResult, 1)
+	go func() {
+		w, err := s.workerStore.GetByID(params.WorkerID)
+		wCh <- workerResult{w, err}
+	}()
+	go func() {
+		depts, err := s.departmentStore.GetWorkerDepartments(params.WorkerID)
+		dCh <- deptsResult{depts, err}
+	}()
+	wr, dr := <-wCh, <-dCh
+	if wr.err != nil {
+		return nil, fmt.Errorf("worker not found: %w", wr.err)
+	}
+	if dr.err != nil {
+		return nil, fmt.Errorf("get worker departments: %w", dr.err)
+	}
+	return model.WorkerWithDepartments{Worker: wr.w, Departments: model.ToDepartmentBriefs(dr.depts)}, nil
 }
 
 func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		Name          string `json:"name"`
-		Description   string `json:"description"`
-		Memory        string `json:"memory"`
-		WorkDir       string `json:"work_dir"`
-		DepartmentIDs string `json:"department_ids"`
+		Name             string `json:"name"`
+		Description      string `json:"description"`
+		Memory           string `json:"memory"`
+		WorkDir          string `json:"work_dir"`
+		DepartmentIDs    string `json:"department_ids"`
+		PermissionScopes string `json:"permission_scopes"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -156,7 +248,16 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	w, err := s.manager.CreateWorker(params.Name, params.Description, params.Memory, params.WorkDir)
+	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
+		return nil, err
+	}
+	w, err := s.manager.CreateWorker(worker.CreateWorkerParams{
+		Name:             params.Name,
+		Description:      params.Description,
+		Memory:           params.Memory,
+		WorkDir:          params.WorkDir,
+		PermissionScopes: params.PermissionScopes,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -170,11 +271,12 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID      string  `json:"worker_id"`
-		Name          *string `json:"name"`
-		Description   *string `json:"description"`
-		Memory        *string `json:"memory"`
-		DepartmentIDs *string `json:"department_ids"`
+		WorkerID         string  `json:"worker_id"`
+		Name             *string `json:"name"`
+		Description      *string `json:"description"`
+		Memory           *string `json:"memory"`
+		DepartmentIDs    *string `json:"department_ids"`
+		PermissionScopes *string `json:"permission_scopes"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -186,7 +288,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.PermissionScopes != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -195,6 +297,12 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	}
 	if params.Memory != nil {
 		w.Memory = *params.Memory
+	}
+	if params.PermissionScopes != nil {
+		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {
+			return nil, err
+		}
+		w.PermissionScopes = *params.PermissionScopes
 	}
 	if fieldsChanged {
 		w, err = s.workerStore.Update(w)
@@ -455,45 +563,64 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		return nil, fmt.Errorf("session_key is required")
 	}
 
-	// Two-step confirmation: if more than one worker has a session context and
-	// force is not set, return a confirmation prompt without clearing anything.
+	var tasksToStop []model.Task
 	if !params.Force {
+		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
+			model.TaskStatusActive, "")
+		if err != nil {
+			return nil, fmt.Errorf("list active tasks: %w", err)
+		}
+		if len(activeTasks) > 0 {
+			summaries := make([]ActiveTaskSummary, 0, len(activeTasks))
+			for _, t := range activeTasks {
+				summaries = append(summaries, ActiveTaskSummary{
+					TaskID:      t.ID,
+					Instruction: t.Instruction,
+					Status:      t.Status,
+				})
+			}
+			return map[string]any{
+				"requires_confirmation": true,
+				"reason":                ClearReasonActiveTasks,
+				"running_tasks":         summaries,
+				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
+			}, nil
+		}
+
 		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
 		if err != nil {
 			return nil, fmt.Errorf("list session contexts: %w", err)
 		}
-		var workers []map[string]string
+		var workers []LinkedWorkerSummary
 		seenWorkers := make(map[string]struct{})
 		for _, a := range agents {
-			if a.AgentType == "worker" {
+			if a.AgentType == store.WorkerAgentType {
 				if _, exists := seenWorkers[a.AgentID]; exists {
 					continue
 				}
 				seenWorkers[a.AgentID] = struct{}{}
-				workers = append(workers, map[string]string{
-					"worker_id": a.AgentID,
-					"name":      a.Name,
-				})
+				workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
 			}
 		}
 		if len(workers) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
+				"reason":                ClearReasonMultipleWorkers,
 				"worker_count":          len(workers),
 				"linked_workers":        workers,
 				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
+	} else {
+		var err error
+		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
+		if err != nil {
+			return nil, fmt.Errorf("list running tasks: %w", err)
+		}
 	}
 
-	// Step 1: Collect running tasks with execution IDs (before cancelling)
-	runningTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey, "running", "")
-	if err != nil {
-		return nil, fmt.Errorf("list running tasks: %w", err)
-	}
-
-	// Step 2: Stop running worker processes
-	for _, t := range runningTasks {
+	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
+	for _, t := range tasksToStop {
 		if t.ExecutionID != "" {
 			if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
 				log.Error("stop execution", zap.String("op", "clear_session"), zap.String("executionID", t.ExecutionID), zap.Error(err))
@@ -501,13 +628,11 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	}
 
-	// Step 3: Cancel all pending/running tasks in DB
 	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey)
 	if err != nil {
 		return nil, fmt.Errorf("cancel tasks: %w", err)
 	}
 
-	// Step 4: Clear dispatcher queues + session contexts
 	if s.sessionClearer != nil {
 		s.sessionClearer.ClearSession(params.SessionKey)
 	}
@@ -529,38 +654,60 @@ func (s *MCPServer) toolGetWorkerStatus(ctx context.Context, args json.RawMessag
 		return nil, fmt.Errorf("worker_id is required")
 	}
 
-	worker, err := s.workerStore.GetByID(p.WorkerID)
-	if err != nil {
-		return nil, fmt.Errorf("worker not found: %w", err)
+	type workerRes struct {
+		w   model.Worker
+		err error
 	}
+	type execRes struct {
+		exec *model.WorkerExecution
+		err  error
+	}
+	type pendingRes struct {
+		count int
+		err   error
+	}
+	wCh := make(chan workerRes, 1)
+	eCh := make(chan execRes, 1)
+	pCh := make(chan pendingRes, 1)
+	go func() {
+		w, err := s.workerStore.GetByID(p.WorkerID)
+		wCh <- workerRes{w, err}
+	}()
+	go func() {
+		exec, err := s.executionStore.GetRunningByWorkerID(p.WorkerID)
+		eCh <- execRes{exec, err}
+	}()
+	go func() {
+		count, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
+		pCh <- pendingRes{count, err}
+	}()
+	wr, er, pr := <-wCh, <-eCh, <-pCh
+	if wr.err != nil {
+		return nil, fmt.Errorf("worker not found: %w", wr.err)
+	}
+	pendingCount := pr.count
 
 	result := map[string]any{
-		"worker_id":         worker.ID,
-		"name":              worker.Name,
-		"status":            string(worker.Status),
-		"current_execution": nil,
+		"worker_id":           wr.w.ID,
+		"name":                wr.w.Name,
+		"status":              string(wr.w.Status),
+		"current_execution":   nil,
+		"pending_tasks_count": pendingCount,
 	}
 
-	runningExec, err := s.executionStore.GetRunningByWorkerID(worker.ID)
-	if err == nil && runningExec != nil {
+	if er.err == nil && er.exec != nil {
 		execInfo := map[string]any{
-			"id":          runningExec.ID,
+			"id":          er.exec.ID,
 			"task_id":     nil,
-			"instruction": runningExec.TriggerInput,
-			"started_at":  runningExec.StartedAt,
+			"instruction": er.exec.TriggerInput,
+			"started_at":  er.exec.StartedAt,
 		}
-		task, terr := s.taskStore.GetTaskByExecutionID(ctx, runningExec.ID)
+		task, terr := s.taskStore.GetTaskByExecutionID(ctx, er.exec.ID)
 		if terr == nil && task != nil {
 			execInfo["task_id"] = task.ID
 		}
 		result["current_execution"] = execInfo
 	}
-
-	pendingCount, err := s.taskStore.CountPendingByWorkerID(ctx, p.WorkerID)
-	if err != nil {
-		pendingCount = 0
-	}
-	result["pending_tasks_count"] = pendingCount
 
 	return result, nil
 }
@@ -600,9 +747,9 @@ func (s *MCPServer) toolGetSystemOverview(ctx context.Context) (any, error) {
 	return map[string]any{
 		"workers": map[string]any{
 			"total":   total,
-			"idle":    workerCounts["idle"],
-			"working": workerCounts["working"],
-			"error":   workerCounts["error"],
+			"idle":    workerCounts[string(model.WorkerStatusIdle)],
+			"working": workerCounts[string(model.WorkerStatusWorking)],
+			"error":   workerCounts[string(model.WorkerStatusError)],
 		},
 		"tasks": map[string]any{
 			"pending":          taskCounts["pending"],
@@ -753,11 +900,7 @@ func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMes
 		return nil, fmt.Errorf("cannot clear bee session context with this tool, use clear_session instead")
 	}
 
-	// Resolve worker name regardless of whether a session row exists.
-	workerName := "(deleted)"
-	if w, err := s.workerStore.GetByID(params.WorkerID); err == nil {
-		workerName = w.Name
-	}
+	workerName := s.workerDisplayName(params.WorkerID)
 
 	if err := s.sessionStore.DeleteWorkerSessionContext(ctx, params.SessionKey, params.WorkerID); err != nil {
 		return nil, fmt.Errorf("delete worker session context: %w", err)
@@ -770,16 +913,33 @@ func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMes
 	}, nil
 }
 
+type deptTreeBrief struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	SortOrder int             `json:"sort_order"`
+	Children  []deptTreeBrief `json:"children"`
+}
+
+func toDeptTreeBriefs(nodes []model.DepartmentTree) []deptTreeBrief {
+	result := make([]deptTreeBrief, 0, len(nodes))
+	for _, n := range nodes {
+		result = append(result, deptTreeBrief{
+			ID:        n.ID,
+			Name:      n.Name,
+			SortOrder: n.SortOrder,
+			Children:  toDeptTreeBriefs(n.Children),
+		})
+	}
+	return result
+}
+
 func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
 	tree := s.departmentStore.BuildTree(all)
-	if tree == nil {
-		tree = []model.DepartmentTree{}
-	}
-	return tree, nil
+	return toDeptTreeBriefs(tree), nil
 }
 
 func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
@@ -1001,7 +1161,7 @@ func collectDescendantIDs(all []model.Department, rootID string) []string {
 	return ids
 }
 
-func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error) {
+func (s *MCPServer) listWorkersRecursive(idOrName string) ([]string, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
@@ -1015,5 +1175,120 @@ func (s *MCPServer) listWorkersRecursive(idOrName string) ([]model.Worker, error
 	if err != nil {
 		return nil, fmt.Errorf("get department workers: %w", err)
 	}
-	return s.workerStore.GetByIDs(workerIDs)
+	return workerIDs, nil
+}
+
+func pagedResult(items any, total, page, pageSize int) map[string]any {
+	return map[string]any{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}
+}
+
+// normalizePage clamps page/pageSize to valid ranges and returns the offset.
+func normalizePage(page, pageSize, maxPageSize int) (int, int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	return page, pageSize, (page - 1) * pageSize
+}
+
+func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey     string `json:"session_key"`
+		Platform       string `json:"platform"`
+		Status         string `json:"status"`
+		ReceivedAtFrom int64  `json:"received_at_from"`
+		ReceivedAtTo   int64  `json:"received_at_to"`
+		Page           int    `json:"page"`
+		PageSize       int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	msgs, total, err := s.messageStore.ListFiltered(ctx, store.MessageFilter{
+		SessionKey:     params.SessionKey,
+		Platform:       params.Platform,
+		Status:         params.Status,
+		ReceivedAtFrom: params.ReceivedAtFrom,
+		ReceivedAtTo:   params.ReceivedAtTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list messages: %w", err)
+	}
+	return pagedResult(msgs, total, params.Page, params.PageSize), nil
+}
+
+func (s *MCPServer) toolListOutboundMessages(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		SessionKey string `json:"session_key"`
+		Platform   string `json:"platform"`
+		Status     string `json:"status"`
+		SourceType string `json:"source_type"`
+		SourceID   string `json:"source_id"`
+		SentAtFrom int64  `json:"sent_at_from"`
+		SentAtTo   int64  `json:"sent_at_to"`
+		Page       int    `json:"page"`
+		PageSize   int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	msgs, total, err := s.outboundMessageStore.ListFiltered(ctx, store.OutboundMessageFilter{
+		SessionKey: params.SessionKey,
+		Platform:   params.Platform,
+		Status:     params.Status,
+		SourceType: params.SourceType,
+		SourceID:   params.SourceID,
+		SentAtFrom: params.SentAtFrom,
+		SentAtTo:   params.SentAtTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list outbound messages: %w", err)
+	}
+	return pagedResult(msgs, total, params.Page, params.PageSize), nil
+}
+
+func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		WorkerID      string `json:"worker_id"`
+		SessionID     string `json:"session_id"`
+		Status        string `json:"status"`
+		StartedFrom   int64  `json:"started_at_from"`
+		StartedTo     int64  `json:"started_at_to"`
+		CompletedFrom int64  `json:"completed_at_from"`
+		CompletedTo   int64  `json:"completed_at_to"`
+		Page          int    `json:"page"`
+		PageSize      int    `json:"page_size"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	var offset int
+	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
+	execs, total, err := s.executionStore.ListFiltered(ctx, store.ExecutionFilter{
+		WorkerID:      params.WorkerID,
+		SessionID:     params.SessionID,
+		Status:        params.Status,
+		StartedFrom:   params.StartedFrom,
+		StartedTo:     params.StartedTo,
+		CompletedFrom: params.CompletedFrom,
+		CompletedTo:   params.CompletedTo,
+	}, params.PageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list executions: %w", err)
+	}
+	return pagedResult(execs, total, params.Page, params.PageSize), nil
 }

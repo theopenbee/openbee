@@ -126,7 +126,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
+	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
 
 	for _, p := range platforms {
@@ -277,6 +277,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr),
 		Executions:        api.NewExecutionHandler(s.execStore),
+		Messages:          api.NewMessageHandler(s.msgStore),
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Stats:             api.NewStatsHandler(s.statsStore),

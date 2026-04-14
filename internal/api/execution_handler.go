@@ -38,18 +38,38 @@ func (h *ExecutionHandler) ListByWorker(c *gin.Context) {
 func (h *ExecutionHandler) List(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
 
-	total, err := h.executions.CountSessions()
+	f := store.ExecutionFilter{
+		WorkerID:      c.Query("worker_id"),
+		SessionID:     c.Query("session_id"),
+		Status:        c.Query("status"),
+		StartedFrom:   parseInt64Query(c, "started_at_from"),
+		StartedTo:     parseInt64Query(c, "started_at_to"),
+		CompletedFrom: parseInt64Query(c, "completed_at_from"),
+		CompletedTo:   parseInt64Query(c, "completed_at_to"),
+	}
+
+	// When no filters are applied, paginate at the session level so that each
+	// page contains a consistent number of sessions (the frontend groups by session).
+	if f == (store.ExecutionFilter{}) {
+		total, err := h.executions.CountSessions()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		execs, err := h.executions.ListPaginated(pageSize, offset)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
+		return
+	}
+
+	execs, total, err := h.executions.ListFiltered(c.Request.Context(), f, pageSize, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	execs, err := h.executions.ListPaginated(pageSize, offset)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
 	c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
 }
 

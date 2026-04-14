@@ -16,9 +16,24 @@ type DepartmentTree struct {
 	Children []DepartmentTree `json:"children"`
 }
 
+// DepartmentBrief is a lightweight department summary used in list and detail responses.
+type DepartmentBrief struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // WorkerDepartment represents the many-to-many link between a Worker and a Department.
 type WorkerDepartment struct {
 	WorkerID     string `json:"worker_id" db:"worker_id"`
 	DepartmentID string `json:"department_id" db:"department_id"`
 	CreatedAt    int64  `json:"created_at" db:"created_at"`
+}
+
+// ToDepartmentBriefs converts a slice of Department to a slice of DepartmentBrief.
+func ToDepartmentBriefs(depts []Department) []DepartmentBrief {
+	briefs := make([]DepartmentBrief, 0, len(depts))
+	for _, d := range depts {
+		briefs = append(briefs, DepartmentBrief{ID: d.ID, Name: d.Name})
+	}
+	return briefs
 }
