@@ -6,6 +6,9 @@
 - Optimize Skills installation logic
 - Optimize scheduler error parsing on GLM and Kimi
 
+### Fixed
+- Fix session clear to only check immediate tasks for pending or running status
+
 ### Removed
 - Remove scheduler retry mechanism
 
