@@ -89,7 +89,6 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	if ov.MessagesTotalToday != 2 {
 		t.Errorf("MessagesTotalToday: want 2, got %d", ov.MessagesTotalToday)
 	}
-	// Duration fields are 0 because test executions have no completed_at set
 	if ov.ExecDurationTodayMS != 0 {
 		t.Errorf("ExecDurationTodayMS: want 0 (no completed_at set), got %d", ov.ExecDurationTodayMS)
 	}

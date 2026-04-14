@@ -20,13 +20,7 @@ export function formatDuration(
   if (!startMs || !endMs) return "—"
   const diff = endMs - startMs
   if (diff < 0) return "—"
-  const totalSec = Math.floor(diff / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
+  return formatTotalDuration(diff)
 }
 
 export function statusTone(status: string) {

@@ -25,11 +25,21 @@ func (h *StatsHandler) GetOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, ov)
 }
 
-func (h *StatsHandler) GetTrend(c *gin.Context) {
+// parseDaysParam reads and validates the "days" query parameter (7, 15, or 30).
+// It writes a 400 response and returns (0, false) on invalid input.
+func parseDaysParam(c *gin.Context) (int, bool) {
 	daysStr := c.DefaultQuery("days", "7")
 	days, err := strconv.Atoi(daysStr)
 	if err != nil || (days != 7 && days != 15 && days != 30) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "days must be 7, 15, or 30"})
+		return 0, false
+	}
+	return days, true
+}
+
+func (h *StatsHandler) GetTrend(c *gin.Context) {
+	days, ok := parseDaysParam(c)
+	if !ok {
 		return
 	}
 
@@ -42,10 +52,8 @@ func (h *StatsHandler) GetTrend(c *gin.Context) {
 }
 
 func (h *StatsHandler) GetExecutionDurationTrend(c *gin.Context) {
-	daysStr := c.DefaultQuery("days", "7")
-	days, err := strconv.Atoi(daysStr)
-	if err != nil || (days != 7 && days != 15 && days != 30) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "days must be 7, 15, or 30"})
+	days, ok := parseDaysParam(c)
+	if !ok {
 		return
 	}
 

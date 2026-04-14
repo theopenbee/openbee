@@ -228,7 +228,7 @@ func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, erro
 	}
 
 	points := make([]TrendPoint, days)
-	for i := 0; i < days; i++ {
+	for i := range days {
 		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
 		points[i] = TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
 	}
@@ -251,7 +251,7 @@ func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([
 	startOfToday := time.Date(y, m, d, 0, 0, 0, 0, loc)
 	startOfRange := startOfToday.AddDate(0, 0, -(days - 1))
 	startMS := startOfRange.UnixMilli()
-	endMS := startOfToday.Add(24 * time.Hour).UnixMilli()
+	endMS := startOfToday.AddDate(0, 0, 1).UnixMilli()
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
@@ -281,7 +281,7 @@ func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([
 	}
 
 	points := make([]ExecDurationTrendPoint, days)
-	for i := 0; i < days; i++ {
+	for i := range days {
 		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
 		points[i] = ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
 	}
