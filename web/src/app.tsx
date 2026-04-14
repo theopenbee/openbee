@@ -14,7 +14,7 @@ const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ d
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks })))
 const Departments = lazy(() => import("@/pages/departments").then(m => ({ default: m.Departments })))
-const Settings = lazy(() => import("@/pages/settings").then(m => ({ default: m.Settings })))
+const Env = lazy(() => import("@/pages/env").then(m => ({ default: m.Settings })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +42,7 @@ export function App() {
                 <Route path="/sessions/detail" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/chat" element={<LocalChat />} />
-                <Route path="/env" element={<Settings />} />
+                <Route path="/env" element={<Env />} />
               </Route>
             </Routes>
           </Suspense>
