@@ -10,6 +10,7 @@ server:
     jwt_secret: "{{.AuthJWTSecret}}"
     access_token_ttl: {{.AuthAccessTTL}}
     refresh_token_ttl: {{.AuthRefreshTTL}}
+  env_secret: "{{.ServerEnvSecret}}"  # AES-256-GCM secret for env var encryption; auto-generated if empty
 
 database:
   path: {{.DBPath}}
@@ -65,5 +66,3 @@ bee:
     ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}
 
-advanced:
-  env_secret: "{{.AdvancedEnvSecret}}"  # AES-256-GCM secret for env var encryption; auto-generated if empty
