@@ -10,10 +10,9 @@ interface DepartmentTreeProps {
   departments: DepartmentTreeType[]
   selectedId: string | null
   onSelect: (id: string | null) => void
-  onManage: () => void
 }
 
-export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onManage }: DepartmentTreeProps) {
+export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: DepartmentTreeProps) {
   const { t } = useTranslation()
 
   return (
@@ -61,15 +60,6 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect, onMan
             ))}
           </div>
         )}
-      </div>
-
-      <div className="border-t px-3 py-2">
-        <button
-          onClick={onManage}
-          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center py-1"
-        >
-          {t("departments.manage")}
-        </button>
       </div>
     </div>
   )
