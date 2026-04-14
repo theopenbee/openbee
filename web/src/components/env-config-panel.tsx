@@ -25,6 +25,23 @@ import { EmptyState } from "@/components/empty-state"
 import { cn, getErrorMessage } from "@/lib/utils"
 import type { EnvConfig } from "@/lib/types"
 
+function ValueHints({ value }: { value: string }) {
+  const { t } = useTranslation()
+  const hasLeadingTrailingSpace = value.length > 0 && value !== value.trim()
+  return (
+    <div className="flex items-center justify-between min-h-[1rem]">
+      {hasLeadingTrailingSpace ? (
+        <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
+      ) : (
+        <span />
+      )}
+      {value.length > 0 && (
+        <span className="text-[11px] tabular-nums text-muted-foreground/60">{value.length}</span>
+      )}
+    </div>
+  )
+}
+
 function SecretInput({ id, value, onChange, autoFocus, placeholder }: {
   id: string
   value: string
@@ -82,7 +99,6 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
   }
 
   const keyDuplicate = formKey.length > 0 && existingKeys.includes(formKey)
-  const hasLeadingTrailingSpace = formValue.length > 0 && formValue !== formValue.trim()
   const canSubmit = formKey.trim().length > 0 && formValue.length > 0 && !keyDuplicate && !createEnv.isPending
 
   const resetForm = () => {
@@ -151,16 +167,7 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
               onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
               placeholder={t("envConfig.valuePlaceholder")}
             />
-            <div className="flex items-center justify-between min-h-[1rem]">
-              {hasLeadingTrailingSpace ? (
-                <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
-              ) : (
-                <span />
-              )}
-              {formValue.length > 0 && (
-                <span className="text-[11px] tabular-nums text-muted-foreground/60">{formValue.length}</span>
-              )}
-            </div>
+            <ValueHints value={formValue} />
           </div>
 
           {apiError && (
@@ -215,7 +222,6 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
     }
   }
 
-  const hasLeadingTrailingSpace = formValue.length > 0 && formValue !== formValue.trim()
   const canSubmit = formValue.length > 0 && !updateEnv.isPending
 
   return (
@@ -239,16 +245,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
               placeholder={t("envConfig.valuePlaceholder")}
               autoFocus
             />
-            <div className="flex items-center justify-between min-h-[1rem]">
-              {hasLeadingTrailingSpace ? (
-                <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
-              ) : (
-                <span />
-              )}
-              {formValue.length > 0 && (
-                <span className="text-[11px] tabular-nums text-muted-foreground/60">{formValue.length}</span>
-              )}
-            </div>
+            <ValueHints value={formValue} />
           </div>
 
           {apiError && (

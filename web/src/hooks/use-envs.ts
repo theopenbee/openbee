@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
@@ -42,12 +43,15 @@ export function useDeleteEnv(scope: string, scopeId?: string) {
 }
 
 export function useDepartmentEnvs(departmentIds: string[]) {
-  return useQueries({
+  const results = useQueries({
     queries: departmentIds.map((id) => ({
       queryKey: ["envs", "department", id],
       queryFn: () => api.envs.list("department", id),
       select: (data: Awaited<ReturnType<typeof api.envs.list>>) => data ?? [],
     })),
-    combine: (results) => results.map((r) => r.data ?? []),
   })
+  // Derive a stable array from structurally-shared per-query data refs so that
+  // useMemo callers only re-run when actual data changes, not on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => results.map((r) => r.data ?? []), results.map((r) => r.data))
 }
