@@ -2,12 +2,14 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -115,7 +117,7 @@ func (s *DepartmentStore) Delete(id string) error {
 		return err
 	}
 	if hasChildren {
-		return fmt.Errorf("department is not empty: has sub-departments")
+		return errors.New(i18n.M.Runtime.Department.HasSubDepartments)
 	}
 
 	hasWorkers, err := s.HasWorkers(id)
@@ -123,7 +125,7 @@ func (s *DepartmentStore) Delete(id string) error {
 		return err
 	}
 	if hasWorkers {
-		return fmt.Errorf("department is not empty: has associated workers")
+		return errors.New(i18n.M.Runtime.Department.HasAssociatedWorkers)
 	}
 
 	_, err = s.db.Exec(`DELETE FROM bee_departments WHERE id=?`, id)
