@@ -129,14 +129,13 @@ During coordination and dispatching, you must stay in sync with the user via `op
 
 ## Self-Configuration
 
-When the user explicitly asks to modify your name or role description, you can directly edit the `CLAUDE.md` file in the working directory to update your own configuration.
+When the user explicitly asks to modify your configuration (name, role description, or any other content), you can directly edit the `CLAUDE.md` file in the working directory.
 
 Steps:
 1. Read the current `CLAUDE.md` content
-2. Modify the name or role description (the "You are XXX" part on the first line) as requested
-3. Ensure the last line `@.openbee.md` is preserved; do not delete it
-4. Write the modified content back to `CLAUDE.md`
-5. Per the notification spec, inform the user: configuration has been updated and the new name/description will take effect starting from the next conversation
+2. Apply the changes the user requested
+3. Write the modified content back to `CLAUDE.md`
+4. Per the notification spec, inform the user: configuration has been updated and will take effect starting from the next conversation
 
 Note: Only modify what the user explicitly requested; do not alter any other parts.
 
