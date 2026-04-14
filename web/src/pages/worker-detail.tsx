@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, KeyRoundIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
@@ -22,8 +22,102 @@ import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
+import { EnvConfigPanel } from "@/components/env-config-panel"
+import { useEnvList } from "@/hooks/use-envs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type { EnvConfig } from "@/lib/types"
 
 const PAGE_SIZE = 20
+
+function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
+  const { t } = useTranslation()
+  const { data: globalEnvs = [] } = useEnvList("global")
+  const { data: workerEnvs = [] } = useEnvList("worker", workerId)
+
+  const dept0 = useEnvList("department", departmentIds[0])
+  const dept1 = useEnvList("department", departmentIds[1])
+  const dept2 = useEnvList("department", departmentIds[2])
+  const dept3 = useEnvList("department", departmentIds[3])
+  const dept4 = useEnvList("department", departmentIds[4])
+
+  const deptResults = [dept0, dept1, dept2, dept3, dept4]
+  const sortedDeptIds = [...departmentIds].sort()
+
+  const merged = new Map<string, { masked: string; source: string }>()
+
+  for (const env of globalEnvs) {
+    merged.set(env.key, { masked: env.masked, source: "global" })
+  }
+
+  for (const deptId of sortedDeptIds) {
+    const idx = departmentIds.indexOf(deptId)
+    if (idx < 0 || idx >= 5) continue
+    const deptEnvs: EnvConfig[] = deptResults[idx]?.data ?? []
+    for (const env of deptEnvs) {
+      merged.set(env.key, { masked: env.masked, source: "department" })
+    }
+  }
+
+  for (const env of workerEnvs) {
+    merged.set(env.key, { masked: env.masked, source: "worker" })
+  }
+
+  const rows = Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+        {t("envConfig.noEffective")}
+      </div>
+    )
+  }
+
+  const sourceLabel: Record<string, string> = {
+    global: t("envConfig.sourceGlobal"),
+    department: t("envConfig.sourceDepartment"),
+    worker: t("envConfig.sourceWorker"),
+  }
+
+  const sourceColor: Record<string, string> = {
+    global: "text-blue-500",
+    department: "text-amber-500",
+    worker: "text-green-500",
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("envConfig.key")}</TableHead>
+            <TableHead>{t("envConfig.masked")}</TableHead>
+            <TableHead>{t("envConfig.source")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(([key, { masked, source }]) => (
+            <TableRow key={key}>
+              <TableCell className="font-mono text-sm">{key}</TableCell>
+              <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
+              <TableCell>
+                <span className={`text-xs font-medium ${sourceColor[source] ?? ""}`}>
+                  {sourceLabel[source] ?? source}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
 
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -252,6 +346,10 @@ export function WorkerDetail() {
             <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
             <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
             <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
+            <TabsTrigger value="env">
+              <KeyRoundIcon className="size-3.5" />
+              {t("envConfig.title")}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="mt-6 space-y-4">
@@ -441,6 +539,32 @@ export function WorkerDetail() {
                   />
                 ))}
               </div>
+            </DetailSection>
+          </TabsContent>
+
+          <TabsContent value="env" className="mt-6 space-y-6">
+            <DetailSection className="p-5 sm:p-6 space-y-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground mb-4">
+                  {t("envConfig.title")}
+                </p>
+                <EnvConfigPanel scope="worker" scopeId={id!} />
+              </div>
+            </DetailSection>
+
+            <DetailSection className="p-5 sm:p-6 space-y-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("envConfig.effectiveTitle")}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {t("envConfig.effectiveHint")}
+                </p>
+              </div>
+              <EffectiveEnvPreview
+                workerId={id!}
+                departmentIds={worker.departments?.map((d) => d.id) ?? []}
+              />
             </DetailSection>
           </TabsContent>
         </Tabs>
