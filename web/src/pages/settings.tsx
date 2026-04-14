@@ -18,7 +18,7 @@ export function Settings() {
               {t("envConfig.globalTitle")}
             </p>
             <p className="text-sm leading-6 text-muted-foreground mb-4">
-              {t("envConfig.effectiveHint")}
+              {t("envConfig.globalHint")}
             </p>
             <EnvConfigPanel scope="global" />
           </div>

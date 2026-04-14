@@ -23,7 +23,7 @@ import type { DepartmentTree } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
-import { useEnvList } from "@/hooks/use-envs"
+import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
 import {
   Table,
   TableBody,
@@ -32,52 +32,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { EnvConfig } from "@/lib/types"
 
 const PAGE_SIZE = 20
+
+const SOURCE_COLOR: Record<string, string> = {
+  global: "text-blue-500",
+  department: "text-amber-500",
+  worker: "text-green-500",
+}
 
 function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
   const { t } = useTranslation()
   const { data: globalEnvs = [] } = useEnvList("global")
   const { data: workerEnvs = [] } = useEnvList("worker", workerId)
+  const deptResults = useDepartmentEnvs(departmentIds)
 
-  const dept0 = useEnvList("department", departmentIds[0])
-  const dept1 = useEnvList("department", departmentIds[1])
-  const dept2 = useEnvList("department", departmentIds[2])
-  const dept3 = useEnvList("department", departmentIds[3])
-  const dept4 = useEnvList("department", departmentIds[4])
+  const rows = useMemo(() => {
+    const merged = new Map<string, { masked: string; source: string }>()
 
-  const deptResults = [dept0, dept1, dept2, dept3, dept4]
-  const sortedDeptIds = [...departmentIds].sort()
-
-  const merged = new Map<string, { masked: string; source: string }>()
-
-  for (const env of globalEnvs) {
-    merged.set(env.key, { masked: env.masked, source: "global" })
-  }
-
-  for (const deptId of sortedDeptIds) {
-    const idx = departmentIds.indexOf(deptId)
-    if (idx < 0 || idx >= 5) continue
-    const deptEnvs: EnvConfig[] = deptResults[idx]?.data ?? []
-    for (const env of deptEnvs) {
-      merged.set(env.key, { masked: env.masked, source: "department" })
+    for (const env of globalEnvs) {
+      merged.set(env.key, { masked: env.masked, source: "global" })
     }
-  }
 
-  for (const env of workerEnvs) {
-    merged.set(env.key, { masked: env.masked, source: "worker" })
-  }
+    for (let i = 0; i < departmentIds.length; i++) {
+      const deptEnvs = deptResults[i]?.data ?? []
+      for (const env of deptEnvs) {
+        merged.set(env.key, { masked: env.masked, source: "department" })
+      }
+    }
 
-  const rows = Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
+    for (const env of workerEnvs) {
+      merged.set(env.key, { masked: env.masked, source: "worker" })
+    }
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
-        {t("envConfig.noEffective")}
-      </div>
-    )
-  }
+    return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [globalEnvs, workerEnvs, deptResults, departmentIds])
 
   const sourceLabel: Record<string, string> = {
     global: t("envConfig.sourceGlobal"),
@@ -85,10 +74,12 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
     worker: t("envConfig.sourceWorker"),
   }
 
-  const sourceColor: Record<string, string> = {
-    global: "text-blue-500",
-    department: "text-amber-500",
-    worker: "text-green-500",
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+        {t("envConfig.noEffective")}
+      </div>
+    )
   }
 
   return (
@@ -107,7 +98,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
               <TableCell className="font-mono text-sm">{key}</TableCell>
               <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
               <TableCell>
-                <span className={`text-xs font-medium ${sourceColor[source] ?? ""}`}>
+                <span className={`text-xs font-medium ${SOURCE_COLOR[source] ?? ""}`}>
                   {sourceLabel[source] ?? source}
                 </span>
               </TableCell>

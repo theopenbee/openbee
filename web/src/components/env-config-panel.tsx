@@ -142,7 +142,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => openEdit(env)}
-                        title={t("common.save")}
+                        title={t("common.edit")}
                       >
                         <PencilIcon className="size-3.5" />
                       </Button>

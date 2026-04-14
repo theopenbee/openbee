@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
 export function useEnvList(scope: string, scopeId?: string) {
@@ -38,5 +38,15 @@ export function useDeleteEnv(scope: string, scopeId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["envs", scope, scopeId ?? null] })
     },
+  })
+}
+
+export function useDepartmentEnvs(departmentIds: string[]) {
+  return useQueries({
+    queries: departmentIds.map((id) => ({
+      queryKey: ["envs", "department", id],
+      queryFn: () => api.envs.list("department", id),
+      select: (data: Awaited<ReturnType<typeof api.envs.list>>) => data ?? [],
+    })),
   })
 }
