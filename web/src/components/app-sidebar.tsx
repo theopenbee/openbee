@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon } from "lucide-react"
+import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
@@ -39,6 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
     { title: t("nav.executions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
+    { title: t("nav.settings"), url: "/env", icon: <SettingsIcon /> },
   ], [t])
 
   return (

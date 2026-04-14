@@ -22,8 +22,89 @@ import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
+import { EnvConfigPanel } from "@/components/env-config-panel"
+import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 const PAGE_SIZE = 20
+
+const SOURCE_CONFIG: Record<"global" | "department" | "worker", { color: string; labelKey: string }> = {
+  global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
+  department: { color: "text-amber-500", labelKey: "envConfig.sourceDepartment" },
+  worker: { color: "text-green-500", labelKey: "envConfig.sourceWorker" },
+}
+
+function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
+  const { t } = useTranslation()
+  const { data: globalEnvs = [] } = useEnvList("global")
+  const { data: workerEnvs = [] } = useEnvList("worker", workerId)
+  const deptEnvsList = useDepartmentEnvs(departmentIds)
+
+  const rows = useMemo(() => {
+    const merged = new Map<string, { masked: string; source: string }>()
+
+    for (const env of globalEnvs) {
+      merged.set(env.key, { masked: env.masked, source: "global" })
+    }
+
+    for (const deptEnvs of deptEnvsList) {
+      for (const env of deptEnvs) {
+        merged.set(env.key, { masked: env.masked, source: "department" })
+      }
+    }
+
+    for (const env of workerEnvs) {
+      merged.set(env.key, { masked: env.masked, source: "worker" })
+    }
+
+    return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [globalEnvs, workerEnvs, deptEnvsList])
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+        {t("envConfig.noEffective")}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("envConfig.key")}</TableHead>
+            <TableHead>{t("envConfig.masked")}</TableHead>
+            <TableHead>{t("envConfig.source")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(([key, { masked, source }]) => {
+            const cfg = SOURCE_CONFIG[source as keyof typeof SOURCE_CONFIG]
+            return (
+              <TableRow key={key}>
+                <TableCell className="font-mono text-sm">{key}</TableCell>
+                <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
+                <TableCell>
+                  <span className={cn("text-xs font-medium", cfg?.color)}>
+                    {cfg ? t(cfg.labelKey) : source}
+                  </span>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
 
 function StatusDot({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -252,6 +333,9 @@ export function WorkerDetail() {
             <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
             <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
             <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
+            <TabsTrigger value="env">
+              {t("envConfig.title")}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="mt-6 space-y-4">
@@ -441,6 +525,30 @@ export function WorkerDetail() {
                   />
                 ))}
               </div>
+            </DetailSection>
+          </TabsContent>
+
+          <TabsContent value="env" className="mt-6 space-y-6">
+            <DetailSection className="p-5 sm:p-6 space-y-4">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t("envConfig.title")}
+              </p>
+              <EnvConfigPanel scope="worker" scopeId={id!} />
+            </DetailSection>
+
+            <DetailSection className="p-5 sm:p-6 space-y-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("envConfig.effectiveTitle")}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {t("envConfig.effectiveHint")}
+                </p>
+              </div>
+              <EffectiveEnvPreview
+                workerId={id!}
+                departmentIds={worker.departments?.map((d) => d.id) ?? []}
+              />
             </DetailSection>
           </TabsContent>
         </Tabs>

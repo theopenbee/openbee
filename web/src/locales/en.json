@@ -5,10 +5,12 @@
     "executions": "Sessions",
     "tasks": "Scheduled Tasks",
     "departments": "Departments",
-    "directory": "Directory"
+    "directory": "Directory",
+    "settings": "Env Variables"
   },
   "common": {
     "save": "Save",
+    "edit": "Edit",
     "cancel": "Cancel",
     "delete": "Delete",
     "view": "View",
@@ -381,5 +383,37 @@
       "title": "Read Executions",
       "description": "Allows listing and viewing execution records"
     }
+  },
+  "envConfig": {
+    "title": "Env Variables",
+    "globalTitle": "Global Env Variables",
+    "add": "Add Variable",
+    "editTitle": "Edit Variable",
+    "addTitle": "Add Variable",
+    "addDescription": "Keys are automatically uppercased. Values are stored encrypted.",
+    "key": "Key",
+    "keyPlaceholder": "e.g. DATABASE_URL",
+    "keyExists": "A variable with this key already exists.",
+    "value": "Value",
+    "valuePlaceholder": "Enter value",
+    "showValue": "Show value",
+    "hideValue": "Hide value",
+    "valueSpaceWarning": "Value has leading or trailing spaces.",
+    "saveAndAddAnother": "Save & Add Another",
+    "masked": "Value",
+    "scope": "Scope",
+    "empty": "No environment variables configured.",
+    "deleteConfirm": "Delete variable \"{{key}}\"? This action cannot be undone.",
+    "effectiveTitle": "Effective Variables",
+    "effectiveHint": "Final merged env vars this worker receives at runtime. Later scopes override earlier ones.",
+    "globalHint": "Global env variables are inherited by all departments and workers. Worker-level or department-level variables override these.",
+    "beeTitle": "Bee Env Variables",
+    "beeHint": "Bee-scoped variables override global variables with the same name.",
+    "sourceGlobal": "global",
+    "sourceDepartment": "dept",
+    "sourceWorker": "worker",
+    "source": "Source",
+    "noEffective": "No env variables configured for this worker.",
+    "depEnvTitle": "Env Variables"
   }
 }

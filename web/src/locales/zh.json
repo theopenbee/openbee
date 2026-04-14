@@ -5,10 +5,12 @@
     "executions": "会话",
     "tasks": "定时任务",
     "departments": "部门",
-    "directory": "通讯录"
+    "directory": "通讯录",
+    "settings": "环境变量"
   },
   "common": {
     "save": "保存",
+    "edit": "编辑",
     "cancel": "取消",
     "delete": "删除",
     "view": "查看",
@@ -380,5 +382,37 @@
       "title": "查询执行记录",
       "description": "允许列出和查看执行记录"
     }
+  },
+  "envConfig": {
+    "title": "环境变量",
+    "globalTitle": "全局环境变量",
+    "add": "添加变量",
+    "editTitle": "编辑变量",
+    "addTitle": "添加变量",
+    "addDescription": "变量名自动转为大写，值加密存储。",
+    "key": "变量名",
+    "keyPlaceholder": "例如：DATABASE_URL",
+    "keyExists": "该变量名已存在。",
+    "value": "变量值",
+    "valuePlaceholder": "请输入值",
+    "showValue": "显示值",
+    "hideValue": "隐藏值",
+    "valueSpaceWarning": "值的首尾包含空格。",
+    "saveAndAddAnother": "保存并继续添加",
+    "masked": "变量值",
+    "scope": "作用域",
+    "empty": "暂无环境变量配置。",
+    "deleteConfirm": "确认删除变量 \"{{key}}\"？此操作不可撤销。",
+    "effectiveTitle": "生效变量预览",
+    "effectiveHint": "该员工运行时实际生效的合并环境变量。后置作用域会覆盖前面的同名变量。",
+    "globalHint": "全局环境变量会被所有部门和员工继承。员工级或部门级变量会覆盖全局同名变量。",
+    "beeTitle": "Bee 环境变量",
+    "beeHint": "Bee 级别的环境变量，覆盖全局同名变量。",
+    "sourceGlobal": "全局",
+    "sourceDepartment": "部门",
+    "sourceWorker": "员工",
+    "source": "来源",
+    "noEffective": "该员工暂无任何环境变量配置。",
+    "depEnvTitle": "环境变量"
   }
 }

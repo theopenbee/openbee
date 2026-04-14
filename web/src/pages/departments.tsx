@@ -1,8 +1,9 @@
 import { useMemo, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, ChevronRightIcon } from "lucide-react"
+import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, ChevronRightIcon, KeyRoundIcon } from "lucide-react"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
 import { flattenDeptTree } from "@/lib/department-utils"
+import { getErrorMessage } from "@/lib/utils"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -25,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import type { Department } from "@/lib/types"
+import { EnvConfigPanel } from "@/components/env-config-panel"
 
 const NO_PARENT_VALUE = "__no_parent__"
 
@@ -45,6 +47,7 @@ export function Departments() {
 
   const [mode, setMode] = useState<Mode>("idle")
   const [targetDept, setTargetDept] = useState<Department | null>(null)
+  const [envTarget, setEnvTarget] = useState<Department | null>(null)
   const [formName, setFormName] = useState("")
   const [formParentId, setFormParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
@@ -86,7 +89,7 @@ export function Departments() {
       await createDept.mutateAsync({ name: formName.trim(), parent_id: formParentId })
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 
@@ -100,7 +103,7 @@ export function Departments() {
       })
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 
@@ -110,7 +113,7 @@ export function Departments() {
       await deleteDept.mutateAsync(targetDept.id)
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 
@@ -154,6 +157,14 @@ export function Departments() {
                 <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="flex-1 text-sm">{dept.name}</span>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setEnvTarget(dept)}
+                    title={t("envConfig.depEnvTitle")}
+                  >
+                    <KeyRoundIcon className="size-3.5" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -266,6 +277,27 @@ export function Departments() {
                 {t("common.delete")}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRoundIcon className="size-4 text-muted-foreground" />
+                {t("envConfig.depEnvTitle")}
+              </DialogTitle>
+              <DialogDescription className="flex items-center gap-1.5">
+                <FolderIcon className="size-3.5" />
+                {envTarget?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto -mx-4 px-4">
+              {envTarget && (
+                <EnvConfigPanel scope="department" scopeId={envTarget.id} />
+              )}
+            </div>
+            <DialogFooter showCloseButton />
           </DialogContent>
         </Dialog>
       </div>
