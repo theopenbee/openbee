@@ -27,7 +27,7 @@ interface TrendLineCardProps {
   days: 7 | 15 | 30
   onDaysChange: (d: 7 | 15 | 30) => void
   yAxisFormatter?: (v: number) => string
-  tooltipFormatter?: (value: unknown) => string | number
+  tooltipFormatter?: (value: number) => string | number
 }
 
 export function TrendLineCard({
@@ -99,7 +99,7 @@ export function TrendLineCard({
                 <Tooltip
                   labelFormatter={(label) => String(label)}
                   formatter={(value) => [
-                    tooltipFormatter ? tooltipFormatter(value) : value,
+                    tooltipFormatter ? tooltipFormatter(Number(value)) : value,
                     tooltipLabel,
                   ]}
                   contentStyle={{

@@ -22,7 +22,7 @@ export function ExecutionDurationTrendChart() {
       days={days}
       onDaysChange={setDays}
       yAxisFormatter={formatTotalDuration}
-      tooltipFormatter={(v) => formatTotalDuration(Number(v))}
+      tooltipFormatter={formatTotalDuration}
     />
   )
 }

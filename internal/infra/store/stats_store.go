@@ -112,24 +112,24 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	durationQuery := `
 		SELECT COALESCE(SUM(completed_at - started_at), 0)
 		FROM bee_executions
-		WHERE status = 'completed'
+		WHERE status = ?
 		  AND completed_at IS NOT NULL
 		  AND started_at >= ? AND started_at < ?`
 
 	eg.Go(func() error {
-		return s.db.QueryRowContext(egc, durationQuery, todayStart, todayEnd).Scan(&ov.ExecDurationTodayMS)
+		return s.db.QueryRowContext(egc, durationQuery, string(model.ExecStatusCompleted), todayStart, todayEnd).Scan(&ov.ExecDurationTodayMS)
 	})
 
 	eg.Go(func() error {
-		return s.db.QueryRowContext(egc, durationQuery, yestStart, yestEnd).Scan(&ov.ExecDurationYesterdayMS)
+		return s.db.QueryRowContext(egc, durationQuery, string(model.ExecStatusCompleted), yestStart, yestEnd).Scan(&ov.ExecDurationYesterdayMS)
 	})
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `
 			SELECT COALESCE(SUM(completed_at - started_at), 0)
 			FROM bee_executions
-			WHERE status = 'completed'
-			  AND completed_at IS NOT NULL`).Scan(&ov.ExecDurationTotalMS)
+			WHERE status = ?
+			  AND completed_at IS NOT NULL`, string(model.ExecStatusCompleted)).Scan(&ov.ExecDurationTotalMS)
 	})
 
 	eg.Go(func() error {
@@ -189,17 +189,23 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	return ov, nil
 }
 
-// GetTrend returns active-worker counts for each of the last `days` days (local time),
-// filling missing days with zero.
-func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, error) {
+// trendRange returns the millisecond epoch bounds and start-of-range time for a
+// days-wide window ending at end-of-today (local time).
+func trendRange(days int) (startOfRange time.Time, startMS, endMS int64) {
 	now := time.Now()
 	y, m, d := now.Date()
 	loc := now.Location()
-
 	startOfToday := time.Date(y, m, d, 0, 0, 0, 0, loc)
-	startOfRange := startOfToday.AddDate(0, 0, -(days - 1))
-	startMS := startOfRange.UnixMilli()
-	endMS := startOfToday.Add(24 * time.Hour).UnixMilli()
+	startOfRange = startOfToday.AddDate(0, 0, -(days - 1))
+	startMS = startOfRange.UnixMilli()
+	endMS = startOfToday.AddDate(0, 0, 1).UnixMilli()
+	return
+}
+
+// GetTrend returns active-worker counts for each of the last `days` days (local time),
+// filling missing days with zero.
+func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, error) {
+	startOfRange, startMS, endMS := trendRange(days)
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
@@ -244,24 +250,17 @@ type ExecDurationTrendPoint struct {
 // GetExecutionDurationTrend returns the sum of completed execution durations
 // for each of the last `days` days (local time), filling missing days with zero.
 func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([]ExecDurationTrendPoint, error) {
-	now := time.Now()
-	y, m, d := now.Date()
-	loc := now.Location()
-
-	startOfToday := time.Date(y, m, d, 0, 0, 0, 0, loc)
-	startOfRange := startOfToday.AddDate(0, 0, -(days - 1))
-	startMS := startOfRange.UnixMilli()
-	endMS := startOfToday.AddDate(0, 0, 1).UnixMilli()
+	startOfRange, startMS, endMS := trendRange(days)
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
 		       COALESCE(SUM(completed_at - started_at), 0) AS total_ms
 		FROM bee_executions
-		WHERE status = 'completed'
+		WHERE status = ?
 		  AND completed_at IS NOT NULL
 		  AND started_at >= ? AND started_at < ?
 		GROUP BY day
-		ORDER BY day ASC`, startMS, endMS)
+		ORDER BY day ASC`, string(model.ExecStatusCompleted), startMS, endMS)
 	if err != nil {
 		return nil, fmt.Errorf("execution duration trend query: %w", err)
 	}
