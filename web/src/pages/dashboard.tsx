@@ -307,13 +307,26 @@ export function Dashboard() {
                     </div>
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.execDurationTotal")}
+                        {t("dashboard.execDurationDayOverDay")}
                       </p>
                       <p
                         className="text-xl font-semibold tabular-nums leading-none"
                         aria-live="polite"
                       >
-                        {formatTotalDuration(ov.exec_duration_total_ms)}
+                        {(() => {
+                          const diff = ov.exec_duration_today_ms - ov.exec_duration_yesterday_ms;
+                          const pct = ov.exec_duration_yesterday_ms > 0
+                            ? Math.round(Math.abs(diff) / ov.exec_duration_yesterday_ms * 100)
+                            : null;
+                          const sign = diff >= 0 ? "+" : "−";
+                          const color = diff >= 0 ? "text-green-500" : "text-red-500";
+                          return (
+                            <span className={color}>
+                              {sign}{formatTotalDuration(Math.abs(diff))}
+                              {pct !== null && ` (${sign}${pct}%)`}
+                            </span>
+                          );
+                        })()}
                       </p>
                     </div>
                   </div>

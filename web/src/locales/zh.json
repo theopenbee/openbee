@@ -46,7 +46,7 @@
     "executionDuration": "工作时长",
     "execDurationToday": "今日工作时长",
     "execDurationYesterday": "昨日工作时长",
-    "execDurationTotal": "累计工作时长",
+    "execDurationDayOverDay": "今日同比昨日",
     "executionDurationTrend": "工作时长趋势",
     "noExecDurationData": "暂无工作时长数据",
     "noExecDurationDataDesc": "任务执行完成后，工作时长趋势将显示在此处。",
