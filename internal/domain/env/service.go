@@ -104,6 +104,8 @@ func (s *Service) getEditable(id string) (*model.EnvConfig, error) {
 }
 
 func (s *Service) UpdateValue(id, plainValue string) error {
+	// getEditable guards against updating a non-existent or reserved-key record;
+	// the fetched record itself is not needed here.
 	if _, err := s.getEditable(id); err != nil {
 		return err
 	}
@@ -128,6 +130,8 @@ func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error
 }
 
 func (s *Service) Delete(id string) error {
+	// getEditable guards against deleting a reserved-key record;
+	// the fetched record itself is not needed here.
 	if _, err := s.getEditable(id); err != nil {
 		return err
 	}
@@ -194,7 +198,8 @@ func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
 	return s.decryptMerged(merge(globalEnvs, beeEnvs))
 }
 
-// decryptMerged sorts for deterministic subprocess env ordering.
+// decryptMerged decrypts each encrypted value and returns KEY=VALUE strings,
+// sorted for deterministic subprocess env ordering.
 func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	result := make([]string, 0, len(merged))
 	for k, encVal := range merged {
