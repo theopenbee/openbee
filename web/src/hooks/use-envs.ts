@@ -48,5 +48,6 @@ export function useDepartmentEnvs(departmentIds: string[]) {
       queryFn: () => api.envs.list("department", id),
       select: (data: Awaited<ReturnType<typeof api.envs.list>>) => data ?? [],
     })),
+    combine: (results) => results.map((r) => r.data ?? []),
   })
 }

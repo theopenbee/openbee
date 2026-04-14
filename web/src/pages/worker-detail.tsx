@@ -45,7 +45,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
   const { t } = useTranslation()
   const { data: globalEnvs = [] } = useEnvList("global")
   const { data: workerEnvs = [] } = useEnvList("worker", workerId)
-  const deptResults = useDepartmentEnvs(departmentIds)
+  const deptEnvsList = useDepartmentEnvs(departmentIds)
 
   const rows = useMemo(() => {
     const merged = new Map<string, { masked: string; source: string }>()
@@ -54,8 +54,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
       merged.set(env.key, { masked: env.masked, source: "global" })
     }
 
-    for (let i = 0; i < departmentIds.length; i++) {
-      const deptEnvs = deptResults[i]?.data ?? []
+    for (const deptEnvs of deptEnvsList) {
       for (const env of deptEnvs) {
         merged.set(env.key, { masked: env.masked, source: "department" })
       }
@@ -66,7 +65,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
     }
 
     return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [globalEnvs, workerEnvs, deptResults, departmentIds])
+  }, [globalEnvs, workerEnvs, deptEnvsList])
 
   const sourceLabel: Record<string, string> = {
     global: t("envConfig.sourceGlobal"),
@@ -534,13 +533,11 @@ export function WorkerDetail() {
           </TabsContent>
 
           <TabsContent value="env" className="mt-6 space-y-6">
-            <DetailSection className="p-5 sm:p-6 space-y-6">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground mb-4">
-                  {t("envConfig.title")}
-                </p>
-                <EnvConfigPanel scope="worker" scopeId={id!} />
-              </div>
+            <DetailSection className="p-5 sm:p-6 space-y-4">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t("envConfig.title")}
+              </p>
+              <EnvConfigPanel scope="worker" scopeId={id!} />
             </DetailSection>
 
             <DetailSection className="p-5 sm:p-6 space-y-4">

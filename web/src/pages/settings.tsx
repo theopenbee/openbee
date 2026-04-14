@@ -12,16 +12,16 @@ export function Settings() {
       <div className="space-y-6">
         <PageHeader title={t("nav.settings")} />
 
-        <DetailSection className="p-5 sm:p-6 space-y-6">
+        <DetailSection className="p-5 sm:p-6 space-y-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
               {t("envConfig.globalTitle")}
             </p>
-            <p className="text-sm leading-6 text-muted-foreground mb-4">
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
               {t("envConfig.globalHint")}
             </p>
-            <EnvConfigPanel scope="global" />
           </div>
+          <EnvConfigPanel scope="global" />
         </DetailSection>
       </div>
     </FadeIn>

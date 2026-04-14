@@ -53,18 +53,9 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
 
   const [deleteTarget, setDeleteTarget] = useState<EnvConfig | null>(null)
 
-  const openCreate = () => {
-    setEditTarget(null)
-    setFormKey("")
-    setFormValue("")
-    setShowValue(false)
-    setFormError("")
-    setSheetOpen(true)
-  }
-
-  const openEdit = (env: EnvConfig) => {
-    setEditTarget(env)
-    setFormKey(env.key)
+  const openSheet = (target: EnvConfig | null) => {
+    setEditTarget(target)
+    setFormKey(target?.key ?? "")
     setFormValue("")
     setShowValue(false)
     setFormError("")
@@ -76,6 +67,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
     setEditTarget(null)
     setFormKey("")
     setFormValue("")
+    setShowValue(false)
     setFormError("")
   }
 
@@ -113,7 +105,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <Button size="sm" onClick={openCreate}>
+        <Button size="sm" onClick={() => openSheet(null)}>
           <PlusIcon className="size-3.5" />
           {t("envConfig.add")}
         </Button>
@@ -141,7 +133,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        onClick={() => openEdit(env)}
+                        onClick={() => openSheet(env)}
                         title={t("common.edit")}
                       >
                         <PencilIcon className="size-3.5" />
