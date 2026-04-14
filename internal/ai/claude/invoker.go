@@ -26,6 +26,7 @@ type streamEvent struct {
 	Type    string         `json:"type"`
 	Message *streamMessage `json:"message,omitempty"`
 	Result  string         `json:"result,omitempty"`
+	IsError bool           `json:"is_error,omitempty"`
 }
 
 type streamMessage struct {
@@ -70,6 +71,28 @@ func ExtractResultFromLog(logPath string) string {
 		return streamResult
 	}
 	return lastAssistantText
+}
+
+// extractResultStatus scans a Claude stream-json log file and returns the
+// result string and whether is_error was true in the result event.
+func extractResultStatus(logPath string) (result string, isError bool) {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return "", false
+	}
+	defer f.Close()
+	ai.ScanJSONLines(f, func(line string) bool {
+		var event streamEvent
+		if json.Unmarshal([]byte(line), &event) != nil {
+			return true
+		}
+		if event.Type == "result" {
+			result = event.Result
+			isError = event.IsError
+		}
+		return true
+	})
+	return
 }
 
 // Run starts a Claude CLI process, redirecting output to logPath.

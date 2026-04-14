@@ -133,3 +133,48 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 	for range ch2 {
 	}
 }
+
+func TestExtractResultStatus_IsError(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"result","is_error":true,"result":"API Error: 400 {\"error\":\"操作失败\"}"}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError := extractResultStatus(logPath)
+	if !isError {
+		t.Error("want isError=true, got false")
+	}
+	if result != `API Error: 400 {"error":"操作失败"}` {
+		t.Errorf("want API Error string, got %q", result)
+	}
+}
+
+func TestExtractResultStatus_NoError(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"result","is_error":false,"result":"all good"}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError := extractResultStatus(logPath)
+	if isError {
+		t.Error("want isError=false, got true")
+	}
+	if result != "all good" {
+		t.Errorf("want 'all good', got %q", result)
+	}
+}
+
+func TestExtractResultStatus_NoResultEvent(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError := extractResultStatus(logPath)
+	if isError {
+		t.Error("want isError=false when no result event, got true")
+	}
+	if result != "" {
+		t.Errorf("want empty result, got %q", result)
+	}
+}
