@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- Optimize Skills installation logic
+- Optimize scheduler error parsing on GLM and Kimi
+
+### Removed
+- Remove scheduler retry mechanism
+
 ## [0.0.22] - 2026-04-13
 
 ### Added
