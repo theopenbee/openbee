@@ -209,7 +209,6 @@ runtime:
     task_failed: "❌ Task execution failed"
     parse_failed: "\nmessage parse failed"
     worker_line: "\nWorker: %s"
-    retried_count: "\nRetried: %d/%d\nError: %s"
     failed: "\nError: %s"
   feishu:
     rich_text_fallback: "[Rich text message]"
