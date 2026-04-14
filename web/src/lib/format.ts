@@ -111,3 +111,20 @@ export function extractMessageContent(input: string): string {
 
   return input
 }
+
+/**
+ * Formats a total duration in milliseconds to a human-readable string.
+ * Examples: 45000 → "45s", 90000 → "1m 30s", 8100000 → "2h 15m", 97200000 → "1d 3h"
+ */
+export function formatTotalDuration(ms: number): string {
+  if (ms <= 0) return "0s"
+  const totalSec = Math.floor(ms / 1000)
+  const days = Math.floor(totalSec / 86400)
+  const hours = Math.floor((totalSec % 86400) / 3600)
+  const minutes = Math.floor((totalSec % 3600) / 60)
+  const seconds = totalSec % 60
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  if (minutes > 0) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
+}
