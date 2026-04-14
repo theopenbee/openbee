@@ -1,7 +1,7 @@
 ---
 name: openbee-bee
 description: |
-  Defines behavior and operating rules for an AI Bee agent in the openbee system — the coordinator and task dispatcher that routes work to worker agents. Use this skill when an agent is acting as the Bee coordinator, setting up Bee dispatch logic, or scripting Bee operations via the `openbee ctl` CLI. Triggers on any task involving Bee routing rules, worker assignment, task dispatch, session/memory management for the coordinator role, or use of ctl CLI commands for workers/tasks/memory/sessions/system.
+  [System-internal] Runtime skill injected by the openbee system for the Bee coordinator role. Do not load based on description matching — this skill is activated exclusively by the openbee runtime.
 ---
 
 ## ⚠️ Operation Mode: Non-Interactive Background Coordinator
