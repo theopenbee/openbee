@@ -5,7 +5,8 @@
     "executions": "会话",
     "tasks": "定时任务",
     "departments": "部门",
-    "directory": "通讯录"
+    "directory": "通讯录",
+    "settings": "系统设置"
   },
   "common": {
     "save": "保存",
@@ -380,5 +381,28 @@
       "title": "查询执行记录",
       "description": "允许列出和查看执行记录"
     }
+  },
+  "envConfig": {
+    "title": "环境变量",
+    "globalTitle": "全局环境变量",
+    "add": "添加变量",
+    "editTitle": "编辑变量",
+    "addTitle": "添加变量",
+    "key": "变量名",
+    "keyPlaceholder": "例如：DATABASE_URL",
+    "value": "变量值",
+    "valuePlaceholder": "请输入值",
+    "masked": "变量值",
+    "scope": "作用域",
+    "empty": "暂无环境变量配置。",
+    "deleteConfirm": "确认删除变量 \"{{key}}\"？此操作不可撤销。",
+    "effectiveTitle": "生效变量预览",
+    "effectiveHint": "该员工运行时实际生效的合并环境变量。后置作用域会覆盖前面的同名变量。",
+    "sourceGlobal": "全局",
+    "sourceDepartment": "部门",
+    "sourceWorker": "员工",
+    "source": "来源",
+    "noEffective": "该员工暂无任何环境变量配置。",
+    "depEnvTitle": "环境变量"
   }
 }

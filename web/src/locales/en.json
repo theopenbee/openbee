@@ -5,7 +5,8 @@
     "executions": "Sessions",
     "tasks": "Scheduled Tasks",
     "departments": "Departments",
-    "directory": "Directory"
+    "directory": "Directory",
+    "settings": "Settings"
   },
   "common": {
     "save": "Save",
@@ -381,5 +382,28 @@
       "title": "Read Executions",
       "description": "Allows listing and viewing execution records"
     }
+  },
+  "envConfig": {
+    "title": "Env Variables",
+    "globalTitle": "Global Env Variables",
+    "add": "Add Variable",
+    "editTitle": "Edit Variable",
+    "addTitle": "Add Variable",
+    "key": "Key",
+    "keyPlaceholder": "e.g. DATABASE_URL",
+    "value": "Value",
+    "valuePlaceholder": "Enter value",
+    "masked": "Value",
+    "scope": "Scope",
+    "empty": "No environment variables configured.",
+    "deleteConfirm": "Delete variable \"{{key}}\"? This action cannot be undone.",
+    "effectiveTitle": "Effective Variables",
+    "effectiveHint": "Final merged env vars this worker receives at runtime. Later scopes override earlier ones.",
+    "sourceGlobal": "global",
+    "sourceDepartment": "dept",
+    "sourceWorker": "worker",
+    "source": "Source",
+    "noEffective": "No env variables configured for this worker.",
+    "depEnvTitle": "Env Variables"
   }
 }
