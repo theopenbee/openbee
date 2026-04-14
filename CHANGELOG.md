@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Add system data query permission and grant access to employees
+
+### Changed
+- Improve openbee ctl command output results
+- Improve openbee ctl command filter and deletion
+
 ## [0.0.21] - 2026-04-12
 
 ### Added
