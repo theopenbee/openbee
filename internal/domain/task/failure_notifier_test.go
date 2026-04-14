@@ -65,7 +65,6 @@ func TestPlatformFailureNotifier_Success(t *testing.T) {
 	info := model.FailureInfo{
 		Reason:     "API Error: content filtered",
 		WorkerName: "my-worker",
-		RetryCount: -1,
 	}
 	err = notifier.NotifyTaskFailure(ctx, "msg-1", info)
 	if err != nil {
@@ -93,7 +92,7 @@ func TestPlatformFailureNotifier_MessageNotFound(t *testing.T) {
 	notifier, _, _ := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	err := notifier.NotifyTaskFailure(ctx, "nonexistent-msg", model.FailureInfo{Reason: "some error", RetryCount: -1})
+	err := notifier.NotifyTaskFailure(ctx, "nonexistent-msg", model.FailureInfo{Reason: "some error"})
 	if err == nil {
 		t.Fatal("expected error for nonexistent message, got nil")
 	}
@@ -111,7 +110,7 @@ func TestPlatformFailureNotifier_UnknownPlatform(t *testing.T) {
 		t.Fatalf("create message: %v", err)
 	}
 
-	err = notifier.NotifyTaskFailure(ctx, "msg-2", model.FailureInfo{Reason: "boom", RetryCount: -1})
+	err = notifier.NotifyTaskFailure(ctx, "msg-2", model.FailureInfo{Reason: "boom"})
 	if err == nil {
 		t.Fatal("expected error for unknown platform, got nil")
 	}
@@ -133,7 +132,6 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 	info := model.FailureInfo{
 		Reason:     longReason,
 		WorkerName: "w",
-		RetryCount: -1,
 	}
 	err = notifier.NotifyTaskFailure(ctx, "msg-3", info)
 	if err != nil {
@@ -156,40 +154,7 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 	}
 }
 
-func TestPlatformFailureNotifier_StructuredFormat_WithRetry(t *testing.T) {
-	notifier, ms, sender := setupNotifier(t, "test")
-	ctx := context.Background()
-
-	_, err := ms.Create(ctx, "msg-4", "sess-4", "test", "hi", `{}`, "", 0)
-	if err != nil {
-		t.Fatalf("create message: %v", err)
-	}
-
-	info := model.FailureInfo{
-		Reason:     "exit status 1",
-		WorkerName: "data-analyst",
-		RetryCount: 3,
-		MaxRetries: 3,
-	}
-	if err := notifier.NotifyTaskFailure(ctx, "msg-4", info); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	sender.mu.Lock()
-	defer sender.mu.Unlock()
-	content := sender.sent[0].Content
-	if !strings.Contains(content, "data-analyst") {
-		t.Errorf("expected WorkerName in content, got: %s", content)
-	}
-	if !strings.Contains(content, "Retried: 3/3") {
-		t.Errorf("expected retry line in content, got: %s", content)
-	}
-	if !strings.Contains(content, "exit status 1") {
-		t.Errorf("expected Reason in content, got: %s", content)
-	}
-}
-
-func TestPlatformFailureNotifier_StructuredFormat_NoRetry(t *testing.T) {
+func TestPlatformFailureNotifier_StructuredFormat(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
@@ -201,7 +166,6 @@ func TestPlatformFailureNotifier_StructuredFormat_NoRetry(t *testing.T) {
 	info := model.FailureInfo{
 		Reason:     "launch failed",
 		WorkerName: "worker-abc",
-		RetryCount: -1,
 	}
 	if err := notifier.NotifyTaskFailure(ctx, "msg-5", info); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -211,7 +175,7 @@ func TestPlatformFailureNotifier_StructuredFormat_NoRetry(t *testing.T) {
 	defer sender.mu.Unlock()
 	content := sender.sent[0].Content
 	if strings.Contains(content, "Retried") {
-		t.Errorf("expected no retry line when RetryCount=-1, got: %s", content)
+		t.Errorf("expected no retry line in content, got: %s", content)
 	}
 	if !strings.Contains(content, "worker-abc") {
 		t.Errorf("expected WorkerName in content, got: %s", content)
