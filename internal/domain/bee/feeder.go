@@ -151,7 +151,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error())
 		return
 	}
 	resume := sessionID != ""
@@ -181,7 +181,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	exec, err := f.execStore.CreateBeeExecution(sessionID, prompt)
 	if err != nil {
 		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.rollback(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error())
 		return
 	}
 
@@ -189,7 +189,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err != nil {
 		log.Error("prepare log path", zap.String("execID", exec.ID), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		f.rollback(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error())
 		return
 	}
 
@@ -200,7 +200,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		f.rollback(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error())
 		return
 	}
 
@@ -225,7 +225,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if drainErr != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
-		f.rollback(ctx, msgs, drainErr.Error())
+		f.failMessages(ctx, msgs, drainErr.Error())
 		return
 	}
 
@@ -250,32 +250,22 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 }
 
-func (f *Feeder) rollback(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
+func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
 	ids := messageIDs(msgs)
-	var failedMsgs []store.ClaimedMessage
-	for _, m := range msgs {
-		if m.RetryCount+1 >= MaxRetries {
-			failedMsgs = append(failedMsgs, m)
-		}
-	}
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
-		log.Error("rollback delete tasks", zap.Error(err))
+		log.Error("fail messages delete tasks", zap.Error(err))
 	}
-	if err := f.msgStore.RollbackWithRetry(ctx, ids, MaxRetries); err != nil {
-		log.Error("rollback with retry", zap.Error(err))
+	if err := f.msgStore.MarkFailed(ctx, ids); err != nil {
+		log.Error("mark messages failed", zap.Error(err))
 		return
 	}
-	for _, m := range failedMsgs {
-		log.Warn("message exhausted retries", zap.String("messageID", m.ID))
-		if f.failureNotifier != nil {
-			info := model.FailureInfo{
-				Reason:     reason,
-				RetryCount: m.RetryCount + 1,
-				MaxRetries: MaxRetries,
-			}
-			if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, info); notifyErr != nil {
-				log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
-			}
+	if f.failureNotifier == nil {
+		return
+	}
+	for _, m := range msgs {
+		log.Warn("message failed", zap.String("messageID", m.ID))
+		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason}); notifyErr != nil {
+			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}
 }
