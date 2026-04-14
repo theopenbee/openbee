@@ -41,7 +41,16 @@
     "noTrendData": "No activity data",
     "noTrendDataDesc": "Worker activity will appear here once tasks have been executed.",
     "daysLabel": "Show last {{count}} days",
-    "activityTrendAriaLabel": "Worker activity trend for the last {{days}} days"
+    "activityTrendAriaLabel": "Worker activity trend for the last {{days}} days",
+    "messagesTotal": "Total",
+    "executionDuration": "Exec Duration",
+    "execDurationToday": "Today",
+    "execDurationYesterday": "Yesterday",
+    "execDurationTotal": "All Time",
+    "executionDurationTrend": "Execution Duration Trend",
+    "noExecDurationData": "No duration data",
+    "noExecDurationDataDesc": "Execution duration trend will appear here once tasks have completed.",
+    "executionDurationTrendAriaLabel": "Execution duration trend over {{days}} days"
   },
   "workers": {
     "title": "Workers",

@@ -41,7 +41,16 @@
     "noTrendData": "暂无活跃数据",
     "noTrendDataDesc": "任务执行后，员工活跃趋势将显示在此处。",
     "daysLabel": "显示最近 {{count}} 天数据",
-    "activityTrendAriaLabel": "最近 {{days}} 天员工活跃趋势图"
+    "activityTrendAriaLabel": "最近 {{days}} 天员工活跃趋势图",
+    "messagesTotal": "总计",
+    "executionDuration": "执行耗时",
+    "execDurationToday": "今日耗时",
+    "execDurationYesterday": "昨日耗时",
+    "execDurationTotal": "累计耗时",
+    "executionDurationTrend": "执行耗时趋势",
+    "noExecDurationData": "暂无耗时数据",
+    "noExecDurationDataDesc": "任务执行完成后，执行耗时趋势将显示在此处。",
+    "executionDurationTrendAriaLabel": "最近 {{days}} 天执行耗时趋势"
   },
   "workers": {
     "title": "员工",
