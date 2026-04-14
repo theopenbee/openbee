@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree } from "@/lib/types"
+import { ScopeToggleCard } from "@/components/scope-toggle-card"
+import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 
 const PAGE_SIZE = 20
 
@@ -60,6 +62,12 @@ export function WorkerDetail() {
   const [editMemory, setEditMemory] = useState("")
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
+  const [localScopes, setLocalScopes] = useState<string[]>([])
+
+  useEffect(() => {
+    setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
+  }, [worker?.permission_scopes])
+
   const { data: departments = [] } = useDepartments()
   const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
   const setWorkerDepts = useSetWorkerDepartments()
@@ -243,6 +251,7 @@ export function WorkerDetail() {
             <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
             <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
             <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
+            <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="mt-6 space-y-4">
@@ -403,6 +412,34 @@ export function WorkerDetail() {
                     {t("workerDetail.noMemory")}
                   </div>
                 )}
+              </div>
+            </DetailSection>
+          </TabsContent>
+
+          <TabsContent value="permissions" className="mt-6">
+            <DetailSection className="space-y-6 p-5 sm:p-6">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t("workerDetail.permissions")}
+              </p>
+
+              <div className="space-y-2">
+                {KNOWN_SCOPES.map((scope) => (
+                  <ScopeToggleCard
+                    key={scope.id}
+                    scope={scope}
+                    checked={localScopes.includes(scope.id)}
+                    onToggle={(scopeId, val) => {
+                      const prevScopes = localScopes
+                      const newScopes = toggleScope(localScopes, scopeId, val)
+                      setLocalScopes(newScopes)
+                      updateWorker.mutate(
+                        { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
+                        { onError: () => setLocalScopes(prevScopes) }
+                      )
+                    }}
+                    disabled={updateWorker.isPending}
+                  />
+                ))}
               </div>
             </DetailSection>
           </TabsContent>

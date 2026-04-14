@@ -39,7 +39,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 	page, pageSize, offset := parsePagination(c)
 
 	taskType := c.DefaultQuery("type", model.TaskTypeScheduled+","+model.TaskTypeCountdown)
-	taskStatus := c.DefaultQuery("status", model.TaskStatusPending+","+model.TaskStatusRunning)
+	taskStatus := c.DefaultQuery("status", model.TaskStatusActive)
 	workerID := c.Query("worker_id")
 
 	filter := store.TaskFilter{
