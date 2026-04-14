@@ -271,10 +271,19 @@ type DaemonOutput struct {
 // RuntimeMessages holds server-runtime user-visible text (sent to IM users,
 // platform placeholders, etc.) that must respond to the language setting.
 type RuntimeMessages struct {
-	FailureNotifier FailureNotifierMessages `yaml:"failure_notifier"`
-	Feishu          FeishuRuntimeMessages   `yaml:"feishu"`
-	WeCom           WeComRuntimeMessages    `yaml:"wecom"`
-	MCP             MCPRuntimeMessages      `yaml:"mcp"`
+	FailureNotifier FailureNotifierMessages   `yaml:"failure_notifier"`
+	Feishu          FeishuRuntimeMessages     `yaml:"feishu"`
+	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
+	MCP             MCPRuntimeMessages        `yaml:"mcp"`
+	Department      DepartmentRuntimeMessages `yaml:"department"`
+}
+
+// DepartmentRuntimeMessages holds error messages returned by the department API.
+type DepartmentRuntimeMessages struct {
+	HasSubDepartments    string `yaml:"has_sub_departments"`
+	HasAssociatedWorkers string `yaml:"has_associated_workers"`
+	ParentNotFound       string `yaml:"parent_not_found"`
+	CircularReference    string `yaml:"circular_reference"`
 }
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.

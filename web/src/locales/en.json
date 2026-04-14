@@ -3,7 +3,9 @@
     "dashboard": "Dashboard",
     "workers": "Workers",
     "executions": "Sessions",
-    "tasks": "Scheduled Tasks"
+    "tasks": "Scheduled Tasks",
+    "departments": "Departments",
+    "directory": "Directory"
   },
   "common": {
     "save": "Save",

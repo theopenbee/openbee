@@ -2,12 +2,14 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -49,7 +51,7 @@ func (s *DepartmentStore) Create(d model.Department) (model.Department, error) {
 
 	if d.ParentID != nil {
 		if _, err := s.GetByID(*d.ParentID); err != nil {
-			return model.Department{}, fmt.Errorf("parent department not found")
+			return model.Department{}, errors.New(i18n.M.Runtime.Department.ParentNotFound)
 		}
 	}
 
@@ -115,7 +117,7 @@ func (s *DepartmentStore) Delete(id string) error {
 		return err
 	}
 	if hasChildren {
-		return fmt.Errorf("department is not empty: has sub-departments")
+		return errors.New(i18n.M.Runtime.Department.HasSubDepartments)
 	}
 
 	hasWorkers, err := s.HasWorkers(id)
@@ -123,7 +125,7 @@ func (s *DepartmentStore) Delete(id string) error {
 		return err
 	}
 	if hasWorkers {
-		return fmt.Errorf("department is not empty: has associated workers")
+		return errors.New(i18n.M.Runtime.Department.HasAssociatedWorkers)
 	}
 
 	_, err = s.db.Exec(`DELETE FROM bee_departments WHERE id=?`, id)
@@ -158,7 +160,7 @@ func (s *DepartmentStore) CheckCircularReference(departmentID, parentID string) 
 		return nil // broken chain, no cycle
 	}
 	if found > 0 {
-		return fmt.Errorf("circular reference detected")
+		return errors.New(i18n.M.Runtime.Department.CircularReference)
 	}
 	return nil
 }

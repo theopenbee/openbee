@@ -217,3 +217,8 @@ runtime:
   mcp:
     clear_session_confirm: "此会话链接了 %d 位员工，清空将重置所有员工和 bee 的对话上下文。请确认后以 force=true 重新调用。"
     clear_session_tasks_confirm: "此会话有 %d 个任务正在运行，清空将终止这些任务。请确认后以 force=true 重新调用。"
+  department:
+    has_sub_departments: "该部门包含子部门，请先删除子部门后再试。"
+    has_associated_workers: "该部门下还有员工，请先将员工移至其他部门后再试。"
+    parent_not_found: "上级部门不存在。"
+    circular_reference: "不能将下级部门设为上级部门。"
