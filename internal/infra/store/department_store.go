@@ -51,7 +51,7 @@ func (s *DepartmentStore) Create(d model.Department) (model.Department, error) {
 
 	if d.ParentID != nil {
 		if _, err := s.GetByID(*d.ParentID); err != nil {
-			return model.Department{}, fmt.Errorf("parent department not found")
+			return model.Department{}, errors.New(i18n.M.Runtime.Department.ParentNotFound)
 		}
 	}
 
@@ -160,7 +160,7 @@ func (s *DepartmentStore) CheckCircularReference(departmentID, parentID string) 
 		return nil // broken chain, no cycle
 	}
 	if found > 0 {
-		return fmt.Errorf("circular reference detected")
+		return errors.New(i18n.M.Runtime.Department.CircularReference)
 	}
 	return nil
 }

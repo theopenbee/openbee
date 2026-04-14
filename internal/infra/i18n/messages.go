@@ -282,6 +282,8 @@ type RuntimeMessages struct {
 type DepartmentRuntimeMessages struct {
 	HasSubDepartments    string `yaml:"has_sub_departments"`
 	HasAssociatedWorkers string `yaml:"has_associated_workers"`
+	ParentNotFound       string `yaml:"parent_not_found"`
+	CircularReference    string `yaml:"circular_reference"`
 }
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.

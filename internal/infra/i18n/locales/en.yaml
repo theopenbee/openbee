@@ -220,3 +220,5 @@ runtime:
   department:
     has_sub_departments: "This department has sub-departments. Please remove them first."
     has_associated_workers: "This department has associated workers. Please move them to another department first."
+    parent_not_found: "Parent department not found."
+    circular_reference: "Cannot set a descendant as the parent department."

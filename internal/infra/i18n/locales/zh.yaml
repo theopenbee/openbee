@@ -220,3 +220,5 @@ runtime:
   department:
     has_sub_departments: "该部门包含子部门，请先删除子部门后再试。"
     has_associated_workers: "该部门下还有员工，请先将员工移至其他部门后再试。"
+    parent_not_found: "上级部门不存在。"
+    circular_reference: "不能将下级部门设为上级部门。"

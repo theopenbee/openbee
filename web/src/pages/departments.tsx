@@ -58,6 +58,8 @@ export function Departments() {
   }
 
   const openCreate = (parentId?: string | null) => {
+    setTargetDept(null)
+    setFormName("")
     setFormParentId(parentId ?? null)
     setError("")
     setMode("create")
@@ -114,9 +116,15 @@ export function Departments() {
 
   const isFormOpen = mode === "create" || mode === "edit"
   const isDeleteOpen = mode === "delete"
+  const createButton = (
+    <Button onClick={() => openCreate()}>
+      <PlusIcon className="size-4 mr-1" />
+      {t("departments.create")}
+    </Button>
+  )
   const filteredDepts = useMemo(
     () => flatDepts.filter(({ dept }) => dept.id !== targetDept?.id),
-    [flatDepts, targetDept]
+    [flatDepts, targetDept?.id]
   )
 
   return (
@@ -124,23 +132,13 @@ export function Departments() {
       <div className="space-y-6">
         <PageHeader
           title={t("nav.departments")}
-          actions={
-            <Button onClick={() => openCreate()}>
-              <PlusIcon className="size-4 mr-1" />
-              {t("departments.create")}
-            </Button>
-          }
+          actions={createButton}
         />
 
         {flatDepts.length === 0 ? (
           <EmptyState
             title={t("departments.empty")}
-            action={
-              <Button onClick={() => openCreate()}>
-                <PlusIcon className="size-4 mr-1" />
-                {t("departments.create")}
-              </Button>
-            }
+            action={createButton}
           />
         ) : (
           <div className="rounded-lg border border-border">
@@ -195,7 +193,7 @@ export function Departments() {
               <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
             </DialogHeader>
             <form onSubmit={mode === "create" ? handleCreate : handleUpdate} className="space-y-4">
-              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+              {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="dept-name">{t("departments.form.name")}</Label>
                 <Input
