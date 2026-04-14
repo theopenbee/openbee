@@ -178,6 +178,11 @@ func (s *MessageStore) MarkBeeProcessed(ctx context.Context, ids []string) error
 	return s.UpdateStatusBatch(ctx, ids, MsgStatusBeeProcessed)
 }
 
+// MarkFailed sets status to 'failed' for the given message IDs.
+func (s *MessageStore) MarkFailed(ctx context.Context, ids []string) error {
+	return s.UpdateStatusBatch(ctx, ids, MsgStatusFailed)
+}
+
 // RollbackWithRetry increments retry_count for each message and resets status to
 // 'received' for messages below maxRetries, or 'failed' for those that have reached
 // the limit. Callers determine which IDs are permanently failed from their in-memory

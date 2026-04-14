@@ -491,3 +491,21 @@ func TestMessageStore_ClaimBatch_RespectsLimit(t *testing.T) {
 		t.Errorf("expected 3 messages (limit), got %d", len(msgs))
 	}
 }
+
+func TestMessageStore_MarkFailed(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
+	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")              //nolint
+
+	if err := s.MarkFailed(ctx, []string{"m1"}); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	var status string
+	s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = 'm1'`).Scan(&status) //nolint
+	if status != "failed" {
+		t.Errorf("expected status=failed, got %q", status)
+	}
+}
