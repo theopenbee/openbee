@@ -1083,7 +1083,7 @@ func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
-	if !strings.HasPrefix(instruction, "use openbee-worker skill.\n") {
+	if !strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
 		t.Errorf("new session must start with skill hint\ngot: %q", instruction)
 	}
 }
@@ -1113,7 +1113,7 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
-	if strings.HasPrefix(instruction, "use openbee-worker skill.") {
+	if strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
 		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
 	}
 }
@@ -1149,7 +1149,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
 		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
 	}
 	if !strings.Contains(instr, "<worker_persona>") {
@@ -1190,7 +1190,7 @@ func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, "use openbee-worker skill.") {
+	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
 		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
 	}
 	if strings.Contains(instr, "<worker_persona>") {

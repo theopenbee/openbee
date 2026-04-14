@@ -11,6 +11,16 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
+func TestMain(m *testing.M) {
+	// Subprocess helper: when GO_TEST_EMIT_IS_ERROR=1, write an is_error result
+	// event to stdout and exit immediately without running any tests.
+	if os.Getenv("GO_TEST_EMIT_IS_ERROR") == "1" {
+		os.Stdout.WriteString(`{"type":"result","is_error":true,"result":"API Error: 400 {}"}` + "\n")
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
 func TestNewInvoker(t *testing.T) {
 	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080")
 	if inv.binary != "/usr/bin/claude" {
@@ -135,17 +145,16 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 }
 
 func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
-	dir := t.TempDir()
-	scriptFile := filepath.Join(dir, "emit.sh")
-	content := "#!/bin/sh\nprintf '{\"type\":\"result\",\"is_error\":true,\"result\":\"API Error: 400 {}\"}\\n'\n"
-	if err := os.WriteFile(scriptFile, []byte(content), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	// Run the test binary itself as the subprocess. TestMain detects
+	// GO_TEST_EMIT_IS_ERROR=1, writes is_error JSON to stdout, and exits 0.
+	// BuildBaseEnv inherits os.Environ(), so t.Setenv propagates to the child.
+	t.Setenv("GO_TEST_EMIT_IS_ERROR", "1")
 
-	inv := NewInvoker(scriptFile, "")
+	inv := NewInvoker(os.Args[0], "")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	dir := t.TempDir()
 	logPath := filepath.Join(dir, "run.log")
 	_, ch, err := inv.Run(ctx, dir, "", ai.RunOptions{}, logPath)
 	if err != nil {
