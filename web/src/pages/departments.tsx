@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, ChevronRightIcon } from "lucide-react"
+import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, ChevronRightIcon, KeyRoundIcon } from "lucide-react"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { PageHeader } from "@/components/page-header"
@@ -25,6 +25,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import type { Department } from "@/lib/types"
+import { EnvConfigPanel } from "@/components/env-config-panel"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet"
 
 const NO_PARENT_VALUE = "__no_parent__"
 
@@ -45,6 +53,7 @@ export function Departments() {
 
   const [mode, setMode] = useState<Mode>("idle")
   const [targetDept, setTargetDept] = useState<Department | null>(null)
+  const [envTarget, setEnvTarget] = useState<Department | null>(null)
   const [formName, setFormName] = useState("")
   const [formParentId, setFormParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
@@ -154,6 +163,14 @@ export function Departments() {
                 <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="flex-1 text-sm">{dept.name}</span>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setEnvTarget(dept)}
+                    title={t("envConfig.depEnvTitle")}
+                  >
+                    <KeyRoundIcon className="size-3.5" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -268,6 +285,20 @@ export function Departments() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Sheet open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
+          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>{t("envConfig.depEnvTitle")}</SheetTitle>
+              <SheetDescription>{envTarget?.name}</SheetDescription>
+            </SheetHeader>
+            <div className="px-4 py-6">
+              {envTarget && (
+                <EnvConfigPanel scope="department" scopeId={envTarget.id} />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </FadeIn>
   )
