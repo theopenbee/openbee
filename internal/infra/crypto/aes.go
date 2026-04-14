@@ -60,26 +60,6 @@ func DecryptGCM(gcm cipher.AEAD, ciphertext string) (string, error) {
 	return string(plainBytes), nil
 }
 
-// Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
-// key must be a 64-character hex string (32 bytes).
-func Encrypt(key, plaintext string) (string, error) {
-	gcm, err := NewGCM(key)
-	if err != nil {
-		return "", err
-	}
-	return EncryptGCM(gcm, plaintext)
-}
-
-// Decrypt decrypts ciphertext produced by Encrypt.
-// key must be a 64-character hex string (32 bytes).
-func Decrypt(key, ciphertext string) (string, error) {
-	gcm, err := NewGCM(key)
-	if err != nil {
-		return "", err
-	}
-	return DecryptGCM(gcm, ciphertext)
-}
-
 // Mask returns a display-safe version of value.
 // If len(value) >= 8: first4 + "****" + last4. Otherwise "****".
 func Mask(value string) string {

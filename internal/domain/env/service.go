@@ -42,15 +42,22 @@ func (s *Service) encryptAndMask(plainValue string) (encValue, masked string, er
 	return encValue, crypto.Mask(plainValue), nil
 }
 
+func validateScope(scope string) error {
+	switch scope {
+	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
+		return nil
+	default:
+		return fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
+	}
+}
+
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
 	if key == reservedKey {
 		return nil, fmt.Errorf("%w: OPENBEE_API_KEY is reserved and cannot be set", ErrValidation)
 	}
 
-	switch scope {
-	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
-	default:
-		return nil, fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
+	if err := validateScope(scope); err != nil {
+		return nil, err
 	}
 
 	if scope != ScopeGlobal && scopeID == "" {
@@ -114,10 +121,8 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 }
 
 func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
-	switch scope {
-	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
-	default:
-		return nil, fmt.Errorf("%w: invalid scope %q", ErrValidation, scope)
+	if err := validateScope(scope); err != nil {
+		return nil, err
 	}
 	return s.store.List(scope, scopeID)
 }
