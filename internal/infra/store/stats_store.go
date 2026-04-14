@@ -30,16 +30,19 @@ type ExecStats struct {
 
 // StatsOverview holds all numeric dashboard card data.
 type StatsOverview struct {
-	Departments            int       `json:"departments"`
-	Workers                int       `json:"workers"`
-	ActiveWorkersToday     int       `json:"active_workers_today"`
-	ActiveWorkersYesterday int       `json:"active_workers_yesterday"`
-	ActiveWorkersChange    *float64  `json:"active_workers_change"`
-	MessagesReceivedToday  int       `json:"messages_received_today"`
-	MessagesSentToday      int       `json:"messages_sent_today"`
-	SessionsNewToday       int       `json:"sessions_new_today"`
-	ExecutionsToday        ExecStats `json:"executions_today"`
-	ScheduledTasks         int       `json:"scheduled_tasks"`
+	Departments             int       `json:"departments"`
+	Workers                 int       `json:"workers"`
+	ActiveWorkersToday      int       `json:"active_workers_today"`
+	ActiveWorkersYesterday  int       `json:"active_workers_yesterday"`
+	ActiveWorkersChange     *float64  `json:"active_workers_change"`
+	MessagesReceivedToday   int       `json:"messages_received_today"`
+	MessagesSentToday       int       `json:"messages_sent_today"`
+	MessagesTotalToday      int       `json:"messages_total_today"`
+	ExecutionsToday         ExecStats `json:"executions_today"`
+	ExecDurationTodayMS     int64     `json:"exec_duration_today_ms"`
+	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
+	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
+	ScheduledTasks          int       `json:"scheduled_tasks"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -106,11 +109,27 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.MessagesSentToday)
 	})
 
+	durationQuery := `
+    SELECT COALESCE(SUM(completed_at - started_at), 0)
+    FROM bee_executions
+    WHERE status = 'completed'
+      AND completed_at IS NOT NULL
+      AND started_at >= ? AND started_at < ?`
+
 	eg.Go(func() error {
-		return s.db.QueryRowContext(egc,
-			`SELECT COUNT(DISTINCT session_id) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
-			todayStart, todayEnd,
-		).Scan(&ov.SessionsNewToday)
+		return s.db.QueryRowContext(egc, durationQuery, todayStart, todayEnd).Scan(&ov.ExecDurationTodayMS)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, durationQuery, yestStart, yestEnd).Scan(&ov.ExecDurationYesterdayMS)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `
+        SELECT COALESCE(SUM(completed_at - started_at), 0)
+        FROM bee_executions
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL`).Scan(&ov.ExecDurationTotalMS)
 	})
 
 	eg.Go(func() error {
@@ -159,6 +178,8 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	if err := eg.Wait(); err != nil {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
+
+	ov.MessagesTotalToday = ov.MessagesReceivedToday + ov.MessagesSentToday
 
 	if ov.ActiveWorkersYesterday > 0 {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)

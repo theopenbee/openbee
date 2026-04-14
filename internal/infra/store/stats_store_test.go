@@ -86,8 +86,12 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	if ov.MessagesSentToday != 1 {
 		t.Errorf("MessagesSentToday: want 1, got %d", ov.MessagesSentToday)
 	}
-	if ov.SessionsNewToday != 3 {
-		t.Errorf("SessionsNewToday: want 3, got %d", ov.SessionsNewToday)
+	if ov.MessagesTotalToday != 2 {
+		t.Errorf("MessagesTotalToday: want 2, got %d", ov.MessagesTotalToday)
+	}
+	// Duration fields are 0 because test executions have no completed_at set
+	if ov.ExecDurationTodayMS != 0 {
+		t.Errorf("ExecDurationTodayMS: want 0 (no completed_at set), got %d", ov.ExecDurationTodayMS)
 	}
 	if ov.ExecutionsToday.Total != 3 {
 		t.Errorf("ExecutionsToday.Total: want 3, got %d", ov.ExecutionsToday.Total)
@@ -170,4 +174,63 @@ func TestStatsStore_ActiveWorkersChange_NullWhenYesterdayZero(t *testing.T) {
 	if ov.ActiveWorkersChange != nil {
 		t.Errorf("ActiveWorkersChange: want nil (yesterday=0), got %v", *ov.ActiveWorkersChange)
 	}
+}
+
+func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
+	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
+	db := ss.db
+
+	todayStart, todayEnd := dayBounds(0)
+	yestStart, _ := dayBounds(-1)
+
+	// Today: two completed executions with known durations (1000ms + 2000ms = 3000ms)
+	for _, pair := range [][2]int64{
+		{todayStart + 100, todayStart + 1100},  // 1000ms
+		{todayStart + 200, todayStart + 2200},  // 2000ms
+	} {
+		if _, err := db.Exec(`INSERT INTO bee_executions
+			(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
+			uuid.New().String(), w1.ID, "s1", "hi", "completed", "", 0, pair[0], pair[1]); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+
+	// Yesterday: one completed execution of 500ms
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "s2", "hi", "completed", "", 0, yestStart+100, yestStart+600); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// A failed execution today (should NOT count toward duration)
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "s3", "hi", "failed", "", 0, todayStart+300, todayStart+800); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	ov, err := ss.GetOverview(ctx)
+	if err != nil {
+		t.Fatalf("GetOverview: %v", err)
+	}
+
+	if ov.ExecDurationTodayMS != 3000 {
+		t.Errorf("ExecDurationTodayMS: want 3000, got %d", ov.ExecDurationTodayMS)
+	}
+	if ov.ExecDurationYesterdayMS != 500 {
+		t.Errorf("ExecDurationYesterdayMS: want 500, got %d", ov.ExecDurationYesterdayMS)
+	}
+	// Cumulative = today(3000) + yesterday(500) = 3500 (failed exec not counted)
+	if ov.ExecDurationTotalMS != 3500 {
+		t.Errorf("ExecDurationTotalMS: want 3500, got %d", ov.ExecDurationTotalMS)
+	}
+
+	_ = todayEnd
 }
