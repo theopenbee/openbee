@@ -48,7 +48,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
   const deptEnvsList = useDepartmentEnvs(departmentIds)
 
   const rows = useMemo(() => {
-    const merged = new Map<string, { masked: string; source: string }>()
+    const merged = new Map<string, { masked: string; source: Exclude<EnvScope, "bee"> }>()
 
     for (const env of globalEnvs) {
       merged.set(env.key, { masked: env.masked, source: "global" })
@@ -87,7 +87,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
         </TableHeader>
         <TableBody>
           {rows.map(([key, { masked, source }]) => {
-            const cfg = SOURCE_CONFIG[source as keyof typeof SOURCE_CONFIG]
+            const cfg = SOURCE_CONFIG[source]
             return (
               <TableRow key={key}>
                 <TableCell className="font-mono text-sm">{key}</TableCell>

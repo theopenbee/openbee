@@ -30,10 +30,8 @@ function ValueHints({ value }: { value: string }) {
   const hasLeadingTrailingSpace = value.length > 0 && value !== value.trim()
   return (
     <div className="flex items-center justify-between min-h-[1rem]">
-      {hasLeadingTrailingSpace ? (
+      {hasLeadingTrailingSpace && (
         <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
-      ) : (
-        <span />
       )}
       {value.length > 0 && (
         <span className="text-[11px] tabular-nums text-muted-foreground/60">{value.length}</span>
@@ -176,7 +174,7 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto sm:mr-auto">
+          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto">
             {t("common.cancel")}
           </Button>
           <Button type="button" variant="outline" disabled={!canSubmit} onClick={() => submit(true)}>
@@ -254,7 +252,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto sm:mr-auto">
+          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto">
             {t("common.cancel")}
           </Button>
           <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>

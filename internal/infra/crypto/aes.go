@@ -32,7 +32,6 @@ func NewGCM(key string) (cipher.AEAD, error) {
 	return gcm, nil
 }
 
-// EncryptGCM encrypts plaintext using a pre-created GCM cipher.
 func EncryptGCM(gcm cipher.AEAD, plaintext string) (string, error) {
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -42,7 +41,6 @@ func EncryptGCM(gcm cipher.AEAD, plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(append(nonce, ciphertextWithTag...)), nil
 }
 
-// DecryptGCM decrypts a ciphertext produced by Encrypt using a pre-created GCM cipher.
 func DecryptGCM(gcm cipher.AEAD, ciphertext string) (string, error) {
 	combined, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
@@ -60,8 +58,6 @@ func DecryptGCM(gcm cipher.AEAD, ciphertext string) (string, error) {
 	return string(plainBytes), nil
 }
 
-// Mask returns a display-safe version of value.
-// If len(value) >= 8: first4 + "****" + last4. Otherwise "****".
 func Mask(value string) string {
 	runes := []rune(value)
 	if len(runes) < 8 {

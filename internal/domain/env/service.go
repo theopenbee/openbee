@@ -208,7 +208,6 @@ func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	return result, nil
 }
 
-// merge applies layers left-to-right; later layers override earlier ones for the same key.
 func merge(layers ...[]*model.EnvConfig) map[string]string {
 	result := make(map[string]string)
 	for _, layer := range layers {
