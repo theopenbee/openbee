@@ -110,11 +110,11 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	})
 
 	durationQuery := `
-    SELECT COALESCE(SUM(completed_at - started_at), 0)
-    FROM bee_executions
-    WHERE status = 'completed'
-      AND completed_at IS NOT NULL
-      AND started_at >= ? AND started_at < ?`
+		SELECT COALESCE(SUM(completed_at - started_at), 0)
+		FROM bee_executions
+		WHERE status = 'completed'
+		  AND completed_at IS NOT NULL
+		  AND started_at >= ? AND started_at < ?`
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, durationQuery, todayStart, todayEnd).Scan(&ov.ExecDurationTodayMS)
@@ -126,10 +126,10 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `
-        SELECT COALESCE(SUM(completed_at - started_at), 0)
-        FROM bee_executions
-        WHERE status = 'completed'
-          AND completed_at IS NOT NULL`).Scan(&ov.ExecDurationTotalMS)
+			SELECT COALESCE(SUM(completed_at - started_at), 0)
+			FROM bee_executions
+			WHERE status = 'completed'
+			  AND completed_at IS NOT NULL`).Scan(&ov.ExecDurationTotalMS)
 	})
 
 	eg.Go(func() error {
