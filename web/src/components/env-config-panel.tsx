@@ -308,14 +308,9 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
         <SheetContent>
           <SheetHeader>
             <SheetTitle>{t("envConfig.editTitle")}</SheetTitle>
-            <SheetDescription>{editTarget?.key}</SheetDescription>
+            <SheetDescription className="font-mono">{editTarget?.key}</SheetDescription>
           </SheetHeader>
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-5 px-4 py-6">
-            {formError && (
-              <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {formError}
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label htmlFor="edit-env-value">{t("envConfig.value")}</Label>
               <div className="relative">
@@ -323,7 +318,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                   id="edit-env-value"
                   type={showValue ? "text" : "password"}
                   value={formValue}
-                  onChange={(e) => setFormValue(e.target.value)}
+                  onChange={(e) => { setFormValue(e.target.value); setFormError("") }}
                   placeholder={t("envConfig.valuePlaceholder")}
                   required
                   autoFocus
@@ -334,9 +329,22 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                   onClick={() => setShowValue(!showValue)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   tabIndex={-1}
+                  title={showValue ? t("envConfig.hideValue") : t("envConfig.showValue")}
                 >
                   {showValue ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
                 </button>
+              </div>
+              <div className="flex items-center justify-between min-h-[1rem]">
+                {formValue.length > 0 && formValue !== formValue.trim() ? (
+                  <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
+                ) : formError ? (
+                  <p className="text-xs text-destructive">{formError}</p>
+                ) : (
+                  <span />
+                )}
+                {formValue.length > 0 && (
+                  <span className="text-[11px] tabular-nums text-muted-foreground/60">{formValue.length}</span>
+                )}
               </div>
             </div>
             <SheetFooter>
