@@ -23,6 +23,10 @@ export function isImage(filePath: string): boolean {
   return IMAGE_EXTS.has(ext)
 }
 
+export function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 export function getFileCategory(filePath: string): FileCategory {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? ""
   if (IMAGE_EXTS.has(ext)) return "image"

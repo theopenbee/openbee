@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { PlusIcon, Trash2Icon, PencilIcon, EyeIcon, EyeOffIcon } from "lucide-react"
 import { useEnvList, useCreateEnv, useUpdateEnv, useDeleteEnv } from "@/hooks/use-envs"
@@ -22,10 +22,42 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/empty-state"
-import { cn } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import type { EnvConfig } from "@/lib/types"
 
-// ─── Add Dialog ────────────────────────────────────────────────────────────────
+function SecretInput({ id, value, onChange, autoFocus, placeholder }: {
+  id: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  autoFocus?: boolean
+  placeholder?: string
+}) {
+  const [show, setShow] = useState(false)
+  const { t } = useTranslation()
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required
+        autoFocus={autoFocus}
+        className="font-mono pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        tabIndex={-1}
+        title={show ? t("envConfig.hideValue") : t("envConfig.showValue")}
+      >
+        {show ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+      </button>
+    </div>
+  )
+}
 
 interface AddEnvDialogProps {
   open: boolean
@@ -41,7 +73,6 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
 
   const [formKey, setFormKey] = useState("")
   const [formValue, setFormValue] = useState("")
-  const [showValue, setShowValue] = useState(false)
   const [apiError, setApiError] = useState("")
 
   const handleKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +88,6 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
   const resetForm = () => {
     setFormKey("")
     setFormValue("")
-    setShowValue(false)
     setApiError("")
   }
 
@@ -77,7 +107,7 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
         handleClose()
       }
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : String(err))
+      setApiError(getErrorMessage(err))
     }
   }
 
@@ -115,26 +145,12 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
 
           <div className="space-y-1.5">
             <Label htmlFor="add-env-value">{t("envConfig.value")}</Label>
-            <div className="relative">
-              <Input
-                id="add-env-value"
-                type={showValue ? "text" : "password"}
-                value={formValue}
-                onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
-                placeholder={t("envConfig.valuePlaceholder")}
-                required
-                className="font-mono pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowValue(!showValue)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1}
-                title={showValue ? t("envConfig.hideValue") : t("envConfig.showValue")}
-              >
-                {showValue ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-              </button>
-            </div>
+            <SecretInput
+              id="add-env-value"
+              value={formValue}
+              onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
+              placeholder={t("envConfig.valuePlaceholder")}
+            />
             <div className="flex items-center justify-between min-h-[1rem]">
               {hasLeadingTrailingSpace ? (
                 <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
@@ -168,10 +184,8 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
   )
 }
 
-// ─── Edit Dialog ───────────────────────────────────────────────────────────────
-
 interface EditEnvDialogProps {
-  target: EnvConfig | undefined
+  target: EnvConfig | null
   onClose: () => void
   scope: "global" | "department" | "worker"
   scopeId?: string
@@ -182,12 +196,10 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
   const updateEnv = useUpdateEnv(scope, scopeId)
 
   const [formValue, setFormValue] = useState("")
-  const [showValue, setShowValue] = useState(false)
   const [apiError, setApiError] = useState("")
 
   const handleClose = () => {
     setFormValue("")
-    setShowValue(false)
     setApiError("")
     onClose()
   }
@@ -199,7 +211,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
       await updateEnv.mutateAsync({ id: target.id, value: formValue })
       handleClose()
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : String(err))
+      setApiError(getErrorMessage(err))
     }
   }
 
@@ -208,7 +220,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
 
   return (
     <Dialog
-      open={target !== undefined}
+      open={target !== null}
       onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}
     >
       <DialogContent className="max-w-md" showCloseButton={false}>
@@ -220,32 +232,16 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
         <div className="flex flex-col gap-4 py-1">
           <div className="space-y-1.5">
             <Label htmlFor="edit-env-value">{t("envConfig.value")}</Label>
-            <div className="relative">
-              <Input
-                id="edit-env-value"
-                type={showValue ? "text" : "password"}
-                value={formValue}
-                onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
-                placeholder={t("envConfig.valuePlaceholder")}
-                required
-                autoFocus
-                className="font-mono pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowValue(!showValue)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1}
-                title={showValue ? t("envConfig.hideValue") : t("envConfig.showValue")}
-              >
-                {showValue ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-              </button>
-            </div>
+            <SecretInput
+              id="edit-env-value"
+              value={formValue}
+              onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
+              placeholder={t("envConfig.valuePlaceholder")}
+              autoFocus
+            />
             <div className="flex items-center justify-between min-h-[1rem]">
               {hasLeadingTrailingSpace ? (
                 <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
-              ) : apiError ? (
-                <p className="text-xs text-destructive">{apiError}</p>
               ) : (
                 <span />
               )}
@@ -254,6 +250,10 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
               )}
             </div>
           </div>
+
+          {apiError && (
+            <p className="text-xs text-destructive">{apiError}</p>
+          )}
         </div>
 
         <DialogFooter>
@@ -269,8 +269,6 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
   )
 }
 
-// ─── Panel ─────────────────────────────────────────────────────────────────────
-
 interface EnvConfigPanelProps {
   scope: "global" | "department" | "worker"
   scopeId?: string
@@ -282,8 +280,10 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
   const deleteEnv = useDeleteEnv(scope, scopeId)
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<EnvConfig | undefined>(undefined)
+  const [editTarget, setEditTarget] = useState<EnvConfig | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EnvConfig | null>(null)
+
+  const existingKeys = useMemo(() => envs.map((e) => e.key), [envs])
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -352,12 +352,12 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
         onOpenChange={setAddDialogOpen}
         scope={scope}
         scopeId={scopeId}
-        existingKeys={envs.map((e) => e.key)}
+        existingKeys={existingKeys}
       />
 
       <EditEnvDialog
         target={editTarget}
-        onClose={() => setEditTarget(undefined)}
+        onClose={() => setEditTarget(null)}
         scope={scope}
         scopeId={scopeId}
       />

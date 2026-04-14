@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, ChevronRightIcon, KeyRoundIcon } from "lucide-react"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
 import { flattenDeptTree } from "@/lib/department-utils"
+import { getErrorMessage } from "@/lib/utils"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -95,7 +96,7 @@ export function Departments() {
       await createDept.mutateAsync({ name: formName.trim(), parent_id: formParentId })
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 
@@ -109,7 +110,7 @@ export function Departments() {
       })
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 
@@ -119,7 +120,7 @@ export function Departments() {
       await deleteDept.mutateAsync(targetDept.id)
       resetForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(getErrorMessage(err))
     }
   }
 

@@ -35,7 +35,7 @@ import {
 
 const PAGE_SIZE = 20
 
-const SOURCE_CONFIG: Record<string, { color: string; labelKey: string }> = {
+const SOURCE_CONFIG: Record<"global" | "department" | "worker", { color: string; labelKey: string }> = {
   global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
   department: { color: "text-amber-500", labelKey: "envConfig.sourceDepartment" },
   worker: { color: "text-green-500", labelKey: "envConfig.sourceWorker" },
@@ -86,17 +86,20 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map(([key, { masked, source }]) => (
-            <TableRow key={key}>
-              <TableCell className="font-mono text-sm">{key}</TableCell>
-              <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
-              <TableCell>
-                <span className={`text-xs font-medium ${SOURCE_CONFIG[source]?.color ?? ""}`}>
-                  {SOURCE_CONFIG[source] ? t(SOURCE_CONFIG[source].labelKey) : source}
-                </span>
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map(([key, { masked, source }]) => {
+            const cfg = SOURCE_CONFIG[source as keyof typeof SOURCE_CONFIG]
+            return (
+              <TableRow key={key}>
+                <TableCell className="font-mono text-sm">{key}</TableCell>
+                <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
+                <TableCell>
+                  <span className={cn("text-xs font-medium", cfg?.color)}>
+                    {cfg ? t(cfg.labelKey) : source}
+                  </span>
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>
