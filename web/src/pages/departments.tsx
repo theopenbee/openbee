@@ -27,13 +27,6 @@ import {
 } from "@/components/ui/dialog"
 import type { Department } from "@/lib/types"
 import { EnvConfigPanel } from "@/components/env-config-panel"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
 
 const NO_PARENT_VALUE = "__no_parent__"
 
@@ -287,19 +280,26 @@ export function Departments() {
           </DialogContent>
         </Dialog>
 
-        <Sheet open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
-          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>{t("envConfig.depEnvTitle")}</SheetTitle>
-              <SheetDescription>{envTarget?.name}</SheetDescription>
-            </SheetHeader>
-            <div className="px-4 py-6">
+        <Dialog open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRoundIcon className="size-4 text-muted-foreground" />
+                {t("envConfig.depEnvTitle")}
+              </DialogTitle>
+              <DialogDescription className="flex items-center gap-1.5">
+                <FolderIcon className="size-3.5" />
+                {envTarget?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto -mx-4 px-4">
               {envTarget && (
                 <EnvConfigPanel scope="department" scopeId={envTarget.id} />
               )}
             </div>
-          </SheetContent>
-        </Sheet>
+            <DialogFooter showCloseButton />
+          </DialogContent>
+        </Dialog>
       </div>
     </FadeIn>
   )

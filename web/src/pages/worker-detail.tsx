@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, KeyRoundIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
@@ -334,7 +334,6 @@ export function WorkerDetail() {
             <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
             <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
             <TabsTrigger value="env">
-              <KeyRoundIcon className="size-3.5" />
               {t("envConfig.title")}
             </TabsTrigger>
           </TabsList>
