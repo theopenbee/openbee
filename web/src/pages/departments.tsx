@@ -38,18 +38,20 @@ export function Departments() {
   const deleteDept = useDeleteDepartment()
 
   const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
+  const deptNameById = useMemo(
+    () => Object.fromEntries(flatDepts.map(({ dept }) => [dept.id, dept.name])),
+    [flatDepts]
+  )
 
   const [mode, setMode] = useState<Mode>("idle")
-  const [editingDept, setEditingDept] = useState<Department | null>(null)
-  const [deletingDept, setDeletingDept] = useState<Department | null>(null)
+  const [targetDept, setTargetDept] = useState<Department | null>(null)
   const [formName, setFormName] = useState("")
   const [formParentId, setFormParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
   const resetForm = () => {
     setMode("idle")
-    setEditingDept(null)
-    setDeletingDept(null)
+    setTargetDept(null)
     setFormName("")
     setFormParentId(null)
     setError("")
@@ -62,7 +64,7 @@ export function Departments() {
   }
 
   const openEdit = (dept: Department) => {
-    setEditingDept(dept)
+    setTargetDept(dept)
     setFormName(dept.name)
     setFormParentId(dept.parent_id)
     setError("")
@@ -70,7 +72,7 @@ export function Departments() {
   }
 
   const openDelete = (dept: Department) => {
-    setDeletingDept(dept)
+    setTargetDept(dept)
     setError("")
     setMode("delete")
   }
@@ -81,40 +83,40 @@ export function Departments() {
     try {
       await createDept.mutateAsync({ name: formName.trim(), parent_id: formParentId })
       resetForm()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
   const handleUpdate = async (e: FormEvent) => {
     e.preventDefault()
-    if (!editingDept || !formName.trim()) return
+    if (!targetDept || !formName.trim()) return
     try {
       await updateDept.mutateAsync({
-        id: editingDept.id,
+        id: targetDept.id,
         data: { name: formName.trim(), parent_id: formParentId },
       })
       resetForm()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
   const handleDelete = async () => {
-    if (!deletingDept) return
+    if (!targetDept) return
     try {
-      await deleteDept.mutateAsync(deletingDept.id)
+      await deleteDept.mutateAsync(targetDept.id)
       resetForm()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
   const isFormOpen = mode === "create" || mode === "edit"
   const isDeleteOpen = mode === "delete"
   const filteredDepts = useMemo(
-    () => flatDepts.filter(({ dept }) => dept.id !== editingDept?.id),
-    [flatDepts, editingDept]
+    () => flatDepts.filter(({ dept }) => dept.id !== targetDept?.id),
+    [flatDepts, targetDept]
   )
 
   return (
@@ -193,7 +195,7 @@ export function Departments() {
               <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
             </DialogHeader>
             <form onSubmit={mode === "create" ? handleCreate : handleUpdate} className="space-y-4">
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
               <div className="space-y-1.5">
                 <Label htmlFor="dept-name">{t("departments.form.name")}</Label>
                 <Input
@@ -216,7 +218,7 @@ export function Departments() {
                       {(value: string) =>
                         value === NO_PARENT_VALUE
                           ? t("departments.form.noParent")
-                          : flatDepts.find(({ dept }) => dept.id === value)?.dept.name ?? value
+                          : deptNameById[value] ?? value
                       }
                     </SelectValue>
                   </SelectTrigger>
@@ -249,11 +251,11 @@ export function Departments() {
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>{t("departments.deleteConfirm.title")}</DialogTitle>
+              <DialogDescription>
+                {t("departments.deleteConfirm.description", { name: targetDept?.name })}
+              </DialogDescription>
             </DialogHeader>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <p className="text-sm text-muted-foreground">
-              {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
-            </p>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}
