@@ -269,9 +269,10 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
 interface EnvConfigPanelProps {
   scope: "global" | "bee" | "department" | "worker"
   scopeId?: string
+  onSubDialogChange?: (open: boolean) => void
 }
 
-export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
+export function EnvConfigPanel({ scope, scopeId, onSubDialogChange }: EnvConfigPanelProps) {
   const { t } = useTranslation()
   const { data: envs = [], isLoading } = useEnvList(scope, scopeId)
   const deleteEnv = useDeleteEnv(scope, scopeId)
@@ -294,7 +295,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+        <Button size="sm" onClick={() => { setAddDialogOpen(true); onSubDialogChange?.(true) }}>
           <PlusIcon className="size-3.5" />
           {t("envConfig.add")}
         </Button>
@@ -322,7 +323,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        onClick={() => setEditTarget(env)}
+                        onClick={() => { setEditTarget(env); onSubDialogChange?.(true) }}
                         title={t("common.edit")}
                       >
                         <PencilIcon className="size-3.5" />
@@ -330,7 +331,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        onClick={() => setDeleteTarget(env)}
+                        onClick={() => { setDeleteTarget(env); onSubDialogChange?.(true) }}
                         title={t("common.delete")}
                       >
                         <Trash2Icon className="size-3.5" />
@@ -346,7 +347,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
 
       <AddEnvDialog
         open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+        onOpenChange={(open) => { setAddDialogOpen(open); if (!open) onSubDialogChange?.(false) }}
         scope={scope}
         scopeId={scopeId}
         existingKeys={existingKeys}
@@ -354,12 +355,12 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
 
       <EditEnvDialog
         target={editTarget}
-        onClose={() => setEditTarget(null)}
+        onClose={() => { setEditTarget(null); onSubDialogChange?.(false) }}
         scope={scope}
         scopeId={scopeId}
       />
 
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); onSubDialogChange?.(false) } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t("common.delete")}</DialogTitle>
