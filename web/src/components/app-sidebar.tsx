@@ -25,20 +25,32 @@ const navSecondary = [
   },
 ]
 
+const directoryIcons = {
+  workers: <BotIcon />,
+  departments: <Building2Icon />,
+}
+
+const mainIcons = {
+  dashboard: <LayoutDashboardIcon />,
+  chat: <MessageCircleIcon />,
+  executions: <ActivityIcon />,
+  tasks: <ClockIcon />,
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const username = getStoredUsername() ?? "User"
 
   const navDirectory = React.useMemo(() => [
-    { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
-    { title: t("nav.departments"), url: "/departments", icon: <Building2Icon /> },
+    { title: t("nav.workers"), url: "/workers", icon: directoryIcons.workers },
+    { title: t("nav.departments"), url: "/departments", icon: directoryIcons.departments },
   ], [t])
 
   const navMain = React.useMemo(() => [
-    { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
-    { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
-    { title: t("nav.executions"), url: "/sessions", icon: <ActivityIcon /> },
-    { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
+    { title: t("nav.dashboard"), url: "/", icon: mainIcons.dashboard },
+    { title: t("localChat.title"), url: "/chat", icon: mainIcons.chat },
+    { title: t("nav.executions"), url: "/sessions", icon: mainIcons.executions },
+    { title: t("nav.tasks"), url: "/tasks", icon: mainIcons.tasks },
   ], [t])
 
   return (

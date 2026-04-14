@@ -56,7 +56,6 @@ export function Departments() {
   }
 
   const openCreate = (parentId?: string | null) => {
-    setFormName("")
     setFormParentId(parentId ?? null)
     setError("")
     setMode("create")
@@ -113,6 +112,10 @@ export function Departments() {
 
   const isFormOpen = mode === "create" || mode === "edit"
   const isDeleteOpen = mode === "delete"
+  const filteredDepts = useMemo(
+    () => flatDepts.filter(({ dept }) => dept.id !== editingDept?.id),
+    [flatDepts, editingDept]
+  )
 
   return (
     <FadeIn>
@@ -181,7 +184,6 @@ export function Departments() {
           </div>
         )}
 
-        {/* Create / Edit Dialog */}
         <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -211,8 +213,8 @@ export function Departments() {
                 >
                   <SelectTrigger>
                     <SelectValue>
-                      {(value: string | null) =>
-                        !value || value === NO_PARENT_VALUE
+                      {(value: string) =>
+                        value === NO_PARENT_VALUE
                           ? t("departments.form.noParent")
                           : flatDepts.find(({ dept }) => dept.id === value)?.dept.name ?? value
                       }
@@ -220,13 +222,11 @@ export function Departments() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_PARENT_VALUE}>{t("departments.form.noParent")}</SelectItem>
-                    {flatDepts
-                      .filter(({ dept }) => dept.id !== editingDept?.id)
-                      .map(({ dept, depth }) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          <span style={{ paddingLeft: `${depth * 12}px` }}>{dept.name}</span>
-                        </SelectItem>
-                      ))}
+                    {filteredDepts.map(({ dept, depth }) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        <span style={{ paddingLeft: `${depth * 12}px` }}>{dept.name}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -245,7 +245,6 @@ export function Departments() {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation Dialog */}
         <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
