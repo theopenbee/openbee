@@ -159,7 +159,6 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	for i, d := range depts {
 		deptIDs[i] = d.ID
 	}
-	sort.Strings(deptIDs)
 
 	deptEnvs, err := s.store.ListForDepartments(deptIDs)
 	if err != nil {
@@ -172,18 +171,25 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
 // Resolution chain: global <- bee
 func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {
-	layers, err := fetchParallel(
-		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeGlobal, nil) },
-		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeBee, &beeID) },
-	)
-	if err != nil {
+	var globalEnvs, beeEnvs []*model.EnvConfig
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		globalEnvs, err = s.store.List(ScopeGlobal, nil)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		beeEnvs, err = s.store.List(ScopeBee, &beeID)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	return s.decryptMerged(merge(layers...))
+	return s.decryptMerged(merge(globalEnvs, beeEnvs))
 }
 
-// decryptMerged decrypts a merged map and returns sorted KEY=VALUE strings.
-// Sorted for deterministic ordering so subprocess env is predictable.
+// decryptMerged sorts for deterministic subprocess env ordering.
 func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	result := make([]string, 0, len(merged))
 	for k, encVal := range merged {
@@ -197,25 +203,7 @@ func (s *Service) decryptMerged(merged map[string]string) ([]string, error) {
 	return result, nil
 }
 
-// fetchParallel runs each fetcher concurrently and returns results in input order.
-// Returns on the first error encountered.
-func fetchParallel(fetchers ...func() ([]*model.EnvConfig, error)) ([][]*model.EnvConfig, error) {
-	out := make([][]*model.EnvConfig, len(fetchers))
-	var g errgroup.Group
-	for i, f := range fetchers {
-		g.Go(func() error {
-			envs, err := f()
-			out[i] = envs
-			return err
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// merge merges multiple layers of env configs. Later layers override earlier ones for the same key.
+// merge applies layers left-to-right; later layers override earlier ones for the same key.
 func merge(layers ...[]*model.EnvConfig) map[string]string {
 	result := make(map[string]string)
 	for _, layer := range layers {

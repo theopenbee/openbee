@@ -23,7 +23,6 @@ type BeeProcess struct {
 	envService  *env.Service
 }
 
-// NewBeeProcess creates a BeeProcess.
 func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Service) *BeeProcess {
 	return &BeeProcess{
 		engine:      engine,

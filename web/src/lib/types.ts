@@ -112,9 +112,15 @@ export interface StatsTrend {
   data: TrendPoint[]
 }
 
+export type EnvScope = "global" | "bee" | "department" | "worker"
+
+// DEFAULT_BEE_ID is the well-known scope_id for bee-scoped env configs.
+// Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
+export const DEFAULT_BEE_ID = "default"
+
 export interface EnvConfig {
   id: string
-  scope: "global" | "bee" | "department" | "worker"
+  scope: EnvScope
   scope_id: string | null
   key: string
   masked: string

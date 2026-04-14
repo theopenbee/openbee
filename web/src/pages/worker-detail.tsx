@@ -19,7 +19,7 @@ import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
-import type { DepartmentTree } from "@/lib/types"
+import type { DepartmentTree, EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
@@ -35,7 +35,7 @@ import {
 
 const PAGE_SIZE = 20
 
-const SOURCE_CONFIG: Record<"global" | "department" | "worker", { color: string; labelKey: string }> = {
+const SOURCE_CONFIG: Record<Exclude<EnvScope, "bee">, { color: string; labelKey: string }> = {
   global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
   department: { color: "text-amber-500", labelKey: "envConfig.sourceDepartment" },
   worker: { color: "text-green-500", labelKey: "envConfig.sourceWorker" },

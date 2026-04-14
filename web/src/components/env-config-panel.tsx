@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/empty-state"
 import { cn, getErrorMessage } from "@/lib/utils"
-import type { EnvConfig } from "@/lib/types"
+import type { EnvConfig, EnvScope } from "@/lib/types"
 
 function ValueHints({ value }: { value: string }) {
   const { t } = useTranslation()
@@ -79,7 +79,7 @@ function SecretInput({ id, value, onChange, autoFocus, placeholder }: {
 interface AddEnvDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  scope: "global" | "bee" | "department" | "worker"
+  scope: EnvScope
   scopeId?: string
   existingKeys: string[]
 }
@@ -194,7 +194,7 @@ function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddE
 interface EditEnvDialogProps {
   target: EnvConfig | null
   onClose: () => void
-  scope: "global" | "bee" | "department" | "worker"
+  scope: EnvScope
   scopeId?: string
 }
 
@@ -267,7 +267,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
 }
 
 interface EnvConfigPanelProps {
-  scope: "global" | "bee" | "department" | "worker"
+  scope: EnvScope
   scopeId?: string
 }
 

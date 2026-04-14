@@ -147,13 +147,10 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	var extraEnv []string
-	if m.envService != nil {
-		extraEnv, err = m.envService.ResolveWorkerEnv(worker.ID)
-		if err != nil {
-			cancel()
-			return fmt.Errorf("resolve worker env: %w", err)
-		}
+	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)
+	if err != nil {
+		cancel()
+		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
 	proc, outputCh, err := m.engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{

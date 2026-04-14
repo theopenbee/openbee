@@ -3,6 +3,7 @@ import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
 import { EnvConfigPanel } from "@/components/env-config-panel"
+import { DEFAULT_BEE_ID } from "@/lib/types"
 
 export function Settings() {
   const { t } = useTranslation()
@@ -33,7 +34,7 @@ export function Settings() {
               {t("envConfig.beeHint")}
             </p>
           </div>
-          <EnvConfigPanel scope="bee" scopeId="default" />
+          <EnvConfigPanel scope="bee" scopeId={DEFAULT_BEE_ID} />
         </DetailSection>
       </div>
     </FadeIn>
