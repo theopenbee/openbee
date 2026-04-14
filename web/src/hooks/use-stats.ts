@@ -9,7 +9,7 @@ export function useStatsOverview() {
   })
 }
 
-function useStatsDayTrend<T>(key: string, fetcher: (days: number) => Promise<T>, days: 7 | 15 | 30) {
+function useStatsDayTrend<T>(key: string, fetcher: (days: 7 | 15 | 30) => Promise<T>, days: 7 | 15 | 30) {
   return useQuery({ queryKey: ["stats", key, days], queryFn: () => fetcher(days), staleTime: 60_000 })
 }
 
