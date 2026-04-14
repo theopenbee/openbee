@@ -137,9 +137,17 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		defer logFile.Close()
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
-		} else {
-			ch <- ai.Output{Type: ai.OutputDone}
+			return
 		}
+		result, isError := extractResultStatus(logPath)
+		if isError {
+			if result == "" {
+				result = "bee execution failed with is_error=true"
+			}
+			ch <- ai.Output{Type: ai.OutputError, Content: result}
+			return
+		}
+		ch <- ai.Output{Type: ai.OutputDone}
 	}()
 
 	return proc, ch, nil

@@ -134,6 +134,40 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 	}
 }
 
+func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
+	// Write a shell script that emits an is_error result JSON line and exits 0.
+	scriptFile := filepath.Join(t.TempDir(), "emit.sh")
+	content := "#!/bin/sh\nprintf '{\"type\":\"result\",\"is_error\":true,\"result\":\"API Error: 400 {}\"}\\n'\n"
+	if err := os.WriteFile(scriptFile, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	inv := NewInvoker(scriptFile, "")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	_, ch, err := inv.Run(ctx, t.TempDir(), "", ai.RunOptions{}, logPath)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var gotError bool
+	var errorContent string
+	for out := range ch {
+		if out.Type == ai.OutputError {
+			gotError = true
+			errorContent = out.Content
+		}
+	}
+	if !gotError {
+		t.Error("want OutputError, got none")
+	}
+	if !strings.Contains(errorContent, "API Error: 400") {
+		t.Errorf("want error content to contain 'API Error: 400', got %q", errorContent)
+	}
+}
+
 func TestExtractResultStatus_IsError(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"result","is_error":true,"result":"API Error: 400 {\"error\":\"操作失败\"}"}` + "\n"
