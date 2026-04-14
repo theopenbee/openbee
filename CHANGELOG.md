@@ -2,8 +2,12 @@
 
 ## [Unreleased]
 
+## [0.0.22] - 2026-04-13
+
 ### Added
+- Worker permission scopes: granular permission control for workers (read/write/execute per resource type)
 - Add system data query permission and grant access to employees
+- Outbound message store for tracking sent messages
 
 ### Changed
 - Improve openbee ctl command output results
