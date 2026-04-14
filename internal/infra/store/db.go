@@ -286,7 +286,7 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 	{
 		version: 31,
 		name:    "drop_retry_count_from_platform_messages",
-		sql:     `ALTER TABLE bee_platform_messages DROP COLUMN retry_count`,
+		sql:     `ALTER TABLE bee_platform_messages DROP COLUMN IF EXISTS retry_count`,
 	},
 }
 

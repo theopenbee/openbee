@@ -33,7 +33,7 @@ type FailureNotifier interface {
 // Option configures a Feeder.
 type Option func(*Feeder)
 
-// WithFailureNotifier sets the notifier used to inform users when a message exhausts retries.
+// WithFailureNotifier sets the notifier used to inform users when a message fails.
 func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
@@ -263,7 +263,7 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 		return
 	}
 	for _, m := range msgs {
-		log.Warn("message failed", zap.String("messageID", m.ID))
+		log.Warn("message failed", zap.String("messageID", m.ID), zap.String("reason", reason))
 		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason}); notifyErr != nil {
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
