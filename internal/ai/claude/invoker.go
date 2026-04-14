@@ -38,16 +38,15 @@ type streamContent struct {
 	Text string `json:"text,omitempty"`
 }
 
-// ExtractResultFromLog scans a Claude stream-json log file and returns the best
-// result string: prefers {"type":"result"} over the last assistant text.
-func ExtractResultFromLog(logPath string) string {
+// scanResultLog opens logPath and scans for result/assistant events, returning
+// the result text, whether is_error was set, and the last assistant text seen
+// before the result event. Stops at the result event (which is always terminal).
+func scanResultLog(logPath string) (result string, isError bool, lastAssistantText string) {
 	f, err := os.Open(logPath)
 	if err != nil {
-		return ""
+		return
 	}
 	defer f.Close()
-
-	var lastAssistantText, streamResult string
 	ai.ScanJSONLines(f, func(line string) bool {
 		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
@@ -61,39 +60,23 @@ func ExtractResultFromLog(logPath string) string {
 				}
 			}
 		case "result":
-			if event.Result != "" {
-				streamResult = event.Result
-			}
-		}
-		return true
-	})
-	if streamResult != "" {
-		return streamResult
-	}
-	return lastAssistantText
-}
-
-// extractResultStatus scans a Claude stream-json log file and returns the
-// result string and whether is_error was true in the result event.
-func extractResultStatus(logPath string) (result string, isError bool) {
-	f, err := os.Open(logPath)
-	if err != nil {
-		return "", false
-	}
-	defer f.Close()
-	ai.ScanJSONLines(f, func(line string) bool {
-		var event streamEvent
-		if json.Unmarshal([]byte(line), &event) != nil {
-			return true
-		}
-		if event.Type == "result" {
 			result = event.Result
 			isError = event.IsError
-			return false // result event is terminal; stop scanning
+			return false
 		}
 		return true
 	})
 	return
+}
+
+// ExtractResultFromLog scans a Claude stream-json log file and returns the best
+// result string: prefers {"type":"result"} over the last assistant text.
+func ExtractResultFromLog(logPath string) string {
+	result, _, lastAssistantText := scanResultLog(logPath)
+	if result != "" {
+		return result
+	}
+	return lastAssistantText
 }
 
 // Run starts a Claude CLI process, redirecting output to logPath.
@@ -139,10 +122,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
 			return
 		}
-		result, isError := extractResultStatus(logPath)
+		result, isError, _ := scanResultLog(logPath)
 		if isError {
 			if result == "" {
-				result = "bee execution failed with is_error=true"
+				result = "bee execution failed (no details available)"
 			}
 			ch <- ai.Output{Type: ai.OutputError, Content: result}
 			return

@@ -168,13 +168,13 @@ func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
 	}
 }
 
-func TestExtractResultStatus_IsError(t *testing.T) {
+func TestScanResultLog_IsError(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"result","is_error":true,"result":"API Error: 400 {\"error\":\"操作失败\"}"}` + "\n"
 	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result, isError := extractResultStatus(logPath)
+	result, isError, _ := scanResultLog(logPath)
 	if !isError {
 		t.Error("want isError=true, got false")
 	}
@@ -183,13 +183,13 @@ func TestExtractResultStatus_IsError(t *testing.T) {
 	}
 }
 
-func TestExtractResultStatus_NoError(t *testing.T) {
+func TestScanResultLog_NoError(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"result","is_error":false,"result":"all good"}` + "\n"
 	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result, isError := extractResultStatus(logPath)
+	result, isError, _ := scanResultLog(logPath)
 	if isError {
 		t.Error("want isError=false, got true")
 	}
@@ -198,13 +198,13 @@ func TestExtractResultStatus_NoError(t *testing.T) {
 	}
 }
 
-func TestExtractResultStatus_NoResultEvent(t *testing.T) {
+func TestScanResultLog_NoResultEvent(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}` + "\n"
 	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result, isError := extractResultStatus(logPath)
+	result, isError, _ := scanResultLog(logPath)
 	if isError {
 		t.Error("want isError=false when no result event, got true")
 	}
