@@ -163,6 +163,7 @@ output:
     pi_manual_entry: "未在 PATH 中找到 Pi，请手动输入路径。"
     skill_installed: "skill %s 已安装"
     skill_updated: "skill %s 已更新"
+    skill_up_to_date: "skill %s 已是最新（跳过）"
     skills_install_warning: "安装 skills 时出错（已跳过）：%v"
   claude:
     already_installed: "Claude 已安装在 %s"

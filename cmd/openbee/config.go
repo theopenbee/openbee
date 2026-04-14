@@ -253,6 +253,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	installBuiltinSkills()
+
 	// Step 2 — Platform config
 	fmt.Println(i18n.M.Output.Config.SectionPlatform)
 
@@ -609,7 +611,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
-	installBuiltinSkills()
 	return nil
 }
 
@@ -720,7 +721,8 @@ func installBuiltinSkills() {
 			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
 		case skillinstall.ActionUpdated:
 			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
-		// ActionUpToDate: silent
+		case skillinstall.ActionUpToDate:
+			fmt.Printf(i18n.M.Output.Config.SkillUpToDate+"\n", r.Name)
 		}
 	}
 }
