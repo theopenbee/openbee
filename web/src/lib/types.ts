@@ -111,3 +111,13 @@ export interface StatsTrend {
   days: number
   data: TrendPoint[]
 }
+
+export interface EnvConfig {
+  id: string
+  scope: "global" | "bee" | "department" | "worker"
+  scope_id: string | null
+  key: string
+  masked: string
+  created_at: number
+  updated_at: number
+}
