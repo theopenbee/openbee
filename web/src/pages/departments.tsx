@@ -48,6 +48,7 @@ export function Departments() {
   const [mode, setMode] = useState<Mode>("idle")
   const [targetDept, setTargetDept] = useState<Department | null>(null)
   const [envTarget, setEnvTarget] = useState<Department | null>(null)
+  const [subDialogOpen, setSubDialogOpen] = useState(false)
   const [formName, setFormName] = useState("")
   const [formParentId, setFormParentId] = useState<string | null>(null)
   const [error, setError] = useState("")
@@ -58,6 +59,11 @@ export function Departments() {
     setFormName("")
     setFormParentId(null)
     setError("")
+  }
+
+  const closeEnvDialog = () => {
+    setEnvTarget(null)
+    setSubDialogOpen(false)
   }
 
   const openCreate = (parentId?: string | null) => {
@@ -280,7 +286,7 @@ export function Departments() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
+        <Dialog open={!!envTarget && !subDialogOpen} onOpenChange={(open) => { if (!open) closeEnvDialog() }}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -294,7 +300,7 @@ export function Departments() {
             </DialogHeader>
             <div className="max-h-[60vh] overflow-y-auto -mx-4 px-4">
               {envTarget && (
-                <EnvConfigPanel scope="department" scopeId={envTarget.id} />
+                <EnvConfigPanel scope="department" scopeId={envTarget.id} onSubDialogChange={setSubDialogOpen} />
               )}
             </div>
             <DialogFooter showCloseButton />
