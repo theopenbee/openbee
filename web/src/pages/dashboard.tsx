@@ -324,8 +324,8 @@ export function Dashboard() {
       </div>
 
       {/* ── Activity Trend ─────────────────────────────────────────── */}
-      <ActivityTrendChart />
-      <div className="mt-6">
+      <div className="space-y-6">
+        <ActivityTrendChart />
         <ExecutionDurationTrendChart />
       </div>
     </FadeIn>

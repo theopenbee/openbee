@@ -77,7 +77,7 @@ export function ExecutionDurationTrendChart() {
                 <YAxis
                   tick={{ fontSize: 11 }}
                   allowDecimals={false}
-                  tickFormatter={(v: number) => `${Math.round(v / 60000)}m`}
+                  tickFormatter={(v: number) => formatTotalDuration(v)}
                   className="text-muted-foreground"
                 />
                 <Tooltip
