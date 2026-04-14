@@ -53,6 +53,7 @@
     "executionDurationTrendAriaLabel": "最近 {{days}} 天工作时长趋势",
     "totalMessages": "消息总数",
     "totalWorkDuration": "工作时长",
+    "combinedTrendTitle": "员工活跃与工作时长",
     "combinedTrendAriaLabel": "最近 {{days}} 天员工活跃与工作时长趋势图"
   },
   "workers": {

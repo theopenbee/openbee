@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
   LineChart,
@@ -17,6 +17,13 @@ import { formatTotalDuration } from "@/lib/format"
 const ACTIVE_WORKERS_KEY = "active_workers"
 const TOTAL_DURATION_KEY = "total_duration_ms"
 
+function tooltipFormatter(value: number | string, name: string, props: { dataKey?: string }) {
+  if (props.dataKey === ACTIVE_WORKERS_KEY) {
+    return [value, name]
+  }
+  return [formatTotalDuration(Number(value)), name]
+}
+
 export function CombinedTrendChart() {
   const { t } = useTranslation()
   const [days, setDays] = useState<7 | 15 | 30>(7)
@@ -26,37 +33,20 @@ export function CombinedTrendChart() {
 
   const isLoading = loadingActivity || loadingDuration
 
-  const chartData = useMemo(() => {
-    const map = new Map<string, { date: string; active_workers: number; total_duration_ms: number }>()
-    activityData?.data.forEach((p) =>
-      map.set(p.date, { date: p.date, [ACTIVE_WORKERS_KEY]: p.active_workers, [TOTAL_DURATION_KEY]: 0 }),
-    )
-    durationData?.data.forEach((p) => {
-      const existing = map.get(p.date)
-      if (existing) {
-        existing[TOTAL_DURATION_KEY] = p.total_duration_ms
-      } else {
-        map.set(p.date, { date: p.date, [ACTIVE_WORKERS_KEY]: 0, [TOTAL_DURATION_KEY]: p.total_duration_ms })
-      }
-    })
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
-  }, [activityData, durationData])
-
-  const title = t("dashboard.activityTrend") + " & " + t("dashboard.executionDurationTrend")
-
-  const tooltipFormatter = useCallback(
-    (value: number | string, name: string, props: { dataKey?: string }) => {
-      if (props.dataKey === ACTIVE_WORKERS_KEY) {
-        return [value, name]
-      }
-      return [formatTotalDuration(Number(value)), name]
-    },
-    [],
+  // Both datasets cover the same date window (server zero-fills all days), so zip by index.
+  const chartData = useMemo(
+    () =>
+      (activityData?.data ?? []).map((p, i) => ({
+        date: p.date,
+        [ACTIVE_WORKERS_KEY]: p.active_workers,
+        [TOTAL_DURATION_KEY]: durationData?.data[i]?.total_duration_ms ?? 0,
+      })),
+    [activityData, durationData],
   )
 
   return (
     <TrendLineCard
-      title={title}
+      title={t("dashboard.combinedTrendTitle")}
       ariaLabel={t("dashboard.combinedTrendAriaLabel", { days })}
       emptyTitle={t("dashboard.noTrendData")}
       emptyDesc={t("dashboard.noTrendDataDesc")}

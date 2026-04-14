@@ -68,7 +68,7 @@ export function Dashboard() {
   const durationRatio = ov.exec_duration_yesterday_ms > 0 ? durationDiff / ov.exec_duration_yesterday_ms : null
   const durationChangeLabel = formatChange(durationRatio)
   const durationChangeColor =
-    durationDiff > 0 ? "text-green-500" : durationDiff < 0 ? "text-red-500" : "text-muted-foreground"
+    durationDiff > 0 ? "text-status-idle" : durationDiff < 0 ? "text-status-error" : "text-muted-foreground"
 
   return (
     <FadeIn>

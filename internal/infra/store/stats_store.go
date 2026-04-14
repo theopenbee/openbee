@@ -110,6 +110,8 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.MessagesSentToday)
 	})
 
+	// globalReceived and globalSent are written exclusively inside their own goroutines
+	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
 	var globalReceived, globalSent int
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)

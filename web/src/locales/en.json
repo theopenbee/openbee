@@ -53,6 +53,7 @@
     "executionDurationTrendAriaLabel": "Work duration trend over {{days}} days",
     "totalMessages": "Total Messages",
     "totalWorkDuration": "Total Work Duration",
+    "combinedTrendTitle": "Worker Activity & Work Duration",
     "combinedTrendAriaLabel": "Worker activity and work duration trend for the last {{days}} days"
   },
   "workers": {
