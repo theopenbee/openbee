@@ -283,6 +283,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "add_permission_scopes_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN permission_scopes TEXT NOT NULL DEFAULT ''`,
 	},
+	{
+		version: 31,
+		name:    "drop_retry_count_from_platform_messages",
+		sql:     `ALTER TABLE bee_platform_messages DROP COLUMN IF EXISTS retry_count`,
+	},
 }
 
 type whereBuilder struct {
