@@ -89,6 +89,7 @@ func extractResultStatus(logPath string) (result string, isError bool) {
 		if event.Type == "result" {
 			result = event.Result
 			isError = event.IsError
+			return false // result event is terminal; stop scanning
 		}
 		return true
 	})
