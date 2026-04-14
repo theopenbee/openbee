@@ -38,9 +38,9 @@ type streamContent struct {
 	Text string `json:"text,omitempty"`
 }
 
-// scanResultLog opens logPath and scans for result/assistant events, returning
-// the result text, whether is_error was set, and the last assistant text seen
-// before the result event. Stops at the result event (which is always terminal).
+// scanResultLog scans logPath for the terminal result event and the last
+// assistant text before it. The result event is always the last event in the
+// stream, so scanning stops immediately on hitting it.
 func scanResultLog(logPath string) (result string, isError bool, lastAssistantText string) {
 	f, err := os.Open(logPath)
 	if err != nil {
