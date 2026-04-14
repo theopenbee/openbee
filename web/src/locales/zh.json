@@ -345,6 +345,10 @@
     "deleteConfirm": {
       "title": "删除部门",
       "description": "确定要删除部门「{{name}}」吗？此操作无法撤销。"
+    },
+    "errors": {
+      "hasSubDepartments": "该部门包含子部门，请先删除子部门后再试。",
+      "hasWorkers": "该部门下还有员工，请先将员工移至其他部门后再试。"
     }
   },
   "emptyState": {

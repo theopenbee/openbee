@@ -106,7 +106,14 @@ export function Departments() {
       await deleteDept.mutateAsync(deletingDept.id)
       resetForm()
     } catch (err: any) {
-      setError(err.message)
+      const msg: string = err.message ?? ""
+      if (msg.includes("has sub-departments")) {
+        setError(t("departments.errors.hasSubDepartments"))
+      } else if (msg.includes("has associated workers")) {
+        setError(t("departments.errors.hasWorkers"))
+      } else {
+        setError(msg)
+      }
     }
   }
 
