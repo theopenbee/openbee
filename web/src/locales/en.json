@@ -346,10 +346,6 @@
     "deleteConfirm": {
       "title": "Delete Department",
       "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
-    },
-    "errors": {
-      "hasSubDepartments": "This department has sub-departments. Please remove them first.",
-      "hasWorkers": "This department has associated workers. Please move them to another department first."
     }
   },
   "emptyState": {

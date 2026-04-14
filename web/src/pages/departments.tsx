@@ -106,14 +106,7 @@ export function Departments() {
       await deleteDept.mutateAsync(deletingDept.id)
       resetForm()
     } catch (err: any) {
-      const msg: string = err.message ?? ""
-      if (msg.includes("has sub-departments")) {
-        setError(t("departments.errors.hasSubDepartments"))
-      } else if (msg.includes("has associated workers")) {
-        setError(t("departments.errors.hasWorkers"))
-      } else {
-        setError(msg)
-      }
+      setError(err.message)
     }
   }
 
@@ -257,26 +250,21 @@ export function Departments() {
             <DialogHeader>
               <DialogTitle>{t("departments.deleteConfirm.title")}</DialogTitle>
             </DialogHeader>
-            {error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
-              </p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <p className="text-sm text-muted-foreground">
+              {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
+            </p>
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}
               </Button>
-              {!error && (
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={deleteDept.isPending}
-                >
-                  {t("common.delete")}
-                </Button>
-              )}
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteDept.isPending}
+              >
+                {t("common.delete")}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
