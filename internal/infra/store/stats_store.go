@@ -119,27 +119,16 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_outbound_messages`).Scan(&globalSent)
 	})
 
-	durationQuery := `
-		SELECT COALESCE(SUM(completed_at - started_at), 0)
-		FROM bee_executions
-		WHERE status = ?
-		  AND completed_at IS NOT NULL
-		  AND started_at >= ? AND started_at < ?`
-
-	eg.Go(func() error {
-		return s.db.QueryRowContext(egc, durationQuery, string(model.ExecStatusCompleted), todayStart, todayEnd).Scan(&ov.ExecDurationTodayMS)
-	})
-
-	eg.Go(func() error {
-		return s.db.QueryRowContext(egc, durationQuery, string(model.ExecStatusCompleted), yestStart, yestEnd).Scan(&ov.ExecDurationYesterdayMS)
-	})
-
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `
-			SELECT COALESCE(SUM(completed_at - started_at), 0)
+			SELECT
+			  COALESCE(SUM(CASE WHEN started_at >= ? AND started_at < ? THEN completed_at - started_at END), 0),
+			  COALESCE(SUM(CASE WHEN started_at >= ? AND started_at < ? THEN completed_at - started_at END), 0),
+			  COALESCE(SUM(completed_at - started_at), 0)
 			FROM bee_executions
-			WHERE status = ?
-			  AND completed_at IS NOT NULL`, string(model.ExecStatusCompleted)).Scan(&ov.ExecDurationTotalMS)
+			WHERE status = ? AND completed_at IS NOT NULL`,
+			todayStart, todayEnd, yestStart, yestEnd, string(model.ExecStatusCompleted),
+		).Scan(&ov.ExecDurationTodayMS, &ov.ExecDurationYesterdayMS, &ov.ExecDurationTotalMS)
 	})
 
 	eg.Go(func() error {

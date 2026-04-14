@@ -64,6 +64,12 @@ export function Dashboard() {
           ? "text-status-error"
           : "text-muted-foreground"
 
+  const durationDiff = ov.exec_duration_today_ms - ov.exec_duration_yesterday_ms
+  const durationRatio = ov.exec_duration_yesterday_ms > 0 ? durationDiff / ov.exec_duration_yesterday_ms : null
+  const durationChangeLabel = formatChange(durationRatio)
+  const durationChangeColor =
+    durationDiff > 0 ? "text-green-500" : durationDiff < 0 ? "text-red-500" : "text-muted-foreground"
+
   return (
     <FadeIn>
       <PageHeader title={t("dashboard.title")} />
@@ -313,20 +319,10 @@ export function Dashboard() {
                         className="text-xl font-semibold tabular-nums leading-none"
                         aria-live="polite"
                       >
-                        {(() => {
-                          const diff = ov.exec_duration_today_ms - ov.exec_duration_yesterday_ms;
-                          const pct = ov.exec_duration_yesterday_ms > 0
-                            ? Math.round(Math.abs(diff) / ov.exec_duration_yesterday_ms * 100)
-                            : null;
-                          const sign = diff >= 0 ? "+" : "−";
-                          const color = diff >= 0 ? "text-green-500" : "text-red-500";
-                          return (
-                            <span className={color}>
-                              {sign}{formatTotalDuration(Math.abs(diff))}
-                              {pct !== null && ` (${sign}${pct}%)`}
-                            </span>
-                          );
-                        })()}
+                        <span className={durationChangeColor}>
+                          {durationDiff >= 0 ? "+" : "−"}{formatTotalDuration(Math.abs(durationDiff))}
+                          {durationChangeLabel !== null && ` (${durationChangeLabel})`}
+                        </span>
                       </p>
                     </div>
                   </div>

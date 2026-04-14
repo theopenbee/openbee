@@ -88,7 +88,7 @@ export function TrendLineCard({
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
-        ) : !children && chartData.length === 0 ? (
+        ) : chartData.length === 0 ? (
           <EmptyState title={emptyTitle} description={emptyDesc} />
         ) : (
           // left: -20 offsets the YAxis tick label width so the chart aligns flush with card edges

@@ -14,6 +14,9 @@ import { TrendLineCard, CHART_TOOLTIP_STYLE } from "@/components/trend-line-card
 import { useStatsTrend, useExecutionDurationTrend } from "@/hooks/use-stats"
 import { formatTotalDuration } from "@/lib/format"
 
+const ACTIVE_WORKERS_KEY = "active_workers"
+const TOTAL_DURATION_KEY = "total_duration_ms"
+
 export function CombinedTrendChart() {
   const { t } = useTranslation()
   const [days, setDays] = useState<7 | 15 | 30>(7)
@@ -26,14 +29,14 @@ export function CombinedTrendChart() {
   const chartData = useMemo(() => {
     const map = new Map<string, { date: string; active_workers: number; total_duration_ms: number }>()
     activityData?.data.forEach((p) =>
-      map.set(p.date, { date: p.date, active_workers: p.active_workers, total_duration_ms: 0 }),
+      map.set(p.date, { date: p.date, [ACTIVE_WORKERS_KEY]: p.active_workers, [TOTAL_DURATION_KEY]: 0 }),
     )
     durationData?.data.forEach((p) => {
       const existing = map.get(p.date)
       if (existing) {
-        existing.total_duration_ms = p.total_duration_ms
+        existing[TOTAL_DURATION_KEY] = p.total_duration_ms
       } else {
-        map.set(p.date, { date: p.date, active_workers: 0, total_duration_ms: p.total_duration_ms })
+        map.set(p.date, { date: p.date, [ACTIVE_WORKERS_KEY]: 0, [TOTAL_DURATION_KEY]: p.total_duration_ms })
       }
     })
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
@@ -43,7 +46,7 @@ export function CombinedTrendChart() {
 
   const tooltipFormatter = useCallback(
     (value: number | string, name: string, props: { dataKey?: string }) => {
-      if (props.dataKey === "active_workers") {
+      if (props.dataKey === ACTIVE_WORKERS_KEY) {
         return [value, name]
       }
       return [formatTotalDuration(Number(value)), name]
@@ -94,7 +97,7 @@ export function CombinedTrendChart() {
           <Line
             yAxisId="left"
             type="monotone"
-            dataKey="active_workers"
+            dataKey={ACTIVE_WORKERS_KEY}
             name={t("dashboard.activeWorkers")}
             strokeWidth={2}
             dot={false}
@@ -103,7 +106,7 @@ export function CombinedTrendChart() {
           <Line
             yAxisId="right"
             type="monotone"
-            dataKey="total_duration_ms"
+            dataKey={TOTAL_DURATION_KEY}
             name={t("dashboard.executionDuration")}
             strokeWidth={2}
             dot={false}
