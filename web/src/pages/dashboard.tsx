@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityTrendChart } from "@/components/activity-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
-import { formatChange } from "@/lib/format"
+import { formatChange, formatTotalDuration } from "@/lib/format"
 import type { StatsOverview } from "@/lib/types"
 
 const EMPTY: StatsOverview = {
@@ -17,8 +17,11 @@ const EMPTY: StatsOverview = {
   active_workers_change: null,
   messages_received_today: 0,
   messages_sent_today: 0,
-  sessions_new_today: 0,
+  messages_total_today: 0,
   executions_today: { total: 0, success: 0, failed: 0 },
+  exec_duration_today_ms: 0,
+  exec_duration_yesterday_ms: 0,
+  exec_duration_total_ms: 0,
   scheduled_tasks: 0,
 }
 
@@ -67,9 +70,9 @@ export function Dashboard() {
       {/* ── System Status ─────────────────────────────────────────── */}
       <div className="mb-10">
         <SectionRule>{t("dashboard.systemStatus")}</SectionRule>
-        <div className="grid grid-cols-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3">
           {isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => (
+            Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
                 className={
@@ -88,16 +91,12 @@ export function Dashboard() {
               { label: t("dashboard.departments"), value: ov.departments },
               { label: t("dashboard.workers"), value: ov.workers },
               { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
-              { label: t("dashboard.sessionsToday"), value: ov.sessions_new_today },
             ].map(({ label, value }, i) => (
               <div
                 key={i}
                 className={[
-                  // On mobile: right column (odd index) gets left border
                   i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
-                  // On sm+: all but first get left border and padding
                   i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
-                  // Bottom padding for first row on mobile
                   i < 2 ? "pb-6 sm:pb-0" : "",
                 ].join(" ")}
                 aria-label={label}
@@ -173,33 +172,45 @@ export function Dashboard() {
                 {t("dashboard.messages")}
               </p>
               {isLoading ? (
-                <div className="space-y-5">
-                  <StatSkeleton />
-                  <StatSkeleton />
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-16" />
+                  <div className="flex gap-6">
+                    <StatSkeleton />
+                    <StatSkeleton />
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-5">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                      {t("dashboard.messagesReceived")}
-                    </p>
-                    <p
-                      className="text-3xl font-semibold tabular-nums leading-none"
-                      aria-live="polite"
-                    >
-                      {ov.messages_received_today}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                      {t("dashboard.messagesSent")}
-                    </p>
-                    <p
-                      className="text-3xl font-semibold tabular-nums leading-none"
-                      aria-live="polite"
-                    >
-                      {ov.messages_sent_today}
-                    </p>
+                <div>
+                  <p
+                    className="text-5xl font-semibold tabular-nums leading-none mb-4"
+                    aria-label={`${t("dashboard.messages")}: ${ov.messages_total_today}`}
+                    aria-live="polite"
+                  >
+                    {ov.messages_total_today}
+                  </p>
+                  <div className="flex gap-6">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.messagesReceived")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none"
+                        aria-live="polite"
+                      >
+                        {ov.messages_received_today}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                        {t("dashboard.messagesSent")}
+                      </p>
+                      <p
+                        className="text-xl font-semibold tabular-nums leading-none"
+                        aria-live="polite"
+                      >
+                        {ov.messages_sent_today}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
