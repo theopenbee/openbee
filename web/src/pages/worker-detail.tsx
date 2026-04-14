@@ -154,6 +154,10 @@ export function WorkerDetail() {
   const setWorkerDepts = useSetWorkerDepartments()
   const [deptDialogOpen, setDeptDialogOpen] = useState(false)
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
+  const workerDeptIds = useMemo(
+    () => worker?.departments?.map((d) => d.id).sort() ?? [],
+    [worker?.departments]
+  )
 
   if (!worker) return <SkeletonPage />
 
@@ -547,7 +551,7 @@ export function WorkerDetail() {
               </div>
               <EffectiveEnvPreview
                 workerId={id!}
-                departmentIds={worker.departments?.map((d) => d.id) ?? []}
+                departmentIds={workerDeptIds}
               />
             </DetailSection>
           </TabsContent>

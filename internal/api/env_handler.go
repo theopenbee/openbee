@@ -41,13 +41,8 @@ func respondEnvError(c *gin.Context, err error) {
 
 func (h *EnvHandler) List(c *gin.Context) {
 	scope := c.Query("scope")
-	switch scope {
-	case env.ScopeGlobal, env.ScopeBee, env.ScopeDepartment, env.ScopeWorker:
-	case "":
+	if scope == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "scope query parameter is required"})
-		return
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scope: must be one of global, bee, department, worker"})
 		return
 	}
 	scopeID := c.Query("scope_id")
@@ -59,7 +54,7 @@ func (h *EnvHandler) List(c *gin.Context) {
 
 	configs, err := h.svc.List(scope, scopeIDPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondEnvError(c, err)
 		return
 	}
 

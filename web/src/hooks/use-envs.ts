@@ -1,5 +1,6 @@
-import { useMemo } from "react"
+import { useRef } from "react"
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query"
+import type { EnvConfig } from "@/lib/types"
 import { api } from "@/lib/api"
 
 export function useEnvList(scope: string, scopeId?: string) {
@@ -50,8 +51,18 @@ export function useDepartmentEnvs(departmentIds: string[]) {
       select: (data: Awaited<ReturnType<typeof api.envs.list>>) => data ?? [],
     })),
   })
-  // Derive a stable array from structurally-shared per-query data refs so that
-  // useMemo callers only re-run when actual data changes, not on every render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => results.map((r) => r.data ?? []), results.map((r) => r.data))
+  // Track per-query data refs individually; only rebuild the output array when
+  // a data reference actually changes (TanStack Query stabilizes refs via
+  // structural sharing, so this fires only on real data changes).
+  const prevRefsRef = useRef<(EnvConfig[] | undefined)[]>([])
+  const prevValueRef = useRef<EnvConfig[][]>([])
+  const currentRefs = results.map((r) => r.data)
+  if (
+    currentRefs.length !== prevRefsRef.current.length ||
+    currentRefs.some((d, i) => d !== prevRefsRef.current[i])
+  ) {
+    prevRefsRef.current = currentRefs
+    prevValueRef.current = currentRefs.map((d) => d ?? [])
+  }
+  return prevValueRef.current
 }

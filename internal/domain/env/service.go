@@ -114,6 +114,11 @@ func (s *Service) UpdateValue(id, plainValue string) error {
 }
 
 func (s *Service) List(scope string, scopeID *string) ([]*model.EnvConfig, error) {
+	switch scope {
+	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
+	default:
+		return nil, fmt.Errorf("%w: invalid scope %q", ErrValidation, scope)
+	}
 	return s.store.List(scope, scopeID)
 }
 
@@ -127,26 +132,41 @@ func (s *Service) Delete(id string) error {
 // ResolveWorkerEnv returns complete env vars for Worker execution (KEY=VALUE slice).
 // Resolution chain: global <- department (last dept alphabetically by ID wins) <- worker
 func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
-	depts, err := s.deptStore.GetWorkerDepartments(workerID)
-	if err != nil {
-		return nil, fmt.Errorf("get worker departments: %w", err)
+	var globalEnvs, workerEnvs []*model.EnvConfig
+	var depts []model.Department
+
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		globalEnvs, err = s.store.List(ScopeGlobal, nil)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		depts, err = s.deptStore.GetWorkerDepartments(workerID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		workerEnvs, err = s.store.List(ScopeWorker, &workerID)
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
-	deptIDs := make([]string, 0, len(depts))
-	for _, d := range depts {
-		deptIDs = append(deptIDs, d.ID)
+	deptIDs := make([]string, len(depts))
+	for i, d := range depts {
+		deptIDs[i] = d.ID
 	}
 	sort.Strings(deptIDs)
 
-	layers, err := fetchParallel(
-		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeGlobal, nil) },
-		func() ([]*model.EnvConfig, error) { return s.store.ListForDepartments(deptIDs) },
-		func() ([]*model.EnvConfig, error) { return s.store.List(ScopeWorker, &workerID) },
-	)
+	deptEnvs, err := s.store.ListForDepartments(deptIDs)
 	if err != nil {
 		return nil, err
 	}
-	return s.decryptMerged(merge(layers...))
+
+	return s.decryptMerged(merge(globalEnvs, deptEnvs, workerEnvs))
 }
 
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
