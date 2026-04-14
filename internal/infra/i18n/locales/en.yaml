@@ -163,6 +163,7 @@ output:
     pi_manual_entry: "Pi not found in PATH. Please enter the path manually."
     skill_installed: "skill %s installed"
     skill_updated: "skill %s updated"
+    skill_up_to_date: "skill %s up to date (skipped)"
     skills_install_warning: "skills install warning (skipped): %v"
   claude:
     already_installed: "Claude is already installed at %s"

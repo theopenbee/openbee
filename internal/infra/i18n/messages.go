@@ -239,6 +239,7 @@ type ConfigOutput struct {
 	PiManualEntry           string `yaml:"pi_manual_entry"`
 	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
 	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
+	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s
 	SkillsInstallWarning    string `yaml:"skills_install_warning"`   // contains %v
 }
 
