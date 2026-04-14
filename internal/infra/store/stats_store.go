@@ -234,3 +234,56 @@ func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, erro
 	}
 	return points, nil
 }
+
+// ExecDurationTrendPoint is one day's total execution duration.
+type ExecDurationTrendPoint struct {
+	Date            string `json:"date"`
+	TotalDurationMS int64  `json:"total_duration_ms"`
+}
+
+// GetExecutionDurationTrend returns the sum of completed execution durations
+// for each of the last `days` days (local time), filling missing days with zero.
+func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([]ExecDurationTrendPoint, error) {
+	now := time.Now()
+	y, m, d := now.Date()
+	loc := now.Location()
+
+	startOfToday := time.Date(y, m, d, 0, 0, 0, 0, loc)
+	startOfRange := startOfToday.AddDate(0, 0, -(days - 1))
+	startMS := startOfRange.UnixMilli()
+	endMS := startOfToday.Add(24 * time.Hour).UnixMilli()
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
+		       COALESCE(SUM(completed_at - started_at), 0) AS total_ms
+		FROM bee_executions
+		WHERE status = 'completed'
+		  AND completed_at IS NOT NULL
+		  AND started_at >= ? AND started_at < ?
+		GROUP BY day
+		ORDER BY day ASC`, startMS, endMS)
+	if err != nil {
+		return nil, fmt.Errorf("execution duration trend query: %w", err)
+	}
+	defer rows.Close()
+
+	dbTotals := make(map[string]int64, days)
+	for rows.Next() {
+		var day string
+		var total int64
+		if err := rows.Scan(&day, &total); err != nil {
+			return nil, err
+		}
+		dbTotals[day] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("execution duration trend rows: %w", err)
+	}
+
+	points := make([]ExecDurationTrendPoint, days)
+	for i := 0; i < days; i++ {
+		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
+		points[i] = ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
+	}
+	return points, nil
+}

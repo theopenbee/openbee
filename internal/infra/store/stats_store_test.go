@@ -234,3 +234,58 @@ func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
 
 	_ = todayEnd
 }
+
+func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
+	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
+	db := ss.db
+
+	// One completed execution 3 days ago: 2000ms
+	threeDaysAgo := time.Now().AddDate(0, 0, -3).UnixMilli()
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "s1", "hi", "completed", "", 0, threeDaysAgo, threeDaysAgo+2000); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// A failed execution 3 days ago (must NOT appear in totals)
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), w1.ID, "s1", "hi", "failed", "", 0, threeDaysAgo+100, threeDaysAgo+5000); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	points, err := ss.GetExecutionDurationTrend(ctx, 7)
+	if err != nil {
+		t.Fatalf("GetExecutionDurationTrend: %v", err)
+	}
+
+	if len(points) != 7 {
+		t.Fatalf("want 7 points, got %d", len(points))
+	}
+
+	target := time.Now().AddDate(0, 0, -3).Format("2006-01-02")
+	found := false
+	for _, p := range points {
+		if p.Date == target {
+			found = true
+			if p.TotalDurationMS != 2000 {
+				t.Errorf("date %s: want TotalDurationMS=2000, got %d", target, p.TotalDurationMS)
+			}
+		} else {
+			if p.TotalDurationMS != 0 {
+				t.Errorf("date %s: want 0, got %d", p.Date, p.TotalDurationMS)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("date %s not found in trend points", target)
+	}
+
+	_ = w1
+}
