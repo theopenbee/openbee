@@ -6,7 +6,6 @@ import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-worker
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
-import { DepartmentManageDialog } from "@/components/department-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -57,7 +56,6 @@ export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
-  const [manageDeptOpen, setManageDeptOpen] = useState(false)
   const { data: departments = [] } = useDepartments()
   const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
   const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
@@ -142,7 +140,6 @@ export function Workers() {
             departments={departments}
             selectedId={selectedDeptId}
             onSelect={setSelectedDeptId}
-            onManage={() => setManageDeptOpen(true)}
           />
         </div>
 
@@ -482,8 +479,6 @@ export function Workers() {
       </Dialog>
         </div>
       </div>
-
-      <DepartmentManageDialog open={manageDeptOpen} onOpenChange={setManageDeptOpen} />
     </FadeIn>
   )
 }
