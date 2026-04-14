@@ -25,8 +25,8 @@ func (h *StatsHandler) GetOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, ov)
 }
 
-// parseDaysParam reads and validates the "days" query parameter (7, 15, or 30).
-// It writes a 400 response and returns (0, false) on invalid input.
+// parseDaysParam writes a 400 response and returns (0, false) on invalid input,
+// so callers must not write an additional response on failure.
 func parseDaysParam(c *gin.Context) (int, bool) {
 	daysStr := c.DefaultQuery("days", "7")
 	days, err := strconv.Atoi(daysStr)

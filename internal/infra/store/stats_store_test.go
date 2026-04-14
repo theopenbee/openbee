@@ -183,7 +183,7 @@ func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
 	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
 	db := ss.db
 
-	todayStart, todayEnd := dayBounds(0)
+	todayStart, _ := dayBounds(0)
 	yestStart, _ := dayBounds(-1)
 
 	// Today: two completed executions with known durations (1000ms + 2000ms = 3000ms)
@@ -231,7 +231,6 @@ func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
 		t.Errorf("ExecDurationTotalMS: want 3500, got %d", ov.ExecDurationTotalMS)
 	}
 
-	_ = todayEnd
 }
 
 func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
@@ -285,6 +284,4 @@ func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
 	if !found {
 		t.Errorf("date %s not found in trend points", target)
 	}
-
-	_ = w1
 }
