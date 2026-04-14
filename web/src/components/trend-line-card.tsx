@@ -15,22 +15,29 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
+export type DayOption = typeof DAY_OPTIONS[number]
+
+export const CHART_TOOLTIP_STYLE = {
+  background: "var(--card)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--card-foreground)",
+  fontSize: 12,
+} as const
 
 interface TrendLineCardProps {
   title: string
   ariaLabel: string
   emptyTitle: string
   emptyDesc: string
-  chartData: readonly unknown[]
+  chartData: Record<string, unknown>[]
   isLoading: boolean
-  days: 7 | 15 | 30
-  onDaysChange: (d: 7 | 15 | 30) => void
-  // Used when rendering the built-in single-line chart (no children):
+  days: DayOption
+  onDaysChange: (d: DayOption) => void
   dataKey?: string
   tooltipLabel?: string
   yAxisFormatter?: (v: number) => string
   tooltipFormatter?: (value: number) => string | number
-  // Pass a custom chart as children to replace the built-in single-line chart:
   children?: ReactNode
 }
 
@@ -81,14 +88,14 @@ export function TrendLineCard({
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
-        ) : chartData.length === 0 ? (
+        ) : !children && chartData.length === 0 ? (
           <EmptyState title={emptyTitle} description={emptyDesc} />
         ) : (
           // left: -20 offsets the YAxis tick label width so the chart aligns flush with card edges
           <div role="img" aria-label={ariaLabel}>
             {children ?? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData as Record<string, unknown>[]} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="date"
@@ -108,13 +115,7 @@ export function TrendLineCard({
                       tooltipFormatter ? tooltipFormatter(Number(value)) : value,
                       tooltipLabel,
                     ]}
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      color: "var(--card-foreground)",
-                      fontSize: 12,
-                    }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
                   />
                   <Line
                     type="monotone"

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import {
   LineChart,
@@ -10,7 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { TrendLineCard } from "@/components/trend-line-card"
+import { TrendLineCard, CHART_TOOLTIP_STYLE } from "@/components/trend-line-card"
 import { useStatsTrend, useExecutionDurationTrend } from "@/hooks/use-stats"
 import { formatTotalDuration } from "@/lib/format"
 
@@ -40,6 +40,16 @@ export function CombinedTrendChart() {
   }, [activityData, durationData])
 
   const title = t("dashboard.activityTrend") + " & " + t("dashboard.executionDurationTrend")
+
+  const tooltipFormatter = useCallback(
+    (value: number | string, name: string, props: { dataKey?: string }) => {
+      if (props.dataKey === "active_workers") {
+        return [value, name]
+      }
+      return [formatTotalDuration(Number(value)), name]
+    },
+    [],
+  )
 
   return (
     <TrendLineCard
@@ -77,19 +87,8 @@ export function CombinedTrendChart() {
           />
           <Tooltip
             labelFormatter={(label) => String(label)}
-            formatter={(value, name) => {
-              if (name === t("dashboard.activeWorkers")) {
-                return [value, name]
-              }
-              return [formatTotalDuration(Number(value)), name]
-            }}
-            contentStyle={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--card-foreground)",
-              fontSize: 12,
-            }}
+            formatter={tooltipFormatter}
+            contentStyle={CHART_TOOLTIP_STYLE}
           />
           <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
           <Line
