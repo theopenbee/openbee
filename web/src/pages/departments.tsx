@@ -250,21 +250,26 @@ export function Departments() {
             <DialogHeader>
               <DialogTitle>{t("departments.deleteConfirm.title")}</DialogTitle>
             </DialogHeader>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <p className="text-sm text-muted-foreground">
-              {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
-            </p>
+            {error ? (
+              <p className="text-sm text-destructive">{error}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t("departments.deleteConfirm.description", { name: deletingDept?.name })}
+              </p>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={deleteDept.isPending}
-              >
-                {t("common.delete")}
-              </Button>
+              {!error && (
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleteDept.isPending}
+                >
+                  {t("common.delete")}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
