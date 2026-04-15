@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,18 @@ func parsePagination(c *gin.Context) (page, pageSize, offset int) {
 func parseInt64Query(c *gin.Context, key string) int64 {
 	v := c.Query(key)
 	return utils.ParseMillis(&v)
+}
+
+// parseDaysParam writes a 400 response and returns (0, false) on invalid input,
+// so callers must not write an additional response on failure.
+func parseDaysParam(c *gin.Context) (int, bool) {
+	daysStr := c.DefaultQuery("days", "7")
+	days, err := strconv.Atoi(daysStr)
+	if err != nil || (days != 7 && days != 15 && days != 30) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "days must be 7, 15, or 30"})
+		return 0, false
+	}
+	return days, true
 }
 
 func paginatedResponse(items any, total, page, pageSize int) gin.H {

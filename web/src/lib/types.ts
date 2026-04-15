@@ -97,8 +97,12 @@ export interface StatsOverview {
   active_workers_change: number | null
   messages_received_today: number
   messages_sent_today: number
-  sessions_new_today: number
+  messages_total_today: number
+  messages_total_global: number
   executions_today: ExecStats
+  exec_duration_today_ms: number
+  exec_duration_yesterday_ms: number
+  exec_duration_total_ms: number
   scheduled_tasks: number
 }
 
@@ -110,4 +114,14 @@ export interface TrendPoint {
 export interface StatsTrend {
   days: number
   data: TrendPoint[]
+}
+
+export interface ExecDurationTrendPoint {
+  date: string
+  total_duration_ms: number
+}
+
+export interface ExecDurationTrend {
+  days: number
+  data: ExecDurationTrendPoint[]
 }

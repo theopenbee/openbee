@@ -288,6 +288,21 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "drop_retry_count_from_platform_messages",
 		sql:     `ALTER TABLE bee_platform_messages DROP COLUMN retry_count`,
 	},
+	{
+		version: 32,
+		name:    "create_index_executions_started_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_started_at ON bee_executions(started_at)`,
+	},
+	{
+		version: 33,
+		name:    "create_index_platform_messages_received_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_platform_messages_received_at ON bee_platform_messages(received_at)`,
+	},
+	{
+		version: 34,
+		name:    "create_index_outbound_messages_sent_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_outbound_messages_sent_at ON bee_outbound_messages(sent_at)`,
+	},
 }
 
 type whereBuilder struct {
