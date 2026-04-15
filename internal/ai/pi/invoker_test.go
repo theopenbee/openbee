@@ -88,7 +88,7 @@ func TestResolveSessionPath_UsesUUID(t *testing.T) {
 	}
 }
 
-func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
+func TestInvoker_Run_ExitsCleanly(t *testing.T) {
 	inv, err := NewInvoker("true", "http://localhost:8080", nil)
 	if err != nil {
 		t.Fatalf("NewInvoker: %v", err)
@@ -190,6 +190,8 @@ func writeTemp(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	f.WriteString(content)
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
 	return f.Name()
 }

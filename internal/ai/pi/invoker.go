@@ -67,8 +67,6 @@ func buildArgs(prompt, sessionPath string) []string {
 	return []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
 }
 
-// scanLastAssistantMessage opens logPath, scans for the last agent_end event,
-// and returns the last assistant-role message from it, or nil if none is found.
 func scanLastAssistantMessage(logPath string) *piMessage {
 	f, err := os.Open(logPath)
 	if err != nil {
@@ -83,8 +81,8 @@ func scanLastAssistantMessage(logPath string) *piMessage {
 			return true
 		}
 		for j := len(event.Messages) - 1; j >= 0; j-- {
-			if event.Messages[j].Role == roleAssistant {
-				msg := event.Messages[j]
+			msg := event.Messages[j]
+			if msg.Role == roleAssistant {
 				result = &msg
 				return true
 			}
@@ -120,8 +118,7 @@ func checkAgentError(logPath string) string {
 	return msg.ErrorMessage
 }
 
-// extractPiError returns the first non-JSON, non-empty line from stderr as a
-// meaningful error message; falls back to fallback if nothing useful is found.
+// extractPiError returns the first non-JSON line from stderr, or fallback.
 // pi emits human-readable error text before any JSON on failure.
 func extractPiError(stderr, fallback string) string {
 	scanner := bufio.NewScanner(strings.NewReader(stderr))
@@ -135,7 +132,9 @@ func extractPiError(stderr, fallback string) string {
 	return fallback
 }
 
-// limitWriter caps writes at rem bytes; subsequent writes are silently dropped.
+// limitWriter caps how much of stderr lands in the in-memory buffer so a
+// misbehaving process cannot exhaust heap. Writes beyond the cap are dropped
+// from the buffer but still flow through to the log file via MultiWriter.
 type limitWriter struct {
 	w   io.Writer
 	rem int
@@ -150,7 +149,7 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 	}
 	n, err := l.w.Write(p)
 	l.rem -= n
-	return len(p), err
+	return n, err
 }
 
 func (inv *Invoker) sessionFilePath(sessionID string) string {
