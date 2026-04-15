@@ -2,14 +2,25 @@ package bee_test
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/domain/bee"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+func TestMain(m *testing.M) {
+	if err := i18n.Load("zh"); err != nil {
+		panic("i18n.Load: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
+
+// --- mock types ---
 
 type mockExecStopper struct {
 	mu      sync.Mutex

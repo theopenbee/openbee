@@ -222,3 +222,6 @@ runtime:
     has_associated_workers: "This department has associated workers. Please move them to another department first."
     parent_not_found: "Parent department not found."
     circular_reference: "Cannot set a descendant as the parent department."
+  command_interceptor:
+    stopped: "All tasks in the current session have been stopped."
+    nothing_ran: "No tasks were running in the current session."

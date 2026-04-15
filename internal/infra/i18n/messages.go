@@ -272,11 +272,18 @@ type DaemonOutput struct {
 // RuntimeMessages holds server-runtime user-visible text (sent to IM users,
 // platform placeholders, etc.) that must respond to the language setting.
 type RuntimeMessages struct {
-	FailureNotifier FailureNotifierMessages   `yaml:"failure_notifier"`
-	Feishu          FeishuRuntimeMessages     `yaml:"feishu"`
-	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
-	MCP             MCPRuntimeMessages        `yaml:"mcp"`
-	Department      DepartmentRuntimeMessages `yaml:"department"`
+	FailureNotifier    FailureNotifierMessages      `yaml:"failure_notifier"`
+	Feishu             FeishuRuntimeMessages        `yaml:"feishu"`
+	WeCom              WeComRuntimeMessages         `yaml:"wecom"`
+	MCP                MCPRuntimeMessages           `yaml:"mcp"`
+	Department         DepartmentRuntimeMessages    `yaml:"department"`
+	CommandInterceptor CommandInterceptorMessages   `yaml:"command_interceptor"`
+}
+
+// CommandInterceptorMessages holds reply text sent to users after slash command handling.
+type CommandInterceptorMessages struct {
+	Stopped    string `yaml:"stopped"`
+	NothingRan string `yaml:"nothing_ran"`
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

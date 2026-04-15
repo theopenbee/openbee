@@ -222,3 +222,6 @@ runtime:
     has_associated_workers: "该部门下还有员工，请先将员工移至其他部门后再试。"
     parent_not_found: "上级部门不存在。"
     circular_reference: "不能将下级部门设为上级部门。"
+  command_interceptor:
+    stopped: "已停止当前会话的所有任务"
+    nothing_ran: "当前会话没有正在运行的任务"

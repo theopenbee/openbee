@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -95,13 +96,11 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 
 	c.dispatcher.ClearSession(sessionKey)
 
-	const (
-		msgStopped    = "已停止当前会话的所有任务"
-		msgNothingRan = "当前会话没有正在运行的任务"
-	)
-	replyContent := msgStopped
+	// 4. Reply to user.
+	m := i18n.M.Runtime.CommandInterceptor
+	replyContent := m.Stopped
 	if !stopped {
-		replyContent = msgNothingRan
+		replyContent = m.NothingRan
 	}
 	c.sendReply(ctx, msg, replyContent)
 	return nil
