@@ -72,7 +72,6 @@ func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, m
 func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, msg store.ClaimedMessage) error {
 	stopped := false
 
-	// 1. Find and stop Bee's running/pending execution for the current engine session.
 	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, c.engine)
 	if err != nil {
 		log.Warn("stop command: get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -92,7 +91,6 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 		}
 	}
 
-	// 2. Cancel all pending/running Worker tasks for the session.
 	n, err := c.taskStore.CancelBySessionKey(ctx, sessionKey)
 	if err != nil {
 		log.Warn("stop command: cancel tasks", zap.String("sessionKey", sessionKey), zap.Error(err))
@@ -100,10 +98,8 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 		stopped = true
 	}
 
-	// 3. Clear dispatcher in-memory queues.
 	c.dispatcher.ClearSession(sessionKey)
 
-	// 4. Reply to user.
 	const (
 		msgStopped    = "已停止当前会话的所有任务"
 		msgNothingRan = "当前会话没有正在运行的任务"
@@ -130,7 +126,7 @@ func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMes
 			Platform:   msg.Platform,
 			SessionKey: msg.SessionKey,
 		},
-		SourceType: "system",
+		SourceType: store.SourceTypeSystem,
 	}
 	if err := sender.Send(ctx, outbound); err != nil {
 		log.Warn("stop command: send reply", zap.Error(err))

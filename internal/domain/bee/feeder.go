@@ -45,13 +45,8 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
-// WithCommandInterceptor enables slash-command interception before Bee dispatch.
-func WithCommandInterceptor(ci *CommandInterceptor) Option {
-	return func(f *Feeder) { f.commandInterceptor = ci }
-}
-
-// SetCommandInterceptor sets the command interceptor. Useful when the interceptor
-// depends on components created after the Feeder (e.g. TaskDispatcher).
+// SetCommandInterceptor sets the command interceptor. Injected after construction
+// because CommandInterceptor depends on TaskDispatcher, which is built after Feeder.
 func (f *Feeder) SetCommandInterceptor(ci *CommandInterceptor) {
 	f.commandInterceptor = ci
 }
