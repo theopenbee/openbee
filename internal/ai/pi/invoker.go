@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -43,8 +45,10 @@ type piAgentEnd struct {
 }
 
 type piMessage struct {
-	Role    string      `json:"role"`
-	Content []piContent `json:"content"`
+	Role         string      `json:"role"`
+	Content      []piContent `json:"content"`
+	StopReason   string      `json:"stopReason,omitempty"`
+	ErrorMessage string      `json:"errorMessage,omitempty"`
 }
 
 type piContent struct {
@@ -52,40 +56,104 @@ type piContent struct {
 	Text string `json:"text"`
 }
 
+const (
+	eventTypeAgentEnd = "agent_end"
+	roleAssistant     = "assistant"
+	stopReasonError   = "error"
+	contentTypeText   = "text"
+)
+
 func buildArgs(prompt, sessionPath string) []string {
 	return []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
+}
+
+func scanLastAssistantMessage(logPath string) *piMessage {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var result *piMessage
+	ai.ScanJSONLines(f, func(line string) bool {
+		var event piAgentEnd
+		if json.Unmarshal([]byte(line), &event) != nil || event.Type != eventTypeAgentEnd {
+			return true
+		}
+		for j := len(event.Messages) - 1; j >= 0; j-- {
+			msg := event.Messages[j]
+			if msg.Role == roleAssistant {
+				result = &msg
+				return true
+			}
+		}
+		return true
+	})
+	return result
 }
 
 // ExtractResultFromLog scans logPath for the last agent_end event and returns
 // the text of the last assistant message's first text content item, or "".
 func ExtractResultFromLog(logPath string) string {
-	f, err := os.Open(logPath)
-	if err != nil {
+	msg := scanLastAssistantMessage(logPath)
+	if msg == nil {
 		return ""
 	}
-	defer f.Close()
+	for _, c := range msg.Content {
+		if c.Type == contentTypeText && c.Text != "" {
+			return c.Text
+		}
+	}
+	return ""
+}
 
-	var lastText string
-	ai.ScanJSONLines(f, func(line string) bool {
-		var event piAgentEnd
-		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
-			return true
+// checkAgentError detects cases where pi exits cleanly (exit 0) but the
+// underlying API call failed (e.g. 401 authentication error). Returns the
+// errorMessage from the last assistant message if stopReason is "error", or "".
+func checkAgentError(logPath string) string {
+	msg := scanLastAssistantMessage(logPath)
+	if msg == nil || msg.StopReason != stopReasonError {
+		return ""
+	}
+	return msg.ErrorMessage
+}
+
+// extractPiError returns the first non-JSON line from stderr, or fallback.
+// pi emits human-readable error text before any JSON on failure.
+func extractPiError(stderr, fallback string) string {
+	scanner := bufio.NewScanner(strings.NewReader(stderr))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || line[0] == '{' || line[0] == '[' {
+			continue
 		}
-		for j := len(event.Messages) - 1; j >= 0; j-- {
-			msg := event.Messages[j]
-			if msg.Role != "assistant" {
-				continue
-			}
-			for _, c := range msg.Content {
-				if c.Type == "text" && c.Text != "" {
-					lastText = c.Text
-					return true
-				}
-			}
-		}
-		return true
-	})
-	return lastText
+		return line
+	}
+	return fallback
+}
+
+// limitWriter caps how much of stderr lands in the in-memory buffer so a
+// misbehaving process cannot exhaust heap. Writes beyond the cap are dropped
+// from the buffer but still flow through to the log file via MultiWriter.
+type limitWriter struct {
+	w   io.Writer
+	rem int
+}
+
+func (l *limitWriter) Write(p []byte) (int, error) {
+	if l.rem <= 0 {
+		return len(p), nil
+	}
+	orig := len(p)
+	if len(p) > l.rem {
+		p = p[:l.rem]
+	}
+	n, err := l.w.Write(p)
+	l.rem -= n
+	if err != nil {
+		return n, err
+	}
+	return orig, nil
 }
 
 func (inv *Invoker) sessionFilePath(sessionID string) string {
@@ -108,9 +176,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
 
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stderr = logFile
+	cmd.Stderr = io.MultiWriter(logFile, &limitWriter{w: &stderrBuf, rem: 4096})
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -152,9 +221,12 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		}
 
 		if err := cmd.Wait(); err != nil {
-			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
+			msg := extractPiError(stderrBuf.String(), err.Error())
+			ch <- ai.Output{Type: ai.OutputError, Content: msg}
 		} else if writeErr != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: fmt.Sprintf("write log: %v", writeErr)}
+		} else if errMsg := checkAgentError(logPath); errMsg != "" {
+			ch <- ai.Output{Type: ai.OutputError, Content: errMsg}
 		} else {
 			ch <- ai.Output{Type: ai.OutputDone}
 		}
