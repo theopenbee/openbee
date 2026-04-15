@@ -11,8 +11,6 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-// --- mock types ---
-
 type mockExecStopper struct {
 	mu      sync.Mutex
 	stopped []string
@@ -49,8 +47,6 @@ func (m *mockSender) Send(_ context.Context, msg platform.OutboundMessage) error
 	return nil
 }
 
-// --- setup helper ---
-
 func setupCommandInterceptorTest(t *testing.T) (
 	*store.SessionStore,
 	*store.ExecutionStore,
@@ -79,8 +75,6 @@ func setupCommandInterceptorTest(t *testing.T) (
 	ci := bee.NewCommandInterceptor(ss, es, ts, stopper, clearer, senders, "claude-code")
 	return ss, es, ts, stopper, clearer, sender, ci
 }
-
-// --- tests ---
 
 func TestCommandInterceptor_NonCommand_NotHandled(t *testing.T) {
 	_, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
@@ -134,7 +128,6 @@ func TestCommandInterceptor_Stop_WithRunningExecution_StopsAndReplies(t *testing
 	ss, es, _, stopper, clearer, sender, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
-	// Seed session context and a running execution
 	sessionID := "sess-abc"
 	if err := ss.UpsertSessionContext(ctx, "local:1", store.BeeAgentID, sessionID, "claude-code"); err != nil {
 		t.Fatal(err)
@@ -143,7 +136,6 @@ func TestCommandInterceptor_Stop_WithRunningExecution_StopsAndReplies(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Mark it running
 	if err := es.UpdateStatus(exec.ID, model.ExecStatusRunning); err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +197,7 @@ func TestCommandInterceptor_Stop_StopExecutionError_StillSendsReply(t *testing.T
 }
 
 func TestCommandInterceptor_Stop_CaseInsensitive(t *testing.T) {
-	_, _, _, _, _, sender, ci := setupCommandInterceptorTest(t)
+	_, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	for _, content := range []string{"/STOP", "/Stop", "  /stop  "} {
@@ -214,6 +206,5 @@ func TestCommandInterceptor_Stop_CaseInsensitive(t *testing.T) {
 		if !handled {
 			t.Errorf("expected /stop to be handled regardless of case/whitespace, got false for %q", content)
 		}
-		_ = sender
 	}
 }
