@@ -124,7 +124,7 @@ func extractPiError(stderr, fallback string) string {
 	scanner := bufio.NewScanner(strings.NewReader(stderr))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || line[0] == '{' {
+		if line == "" || line[0] == '{' || line[0] == '[' {
 			continue
 		}
 		return line
@@ -144,12 +144,16 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 	if l.rem <= 0 {
 		return len(p), nil
 	}
+	orig := len(p)
 	if len(p) > l.rem {
 		p = p[:l.rem]
 	}
 	n, err := l.w.Write(p)
 	l.rem -= n
-	return n, err
+	if err != nil {
+		return n, err
+	}
+	return orig, nil
 }
 
 func (inv *Invoker) sessionFilePath(sessionID string) string {
