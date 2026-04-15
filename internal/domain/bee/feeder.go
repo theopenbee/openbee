@@ -45,6 +45,17 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
+// WithCommandInterceptor enables slash-command interception before Bee dispatch.
+func WithCommandInterceptor(ci *CommandInterceptor) Option {
+	return func(f *Feeder) { f.commandInterceptor = ci }
+}
+
+// SetCommandInterceptor sets the command interceptor. Useful when the interceptor
+// depends on components created after the Feeder (e.g. TaskDispatcher).
+func (f *Feeder) SetCommandInterceptor(ci *CommandInterceptor) {
+	f.commandInterceptor = ci
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -56,7 +67,8 @@ type Feeder struct {
 	cfg             config.BeeConfig
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
-	workerLookup    *store.WorkerStore
+	workerLookup       *store.WorkerStore
+	commandInterceptor *CommandInterceptor
 }
 
 // NewFeeder creates a Feeder.
@@ -144,6 +156,18 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
+	// Intercept system commands before Bee dispatch.
+	if f.commandInterceptor != nil {
+		if handled, err := f.commandInterceptor.Intercept(ctx, sessionKey, msgs); err != nil {
+			log.Warn("command interceptor error", zap.String("sessionKey", sessionKey), zap.Error(err))
+		} else if handled {
+			if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
+				log.Error("command: mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
+			}
+			return
+		}
+	}
+
 	if f.tryDirectDispatch(ctx, msgs) {
 		return
 	}
