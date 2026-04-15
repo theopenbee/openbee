@@ -28,6 +28,7 @@ type RunOptions struct {
 	SessionID string
 	Resume    bool
 	APIKey    string
+	ExtraEnv  []string // additional KEY=VALUE env vars to inject
 }
 
 // OutputType classifies a lifecycle event from a running process.

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add environment variable configuration at global, employee, department, and scheduler levels
+
 ### Fixed
 - Fix agent execution result recording
 

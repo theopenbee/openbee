@@ -303,6 +303,25 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "create_index_outbound_messages_sent_at",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_outbound_messages_sent_at ON bee_outbound_messages(sent_at)`,
 	},
+	{
+		version: 35,
+		name:    "create_bee_env_configs_table",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_env_configs (
+            id          TEXT PRIMARY KEY,
+            scope       TEXT NOT NULL,
+            scope_id    TEXT,
+            key         TEXT NOT NULL,
+            enc_value   TEXT NOT NULL,
+            masked      TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL,
+            UNIQUE(scope, scope_id, key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bee_env_configs_scope
+            ON bee_env_configs(scope, scope_id);
+    `,
+	},
 }
 
 type whereBuilder struct {

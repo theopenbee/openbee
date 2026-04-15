@@ -125,3 +125,18 @@ export interface ExecDurationTrend {
   days: number
   data: ExecDurationTrendPoint[]
 }
+
+export type EnvScope = "global" | "bee" | "department" | "worker"
+
+// Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
+export const DEFAULT_BEE_ID = "default"
+
+export interface EnvConfig {
+  id: string
+  scope: EnvScope
+  scope_id: string | null
+  key: string
+  masked: string
+  created_at: number
+  updated_at: number
+}

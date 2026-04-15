@@ -10,6 +10,7 @@ server:
     jwt_secret: "{{.AuthJWTSecret}}"
     access_token_ttl: {{.AuthAccessTTL}}
     refresh_token_ttl: {{.AuthRefreshTTL}}
+  env_secret: "{{.ServerEnvSecret}}"
 
 database:
   path: {{.DBPath}}
@@ -64,3 +65,4 @@ bee:
     ffprobe_path: {{.FFprobePath}}
     ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}
+

@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, ExecDurationTrend } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -164,5 +164,20 @@ export const api = {
     trend: (days: 7 | 15 | 30) => fetchAPI<StatsTrend>(`/stats/trend?days=${days}`),
     executionDurationTrend: (days: 7 | 15 | 30) =>
       fetchAPI<ExecDurationTrend>(`/stats/execution-duration-trend?days=${days}`),
+  },
+  envs: {
+    list: (scope: string, scopeId?: string) => {
+      const qs = new URLSearchParams({ scope })
+      if (scopeId) qs.set("scope_id", scopeId)
+      return fetchAPI<EnvConfig[]>(`/envs?${qs}`)
+    },
+    create: (data: { scope: string; scope_id?: string; key: string; value: string }) =>
+      fetchAPI<EnvConfig>("/envs", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, value: string) =>
+      fetchAPI<{ ok: boolean }>(`/envs/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
+    delete: (id: string) => fetchAPI(`/envs/${id}`, { method: "DELETE" }),
   },
 }

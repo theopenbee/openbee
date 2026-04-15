@@ -115,7 +115,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Dir = workDir
 	cmd.Stdout = writer
 	cmd.Stderr = logFile
-	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
+	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	if !resume {
 		cmd.Stdin = strings.NewReader(prompt)

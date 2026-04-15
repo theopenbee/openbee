@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
@@ -44,7 +45,13 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	defer db.Close()
 	ws := store.NewWorkerStore(db)
 	es := store.NewExecutionStore(db, dir)
-	mgr := NewManager(dir, cfg, ws, es, &mockEngine{})
+
+	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mgr := NewManager(dir, cfg, ws, es, &mockEngine{}, envSvc)
 
 	err = mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
 	if err == nil {

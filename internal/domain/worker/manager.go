@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -29,6 +30,7 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engine         ai.EngineAdapter
+	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -40,6 +42,7 @@ func NewManager(
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
 	engine ai.EngineAdapter,
+	envService *env.Service,
 ) *Manager {
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
@@ -49,6 +52,7 @@ func NewManager(
 		workerStore:     ws,
 		executionStore:  es,
 		engine:          engine,
+		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
@@ -143,10 +147,17 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
+	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)
+	if err != nil {
+		cancel()
+		return fmt.Errorf("resolve worker env: %w", err)
+	}
+
 	proc, outputCh, err := m.engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
+		ExtraEnv:  extraEnv,
 	}, logPath)
 	if err != nil {
 		cancel()
