@@ -31,6 +31,16 @@
 
 </div>
 
+## 🤖 支持的 AI 引擎
+
+OpenBee 支持多种 AI 引擎作为底层执行后端：
+
+| 引擎 | 说明 |
+|:---:|:---|
+| **Claude Code** | Anthropic 官方 Agentic 编码工具，默认推荐引擎 |
+| **Codex** | OpenAI Codex Agent，通过插件引擎支持 |
+| **Pi** | Pi Agent，通过插件引擎支持 |
+
 ## 🚀 快速开始
 
 ### 第一步：安装
@@ -138,4 +148,4 @@ OpenBee 由三个核心层构成：
 ## 🤝 Community
 
 - 🐛 **问题反馈 / 功能建议** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
-- 🤝 **贡献代码** → 请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.zh.md)
+- 🤝 **贡献代码** → 请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.md)

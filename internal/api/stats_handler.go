@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -26,14 +25,26 @@ func (h *StatsHandler) GetOverview(c *gin.Context) {
 }
 
 func (h *StatsHandler) GetTrend(c *gin.Context) {
-	daysStr := c.DefaultQuery("days", "7")
-	days, err := strconv.Atoi(daysStr)
-	if err != nil || (days != 7 && days != 15 && days != 30) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "days must be 7, 15, or 30"})
+	days, ok := parseDaysParam(c)
+	if !ok {
 		return
 	}
 
 	points, err := h.stats.GetTrend(c.Request.Context(), days)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"days": days, "data": points})
+}
+
+func (h *StatsHandler) GetExecutionDurationTrend(c *gin.Context) {
+	days, ok := parseDaysParam(c)
+	if !ok {
+		return
+	}
+
+	points, err := h.stats.GetExecutionDurationTrend(c.Request.Context(), days)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

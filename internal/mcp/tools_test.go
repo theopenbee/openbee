@@ -1112,6 +1112,53 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 	}
 }
 
+func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
+	cases := []struct {
+		taskType   string
+		msgID      string
+		sessionKey string
+	}{
+		{model.TaskTypeScheduled, "msg-sched1", "session-SCHED"},
+		{model.TaskTypeCountdown, "msg-cd1", "session-CD"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.taskType, func(t *testing.T) {
+			s, db, _, clearer := setupMCPServerWithClear(t)
+			ctx := context.Background()
+
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
+
+			workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+			w := workerResult.(model.Worker)
+
+			ts := store.NewTaskStore(db)
+			ts.Create(ctx, model.Task{ //nolint
+				MessageID: tc.msgID, WorkerID: w.ID, Instruction: "task",
+				Type: tc.taskType, Status: model.TaskStatusPending,
+				CreatedAt: 1, UpdatedAt: 1,
+			})
+
+			result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+				"session_key": tc.sessionKey,
+			}))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			m := result.(map[string]any)
+			if m["cleared"] != true {
+				t.Errorf("%s pending task should not block clear, got %v", tc.taskType, m)
+			}
+
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			if len(clearer.cleared) != 1 || clearer.cleared[0] != tc.sessionKey {
+				t.Errorf("expected ClearSession(%s), got %v", tc.sessionKey, clearer.cleared)
+			}
+		})
+	}
+}
+
 func TestResolveDepartmentID_ByID(t *testing.T) {
 	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
 	ds := store.NewDepartmentStore(db)

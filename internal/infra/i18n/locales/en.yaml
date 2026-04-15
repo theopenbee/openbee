@@ -163,6 +163,7 @@ output:
     pi_manual_entry: "Pi not found in PATH. Please enter the path manually."
     skill_installed: "skill %s installed"
     skill_updated: "skill %s updated"
+    skill_up_to_date: "skill %s up to date (skipped)"
     skills_install_warning: "skills install warning (skipped): %v"
   claude:
     already_installed: "Claude is already installed at %s"
@@ -208,7 +209,6 @@ runtime:
     task_failed: "❌ Task execution failed"
     parse_failed: "\nmessage parse failed"
     worker_line: "\nWorker: %s"
-    retried_count: "\nRetried: %d/%d\nError: %s"
     failed: "\nError: %s"
   feishu:
     rich_text_fallback: "[Rich text message]"

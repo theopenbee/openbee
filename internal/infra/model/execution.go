@@ -27,6 +27,4 @@ type WorkerExecution struct {
 type FailureInfo struct {
 	Reason     string // raw error (exec.Result or err.Error())
 	WorkerName string // worker or bee name for identification
-	RetryCount int    // retries attempted; -1 means no retry mechanism (omit retry line)
-	MaxRetries int    // max retry limit; ignored when RetryCount < 0
 }

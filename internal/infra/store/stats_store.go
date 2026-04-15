@@ -30,16 +30,20 @@ type ExecStats struct {
 
 // StatsOverview holds all numeric dashboard card data.
 type StatsOverview struct {
-	Departments            int       `json:"departments"`
-	Workers                int       `json:"workers"`
-	ActiveWorkersToday     int       `json:"active_workers_today"`
-	ActiveWorkersYesterday int       `json:"active_workers_yesterday"`
-	ActiveWorkersChange    *float64  `json:"active_workers_change"`
-	MessagesReceivedToday  int       `json:"messages_received_today"`
-	MessagesSentToday      int       `json:"messages_sent_today"`
-	SessionsNewToday       int       `json:"sessions_new_today"`
-	ExecutionsToday        ExecStats `json:"executions_today"`
-	ScheduledTasks         int       `json:"scheduled_tasks"`
+	Departments             int       `json:"departments"`
+	Workers                 int       `json:"workers"`
+	ActiveWorkersToday      int       `json:"active_workers_today"`
+	ActiveWorkersYesterday  int       `json:"active_workers_yesterday"`
+	ActiveWorkersChange     *float64  `json:"active_workers_change"`
+	MessagesReceivedToday   int       `json:"messages_received_today"`
+	MessagesSentToday       int       `json:"messages_sent_today"`
+	MessagesTotalToday      int       `json:"messages_total_today"`
+	MessagesTotalGlobal     int       `json:"messages_total_global"`
+	ExecutionsToday         ExecStats `json:"executions_today"`
+	ExecDurationTodayMS     int64     `json:"exec_duration_today_ms"`
+	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
+	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
+	ScheduledTasks          int       `json:"scheduled_tasks"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -106,11 +110,27 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.MessagesSentToday)
 	})
 
+	// globalReceived and globalSent are written exclusively inside their own goroutines
+	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
+	var globalReceived, globalSent int
 	eg.Go(func() error {
-		return s.db.QueryRowContext(egc,
-			`SELECT COUNT(DISTINCT session_id) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
-			todayStart, todayEnd,
-		).Scan(&ov.SessionsNewToday)
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_outbound_messages`).Scan(&globalSent)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc, `
+			SELECT
+			  COALESCE(SUM(CASE WHEN started_at >= ? AND started_at < ? THEN completed_at - started_at END), 0),
+			  COALESCE(SUM(CASE WHEN started_at >= ? AND started_at < ? THEN completed_at - started_at END), 0),
+			  COALESCE(SUM(completed_at - started_at), 0)
+			FROM bee_executions
+			WHERE status = ? AND completed_at IS NOT NULL`,
+			todayStart, todayEnd, yestStart, yestEnd, string(model.ExecStatusCompleted),
+		).Scan(&ov.ExecDurationTodayMS, &ov.ExecDurationYesterdayMS, &ov.ExecDurationTotalMS)
 	})
 
 	eg.Go(func() error {
@@ -160,6 +180,9 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
 
+	ov.MessagesTotalToday = ov.MessagesReceivedToday + ov.MessagesSentToday
+	ov.MessagesTotalGlobal = globalReceived + globalSent
+
 	if ov.ActiveWorkersYesterday > 0 {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)
 		ov.ActiveWorkersChange = &change
@@ -168,17 +191,23 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	return ov, nil
 }
 
-// GetTrend returns active-worker counts for each of the last `days` days (local time),
-// filling missing days with zero.
-func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, error) {
+// trendRange returns the millisecond epoch bounds and start-of-range time for a
+// days-wide window ending at end-of-today (local time).
+func trendRange(days int) (startOfRange time.Time, startMS, endMS int64) {
 	now := time.Now()
 	y, m, d := now.Date()
 	loc := now.Location()
-
 	startOfToday := time.Date(y, m, d, 0, 0, 0, 0, loc)
-	startOfRange := startOfToday.AddDate(0, 0, -(days - 1))
-	startMS := startOfRange.UnixMilli()
-	endMS := startOfToday.Add(24 * time.Hour).UnixMilli()
+	startOfRange = startOfToday.AddDate(0, 0, -(days - 1))
+	startMS = startOfRange.UnixMilli()
+	endMS = startOfToday.AddDate(0, 0, 1).UnixMilli()
+	return
+}
+
+// GetTrend returns active-worker counts for each of the last `days` days (local time),
+// filling missing days with zero.
+func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, error) {
+	startOfRange, startMS, endMS := trendRange(days)
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
@@ -207,9 +236,55 @@ func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, erro
 	}
 
 	points := make([]TrendPoint, days)
-	for i := 0; i < days; i++ {
+	for i := range days {
 		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
 		points[i] = TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
+	}
+	return points, nil
+}
+
+// ExecDurationTrendPoint is one day's total execution duration.
+type ExecDurationTrendPoint struct {
+	Date            string `json:"date"`
+	TotalDurationMS int64  `json:"total_duration_ms"`
+}
+
+// GetExecutionDurationTrend returns the sum of completed execution durations
+// for each of the last `days` days (local time), filling missing days with zero.
+func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([]ExecDurationTrendPoint, error) {
+	startOfRange, startMS, endMS := trendRange(days)
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DATE(started_at/1000, 'unixepoch', 'localtime') AS day,
+		       COALESCE(SUM(completed_at - started_at), 0) AS total_ms
+		FROM bee_executions
+		WHERE status = ?
+		  AND completed_at IS NOT NULL
+		  AND started_at >= ? AND started_at < ?
+		GROUP BY day
+		ORDER BY day ASC`, string(model.ExecStatusCompleted), startMS, endMS)
+	if err != nil {
+		return nil, fmt.Errorf("execution duration trend query: %w", err)
+	}
+	defer rows.Close()
+
+	dbTotals := make(map[string]int64, days)
+	for rows.Next() {
+		var day string
+		var total int64
+		if err := rows.Scan(&day, &total); err != nil {
+			return nil, err
+		}
+		dbTotals[day] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("execution duration trend rows: %w", err)
+	}
+
+	points := make([]ExecDurationTrendPoint, days)
+	for i := range days {
+		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
+		points[i] = ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
 	}
 	return points, nil
 }

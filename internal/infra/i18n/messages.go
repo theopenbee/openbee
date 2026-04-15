@@ -239,6 +239,7 @@ type ConfigOutput struct {
 	PiManualEntry           string `yaml:"pi_manual_entry"`
 	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
 	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
+	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s
 	SkillsInstallWarning    string `yaml:"skills_install_warning"`   // contains %v
 }
 
@@ -288,11 +289,10 @@ type DepartmentRuntimeMessages struct {
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.
 type FailureNotifierMessages struct {
-	TaskFailed   string `yaml:"task_failed"`   // prefix e.g. "❌ Task execution failed"
-	ParseFailed  string `yaml:"parse_failed"`  // worker-line when message parse failed; contains leading \n
-	WorkerLine   string `yaml:"worker_line"`   // worker-line template when worker name is known; contains leading \n and %s
-	RetriedCount string `yaml:"retried_count"` // suffix with retry info; contains %d %d %s
-	Failed       string `yaml:"failed"`        // suffix without retry info; contains %s
+	TaskFailed  string `yaml:"task_failed"`  // prefix e.g. "❌ Task execution failed"
+	ParseFailed string `yaml:"parse_failed"` // worker-line when message parse failed; contains leading \n
+	WorkerLine  string `yaml:"worker_line"`  // worker-line template when worker name is known; contains leading \n and %s
+	Failed      string `yaml:"failed"`       // error suffix template; contains %s
 }
 
 // FeishuRuntimeMessages holds Feishu platform runtime text.

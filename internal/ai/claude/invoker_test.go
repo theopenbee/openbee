@@ -11,6 +11,16 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
+func TestMain(m *testing.M) {
+	// Subprocess helper: when GO_TEST_EMIT_IS_ERROR=1, write an is_error result
+	// event to stdout and exit immediately without running any tests.
+	if os.Getenv("GO_TEST_EMIT_IS_ERROR") == "1" {
+		os.Stdout.WriteString(`{"type":"result","is_error":true,"result":"API Error: 400 {}"}` + "\n")
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
 func TestNewInvoker(t *testing.T) {
 	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080")
 	if inv.binary != "/usr/bin/claude" {
@@ -131,5 +141,83 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 	for range ch1 {
 	}
 	for range ch2 {
+	}
+}
+
+func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
+	// Run the test binary itself as the subprocess. TestMain detects
+	// GO_TEST_EMIT_IS_ERROR=1, writes is_error JSON to stdout, and exits 0.
+	// BuildBaseEnv inherits os.Environ(), so t.Setenv propagates to the child.
+	t.Setenv("GO_TEST_EMIT_IS_ERROR", "1")
+
+	inv := NewInvoker(os.Args[0], "")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "run.log")
+	_, ch, err := inv.Run(ctx, dir, "", ai.RunOptions{}, logPath)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var gotError bool
+	var errorContent string
+	for out := range ch {
+		if out.Type == ai.OutputError {
+			gotError = true
+			errorContent = out.Content
+		}
+	}
+	if !gotError {
+		t.Error("want OutputError, got none")
+	}
+	if !strings.Contains(errorContent, "API Error: 400") {
+		t.Errorf("want error content to contain 'API Error: 400', got %q", errorContent)
+	}
+}
+
+func TestScanResultLog_IsError(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"result","is_error":true,"result":"API Error: 400 {\"error\":\"操作失败\"}"}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError, _ := scanResultLog(logPath)
+	if !isError {
+		t.Error("want isError=true, got false")
+	}
+	if result != `API Error: 400 {"error":"操作失败"}` {
+		t.Errorf("want API Error string, got %q", result)
+	}
+}
+
+func TestScanResultLog_NoError(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"result","is_error":false,"result":"all good"}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError, _ := scanResultLog(logPath)
+	if isError {
+		t.Error("want isError=false, got true")
+	}
+	if result != "all good" {
+		t.Errorf("want 'all good', got %q", result)
+	}
+}
+
+func TestScanResultLog_NoResultEvent(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "run.log")
+	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}` + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, isError, _ := scanResultLog(logPath)
+	if isError {
+		t.Error("want isError=false when no result event, got true")
+	}
+	if result != "" {
+		t.Errorf("want empty result, got %q", result)
 	}
 }

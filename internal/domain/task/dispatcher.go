@@ -281,7 +281,6 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 		d.notifyFailure(taskCtx, task.MessageID, model.FailureInfo{
 			Reason:     err.Error(),
 			WorkerName: task.WorkerID,
-			RetryCount: -1,
 		})
 		return
 	}
@@ -398,7 +397,6 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
 				Reason:     exec.Result,
 				WorkerName: workerName(exec.WorkerName, task.WorkerID),
-				RetryCount: -1,
 			})
 			return
 		}

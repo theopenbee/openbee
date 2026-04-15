@@ -42,13 +42,7 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 	} else {
 		workerLine = m.ParseFailed
 	}
-	var content string
-	if info.RetryCount >= 0 {
-		content = m.TaskFailed + workerLine + fmt.Sprintf(m.RetriedCount,
-			info.RetryCount, info.MaxRetries, info.Reason)
-	} else {
-		content = m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
-	}
+	content := m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
 	// Truncate very long error messages to avoid exceeding platform limits.
 	// Use rune slice to avoid splitting multi-byte UTF-8 characters.
 	const maxRunes = 500

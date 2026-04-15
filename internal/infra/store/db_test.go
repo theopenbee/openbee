@@ -172,6 +172,42 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create stub bee_workers: %v", err)
 	}
+	// bee_executions is required by migration 32 (index on started_at).
+	if _, err := db.Exec(`CREATE TABLE bee_executions (
+		id          TEXT PRIMARY KEY,
+		worker_id   TEXT NOT NULL,
+		session_id  TEXT NOT NULL,
+		started_at  INTEGER NOT NULL,
+		completed_at INTEGER,
+		status      TEXT NOT NULL DEFAULT '',
+		result      TEXT NOT NULL DEFAULT ''
+	)`); err != nil {
+		t.Fatalf("create stub bee_executions: %v", err)
+	}
+	// bee_outbound_messages is required by migration 34 (index on sent_at).
+	if _, err := db.Exec(`CREATE TABLE bee_outbound_messages (
+		id      TEXT PRIMARY KEY,
+		sent_at INTEGER NOT NULL
+	)`); err != nil {
+		t.Fatalf("create stub bee_outbound_messages: %v", err)
+	}
+	// bee_platform_messages is required by migration 31 (drop retry_count).
+	if _, err := db.Exec(`CREATE TABLE bee_platform_messages (
+		id              TEXT PRIMARY KEY,
+		session_key     TEXT NOT NULL,
+		platform        TEXT NOT NULL,
+		content         TEXT NOT NULL,
+		status          TEXT NOT NULL DEFAULT 'received',
+		merged_into     TEXT NOT NULL DEFAULT '',
+		platform_msg_id TEXT NOT NULL DEFAULT '',
+		raw             TEXT NOT NULL DEFAULT '',
+		received_at     INTEGER NOT NULL,
+		created_at      INTEGER NOT NULL,
+		updated_at      INTEGER NOT NULL,
+		retry_count     INTEGER NOT NULL DEFAULT 0
+	)`); err != nil {
+		t.Fatalf("create stub bee_platform_messages: %v", err)
+	}
 	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
 		VALUES ('sk', 'bee', 'legacy-sid', 1)`); err != nil {
 		t.Fatalf("seed legacy session row: %v", err)

@@ -109,7 +109,6 @@ type ClaimedMessage struct {
 	SessionKey string
 	Platform   string
 	Content    string
-	RetryCount int
 }
 
 // ClaimBatch atomically selects up to batchSize 'received' messages — at most one per
@@ -123,7 +122,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	defer tx.Rollback() //nolint:errcheck
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, retry_count
+		`SELECT id, session_key, platform, content
 		 FROM bee_platform_messages m
 		 WHERE status = 'received'
 		   AND session_key NOT IN (
@@ -143,7 +142,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	var msgs []ClaimedMessage
 	for rows.Next() {
 		var m ClaimedMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.RetryCount); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan: %w", err)
 		}
@@ -178,30 +177,9 @@ func (s *MessageStore) MarkBeeProcessed(ctx context.Context, ids []string) error
 	return s.UpdateStatusBatch(ctx, ids, MsgStatusBeeProcessed)
 }
 
-// RollbackWithRetry increments retry_count for each message and resets status to
-// 'received' for messages below maxRetries, or 'failed' for those that have reached
-// the limit. Callers determine which IDs are permanently failed from their in-memory
-// ClaimedMessage.RetryCount values (see Feeder.rollback).
-func (s *MessageStore) RollbackWithRetry(ctx context.Context, ids []string, maxRetries int) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	now := time.Now().UnixMilli()
-	args := make([]any, 0, 2+len(ids))
-	args = append(args, maxRetries, now)
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE bee_platform_messages
-		SET retry_count = retry_count + 1,
-		    status = CASE WHEN retry_count + 1 >= ? THEN 'failed' ELSE 'received' END,
-		    updated_at = ?
-		WHERE id IN (`+inPlaceholders(len(ids))+`)`, args...)
-	if err != nil {
-		return fmt.Errorf("rollback with retry: %w", err)
-	}
-	return nil
+// MarkFailed sets status to 'failed' for the given message IDs.
+func (s *MessageStore) MarkFailed(ctx context.Context, ids []string) error {
+	return s.UpdateStatusBatch(ctx, ids, MsgStatusFailed)
 }
 
 // ResetFeedingToReceived resets all messages stuck in 'feeding' back to 'received'.

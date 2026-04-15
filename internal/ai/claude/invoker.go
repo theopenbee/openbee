@@ -26,6 +26,7 @@ type streamEvent struct {
 	Type    string         `json:"type"`
 	Message *streamMessage `json:"message,omitempty"`
 	Result  string         `json:"result,omitempty"`
+	IsError bool           `json:"is_error,omitempty"`
 }
 
 type streamMessage struct {
@@ -37,16 +38,15 @@ type streamContent struct {
 	Text string `json:"text,omitempty"`
 }
 
-// ExtractResultFromLog scans a Claude stream-json log file and returns the best
-// result string: prefers {"type":"result"} over the last assistant text.
-func ExtractResultFromLog(logPath string) string {
+// scanResultLog scans logPath for the terminal result event and the last
+// assistant text before it. The result event is always the last event in the
+// stream, so scanning stops immediately on hitting it.
+func scanResultLog(logPath string) (result string, isError bool, lastAssistantText string) {
 	f, err := os.Open(logPath)
 	if err != nil {
-		return ""
+		return
 	}
 	defer f.Close()
-
-	var lastAssistantText, streamResult string
 	ai.ScanJSONLines(f, func(line string) bool {
 		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
@@ -60,14 +60,21 @@ func ExtractResultFromLog(logPath string) string {
 				}
 			}
 		case "result":
-			if event.Result != "" {
-				streamResult = event.Result
-			}
+			result = event.Result
+			isError = event.IsError
+			return false
 		}
 		return true
 	})
-	if streamResult != "" {
-		return streamResult
+	return
+}
+
+// ExtractResultFromLog scans a Claude stream-json log file and returns the best
+// result string: prefers {"type":"result"} over the last assistant text.
+func ExtractResultFromLog(logPath string) string {
+	result, _, lastAssistantText := scanResultLog(logPath)
+	if result != "" {
+		return result
 	}
 	return lastAssistantText
 }
@@ -113,9 +120,17 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		defer logFile.Close()
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
-		} else {
-			ch <- ai.Output{Type: ai.OutputDone}
+			return
 		}
+		result, isError, _ := scanResultLog(logPath)
+		if isError {
+			if result == "" {
+				result = "bee execution failed (no details available)"
+			}
+			ch <- ai.Output{Type: ai.OutputError, Content: result}
+			return
+		}
+		ch <- ai.Output{Type: ai.OutputDone}
 	}()
 
 	return proc, ch, nil
