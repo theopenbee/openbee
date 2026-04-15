@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Fix agent execution result recording
+
 ### Changed
 - Improve error message handling for Pi Agent
 
