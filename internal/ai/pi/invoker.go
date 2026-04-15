@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -43,8 +45,10 @@ type piAgentEnd struct {
 }
 
 type piMessage struct {
-	Role    string      `json:"role"`
-	Content []piContent `json:"content"`
+	Role         string      `json:"role"`
+	Content      []piContent `json:"content"`
+	StopReason   string      `json:"stopReason,omitempty"`
+	ErrorMessage string      `json:"errorMessage,omitempty"`
 }
 
 type piContent struct {
@@ -88,6 +92,51 @@ func ExtractResultFromLog(logPath string) string {
 	return lastText
 }
 
+// checkAgentError scans logPath for the last agent_end event and returns the
+// errorMessage of the last assistant message if its stopReason is "error", or "".
+// This detects cases where pi exits cleanly (exit 0) but the underlying API call
+// failed (e.g. 401 authentication error).
+func checkAgentError(logPath string) string {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	var errMsg string
+	ai.ScanJSONLines(f, func(line string) bool {
+		var event piAgentEnd
+		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
+			return true
+		}
+		for j := len(event.Messages) - 1; j >= 0; j-- {
+			msg := event.Messages[j]
+			if msg.Role != "assistant" {
+				continue
+			}
+			if msg.StopReason == "error" && msg.ErrorMessage != "" {
+				errMsg = msg.ErrorMessage
+			}
+			return true
+		}
+		return true
+	})
+	return errMsg
+}
+
+// extractPiError returns the first non-JSON, non-empty line from stderr as a
+// meaningful error message. Falls back to fallback if nothing useful is found.
+func extractPiError(stderr, fallback string) string {
+	for _, line := range strings.Split(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line[0] == '{' {
+			continue
+		}
+		return line
+	}
+	return fallback
+}
+
 func (inv *Invoker) sessionFilePath(sessionID string) string {
 	return filepath.Join(inv.sessionDir, sessionID+".jsonl")
 }
@@ -108,9 +157,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
 
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stderr = logFile
+	cmd.Stderr = io.MultiWriter(logFile, &stderrBuf)
 	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -152,9 +202,12 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		}
 
 		if err := cmd.Wait(); err != nil {
-			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
+			msg := extractPiError(stderrBuf.String(), err.Error())
+			ch <- ai.Output{Type: ai.OutputError, Content: msg}
 		} else if writeErr != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: fmt.Sprintf("write log: %v", writeErr)}
+		} else if errMsg := checkAgentError(logPath); errMsg != "" {
+			ch <- ai.Output{Type: ai.OutputError, Content: errMsg}
 		} else {
 			ch <- ai.Output{Type: ai.OutputDone}
 		}
