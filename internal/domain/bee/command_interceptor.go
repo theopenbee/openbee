@@ -123,8 +123,9 @@ func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMes
 		return
 	}
 	outbound := platform.OutboundMessage{
-		SessionKey: msg.SessionKey,
-		Content:    content,
+		SessionKey:   msg.SessionKey,
+		Content:      content,
+		InboundMsgID: msg.ID,
 		ReplyTo: platform.InboundMessage{
 			Platform:   msg.Platform,
 			SessionKey: msg.SessionKey,
