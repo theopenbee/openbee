@@ -211,10 +211,9 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	drainErr := f.waitBeeOutput(outputCh)
 
 	finalStatus := model.ExecStatusCompleted
-	resultMsg := ""
+	resultMsg := f.runner.ExtractResult(logPath)
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
-		resultMsg = f.runner.ExtractResult(logPath)
 		if resultMsg == "" {
 			resultMsg = drainErr.Error()
 		}
