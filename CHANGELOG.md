@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.23] - 2026-04-14
+
 ### Added
 - Dashboard adds total message count, total working hours, and working hours trend chart
 
@@ -11,6 +13,7 @@
 
 ### Fixed
 - Fix session clear to only check immediate tasks for pending or running status
+- Fix TypeScript type error in combined-trend-chart tooltip formatter
 
 ### Removed
 - Remove scheduler retry mechanism

@@ -17,11 +17,12 @@ import { formatTotalDuration } from "@/lib/format"
 const ACTIVE_WORKERS_KEY = "active_workers"
 const TOTAL_DURATION_KEY = "total_duration_ms"
 
-function tooltipFormatter(value: number | string, name: string, props: { dataKey?: string }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function tooltipFormatter(value: any, _name: any, props: any): [string, string] {
   if (props.dataKey === ACTIVE_WORKERS_KEY) {
-    return [value, name]
+    return [value != null ? String(value) : "", _name]
   }
-  return [formatTotalDuration(Number(value)), name]
+  return [formatTotalDuration(Number(Array.isArray(value) ? 0 : (value ?? 0))), _name]
 }
 
 export function CombinedTrendChart() {
