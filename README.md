@@ -31,6 +31,16 @@
 
 </div>
 
+## 🤖 Supported AI Engines
+
+OpenBee supports multiple AI engines as the underlying execution backend:
+
+| Engine | Description |
+|:---:|:---|
+| **Claude Code** | Anthropic's official agentic coding tool; default and recommended engine |
+| **Codex** | OpenAI's Codex agent, supported via the plugin engine |
+| **Pi** | Pi agent, supported via the plugin engine |
+
 ## 🚀 Quick Start
 
 ### Step 1: Install

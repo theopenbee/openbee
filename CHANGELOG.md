@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Dashboard adds total message count, total working hours, and working hours trend chart
+
 ### Changed
 - Optimize Skills installation logic
 - Optimize scheduler error parsing on GLM and Kimi
