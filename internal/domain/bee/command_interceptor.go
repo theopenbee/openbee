@@ -66,6 +66,9 @@ func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, m
 	return true, c.handleStop(ctx, sessionKey, primary)
 }
 
+// handleStop performs the stop sequence: stop bee executions, cancel worker tasks,
+// clear dispatcher queues, and reply to the user. Sub-step errors are logged as
+// warnings and do not abort the sequence; the function always returns nil.
 func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, msg store.ClaimedMessage) error {
 	stopped := false
 
@@ -101,9 +104,13 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 	c.dispatcher.ClearSession(sessionKey)
 
 	// 4. Reply to user.
-	replyContent := "已停止当前会话的所有任务"
+	const (
+		msgStopped    = "已停止当前会话的所有任务"
+		msgNothingRan = "当前会话没有正在运行的任务"
+	)
+	replyContent := msgStopped
 	if !stopped {
-		replyContent = "当前会话没有正在运行的任务"
+		replyContent = msgNothingRan
 	}
 	c.sendReply(ctx, msg, replyContent)
 	return nil
