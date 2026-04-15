@@ -45,7 +45,7 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
-// SetCommandInterceptor sets the command interceptor. Injected after construction
+// SetCommandInterceptor injects the interceptor after construction
 // because CommandInterceptor depends on TaskDispatcher, which is built after Feeder.
 func (f *Feeder) SetCommandInterceptor(ci *CommandInterceptor) {
 	f.commandInterceptor = ci
@@ -151,7 +151,6 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
-	// Intercept system commands before Bee dispatch.
 	if f.commandInterceptor != nil {
 		if handled, err := f.commandInterceptor.Intercept(ctx, sessionKey, msgs); err != nil {
 			log.Warn("command interceptor error", zap.String("sessionKey", sessionKey), zap.Error(err))

@@ -128,6 +128,19 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 	return scanExecutions(rows)
 }
 
+// ListActiveBySessionID returns only running or pending executions for a session.
+func (s *ExecutionStore) ListActiveBySessionID(sessionID string) ([]model.WorkerExecution, error) {
+	rows, err := s.db.Query(
+		execSelect+` WHERE e.session_id = ? AND e.status IN ('running', 'pending') ORDER BY e.started_at ASC`,
+		sessionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active executions by session: %w", err)
+	}
+	defer rows.Close()
+	return scanExecutions(rows)
+}
+
 // CountSessionsByWorkerID returns the total number of distinct sessions for a worker.
 func (s *ExecutionStore) CountSessionsByWorkerID(workerID string) (int, error) {
 	var count int

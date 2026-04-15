@@ -6,7 +6,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -32,7 +31,6 @@ type CommandInterceptor struct {
 	engine       string
 }
 
-// NewCommandInterceptor creates a CommandInterceptor.
 func NewCommandInterceptor(
 	ss *store.SessionStore,
 	es *store.ExecutionStore,
@@ -53,8 +51,7 @@ func NewCommandInterceptor(
 	}
 }
 
-// Intercept checks if the primary message is a slash command and handles it.
-// Returns true if the message was handled and Feeder should skip normal dispatch.
+// Intercept returns true if the message was handled and Feeder should skip normal dispatch.
 func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) (bool, error) {
 	if len(msgs) == 0 {
 		return false, nil
@@ -76,17 +73,15 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 	if err != nil {
 		log.Warn("stop command: get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	} else if sessionID != "" {
-		execs, listErr := c.execStore.ListBySessionID(sessionID)
+		execs, listErr := c.execStore.ListActiveBySessionID(sessionID)
 		if listErr != nil {
 			log.Warn("stop command: list executions", zap.String("sessionID", sessionID), zap.Error(listErr))
 		}
 		for _, e := range execs {
-			if e.Status == model.ExecStatusRunning || e.Status == model.ExecStatusPending {
-				if stopErr := c.execStopper.StopExecution(e.ID); stopErr != nil {
-					log.Warn("stop command: stop execution", zap.String("execID", e.ID), zap.Error(stopErr))
-				} else {
-					stopped = true
-				}
+			if stopErr := c.execStopper.StopExecution(e.ID); stopErr != nil {
+				log.Warn("stop command: stop execution", zap.String("execID", e.ID), zap.Error(stopErr))
+			} else {
+				stopped = true
 			}
 		}
 	}
