@@ -56,85 +56,101 @@ type piContent struct {
 	Text string `json:"text"`
 }
 
+const (
+	eventTypeAgentEnd = "agent_end"
+	roleAssistant     = "assistant"
+	stopReasonError   = "error"
+	contentTypeText   = "text"
+)
+
 func buildArgs(prompt, sessionPath string) []string {
 	return []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
+}
+
+// scanLastAssistantMessage opens logPath, scans for the last agent_end event,
+// and returns the last assistant-role message from it, or nil if none is found.
+func scanLastAssistantMessage(logPath string) *piMessage {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var result *piMessage
+	ai.ScanJSONLines(f, func(line string) bool {
+		var event piAgentEnd
+		if json.Unmarshal([]byte(line), &event) != nil || event.Type != eventTypeAgentEnd {
+			return true
+		}
+		for j := len(event.Messages) - 1; j >= 0; j-- {
+			if event.Messages[j].Role == roleAssistant {
+				msg := event.Messages[j]
+				result = &msg
+				return true
+			}
+		}
+		return true
+	})
+	return result
 }
 
 // ExtractResultFromLog scans logPath for the last agent_end event and returns
 // the text of the last assistant message's first text content item, or "".
 func ExtractResultFromLog(logPath string) string {
-	f, err := os.Open(logPath)
-	if err != nil {
+	msg := scanLastAssistantMessage(logPath)
+	if msg == nil {
 		return ""
 	}
-	defer f.Close()
-
-	var lastText string
-	ai.ScanJSONLines(f, func(line string) bool {
-		var event piAgentEnd
-		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
-			return true
+	for _, c := range msg.Content {
+		if c.Type == contentTypeText && c.Text != "" {
+			return c.Text
 		}
-		for j := len(event.Messages) - 1; j >= 0; j-- {
-			msg := event.Messages[j]
-			if msg.Role != "assistant" {
-				continue
-			}
-			for _, c := range msg.Content {
-				if c.Type == "text" && c.Text != "" {
-					lastText = c.Text
-					return true
-				}
-			}
-		}
-		return true
-	})
-	return lastText
+	}
+	return ""
 }
 
-// checkAgentError scans logPath for the last agent_end event and returns the
-// errorMessage of the last assistant message if its stopReason is "error", or "".
-// This detects cases where pi exits cleanly (exit 0) but the underlying API call
-// failed (e.g. 401 authentication error).
+// checkAgentError detects cases where pi exits cleanly (exit 0) but the
+// underlying API call failed (e.g. 401 authentication error). Returns the
+// errorMessage from the last assistant message if stopReason is "error", or "".
 func checkAgentError(logPath string) string {
-	f, err := os.Open(logPath)
-	if err != nil {
+	msg := scanLastAssistantMessage(logPath)
+	if msg == nil || msg.StopReason != stopReasonError {
 		return ""
 	}
-	defer f.Close()
-
-	var errMsg string
-	ai.ScanJSONLines(f, func(line string) bool {
-		var event piAgentEnd
-		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "agent_end" {
-			return true
-		}
-		for j := len(event.Messages) - 1; j >= 0; j-- {
-			msg := event.Messages[j]
-			if msg.Role != "assistant" {
-				continue
-			}
-			if msg.StopReason == "error" && msg.ErrorMessage != "" {
-				errMsg = msg.ErrorMessage
-			}
-			return true
-		}
-		return true
-	})
-	return errMsg
+	return msg.ErrorMessage
 }
 
 // extractPiError returns the first non-JSON, non-empty line from stderr as a
-// meaningful error message. Falls back to fallback if nothing useful is found.
+// meaningful error message; falls back to fallback if nothing useful is found.
+// pi emits human-readable error text before any JSON on failure.
 func extractPiError(stderr, fallback string) string {
-	for _, line := range strings.Split(stderr, "\n") {
-		line = strings.TrimSpace(line)
+	scanner := bufio.NewScanner(strings.NewReader(stderr))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" || line[0] == '{' {
 			continue
 		}
 		return line
 	}
 	return fallback
+}
+
+// limitWriter caps writes at rem bytes; subsequent writes are silently dropped.
+type limitWriter struct {
+	w   io.Writer
+	rem int
+}
+
+func (l *limitWriter) Write(p []byte) (int, error) {
+	if l.rem <= 0 {
+		return len(p), nil
+	}
+	if len(p) > l.rem {
+		p = p[:l.rem]
+	}
+	n, err := l.w.Write(p)
+	l.rem -= n
+	return len(p), err
 }
 
 func (inv *Invoker) sessionFilePath(sessionID string) string {
@@ -160,7 +176,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stderr = io.MultiWriter(logFile, &stderrBuf)
+	cmd.Stderr = io.MultiWriter(logFile, &limitWriter{w: &stderrBuf, rem: 4096})
 	cmd.Env = append(inv.baseEnv, "OPENBEE_API_KEY="+opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
