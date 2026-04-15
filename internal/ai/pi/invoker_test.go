@@ -88,7 +88,7 @@ func TestResolveSessionPath_UsesUUID(t *testing.T) {
 	}
 }
 
-func TestInvoker_Run_NoSessionIDOutput(t *testing.T) {
+func TestInvoker_Run_ExitsCleanly(t *testing.T) {
 	inv, err := NewInvoker("true", "http://localhost:8080", nil)
 	if err != nil {
 		t.Fatalf("NewInvoker: %v", err)
@@ -127,6 +127,62 @@ func TestIsStreamingDelta(t *testing.T) {
 	}
 }
 
+func TestCheckAgentError_AuthError(t *testing.T) {
+	log := `{"type":"session","version":3,"id":"abc","timestamp":"2026-04-15T03:36:31.419Z","cwd":"/tmp"}
+{"type":"agent_end","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]},{"role":"assistant","content":[],"stopReason":"error","errorMessage":"401 {\"error\":{\"type\":\"authentication_error\",\"message\":\"The API Key appears to be invalid or may have expired.\"}}"}]}
+`
+	path := writeTemp(t, log)
+	got := checkAgentError(path)
+	want := `401 {"error":{"type":"authentication_error","message":"The API Key appears to be invalid or may have expired."}}`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCheckAgentError_NoError(t *testing.T) {
+	log := `{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"hello"}],"stopReason":"stop"}]}
+`
+	path := writeTemp(t, log)
+	got := checkAgentError(path)
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestCheckAgentError_EmptyLog(t *testing.T) {
+	path := writeTemp(t, "")
+	got := checkAgentError(path)
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestExtractPiError_NonJSONLine(t *testing.T) {
+	stderr := `{"type":"session","version":3}
+No API key found for unknown.
+Use /login or set an API key environment variable.`
+	got := extractPiError(stderr, "exit status 1")
+	want := "No API key found for unknown."
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestExtractPiError_FallbackOnAllJSON(t *testing.T) {
+	stderr := `{"type":"session","version":3}`
+	got := extractPiError(stderr, "exit status 1")
+	if got != "exit status 1" {
+		t.Errorf("got %q, want %q", got, "exit status 1")
+	}
+}
+
+func TestExtractPiError_EmptyStderr(t *testing.T) {
+	got := extractPiError("", "exit status 1")
+	if got != "exit status 1" {
+		t.Errorf("got %q, want %q", got, "exit status 1")
+	}
+}
+
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	f, err := os.CreateTemp(t.TempDir(), "pi-log-*.jsonl")
@@ -134,6 +190,8 @@ func writeTemp(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	f.WriteString(content)
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
 	return f.Name()
 }

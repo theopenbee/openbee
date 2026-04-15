@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Improve error message handling for Pi Agent
+
 ## [0.0.23] - 2026-04-14
 
 ### Added
