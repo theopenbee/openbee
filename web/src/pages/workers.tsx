@@ -54,7 +54,7 @@ export function Workers() {
   const deleteWorker = useDeleteWorker()
   const [sheetMode, setSheetMode] = useState<"create" | Worker | null>(null)
   const copyInitialValues = useMemo(
-    () => sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined,
+    () => (sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined),
     [sheetMode],
   )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)

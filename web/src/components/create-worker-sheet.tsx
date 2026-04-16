@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect, useRef, type FormEvent } from "react"
+import { useState, useEffect, useRef, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { useCreateWorker } from "@/hooks/use-workers"
-import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
-import { flattenDeptTree } from "@/lib/department-utils"
+import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,6 +40,12 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   }
 }
 
+function SectionHeading({ text }: { text: string }) {
+  return (
+    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{text}</p>
+  )
+}
+
 interface CreateWorkerSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -51,8 +56,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const { t } = useTranslation()
   const createWorker = useCreateWorker()
   const setWorkerDepts = useSetWorkerDepartments()
-  const { data: departments = [] } = useDepartments()
-  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
+  const flatDepts = useFlatDepartments()
   const isCopy = initialValues !== undefined
   const initialValuesRef = useRef(initialValues)
   initialValuesRef.current = initialValues
@@ -122,9 +126,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           )}
 
           <div className="space-y-4">
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              {t("workers.form.sectionBasic")}
-            </p>
+            <SectionHeading text={t("workers.form.sectionBasic")} />
             <div className="space-y-1.5">
               <Label htmlFor="cws-name">
                 {t("workers.form.name")}
@@ -156,9 +158,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <Separator />
 
           <div className="space-y-4">
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              {t("workers.form.sectionConfig")}
-            </p>
+            <SectionHeading text={t("workers.form.sectionConfig")} />
             <div className="space-y-1.5">
               <Label htmlFor="cws-workdir">{t("workers.form.workDir")}</Label>
               <Input
@@ -186,9 +186,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <Separator />
 
           <div className="space-y-4">
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              {t("workers.form.sectionPermissions")}
-            </p>
+            <SectionHeading text={t("workers.form.sectionPermissions")} />
             <div className="space-y-2">
               {KNOWN_SCOPES.map((scope) => (
                 <ScopeToggleCard
@@ -208,9 +206,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             <>
               <Separator />
               <div className="space-y-4">
-                <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                  {t("workers.form.sectionDepartment")}
-                </p>
+                <SectionHeading text={t("workers.form.sectionDepartment")} />
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {flatDepts.map(({ dept, depth }) => (
                     <div

@@ -1,11 +1,18 @@
+import { useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { flattenDeptTree } from "@/lib/department-utils"
 
 export function useDepartments() {
   return useQuery({
     queryKey: ["departments"],
     queryFn: api.departments.list,
   })
+}
+
+export function useFlatDepartments() {
+  const { data: departments = [] } = useDepartments()
+  return useMemo(() => flattenDeptTree(departments), [departments])
 }
 
 export function useCreateDepartment() {
