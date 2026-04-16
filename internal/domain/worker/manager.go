@@ -29,7 +29,8 @@ type Manager struct {
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	engine         ai.EngineAdapter
+	engines        map[string]ai.EngineAdapter
+	defaultEngine  string
 	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -41,7 +42,7 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
-	engine ai.EngineAdapter,
+	engines map[string]ai.EngineAdapter,
 	envService *env.Service,
 ) *Manager {
 	return &Manager{
@@ -51,10 +52,24 @@ func NewManager(
 		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,
-		engine:          engine,
+		engines:         engines,
+		defaultEngine:   bc.EffectiveEngine(),
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
+}
+
+// resolveEngine returns the EngineAdapter for the given worker.
+// If the worker has no engine set, or the engine is unknown, falls back to the default.
+func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
+	if w.Engine != "" {
+		if e, ok := m.engines[w.Engine]; ok {
+			return e
+		}
+		log.Warn("unknown engine on worker, falling back to default",
+			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
+	}
+	return m.engines[m.defaultEngine]
 }
 
 // CreateWorkerParams holds the inputs for creating a new worker.
@@ -64,6 +79,7 @@ type CreateWorkerParams struct {
 	Memory           string
 	WorkDir          string
 	PermissionScopes string
+	Engine           string
 }
 
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
@@ -76,18 +92,20 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := m.engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
-	}
-
-	return m.workerStore.Create(model.Worker{
+	workerModel := model.Worker{
 		ID:               id,
 		Name:             p.Name,
 		Description:      p.Description,
 		Memory:           p.Memory,
 		WorkDir:          p.WorkDir,
+		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,
-	})
+	}
+	if err := m.resolveEngine(workerModel).Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
+	}
+
+	return m.workerStore.Create(workerModel)
 }
 
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
@@ -108,7 +126,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := m.engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	if err := m.resolveEngine(worker).Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
@@ -149,7 +167,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
-	proc, outputCh, err := m.engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
+	proc, outputCh, err := m.resolveEngine(worker).Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
@@ -175,11 +193,11 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	for out := range outputCh {
 		switch out.Type {
 		case ai.OutputDone:
-			result := m.engine.ExtractResult(logPath)
+			result := m.resolveEngine(worker).ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case ai.OutputError:
-			result := m.engine.ExtractResult(logPath)
+			result := m.resolveEngine(worker).ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}
