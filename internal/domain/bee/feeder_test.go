@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -640,6 +641,52 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 
 	if len(runner.getCalls()) == 0 {
 		t.Error("expected bee runner to be called when worker not found")
+	}
+}
+
+type checkingBeeRunner struct {
+	onRun func()
+}
+
+func (r *checkingBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
+
+func (r *checkingBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
+	if r.onRun != nil {
+		r.onRun()
+	}
+	ch := make(chan ai.Output, 1)
+	ch <- ai.Output{Type: ai.OutputDone}
+	close(ch)
+	return &mockProcess{}, ch, nil
+}
+
+func (r *checkingBeeRunner) ExtractResult(_ string) string { return "" }
+
+func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+
+	var upsertCalledBeforeRun atomic.Bool
+
+	// Verify the session context row exists in DB when runner.Run() is called.
+	checkRunner := &checkingBeeRunner{
+		onRun: func() {
+			ctx := context.Background()
+			sid, _, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
+			if err == nil && sid != "" {
+				upsertCalledBeforeRun.Store(true)
+			}
+		},
+	}
+
+	f := newFeeder(ms, ts, ss, es, checkRunner)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	if !upsertCalledBeforeRun.Load() {
+		t.Error("expected session context to be written before runner.Run() is called")
 	}
 }
 

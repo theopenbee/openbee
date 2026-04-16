@@ -159,6 +159,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		sessionID = uuid.New().String()
 	}
 
+	// Pre-flight: write session context before execution so the session is
+	// immediately visible and recoverable on crash.
+	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
+		log.Error("pre-flight upsert bee session context", zap.String("sessionKey", sessionKey), zap.Error(err))
+		// non-fatal: execution continues
+	}
+
 	for i, m := range msgs {
 		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
 		if err != nil {
@@ -200,6 +207,12 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		// Process never started: clean up the pre-flight session context if this was a fresh session.
+		if !resume {
+			if delErr := f.sessionStore.DeleteSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine()); delErr != nil {
+				log.Error("rollback pre-flight session context", zap.String("sessionKey", sessionKey), zap.Error(delErr))
+			}
+		}
 		f.failMessages(ctx, msgs, err.Error())
 		return
 	}
