@@ -204,6 +204,12 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
+	// Pre-write session context now that the process has started, so it is visible
+	// during execution and survives unexpected process termination.
+	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
+		log.Error("pre-write session context", zap.String("sessionKey", sessionKey), zap.Error(err))
+	}
+
 	if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
@@ -228,17 +234,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
-	upsert := true
-	if resume {
-		currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
-		if checkErr == nil && currentID == "" {
-			log.Info("session cleared during bee execution, skipping context upsert",
-				zap.String("sessionKey", sessionKey))
-			upsert = false
-		}
-	}
-	if upsert {
+	// Skip the post-execution update if the session was cleared mid-execution
+	// (concurrent clear wins regardless of whether this was a resume or fresh session).
+	currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
+	if checkErr == nil && currentID == "" {
+		log.Info("session cleared during bee execution, skipping context upsert",
+			zap.String("sessionKey", sessionKey))
+	} else {
 		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
