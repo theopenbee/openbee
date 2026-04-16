@@ -80,6 +80,9 @@
       "copySuffix": "Copy",
       "sectionBasic": "Basic Info",
       "sectionConfig": "Configuration",
+      "engine": "AI Engine",
+      "engineHelper": "The AI agent engine this worker will use to execute tasks.",
+      "engineDefault": "Select engine",
       "name": "Name",
       "namePlaceholder": "e.g. sam",
       "nameHelper": "Used for identification",
@@ -107,6 +110,11 @@
       "deleteWorkDir": "Also delete work directory",
       "confirmNameLabel": "Type {{name}} to go to the next step",
       "confirmNamePlaceholder": "Enter worker name"
+    },
+    "engines": {
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi"
     }
   },
   "executions": {

@@ -80,6 +80,9 @@
       "copySuffix": "副本",
       "sectionBasic": "基本信息",
       "sectionConfig": "配置",
+      "engine": "AI 引擎",
+      "engineHelper": "该员工执行任务所使用的 AI 引擎。",
+      "engineDefault": "选择引擎",
       "name": "名称",
       "namePlaceholder": "例如：sam",
       "nameHelper": "用于身份识别",
@@ -107,6 +110,11 @@
       "deleteWorkDir": "同时删除工作目录",
       "confirmNameLabel": "输入 {{name}} 以进入下一步",
       "confirmNamePlaceholder": "输入员工名称"
+    },
+    "engines": {
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi"
     }
   },
   "executions": {
