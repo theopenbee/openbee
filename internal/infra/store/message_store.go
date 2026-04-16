@@ -231,23 +231,13 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 		return 0, tx.Commit()
 	}
 
-	now := time.Now().UnixMilli()
-
-	receivedArgs := make([]any, 0, 2+len(ids))
-	receivedArgs = append(receivedArgs, MsgStatusCancelled, now)
-	for _, id := range ids {
-		receivedArgs = append(receivedArgs, id)
-	}
-	res, err := tx.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
-		receivedArgs...)
+	n, err := execStatusBatch(ctx, tx, ids, MsgStatusCancelled)
 	if err != nil {
 		return 0, fmt.Errorf("cancel received: %w", err)
 	}
-	n, _ := res.RowsAffected()
 
 	mergedArgs := make([]any, 0, 3+len(ids))
-	mergedArgs = append(mergedArgs, MsgStatusCancelled, now, MsgStatusMerged)
+	mergedArgs = append(mergedArgs, MsgStatusCancelled, time.Now().UnixMilli(), MsgStatusMerged)
 	for _, id := range ids {
 		mergedArgs = append(mergedArgs, id)
 	}
