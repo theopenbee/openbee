@@ -3,6 +3,7 @@ package bee
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -42,6 +43,8 @@ type CommandInterceptor struct {
 	msgCanceller messageCanceller
 	senders      map[string]platform.PlatformSenderAdapter
 	engine       string
+	// inFlight tracks sessions with an active /stop goroutine to prevent duplicate concurrent stops.
+	inFlight sync.Map
 }
 
 func NewCommandInterceptor(
@@ -71,12 +74,16 @@ func isStopCommand(content string) bool {
 }
 
 // InterceptInbound implements msgingest.InboundInterceptor.
-// Returns true and fires handleStop asynchronously when msg is a /stop command.
 func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.InboundMessage) bool {
 	if !isStopCommand(msg.Content) {
 		return false
 	}
+	// Drop duplicate /stop if one is already in flight for this session.
+	if _, loaded := c.inFlight.LoadOrStore(msg.SessionKey, struct{}{}); loaded {
+		return true
+	}
 	go func() {
+		defer c.inFlight.Delete(msg.SessionKey)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		c.handleStop(ctx, store.ClaimedMessage{

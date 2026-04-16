@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
-import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,6 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
-import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree, EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -150,8 +149,7 @@ export function WorkerDetail() {
     setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
   }, [worker?.permission_scopes])
 
-  const { data: departments = [] } = useDepartments()
-  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
+  const flatDepts = useFlatDepartments()
   const setWorkerDepts = useSetWorkerDepartments()
   const [deptDialogOpen, setDeptDialogOpen] = useState(false)
   const [copySheetOpen, setCopySheetOpen] = useState(false)

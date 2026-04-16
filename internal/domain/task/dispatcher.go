@@ -317,6 +317,17 @@ func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
 	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
 }
 
+// preWriteSessionContext persists the session ID before execution starts so it
+// survives unexpected process termination and is visible to concurrent readers.
+func (d *TaskDispatcher) preWriteSessionContext(ctx context.Context, task DispatchTask, sessionID string) {
+	if task.SessionKey == "" || task.WorkerID == "" {
+		return
+	}
+	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
+		log.Error("pre-write session context", zap.Error(err))
+	}
+}
+
 // executeWithHint fetches the worker skill hint + persona and starts a fresh execution.
 func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	hint, err := d.workerSkillHint(task.WorkerID)
@@ -324,11 +335,7 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 		return model.WorkerExecution{}, err
 	}
 	sessionID := uuid.New().String()
-	if task.SessionKey != "" && task.WorkerID != "" {
-		if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
-			log.Error("pre-write session context", zap.Error(err))
-		}
-	}
+	d.preWriteSessionContext(ctx, task, sessionID)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
 }
@@ -345,11 +352,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return d.executeWithHint(ctx, task, instruction)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
-	if task.SessionKey != "" && task.WorkerID != "" {
-		if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
-			log.Error("pre-write session context on resume", zap.Error(err))
-		}
-	}
+	d.preWriteSessionContext(ctx, task, sessionID)
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
 	if err == nil {
 		return exec, nil
