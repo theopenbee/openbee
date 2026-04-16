@@ -16,6 +16,12 @@ var log = logger.With(zap.String("component", "msgingest"))
 
 const mergedSeparator = "\n\n---\n\n"
 
+// InboundInterceptor intercepts an inbound message before it enters the debounce queue.
+// Returns true if the message was handled and should not be queued.
+type InboundInterceptor interface {
+	InterceptInbound(ctx context.Context, msg platform.InboundMessage) bool
+}
+
 // IngestedMessage is a deduplicated, debounced, normalized message ready for routing.
 type IngestedMessage struct {
 	MsgID      string
@@ -39,12 +45,13 @@ type debounceState struct {
 
 // Gateway receives raw platform messages, deduplicates, debounces, and emits IngestedMessages.
 type Gateway struct {
-	msgStore MessageStore
-	debounce time.Duration
-	sessions map[string]*debounceState
-	seen     map[string]struct{} // in-memory dedup set keyed by platform_msg_id
-	mu       sync.Mutex
-	out      chan IngestedMessage
+	msgStore    MessageStore
+	debounce    time.Duration
+	sessions    map[string]*debounceState
+	seen        map[string]struct{} // in-memory dedup set keyed by platform_msg_id
+	mu          sync.Mutex
+	out         chan IngestedMessage
+	interceptor InboundInterceptor
 }
 
 // New constructs a Gateway.
@@ -60,6 +67,12 @@ func New(msgStore MessageStore, debounce time.Duration) *Gateway {
 
 // Out returns the channel of outgoing IngestedMessages.
 func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
+
+// SetInboundInterceptor registers an interceptor called at the start of every Dispatch.
+// Must be called before goroutines start (not concurrency-safe).
+func (g *Gateway) SetInboundInterceptor(h InboundInterceptor) {
+	g.interceptor = h
+}
 
 // Run blocks until ctx is cancelled, then closes Out().
 func (g *Gateway) Run(ctx context.Context) {
@@ -79,6 +92,9 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
+	if g.interceptor != nil && g.interceptor.InterceptInbound(context.Background(), msg) {
+		return
+	}
 	g.mu.Lock()
 
 	// In-memory dedup: drop if platform_msg_id already seen this process lifetime.

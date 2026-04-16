@@ -3,6 +3,7 @@ package msgingest_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -247,6 +248,76 @@ func TestGateway_ClearMessage_DebounceAsNormal(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for debounced message")
+	}
+}
+
+// testInterceptor is a test-only implementation of msgingest.InboundInterceptor.
+type testInterceptor struct {
+	fn func(platform.InboundMessage) bool
+}
+
+func (ti *testInterceptor) InterceptInbound(_ context.Context, msg platform.InboundMessage) bool {
+	return ti.fn(msg)
+}
+
+// TestGateway_Interceptor_Stop_NotQueued verifies that when the interceptor returns
+// true the message bypasses debounce entirely — no CreateBatch call, no emit.
+func TestGateway_Interceptor_Stop_NotQueued(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 100*time.Millisecond)
+
+	called := false
+	g.SetInboundInterceptor(&testInterceptor{fn: func(msg platform.InboundMessage) bool {
+		if strings.TrimSpace(msg.Content) == "/stop" {
+			called = true
+			return true
+		}
+		return false
+	}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "/stop", "cmd-1"))
+
+	select {
+	case msg := <-g.Out():
+		t.Fatalf("expected no emit for intercepted command, got: %+v", msg)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	if !called {
+		t.Error("expected interceptor to be called")
+	}
+	if len(st.batches) != 0 {
+		t.Errorf("expected no CreateBatch calls, got %d", len(st.batches))
+	}
+}
+
+// TestGateway_Interceptor_NormalMessage_PassesThrough verifies that when the
+// interceptor returns false the message goes through normal debounce.
+func TestGateway_Interceptor_NormalMessage_PassesThrough(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 100*time.Millisecond)
+	g.SetInboundInterceptor(&testInterceptor{fn: func(_ platform.InboundMessage) bool {
+		return false
+	}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "hello", "m1"))
+
+	select {
+	case <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout: expected debounced message to be emitted")
+	}
+
+	if len(st.batches) != 1 {
+		t.Errorf("expected 1 CreateBatch call, got %d", len(st.batches))
 	}
 }
 
