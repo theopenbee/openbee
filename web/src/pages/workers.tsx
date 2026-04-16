@@ -1,10 +1,9 @@
 import { useState, useMemo, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
-import { EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
-import { useWorkers, useCreateWorker, useDeleteWorker } from "@/hooks/use-workers"
-import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
-import { flattenDeptTree } from "@/lib/department-utils"
+import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
+import { useDepartments } from "@/hooks/use-departments"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,18 +14,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 import {
   Table,
   TableBody,
@@ -42,15 +31,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ScopeToggleCard } from "@/components/scope-toggle-card"
-import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
+import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
+import type { Worker } from "@/lib/types"
 
 type DeleteStep = 1 | 2
+type SheetState = { mode: "create" } | { mode: "copy"; worker: Worker } | null
 
 export function Workers() {
   const { t } = useTranslation()
@@ -62,16 +52,16 @@ export function Workers() {
   const displayedWorkers = selectedDeptId === UNGROUPED_FILTER
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
-  const createWorker = useCreateWorker()
   const deleteWorker = useDeleteWorker()
-  const setWorkerDepts = useSetWorkerDepartments()
-  const [open, setOpen] = useState(false)
+  const [sheetState, setSheetState] = useState<SheetState>(null)
+  const copyInitialValues = useMemo(
+    () => (sheetState?.mode === "copy" ? workerToInitialValues(sheetState.worker) : undefined),
+    [sheetState],
+  )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
-  const [selectedCreateDeptIds, setSelectedCreateDeptIds] = useState<Set<string>>(new Set())
-  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
 
   const resetDelete = () => {
     setDeleteTarget(null)
@@ -79,39 +69,10 @@ export function Workers() {
     setDeleteWorkDir(false)
     setDeleteConfirmationText("")
   }
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [memory, setMemory] = useState("")
-  const [workDir, setWorkDir] = useState("")
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
 
-  const error = fetchError?.message || createWorker.error?.message || deleteWorker.error?.message || setWorkerDepts.error?.message || ""
+  const error = fetchError?.message || deleteWorker.error?.message || ""
   const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
-
-  const handleCreate = async (e?: FormEvent) => {
-    e?.preventDefault()
-    try {
-      const worker = await createWorker.mutateAsync({
-        name,
-        description,
-        memory: memory || undefined,
-        work_dir: workDir || undefined,
-        permission_scopes: serializeScopes(selectedScopes) || undefined,
-      })
-      if (selectedCreateDeptIds.size > 0) {
-        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedCreateDeptIds] })
-      }
-      setOpen(false)
-    } finally {
-      setName("")
-      setDescription("")
-      setMemory("")
-      setWorkDir("")
-      setSelectedCreateDeptIds(new Set())
-      setSelectedScopes([])
-    }
-  }
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || !isDeleteNameConfirmed) return
@@ -153,162 +114,14 @@ export function Workers() {
         }
         actions={
           <>
-            <Button onClick={() => setOpen(true)}>
+            <Button onClick={() => setSheetState({ mode: "create" })}>
               {t("workers.createWorker")}
             </Button>
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
-                <SheetHeader className="px-6 pt-6 pb-4">
-                  <SheetTitle>{t("workers.createWorker")}</SheetTitle>
-                  <SheetDescription>{t("workers.form.panelDescription")}</SheetDescription>
-                </SheetHeader>
-                <Separator />
-                <form
-                  id="create-worker-form"
-                  onSubmit={handleCreate}
-                  className="flex-1 overflow-y-auto px-6 py-5 space-y-6"
-                >
-                  <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                      {t("workers.form.sectionBasic")}
-                    </p>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="name">
-                        {t("workers.form.name")}
-                        <span className="ml-1 text-destructive" aria-hidden>*</span>
-                      </Label>
-                      <Input
-                        id="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder={t("workers.form.namePlaceholder")}
-                        required
-                        autoFocus
-                      />
-                      <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="desc">{t("workers.form.description")}</Label>
-                      <Textarea
-                        id="desc"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder={t("workers.form.descriptionPlaceholder")}
-                        rows={2}
-                      />
-                      <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                      {t("workers.form.sectionConfig")}
-                    </p>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="workdir">{t("workers.form.workDir")}</Label>
-                      <Input
-                        id="workdir"
-                        value={workDir}
-                        onChange={(e) => setWorkDir(e.target.value)}
-                        placeholder={t("workers.form.workDirPlaceholder")}
-                        className="font-mono text-xs"
-                      />
-                      <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="memory">{t("workers.form.memory")}</Label>
-                      <Textarea
-                        id="memory"
-                        value={memory}
-                        onChange={(e) => setMemory(e.target.value)}
-                        placeholder={t("workers.form.memoryPlaceholder")}
-                        rows={5}
-                      />
-                      <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                      {t("workers.form.sectionPermissions")}
-                    </p>
-                    <div className="space-y-2">
-                      {KNOWN_SCOPES.map((scope) => (
-                        <ScopeToggleCard
-                          key={scope.id}
-                          scope={scope}
-                          checked={selectedScopes.includes(scope.id)}
-                          onToggle={(scopeId, val) =>
-                            setSelectedScopes((prev) => toggleScope(prev, scopeId, val))
-                          }
-                          disabled={createWorker.isPending}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {flatDepts.length > 0 && (
-                    <>
-                      <Separator />
-                      <div className="space-y-4">
-                        <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                          {t("workers.form.sectionDepartment")}
-                        </p>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {flatDepts.map(({ dept, depth }) => (
-                            <div
-                              key={dept.id}
-                              className="flex items-center gap-2"
-                              style={{ paddingLeft: `${depth * 12}px` }}
-                            >
-                              <input
-                                type="checkbox"
-                                id={`create-dept-${dept.id}`}
-                                checked={selectedCreateDeptIds.has(dept.id)}
-                                onChange={(e) => {
-                                  const next = new Set(selectedCreateDeptIds)
-                                  if (e.target.checked) next.add(dept.id)
-                                  else next.delete(dept.id)
-                                  setSelectedCreateDeptIds(next)
-                                }}
-                                className="size-4 cursor-pointer rounded accent-primary"
-                              />
-                              <Label htmlFor={`create-dept-${dept.id}`} className="cursor-pointer text-sm font-normal">
-                                {dept.name}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
-                      </div>
-                    </>
-                  )}
-                </form>
-                <Separator />
-                <SheetFooter className="px-6 py-4 flex-row gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setOpen(false)}
-                  >
-                    {t("common.cancel")}
-                  </Button>
-                  <Button
-                    type="submit"
-                    form="create-worker-form"
-                    disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
-                    className="flex-1"
-                  >
-                    {t("workers.createWorker")}
-                  </Button>
-                </SheetFooter>
-              </SheetContent>
-            </Sheet>
+            <CreateWorkerSheet
+              open={sheetState !== null}
+              onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
+              initialValues={copyInitialValues}
+            />
           </>
         }
       />
@@ -328,7 +141,7 @@ export function Workers() {
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
             selectedDeptId === null ? (
-              <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+              <Button onClick={() => setSheetState({ mode: "create" })}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
         />
@@ -382,6 +195,11 @@ export function Workers() {
                         <DropdownMenuItem onClick={() => navigate(`/workers/${w.id}`)}>
                           <EyeIcon className="size-4" />
                           {t("common.view")}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setSheetState({ mode: "copy", worker: w })}>
+                          <Copy className="size-4" />
+                          {t("common.copy")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

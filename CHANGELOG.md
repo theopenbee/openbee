@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add worker copy feature
+
 ### Fixed
 - Fix memory loss bug when agent switches scheduler
 
