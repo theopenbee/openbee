@@ -1,17 +1,33 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
+var validEngines = map[string]bool{
+	ai.EngineClaude: true,
+	ai.EngineCodex:  true,
+	ai.EnginePi:     true,
+}
+
+func validateEngine(name string) error {
+	if !validEngines[name] {
+		return fmt.Errorf("unknown engine %q, valid values: claude, codex, pi", name)
+	}
+	return nil
+}
+
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
+	Engine           string `json:"engine" binding:"required"`
 	Description      string `json:"description"`
 	Memory           string `json:"memory"`
 	WorkDir          string `json:"work_dir"`
@@ -40,8 +56,14 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if err := validateEngine(req.Engine); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             req.Name,
+		Engine:           req.Engine,
 		Description:      req.Description,
 		Memory:           req.Memory,
 		WorkDir:          req.WorkDir,
@@ -113,6 +135,7 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		Description      *string `json:"description"`
 		Memory           *string `json:"memory"`
 		PermissionScopes *string `json:"permission_scopes"`
+		Engine           *string `json:"engine"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -134,6 +157,14 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 			return
 		}
 		w.PermissionScopes = *req.PermissionScopes
+	}
+
+	if req.Engine != nil {
+		if err := validateEngine(*req.Engine); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		w.Engine = *req.Engine
 	}
 
 	updated, err := h.workers.Update(w)
