@@ -160,6 +160,20 @@ export function WorkerDetail() {
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
     [worker?.departments]
   )
+  const copyInitialValues = useMemo(
+    () =>
+      worker
+        ? {
+            name: worker.name,
+            description: worker.description,
+            memory: worker.memory,
+            work_dir: worker.work_dir,
+            permission_scopes: worker.permission_scopes ?? "",
+            departmentIds: worker.departments?.map((d) => d.id) ?? [],
+          }
+        : undefined,
+    [worker],
+  )
 
   if (!worker) return <SkeletonPage />
 
@@ -181,14 +195,7 @@ export function WorkerDetail() {
         <CreateWorkerSheet
           open={copySheetOpen}
           onOpenChange={setCopySheetOpen}
-          initialValues={{
-            name: worker.name,
-            description: worker.description,
-            memory: worker.memory,
-            work_dir: worker.work_dir,
-            permission_scopes: worker.permission_scopes ?? "",
-            departmentIds: worker.departments?.map((d) => d.id) ?? [],
-          }}
+          initialValues={copyInitialValues}
         />
 
         {workerError ? (

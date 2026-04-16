@@ -62,7 +62,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSelectedDeptIds(initialValues ? new Set(initialValues.departmentIds) : new Set())
       setSubmitError("")
     }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, initialValues])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

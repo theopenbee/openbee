@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useState, useMemo, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
@@ -60,6 +60,20 @@ export function Workers() {
       setCopySource(null)
     }
   }
+  const copyInitialValues = useMemo(
+    () =>
+      copySource
+        ? {
+            name: copySource.name,
+            description: copySource.description,
+            memory: copySource.memory,
+            work_dir: copySource.work_dir,
+            permission_scopes: copySource.permission_scopes ?? "",
+            departmentIds: copySource.departments?.map((d) => d.id) ?? [],
+          }
+        : undefined,
+    [copySource],
+  )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
@@ -122,18 +136,7 @@ export function Workers() {
             <CreateWorkerSheet
               open={open || copySource !== null}
               onOpenChange={handleSheetOpenChange}
-              initialValues={
-                copySource
-                  ? {
-                      name: copySource.name,
-                      description: copySource.description,
-                      memory: copySource.memory,
-                      work_dir: copySource.work_dir,
-                      permission_scopes: copySource.permission_scopes ?? "",
-                      departmentIds: copySource.departments?.map((d) => d.id) ?? [],
-                    }
-                  : undefined
-              }
+              initialValues={copyInitialValues}
             />
           </>
         }
