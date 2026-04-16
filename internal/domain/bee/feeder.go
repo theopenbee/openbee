@@ -53,15 +53,15 @@ func (f *Feeder) SetCommandInterceptor(ci *CommandInterceptor) {
 
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
-	msgStore        *store.MessageStore
-	taskStore       *store.TaskStore
-	sessionStore    *store.SessionStore
-	execStore       *store.ExecutionStore
-	runner          ai.EngineAdapter
-	workDir         string
-	cfg             config.BeeConfig
-	failureNotifier FailureNotifier
-	sem             chan struct{} // bounds concurrent bee processes
+	msgStore           *store.MessageStore
+	taskStore          *store.TaskStore
+	sessionStore       *store.SessionStore
+	execStore          *store.ExecutionStore
+	runner             ai.EngineAdapter
+	workDir            string
+	cfg                config.BeeConfig
+	failureNotifier    FailureNotifier
+	sem                chan struct{} // bounds concurrent bee processes
 	workerLookup       *store.WorkerStore
 	commandInterceptor *CommandInterceptor
 }

@@ -233,14 +233,9 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 	n, _ := res.RowsAffected()
 
 	// Step 2: cancel associated 'merged' sub-messages.
-	mergedArgs := make([]any, 0, 2+len(ids))
-	mergedArgs = append(mergedArgs, MsgStatusCancelled, now)
-	for _, id := range ids {
-		mergedArgs = append(mergedArgs, id)
-	}
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE status = 'merged' AND merged_into IN (`+inPlaceholders(len(ids))+`)`,
-		mergedArgs...); err != nil {
+		args...); err != nil {
 		return 0, fmt.Errorf("cancel merged: %w", err)
 	}
 
@@ -357,11 +352,11 @@ type ListedMessage struct {
 // MessageFilter holds optional filter criteria for ListFiltered.
 // Zero values are ignored (no filtering on that field).
 type MessageFilter struct {
-	SessionKey      string
-	Platform        string
-	Status          string
-	ReceivedAtFrom  int64 // inclusive lower bound (Unix ms); 0 = no lower bound
-	ReceivedAtTo    int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+	SessionKey     string
+	Platform       string
+	Status         string
+	ReceivedAtFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	ReceivedAtTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
 }
 
 // ListFiltered returns paginated messages matching the given filters.

@@ -111,7 +111,6 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 
 	c.dispatcher.ClearSession(sessionKey)
 
-	// 4. Reply to user.
 	m := i18n.M.Runtime.CommandInterceptor
 	replyContent := m.Stopped
 	if !stopped {

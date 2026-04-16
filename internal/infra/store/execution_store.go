@@ -131,8 +131,7 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 // ListActiveBySessionID returns only running or pending executions for a session.
 func (s *ExecutionStore) ListActiveBySessionID(sessionID string) ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(
-		execSelect+fmt.Sprintf(` WHERE e.session_id = ? AND e.status IN ('%s', '%s') ORDER BY e.started_at ASC`,
-			model.ExecStatusRunning, model.ExecStatusPending),
+		execSelect+` WHERE e.session_id = ? AND e.status IN ('running', 'pending') ORDER BY e.started_at ASC`,
 		sessionID,
 	)
 	if err != nil {
