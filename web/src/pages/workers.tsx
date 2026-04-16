@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useState, useMemo, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
@@ -53,6 +53,10 @@ export function Workers() {
     : workers
   const deleteWorker = useDeleteWorker()
   const [sheetMode, setSheetMode] = useState<"create" | Worker | null>(null)
+  const copyInitialValues = useMemo(
+    () => sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined,
+    [sheetMode],
+  )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
@@ -115,7 +119,7 @@ export function Workers() {
             <CreateWorkerSheet
               open={sheetMode !== null}
               onOpenChange={(isOpen) => { if (!isOpen) setSheetMode(null) }}
-              initialValues={sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined}
+              initialValues={copyInitialValues}
             />
           </>
         }

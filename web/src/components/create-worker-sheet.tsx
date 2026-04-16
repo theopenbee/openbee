@@ -68,7 +68,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   useEffect(() => {
     if (open) {
       const iv = initialValuesRef.current
-      setName(iv ? `${iv.name} 副本` : "")
+      setName(iv ? `${iv.name} ${t("workers.form.copySuffix")}` : "")
       setDescription(iv?.description ?? "")
       setMemory(iv?.memory ?? "")
       setWorkDir(iv?.work_dir ?? "")

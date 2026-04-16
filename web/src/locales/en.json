@@ -77,6 +77,7 @@
     "form": {
       "panelDescription": "Configure a new AI worker for your hive.",
       "copyPanelDescription": "Modify and create a new copy of this worker.",
+      "copySuffix": "Copy",
       "sectionBasic": "Basic Info",
       "sectionConfig": "Configuration",
       "name": "Name",
