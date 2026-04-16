@@ -90,17 +90,13 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	})
 }
 
-// ExecuteWorker runs a worker. When sessionID is non-empty, it resumes the existing
-// AI engine session (resume=true); otherwise it starts a fresh session.
-func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
+// ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
+// to resume the session identified by sessionID; otherwise it starts a fresh session.
+// sessionID must always be non-empty; callers are responsible for generating it.
+func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
-	}
-
-	resume := sessionID != ""
-	if sessionID == "" {
-		sessionID = uuid.New().String()
 	}
 
 	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID)

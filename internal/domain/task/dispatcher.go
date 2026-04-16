@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -27,7 +28,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -322,8 +323,14 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 	if err != nil {
 		return model.WorkerExecution{}, err
 	}
+	sessionID := uuid.New().String()
+	if task.SessionKey != "" && task.WorkerID != "" {
+		if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
+			log.Error("pre-flight upsert session context", zap.Error(err))
+		}
+	}
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
@@ -338,7 +345,12 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return d.executeWithHint(ctx, task, instruction)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
+	if task.SessionKey != "" && task.WorkerID != "" {
+		if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
+			log.Error("pre-flight upsert session context (resume)", zap.Error(err))
+		}
+	}
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
 	if err == nil {
 		return exec, nil
 	}
