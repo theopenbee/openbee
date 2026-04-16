@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/app"
@@ -34,8 +35,12 @@ var serverCmd = &cobra.Command{
 		}
 
 		// --- Normal server startup ---
+		logLevel := os.Getenv("OPENBEE_LOG_LEVEL")
+		if logLevel == "" {
+			logLevel = "info"
+		}
 		if err := logger.Init(logger.Config{
-			Level:  "info",
+			Level:  logLevel,
 			Format: "json",
 		}); err != nil {
 			return fmt.Errorf("init logger: %w", err)

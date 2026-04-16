@@ -4,6 +4,7 @@
 
 ### Added
 - Add worker copy feature
+- Add `OPENBEE_LOG_LEVEL` environment variable to control log verbosity (supported levels: `debug`, `info`, `warn`, `error`; default: `info`)
 
 ### Fixed
 - Fix memory loss bug when agent switches scheduler
