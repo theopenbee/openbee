@@ -76,7 +76,7 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		c.handleStop(ctx, msg.SessionKey, store.ClaimedMessage{
+		c.handleStop(ctx, store.ClaimedMessage{
 			SessionKey: msg.SessionKey,
 			Platform:   msg.Platform,
 			Content:    msg.Content,
@@ -88,12 +88,12 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 // handleStop performs the stop sequence: stop bee executions, cancel worker tasks,
 // clear dispatcher queues, and reply to the user. Sub-step errors are logged and
 // do not abort the sequence.
-func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, msg store.ClaimedMessage) {
+func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMessage) {
 	stopped := false
 
-	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, c.engine)
+	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, msg.SessionKey, store.BeeAgentID, c.engine)
 	if err != nil {
-		log.Warn("stop command: get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
+		log.Warn("stop command: get session context", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if sessionID != "" {
 		execIDs, listErr := c.execStore.ListActiveIDsBySessionID(sessionID)
 		if listErr != nil {
@@ -108,21 +108,21 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 		}
 	}
 
-	n, err := c.taskStore.CancelBySessionKey(ctx, sessionKey)
+	n, err := c.taskStore.CancelBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
-		log.Warn("stop command: cancel tasks", zap.String("sessionKey", sessionKey), zap.Error(err))
+		log.Warn("stop command: cancel tasks", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if n > 0 {
 		stopped = true
 	}
 
-	n, err = c.msgCanceller.CancelReceivedBySessionKey(ctx, sessionKey)
+	n, err = c.msgCanceller.CancelReceivedBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
-		log.Warn("stop command: cancel platform messages", zap.String("sessionKey", sessionKey), zap.Error(err))
+		log.Warn("stop command: cancel platform messages", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if n > 0 {
 		stopped = true
 	}
 
-	c.dispatcher.ClearSession(sessionKey)
+	c.dispatcher.ClearSession(msg.SessionKey)
 
 	m := i18n.M.Runtime.CommandInterceptor
 	replyContent := m.Stopped

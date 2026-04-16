@@ -131,7 +131,7 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 // ListActiveIDsBySessionID returns the IDs of running or pending executions for a session.
 func (s *ExecutionStore) ListActiveIDsBySessionID(sessionID string) ([]string, error) {
 	rows, err := s.db.Query(
-		`SELECT id FROM bee_executions WHERE session_id = ? AND status IN (?, ?) ORDER BY started_at ASC`,
+		`SELECT id FROM bee_executions WHERE session_id = ? AND status IN (?, ?)`,
 		sessionID, model.ExecStatusRunning, model.ExecStatusPending,
 	)
 	if err != nil {
