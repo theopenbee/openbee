@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.24] - 2026-04-15
+
 ### Added
 - Add environment variable configuration at global, employee, department, and scheduler levels
 
