@@ -192,6 +192,7 @@ func (m *mockWorkerLookup) GetByID(_ string) (model.Worker, error) {
 type orderedMockManager struct {
 	mu             sync.Mutex
 	callOrder      []string // "upsert" or "execute"
+	executed       atomic.Int64
 	execResult     model.WorkerExecution
 	receivedResume bool
 	receivedSessID string
@@ -203,6 +204,7 @@ func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID st
 	m.receivedResume = resume
 	m.receivedSessID = sessionID
 	m.mu.Unlock()
+	m.executed.Add(1)
 	return m.execResult, nil
 }
 
@@ -258,15 +260,7 @@ func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
 func waitForExecCount2(mgr *orderedMockManager, n int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		mgr.mu.Lock()
-		var count int
-		for _, c := range mgr.callOrder {
-			if c == "execute" {
-				count++
-			}
-		}
-		mgr.mu.Unlock()
-		if count >= n {
+		if int(mgr.executed.Load()) >= n {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
