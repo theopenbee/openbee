@@ -67,19 +67,6 @@ func isStopCommand(content string) bool {
 	return strings.EqualFold(strings.TrimSpace(content), cmdStop)
 }
 
-// Intercept returns true if the message was handled and Feeder should skip normal dispatch.
-func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) (bool, error) {
-	if len(msgs) == 0 {
-		return false, nil
-	}
-	primary := msgs[len(msgs)-1]
-	if !isStopCommand(primary.Content) {
-		return false, nil
-	}
-	c.handleStop(ctx, sessionKey, primary)
-	return true, nil
-}
-
 // InterceptInbound implements msgingest.InboundInterceptor.
 // Returns true and fires handleStop asynchronously when msg is a /stop command.
 func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.InboundMessage) bool {
