@@ -15,6 +15,7 @@ const (
 	MsgStatusMerged       = "merged"
 	MsgStatusBeeProcessed = "bee_processed"
 	MsgStatusFailed       = "failed"
+	MsgStatusCancelled    = "cancelled"
 )
 
 // BatchMsg is a single row for a bulk insert via CreateBatch.
@@ -180,6 +181,70 @@ func (s *MessageStore) MarkBeeProcessed(ctx context.Context, ids []string) error
 // MarkFailed sets status to 'failed' for the given message IDs.
 func (s *MessageStore) MarkFailed(ctx context.Context, ids []string) error {
 	return s.UpdateStatusBatch(ctx, ids, MsgStatusFailed)
+}
+
+// CancelReceivedBySessionKey cancels all 'received' messages for the given
+// session and their associated 'merged' sub-messages.
+// Returns the number of 'received' rows cancelled (not counting merged rows).
+func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKey string) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	now := time.Now().UnixMilli()
+
+	// Step 1: cancel all 'received' rows for the session; collect their IDs.
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id FROM bee_platform_messages WHERE session_key = ? AND status = ?`,
+		sessionKey, MsgStatusReceived)
+	if err != nil {
+		return 0, fmt.Errorf("select received: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, tx.Commit()
+	}
+
+	args := make([]any, 0, 2+len(ids))
+	args = append(args, MsgStatusCancelled, now)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
+		args...)
+	if err != nil {
+		return 0, fmt.Errorf("cancel received: %w", err)
+	}
+	n, _ := res.RowsAffected()
+
+	// Step 2: cancel associated 'merged' sub-messages.
+	mergedArgs := make([]any, 0, 2+len(ids))
+	mergedArgs = append(mergedArgs, MsgStatusCancelled, now)
+	for _, id := range ids {
+		mergedArgs = append(mergedArgs, id)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE status = 'merged' AND merged_into IN (`+inPlaceholders(len(ids))+`)`,
+		mergedArgs...); err != nil {
+		return 0, fmt.Errorf("cancel merged: %w", err)
+	}
+
+	return n, tx.Commit()
 }
 
 // ResetFeedingToReceived resets all messages stuck in 'feeding' back to 'received'.

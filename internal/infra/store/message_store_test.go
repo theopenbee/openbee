@@ -461,3 +461,56 @@ func TestMessageStore_MarkFailed(t *testing.T) {
 		t.Errorf("expected status=failed, got %q", status)
 	}
 }
+
+func TestMessageStore_CancelReceivedBySessionKey(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+
+	// Session under test: one primary (received) with one merged sub-message
+	primaryID := "primary-1"
+	mergedID := "merged-1"
+	// Session under test: a second standalone received message (no merged)
+	primary2ID := "primary-2"
+	// Another session — must NOT be affected
+	otherID := "other-session-msg"
+	// A feeding message in the same session — must NOT be affected
+	feedingID := "feeding-1"
+
+	seed := []BatchMsg{
+		{ID: mergedID, SessionKey: "s1", Platform: "test", Content: "part1", MessageTime: now, Status: MsgStatusMerged, MergedInto: primaryID},
+		{ID: primaryID, SessionKey: "s1", Platform: "test", Content: "full", MessageTime: now, Status: MsgStatusReceived},
+		{ID: primary2ID, SessionKey: "s1", Platform: "test", Content: "another", MessageTime: now + 1, Status: MsgStatusReceived},
+		{ID: otherID, SessionKey: "s2", Platform: "test", Content: "other", MessageTime: now, Status: MsgStatusReceived},
+		{ID: feedingID, SessionKey: "s1", Platform: "test", Content: "feeding", MessageTime: now + 2, Status: MsgStatusFeeding},
+	}
+	if _, err := s.CreateBatch(ctx, seed); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	n, err := s.CancelReceivedBySessionKey(ctx, "s1")
+	if err != nil {
+		t.Fatalf("CancelReceivedBySessionKey: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("want 2 received rows cancelled, got %d", n)
+	}
+
+	check := func(id, wantStatus string) {
+		t.Helper()
+		var got string
+		if err := s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&got); err != nil {
+			t.Fatalf("query %s: %v", id, err)
+		}
+		if got != wantStatus {
+			t.Errorf("id=%s: want status=%q, got %q", id, wantStatus, got)
+		}
+	}
+
+	check(primaryID, MsgStatusCancelled)
+	check(primary2ID, MsgStatusCancelled)
+	check(mergedID, MsgStatusCancelled)   // merged sub-message also cancelled
+	check(otherID, MsgStatusReceived)     // other session unaffected
+	check(feedingID, MsgStatusFeeding)    // feeding unaffected
+}
