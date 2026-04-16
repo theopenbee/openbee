@@ -8,9 +8,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+var ciLog = logger.With(zap.String("component", "command_interceptor"))
 
 // executionStopper can kill a running process by execution ID.
 type executionStopper interface {
@@ -85,23 +88,22 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 	return true
 }
 
-// handleStop performs the stop sequence: stop bee executions, cancel worker tasks,
-// clear dispatcher queues, and reply to the user. Sub-step errors are logged and
-// do not abort the sequence.
+// handleStop stops all active work for the session and replies to the user.
+// Sub-step errors are logged and do not abort the sequence.
 func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMessage) {
 	stopped := false
 
 	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, msg.SessionKey, store.BeeAgentID, c.engine)
 	if err != nil {
-		log.Warn("stop command: get session context", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
+		ciLog.Warn("stop command: get session context", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if sessionID != "" {
 		execIDs, listErr := c.execStore.ListActiveIDsBySessionID(sessionID)
 		if listErr != nil {
-			log.Warn("stop command: list executions", zap.String("sessionID", sessionID), zap.Error(listErr))
+			ciLog.Warn("stop command: list executions", zap.String("sessionID", sessionID), zap.Error(listErr))
 		}
 		for _, id := range execIDs {
 			if stopErr := c.execStopper.StopExecution(id); stopErr != nil {
-				log.Warn("stop command: stop execution", zap.String("execID", id), zap.Error(stopErr))
+				ciLog.Warn("stop command: stop execution", zap.String("execID", id), zap.Error(stopErr))
 			} else {
 				stopped = true
 			}
@@ -110,14 +112,14 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMe
 
 	n, err := c.taskStore.CancelBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
-		log.Warn("stop command: cancel tasks", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
+		ciLog.Warn("stop command: cancel tasks", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if n > 0 {
 		stopped = true
 	}
 
 	n, err = c.msgCanceller.CancelReceivedBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
-		log.Warn("stop command: cancel platform messages", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
+		ciLog.Warn("stop command: cancel platform messages", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	} else if n > 0 {
 		stopped = true
 	}
@@ -135,7 +137,7 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMe
 func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMessage, content string) {
 	sender, ok := c.senders[msg.Platform]
 	if !ok {
-		log.Warn("stop command: no sender for platform", zap.String("platform", msg.Platform))
+		ciLog.Warn("stop command: no sender for platform", zap.String("platform", msg.Platform))
 		return
 	}
 	outbound := platform.OutboundMessage{
@@ -149,6 +151,6 @@ func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMes
 		SourceType: store.SourceTypeSystem,
 	}
 	if err := sender.Send(ctx, outbound); err != nil {
-		log.Warn("stop command: send reply", zap.Error(err))
+		ciLog.Warn("stop command: send reply", zap.Error(err))
 	}
 }
