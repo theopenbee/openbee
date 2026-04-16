@@ -45,8 +45,6 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
-// SetCommandInterceptor injects the interceptor after construction
-// because CommandInterceptor depends on TaskDispatcher, which is built after Feeder.
 func (f *Feeder) SetCommandInterceptor(ci *CommandInterceptor) {
 	f.commandInterceptor = ci
 }

@@ -82,13 +82,13 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 	if err != nil {
 		log.Warn("stop command: get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	} else if sessionID != "" {
-		execs, listErr := c.execStore.ListActiveBySessionID(sessionID)
+		execIDs, listErr := c.execStore.ListActiveIDsBySessionID(sessionID)
 		if listErr != nil {
 			log.Warn("stop command: list executions", zap.String("sessionID", sessionID), zap.Error(listErr))
 		}
-		for _, e := range execs {
-			if stopErr := c.execStopper.StopExecution(e.ID); stopErr != nil {
-				log.Warn("stop command: stop execution", zap.String("execID", e.ID), zap.Error(stopErr))
+		for _, id := range execIDs {
+			if stopErr := c.execStopper.StopExecution(id); stopErr != nil {
+				log.Warn("stop command: stop execution", zap.String("execID", id), zap.Error(stopErr))
 			} else {
 				stopped = true
 			}

@@ -128,17 +128,25 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 	return scanExecutions(rows)
 }
 
-// ListActiveBySessionID returns only running or pending executions for a session.
-func (s *ExecutionStore) ListActiveBySessionID(sessionID string) ([]model.WorkerExecution, error) {
+// ListActiveIDsBySessionID returns the IDs of running or pending executions for a session.
+func (s *ExecutionStore) ListActiveIDsBySessionID(sessionID string) ([]string, error) {
 	rows, err := s.db.Query(
-		execSelect+` WHERE e.session_id = ? AND e.status IN ('running', 'pending') ORDER BY e.started_at ASC`,
-		sessionID,
+		`SELECT id FROM bee_executions WHERE session_id = ? AND status IN (?, ?) ORDER BY started_at ASC`,
+		sessionID, model.ExecStatusRunning, model.ExecStatusPending,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list active executions by session: %w", err)
+		return nil, fmt.Errorf("list active execution ids by session: %w", err)
 	}
 	defer rows.Close()
-	return scanExecutions(rows)
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // CountSessionsByWorkerID returns the total number of distinct sessions for a worker.

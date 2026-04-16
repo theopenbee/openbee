@@ -233,9 +233,14 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 	n, _ := res.RowsAffected()
 
 	// Step 2: cancel associated 'merged' sub-messages.
+	mergedArgs := make([]any, 0, 3+len(ids))
+	mergedArgs = append(mergedArgs, MsgStatusCancelled, now, MsgStatusMerged)
+	for _, id := range ids {
+		mergedArgs = append(mergedArgs, id)
+	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE status = 'merged' AND merged_into IN (`+inPlaceholders(len(ids))+`)`,
-		args...); err != nil {
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE status = ? AND merged_into IN (`+inPlaceholders(len(ids))+`)`,
+		mergedArgs...); err != nil {
 		return 0, fmt.Errorf("cancel merged: %w", err)
 	}
 
