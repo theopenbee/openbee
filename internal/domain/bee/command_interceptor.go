@@ -88,18 +88,14 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 		defer c.inFlight.Delete(msg.SessionKey)
 		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		c.handleStop(stopCtx, store.ClaimedMessage{
-			SessionKey: msg.SessionKey,
-			Platform:   msg.Platform,
-			Content:    msg.Content,
-		})
+		c.handleStop(stopCtx, msg)
 	}()
 	return true
 }
 
 // handleStop stops all active work for the session and replies to the user.
 // Sub-step errors are logged and do not abort the sequence.
-func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMessage) {
+func (c *CommandInterceptor) handleStop(ctx context.Context, msg platform.InboundMessage) {
 	ciLog.Debug("stop command: handleStop started", zap.String("sessionKey", msg.SessionKey), zap.String("engine", c.engine))
 	stopped := false
 
@@ -167,20 +163,16 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMe
 	ciLog.Debug("stop command: handleStop complete", zap.String("sessionKey", msg.SessionKey), zap.Bool("stopped", stopped))
 }
 
-func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMessage, content string) {
+func (c *CommandInterceptor) sendReply(ctx context.Context, msg platform.InboundMessage, content string) {
 	sender, ok := c.senders[msg.Platform]
 	if !ok {
 		ciLog.Warn("stop command: no sender for platform", zap.String("platform", msg.Platform))
 		return
 	}
 	outbound := platform.OutboundMessage{
-		SessionKey:   msg.SessionKey,
-		Content:      content,
-		InboundMsgID: msg.ID,
-		ReplyTo: platform.InboundMessage{
-			Platform:   msg.Platform,
-			SessionKey: msg.SessionKey,
-		},
+		SessionKey: msg.SessionKey,
+		Content:    content,
+		ReplyTo:    msg, // pass the original inbound message to preserve Raw and other reply metadata
 		SourceType: store.SourceTypeSystem,
 	}
 	if err := sender.Send(ctx, outbound); err != nil {

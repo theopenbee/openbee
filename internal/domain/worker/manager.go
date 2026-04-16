@@ -215,7 +215,10 @@ func (m *Manager) StopExecution(executionID string) error {
 	m.mu.RUnlock()
 
 	if !ok {
-		return fmt.Errorf("no active process for execution %s", executionID)
+		// Process already exited (monitorExecution removed it) but DB status
+		// hasn't been updated yet. Treat as already stopped — not an error.
+		log.Debug("stop execution: process not in active map, already exited", zap.String("execID", executionID))
+		return nil
 	}
 	return proc.Stop()
 }

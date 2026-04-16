@@ -31,10 +31,9 @@ func (p *mockProcess) PID() int    { return 0 }
 func (p *mockProcess) Stop() error { return nil }
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
-	// This test verifies CancelExecution calls StopExecution on the active process.
-	// We use a real Manager with a mock engine that never finishes.
-	// Since we can't easily inject a mock engine, we verify the method exists
-	// and returns a sensible error for an unknown execution ID.
+	// This test verifies CancelExecution is a no-op (returns nil) for an execution
+	// not in the active process map. This is the expected behavior when the process
+	// has already exited but the DB status hasn't been updated yet (race condition).
 	cfg := config.BeeConfig{}
 	cfg.Claude.Path = "echo" // won't actually run; just needs to not panic
 	dir := t.TempDir()
@@ -54,7 +53,7 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	mgr := NewManager(dir, cfg, ws, es, &mockEngine{}, envSvc)
 
 	err = mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
-	if err == nil {
-		t.Error("expected error for unknown executionID, got nil")
+	if err != nil {
+		t.Errorf("expected nil for already-exited execution, got: %v", err)
 	}
 }
