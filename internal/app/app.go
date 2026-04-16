@@ -99,15 +99,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	engine, err := buildEngine(cfg.Bee)
+	engines, err := buildAllEngines(cfg.Bee)
 	if err != nil {
-		return nil, fmt.Errorf("init engine: %w", err)
+		return nil, fmt.Errorf("init engines: %w", err)
 	}
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
-	mgr := buildWorkerManager(cfg.Bee, s, engine, envSvc)
+	mgr := buildWorkerManager(cfg.Bee, s, engines, envSvc)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -115,7 +115,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engine, envSvc)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines[cfg.Bee.EffectiveEngine()], envSvc)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
 
 	// Local platform — always enabled, separate gateway with short debounce
@@ -207,15 +207,26 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-func buildEngine(cfg config.BeeConfig) (ai.EngineAdapter, error) {
-	return ai.New(cfg.EffectiveEngine(), ai.EngineConfig{
-		OpenbeeURL: cfg.MCPBaseURL,
-		Raw:        cfg.EngineConfigRaw(),
-	})
+// buildAllEngines constructs one EngineAdapter per supported engine type.
+// All adapters are built at startup and shared safely across concurrent workers.
+func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
+	names := []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi}
+	result := make(map[string]ai.EngineAdapter, len(names))
+	for _, name := range names {
+		adapter, err := ai.New(name, ai.EngineConfig{
+			OpenbeeURL: cfg.MCPBaseURL,
+			Raw:        cfg.EngineConfigRawFor(name),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init engine %q: %w", name, err)
+		}
+		result[name] = adapter
+	}
+	return result, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, engine ai.EngineAdapter, envSvc *env.Service) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engine, envSvc)
+func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, envSvc *env.Service) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, envSvc)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
