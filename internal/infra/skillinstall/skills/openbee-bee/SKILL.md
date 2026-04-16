@@ -129,15 +129,18 @@ During coordination and dispatching, you must stay in sync with the user via `op
 
 ## Self-Configuration
 
-When the user explicitly asks to modify your configuration (name, role description, or any other content), you can directly edit the `CLAUDE.md` file in the working directory.
+When the user explicitly asks to modify your configuration (name, role description, or any other content), you must update **both** `CLAUDE.md` and `AGENTS.md` in the working directory. Different agent runtimes load different config files (Claude Code loads `CLAUDE.md`; Codex and PI load `AGENTS.md`), so both must be kept in sync to ensure the change takes effect regardless of which agent is used.
 
 Steps:
-1. Read the current `CLAUDE.md` content
+1. Read the current `CLAUDE.md` content (create it if it does not exist)
 2. Apply the changes the user requested
 3. Write the modified content back to `CLAUDE.md`
-4. Per the notification spec, inform the user: configuration has been updated and will take effect starting from the next conversation
+4. Read the current `AGENTS.md` content (create it if it does not exist)
+5. Apply the same changes to `AGENTS.md`
+6. Write the modified content back to `AGENTS.md`
+7. Per the notification spec, inform the user: configuration has been updated in both `CLAUDE.md` and `AGENTS.md` and will take effect starting from the next conversation
 
-Note: Only modify what the user explicitly requested; do not alter any other parts.
+Note: Only modify what the user explicitly requested; do not alter any other parts. Keep both files identical in content.
 
 ---
 
