@@ -46,6 +46,20 @@ func (m *mockSessionClearer) ClearSession(key string) {
 	m.cleared = append(m.cleared, key)
 }
 
+type mockMsgCanceller struct {
+	mu        sync.Mutex
+	cancelled []string // session keys passed
+	n         int64
+	err       error
+}
+
+func (m *mockMsgCanceller) CancelReceivedBySessionKey(_ context.Context, sessionKey string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cancelled = append(m.cancelled, sessionKey)
+	return m.n, m.err
+}
+
 type mockSender struct {
 	mu   sync.Mutex
 	sent []platform.OutboundMessage
@@ -64,6 +78,7 @@ func setupCommandInterceptorTest(t *testing.T) (
 	*store.TaskStore,
 	*mockExecStopper,
 	*mockSessionClearer,
+	*mockMsgCanceller,
 	*mockSender,
 	*bee.CommandInterceptor,
 ) {
@@ -80,15 +95,16 @@ func setupCommandInterceptorTest(t *testing.T) (
 
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
+	canceller := &mockMsgCanceller{}
 	sender := &mockSender{}
 	senders := map[string]platform.PlatformSenderAdapter{"local": sender}
 
-	ci := bee.NewCommandInterceptor(ss, es, ts, stopper, clearer, senders, "claude-code")
-	return ss, es, ts, stopper, clearer, sender, ci
+	ci := bee.NewCommandInterceptor(ss, es, ts, stopper, clearer, canceller, senders, "claude-code")
+	return ss, es, ts, stopper, clearer, canceller, sender, ci
 }
 
 func TestCommandInterceptor_NonCommand_NotHandled(t *testing.T) {
-	_, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
+	_, _, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	msgs := []store.ClaimedMessage{{ID: "m1", SessionKey: "local:1", Platform: "local", Content: "hello world"}}
@@ -102,7 +118,7 @@ func TestCommandInterceptor_NonCommand_NotHandled(t *testing.T) {
 }
 
 func TestCommandInterceptor_EmptyContent_NotHandled(t *testing.T) {
-	_, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
+	_, _, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	msgs := []store.ClaimedMessage{{ID: "m1", SessionKey: "local:1", Platform: "local", Content: "   "}}
@@ -113,7 +129,7 @@ func TestCommandInterceptor_EmptyContent_NotHandled(t *testing.T) {
 }
 
 func TestCommandInterceptor_Stop_NoActiveTasks_SendsNoTasksReply(t *testing.T) {
-	_, _, _, _, clearer, sender, ci := setupCommandInterceptorTest(t)
+	_, _, _, _, clearer, _, sender, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	msgs := []store.ClaimedMessage{{ID: "m1", SessionKey: "local:1", Platform: "local", Content: "/stop"}}
@@ -136,7 +152,7 @@ func TestCommandInterceptor_Stop_NoActiveTasks_SendsNoTasksReply(t *testing.T) {
 }
 
 func TestCommandInterceptor_Stop_WithRunningExecution_StopsAndReplies(t *testing.T) {
-	ss, es, _, stopper, clearer, sender, ci := setupCommandInterceptorTest(t)
+	ss, es, _, stopper, clearer, _, sender, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	sessionID := "sess-abc"
@@ -176,7 +192,7 @@ func TestCommandInterceptor_Stop_WithRunningExecution_StopsAndReplies(t *testing
 }
 
 func TestCommandInterceptor_Stop_StopExecutionError_StillSendsReply(t *testing.T) {
-	ss, es, _, stopper, _, sender, ci := setupCommandInterceptorTest(t)
+	ss, es, _, stopper, _, _, sender, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	sessionID := "sess-xyz"
@@ -208,7 +224,7 @@ func TestCommandInterceptor_Stop_StopExecutionError_StillSendsReply(t *testing.T
 }
 
 func TestCommandInterceptor_Stop_CaseInsensitive(t *testing.T) {
-	_, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
+	_, _, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
 	ctx := context.Background()
 
 	for _, content := range []string{"/STOP", "/Stop", "  /stop  "} {
@@ -217,5 +233,38 @@ func TestCommandInterceptor_Stop_CaseInsensitive(t *testing.T) {
 		if !handled {
 			t.Errorf("expected /stop to be handled regardless of case/whitespace, got false for %q", content)
 		}
+	}
+}
+
+func TestCommandInterceptor_Stop_CancelsReceivedMessages(t *testing.T) {
+	_, _, _, _, clearer, canceller, sender, ci := setupCommandInterceptorTest(t)
+	ctx := context.Background()
+
+	// Simulate 3 received messages pending
+	canceller.n = 3
+
+	msgs := []store.ClaimedMessage{{ID: "m1", SessionKey: "local:1", Platform: "local", Content: "/stop"}}
+	handled, err := ci.Intercept(ctx, "local:1", msgs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Error("expected handled=true for /stop")
+	}
+
+	canceller.mu.Lock()
+	defer canceller.mu.Unlock()
+	if len(canceller.cancelled) == 0 || canceller.cancelled[0] != "local:1" {
+		t.Errorf("expected CancelReceivedBySessionKey called with 'local:1', got %v", canceller.cancelled)
+	}
+	if len(clearer.cleared) == 0 {
+		t.Error("expected ClearSession called")
+	}
+	if len(sender.sent) == 0 {
+		t.Fatal("expected reply sent")
+	}
+	// 3 pending messages cancelled → should report "stopped"
+	if sender.sent[0].Content != "已停止当前会话的所有任务" {
+		t.Errorf("unexpected reply: %q", sender.sent[0].Content)
 	}
 }

@@ -21,6 +21,11 @@ type sessionClearer interface {
 	ClearSession(sessionKey string)
 }
 
+// messageCanceller cancels unprocessed platform messages for a session.
+type messageCanceller interface {
+	CancelReceivedBySessionKey(ctx context.Context, sessionKey string) (int64, error)
+}
+
 // CommandInterceptor intercepts system slash commands before Feeder dispatches to Bee.
 type CommandInterceptor struct {
 	sessionStore *store.SessionStore
@@ -28,6 +33,7 @@ type CommandInterceptor struct {
 	taskStore    *store.TaskStore
 	execStopper  executionStopper
 	dispatcher   sessionClearer
+	msgCanceller messageCanceller
 	senders      map[string]platform.PlatformSenderAdapter
 	engine       string
 }
@@ -38,6 +44,7 @@ func NewCommandInterceptor(
 	ts *store.TaskStore,
 	stopper executionStopper,
 	clearer sessionClearer,
+	canceller messageCanceller,
 	senders map[string]platform.PlatformSenderAdapter,
 	engine string,
 ) *CommandInterceptor {
@@ -47,6 +54,7 @@ func NewCommandInterceptor(
 		taskStore:    ts,
 		execStopper:  stopper,
 		dispatcher:   clearer,
+		msgCanceller: canceller,
 		senders:      senders,
 		engine:       engine,
 	}
@@ -90,6 +98,13 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 	n, err := c.taskStore.CancelBySessionKey(ctx, sessionKey)
 	if err != nil {
 		log.Warn("stop command: cancel tasks", zap.String("sessionKey", sessionKey), zap.Error(err))
+	} else if n > 0 {
+		stopped = true
+	}
+
+	n, err = c.msgCanceller.CancelReceivedBySessionKey(ctx, sessionKey)
+	if err != nil {
+		log.Warn("stop command: cancel platform messages", zap.String("sessionKey", sessionKey), zap.Error(err))
 	} else if n > 0 {
 		stopped = true
 	}
