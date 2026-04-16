@@ -63,6 +63,7 @@
   "workers": {
     "title": "员工",
     "createWorker": "创建员工",
+    "copyWorker": "复制员工",
     "summary_one": "{{count}} 名员工，{{active}} 名运行中",
     "summary_other": "{{count}} 名员工，{{active}} 名运行中",
     "defaultWorkDir": "默认目录",
@@ -75,6 +76,8 @@
     },
     "form": {
       "panelDescription": "为你的蜂巢配置一名新的 AI 员工。",
+      "copyPanelDescription": "修改后创建一个新的员工副本。",
+      "copySuffix": "副本",
       "sectionBasic": "基本信息",
       "sectionConfig": "配置",
       "name": "名称",
