@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Fix memory loss bug when agent switches scheduler
+
 ## [0.0.24] - 2026-04-15
 
 ### Added
