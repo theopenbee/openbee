@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree, EnvScope } from "@/lib/types"
+import { ENGINES } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
@@ -275,14 +276,14 @@ export function WorkerDetail() {
                       <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
                       {isEditingEngine ? (
                         <div className="flex items-center gap-2 mt-1">
-                          <Select value={editEngine} onValueChange={setEditEngine}>
+                          <Select value={editEngine} onValueChange={(v) => v && setEditEngine(v)}>
                             <SelectTrigger className="h-8 text-sm w-48">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="claude">{t("workers.engines.claude")}</SelectItem>
-                              <SelectItem value="codex">{t("workers.engines.codex")}</SelectItem>
-                              <SelectItem value="pi">{t("workers.engines.pi")}</SelectItem>
+                              {ENGINES.map((e) => (
+                                <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <Button

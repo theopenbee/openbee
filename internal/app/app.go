@@ -210,9 +210,8 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 // buildAllEngines constructs one EngineAdapter per supported engine type.
 // All adapters are built at startup and shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	names := []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi}
-	result := make(map[string]ai.EngineAdapter, len(names))
-	for _, name := range names {
+	result := make(map[string]ai.EngineAdapter, len(ai.AllEngines))
+	for _, name := range ai.AllEngines {
 		adapter, err := ai.New(name, ai.EngineConfig{
 			OpenbeeURL: cfg.MCPBaseURL,
 			Raw:        cfg.EngineConfigRawFor(name),

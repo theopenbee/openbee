@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -12,15 +13,17 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-var validEngines = map[string]bool{
-	ai.EngineClaude: true,
-	ai.EngineCodex:  true,
-	ai.EnginePi:     true,
-}
+var validEngines = func() map[string]bool {
+	m := make(map[string]bool, len(ai.AllEngines))
+	for _, e := range ai.AllEngines {
+		m[e] = true
+	}
+	return m
+}()
 
 func validateEngine(name string) error {
 	if !validEngines[name] {
-		return fmt.Errorf("unknown engine %q, valid values: claude, codex, pi", name)
+		return fmt.Errorf("unknown engine %q, valid values: %s", name, strings.Join(ai.AllEngines, ", "))
 	}
 	return nil
 }

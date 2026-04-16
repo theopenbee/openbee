@@ -74,7 +74,6 @@ func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
 	}
 	log.Error("default engine not found in engines map",
 		zap.String("defaultEngine", m.defaultEngine))
-	// Return a no-op fallback: iterate and return first available engine
 	for _, e := range m.engines {
 		return e
 	}

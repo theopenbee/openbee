@@ -26,6 +26,7 @@ import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
+import { ENGINES } from "@/lib/types"
 
 export interface WorkerInitialValues {
   name: string
@@ -176,14 +177,14 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                 {t("workers.form.engine")}
                 <span className="ml-1 text-destructive" aria-hidden>*</span>
               </Label>
-              <Select value={engine} onValueChange={setEngine}>
+              <Select value={engine} onValueChange={(v) => v && setEngine(v)}>
                 <SelectTrigger id="cws-engine">
                   <SelectValue placeholder={t("workers.form.engineDefault")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="claude">{t("workers.engines.claude")}</SelectItem>
-                  <SelectItem value="codex">{t("workers.engines.codex")}</SelectItem>
-                  <SelectItem value="pi">{t("workers.engines.pi")}</SelectItem>
+                  {ENGINES.map((e) => (
+                    <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>

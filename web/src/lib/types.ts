@@ -132,6 +132,10 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
+// Canonical list of supported AI engine identifiers, mirrors ai.AllEngines in Go.
+export const ENGINES = ["claude", "codex", "pi"] as const
+export type Engine = (typeof ENGINES)[number]
+
 export interface EnvConfig {
   id: string
   scope: EnvScope

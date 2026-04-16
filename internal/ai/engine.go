@@ -46,6 +46,9 @@ const (
 	EnginePi     = "pi"
 )
 
+// AllEngines is the canonical list of supported engine names.
+var AllEngines = []string{EngineClaude, EngineCodex, EnginePi}
+
 // Output is a single lifecycle event.
 type Output struct {
 	Type    OutputType `json:"type"`
