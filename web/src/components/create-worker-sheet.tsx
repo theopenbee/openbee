@@ -15,6 +15,13 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { getErrorMessage } from "@/lib/utils"
@@ -26,6 +33,7 @@ export interface WorkerInitialValues {
   memory: string
   work_dir: string
   permission_scopes: string
+  engine: string
   departmentIds: string[]
 }
 
@@ -36,6 +44,7 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     memory: worker.memory,
     work_dir: worker.work_dir,
     permission_scopes: worker.permission_scopes ?? "",
+    engine: worker.engine ?? "claude",
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
   }
 }
@@ -66,6 +75,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [memory, setMemory] = useState("")
   const [workDir, setWorkDir] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
+  const [engine, setEngine] = useState("claude")
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [submitError, setSubmitError] = useState("")
 
@@ -76,6 +86,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setDescription(iv?.description ?? "")
       setMemory(iv?.memory ?? "")
       setWorkDir(iv?.work_dir ?? "")
+      setEngine(iv?.engine ?? "claude")
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
@@ -88,6 +99,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
     try {
       const worker = await createWorker.mutateAsync({
         name: name.trim(),
+        engine,
         description,
         memory: memory || undefined,
         work_dir: workDir || undefined,
@@ -159,6 +171,23 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
 
           <div className="space-y-4">
             <SectionHeading text={t("workers.form.sectionConfig")} />
+            <div className="space-y-1.5">
+              <Label htmlFor="cws-engine">
+                {t("workers.form.engine")}
+                <span className="ml-1 text-destructive" aria-hidden>*</span>
+              </Label>
+              <Select value={engine} onValueChange={setEngine}>
+                <SelectTrigger id="cws-engine">
+                  <SelectValue placeholder={t("workers.form.engineDefault")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="claude">{t("workers.engines.claude")}</SelectItem>
+                  <SelectItem value="codex">{t("workers.engines.codex")}</SelectItem>
+                  <SelectItem value="pi">{t("workers.engines.pi")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="cws-workdir">{t("workers.form.workDir")}</Label>
               <Input
@@ -250,7 +279,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <Button
             type="submit"
             form="create-worker-form"
-            disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
+            disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim() || !engine}
             className="flex-1"
           >
             {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
