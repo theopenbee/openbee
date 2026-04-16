@@ -3,6 +3,7 @@ package bee
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -62,36 +63,45 @@ func NewCommandInterceptor(
 	}
 }
 
+func isStopCommand(content string) bool {
+	return strings.EqualFold(strings.TrimSpace(content), cmdStop)
+}
+
 // Intercept returns true if the message was handled and Feeder should skip normal dispatch.
 func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) (bool, error) {
 	if len(msgs) == 0 {
 		return false, nil
 	}
 	primary := msgs[len(msgs)-1]
-	if !strings.EqualFold(strings.TrimSpace(primary.Content), cmdStop) {
+	if !isStopCommand(primary.Content) {
 		return false, nil
 	}
-	return true, c.handleStop(ctx, sessionKey, primary)
+	c.handleStop(ctx, sessionKey, primary)
+	return true, nil
 }
 
 // InterceptInbound implements msgingest.InboundInterceptor.
 // Returns true and fires handleStop asynchronously when msg is a /stop command.
 func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.InboundMessage) bool {
-	if !strings.EqualFold(strings.TrimSpace(msg.Content), cmdStop) {
+	if !isStopCommand(msg.Content) {
 		return false
 	}
-	go c.handleStop(context.Background(), msg.SessionKey, store.ClaimedMessage{
-		SessionKey: msg.SessionKey,
-		Platform:   msg.Platform,
-		Content:    msg.Content,
-	})
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		c.handleStop(ctx, msg.SessionKey, store.ClaimedMessage{
+			SessionKey: msg.SessionKey,
+			Platform:   msg.Platform,
+			Content:    msg.Content,
+		})
+	}()
 	return true
 }
 
 // handleStop performs the stop sequence: stop bee executions, cancel worker tasks,
-// clear dispatcher queues, and reply to the user. Sub-step errors are logged as
-// warnings and do not abort the sequence; the function always returns nil.
-func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, msg store.ClaimedMessage) error {
+// clear dispatcher queues, and reply to the user. Sub-step errors are logged and
+// do not abort the sequence.
+func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, msg store.ClaimedMessage) {
 	stopped := false
 
 	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, c.engine)
@@ -133,7 +143,6 @@ func (c *CommandInterceptor) handleStop(ctx context.Context, sessionKey string, 
 		replyContent = m.NothingRan
 	}
 	c.sendReply(ctx, msg, replyContent)
-	return nil
 }
 
 func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMessage, content string) {

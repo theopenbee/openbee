@@ -65,20 +65,35 @@ func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, con
 	return n == 1, nil
 }
 
+type execContexter interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// execStatusBatch updates the status of the given message IDs via db (which may be a *sql.Tx).
+// Returns the number of rows affected.
+func execStatusBatch(ctx context.Context, db execContexter, ids []string, status string) (int64, error) {
+	args := make([]any, 0, 2+len(ids))
+	args = append(args, status, time.Now().UnixMilli())
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	res, err := db.ExecContext(ctx,
+		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
+		args...,
+	)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // UpdateStatusBatch sets the same status on all provided message IDs.
 func (s *MessageStore) UpdateStatusBatch(ctx context.Context, ids []string, status string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	args := make([]any, 0, len(ids)+2)
-	args = append(args, status, time.Now().UnixMilli())
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
-		args...,
-	)
+	_, err := execStatusBatch(ctx, s.db, ids, status)
 	return err
 }
 
@@ -218,18 +233,10 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 		return 0, tx.Commit()
 	}
 
-	args := make([]any, 0, 2+len(ids))
-	args = append(args, MsgStatusCancelled, now)
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	res, err := tx.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`,
-		args...)
+	n, err := execStatusBatch(ctx, tx, ids, MsgStatusCancelled)
 	if err != nil {
 		return 0, fmt.Errorf("cancel received: %w", err)
 	}
-	n, _ := res.RowsAffected()
 
 	mergedArgs := make([]any, 0, 3+len(ids))
 	mergedArgs = append(mergedArgs, MsgStatusCancelled, now, MsgStatusMerged)
