@@ -17,7 +17,7 @@ Both scenarios share the same root cause: `/stop` should not enter the normal me
 
 Intercept `/stop` in `msgingest.Gateway.Dispatch()` **before** the message enters the debounce/DB queue. Execute stop logic immediately, then discard the message from the normal flow.
 
-The Feeder-level `CommandInterceptor` is **kept as a fallback** for messages written directly to the DB (e.g. via API, bypassing the Gateway).
+The Feeder-level `CommandInterceptor` is **removed** — all `/stop` handling is now done at the ingest layer.
 
 ## Architecture
 
@@ -101,16 +101,18 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 
 ### 3. `internal/app/app.go`
 
-After building `ci`, wire it into both Gateway instances:
+After building `ci`, wire it into both Gateway instances. Remove the Feeder-level wiring:
 
 ```go
 ci := bee.NewCommandInterceptor(...)
-feeder.SetCommandInterceptor(ci)      // kept as fallback
+// feeder.SetCommandInterceptor(ci) — removed, Feeder no longer handles commands
 ingest.SetInboundInterceptor(ci)      // main gateway (all external platforms)
 localIngest.SetInboundInterceptor(ci) // local platform gateway
 ```
 
 Build order is unchanged — `ci` is already constructed after both gateways.
+
+Also remove: `feeder.SetCommandInterceptor()` method, `commandInterceptor` field on `Feeder`, and the `Intercept()` call inside `processBeeGroup()`.
 
 ## Files Modified
 
@@ -118,12 +120,13 @@ Build order is unchanged — `ci` is already constructed after both gateways.
 |------|--------|
 | `internal/domain/msgingest/gateway.go` | Add `InboundInterceptor` interface, `interceptor` field, `SetInboundInterceptor()`, intercept check in `Dispatch()` |
 | `internal/domain/bee/command_interceptor.go` | Add `InterceptInbound()` method |
-| `internal/app/app.go` | Wire `ci` into `ingest` and `localIngest` via setter |
+| `internal/domain/bee/feeder.go` | Remove `commandInterceptor` field, `SetCommandInterceptor()`, and the `Intercept()` call in `processBeeGroup()` |
+| `internal/app/app.go` | Remove `feeder.SetCommandInterceptor(ci)`; add `ingest.SetInboundInterceptor(ci)` and `localIngest.SetInboundInterceptor(ci)` |
 
 ## Design Decisions
 
 - **Async stop execution**: `handleStop` runs in a goroutine so `Dispatch()` is not blocked. Stop is inherently fire-and-forget.
 - **Persist to DB**: `/stop` is saved with status `bee_processed` immediately, so it appears in chat history.
-- **Feeder fallback retained**: Feeder-level `CommandInterceptor` is not removed. It handles edge cases where a `/stop` message reaches the DB queue directly (e.g. via internal API).
+- **Feeder-level interception removed**: `commandInterceptor` field, `SetCommandInterceptor()`, and the intercept call in `processBeeGroup()` are deleted from `Feeder`. All command handling lives at the ingest layer.
 - **Duck typing**: `CommandInterceptor` satisfies `msgingest.InboundInterceptor` without importing `msgingest`, avoiding import cycles.
 - **Two Gateway instances**: Both `ingest` and `localIngest` must be wired — they serve different receivers (external platforms vs local chat UI).
