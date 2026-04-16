@@ -26,6 +26,8 @@ type messageCanceller interface {
 	CancelReceivedBySessionKey(ctx context.Context, sessionKey string) (int64, error)
 }
 
+const cmdStop = "/stop"
+
 // CommandInterceptor intercepts system slash commands before Feeder dispatches to Bee.
 type CommandInterceptor struct {
 	sessionStore *store.SessionStore
@@ -66,7 +68,7 @@ func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, m
 		return false, nil
 	}
 	primary := msgs[len(msgs)-1]
-	if !strings.EqualFold(strings.TrimSpace(primary.Content), "/stop") {
+	if !strings.EqualFold(strings.TrimSpace(primary.Content), cmdStop) {
 		return false, nil
 	}
 	return true, c.handleStop(ctx, sessionKey, primary)

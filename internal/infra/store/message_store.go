@@ -195,7 +195,6 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 
 	now := time.Now().UnixMilli()
 
-	// Step 1: cancel all 'received' rows for the session; collect their IDs.
 	rows, err := tx.QueryContext(ctx,
 		`SELECT id FROM bee_platform_messages WHERE session_key = ? AND status = ?`,
 		sessionKey, MsgStatusReceived)
@@ -232,7 +231,6 @@ func (s *MessageStore) CancelReceivedBySessionKey(ctx context.Context, sessionKe
 	}
 	n, _ := res.RowsAffected()
 
-	// Step 2: cancel associated 'merged' sub-messages.
 	mergedArgs := make([]any, 0, 3+len(ids))
 	mergedArgs = append(mergedArgs, MsgStatusCancelled, now, MsgStatusMerged)
 	for _, id := range ids {
