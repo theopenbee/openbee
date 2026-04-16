@@ -74,6 +74,20 @@ func (c *CommandInterceptor) Intercept(ctx context.Context, sessionKey string, m
 	return true, c.handleStop(ctx, sessionKey, primary)
 }
 
+// InterceptInbound implements msgingest.InboundInterceptor.
+// Returns true and fires handleStop asynchronously when msg is a /stop command.
+func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.InboundMessage) bool {
+	if !strings.EqualFold(strings.TrimSpace(msg.Content), cmdStop) {
+		return false
+	}
+	go c.handleStop(context.Background(), msg.SessionKey, store.ClaimedMessage{
+		SessionKey: msg.SessionKey,
+		Platform:   msg.Platform,
+		Content:    msg.Content,
+	})
+	return true
+}
+
 // handleStop performs the stop sequence: stop bee executions, cancel worker tasks,
 // clear dispatcher queues, and reply to the user. Sub-step errors are logged as
 // warnings and do not abort the sequence; the function always returns nil.

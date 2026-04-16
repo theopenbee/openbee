@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -61,14 +62,23 @@ func (m *mockMsgCanceller) CancelReceivedBySessionKey(_ context.Context, session
 }
 
 type mockSender struct {
-	mu   sync.Mutex
-	sent []platform.OutboundMessage
+	mu     sync.Mutex
+	sent   []platform.OutboundMessage
+	notify chan struct{}
+}
+
+func newMockSender() *mockSender {
+	return &mockSender{notify: make(chan struct{}, 10)}
 }
 
 func (m *mockSender) Send(_ context.Context, msg platform.OutboundMessage) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.sent = append(m.sent, msg)
+	m.mu.Unlock()
+	select {
+	case m.notify <- struct{}{}:
+	default:
+	}
 	return nil
 }
 
@@ -96,7 +106,7 @@ func setupCommandInterceptorTest(t *testing.T) (
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
 	canceller := &mockMsgCanceller{}
-	sender := &mockSender{}
+	sender := newMockSender()
 	senders := map[string]platform.PlatformSenderAdapter{"local": sender}
 
 	ci := bee.NewCommandInterceptor(ss, es, ts, stopper, clearer, canceller, senders, "claude-code")
@@ -266,5 +276,67 @@ func TestCommandInterceptor_Stop_CancelsReceivedMessages(t *testing.T) {
 	// 3 pending messages cancelled → should report "stopped"
 	if sender.sent[0].Content != "已停止当前会话的所有任务" {
 		t.Errorf("unexpected reply: %q", sender.sent[0].Content)
+	}
+}
+
+func TestCommandInterceptor_InterceptInbound_Stop_ReturnsTrue(t *testing.T) {
+	_, _, _, _, clearer, _, sender, ci := setupCommandInterceptorTest(t)
+
+	msg := platform.InboundMessage{
+		Platform:   "local",
+		SessionKey: "local:1",
+		Content:    "/stop",
+	}
+	handled := ci.InterceptInbound(context.Background(), msg)
+	if !handled {
+		t.Error("expected InterceptInbound to return true for /stop")
+	}
+
+	select {
+	case <-sender.notify:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for handleStop goroutine")
+	}
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) == 0 || clearer.cleared[0] != "local:1" {
+		t.Errorf("expected ClearSession called with 'local:1', got %v", clearer.cleared)
+	}
+	if len(sender.sent) == 0 {
+		t.Fatal("expected reply sent")
+	}
+}
+
+func TestCommandInterceptor_InterceptInbound_NonStop_ReturnsFalse(t *testing.T) {
+	_, _, _, _, _, _, _, ci := setupCommandInterceptorTest(t)
+
+	msg := platform.InboundMessage{
+		Platform:   "local",
+		SessionKey: "local:1",
+		Content:    "hello world",
+	}
+	if ci.InterceptInbound(context.Background(), msg) {
+		t.Error("expected InterceptInbound to return false for non-stop message")
+	}
+}
+
+func TestCommandInterceptor_InterceptInbound_CaseInsensitive(t *testing.T) {
+	_, _, _, _, _, _, sender, ci := setupCommandInterceptorTest(t)
+
+	for _, content := range []string{"/STOP", "/Stop", "  /stop  "} {
+		msg := platform.InboundMessage{
+			Platform:   "local",
+			SessionKey: "local:1",
+			Content:    content,
+		}
+		if !ci.InterceptInbound(context.Background(), msg) {
+			t.Errorf("expected handled=true for %q", content)
+		}
+		select {
+		case <-sender.notify:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timeout waiting for handleStop goroutine for %q", content)
+		}
 	}
 }
