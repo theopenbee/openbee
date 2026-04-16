@@ -69,7 +69,16 @@ func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
 		log.Warn("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
-	return m.engines[m.defaultEngine]
+	if e, ok := m.engines[m.defaultEngine]; ok {
+		return e
+	}
+	log.Error("default engine not found in engines map",
+		zap.String("defaultEngine", m.defaultEngine))
+	// Return a no-op fallback: iterate and return first available engine
+	for _, e := range m.engines {
+		return e
+	}
+	panic("worker manager has no engines configured")
 }
 
 // CreateWorkerParams holds the inputs for creating a new worker.
@@ -189,15 +198,16 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 
 func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
 	defer cancel()
+	engine := m.resolveEngine(worker)
 
 	for out := range outputCh {
 		switch out.Type {
 		case ai.OutputDone:
-			result := m.resolveEngine(worker).ExtractResult(logPath)
+			result := engine.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case ai.OutputError:
-			result := m.resolveEngine(worker).ExtractResult(logPath)
+			result := engine.ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}
