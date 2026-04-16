@@ -272,7 +272,14 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	instruction := buildInstruction(task)
 	exec, err := d.resolveExecution(taskCtx, task, instruction)
 	if err != nil {
-		log.Error("execute error", zap.Error(err))
+		log.Error("execute error",
+			zap.String("workerID", task.WorkerID),
+			zap.String("taskID", task.TaskID),
+			zap.String("messageID", task.MessageID),
+			zap.String("taskType", task.TaskType),
+			zap.String("sessionKey", task.SessionKey),
+			zap.Error(err),
+		)
 		if task.TaskID != "" {
 			if failErr := d.taskStore.FailTask(taskCtx, task.TaskID); failErr != nil {
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
@@ -310,6 +317,7 @@ func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
 	}
 	w, err := d.workerLookup.GetByID(workerID)
 	if err != nil {
+		log.Warn("worker not found for persona hint", zap.String("workerID", workerID), zap.Error(err))
 		return "", fmt.Errorf("lookup worker for persona hint: %w", err)
 	}
 	persona := ai.WorkerPersona(w.Name, w.Description, w.Memory)
