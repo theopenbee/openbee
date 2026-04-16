@@ -598,7 +598,7 @@ export function WorkerDetail() {
                 <span className="text-sm">{dept.name}</span>
               </label>
             ))}
-            {departments.length === 0 && (
+            {flatDepts.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 {t("departments.empty")}
               </p>
