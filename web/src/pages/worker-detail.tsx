@@ -160,11 +160,6 @@ export function WorkerDetail() {
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
     [worker?.departments]
   )
-  const copyInitialValues = useMemo(
-    () => (worker ? workerToInitialValues(worker) : undefined),
-    [worker],
-  )
-
   if (!worker) return <SkeletonPage />
 
   return (
@@ -185,7 +180,7 @@ export function WorkerDetail() {
         <CreateWorkerSheet
           open={copySheetOpen}
           onOpenChange={setCopySheetOpen}
-          initialValues={copyInitialValues}
+          initialValues={workerToInitialValues(worker)}
         />
 
         {workerError ? (

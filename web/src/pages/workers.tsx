@@ -40,6 +40,7 @@ import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-wo
 import type { Worker } from "@/lib/types"
 
 type DeleteStep = 1 | 2
+type SheetState = { mode: "create" } | { mode: "copy"; worker: Worker } | null
 
 export function Workers() {
   const { t } = useTranslation()
@@ -52,10 +53,10 @@ export function Workers() {
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const deleteWorker = useDeleteWorker()
-  const [sheetMode, setSheetMode] = useState<"create" | Worker | null>(null)
+  const [sheetState, setSheetState] = useState<SheetState>(null)
   const copyInitialValues = useMemo(
-    () => (sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined),
-    [sheetMode],
+    () => (sheetState?.mode === "copy" ? workerToInitialValues(sheetState.worker) : undefined),
+    [sheetState],
   )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
@@ -113,12 +114,12 @@ export function Workers() {
         }
         actions={
           <>
-            <Button onClick={() => setSheetMode("create")}>
+            <Button onClick={() => setSheetState({ mode: "create" })}>
               {t("workers.createWorker")}
             </Button>
             <CreateWorkerSheet
-              open={sheetMode !== null}
-              onOpenChange={(isOpen) => { if (!isOpen) setSheetMode(null) }}
+              open={sheetState !== null}
+              onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
               initialValues={copyInitialValues}
             />
           </>
@@ -140,7 +141,7 @@ export function Workers() {
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
             selectedDeptId === null ? (
-              <Button onClick={() => setSheetMode("create")}>{t("workers.createWorker")}</Button>
+              <Button onClick={() => setSheetState({ mode: "create" })}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
         />
@@ -196,7 +197,7 @@ export function Workers() {
                           {t("common.view")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setSheetMode(w)}>
+                        <DropdownMenuItem onClick={() => setSheetState({ mode: "copy", worker: w })}>
                           <Copy className="size-4" />
                           {t("common.copy")}
                         </DropdownMenuItem>
