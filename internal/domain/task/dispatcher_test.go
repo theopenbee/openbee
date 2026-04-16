@@ -24,9 +24,9 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
 	m.mu.Lock()
-	if sessionID != "" {
+	if resume {
 		m.resumedWithSessionID = sessionID
 	}
 	m.executedInstructions = append(m.executedInstructions, instruction)
@@ -188,6 +188,41 @@ func (m *mockWorkerLookup) GetByID(_ string) (model.Worker, error) {
 	return m.worker, m.err
 }
 
+// orderedMockManager records whether UpsertSessionContext was called before ExecuteWorker.
+type orderedMockManager struct {
+	mu             sync.Mutex
+	callOrder      []string // "upsert" or "execute"
+	executed       atomic.Int64
+	execResult     model.WorkerExecution
+	receivedResume bool
+	receivedSessID string
+}
+
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+	m.mu.Lock()
+	m.callOrder = append(m.callOrder, "execute")
+	m.receivedResume = resume
+	m.receivedSessID = sessionID
+	m.mu.Unlock()
+	m.executed.Add(1)
+	return m.execResult, nil
+}
+
+func (m *orderedMockManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+// orderedMockSessionStore wraps mockSessionStore and records upsert calls.
+type orderedMockSessionStore struct {
+	*mockSessionStore
+	outer *orderedMockManager
+}
+
+func (s *orderedMockSessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error {
+	s.outer.mu.Lock()
+	s.outer.callOrder = append(s.outer.callOrder, "upsert")
+	s.outer.mu.Unlock()
+	return s.mockSessionStore.UpsertSessionContext(ctx, sessionKey, agentID, sessionID, engine)
+}
+
 func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
@@ -207,19 +242,25 @@ func immediateTask(sessionKey, workerID, instruction string) task.DispatchTask {
 	}
 }
 
-// waitForExecCount waits until mgr.executedInstructions reaches n or timeout.
-func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
+// waitFor polls until count() >= n or timeout elapses.
+func waitFor(count func() int, n int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		mgr.mu.Lock()
-		count := len(mgr.executedInstructions)
-		mgr.mu.Unlock()
-		if count >= n {
+		if count() >= n {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+// waitForExecCount waits until mgr.executedInstructions reaches n or timeout.
+func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
+	return waitFor(func() int {
+		mgr.mu.Lock()
+		defer mgr.mu.Unlock()
+		return len(mgr.executedInstructions)
+	}, n, timeout)
 }
 
 // --- Tests ---
@@ -625,7 +666,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -638,7 +679,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -650,8 +691,8 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, sessionID string) (model.WorkerExecution, error) {
-	if sessionID != "" {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool) (model.WorkerExecution, error) {
+	if resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
 	atomic.AddInt64(&m.freshCount, 1)
@@ -779,7 +820,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }
@@ -1234,5 +1275,86 @@ func TestTaskDispatcher_NewSession_LookupError_FailsTask(t *testing.T) {
 	mgr.mu.Unlock()
 	if execCount != 0 {
 		t.Errorf("ExecuteWorker should not be called on lookup error, got %d calls", execCount)
+	}
+}
+
+func TestTaskDispatcher_FreshSession_PreflightUpsertBeforeExecute(t *testing.T) {
+	mgr := &orderedMockManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "new-session"},
+	}
+	baseSS := newMockSessionStore()
+	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "first message")
+
+	if !waitFor(func() int { return int(mgr.executed.Load()) }, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	order := append([]string{}, mgr.callOrder...)
+	resume := mgr.receivedResume
+	sessID := mgr.receivedSessID
+	mgr.mu.Unlock()
+
+	if len(order) < 2 {
+		t.Fatalf("expected at least 2 calls (upsert + execute), got %v", order)
+	}
+	if order[0] != "upsert" || order[1] != "execute" {
+		t.Errorf("expected upsert before execute, got order %v", order)
+	}
+	if resume {
+		t.Error("expected resume=false for fresh session")
+	}
+	if sessID == "" {
+		t.Error("expected non-empty sessionID passed to ExecuteWorker")
+	}
+}
+
+func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T) {
+	mgr := &orderedMockManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
+	}
+	baseSS := newMockSessionStore()
+	_ = baseSS.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "claude")
+	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+
+	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("claude"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("s1", "w1", "follow-up")
+
+	if !waitFor(func() int { return int(mgr.executed.Load()) }, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	mgr.mu.Lock()
+	order := append([]string{}, mgr.callOrder...)
+	resume := mgr.receivedResume
+	sessID := mgr.receivedSessID
+	mgr.mu.Unlock()
+
+	if len(order) < 2 {
+		t.Fatalf("expected at least 2 calls (upsert + execute), got %v", order)
+	}
+	if order[0] != "upsert" || order[1] != "execute" {
+		t.Errorf("expected upsert before execute, got order %v", order)
+	}
+	if !resume {
+		t.Error("expected resume=true for existing session")
+	}
+	if sessID != "prior-session-id" {
+		t.Errorf("expected prior-session-id, got %q", sessID)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -27,7 +28,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -330,8 +331,10 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 	if err != nil {
 		return model.WorkerExecution{}, err
 	}
+	sessionID := uuid.New().String()
+	d.upsertSessionContext(ctx, task, sessionID)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, "")
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
@@ -346,7 +349,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return d.executeWithHint(ctx, task, instruction)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID)
+	d.upsertSessionContext(ctx, task, sessionID)
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
 	if err == nil {
 		return exec, nil
 	}
@@ -382,20 +386,12 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				}
 			}
 			// Persist session_id for future resume (only on success).
-			if task.SessionKey != "" && task.WorkerID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
-					log.Error("upsert session context", zap.Error(err))
-				}
-			}
+			d.upsertSessionContext(ctx, task, exec.SessionID)
 			return
 		case model.ExecStatusFailed:
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
-			if task.SessionKey != "" && task.WorkerID != "" && exec.SessionID != "" {
-				if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, exec.SessionID, d.engineName); err != nil {
-					log.Error("upsert session context on failure", zap.Error(err))
-				}
-			}
+			d.upsertSessionContext(ctx, task, exec.SessionID)
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
@@ -415,6 +411,15 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			return
 		}
+	}
+}
+
+func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID string) {
+	if task.SessionKey == "" || task.WorkerID == "" || sessionID == "" {
+		return
+	}
+	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
+		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
 	}
 }
 

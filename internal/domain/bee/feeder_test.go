@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -640,6 +641,41 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 
 	if len(runner.getCalls()) == 0 {
 		t.Error("expected bee runner to be called when worker not found")
+	}
+}
+
+func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+
+	var upsertCalledBeforeRun atomic.Bool
+	done := make(chan struct{})
+
+	// Verify the session context row exists in DB when runner.Run() is called.
+	runner := &callbackBeeRunner{
+		fn: func() {
+			ctx := context.Background()
+			sid, _, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
+			if err == nil && sid != "" {
+				upsertCalledBeforeRun.Store(true)
+			}
+		},
+		done: done,
+	}
+
+	f := newFeeder(ms, ts, ss, es, runner)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for runner.Run() to be called")
+	}
+
+	if !upsertCalledBeforeRun.Load() {
+		t.Error("expected session context to be written before runner.Run() is called")
 	}
 }
 
