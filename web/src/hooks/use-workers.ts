@@ -21,6 +21,7 @@ export function useCreateWorker() {
   return useMutation({
     mutationFn: (data: {
       name: string
+      engine: string
       description: string
       memory?: string
       work_dir?: string
