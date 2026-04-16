@@ -84,9 +84,9 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 	}
 	go func() {
 		defer c.inFlight.Delete(msg.SessionKey)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		c.handleStop(ctx, store.ClaimedMessage{
+		c.handleStop(stopCtx, store.ClaimedMessage{
 			SessionKey: msg.SessionKey,
 			Platform:   msg.Platform,
 			Content:    msg.Content,

@@ -172,10 +172,10 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			MergedInto:    "",
 		}
 		if i < n-1 {
-			bm.Status = "merged"
+			bm.Status = store.MsgStatusMerged
 			bm.MergedInto = primaryID
 		} else {
-			bm.Status = "received"
+			bm.Status = store.MsgStatusReceived
 		}
 		batch[i] = bm
 	}

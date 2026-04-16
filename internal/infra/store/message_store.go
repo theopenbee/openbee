@@ -176,13 +176,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
-	args := make([]any, 0, len(ids)+2)
-	args = append(args, MsgStatusFeeding, time.Now().UnixMilli())
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE bee_platform_messages SET status = ?, updated_at = ? WHERE id IN (`+inPlaceholders(len(ids))+`)`, args...); err != nil {
+	if _, err := execStatusBatch(ctx, tx, ids, MsgStatusFeeding); err != nil {
 		return nil, fmt.Errorf("update feeding: %w", err)
 	}
 	return msgs, tx.Commit()
