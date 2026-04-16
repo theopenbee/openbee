@@ -133,12 +133,13 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := m.resolveEngine(worker).Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	engine := m.resolveEngine(worker)
+	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(exec, worker, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -149,7 +150,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 
 // launchRuntime applies timeout, prepares the log path, starts the invoker,
 // registers the process, updates PID, and launches monitoring.
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -174,7 +175,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
-	proc, outputCh, err := m.resolveEngine(worker).Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
+	proc, outputCh, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
@@ -190,13 +191,12 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, proc.PID())
-	go m.monitorExecution(exec, worker, outputCh, cancel, logPath)
+	go m.monitorExecution(exec, worker, engine, outputCh, cancel, logPath)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
 	defer cancel()
-	engine := m.resolveEngine(worker)
 
 	for out := range outputCh {
 		switch out.Type {
