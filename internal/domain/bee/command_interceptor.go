@@ -78,8 +78,10 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 	if !isStopCommand(msg.Content) {
 		return false
 	}
+	ciLog.Debug("stop command received", zap.String("sessionKey", msg.SessionKey), zap.String("platform", msg.Platform))
 	// Drop duplicate /stop if one is already in flight for this session.
 	if _, loaded := c.inFlight.LoadOrStore(msg.SessionKey, struct{}{}); loaded {
+		ciLog.Debug("stop command already in flight, dropping duplicate", zap.String("sessionKey", msg.SessionKey))
 		return true
 	}
 	go func() {
@@ -98,47 +100,71 @@ func (c *CommandInterceptor) InterceptInbound(ctx context.Context, msg platform.
 // handleStop stops all active work for the session and replies to the user.
 // Sub-step errors are logged and do not abort the sequence.
 func (c *CommandInterceptor) handleStop(ctx context.Context, msg store.ClaimedMessage) {
+	ciLog.Debug("stop command: handleStop started", zap.String("sessionKey", msg.SessionKey), zap.String("engine", c.engine))
 	stopped := false
 
+	// Step 1: stop active Bee executions.
 	sessionID, err := c.sessionStore.GetSessionContextForEngine(ctx, msg.SessionKey, store.BeeAgentID, c.engine)
 	if err != nil {
 		ciLog.Warn("stop command: get session context", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
-	} else if sessionID != "" {
+	} else if sessionID == "" {
+		ciLog.Debug("stop command: no session context found, skipping execution stop", zap.String("sessionKey", msg.SessionKey))
+	} else {
+		ciLog.Debug("stop command: found session context", zap.String("sessionKey", msg.SessionKey), zap.String("sessionID", sessionID))
 		execIDs, listErr := c.execStore.ListActiveIDsBySessionID(sessionID)
 		if listErr != nil {
 			ciLog.Warn("stop command: list executions", zap.String("sessionID", sessionID), zap.Error(listErr))
+		} else {
+			ciLog.Debug("stop command: active executions found", zap.String("sessionID", sessionID), zap.Int("count", len(execIDs)), zap.Strings("execIDs", execIDs))
 		}
 		for _, id := range execIDs {
 			if stopErr := c.execStopper.StopExecution(id); stopErr != nil {
 				ciLog.Warn("stop command: stop execution", zap.String("execID", id), zap.Error(stopErr))
 			} else {
+				ciLog.Debug("stop command: execution stopped", zap.String("execID", id))
 				stopped = true
 			}
 		}
 	}
 
+	// Step 2: cancel pending/running worker tasks.
+	ciLog.Debug("stop command: cancelling worker tasks", zap.String("sessionKey", msg.SessionKey))
 	n, err := c.taskStore.CancelBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
 		ciLog.Warn("stop command: cancel tasks", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
-	} else if n > 0 {
-		stopped = true
+	} else {
+		ciLog.Debug("stop command: worker tasks cancelled", zap.String("sessionKey", msg.SessionKey), zap.Int64("count", n))
+		if n > 0 {
+			stopped = true
+		}
 	}
 
+	// Step 3: cancel unprocessed platform messages (received/merged).
+	ciLog.Debug("stop command: cancelling platform messages", zap.String("sessionKey", msg.SessionKey))
 	n, err = c.msgCanceller.CancelReceivedBySessionKey(ctx, msg.SessionKey)
 	if err != nil {
 		ciLog.Warn("stop command: cancel platform messages", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
-	} else if n > 0 {
-		stopped = true
+	} else {
+		ciLog.Debug("stop command: platform messages cancelled", zap.String("sessionKey", msg.SessionKey), zap.Int64("count", n))
+		if n > 0 {
+			stopped = true
+		}
 	}
 
+	// Step 4: clear dispatcher in-memory queues and session contexts.
+	ciLog.Debug("stop command: clearing dispatcher session", zap.String("sessionKey", msg.SessionKey))
 	c.dispatcher.ClearSession(msg.SessionKey)
+	ciLog.Debug("stop command: dispatcher session cleared", zap.String("sessionKey", msg.SessionKey))
 
+	// Step 5: reply to user.
 	m := i18n.M.Runtime.CommandInterceptor
 	replyContent := m.Stopped
 	if !stopped {
 		replyContent = m.NothingRan
 	}
+	ciLog.Debug("stop command: sending reply", zap.String("sessionKey", msg.SessionKey), zap.Bool("stopped", stopped))
 	c.sendReply(ctx, msg, replyContent)
+	ciLog.Debug("stop command: handleStop complete", zap.String("sessionKey", msg.SessionKey), zap.Bool("stopped", stopped))
 }
 
 func (c *CommandInterceptor) sendReply(ctx context.Context, msg store.ClaimedMessage, content string) {
