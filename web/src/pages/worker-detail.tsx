@@ -24,6 +24,7 @@ import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
+import { CreateWorkerSheet } from "@/components/create-worker-sheet"
 import {
   Table,
   TableBody,
@@ -153,6 +154,7 @@ export function WorkerDetail() {
   const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
   const setWorkerDepts = useSetWorkerDepartments()
   const [deptDialogOpen, setDeptDialogOpen] = useState(false)
+  const [copySheetOpen, setCopySheetOpen] = useState(false)
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
   const workerDeptIds = useMemo(
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
@@ -166,7 +168,27 @@ export function WorkerDetail() {
       <div className="space-y-6">
         <PageHeader
           title={worker.name}
-          actions={<StatusBadge status={worker.status} />}
+          actions={
+            <>
+              <Button variant="outline" size="sm" onClick={() => setCopySheetOpen(true)}>
+                <Copy className="size-4" />
+                {t("common.copy")}
+              </Button>
+              <StatusBadge status={worker.status} />
+            </>
+          }
+        />
+        <CreateWorkerSheet
+          open={copySheetOpen}
+          onOpenChange={setCopySheetOpen}
+          initialValues={{
+            name: worker.name,
+            description: worker.description,
+            memory: worker.memory,
+            work_dir: worker.work_dir,
+            permission_scopes: worker.permission_scopes ?? "",
+            departmentIds: worker.departments?.map((d) => d.id) ?? [],
+          }}
         />
 
         {workerError ? (
