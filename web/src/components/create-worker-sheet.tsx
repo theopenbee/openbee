@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type FormEvent } from "react"
+import { useState, useMemo, useEffect, useRef, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
@@ -19,6 +19,7 @@ import {
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { getErrorMessage } from "@/lib/utils"
+import type { Worker } from "@/lib/types"
 
 export interface WorkerInitialValues {
   name: string
@@ -27,6 +28,17 @@ export interface WorkerInitialValues {
   work_dir: string
   permission_scopes: string
   departmentIds: string[]
+}
+
+export function workerToInitialValues(worker: Worker): WorkerInitialValues {
+  return {
+    name: worker.name,
+    description: worker.description,
+    memory: worker.memory,
+    work_dir: worker.work_dir,
+    permission_scopes: worker.permission_scopes ?? "",
+    departmentIds: worker.departments?.map((d) => d.id) ?? [],
+  }
 }
 
 interface CreateWorkerSheetProps {
@@ -42,6 +54,8 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const { data: departments = [] } = useDepartments()
   const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
   const isCopy = initialValues !== undefined
+  const initialValuesRef = useRef(initialValues)
+  initialValuesRef.current = initialValues
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -51,18 +65,18 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [submitError, setSubmitError] = useState("")
 
-  // Re-initialize form fields each time the sheet opens
   useEffect(() => {
     if (open) {
-      setName(initialValues ? `${initialValues.name} 副本` : "")
-      setDescription(initialValues?.description ?? "")
-      setMemory(initialValues?.memory ?? "")
-      setWorkDir(initialValues?.work_dir ?? "")
-      setSelectedScopes(initialValues ? parseScopes(initialValues.permission_scopes) : [])
-      setSelectedDeptIds(initialValues ? new Set(initialValues.departmentIds) : new Set())
+      const iv = initialValuesRef.current
+      setName(iv ? `${iv.name} 副本` : "")
+      setDescription(iv?.description ?? "")
+      setMemory(iv?.memory ?? "")
+      setWorkDir(iv?.work_dir ?? "")
+      setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
+      setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
     }
-  }, [open, initialValues])
+  }, [open])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

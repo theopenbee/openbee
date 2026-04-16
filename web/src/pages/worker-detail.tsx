@@ -24,7 +24,7 @@ import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
-import { CreateWorkerSheet } from "@/components/create-worker-sheet"
+import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
 import {
   Table,
   TableBody,
@@ -161,17 +161,7 @@ export function WorkerDetail() {
     [worker?.departments]
   )
   const copyInitialValues = useMemo(
-    () =>
-      worker
-        ? {
-            name: worker.name,
-            description: worker.description,
-            memory: worker.memory,
-            work_dir: worker.work_dir,
-            permission_scopes: worker.permission_scopes ?? "",
-            departmentIds: worker.departments?.map((d) => d.id) ?? [],
-          }
-        : undefined,
+    () => (worker ? workerToInitialValues(worker) : undefined),
     [worker],
   )
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
@@ -36,7 +36,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
-import { CreateWorkerSheet } from "@/components/create-worker-sheet"
+import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
 import type { Worker } from "@/lib/types"
 
 type DeleteStep = 1 | 2
@@ -52,28 +52,7 @@ export function Workers() {
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const deleteWorker = useDeleteWorker()
-  const [open, setOpen] = useState(false)
-  const [copySource, setCopySource] = useState<Worker | null>(null)
-  const handleSheetOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setOpen(false)
-      setCopySource(null)
-    }
-  }
-  const copyInitialValues = useMemo(
-    () =>
-      copySource
-        ? {
-            name: copySource.name,
-            description: copySource.description,
-            memory: copySource.memory,
-            work_dir: copySource.work_dir,
-            permission_scopes: copySource.permission_scopes ?? "",
-            departmentIds: copySource.departments?.map((d) => d.id) ?? [],
-          }
-        : undefined,
-    [copySource],
-  )
+  const [sheetMode, setSheetMode] = useState<"create" | Worker | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
@@ -130,13 +109,13 @@ export function Workers() {
         }
         actions={
           <>
-            <Button onClick={() => setOpen(true)}>
+            <Button onClick={() => setSheetMode("create")}>
               {t("workers.createWorker")}
             </Button>
             <CreateWorkerSheet
-              open={open || copySource !== null}
-              onOpenChange={handleSheetOpenChange}
-              initialValues={copyInitialValues}
+              open={sheetMode !== null}
+              onOpenChange={(isOpen) => { if (!isOpen) setSheetMode(null) }}
+              initialValues={sheetMode && sheetMode !== "create" ? workerToInitialValues(sheetMode) : undefined}
             />
           </>
         }
@@ -157,7 +136,7 @@ export function Workers() {
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
             selectedDeptId === null ? (
-              <Button onClick={() => setOpen(true)}>{t("workers.createWorker")}</Button>
+              <Button onClick={() => setSheetMode("create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
         />
@@ -213,7 +192,7 @@ export function Workers() {
                           {t("common.view")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setCopySource(w)}>
+                        <DropdownMenuItem onClick={() => setSheetMode(w)}>
                           <Copy className="size-4" />
                           {t("common.copy")}
                         </DropdownMenuItem>
