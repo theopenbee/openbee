@@ -243,7 +243,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
             className="flex-1"
           >
-            {t("workers.createWorker")}
+            {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
           </Button>
         </SheetFooter>
       </SheetContent>
