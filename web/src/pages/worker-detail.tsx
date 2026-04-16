@@ -33,6 +33,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const PAGE_SIZE = 20
 
@@ -142,6 +149,8 @@ export function WorkerDetail() {
   const [editDesc, setEditDesc] = useState("")
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
+  const [isEditingEngine, setIsEditingEngine] = useState(false)
+  const [editEngine, setEditEngine] = useState("")
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
@@ -259,6 +268,64 @@ export function WorkerDetail() {
                       </Button>
                     </div>
                   )}
+
+                  {/* Engine */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
+                      {isEditingEngine ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Select value={editEngine} onValueChange={setEditEngine}>
+                            <SelectTrigger className="h-8 text-sm w-48">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="claude">{t("workers.engines.claude")}</SelectItem>
+                              <SelectItem value="codex">{t("workers.engines.codex")}</SelectItem>
+                              <SelectItem value="pi">{t("workers.engines.pi")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0"
+                            disabled={!editEngine || updateWorker.isPending}
+                            onClick={async () => {
+                              await updateWorker.mutateAsync({ id: id!, data: { engine: editEngine } })
+                              setIsEditingEngine(false)
+                            }}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0"
+                            onClick={() => setIsEditingEngine(false)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-sm">
+                          {worker.engine ? t(`workers.engines.${worker.engine}`) : "—"}
+                        </p>
+                      )}
+                    </div>
+                    {!isEditingEngine && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 mt-0.5"
+                        onClick={() => {
+                          setEditEngine(worker.engine ?? "claude")
+                          setIsEditingEngine(true)
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
 
