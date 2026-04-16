@@ -133,6 +133,21 @@ func (b BeeConfig) EngineConfigRaw() map[string]any {
 	}
 }
 
+// EngineConfigRawFor returns the raw config map for the named engine.
+// Used when building all engine adapters at startup.
+func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
+	switch name {
+	case "claude":
+		return map[string]any{"path": b.Claude.Path}
+	case "codex":
+		return map[string]any{"path": b.Codex.Path}
+	case "pi":
+		return map[string]any{"path": b.Pi.Path, "env": b.Pi.Env}
+	default:
+		return nil
+	}
+}
+
 type PlatformsConfig struct {
 	Feishu   FeishuConfig   `yaml:"feishu"`
 	DingTalk DingTalkConfig `yaml:"dingtalk"`
