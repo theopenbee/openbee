@@ -119,7 +119,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
 
 	ci := bee.NewCommandInterceptor(s.sessionStore, s.execStore, s.taskStore, mgr, disp, s.msgStore, sendersByPlatform, cfg.Bee.EffectiveEngine())
-	feeder.SetCommandInterceptor(ci)
+	ingest.SetInboundInterceptor(ci)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
