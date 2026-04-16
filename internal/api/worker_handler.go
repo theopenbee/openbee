@@ -1,9 +1,7 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -12,21 +10,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
-
-var validEngines = func() map[string]bool {
-	m := make(map[string]bool, len(ai.AllEngines))
-	for _, e := range ai.AllEngines {
-		m[e] = true
-	}
-	return m
-}()
-
-func validateEngine(name string) error {
-	if !validEngines[name] {
-		return fmt.Errorf("unknown engine %q, valid values: %s", name, strings.Join(ai.AllEngines, ", "))
-	}
-	return nil
-}
 
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
@@ -59,7 +42,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := validateEngine(req.Engine); err != nil {
+	if err := ai.ValidateEngine(req.Engine); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -163,7 +146,7 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	}
 
 	if req.Engine != nil {
-		if err := validateEngine(*req.Engine); err != nil {
+		if err := ai.ValidateEngine(*req.Engine); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}

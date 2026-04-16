@@ -1,6 +1,11 @@
 package ai
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+)
 
 const (
 	// SystemRulesFile is the legacy rules file that Claude's Prepare hook cleans up.
@@ -46,8 +51,15 @@ const (
 	EnginePi     = "pi"
 )
 
-// AllEngines is the canonical list of supported engine names.
 var AllEngines = []string{EngineClaude, EngineCodex, EnginePi}
+
+// ValidateEngine returns an error if name is not a known engine.
+func ValidateEngine(name string) error {
+	if !slices.Contains(AllEngines, name) {
+		return fmt.Errorf("unknown engine %q, valid values: %s", name, strings.Join(AllEngines, ", "))
+	}
+	return nil
+}
 
 // Output is a single lifecycle event.
 type Output struct {

@@ -114,23 +114,7 @@ func (b BeeConfig) EffectiveEngine() string {
 
 // EngineConfigRaw returns the raw config map for the selected engine.
 func (b BeeConfig) EngineConfigRaw() map[string]any {
-	switch b.EffectiveEngine() {
-	case "claude":
-		return map[string]any{
-			"path": b.Claude.Path,
-		}
-	case "codex":
-		return map[string]any{
-			"path": b.Codex.Path,
-		}
-	case "pi":
-		return map[string]any{
-			"path": b.Pi.Path,
-			"env":  b.Pi.Env,
-		}
-	default:
-		return nil
-	}
+	return b.EngineConfigRawFor(b.EffectiveEngine())
 }
 
 // EngineConfigRawFor returns the raw config map for the named engine.

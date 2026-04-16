@@ -59,8 +59,7 @@ func NewManager(
 	}
 }
 
-// resolveEngine returns the EngineAdapter for the given worker.
-// If the worker has no engine set, or the engine is unknown, falls back to the default.
+// resolveEngine returns the EngineAdapter for w, falling back to the default if w.Engine is empty or unknown.
 func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {

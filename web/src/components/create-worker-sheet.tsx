@@ -26,7 +26,8 @@ import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
-import { ENGINES } from "@/lib/types"
+import { ENGINES, DEFAULT_ENGINE } from "@/lib/types"
+import type { Engine } from "@/lib/types"
 
 export interface WorkerInitialValues {
   name: string
@@ -34,7 +35,7 @@ export interface WorkerInitialValues {
   memory: string
   work_dir: string
   permission_scopes: string
-  engine: string
+  engine: Engine
   departmentIds: string[]
 }
 
@@ -45,7 +46,7 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     memory: worker.memory,
     work_dir: worker.work_dir,
     permission_scopes: worker.permission_scopes ?? "",
-    engine: worker.engine ?? "claude",
+    engine: worker.engine ?? DEFAULT_ENGINE,
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
   }
 }
@@ -76,7 +77,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [memory, setMemory] = useState("")
   const [workDir, setWorkDir] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
-  const [engine, setEngine] = useState("claude")
+  const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [submitError, setSubmitError] = useState("")
 
@@ -87,7 +88,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setDescription(iv?.description ?? "")
       setMemory(iv?.memory ?? "")
       setWorkDir(iv?.work_dir ?? "")
-      setEngine(iv?.engine ?? "claude")
+      setEngine(iv?.engine ?? DEFAULT_ENGINE)
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
@@ -177,7 +178,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                 {t("workers.form.engine")}
                 <span className="ml-1 text-destructive" aria-hidden>*</span>
               </Label>
-              <Select value={engine} onValueChange={(v) => v && setEngine(v)}>
+              <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
                 <SelectTrigger id="cws-engine">
                   <SelectValue placeholder={t("workers.form.engineDefault")} />
                 </SelectTrigger>

@@ -207,8 +207,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-// buildAllEngines constructs one EngineAdapter per supported engine type.
-// All adapters are built at startup and shared safely across concurrent workers.
+// buildAllEngines builds all supported engine adapters at startup so they are shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
 	result := make(map[string]ai.EngineAdapter, len(ai.AllEngines))
 	for _, name := range ai.AllEngines {

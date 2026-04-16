@@ -19,8 +19,8 @@ import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
-import type { DepartmentTree, EnvScope } from "@/lib/types"
-import { ENGINES } from "@/lib/types"
+import type { DepartmentTree, EnvScope, Engine } from "@/lib/types"
+import { ENGINES, DEFAULT_ENGINE } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
@@ -151,7 +151,7 @@ export function WorkerDetail() {
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
   const [isEditingEngine, setIsEditingEngine] = useState(false)
-  const [editEngine, setEditEngine] = useState("")
+  const [editEngine, setEditEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
@@ -270,13 +270,12 @@ export function WorkerDetail() {
                     </div>
                   )}
 
-                  {/* Engine */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-0.5 min-w-0">
                       <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
                       {isEditingEngine ? (
                         <div className="flex items-center gap-2 mt-1">
-                          <Select value={editEngine} onValueChange={(v) => v && setEditEngine(v)}>
+                          <Select value={editEngine} onValueChange={(v) => v && setEditEngine(v as Engine)}>
                             <SelectTrigger className="h-8 text-sm w-48">
                               <SelectValue />
                             </SelectTrigger>
@@ -319,7 +318,7 @@ export function WorkerDetail() {
                         size="icon"
                         className="h-7 w-7 shrink-0 mt-0.5"
                         onClick={() => {
-                          setEditEngine(worker.engine ?? "claude")
+                          setEditEngine(worker.engine ?? DEFAULT_ENGINE)
                           setIsEditingEngine(true)
                         }}
                       >

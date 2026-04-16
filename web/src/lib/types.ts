@@ -7,7 +7,7 @@ export interface Worker {
   description: string
   memory: string
   work_dir: string
-  engine: string
+  engine: Engine
   permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
@@ -132,9 +132,10 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
-// Canonical list of supported AI engine identifiers, mirrors ai.AllEngines in Go.
+// Mirrors ai.AllEngines in Go — keep in sync.
 export const ENGINES = ["claude", "codex", "pi"] as const
 export type Engine = (typeof ENGINES)[number]
+export const DEFAULT_ENGINE: Engine = ENGINES[0]
 
 export interface EnvConfig {
   id: string
