@@ -113,7 +113,15 @@ func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
         log.Warn("unknown engine on worker, falling back to default",
             zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
     }
-    return m.engines[m.defaultEngine]
+    if e, ok := m.engines[m.defaultEngine]; ok {
+        return e
+    }
+    log.Error("default engine not found in engines map",
+        zap.String("defaultEngine", m.defaultEngine))
+    for _, e := range m.engines {
+        return e
+    }
+    panic("worker manager has no engines configured")
 }
 ```
 
@@ -194,7 +202,7 @@ If provided, must be non-empty and pass `validateEngine`. Existing `engine` valu
 Add to locale files:
 - `workers.form.engine` — label
 - `workers.form.engineHelper` — helper text
-- Engine name labels: `workers.engine.claude`, `workers.engine.codex`, `workers.engine.pi`
+- Engine name labels: `workers.engines.claude`, `workers.engines.codex`, `workers.engines.pi`
 
 ## Backward Compatibility
 
