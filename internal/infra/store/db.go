@@ -322,6 +322,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             ON bee_env_configs(scope, scope_id);
     `,
 	},
+	{
+		version: 36,
+		name:    "add_engine_to_bee_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 type whereBuilder struct {
