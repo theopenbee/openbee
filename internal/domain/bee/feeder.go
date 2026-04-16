@@ -159,8 +159,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		sessionID = uuid.New().String()
 	}
 
-	// Pre-flight: write session context before execution so the session ID is
-	// established and visible before the process starts.
+	// Pre-flight: ensures the session ID is visible before the process starts.
 	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
 		log.Error("pre-flight upsert bee session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}

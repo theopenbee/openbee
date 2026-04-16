@@ -242,14 +242,11 @@ func immediateTask(sessionKey, workerID, instruction string) task.DispatchTask {
 	}
 }
 
-// waitForExecCount waits until mgr.executedInstructions reaches n or timeout.
-func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
+// waitFor polls until count() >= n or timeout elapses.
+func waitFor(count func() int, n int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		mgr.mu.Lock()
-		count := len(mgr.executedInstructions)
-		mgr.mu.Unlock()
-		if count >= n {
+		if count() >= n {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -257,15 +254,13 @@ func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
 	return false
 }
 
-func waitForExecCount2(mgr *orderedMockManager, n int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if int(mgr.executed.Load()) >= n {
-			return true
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return false
+// waitForExecCount waits until mgr.executedInstructions reaches n or timeout.
+func waitForExecCount(mgr *mockExecManager, n int, timeout time.Duration) bool {
+	return waitFor(func() int {
+		mgr.mu.Lock()
+		defer mgr.mu.Unlock()
+		return len(mgr.executedInstructions)
+	}, n, timeout)
 }
 
 // --- Tests ---
@@ -1299,7 +1294,7 @@ func TestTaskDispatcher_FreshSession_PreflightUpsertBeforeExecute(t *testing.T) 
 
 	in <- immediateTask("s1", "w1", "first message")
 
-	if !waitForExecCount2(mgr, 1, 2*time.Second) {
+	if !waitFor(func() int { return int(mgr.executed.Load()) }, 1, 2*time.Second) {
 		t.Fatal("ExecuteWorker was not called within timeout")
 	}
 
@@ -1340,7 +1335,7 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 
 	in <- immediateTask("s1", "w1", "follow-up")
 
-	if !waitForExecCount2(mgr, 1, 2*time.Second) {
+	if !waitFor(func() int { return int(mgr.executed.Load()) }, 1, 2*time.Second) {
 		t.Fatal("ExecuteWorker was not called within timeout")
 	}
 
