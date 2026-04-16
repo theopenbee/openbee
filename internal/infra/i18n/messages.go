@@ -280,7 +280,6 @@ type RuntimeMessages struct {
 	CommandInterceptor CommandInterceptorMessages   `yaml:"command_interceptor"`
 }
 
-// CommandInterceptorMessages holds reply text sent to users after slash command handling.
 type CommandInterceptorMessages struct {
 	Stopped    string `yaml:"stopped"`
 	NothingRan string `yaml:"nothing_ran"`

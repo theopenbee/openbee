@@ -55,8 +55,8 @@ type Feeder struct {
 	workDir            string
 	cfg                config.BeeConfig
 	failureNotifier    FailureNotifier
-	sem          chan struct{} // bounds concurrent bee processes
-	workerLookup *store.WorkerStore
+	sem                chan struct{} // bounds concurrent bee processes
+	workerLookup       *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
