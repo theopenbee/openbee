@@ -116,7 +116,7 @@ func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sess
 	s.deleted = append(s.deleted, ref)
 	return nil
 }
-func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey string) error {
+func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleared = append(s.cleared, sessionKey)

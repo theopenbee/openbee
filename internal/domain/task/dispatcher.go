@@ -57,7 +57,7 @@ type SessionStore interface {
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
-	ClearSessionContexts(ctx context.Context, sessionKey string) error
+	ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error
 }
 
 // WorkerLookup fetches worker metadata for persona injection on new sessions.
@@ -189,7 +189,7 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	// Clear DB synchronously so feeder can detect the clear after bee exits.
-	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey); err != nil {
+	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineName); err != nil {
 		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	// Signal Run loop to clear in-memory queues.

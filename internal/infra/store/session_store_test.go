@@ -86,29 +86,77 @@ func TestSessionStore_AgentsAreIsolated(t *testing.T) {
 }
 
 func TestSessionStore_ClearSessionContexts(t *testing.T) {
-	_, ss := setupSessionDB(t)
+	db, ss := setupSessionDB(t)
 	ctx := context.Background()
+	ws := store.NewWorkerStore(db)
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess", "claude")  //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "worker-1", "w1-sess", "claude")         //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other", "claude") //nolint:errcheck
+	// worker-explicit: engine explicitly set to "claude" in bee_workers.
+	wExplicit, err := ws.Create(model.Worker{Name: "explicit", WorkDir: t.TempDir(), Engine: "claude"})
+	if err != nil {
+		t.Fatalf("create worker explicit: %v", err)
+	}
+	// worker-fallback: no engine set in bee_workers → falls back to beeEngine.
+	wFallback, err := ws.Create(model.Worker{Name: "fallback", WorkDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create worker fallback: %v", err)
+	}
 
-	if err := ss.ClearSessionContexts(ctx, "k"); err != nil {
+	// bee: two engines.
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-codex", "codex")   //nolint:errcheck
+	// worker-explicit: two engines.
+	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-claude", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-codex", "codex")   //nolint:errcheck
+	// worker-fallback (engine="" in bee_workers): recorded under claude via fallback.
+	ss.UpsertSessionContext(ctx, "k", wFallback.ID, "wfb-claude", "claude") //nolint:errcheck
+	// deleted worker: orphan data for both engines.
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-claude", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-codex", "codex")   //nolint:errcheck
+	// unrelated session: must survive.
+	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "claude") //nolint:errcheck
+
+	if err := ss.ClearSessionContexts(ctx, "k", "claude"); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 
-	beeSess, _, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
-	w1Sess, _, _ := ss.GetSessionContext(ctx, "k", "worker-1")
+	// bee/claude → cleared.
+	beeClaude, _ := ss.GetSessionContextForEngine(ctx, "k", store.BeeAgentID, "claude")
+	if beeClaude != "" {
+		t.Errorf("bee/claude should be cleared, got %q", beeClaude)
+	}
+	// bee/codex → retained.
+	beeCodex, _ := ss.GetSessionContextForEngine(ctx, "k", store.BeeAgentID, "codex")
+	if beeCodex != "bee-codex" {
+		t.Errorf("bee/codex should be retained, got %q", beeCodex)
+	}
+	// worker-explicit/claude → cleared (engine matches bee_workers.engine).
+	wexClaude, _ := ss.GetSessionContextForEngine(ctx, "k", wExplicit.ID, "claude")
+	if wexClaude != "" {
+		t.Errorf("worker-explicit/claude should be cleared, got %q", wexClaude)
+	}
+	// worker-explicit/codex → retained (engine mismatch).
+	wexCodex, _ := ss.GetSessionContextForEngine(ctx, "k", wExplicit.ID, "codex")
+	if wexCodex != "wex-codex" {
+		t.Errorf("worker-explicit/codex should be retained, got %q", wexCodex)
+	}
+	// worker-fallback/claude → cleared (engine="" falls back to beeEngine "claude").
+	wfbClaude, _ := ss.GetSessionContextForEngine(ctx, "k", wFallback.ID, "claude")
+	if wfbClaude != "" {
+		t.Errorf("worker-fallback/claude should be cleared, got %q", wfbClaude)
+	}
+	// ghost worker → all records cleared (orphan cleanup).
+	ghostClaude, _ := ss.GetSessionContextForEngine(ctx, "k", "ghost-id", "claude")
+	ghostCodex, _ := ss.GetSessionContextForEngine(ctx, "k", "ghost-id", "codex")
+	if ghostClaude != "" {
+		t.Errorf("ghost/claude should be cleared, got %q", ghostClaude)
+	}
+	if ghostCodex != "" {
+		t.Errorf("ghost/codex should be cleared, got %q", ghostCodex)
+	}
+	// unrelated session → untouched.
 	otherSess, _, _ := ss.GetSessionContext(ctx, "other", store.BeeAgentID)
-
-	if beeSess != "" {
-		t.Errorf("expected bee session cleared, got %q", beeSess)
-	}
-	if w1Sess != "" {
-		t.Errorf("expected worker session cleared, got %q", w1Sess)
-	}
-	if otherSess != "other" {
-		t.Errorf("other key must not be cleared, got %q", otherSess)
+	if otherSess != "other-sess" {
+		t.Errorf("other session must not be cleared, got %q", otherSess)
 	}
 }
 

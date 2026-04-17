@@ -93,12 +93,42 @@ func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessio
 	return err
 }
 
-// ClearSessionContexts deletes all session_contexts rows for sessionKey,
-// resetting session state for bee and all workers under that key across engines.
-func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_session_contexts WHERE session_key = ?`,
-		sessionKey,
+// ClearSessionContexts deletes session context rows for sessionKey, scoped to
+// each agent's currently active engine:
+//   - bee: only the specified beeEngine row is removed.
+//   - workers: only the row matching their configured engine (bee_workers.engine)
+//     is removed; workers with no engine set fall back to beeEngine.
+//   - deleted workers (absent from bee_workers): all their rows are removed as
+//     orphaned data.
+func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error {
+	beeEngine = normalizeSessionEngine(beeEngine)
+
+	// Clear bee — only the active engine.
+	if _, err := s.db.ExecContext(ctx,
+		`DELETE FROM bee_session_contexts
+		 WHERE session_key = ? AND agent_id = 'bee' AND engine = ?`,
+		sessionKey, beeEngine,
+	); err != nil {
+		return err
+	}
+
+	// Clear workers — only their current engine.
+	//   Explicit engine set → match on that engine.
+	//   No engine set      → fall back to beeEngine.
+	//   Worker deleted     → no row in bee_workers → clean up orphan.
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM bee_session_contexts
+		WHERE session_key = ? AND agent_id != 'bee'
+		  AND (
+		        EXISTS (SELECT 1 FROM bee_workers w
+		                WHERE w.id = agent_id AND w.engine != ''
+		                  AND w.engine = bee_session_contexts.engine)
+		     OR EXISTS (SELECT 1 FROM bee_workers w
+		                WHERE w.id = agent_id AND w.engine = ''
+		                  AND bee_session_contexts.engine = ?)
+		     OR NOT EXISTS (SELECT 1 FROM bee_workers w WHERE w.id = agent_id)
+		      )`,
+		sessionKey, beeEngine,
 	)
 	return err
 }
