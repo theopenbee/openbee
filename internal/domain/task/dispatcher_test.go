@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -414,7 +415,8 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
-	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("claude"))
+	enginecfg.Init("claude")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -443,7 +445,8 @@ func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *test
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id", Status: model.ExecStatusCompleted, Result: "fresh!"}}
-	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("codex"))
+	enginecfg.Init("codex")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -516,7 +519,8 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, task.WithEngine("codex"))
+	enginecfg.Init("codex")
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1139,7 +1143,8 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	// Engine name must match the dispatcher's WithEngine option so
 	// GetSessionContextForEngine returns the stored session ID.
 	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("testengine"))
+	enginecfg.Init("testengine")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1327,7 +1332,8 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
 
-	d, in, _ := newTaskDispatcher(mgr, eq, ss, task.WithEngine("claude"))
+	enginecfg.Init("claude")
+	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1369,8 +1375,8 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 		worker: model.Worker{ID: "w1", Engine: "pi"},
 	}
 	// System default is "kimi", but the worker is configured with "pi".
+	enginecfg.Init("kimi")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss,
-		task.WithEngine("kimi"),
 		task.WithWorkerLookup(lookup),
 	)
 

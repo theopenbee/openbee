@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -83,7 +84,6 @@ type TaskDispatcher struct {
 	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
 	execStore       ExecutionQuerier              // queries execution state by ID
 	failureNotifier FailureNotifier               // sends failure notifications (optional)
-	engineName      string                        // current engine name (e.g. "claude", "codex")
 	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
 	inCh            <-chan DispatchTask           // inbound task channel
 	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
@@ -119,12 +119,6 @@ type Option func(*TaskDispatcher)
 // WithFailureNotifier sets the notifier used to inform users about task failures.
 func WithFailureNotifier(fn FailureNotifier) Option {
 	return func(d *TaskDispatcher) { d.failureNotifier = fn }
-}
-
-// WithEngine sets the active engine name so the dispatcher can detect engine
-// switches and discard stale session contexts from a different engine.
-func WithEngine(name string) Option {
-	return func(d *TaskDispatcher) { d.engineName = name }
 }
 
 // WithWorkerLookup sets the lookup used to fetch worker metadata for persona injection.
@@ -189,7 +183,7 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	// Clear DB synchronously so feeder can detect the clear after bee exits.
-	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineName); err != nil {
+	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, enginecfg.Get()); err != nil {
 		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	// Signal Run loop to clear in-memory queues.
@@ -318,15 +312,15 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 		if err != nil {
 			log.Warn("worker lookup failed, falling back to default engine",
 				zap.String("workerID", workerID), zap.Error(err))
-			return d.engineName, nil
+			return enginecfg.Get(), nil
 		}
 		engine := w.Engine
 		if engine == "" {
-			engine = d.engineName
+			engine = enginecfg.Get()
 		}
 		return engine, &w
 	}
-	return d.engineName, nil
+	return enginecfg.Get(), nil
 }
 
 // executeWithHint builds the skill hint + persona and starts a fresh execution.
