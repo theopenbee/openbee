@@ -18,9 +18,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/bee"
+	"github.com/theopenbee/openbee/internal/domain/command"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	_ "github.com/theopenbee/openbee/internal/ai/claude"
 	_ "github.com/theopenbee/openbee/internal/ai/codex"
@@ -107,6 +110,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if engines[cfg.Bee.EffectiveEngine()] == nil {
 		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", cfg.Bee.EffectiveEngine())
 	}
+
+	// Initialize the default engine cache from DB, falling back to config.
+	if dbCfg, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine); err == nil && found {
+		enginecfg.Init(dbCfg.Value)
+	} else {
+		enginecfg.Init(cfg.Bee.EffectiveEngine())
+	}
+
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
@@ -119,23 +130,25 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines[cfg.Bee.EffectiveEngine()], envSvc)
-	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, cfg.Bee.EffectiveEngine(), s, mgr, dispatchCh, failureNotifier)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, envSvc)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
 	rawLocalSender := local.NewLocalSender(localHub)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
-	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
-
 	for _, p := range platforms {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
+
+	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform)
+	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier, engineCmdHandler)
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(engineCmdHandler))
+
+	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
@@ -180,16 +193,17 @@ func BuildApp(cfg config.Config) (*App, error) {
 // appStores groups all store instances for passing to sub-builders.
 // Named appStores (not stores) to avoid collision with the store package.
 type appStores struct {
-	workerStore      *store.WorkerStore
-	envConfigStore   *store.EnvConfigStore
-	execStore        *store.ExecutionStore
-	msgStore         *store.MessageStore
-	taskStore        *store.TaskStore
-	sessionStore     *store.SessionStore
-	outboundMsgStore *store.OutboundMessageStore
-	memoryStore      *store.MemoryStore
-	departmentStore  *store.DepartmentStore
-	statsStore       *store.StatsStore
+	workerStore       *store.WorkerStore
+	envConfigStore    *store.EnvConfigStore
+	systemConfigStore *store.SystemConfigStore
+	execStore         *store.ExecutionStore
+	msgStore          *store.MessageStore
+	taskStore         *store.TaskStore
+	sessionStore      *store.SessionStore
+	outboundMsgStore  *store.OutboundMessageStore
+	memoryStore       *store.MemoryStore
+	departmentStore   *store.DepartmentStore
+	statsStore        *store.StatsStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -198,16 +212,17 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		return nil, appStores{}, fmt.Errorf("init database: %w", err)
 	}
 	return db, appStores{
-		workerStore:      store.NewWorkerStore(db),
-		execStore:        store.NewExecutionStore(db, config.DefaultLogsDir()),
-		msgStore:         store.NewMessageStore(db),
-		taskStore:        store.NewTaskStore(db),
-		sessionStore:     store.NewSessionStore(db),
-		outboundMsgStore: store.NewOutboundMessageStore(db),
-		memoryStore:      store.NewMemoryStore(db),
-		departmentStore:  store.NewDepartmentStore(db),
-		statsStore:       store.NewStatsStore(db),
-		envConfigStore:   store.NewEnvConfigStore(db),
+		workerStore:       store.NewWorkerStore(db),
+		envConfigStore:    store.NewEnvConfigStore(db),
+		systemConfigStore: store.NewSystemConfigStore(db),
+		execStore:         store.NewExecutionStore(db, config.DefaultLogsDir()),
+		msgStore:          store.NewMessageStore(db),
+		taskStore:         store.NewTaskStore(db),
+		sessionStore:      store.NewSessionStore(db),
+		outboundMsgStore:  store.NewOutboundMessageStore(db),
+		memoryStore:       store.NewMemoryStore(db),
+		departmentStore:   store.NewDepartmentStore(db),
+		statsStore:        store.NewStatsStore(db),
 	}, nil
 }
 
@@ -235,8 +250,9 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engine ai.EngineAdapter, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
-	beeProcess := bee.NewBeeProcess(cfg, engine, envSvc)
+	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
+	dynamic := ai.NewDynamicAdapter(engines)
+	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore))
@@ -246,16 +262,15 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 
 func buildPipeline(
 	debounce time.Duration,
-	engineName string,
 	s appStores,
 	mgr *worker.Manager,
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
+	cmdHandler msgingest.CommandHandler,
 ) (*msgingest.Gateway, *task.TaskDispatcher) {
-	ingest := msgingest.New(s.msgStore, debounce)
+	ingest := msgingest.New(s.msgStore, debounce, msgingest.WithCommandHandler(cmdHandler))
 	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
 		task.WithFailureNotifier(failureNotifier),
-		task.WithEngine(engineName),
 		task.WithWorkerLookup(s.workerStore),
 	)
 	return ingest, disp
