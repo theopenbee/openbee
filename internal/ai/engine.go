@@ -54,7 +54,6 @@ const (
 
 var AllEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
 
-// ValidateEngine returns an error if name is not a known engine.
 func ValidateEngine(name string) error {
 	if !slices.Contains(AllEngines, name) {
 		return fmt.Errorf("unknown engine %q, valid values: %s", name, strings.Join(AllEngines, ", "))

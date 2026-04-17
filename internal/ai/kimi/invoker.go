@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,14 +14,14 @@ import (
 
 // Invoker spawns kimi CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary string
+	binary  string
+	baseEnv []string
 }
 
-func NewInvoker(binary string) *Invoker {
-	return &Invoker{binary: binary}
+func NewInvoker(binary, openbeeURL string) *Invoker {
+	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL)}
 }
 
-// kimiMessage represents a single message in kimi's stream-json output.
 type kimiMessage struct {
 	Role    string          `json:"role"`
 	Content json.RawMessage `json:"content,omitempty"`
@@ -50,7 +51,6 @@ func ExtractResultFromLog(logPath string) string {
 	return lastContent
 }
 
-// Run starts a kimi CLI process, writing filtered output to logPath.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
@@ -71,6 +71,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stdin = strings.NewReader(prompt)
+	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -104,6 +105,8 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 			}
 			return true
 		})
+		// Drain any remaining output so the subprocess is never blocked on a full pipe.
+		io.Copy(io.Discard, stdoutPipe) //nolint:errcheck
 
 		if err := cmd.Wait(); err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}

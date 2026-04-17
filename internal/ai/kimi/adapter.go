@@ -12,7 +12,7 @@ func init() {
 		if path == "" {
 			path = ai.EngineKimi
 		}
-		return NewAdapter(path), nil
+		return NewAdapter(path, cfg.OpenbeeURL), nil
 	})
 }
 
@@ -20,8 +20,8 @@ type kimiAdapter struct {
 	invoker *Invoker
 }
 
-func NewAdapter(binaryPath string) ai.EngineAdapter {
-	return &kimiAdapter{invoker: NewInvoker(binaryPath)}
+func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
+	return &kimiAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
 }
 
 func (a *kimiAdapter) Prepare(_ string, _ ai.PrepareOptions) error {

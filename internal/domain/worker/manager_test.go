@@ -102,18 +102,18 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	}
 }
 
-func TestManager_ResolveEngine_DefaultMissingFromMap_ReturnsFirst(t *testing.T) {
-	claude := &mockEngine{}
-	// defaultEngine "claude" is NOT in the map — only "codex" is
-	engines := map[string]ai.EngineAdapter{"codex": claude}
+func TestManager_ResolveEngine_DefaultMissingFromMap_Panics(t *testing.T) {
+	// defaultEngine "claude" is NOT in the map — only "codex" is.
+	// This is a startup misconfiguration; resolveEngine must panic.
+	engines := map[string]ai.EngineAdapter{"codex": &mockEngine{}}
 	mgr := newTestManager(t, engines, "claude")
 
-	w := model.Worker{Engine: ""}
-	got := mgr.resolveEngine(w)
-	// Should not panic; should return the only available engine
-	if got == nil {
-		t.Error("expected non-nil engine fallback")
-	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic when default engine is missing from map")
+		}
+	}()
+	mgr.resolveEngine(model.Worker{Engine: ""})
 }
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {

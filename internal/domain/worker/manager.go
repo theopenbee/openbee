@@ -73,9 +73,6 @@ func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
 	}
 	log.Error("default engine not found in engines map",
 		zap.String("defaultEngine", m.defaultEngine))
-	for _, e := range m.engines {
-		return e
-	}
 	panic("worker manager has no engines configured")
 }
 

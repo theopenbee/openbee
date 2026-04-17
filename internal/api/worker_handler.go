@@ -13,7 +13,7 @@ import (
 
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
-	Engine           string `json:"engine" binding:"required"`
+	Engine           string `json:"engine"`
 	Description      string `json:"description"`
 	Memory           string `json:"memory"`
 	WorkDir          string `json:"work_dir"`
@@ -42,9 +42,11 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := ai.ValidateEngine(req.Engine); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if req.Engine != "" {
+		if err := ai.ValidateEngine(req.Engine); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
