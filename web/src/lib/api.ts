@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, AppConfig } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -52,6 +52,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  config: {
+    get: () => fetchAPI<AppConfig>("/config"),
+  },
   workers: {
     list: async (departmentId?: string) => {
       const qs = departmentId ? `?department_id=${departmentId}` : ""

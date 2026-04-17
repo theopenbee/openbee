@@ -146,3 +146,8 @@ export interface EnvConfig {
   created_at: number
   updated_at: number
 }
+
+export interface AppConfig {
+  language: string
+  enabled_engines: Engine[]
+}
