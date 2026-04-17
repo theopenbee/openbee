@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -39,9 +40,17 @@ func buildArgs(sessionID string) []string {
 	}
 }
 
+type kimiToolCall struct {
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
 type kimiMessage struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
+	Role      string          `json:"role"`
+	Content   json.RawMessage `json:"content"`
+	ToolCalls []kimiToolCall  `json:"tool_calls"`
 }
 
 type kimiContentBlock struct {
@@ -49,9 +58,31 @@ type kimiContentBlock struct {
 	Text string `json:"text"`
 }
 
-// ExtractResultFromLog scans a Kimi stream-json log and returns the text of the
-// last role=assistant message, or "" if none found.
+var heredocRe = regexp.MustCompile(`(?s)<<\s*'?EOF'?\n(.*?)\nEOF`)
+
+// extractSentMsg extracts the heredoc stdin body from an
+// `openbee ctl message send --stdin << 'EOF' ... EOF` shell command.
+// Returns "" if the command is not applicable or has no heredoc.
+func extractSentMsg(command string) string {
+	if !strings.Contains(command, "openbee ctl message send") ||
+		!strings.Contains(command, "--stdin") {
+		return ""
+	}
+	m := heredocRe.FindStringSubmatch(command)
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
+}
+
+// ExtractResultFromLog scans a Kimi stream-json log and returns the last
+// meaningful result text, or "" if none found.
+//
 // The content field may be a plain string or an array of content blocks.
+// Text blocks starting with "(Empty response:" are skipped — when Kimi ends
+// with such a placeholder, the actual response was already sent to the user
+// via `openbee ctl message send --stdin`. In that case the heredoc body from
+// the last matching Shell tool call is returned instead.
 func ExtractResultFromLog(logPath string) string {
 	f, err := os.Open(logPath)
 	if err != nil {
@@ -59,11 +90,24 @@ func ExtractResultFromLog(logPath string) string {
 	}
 	defer f.Close()
 
-	var lastText string
+	var lastText, lastSentMsg string
 	ai.ScanJSONLines(f, func(line string) bool {
 		var msg kimiMessage
 		if json.Unmarshal([]byte(line), &msg) != nil || msg.Role != "assistant" {
 			return true
+		}
+		// Extract sent message from Shell tool calls.
+		for _, tc := range msg.ToolCalls {
+			if tc.Function.Name == "Shell" {
+				var args struct {
+					Command string `json:"command"`
+				}
+				if json.Unmarshal([]byte(tc.Function.Arguments), &args) == nil {
+					if s := extractSentMsg(args.Command); s != "" {
+						lastSentMsg = s
+					}
+				}
+			}
 		}
 		if len(msg.Content) == 0 {
 			return true
@@ -71,7 +115,9 @@ func ExtractResultFromLog(logPath string) string {
 		// Try string content first.
 		var s string
 		if json.Unmarshal(msg.Content, &s) == nil && s != "" {
-			lastText = s
+			if !strings.HasPrefix(s, "(Empty response:") {
+				lastText = s
+			}
 			return true
 		}
 		// Try array of content blocks.
@@ -80,14 +126,17 @@ func ExtractResultFromLog(logPath string) string {
 			return true
 		}
 		for _, b := range blocks {
-			if b.Type == "text" && b.Text != "" {
+			if b.Type == "text" && b.Text != "" && !strings.HasPrefix(b.Text, "(Empty response:") {
 				lastText = b.Text
 				break
 			}
 		}
 		return true
 	})
-	return lastText
+	if lastText != "" {
+		return lastText
+	}
+	return lastSentMsg
 }
 
 // Run starts a Kimi CLI process, redirecting output to logPath.
