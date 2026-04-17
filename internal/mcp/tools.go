@@ -130,6 +130,7 @@ type workerBrief struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Engine      string `json:"engine"`
 }
 
 type ActiveTaskSummary struct {
@@ -189,7 +190,7 @@ func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (
 
 	briefs := make([]workerBrief, 0, len(workers))
 	for _, w := range workers {
-		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
+		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description, Engine: w.Engine})
 	}
 
 	return pagedResult(briefs, total, page, pageSize), nil
