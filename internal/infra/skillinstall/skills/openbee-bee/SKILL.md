@@ -149,7 +149,7 @@ Note: Only modify what the user explicitly requested; do not alter any other par
 Most common commands for daily use:
 
 ```bash
-# List all workers (add --name <name> to filter by name)
+# List all workers
 openbee ctl worker list [--name <name>]
 
 # Create a task and assign to a worker
