@@ -210,8 +210,11 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 
 // buildAllEngines initializes engine adapters shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	result := make(map[string]ai.EngineAdapter, len(ai.AllEngines))
+	result := make(map[string]ai.EngineAdapter)
 	for _, name := range ai.AllEngines {
+		if !cfg.Engines.IsEnabled(name) {
+			continue
+		}
 		adapter, err := ai.New(name, ai.EngineConfig{
 			OpenbeeURL: cfg.MCPBaseURL,
 			Raw:        cfg.EngineConfigRawFor(name),
