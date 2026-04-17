@@ -100,7 +100,7 @@ func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
 	cfg.Engine = config.EngineDefaultConfig{Default: engine}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
 }
@@ -433,7 +433,7 @@ func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	notifier := &mockFailureNotifier{}
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, bee.WithFailureNotifier(notifier))
 
@@ -485,7 +485,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
 
@@ -550,7 +550,7 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 3 // deliberately small
 	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
 
@@ -607,7 +607,8 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	ws := store.NewWorkerStore(db)
 
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
-		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
+		Engine: config.EngineDefaultConfig{Timeout: config.EngineTimeoutConfig{Bee: 5 * time.Second}},
+		Feeder: config.FeederConfig{MaxConcurrentBee: 5},
 	}, bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -629,7 +630,7 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
 		bee.WithWorkerDispatch(ws))
@@ -691,7 +692,7 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
 		bee.WithWorkerDispatch(ws))

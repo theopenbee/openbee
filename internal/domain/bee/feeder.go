@@ -198,7 +198,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
+	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Engine.Timeout.Bee)
 	defer cancel()
 
 	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
