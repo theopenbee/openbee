@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,13 +22,18 @@ type createWorkerRequest struct {
 }
 
 type WorkerHandler struct {
-	workers     *store.WorkerStore
-	departments *store.DepartmentStore
-	manager     *worker.Manager
+	workers        *store.WorkerStore
+	departments    *store.DepartmentStore
+	manager        *worker.Manager
+	enabledEngines map[string]bool
 }
 
 func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager) *WorkerHandler {
-	return &WorkerHandler{workers: ws, departments: ds, manager: mgr}
+	enabled := make(map[string]bool)
+	for _, name := range mgr.EnabledEngines() {
+		enabled[name] = true
+	}
+	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, enabledEngines: enabled}
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -44,6 +50,11 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 
 	if err := ai.ValidateEngine(req.Engine); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !h.enabledEngines[req.Engine] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("engine %q is not enabled", req.Engine)})
 		return
 	}
 
@@ -148,6 +159,10 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	if req.Engine != nil {
 		if err := ai.ValidateEngine(*req.Engine); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if !h.enabledEngines[*req.Engine] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("engine %q is not enabled", *req.Engine)})
 			return
 		}
 		w.Engine = *req.Engine
