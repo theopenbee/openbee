@@ -99,9 +99,14 @@ type BeeConfig struct {
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
-// WorkerTimeout returns the maximum duration for a single worker execution.
+// WorkerTimeout returns the maximum duration for a single worker execution using the default engine.
 func (b BeeConfig) WorkerTimeout() time.Duration {
-	switch b.EffectiveEngine() {
+	return b.WorkerTimeoutFor(b.EffectiveEngine())
+}
+
+// WorkerTimeoutFor returns the maximum duration for a worker execution using the named engine.
+func (b BeeConfig) WorkerTimeoutFor(engine string) time.Duration {
+	switch engine {
 	case "codex":
 		return b.Codex.Timeout
 	case "pi":

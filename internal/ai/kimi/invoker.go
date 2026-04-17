@@ -27,6 +27,8 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 			base = append(base, k+"="+v)
 		}
 	}
+	// Re-clip so concurrent Run() appends cannot share the backing array.
+	base = base[:len(base):len(base)]
 	return &Invoker{binary: binary, baseEnv: base}
 }
 
@@ -95,7 +97,6 @@ func ExtractResultFromLog(logPath string) string {
 		if json.Unmarshal([]byte(line), &msg) != nil || msg.Role != "assistant" {
 			return true
 		}
-		// Extract sent message from Shell tool calls.
 		for _, tc := range msg.ToolCalls {
 			if tc.Function.Name == "Shell" {
 				var args struct {
@@ -111,7 +112,6 @@ func ExtractResultFromLog(logPath string) string {
 		if len(msg.Content) == 0 {
 			return true
 		}
-		// Try string content first.
 		var s string
 		if json.Unmarshal(msg.Content, &s) == nil && s != "" {
 			if !strings.HasPrefix(s, "(Empty response:") {
@@ -119,7 +119,6 @@ func ExtractResultFromLog(logPath string) string {
 			}
 			return true
 		}
-		// Try array of content blocks.
 		var blocks []kimiContentBlock
 		if json.Unmarshal(msg.Content, &blocks) != nil {
 			return true

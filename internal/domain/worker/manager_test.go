@@ -54,7 +54,7 @@ func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEn
 		workerBaseDir:   dir,
 		tokenSecret:     bc.MCP.TokenSecret,
 		tokenTTL:        bc.MCP.TokenTTL,
-		workerTimeout:   30 * time.Minute,
+		engineTimeouts:  map[string]time.Duration{defaultEngine: 30 * time.Minute},
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
@@ -72,7 +72,10 @@ func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "codex"}
-	got := mgr.resolveEngine(w)
+	got, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != codex {
 		t.Error("expected codex engine adapter")
 	}
@@ -84,7 +87,10 @@ func TestManager_ResolveEngine_EmptyEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: ""}
-	got := mgr.resolveEngine(w)
+	got, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != claude {
 		t.Error("expected default claude engine adapter")
 	}
@@ -96,7 +102,10 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "unknown-engine"}
-	got := mgr.resolveEngine(w)
+	got, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != claude {
 		t.Error("expected fallback to default claude engine adapter")
 	}

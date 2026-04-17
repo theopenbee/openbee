@@ -279,7 +279,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <Button
             type="submit"
             form="create-worker-form"
-            disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim() || !engine}
+            disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
             className="flex-1"
           >
             {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}

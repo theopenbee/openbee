@@ -21,7 +21,7 @@ type kimiAdapter struct {
 	invoker *Invoker
 }
 
-// NewAdapter creates a kimiAdapter. It is exported for use in tests.
+// NewAdapter constructs a kimiAdapter with the given binary path and configuration.
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
 	return &kimiAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
 }

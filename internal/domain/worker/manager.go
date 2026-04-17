@@ -26,7 +26,7 @@ type Manager struct {
 	workerBaseDir  string
 	tokenSecret    string
 	tokenTTL       time.Duration
-	workerTimeout  time.Duration
+	engineTimeouts map[string]time.Duration // per-engine worker execution timeout; 0 = no timeout
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
@@ -45,11 +45,15 @@ func NewManager(
 	engines map[string]ai.EngineAdapter,
 	envService *env.Service,
 ) *Manager {
+	timeouts := make(map[string]time.Duration, len(ai.AllEngines))
+	for _, name := range ai.AllEngines {
+		timeouts[name] = bc.WorkerTimeoutFor(name)
+	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
 		tokenTTL:        bc.MCP.TokenTTL,
-		workerTimeout:   bc.WorkerTimeout(),
+		engineTimeouts:  timeouts,
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
@@ -59,21 +63,27 @@ func NewManager(
 	}
 }
 
+// resolveTimeout returns the execution timeout for the given engine name, falling back to the default engine.
+func (m *Manager) resolveTimeout(engineName string) time.Duration {
+	if t, ok := m.engineTimeouts[engineName]; ok {
+		return t
+	}
+	return m.engineTimeouts[m.defaultEngine]
+}
+
 // resolveEngine returns the EngineAdapter for w, falling back to the default if w.Engine is empty or unknown.
-func (m *Manager) resolveEngine(w model.Worker) ai.EngineAdapter {
+func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
-			return e
+			return e, nil
 		}
 		log.Warn("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	if e, ok := m.engines[m.defaultEngine]; ok {
-		return e
+		return e, nil
 	}
-	log.Error("default engine not found in engines map",
-		zap.String("defaultEngine", m.defaultEngine))
-	panic("worker manager has no engines configured")
+	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, m.defaultEngine)
 }
 
 // CreateWorkerParams holds the inputs for creating a new worker.
@@ -105,7 +115,11 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,
 	}
-	if err := m.resolveEngine(workerModel).Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	engine, err := m.resolveEngine(workerModel)
+	if err != nil {
+		return model.Worker{}, err
+	}
+	if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}
 
@@ -130,11 +144,16 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	engine := m.resolveEngine(worker)
+	engine, err := m.resolveEngine(worker)
+	if err != nil {
+		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		return exec, err
+	}
 	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
-	timeout := m.workerTimeout
+	timeout := m.resolveTimeout(worker.Engine)
 
 	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
