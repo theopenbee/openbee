@@ -26,7 +26,7 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 			base = append(base, k+"="+v)
 		}
 	}
-	return &Invoker{binary: binary, baseEnv: base}
+	return &Invoker{binary: binary, baseEnv: base[:len(base):len(base)]}
 }
 
 type streamEvent struct {

@@ -38,6 +38,9 @@ func (p *CmdProcess) Stop() error {
 }
 
 // BuildRunEnv assembles the final env slice for a subprocess run.
+// Entries are ordered baseEnv → extraEnv → apiKey; for duplicate keys the
+// last value wins (standard subprocess env resolution on Linux/macOS), so
+// extraEnv overrides baseEnv and apiKey overrides both.
 func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
 	env := make([]string, 0, len(baseEnv)+len(extraEnv)+1)
 	env = append(env, baseEnv...)

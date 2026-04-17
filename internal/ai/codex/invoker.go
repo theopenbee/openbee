@@ -32,7 +32,7 @@ func NewInvoker(binary, openbeeURL string, store *SessionStore, extraEnv map[str
 			base = append(base, k+"="+v)
 		}
 	}
-	return &Invoker{binary: binary, baseEnv: base, store: store}
+	return &Invoker{binary: binary, baseEnv: base[:len(base):len(base)], store: store}
 }
 
 type codexEvent struct {
