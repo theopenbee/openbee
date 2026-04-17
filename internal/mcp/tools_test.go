@@ -1666,3 +1666,27 @@ func TestCallTool_UpdateWorker_InvalidEngine(t *testing.T) {
 		t.Error("expected error for unknown engine, got nil")
 	}
 }
+
+func TestCallTool_UpdateWorker_ClearEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "Bot",
+		"engine": "claude",
+	}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "",
+	}))
+	if err != nil {
+		t.Fatalf("update_worker: %v", err)
+	}
+	updated := result.(model.Worker)
+	if updated.Engine != "" {
+		t.Errorf("expected engine cleared, got %q", updated.Engine)
+	}
+}
