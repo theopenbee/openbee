@@ -1,11 +1,9 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -14,7 +12,7 @@ import (
 
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
-	Engine           string `json:"engine" binding:"required"`
+	Engine           string `json:"engine"`
 	Description      string `json:"description"`
 	Memory           string `json:"memory"`
 	WorkDir          string `json:"work_dir"`
@@ -22,18 +20,13 @@ type createWorkerRequest struct {
 }
 
 type WorkerHandler struct {
-	workers        *store.WorkerStore
-	departments    *store.DepartmentStore
-	manager        *worker.Manager
-	enabledEngines map[string]bool
+	workers     *store.WorkerStore
+	departments *store.DepartmentStore
+	manager     *worker.Manager
 }
 
 func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager) *WorkerHandler {
-	enabled := make(map[string]bool)
-	for _, name := range mgr.EnabledEngines() {
-		enabled[name] = true
-	}
-	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, enabledEngines: enabled}
+	return &WorkerHandler{workers: ws, departments: ds, manager: mgr}
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -48,13 +41,8 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := ai.ValidateEngine(req.Engine); err != nil {
+	if err := h.manager.ValidateEngine(req.Engine); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !h.enabledEngines[req.Engine] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("engine %q is not enabled", req.Engine)})
 		return
 	}
 
@@ -157,12 +145,8 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	}
 
 	if req.Engine != nil {
-		if err := ai.ValidateEngine(*req.Engine); err != nil {
+		if err := h.manager.ValidateEngine(*req.Engine); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		if !h.enabledEngines[*req.Engine] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("engine %q is not enabled", *req.Engine)})
 			return
 		}
 		w.Engine = *req.Engine

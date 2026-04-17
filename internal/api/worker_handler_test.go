@@ -30,29 +30,3 @@ func TestValidateEngine(t *testing.T) {
 	}
 }
 
-func TestWorkerHandlerEngineEnabled(t *testing.T) {
-	h := &WorkerHandler{
-		enabledEngines: map[string]bool{"claude": true},
-	}
-
-	tests := []struct {
-		name    string
-		engine  string
-		enabled bool
-	}{
-		{"claude is enabled", "claude", true},
-		{"codex is not enabled", "codex", false},
-		{"pi is not enabled", "pi", false},
-		{"kimi is not enabled", "kimi", false},
-		{"unknown engine is not enabled", "gpt-4", false},
-		{"empty string is not enabled", "", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := h.enabledEngines[tt.engine]
-			if got != tt.enabled {
-				t.Errorf("enabledEngines[%q] = %v, want %v", tt.engine, got, tt.enabled)
-			}
-		})
-	}
-}

@@ -54,7 +54,7 @@ func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEn
 		workerBaseDir:   dir,
 		tokenSecret:     bc.MCP.TokenSecret,
 		tokenTTL:        bc.MCP.TokenTTL,
-		engineTimeouts:  map[string]time.Duration{defaultEngine: 30 * time.Minute},
+		workerTimeout:   30 * time.Minute,
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,

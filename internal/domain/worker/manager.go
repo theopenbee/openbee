@@ -26,7 +26,7 @@ type Manager struct {
 	workerBaseDir  string
 	tokenSecret    string
 	tokenTTL       time.Duration
-	engineTimeouts map[string]time.Duration // per-engine worker execution timeout; 0 = no timeout
+	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
@@ -45,15 +45,11 @@ func NewManager(
 	engines map[string]ai.EngineAdapter,
 	envService *env.Service,
 ) *Manager {
-	timeouts := make(map[string]time.Duration, len(ai.AllEngines))
-	for _, name := range ai.AllEngines {
-		timeouts[name] = bc.WorkerTimeoutFor(name)
-	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
 		tokenTTL:        bc.MCP.TokenTTL,
-		engineTimeouts:  timeouts,
+		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
@@ -61,14 +57,6 @@ func NewManager(
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
-}
-
-// resolveTimeout returns the execution timeout for the given engine name, falling back to the default engine.
-func (m *Manager) resolveTimeout(engineName string) time.Duration {
-	if t, ok := m.engineTimeouts[engineName]; ok {
-		return t
-	}
-	return m.engineTimeouts[m.defaultEngine]
 }
 
 // resolveEngine returns the EngineAdapter for w, falling back to the default if w.Engine is empty or unknown.
@@ -93,6 +81,21 @@ func (m *Manager) EnabledEngines() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// ValidateEngine returns an error if name is not a known or enabled engine.
+// An empty name is accepted (means "use server default").
+func (m *Manager) ValidateEngine(name string) error {
+	if name == "" {
+		return nil
+	}
+	if err := ai.ValidateEngine(name); err != nil {
+		return err
+	}
+	if _, ok := m.engines[name]; !ok {
+		return fmt.Errorf("engine %q is not enabled", name)
+	}
+	return nil
 }
 
 // CreateWorkerParams holds the inputs for creating a new worker.
@@ -162,7 +165,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
-	timeout := m.resolveTimeout(worker.Engine)
+	timeout := m.workerTimeout
 
 	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)

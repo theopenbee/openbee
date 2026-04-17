@@ -255,7 +255,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return handleSurveyErr(err)
 	}
 
-	// Reset all engine flags; re-enable based on selection
 	vals.ClaudeEnabled = false
 	vals.CodexEnabled = false
 	vals.PiEnabled = false

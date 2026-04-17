@@ -11,7 +11,6 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -250,10 +249,8 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	if params.Engine != "" {
-		if err := ai.ValidateEngine(params.Engine); err != nil {
-			return nil, err
-		}
+	if err := s.manager.ValidateEngine(params.Engine); err != nil {
+		return nil, err
 	}
 	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
 		return nil, err
@@ -308,10 +305,8 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		w.Memory = *params.Memory
 	}
 	if params.Engine != nil {
-		if *params.Engine != "" {
-			if err := ai.ValidateEngine(*params.Engine); err != nil {
-				return nil, err
-			}
+		if err := s.manager.ValidateEngine(*params.Engine); err != nil {
+			return nil, err
 		}
 		w.Engine = *params.Engine
 	}

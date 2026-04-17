@@ -82,35 +82,25 @@ type EnginesConfig struct {
 	Kimi   EngineItemConfig `yaml:"kimi"`
 }
 
-// IsEnabled reports whether the named engine is enabled.
-func (e EnginesConfig) IsEnabled(name string) bool {
+func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 	switch name {
 	case "claude":
-		return e.Claude.Enabled
+		return e.Claude
 	case "codex":
-		return e.Codex.Enabled
+		return e.Codex
 	case "pi":
-		return e.Pi.Enabled
+		return e.Pi
 	case "kimi":
-		return e.Kimi.Enabled
+		return e.Kimi
 	}
-	return false
+	return EngineItemConfig{}
 }
 
+// IsEnabled reports whether the named engine is enabled.
+func (e EnginesConfig) IsEnabled(name string) bool { return e.itemFor(name).Enabled }
+
 // PathFor returns the executable path configured for the named engine.
-func (e EnginesConfig) PathFor(name string) string {
-	switch name {
-	case "claude":
-		return e.Claude.Path
-	case "codex":
-		return e.Codex.Path
-	case "pi":
-		return e.Pi.Path
-	case "kimi":
-		return e.Kimi.Path
-	}
-	return ""
-}
+func (e EnginesConfig) PathFor(name string) string { return e.itemFor(name).Path }
 
 type MediaConfig struct {
 	FFprobePath string `yaml:"ffprobe_path"`
@@ -137,11 +127,6 @@ func (b BeeConfig) BeeTimeout() time.Duration {
 
 // WorkerTimeout returns the worker engine execution timeout.
 func (b BeeConfig) WorkerTimeout() time.Duration {
-	return b.Engine.Timeout.Worker
-}
-
-// WorkerTimeoutFor returns the worker engine execution timeout.
-func (b BeeConfig) WorkerTimeoutFor(_ string) time.Duration {
 	return b.Engine.Timeout.Worker
 }
 
