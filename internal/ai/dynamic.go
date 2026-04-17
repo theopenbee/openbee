@@ -20,7 +20,8 @@ func NewDynamicAdapter(engines map[string]EngineAdapter) *DynamicAdapter {
 	return &DynamicAdapter{engines: engines}
 }
 
-// Prepare calls Prepare on all engine adapters concurrently.
+// Prepare initialises every engine adapter for the given workDir concurrently.
+// All engines share the same workDir, so preparation is independent and safe to parallelise.
 func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
 	g := &errgroup.Group{}
 	for name, e := range d.engines {

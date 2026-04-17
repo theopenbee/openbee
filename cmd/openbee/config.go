@@ -743,33 +743,36 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
+type engineMapping struct{ name, label string }
+
+// engineMappings returns the canonical name↔i18n-label pairs for all engines.
+// Add new engines here; engineLabel and engineName derive from this single source.
+func engineMappings() []engineMapping {
+	return []engineMapping{
+		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
+		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
+		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
+		{ai.EngineKimi, i18n.M.Prompt.OptionEngineKimi},
+	}
+}
+
 // engineLabel returns the i18n display label for the given engine name ("claude", "codex", etc.).
 // Returns "" for unknown names.
 func engineLabel(name string) string {
-	switch name {
-	case ai.EngineClaude:
-		return i18n.M.Prompt.OptionEngineClaude
-	case ai.EngineCodex:
-		return i18n.M.Prompt.OptionEngineCodex
-	case ai.EnginePi:
-		return i18n.M.Prompt.OptionEnginePi
-	case ai.EngineKimi:
-		return i18n.M.Prompt.OptionEngineKimi
+	for _, m := range engineMappings() {
+		if m.name == name {
+			return m.label
+		}
 	}
 	return ""
 }
 
 // engineName converts an i18n display label back to its canonical engine name.
 func engineName(label string) string {
-	switch label {
-	case i18n.M.Prompt.OptionEngineClaude:
-		return ai.EngineClaude
-	case i18n.M.Prompt.OptionEngineCodex:
-		return ai.EngineCodex
-	case i18n.M.Prompt.OptionEnginePi:
-		return ai.EnginePi
-	case i18n.M.Prompt.OptionEngineKimi:
-		return ai.EngineKimi
+	for _, m := range engineMappings() {
+		if m.label == label {
+			return m.name
+		}
 	}
 	return ""
 }

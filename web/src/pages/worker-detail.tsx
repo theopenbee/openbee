@@ -289,7 +289,7 @@ export function WorkerDetail() {
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 shrink-0"
-                            disabled={!editEngine || updateWorker.isPending}
+                            disabled={updateWorker.isPending}
                             onClick={async () => {
                               await updateWorker.mutateAsync({ id: id!, data: { engine: editEngine } })
                               setIsEditingEngine(false)
