@@ -49,6 +49,18 @@ func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
 	return env
 }
 
+// AppendExtraEnv appends non-empty entries from extraEnv to base and returns
+// the result re-clipped to its length, preventing concurrent Run() appends from
+// sharing the backing array with other goroutines.
+func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
+	for k, v := range extraEnv {
+		if v != "" {
+			base = append(base, k+"="+v)
+		}
+	}
+	return base[:len(base):len(base)]
+}
+
 // BuildBaseEnv constructs the base environment for engine subprocesses.
 // It prepends the current executable's directory to PATH and appends OPENBEE_URL.
 func BuildBaseEnv(openbeeURL string) []string {

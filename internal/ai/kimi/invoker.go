@@ -22,12 +22,7 @@ type Invoker struct {
 // extraEnv entries are merged into the base environment (e.g. MOONSHOT_API_KEY).
 func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker {
 	base := ai.BuildBaseEnv(openbeeURL)
-	for k, v := range extraEnv {
-		if v != "" {
-			base = append(base, k+"="+v)
-		}
-	}
-	return &Invoker{binary: binary, baseEnv: base}
+	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}
 }
 
 func buildArgs(sessionID string) []string {

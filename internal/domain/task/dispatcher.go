@@ -270,9 +270,9 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 		}
 	}()
 
-	engineName := d.resolveWorkerEngine(task.WorkerID)
+	engineName, worker := d.resolveWorkerEngine(task.WorkerID)
 	instruction := buildInstruction(task)
-	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName)
+	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName, worker)
 	if err != nil {
 		log.Error("execute error",
 			zap.String("workerID", task.WorkerID),
@@ -309,40 +309,33 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	d.waitForResult(taskCtx, exec.ID, task, engineName)
 }
 
-// workerSkillHint returns the skill hint for a new worker session.
-// If workerLookup is set, it fetches worker metadata and wraps it in a <worker_persona> block.
-// Returns an error if the lookup fails.
-func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
-	hint := ai.SkillHintPrefix(ai.RoleWorker)
-	if d.workerLookup == nil {
-		return hint, nil
-	}
-	w, err := d.workerLookup.GetByID(workerID)
-	if err != nil {
-		log.Warn("worker not found for persona hint", zap.String("workerID", workerID), zap.Error(err))
-		return "", fmt.Errorf("lookup worker for persona hint: %w", err)
-	}
-	persona := ai.WorkerPersona(w.Name, w.Description, w.Memory)
-	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
-}
-
-// resolveWorkerEngine returns the engine name to use for session context operations.
-// If workerLookup is set and the worker has a configured engine, that name is returned.
-// Otherwise falls back to d.engineName (the system-default engine).
-func (d *TaskDispatcher) resolveWorkerEngine(workerID string) string {
+// resolveWorkerEngine returns the engine name and the fetched worker (nil if
+// workerLookup is unavailable or the lookup fails). A single DB call covers
+// both engine selection and the persona injection needed by executeWithHint.
+func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Worker) {
 	if d.workerLookup != nil {
-		if w, err := d.workerLookup.GetByID(workerID); err == nil && w.Engine != "" {
-			return w.Engine
+		if w, err := d.workerLookup.GetByID(workerID); err == nil {
+			engine := w.Engine
+			if engine == "" {
+				engine = d.engineName
+			}
+			return engine, &w
 		}
 	}
-	return d.engineName
+	return d.engineName, nil
 }
 
-// executeWithHint fetches the worker skill hint + persona and starts a fresh execution.
-func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string) (model.WorkerExecution, error) {
-	hint, err := d.workerSkillHint(task.WorkerID)
-	if err != nil {
-		return model.WorkerExecution{}, err
+// executeWithHint builds the skill hint + persona and starts a fresh execution.
+// worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
+// configured but worker is nil, the lookup failed and the task is aborted.
+func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+	hint := ai.SkillHintPrefix(ai.RoleWorker)
+	if d.workerLookup != nil {
+		if worker == nil {
+			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
+		}
+		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Memory)
+		hint += "\n<worker_persona>\n" + persona + "</worker_persona>"
 	}
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
@@ -350,16 +343,16 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
 }
 
-func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string) (model.WorkerExecution, error) {
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		return d.executeWithHint(ctx, task, instruction, engineName)
+		return d.executeWithHint(ctx, task, instruction, engineName, worker)
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		return d.executeWithHint(ctx, task, instruction, engineName)
+		return d.executeWithHint(ctx, task, instruction, engineName, worker)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
@@ -373,7 +366,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}
-	return d.executeWithHint(ctx, task, instruction, engineName)
+	return d.executeWithHint(ctx, task, instruction, engineName, worker)
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {

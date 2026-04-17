@@ -100,9 +100,6 @@ func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 // IsEnabled reports whether the named engine is enabled.
 func (e EnginesConfig) IsEnabled(name string) bool { return e.itemFor(name).Enabled }
 
-// PathFor returns the executable path configured for the named engine.
-func (e EnginesConfig) PathFor(name string) string { return e.itemFor(name).Path }
-
 type MediaConfig struct {
 	FFprobePath string `yaml:"ffprobe_path"`
 	FFmpegPath  string `yaml:"ffmpeg_path"`

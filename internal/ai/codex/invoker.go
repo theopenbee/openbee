@@ -27,12 +27,7 @@ type Invoker struct {
 // extraEnv entries are merged into the base environment at lowest priority.
 func NewInvoker(binary, openbeeURL string, store *SessionStore, extraEnv map[string]string) *Invoker {
 	base := ai.BuildBaseEnv(openbeeURL)
-	for k, v := range extraEnv {
-		if v != "" {
-			base = append(base, k+"="+v)
-		}
-	}
-	return &Invoker{binary: binary, baseEnv: base[:len(base):len(base)], store: store}
+	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), store: store}
 }
 
 type codexEvent struct {
