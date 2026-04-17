@@ -8,14 +8,14 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	if got := enginecfg.Get(); got != "claude" {
 		t.Errorf("Init: expected claude, got %s", got)
 	}
 }
 
 func TestSet(t *testing.T) {
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	enginecfg.Set("codex")
 	if got := enginecfg.Get(); got != "codex" {
 		t.Errorf("Set: expected codex, got %s", got)
@@ -23,7 +23,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(2)

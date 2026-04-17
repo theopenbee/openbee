@@ -118,14 +118,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 	if dbErr == nil && found {
 		if engines[dbCfg.Value] != nil {
-			enginecfg.Init(dbCfg.Value)
+			enginecfg.Set(dbCfg.Value)
 		} else {
 			logger.Warn("DB default engine is not enabled, falling back to config",
 				zap.String("db_value", dbCfg.Value))
-			enginecfg.Init(cfg.Bee.EffectiveEngine())
+			enginecfg.Set(cfg.Bee.EffectiveEngine())
 		}
 	} else {
-		enginecfg.Init(cfg.Bee.EffectiveEngine())
+		enginecfg.Set(cfg.Bee.EffectiveEngine())
 	}
 
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)

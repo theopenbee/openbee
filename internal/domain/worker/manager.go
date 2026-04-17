@@ -65,7 +65,7 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 		if e, ok := m.engines[w.Engine]; ok {
 			return e, nil
 		}
-		log.Warn("unknown engine on worker, falling back to default",
+		log.Error("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	defaultEngine := enginecfg.Get()

@@ -37,7 +37,7 @@ func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
 }
 
 func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
-	enginecfg.Init("a")
+	enginecfg.Set("a")
 	a := &stubEngine{name: "a"}
 	b := &stubEngine{name: "b"}
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b})
@@ -55,7 +55,7 @@ func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
 }
 
 func TestDynamicAdapter_ExtractResultRoutesToCurrentEngine(t *testing.T) {
-	enginecfg.Init("a")
+	enginecfg.Set("a")
 	a := &stubEngine{name: "a"}
 	b := &stubEngine{name: "b"}
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b})
@@ -71,7 +71,7 @@ func TestDynamicAdapter_ExtractResultRoutesToCurrentEngine(t *testing.T) {
 }
 
 func TestDynamicAdapter_RunUnknownEngine(t *testing.T) {
-	enginecfg.Init("missing")
+	enginecfg.Set("missing")
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": &stubEngine{name: "a"}})
 	_, _, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
 	if err == nil {

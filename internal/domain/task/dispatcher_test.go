@@ -415,7 +415,7 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -445,7 +445,7 @@ func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *test
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id", Status: model.ExecStatusCompleted, Result: "fresh!"}}
-	enginecfg.Init("codex")
+	enginecfg.Set("codex")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -519,7 +519,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	enginecfg.Init("codex")
+	enginecfg.Set("codex")
 	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1143,7 +1143,7 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	// Engine name must match enginecfg.Init value so
 	// GetSessionContextForEngine returns the stored session ID.
 	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
-	enginecfg.Init("testengine")
+	enginecfg.Set("testengine")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1332,7 +1332,7 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
 
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1375,7 +1375,7 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 		worker: model.Worker{ID: "w1", Engine: "pi"},
 	}
 	// System default is "kimi", but the worker is configured with "pi".
-	enginecfg.Init("kimi")
+	enginecfg.Set("kimi")
 	d, in, _ := newTaskDispatcher(mgr, eq, ss,
 		task.WithWorkerLookup(lookup),
 	)

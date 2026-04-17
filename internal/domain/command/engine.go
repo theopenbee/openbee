@@ -69,7 +69,7 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 }
 
 func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) {
-	if !h.replyIfInvalidEngine(ctx, replyTo, engineName) {
+	if !h.isValidEngine(ctx, replyTo, engineName) {
 		return
 	}
 	if err := h.sysCfg.Set(ctx, model.SystemConfigKeyDefaultEngine, engineName); err != nil {
@@ -81,7 +81,7 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 }
 
 func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName, workerName string) {
-	if !h.replyIfInvalidEngine(ctx, replyTo, engineName) {
+	if !h.isValidEngine(ctx, replyTo, engineName) {
 		return
 	}
 	w, err := h.workers.GetByName(workerName)
@@ -97,9 +97,8 @@ func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo p
 	h.reply(ctx, replyTo, fmt.Sprintf("已将 Worker %q 的 engine 切换为 %s", workerName, engineName))
 }
 
-// replyIfInvalidEngine validates engineName and sends an error reply if invalid.
-// Returns true if the engine is valid.
-func (h *EngineCommandHandler) replyIfInvalidEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) bool {
+// isValidEngine validates engineName. On failure it sends an error reply and returns false.
+func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) bool {
 	if err := h.validator.ValidateEngine(engineName); err != nil {
 		h.reply(ctx, replyTo, fmt.Sprintf("未知的 engine: %s，支持的 engine：%s",
 			engineName, strings.Join(h.validator.EnabledEngines(), " / ")))

@@ -104,7 +104,7 @@ func TestEngineCommand_NotACommand(t *testing.T) {
 }
 
 func TestEngineCommand_SwitchBeeEngine(t *testing.T) {
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	h, sender, cfg := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -176,7 +176,7 @@ func TestEngineCommand_NoArgs(t *testing.T) {
 }
 
 func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
-	enginecfg.Init("claude")
+	enginecfg.Set("claude")
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
