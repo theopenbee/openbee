@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { useEnabledEngines } from "@/hooks/use-config"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -68,6 +69,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const createWorker = useCreateWorker()
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
+  const enabledEngines = useEnabledEngines()
   const isCopy = initialValues !== undefined
   const initialValuesRef = useRef(initialValues)
   initialValuesRef.current = initialValues
@@ -88,12 +90,12 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setDescription(iv?.description ?? "")
       setMemory(iv?.memory ?? "")
       setWorkDir(iv?.work_dir ?? "")
-      setEngine(iv?.engine ?? DEFAULT_ENGINE)
+      setEngine(iv?.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
     }
-  }, [open])
+  }, [open, enabledEngines])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -183,7 +185,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   <SelectValue placeholder={t("workers.form.engineDefault")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <EngineSelectItems />
+                  <EngineSelectItems engines={enabledEngines} />
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
