@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import { flattenDeptTree } from "@/lib/department-utils"
 import type { DepartmentTree, EnvScope, Engine } from "@/lib/types"
-import { ENGINES, DEFAULT_ENGINE } from "@/lib/types"
+import { DEFAULT_ENGINE } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
@@ -37,10 +37,10 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { EngineSelectItems } from "@/components/engine-select-items"
 
 const PAGE_SIZE = 20
 
@@ -280,9 +280,7 @@ export function WorkerDetail() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {ENGINES.map((e) => (
-                                <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
-                              ))}
+                              <EngineSelectItems />
                             </SelectContent>
                           </Select>
                           <Button

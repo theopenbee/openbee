@@ -15,6 +15,7 @@ func TestValidateEngine(t *testing.T) {
 		{"claude is valid", "claude", false},
 		{"codex is valid", "codex", false},
 		{"pi is valid", "pi", false},
+		{"kimi is valid", "kimi", false},
 		{"empty string is invalid", "", true},
 		{"unknown engine is invalid", "gpt-4", true},
 		{"case sensitive", "Claude", true},

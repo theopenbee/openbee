@@ -47,7 +47,7 @@ type PromptMessages struct {
 	OptionEngineClaude string `yaml:"option_engine_claude"`
 	OptionEngineCodex  string `yaml:"option_engine_codex"`
 	OptionEnginePi     string `yaml:"option_engine_pi"`
-	OptionEngineKimi string `yaml:"option_engine_kimi"`
+	OptionEngineKimi   string `yaml:"option_engine_kimi"`
 	// Claude setup
 	ClaudeNotFound string `yaml:"claude_not_found"`
 	ClaudePath     string `yaml:"claude_path"`
@@ -58,6 +58,7 @@ type PromptMessages struct {
 	// Pi setup
 	PiPath    string `yaml:"pi_path"`
 	PiTimeout string `yaml:"pi_timeout"`
+	// Kimi setup
 	KimiPath    string `yaml:"kimi_path"`
 	KimiTimeout string `yaml:"kimi_timeout"`
 	// Platform
@@ -240,8 +241,8 @@ type ConfigOutput struct {
 	CodexManualEntry        string `yaml:"codex_manual_entry"`
 	PiFound                 string `yaml:"pi_found"`                 // contains %s
 	PiManualEntry           string `yaml:"pi_manual_entry"`
-	KimiFound       string `yaml:"kimi_found"`        // contains %s
-	KimiManualEntry string `yaml:"kimi_manual_entry"`
+	KimiFound               string `yaml:"kimi_found"`               // contains %s
+	KimiManualEntry         string `yaml:"kimi_manual_entry"`
 	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
 	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
 	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s

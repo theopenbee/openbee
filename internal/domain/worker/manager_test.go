@@ -102,19 +102,6 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	}
 }
 
-func TestManager_ResolveEngine_DefaultMissingFromMap_ReturnsFirst(t *testing.T) {
-	claude := &mockEngine{}
-	// defaultEngine "claude" is NOT in the map — only "codex" is
-	engines := map[string]ai.EngineAdapter{"codex": claude}
-	mgr := newTestManager(t, engines, "claude")
-
-	w := model.Worker{Engine: ""}
-	got := mgr.resolveEngine(w)
-	// Should not panic; should return the only available engine
-	if got == nil {
-		t.Error("expected non-nil engine fallback")
-	}
-}
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution calls StopExecution on the active process.

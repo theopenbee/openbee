@@ -80,9 +80,9 @@ type configValues struct {
 	PiPath        string
 	PiTimeout     string
 	PiEnv         map[string]string
-	KimiPath    string
-	KimiTimeout string
-	KimiEnv     map[string]string
+	KimiPath      string
+	KimiTimeout   string
+	KimiEnv       map[string]string
 
 	FeederTimeout          string
 	FeederMaxConcurrentBee int
@@ -158,9 +158,9 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:               cfg.Bee.Pi.Path,
 		PiTimeout:            cfg.Bee.Pi.Timeout.String(),
 		PiEnv:                cfg.Bee.Pi.Env,
-		KimiPath:    cfg.Bee.Kimi.Path,
-		KimiTimeout: cfg.Bee.Kimi.Timeout.String(),
-		KimiEnv:     cfg.Bee.Kimi.Env,
+		KimiPath:             cfg.Bee.Kimi.Path,
+		KimiTimeout:          cfg.Bee.Kimi.Timeout.String(),
+		KimiEnv:              cfg.Bee.Kimi.Env,
 		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
@@ -186,8 +186,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		CodexTimeout:           "30m",
 		PiPath:                 "pi",
 		PiTimeout:              "30m",
-		KimiPath:    "kimi",
-		KimiTimeout: "30m",
+		KimiPath:               "kimi",
+		KimiTimeout:            "30m",
 		MCPTokenTTL:            "2h",
 		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,

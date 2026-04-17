@@ -18,15 +18,15 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { EngineSelectItems } from "@/components/engine-select-items"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
-import { ENGINES, DEFAULT_ENGINE } from "@/lib/types"
+import { DEFAULT_ENGINE } from "@/lib/types"
 import type { Engine } from "@/lib/types"
 
 export interface WorkerInitialValues {
@@ -183,9 +183,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   <SelectValue placeholder={t("workers.form.engineDefault")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {ENGINES.map((e) => (
-                    <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
-                  ))}
+                  <EngineSelectItems />
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>

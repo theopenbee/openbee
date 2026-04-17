@@ -27,7 +27,6 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 			base = append(base, k+"="+v)
 		}
 	}
-	base = base[:len(base):len(base)]
 	return &Invoker{binary: binary, baseEnv: base}
 }
 
