@@ -51,26 +51,6 @@ server:
 	}
 }
 
-func TestBeeConfig_Defaults(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`
-server:
-  port: 8080
-bee:
-  name: "bee"
-`)
-	f.Close()
-
-	cfg, err := Load(f.Name())
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	// Feeder.Timeout has been removed; bee execution timeout is now Engine.Timeout.Bee
-	// covered by TestBeeConfig_EngineTimeoutSplitDefaults below.
-	_ = cfg
-}
-
 func TestBeeConfig_EngineTimeoutSplitDefaults(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`

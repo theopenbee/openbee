@@ -218,19 +218,18 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 1 — Engine config
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	// Build default selections from existing config
+	// Build default selections from existing config; engineLabel is called after i18n is loaded.
+	enabledByName := map[string]bool{
+		"claude": vals.ClaudeEnabled,
+		"codex":  vals.CodexEnabled,
+		"pi":     vals.PiEnabled,
+		"kimi":   vals.KimiEnabled,
+	}
 	var defaultEngines []string
-	if vals.ClaudeEnabled {
-		defaultEngines = append(defaultEngines, i18n.M.Prompt.OptionEngineClaude)
-	}
-	if vals.CodexEnabled {
-		defaultEngines = append(defaultEngines, i18n.M.Prompt.OptionEngineCodex)
-	}
-	if vals.PiEnabled {
-		defaultEngines = append(defaultEngines, i18n.M.Prompt.OptionEnginePi)
-	}
-	if vals.KimiEnabled {
-		defaultEngines = append(defaultEngines, i18n.M.Prompt.OptionEngineKimi)
+	for _, name := range []string{"claude", "codex", "pi", "kimi"} {
+		if enabledByName[name] {
+			defaultEngines = append(defaultEngines, engineLabel(name))
+		}
 	}
 	if len(defaultEngines) == 0 {
 		defaultEngines = []string{i18n.M.Prompt.OptionEngineClaude}
@@ -261,8 +260,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.KimiEnabled = false
 
 	for _, e := range selectedEngines {
-		switch e {
-		case i18n.M.Prompt.OptionEngineClaude:
+		switch engineName(e) {
+		case "claude":
 			vals.ClaudeEnabled = true
 			if err := configureClaudeExecutable(&vals); err != nil {
 				return err
@@ -270,17 +269,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			if err := configureClaudeProvider(&vals); err != nil {
 				return err
 			}
-		case i18n.M.Prompt.OptionEngineCodex:
+		case "codex":
 			vals.CodexEnabled = true
 			if err := configureCodexExecutable(&vals); err != nil {
 				return err
 			}
-		case i18n.M.Prompt.OptionEnginePi:
+		case "pi":
 			vals.PiEnabled = true
 			if err := configurePiExecutable(&vals); err != nil {
 				return err
 			}
-		case i18n.M.Prompt.OptionEngineKimi:
+		case "kimi":
 			vals.KimiEnabled = true
 			if err := configureKimiExecutable(&vals); err != nil {
 				return err
@@ -288,30 +287,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Select default engine from enabled ones
-	defaultEngineOpt := ""
+	// Select default engine from enabled ones.
+	// Find the label for the current default if it is still in the selection; otherwise fall back to first.
+	currentDefaultLabel := engineLabel(vals.EngineDefault)
+	defaultEngineOpt := selectedEngines[0]
 	for _, e := range selectedEngines {
-		switch e {
-		case i18n.M.Prompt.OptionEngineClaude:
-			if vals.EngineDefault == "claude" {
-				defaultEngineOpt = i18n.M.Prompt.OptionEngineClaude
-			}
-		case i18n.M.Prompt.OptionEngineCodex:
-			if vals.EngineDefault == "codex" {
-				defaultEngineOpt = i18n.M.Prompt.OptionEngineCodex
-			}
-		case i18n.M.Prompt.OptionEnginePi:
-			if vals.EngineDefault == "pi" {
-				defaultEngineOpt = i18n.M.Prompt.OptionEnginePi
-			}
-		case i18n.M.Prompt.OptionEngineKimi:
-			if vals.EngineDefault == "kimi" {
-				defaultEngineOpt = i18n.M.Prompt.OptionEngineKimi
-			}
+		if e == currentDefaultLabel {
+			defaultEngineOpt = e
+			break
 		}
-	}
-	if defaultEngineOpt == "" {
-		defaultEngineOpt = selectedEngines[0]
 	}
 
 	var selectedDefault string
@@ -327,16 +311,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	switch selectedDefault {
-	case i18n.M.Prompt.OptionEngineClaude:
-		vals.EngineDefault = "claude"
-	case i18n.M.Prompt.OptionEngineCodex:
-		vals.EngineDefault = "codex"
-	case i18n.M.Prompt.OptionEnginePi:
-		vals.EngineDefault = "pi"
-	case i18n.M.Prompt.OptionEngineKimi:
-		vals.EngineDefault = "kimi"
-	}
+	vals.EngineDefault = engineName(selectedDefault)
 
 	if err := survey.AskOne(&survey.Input{
 		Message: i18n.M.Prompt.EngineTimeoutBee,
@@ -765,6 +740,37 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+// engineLabel returns the i18n display label for the given engine name ("claude", "codex", etc.).
+// Returns "" for unknown names.
+func engineLabel(name string) string {
+	switch name {
+	case "claude":
+		return i18n.M.Prompt.OptionEngineClaude
+	case "codex":
+		return i18n.M.Prompt.OptionEngineCodex
+	case "pi":
+		return i18n.M.Prompt.OptionEnginePi
+	case "kimi":
+		return i18n.M.Prompt.OptionEngineKimi
+	}
+	return ""
+}
+
+// engineName converts an i18n display label back to its canonical engine name.
+func engineName(label string) string {
+	switch label {
+	case i18n.M.Prompt.OptionEngineClaude:
+		return "claude"
+	case i18n.M.Prompt.OptionEngineCodex:
+		return "codex"
+	case i18n.M.Prompt.OptionEnginePi:
+		return "pi"
+	case i18n.M.Prompt.OptionEngineKimi:
+		return "kimi"
+	}
+	return ""
 }
 
 func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg string, pathDst *string) error {

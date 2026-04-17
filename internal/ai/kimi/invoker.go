@@ -12,7 +12,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// Invoker spawns Kimi CLI processes. It is stateless and safe for concurrent use.
+// Invoker spawns Kimi CLI processes. It is immutable after construction and safe for concurrent use.
 type Invoker struct {
 	binary  string
 	baseEnv []string

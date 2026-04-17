@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,26 +76,24 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, m.defaultEngine)
 }
 
-// EnabledEngines returns the names of all currently enabled engines.
+// EnabledEngines returns the names of all currently enabled engines in stable order.
 func (m *Manager) EnabledEngines() []string {
 	names := make([]string, 0, len(m.engines))
 	for name := range m.engines {
 		names = append(names, name)
 	}
+	slices.Sort(names)
 	return names
 }
 
-// ValidateEngine returns an error if name is not a known or enabled engine.
+// ValidateEngine returns an error if name is not an enabled engine.
 // An empty name is accepted (means "use server default").
 func (m *Manager) ValidateEngine(name string) error {
 	if name == "" {
 		return nil
 	}
-	if err := ai.ValidateEngine(name); err != nil {
-		return err
-	}
 	if _, ok := m.engines[name]; !ok {
-		return fmt.Errorf("engine %q is not enabled", name)
+		return fmt.Errorf("engine %q is not enabled; valid values: %s", name, strings.Join(m.EnabledEngines(), ", "))
 	}
 	return nil
 }

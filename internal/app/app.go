@@ -104,6 +104,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init engines: %w", err)
 	}
+	if engines[cfg.Bee.EffectiveEngine()] == nil {
+		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", cfg.Bee.EffectiveEngine())
+	}
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
