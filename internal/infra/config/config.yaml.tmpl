@@ -16,31 +16,22 @@ database:
   path: {{.DBPath}}
 
 bee:
-  engine: {{.Engine}}
-  claude:
-    path: {{.ClaudePath}}
-    timeout: {{.ClaudeTimeout}}
-  codex:
-    path: {{.CodexPath}}
-    timeout: {{.CodexTimeout}}
-  pi:
-    path: {{.PiPath}}
-    timeout: {{.PiTimeout}}
-    {{- if .PiEnv}}
-    env:
-    {{- range $k, $v := .PiEnv}}
-      {{$k}}: "{{$v}}"
-    {{- end}}
-    {{- end}}
-  kimi:
-    path: {{.KimiPath}}
-    timeout: {{.KimiTimeout}}
-    {{- if .KimiEnv}}
-    env:
-    {{- range $k, $v := .KimiEnv}}
-      {{$k}}: "{{$v}}"
-    {{- end}}
-    {{- end}}
+  engine:
+    default: {{.EngineDefault}}
+    timeout: {{.EngineTimeout}}
+  engines:
+    claude:
+      enabled: {{.ClaudeEnabled}}
+      path: {{.ClaudePath}}
+    codex:
+      enabled: {{.CodexEnabled}}
+      path: {{.CodexPath}}
+    pi:
+      enabled: {{.PiEnabled}}
+      path: {{.PiPath}}
+    kimi:
+      enabled: {{.KimiEnabled}}
+      path: {{.KimiPath}}
   mcp:
     token_secret: "{{.MCPTokenSecret}}"
     token_ttl: {{.MCPTokenTTL}}
