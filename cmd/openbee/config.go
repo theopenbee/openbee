@@ -72,9 +72,10 @@ type configValues struct {
 	WeixinCDNBaseURL string
 	WeixinUserID     string
 
-	EngineDefault string
-	EngineTimeout string
-	ClaudeEnabled bool
+	EngineDefault       string
+	EngineTimeoutBee    string
+	EngineTimeoutWorker string
+	ClaudeEnabled       bool
 	CodexEnabled  bool
 	PiEnabled     bool
 	KimiEnabled   bool
@@ -83,7 +84,6 @@ type configValues struct {
 	PiPath        string
 	KimiPath      string
 
-	FeederTimeout          string
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
 	FFprobePath            string
@@ -149,17 +149,17 @@ func loadExistingConfig(path string) *configValues {
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
-		EngineDefault: cfg.Bee.Engine.Default,
-		EngineTimeout: cfg.Bee.Engine.Timeout.String(),
-		ClaudeEnabled: cfg.Bee.Engines.Claude.Enabled,
-		CodexEnabled:  cfg.Bee.Engines.Codex.Enabled,
-		PiEnabled:     cfg.Bee.Engines.Pi.Enabled,
-		KimiEnabled:   cfg.Bee.Engines.Kimi.Enabled,
-		ClaudePath:    cfg.Bee.Engines.Claude.Path,
-		CodexPath:     cfg.Bee.Engines.Codex.Path,
-		PiPath:        cfg.Bee.Engines.Pi.Path,
-		KimiPath:      cfg.Bee.Engines.Kimi.Path,
-		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
+		EngineDefault:          cfg.Bee.Engine.Default,
+		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
+		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
+		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
+		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
+		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
+		KimiEnabled:            cfg.Bee.Engines.Kimi.Enabled,
+		ClaudePath:             cfg.Bee.Engines.Claude.Path,
+		CodexPath:              cfg.Bee.Engines.Codex.Path,
+		PiPath:                 cfg.Bee.Engines.Pi.Path,
+		KimiPath:               cfg.Bee.Engines.Kimi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
@@ -177,15 +177,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		ServerPort:             "8080",
 		ServerHost:             "localhost",
 		DBPath:                 "./data/openbee.db",
-		EngineDefault: "claude",
-		EngineTimeout: "30m",
-		ClaudeEnabled: true,
-		ClaudePath:    "claude",
-		CodexPath:     "codex",
-		PiPath:        "pi",
-		KimiPath:      "kimi",
+		EngineDefault:          "claude",
+		EngineTimeoutBee:       "5m",
+		EngineTimeoutWorker:    "30m",
+		ClaudeEnabled:          true,
+		ClaudePath:             "claude",
+		CodexPath:              "codex",
+		PiPath:                 "pi",
+		KimiPath:               "kimi",
 		MCPTokenTTL:            "2h",
-		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		FFprobePath:            "ffprobe",
@@ -339,11 +339,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		vals.EngineDefault = "kimi"
 	}
 
-	// Single global timeout
 	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.EngineTimeout,
-		Default: vals.EngineTimeout,
-	}, &vals.EngineTimeout); err != nil {
+		Message: i18n.M.Prompt.EngineTimeoutBee,
+		Default: vals.EngineTimeoutBee,
+	}, &vals.EngineTimeoutBee); err != nil {
+		return handleSurveyErr(err)
+	}
+
+	if err := survey.AskOne(&survey.Input{
+		Message: i18n.M.Prompt.EngineTimeoutWorker,
+		Default: vals.EngineTimeoutWorker,
+	}, &vals.EngineTimeoutWorker); err != nil {
 		return handleSurveyErr(err)
 	}
 
@@ -583,13 +589,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			Message: i18n.M.Prompt.DBPath,
 			Default: vals.DBPath,
 		}, &vals.DBPath); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.FeederTimeout,
-			Default: vals.FeederTimeout,
-		}, &vals.FeederTimeout); err != nil {
 			return handleSurveyErr(err)
 		}
 
