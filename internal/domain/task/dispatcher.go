@@ -314,13 +314,17 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 // both engine selection and the persona injection needed by executeWithHint.
 func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Worker) {
 	if d.workerLookup != nil {
-		if w, err := d.workerLookup.GetByID(workerID); err == nil {
-			engine := w.Engine
-			if engine == "" {
-				engine = d.engineName
-			}
-			return engine, &w
+		w, err := d.workerLookup.GetByID(workerID)
+		if err != nil {
+			log.Warn("worker lookup failed, falling back to default engine",
+				zap.String("workerID", workerID), zap.Error(err))
+			return d.engineName, nil
 		}
+		engine := w.Engine
+		if engine == "" {
+			engine = d.engineName
+		}
+		return engine, &w
 	}
 	return d.engineName, nil
 }
