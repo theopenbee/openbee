@@ -1,12 +1,17 @@
 import { useTranslation } from "react-i18next"
 import { SelectItem } from "@/components/ui/select"
 import { ENGINES } from "@/lib/types"
+import type { Engine } from "@/lib/types"
 
-export function EngineSelectItems() {
+interface EngineSelectItemsProps {
+  engines?: readonly Engine[]
+}
+
+export function EngineSelectItems({ engines = ENGINES }: EngineSelectItemsProps) {
   const { t } = useTranslation()
   return (
     <>
-      {ENGINES.map((e) => (
+      {engines.map((e) => (
         <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
       ))}
     </>
