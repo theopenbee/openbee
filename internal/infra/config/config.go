@@ -72,6 +72,12 @@ type PiConfig struct {
 	Env     map[string]string `yaml:"env"`
 }
 
+type KimiConfig struct {
+	Path    string            `yaml:"path"`
+	Timeout time.Duration     `yaml:"timeout"`
+	Env     map[string]string `yaml:"env"`
+}
+
 type MediaConfig struct {
 	FFprobePath string `yaml:"ffprobe_path"`
 	FFmpegPath  string `yaml:"ffmpeg_path"`
@@ -83,6 +89,7 @@ type BeeConfig struct {
 	Claude          ClaudeConfig    `yaml:"claude"`
 	Codex           CodexConfig     `yaml:"codex"`
 	Pi              PiConfig        `yaml:"pi"`
+	Kimi            KimiConfig      `yaml:"kimi"`
 	Feeder          FeederConfig    `yaml:"feeder"`
 	Platforms       PlatformsConfig `yaml:"platforms"`
 	MCP             MCPConfig       `yaml:"mcp"`
@@ -99,6 +106,8 @@ func (b BeeConfig) WorkerTimeout() time.Duration {
 		return b.Codex.Timeout
 	case "pi":
 		return b.Pi.Timeout
+	case "kimi":
+		return b.Kimi.Timeout
 	default:
 		return b.Claude.Timeout
 	}
@@ -127,6 +136,8 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 		return map[string]any{"path": b.Codex.Path}
 	case "pi":
 		return map[string]any{"path": b.Pi.Path, "env": b.Pi.Env}
+	case "kimi":
+		return map[string]any{"path": b.Kimi.Path, "env": b.Kimi.Env}
 	default:
 		return nil
 	}
