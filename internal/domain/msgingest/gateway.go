@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "msgingest"))
@@ -39,23 +39,38 @@ type debounceState struct {
 
 // Gateway receives raw platform messages, deduplicates, debounces, and emits IngestedMessages.
 type Gateway struct {
-	msgStore MessageStore
-	debounce time.Duration
-	sessions map[string]*debounceState
-	seen     map[string]struct{} // in-memory dedup set keyed by platform_msg_id
-	mu       sync.Mutex
-	out      chan IngestedMessage
+	msgStore       MessageStore
+	debounce       time.Duration
+	sessions       map[string]*debounceState
+	seen           map[string]struct{} // in-memory dedup set keyed by platform_msg_id
+	mu             sync.Mutex
+	out            chan IngestedMessage
+	commandHandler CommandHandler // optional; intercepts slash commands before DB write
+}
+
+// Option configures a Gateway.
+type Option func(*Gateway)
+
+// WithCommandHandler sets an optional slash-command handler.
+// When set, each debounced message is offered to the handler before DB write.
+// If the handler returns true, the message is consumed and not stored.
+func WithCommandHandler(h CommandHandler) Option {
+	return func(g *Gateway) { g.commandHandler = h }
 }
 
 // New constructs a Gateway.
-func New(msgStore MessageStore, debounce time.Duration) *Gateway {
-	return &Gateway{
+func New(msgStore MessageStore, debounce time.Duration, opts ...Option) *Gateway {
+	g := &Gateway{
 		msgStore: msgStore,
 		debounce: debounce,
 		sessions: make(map[string]*debounceState),
 		seen:     make(map[string]struct{}),
 		out:      make(chan IngestedMessage, 64),
 	}
+	for _, o := range opts {
+		o(g)
+	}
+	return g
 }
 
 // Out returns the channel of outgoing IngestedMessages.
@@ -162,6 +177,12 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			bm.Status = "received"
 		}
 		batch[i] = bm
+	}
+
+	if g.commandHandler != nil {
+		if g.commandHandler.HandleCommand(context.Background(), content, msgs[n-1]) {
+			return
+		}
 	}
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)
