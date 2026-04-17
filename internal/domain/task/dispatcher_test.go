@@ -1358,3 +1358,37 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 		t.Errorf("expected prior-session-id, got %q", sessID)
 	}
 }
+
+func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-pi-1", Status: model.ExecStatusCompleted},
+	}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
+	ss := newMockSessionStore()
+	lookup := &mockWorkerLookup{
+		worker: model.Worker{ID: "w1", Engine: "pi"},
+	}
+	// System default is "kimi", but the worker is configured with "pi".
+	d, in, _ := newTaskDispatcher(mgr, eq, ss,
+		task.WithEngine("kimi"),
+		task.WithWorkerLookup(lookup),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- immediateTask("sk-1", "w1", "do the thing")
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("timeout waiting for execution")
+	}
+
+	// Session context must be stored under the worker's engine ("pi"), not the system default ("kimi").
+	if got := ss.sessionID("sk-1", "w1", "pi"); got == "" {
+		t.Error("expected session context stored under engine 'pi', got nothing")
+	}
+	if got := ss.sessionID("sk-1", "w1", "kimi"); got != "" {
+		t.Errorf("session context must not be stored under system-default engine 'kimi', got %q", got)
+	}
+}

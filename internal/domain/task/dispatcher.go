@@ -325,6 +325,18 @@ func (d *TaskDispatcher) workerSkillHint(workerID string) (string, error) {
 	return hint + "\n<worker_persona>\n" + persona + "</worker_persona>", nil
 }
 
+// resolveWorkerEngine returns the engine name to use for session context operations.
+// If workerLookup is set and the worker has a configured engine, that name is returned.
+// Otherwise falls back to d.engineName (the system-default engine).
+func (d *TaskDispatcher) resolveWorkerEngine(workerID string) string {
+	if d.workerLookup != nil {
+		if w, err := d.workerLookup.GetByID(workerID); err == nil && w.Engine != "" {
+			return w.Engine
+		}
+	}
+	return d.engineName
+}
+
 // executeWithHint fetches the worker skill hint + persona and starts a fresh execution.
 func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction string) (model.WorkerExecution, error) {
 	hint, err := d.workerSkillHint(task.WorkerID)
@@ -341,7 +353,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	if task.TaskType != model.TaskTypeImmediate {
 		return d.executeWithHint(ctx, task, instruction)
 	}
-	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName)
+	engineName := d.resolveWorkerEngine(task.WorkerID)
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
@@ -356,8 +369,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if task.SessionKey != "" && task.WorkerID != "" {
-		if clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, d.engineName); clearErr != nil {
-			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", d.engineName), zap.Error(clearErr))
+		if clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); clearErr != nil {
+			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}
 	return d.executeWithHint(ctx, task, instruction)
@@ -418,7 +431,7 @@ func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task Dispatch
 	if task.SessionKey == "" || task.WorkerID == "" || sessionID == "" {
 		return
 	}
-	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.engineName); err != nil {
+	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, d.resolveWorkerEngine(task.WorkerID)); err != nil {
 		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
 	}
 }
