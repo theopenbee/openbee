@@ -41,7 +41,8 @@ cmd:
 prompt:
   engine_select: "Select AI engine:"
   engine_default: "Default engine:"
-  engine_timeout: "Worker timeout:"
+  engine_timeout_bee: "Bee timeout:"
+  engine_timeout_worker: "Worker timeout:"
   option_engine_claude: "Claude Code"
   option_engine_codex: "Codex"
   option_engine_pi: "Pi"
@@ -80,7 +81,6 @@ prompt:
   server_host: "Server Host:"
   debug_mode: "Debug mode?"
   db_path: "Database path:"
-  feeder_timeout: "Feeder timeout:"
   max_concurrent_bee: "Max concurrent bee processes:"
   message_debounce: "Message debounce:"
   ffprobe_path: "FFprobe path:"

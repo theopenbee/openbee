@@ -41,7 +41,8 @@ cmd:
 prompt:
   engine_select: "选择 AI 引擎："
   engine_default: "默认引擎："
-  engine_timeout: "Worker 超时时间："
+  engine_timeout_bee: "Bee 超时时间："
+  engine_timeout_worker: "Worker 超时时间："
   option_engine_claude: "Claude Code"
   option_engine_codex: "Codex"
   option_engine_pi: "Pi"
@@ -80,7 +81,6 @@ prompt:
   server_host: "服务地址："
   debug_mode: "开启调试模式？"
   db_path: "数据库路径："
-  feeder_timeout: "Feeder 超时时间："
   max_concurrent_bee: "最大并发 bee 数量："
   message_debounce: "消息防抖时间："
   ffprobe_path: "FFprobe 路径："

@@ -45,7 +45,8 @@ type PromptMessages struct {
 	// Engine selection
 	EngineSelect       string `yaml:"engine_select"`
 	EngineDefault      string `yaml:"engine_default"`
-	EngineTimeout      string `yaml:"engine_timeout"`
+	EngineTimeoutBee    string `yaml:"engine_timeout_bee"`
+	EngineTimeoutWorker string `yaml:"engine_timeout_worker"`
 	OptionEngineClaude string `yaml:"option_engine_claude"`
 	OptionEngineCodex  string `yaml:"option_engine_codex"`
 	OptionEnginePi     string `yaml:"option_engine_pi"`
@@ -92,7 +93,6 @@ type PromptMessages struct {
 	ServerHost          string `yaml:"server_host"`
 	DebugMode           string `yaml:"debug_mode"`
 	DBPath              string `yaml:"db_path"`
-	FeederTimeout       string `yaml:"feeder_timeout"`
 	MaxConcurrentBee    string `yaml:"max_concurrent_bee"`
 	MessageDebounce     string `yaml:"message_debounce"`
 	FFprobePath         string `yaml:"ffprobe_path"`
