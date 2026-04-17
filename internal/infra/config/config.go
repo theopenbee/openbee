@@ -70,8 +70,9 @@ type EngineDefaultConfig struct {
 
 // EngineItemConfig is the per-engine enable/path config.
 type EngineItemConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Path    string `yaml:"path"`
+	Enabled bool              `yaml:"enabled"`
+	Path    string            `yaml:"path"`
+	Env     map[string]string `yaml:"env"`
 }
 
 // EnginesConfig groups all per-engine configs under the engines: YAML namespace.
@@ -145,11 +146,14 @@ func (b BeeConfig) EngineConfigRaw() map[string]any {
 
 // EngineConfigRawFor returns the raw config map for the named engine.
 func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
-	path := b.Engines.PathFor(name)
-	if path == "" {
+	item := b.Engines.itemFor(name)
+	if item.Path == "" {
 		return nil
 	}
-	return map[string]any{"path": path}
+	return map[string]any{
+		"path": item.Path,
+		"env":  item.Env,
+	}
 }
 
 type PlatformsConfig struct {
