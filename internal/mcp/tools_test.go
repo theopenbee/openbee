@@ -1625,3 +1625,44 @@ func TestCallTool_CreateWorker_InvalidEngine(t *testing.T) {
 		t.Error("expected error for unknown engine, got nil")
 	}
 }
+
+func TestCallTool_UpdateWorker_WithEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "claude",
+	}))
+	if err != nil {
+		t.Fatalf("update_worker: %v", err)
+	}
+	updated, ok := result.(model.Worker)
+	if !ok {
+		t.Fatalf("expected model.Worker, got %T", result)
+	}
+	if updated.Engine != "claude" {
+		t.Errorf("expected engine claude, got %q", updated.Engine)
+	}
+}
+
+func TestCallTool_UpdateWorker_InvalidEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	_, err = s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "not-a-real-engine",
+	}))
+	if err == nil {
+		t.Error("expected error for unknown engine, got nil")
+	}
+}

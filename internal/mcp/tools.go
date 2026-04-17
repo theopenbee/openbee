@@ -283,6 +283,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		Name             *string `json:"name"`
 		Description      *string `json:"description"`
 		Memory           *string `json:"memory"`
+		Engine           *string `json:"engine"`
 		DepartmentIDs    *string `json:"department_ids"`
 		PermissionScopes *string `json:"permission_scopes"`
 	}
@@ -296,7 +297,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.PermissionScopes != nil
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.Engine != nil || params.PermissionScopes != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -305,6 +306,14 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	}
 	if params.Memory != nil {
 		w.Memory = *params.Memory
+	}
+	if params.Engine != nil {
+		if *params.Engine != "" {
+			if err := ai.ValidateEngine(*params.Engine); err != nil {
+				return nil, err
+			}
+		}
+		w.Engine = *params.Engine
 	}
 	if params.PermissionScopes != nil {
 		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {
