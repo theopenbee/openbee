@@ -112,8 +112,18 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	// Initialize the default engine cache from DB, falling back to config.
-	if dbCfg, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine); err == nil && found {
-		enginecfg.Init(dbCfg.Value)
+	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
+	if dbErr != nil {
+		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))
+	}
+	if dbErr == nil && found {
+		if validateErr := ai.ValidateEngine(dbCfg.Value); validateErr == nil {
+			enginecfg.Init(dbCfg.Value)
+		} else {
+			logger.Warn("DB default engine is invalid, falling back to config",
+				zap.String("db_value", dbCfg.Value), zap.Error(validateErr))
+			enginecfg.Init(cfg.Bee.EffectiveEngine())
+		}
 	} else {
 		enginecfg.Init(cfg.Bee.EffectiveEngine())
 	}
