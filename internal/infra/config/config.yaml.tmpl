@@ -18,7 +18,9 @@ database:
 bee:
   engine:
     default: {{.EngineDefault}}
-    timeout: {{.EngineTimeout}}
+    timeout:
+      bee: {{.EngineTimeoutBee}}
+      worker: {{.EngineTimeoutWorker}}
   engines:
     claude:
       enabled: {{.ClaudeEnabled}}
@@ -59,7 +61,6 @@ bee:
       cdn_base_url: "{{.WeixinCDNBaseURL}}"
       user_id: "{{.WeixinUserID}}"
   feeder:
-    timeout: {{.FeederTimeout}}
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:
     ffprobe_path: {{.FFprobePath}}
