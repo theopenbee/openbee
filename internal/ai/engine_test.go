@@ -1,10 +1,6 @@
-package api
+package ai
 
-import (
-	"testing"
-
-	ai "github.com/theopenbee/openbee/internal/ai"
-)
+import "testing"
 
 func TestValidateEngine(t *testing.T) {
 	tests := []struct {
@@ -22,11 +18,10 @@ func TestValidateEngine(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ai.ValidateEngine(tt.engine)
+			err := ValidateEngine(tt.engine)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ai.ValidateEngine(%q) error = %v, wantErr %v", tt.engine, err, tt.wantErr)
+				t.Errorf("ValidateEngine(%q) error = %v, wantErr %v", tt.engine, err, tt.wantErr)
 			}
 		})
 	}
 }
-

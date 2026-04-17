@@ -14,6 +14,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -218,15 +219,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 1 — Engine config
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	// Build default selections from existing config; engineLabel is called after i18n is loaded.
+	// engineLabel is called after i18n is loaded.
 	enabledByName := map[string]bool{
-		"claude": vals.ClaudeEnabled,
-		"codex":  vals.CodexEnabled,
-		"pi":     vals.PiEnabled,
-		"kimi":   vals.KimiEnabled,
+		ai.EngineClaude: vals.ClaudeEnabled,
+		ai.EngineCodex:  vals.CodexEnabled,
+		ai.EnginePi:     vals.PiEnabled,
+		ai.EngineKimi:   vals.KimiEnabled,
 	}
 	var defaultEngines []string
-	for _, name := range []string{"claude", "codex", "pi", "kimi"} {
+	for _, name := range ai.AllEngines {
 		if enabledByName[name] {
 			defaultEngines = append(defaultEngines, engineLabel(name))
 		}
@@ -746,13 +747,13 @@ func handleSurveyErr(err error) error {
 // Returns "" for unknown names.
 func engineLabel(name string) string {
 	switch name {
-	case "claude":
+	case ai.EngineClaude:
 		return i18n.M.Prompt.OptionEngineClaude
-	case "codex":
+	case ai.EngineCodex:
 		return i18n.M.Prompt.OptionEngineCodex
-	case "pi":
+	case ai.EnginePi:
 		return i18n.M.Prompt.OptionEnginePi
-	case "kimi":
+	case ai.EngineKimi:
 		return i18n.M.Prompt.OptionEngineKimi
 	}
 	return ""
@@ -762,13 +763,13 @@ func engineLabel(name string) string {
 func engineName(label string) string {
 	switch label {
 	case i18n.M.Prompt.OptionEngineClaude:
-		return "claude"
+		return ai.EngineClaude
 	case i18n.M.Prompt.OptionEngineCodex:
-		return "codex"
+		return ai.EngineCodex
 	case i18n.M.Prompt.OptionEnginePi:
-		return "pi"
+		return ai.EnginePi
 	case i18n.M.Prompt.OptionEngineKimi:
-		return "kimi"
+		return ai.EngineKimi
 	}
 	return ""
 }

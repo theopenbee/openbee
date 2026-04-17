@@ -131,7 +131,6 @@ func ExtractResultFromLog(logPath string) string {
 }
 
 // Run starts a Kimi CLI process, redirecting output to logPath.
-// The prompt is passed via stdin; opts.SessionID is passed as --session=<UUID>.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
