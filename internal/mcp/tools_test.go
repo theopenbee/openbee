@@ -43,7 +43,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
 	)
@@ -242,7 +242,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
 	)
@@ -490,7 +490,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
 	)

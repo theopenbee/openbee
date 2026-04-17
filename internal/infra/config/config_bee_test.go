@@ -13,8 +13,9 @@ server:
   host: "localhost"
   port: 8080
 bee:
-  claude:
-    path: "claude-custom"
+  engines:
+    claude:
+      path: "claude-custom"
 `)
 	f.Close()
 
@@ -26,8 +27,8 @@ bee:
 	if cfg.Bee.MCPBaseURL != "http://localhost:8080" {
 		t.Errorf("MCPBaseURL: want http://localhost:8080 got %q", cfg.Bee.MCPBaseURL)
 	}
-	if cfg.Bee.Claude.Path != "claude-custom" {
-		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Claude.Path)
+	if cfg.Bee.Engines.Claude.Path != "claude-custom" {
+		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Engines.Claude.Path)
 	}
 }
 
@@ -45,8 +46,8 @@ server:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Claude.Path != "claude" {
-		t.Errorf("Claude.Path default: want claude got %q", cfg.Bee.Claude.Path)
+	if cfg.Bee.Engines.Claude.Path != "claude" {
+		t.Errorf("Claude.Path default: want claude got %q", cfg.Bee.Engines.Claude.Path)
 	}
 }
 

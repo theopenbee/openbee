@@ -118,7 +118,7 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// Since we can't easily inject a mock engine, we verify the method exists
 	// and returns a sensible error for an unknown execution ID.
 	cfg := config.BeeConfig{}
-	cfg.Claude.Path = "echo" // won't actually run; just needs to not panic
+	cfg.Engines.Claude.Path = "echo" // won't actually run; just needs to not panic
 	dir := t.TempDir()
 	db, err := store.InitDB(dir + "/test.db")
 	if err != nil {

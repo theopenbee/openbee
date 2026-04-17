@@ -99,7 +99,7 @@ func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 
 func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
-	cfg.Engine = engine
+	cfg.Engine = config.EngineDefaultConfig{Default: engine}
 	cfg.Feeder.Timeout = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
