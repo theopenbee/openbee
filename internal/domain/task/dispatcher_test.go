@@ -1140,7 +1140,7 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
 	ss := newMockSessionStore()
 	// Pre-populate session context so this is a resume.
-	// Engine name must match the dispatcher's WithEngine option so
+	// Engine name must match enginecfg.Init value so
 	// GetSessionContextForEngine returns the stored session ID.
 	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
 	enginecfg.Init("testengine")
