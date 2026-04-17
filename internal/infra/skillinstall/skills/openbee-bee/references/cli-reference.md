@@ -8,8 +8,8 @@
 openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
 openbee ctl worker get <id>
 openbee ctl worker status <id>
-openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>] [--department <id|name>] [--scopes <scopes>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>] [--department <id|name>] [--scopes <scopes>]
+openbee ctl worker create --name <name> [--description <description>] [--memory <memory content>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--memory <memory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>]
 openbee ctl worker delete <id> [--delete-work-dir]
 ```
 
