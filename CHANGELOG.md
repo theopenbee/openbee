@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.25] - 2026-04-16
+
 ### Added
 - Add Kimi agent
 - Add worker copy feature
