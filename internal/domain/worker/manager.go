@@ -86,6 +86,15 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, m.defaultEngine)
 }
 
+// EnabledEngines returns the names of all currently enabled engines.
+func (m *Manager) EnabledEngines() []string {
+	names := make([]string, 0, len(m.engines))
+	for name := range m.engines {
+		names = append(names, name)
+	}
+	return names
+}
+
 // CreateWorkerParams holds the inputs for creating a new worker.
 type CreateWorkerParams struct {
 	Name             string
