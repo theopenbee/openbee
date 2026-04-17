@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -22,11 +21,18 @@ type SystemConfigWriter interface {
 	Set(ctx context.Context, key, value string) error
 }
 
+// EngineValidator validates engine names against the set of enabled engines.
+type EngineValidator interface {
+	ValidateEngine(name string) error
+	EnabledEngines() []string
+}
+
 // EngineCommandHandler handles the /engine slash command.
 type EngineCommandHandler struct {
-	workers WorkerRepository
-	sysCfg  SystemConfigWriter
-	senders map[string]platform.PlatformSenderAdapter
+	workers   WorkerRepository
+	sysCfg    SystemConfigWriter
+	validator EngineValidator
+	senders   map[string]platform.PlatformSenderAdapter
 }
 
 // NewEngineCommandHandler constructs an EngineCommandHandler.
@@ -34,8 +40,9 @@ func NewEngineCommandHandler(
 	workers WorkerRepository,
 	sysCfg SystemConfigWriter,
 	senders map[string]platform.PlatformSenderAdapter,
+	validator EngineValidator,
 ) *EngineCommandHandler {
-	return &EngineCommandHandler{workers: workers, sysCfg: sysCfg, senders: senders}
+	return &EngineCommandHandler{workers: workers, sysCfg: sysCfg, validator: validator, senders: senders}
 }
 
 const usageMsg = "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定 worker 的 engine"
@@ -62,9 +69,9 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 }
 
 func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) {
-	if err := ai.ValidateEngine(engineName); err != nil {
+	if err := h.validator.ValidateEngine(engineName); err != nil {
 		h.reply(ctx, replyTo, fmt.Sprintf("未知的 engine: %s，支持的 engine：%s",
-			engineName, strings.Join(ai.AllEngines, " / ")))
+			engineName, strings.Join(h.validator.EnabledEngines(), " / ")))
 		return
 	}
 	if err := h.sysCfg.Set(ctx, model.SystemConfigKeyDefaultEngine, engineName); err != nil {
@@ -76,9 +83,9 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 }
 
 func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName, workerName string) {
-	if err := ai.ValidateEngine(engineName); err != nil {
+	if err := h.validator.ValidateEngine(engineName); err != nil {
 		h.reply(ctx, replyTo, fmt.Sprintf("未知的 engine: %s，支持的 engine：%s",
-			engineName, strings.Join(ai.AllEngines, " / ")))
+			engineName, strings.Join(h.validator.EnabledEngines(), " / ")))
 		return
 	}
 	w, err := h.workers.GetByName(workerName)

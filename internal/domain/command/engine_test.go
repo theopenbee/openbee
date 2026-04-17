@@ -57,6 +57,23 @@ func (f *fakeSender) Send(_ context.Context, msg platform.OutboundMessage) error
 	return nil
 }
 
+type fakeValidator struct {
+	engines []string
+}
+
+func (v *fakeValidator) ValidateEngine(name string) error {
+	for _, e := range v.engines {
+		if e == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown engine %q", name)
+}
+
+func (v *fakeValidator) EnabledEngines() []string { return v.engines }
+
+var defaultValidator = &fakeValidator{engines: []string{"claude", "codex", "pi", "kimi"}}
+
 func makeReplyTo() platform.InboundMessage {
 	return platform.InboundMessage{
 		Platform:   "feishu",
@@ -69,7 +86,7 @@ func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator)
 	return h, sender, cfg
 }
 
@@ -164,7 +181,7 @@ func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -186,7 +203,7 @@ func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers, updateErr: errors.New("update error")}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {

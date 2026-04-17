@@ -117,11 +117,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))
 	}
 	if dbErr == nil && found {
-		if validateErr := ai.ValidateEngine(dbCfg.Value); validateErr == nil {
+		if engines[dbCfg.Value] != nil {
 			enginecfg.Init(dbCfg.Value)
 		} else {
-			logger.Warn("DB default engine is invalid, falling back to config",
-				zap.String("db_value", dbCfg.Value), zap.Error(validateErr))
+			logger.Warn("DB default engine is not enabled, falling back to config",
+				zap.String("db_value", dbCfg.Value))
 			enginecfg.Init(cfg.Bee.EffectiveEngine())
 		}
 	} else {
@@ -154,7 +154,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
 
-	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform)
+	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr)
 	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier, engineCmdHandler)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(engineCmdHandler))
 
