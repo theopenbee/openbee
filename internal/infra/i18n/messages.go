@@ -44,6 +44,8 @@ type CmdMessages struct {
 type PromptMessages struct {
 	// Engine selection
 	EngineSelect       string `yaml:"engine_select"`
+	EngineDefault      string `yaml:"engine_default"`
+	EngineTimeout      string `yaml:"engine_timeout"`
 	OptionEngineClaude string `yaml:"option_engine_claude"`
 	OptionEngineCodex  string `yaml:"option_engine_codex"`
 	OptionEnginePi     string `yaml:"option_engine_pi"`
@@ -51,16 +53,12 @@ type PromptMessages struct {
 	// Claude setup
 	ClaudeNotFound string `yaml:"claude_not_found"`
 	ClaudePath     string `yaml:"claude_path"`
-	ClaudeTimeout  string `yaml:"claude_timeout"`
 	// Codex setup
-	CodexPath    string `yaml:"codex_path"`
-	CodexTimeout string `yaml:"codex_timeout"`
+	CodexPath string `yaml:"codex_path"`
 	// Pi setup
-	PiPath    string `yaml:"pi_path"`
-	PiTimeout string `yaml:"pi_timeout"`
+	PiPath string `yaml:"pi_path"`
 	// Kimi setup
-	KimiPath    string `yaml:"kimi_path"`
-	KimiTimeout string `yaml:"kimi_timeout"`
+	KimiPath string `yaml:"kimi_path"`
 	// Platform
 	PlatformSelect   string `yaml:"platform_select"`
 	PlatformFeishu   string `yaml:"platform_feishu"`
