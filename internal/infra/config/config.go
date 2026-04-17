@@ -56,26 +56,54 @@ type Config struct {
 	Bee      BeeConfig      `yaml:"bee"`
 }
 
-type ClaudeConfig struct {
-	Path    string        `yaml:"path"`
+// EngineDefaultConfig holds the global engine default name and shared timeout.
+type EngineDefaultConfig struct {
+	Default string        `yaml:"default"`
 	Timeout time.Duration `yaml:"timeout"`
 }
 
-type CodexConfig struct {
-	Path    string        `yaml:"path"`
-	Timeout time.Duration `yaml:"timeout"`
+// EngineItemConfig is the per-engine enable/path config.
+type EngineItemConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"`
 }
 
-type PiConfig struct {
-	Path    string            `yaml:"path"`
-	Timeout time.Duration     `yaml:"timeout"`
-	Env     map[string]string `yaml:"env"`
+// EnginesConfig groups all per-engine configs under the engines: YAML namespace.
+type EnginesConfig struct {
+	Claude EngineItemConfig `yaml:"claude"`
+	Codex  EngineItemConfig `yaml:"codex"`
+	Pi     EngineItemConfig `yaml:"pi"`
+	Kimi   EngineItemConfig `yaml:"kimi"`
 }
 
-type KimiConfig struct {
-	Path    string            `yaml:"path"`
-	Timeout time.Duration     `yaml:"timeout"`
-	Env     map[string]string `yaml:"env"`
+// IsEnabled reports whether the named engine is enabled.
+func (e EnginesConfig) IsEnabled(name string) bool {
+	switch name {
+	case "claude":
+		return e.Claude.Enabled
+	case "codex":
+		return e.Codex.Enabled
+	case "pi":
+		return e.Pi.Enabled
+	case "kimi":
+		return e.Kimi.Enabled
+	}
+	return false
+}
+
+// PathFor returns the executable path configured for the named engine.
+func (e EnginesConfig) PathFor(name string) string {
+	switch name {
+	case "claude":
+		return e.Claude.Path
+	case "codex":
+		return e.Codex.Path
+	case "pi":
+		return e.Pi.Path
+	case "kimi":
+		return e.Kimi.Path
+	}
+	return ""
 }
 
 type MediaConfig struct {
@@ -84,68 +112,48 @@ type MediaConfig struct {
 }
 
 type BeeConfig struct {
-	MessageDebounce time.Duration   `yaml:"message_debounce"`
-	Engine          string          `yaml:"engine"`
-	Claude          ClaudeConfig    `yaml:"claude"`
-	Codex           CodexConfig     `yaml:"codex"`
-	Pi              PiConfig        `yaml:"pi"`
-	Kimi            KimiConfig      `yaml:"kimi"`
-	Feeder          FeederConfig    `yaml:"feeder"`
-	Platforms       PlatformsConfig `yaml:"platforms"`
-	MCP             MCPConfig       `yaml:"mcp"`
-	Media           MediaConfig     `yaml:"media"`
+	MessageDebounce time.Duration      `yaml:"message_debounce"`
+	Engine          EngineDefaultConfig `yaml:"engine"`
+	Engines         EnginesConfig      `yaml:"engines"`
+	Feeder          FeederConfig       `yaml:"feeder"`
+	Platforms       PlatformsConfig    `yaml:"platforms"`
+	MCP             MCPConfig          `yaml:"mcp"`
+	Media           MediaConfig        `yaml:"media"`
 
 	// Derived fields — not in YAML, computed by Load()
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
-// WorkerTimeout returns the maximum duration for a single worker execution using the default engine.
+// WorkerTimeout returns the shared engine timeout.
 func (b BeeConfig) WorkerTimeout() time.Duration {
-	return b.WorkerTimeoutFor(b.EffectiveEngine())
+	return b.Engine.Timeout
 }
 
-// WorkerTimeoutFor returns the maximum duration for a worker execution using the named engine.
-func (b BeeConfig) WorkerTimeoutFor(engine string) time.Duration {
-	switch engine {
-	case "codex":
-		return b.Codex.Timeout
-	case "pi":
-		return b.Pi.Timeout
-	case "kimi":
-		return b.Kimi.Timeout
-	default:
-		return b.Claude.Timeout
-	}
+// WorkerTimeoutFor returns the shared engine timeout (same for all engines now).
+func (b BeeConfig) WorkerTimeoutFor(_ string) time.Duration {
+	return b.Engine.Timeout
 }
 
-// EffectiveEngine returns the configured engine name, defaulting to "claude".
+// EffectiveEngine returns the configured default engine name, defaulting to "claude".
 func (b BeeConfig) EffectiveEngine() string {
-	if b.Engine != "" {
-		return b.Engine
+	if b.Engine.Default != "" {
+		return b.Engine.Default
 	}
 	return "claude"
 }
 
-// EngineConfigRaw returns the raw config map for the selected engine.
+// EngineConfigRaw returns the raw config map for the default engine.
 func (b BeeConfig) EngineConfigRaw() map[string]any {
 	return b.EngineConfigRawFor(b.EffectiveEngine())
 }
 
 // EngineConfigRawFor returns the raw config map for the named engine.
-// Used when building all engine adapters at startup.
 func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
-	switch name {
-	case "claude":
-		return map[string]any{"path": b.Claude.Path}
-	case "codex":
-		return map[string]any{"path": b.Codex.Path}
-	case "pi":
-		return map[string]any{"path": b.Pi.Path, "env": b.Pi.Env}
-	case "kimi":
-		return map[string]any{"path": b.Kimi.Path, "env": b.Kimi.Env}
-	default:
+	path := b.Engines.PathFor(name)
+	if path == "" {
 		return nil
 	}
+	return map[string]any{"path": path}
 }
 
 type PlatformsConfig struct {
@@ -260,26 +268,20 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Feeder.MaxConcurrentBee == 0 {
 		cfg.Bee.Feeder.MaxConcurrentBee = 5
 	}
-	if cfg.Bee.Claude.Path == "" {
-		cfg.Bee.Claude.Path = "claude"
+	if cfg.Bee.Engine.Timeout == 0 {
+		cfg.Bee.Engine.Timeout = 30 * time.Minute
 	}
-	if cfg.Bee.Codex.Path == "" {
-		cfg.Bee.Codex.Path = "codex"
+	if cfg.Bee.Engines.Claude.Path == "" {
+		cfg.Bee.Engines.Claude.Path = "claude"
 	}
-	if cfg.Bee.Codex.Timeout == 0 {
-		cfg.Bee.Codex.Timeout = 30 * time.Minute
+	if cfg.Bee.Engines.Codex.Path == "" {
+		cfg.Bee.Engines.Codex.Path = "codex"
 	}
-	if cfg.Bee.Pi.Path == "" {
-		cfg.Bee.Pi.Path = "pi"
+	if cfg.Bee.Engines.Pi.Path == "" {
+		cfg.Bee.Engines.Pi.Path = "pi"
 	}
-	if cfg.Bee.Pi.Timeout == 0 {
-		cfg.Bee.Pi.Timeout = 30 * time.Minute
-	}
-	if cfg.Bee.Kimi.Path == "" {
-		cfg.Bee.Kimi.Path = "kimi"
-	}
-	if cfg.Bee.Kimi.Timeout == 0 {
-		cfg.Bee.Kimi.Timeout = 30 * time.Minute
+	if cfg.Bee.Engines.Kimi.Path == "" {
+		cfg.Bee.Engines.Kimi.Path = "kimi"
 	}
 	if cfg.Bee.Media.FFprobePath == "" {
 		cfg.Bee.Media.FFprobePath = "ffprobe"
