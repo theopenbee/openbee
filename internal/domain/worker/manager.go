@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -32,7 +33,7 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
-	defaultEngine  string
+	defaultEngine  string // static fallback when enginecfg is uninitialized
 	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -62,6 +63,7 @@ func NewManager(
 }
 
 // resolveEngine returns the EngineAdapter for w, falling back to the default if w.Engine is empty or unknown.
+// Uses enginecfg.Get() as the dynamic default; falls back to m.defaultEngine if enginecfg is uninitialized.
 func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
@@ -70,10 +72,14 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 		log.Warn("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
-	if e, ok := m.engines[m.defaultEngine]; ok {
+	defaultEngine := enginecfg.Get()
+	if defaultEngine == "" {
+		defaultEngine = m.defaultEngine
+	}
+	if e, ok := m.engines[defaultEngine]; ok {
 		return e, nil
 	}
-	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, m.defaultEngine)
+	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
 }
 
 // EnabledEngines returns the names of all currently enabled engines in stable order.

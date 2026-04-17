@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -35,6 +36,7 @@ func (p *mockProcess) Stop() error { return nil }
 
 func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
 	t.Helper()
+	enginecfg.Init(defaultEngine)
 	dir := t.TempDir()
 	db, err := store.InitDB(filepath.Join(dir, "test.db"))
 	if err != nil {
