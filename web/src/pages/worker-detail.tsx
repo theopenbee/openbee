@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { useEnabledEngines } from "@/hooks/use-config"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
@@ -170,6 +171,7 @@ export function WorkerDetail() {
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
     [worker?.departments]
   )
+  const enabledEngines = useEnabledEngines()
   if (!worker) return <SkeletonPage />
 
   return (
@@ -280,7 +282,7 @@ export function WorkerDetail() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <EngineSelectItems />
+                              <EngineSelectItems engines={enabledEngines} />
                             </SelectContent>
                           </Select>
                           <Button
@@ -316,7 +318,7 @@ export function WorkerDetail() {
                         size="icon"
                         className="h-7 w-7 shrink-0 mt-0.5"
                         onClick={() => {
-                          setEditEngine(worker.engine ?? DEFAULT_ENGINE)
+                          setEditEngine(worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
                           setIsEditingEngine(true)
                         }}
                       >
