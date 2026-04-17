@@ -64,6 +64,7 @@ export const api = {
     get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
     create: (data: {
       name: string
+      engine: string
       description: string
       memory?: string
       work_dir?: string
