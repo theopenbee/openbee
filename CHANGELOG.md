@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Add Kimi agent
 - Add worker copy feature
 - Add `OPENBEE_LOG_LEVEL` environment variable to control log verbosity (supported levels: `debug`, `info`, `warn`, `error`; default: `info`)
 

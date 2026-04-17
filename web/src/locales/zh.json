@@ -114,7 +114,8 @@
     "engines": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "pi": "Pi"
+      "pi": "Pi",
+      "kimi": "Kimi"
     }
   },
   "executions": {

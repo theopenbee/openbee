@@ -133,7 +133,7 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 export const DEFAULT_BEE_ID = "default"
 
 // Mirrors ai.AllEngines in Go — keep in sync.
-export const ENGINES = ["claude", "codex", "pi"] as const
+export const ENGINES = ["claude", "codex", "pi", "kimi"] as const
 export type Engine = (typeof ENGINES)[number]
 export const DEFAULT_ENGINE: Engine = ENGINES[0]
 

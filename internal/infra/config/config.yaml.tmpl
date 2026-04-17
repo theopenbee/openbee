@@ -32,6 +32,15 @@ bee:
       {{$k}}: "{{$v}}"
     {{- end}}
     {{- end}}
+  kimi:
+    path: {{.KimiPath}}
+    timeout: {{.KimiTimeout}}
+    {{- if .KimiEnv}}
+    env:
+    {{- range $k, $v := .KimiEnv}}
+      {{$k}}: "{{$v}}"
+    {{- end}}
+    {{- end}}
   mcp:
     token_secret: "{{.MCPTokenSecret}}"
     token_ttl: {{.MCPTokenTTL}}
