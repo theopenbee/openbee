@@ -152,6 +152,7 @@ export function Workers() {
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
                 <TableHead>{t("workers.columns.status")}</TableHead>
+                <TableHead>{t("workers.columns.engine")}</TableHead>
                 <TableHead>{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
@@ -174,6 +175,9 @@ export function Workers() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={w.status} />
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {w.engine ? t(`workers.engines.${w.engine}`) : "—"}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}
