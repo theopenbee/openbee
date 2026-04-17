@@ -49,9 +49,10 @@ const (
 	EngineClaude = "claude"
 	EngineCodex  = "codex"
 	EnginePi     = "pi"
+	EngineKimi   = "kimi"
 )
 
-var AllEngines = []string{EngineClaude, EngineCodex, EnginePi}
+var AllEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
 
 // ValidateEngine returns an error if name is not a known engine.
 func ValidateEngine(name string) error {
