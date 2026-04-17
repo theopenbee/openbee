@@ -56,10 +56,16 @@ type Config struct {
 	Bee      BeeConfig      `yaml:"bee"`
 }
 
-// EngineDefaultConfig holds the global engine default name and shared timeout.
+// EngineTimeoutConfig holds separate timeout durations for the bee and worker roles.
+type EngineTimeoutConfig struct {
+	Bee    time.Duration `yaml:"bee"`
+	Worker time.Duration `yaml:"worker"`
+}
+
+// EngineDefaultConfig holds the global engine default name and per-role timeouts.
 type EngineDefaultConfig struct {
-	Default string        `yaml:"default"`
-	Timeout time.Duration `yaml:"timeout"`
+	Default string              `yaml:"default"`
+	Timeout EngineTimeoutConfig `yaml:"timeout"`
 }
 
 // EngineItemConfig is the per-engine enable/path config.
@@ -124,14 +130,19 @@ type BeeConfig struct {
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
-// WorkerTimeout returns the shared engine timeout.
-func (b BeeConfig) WorkerTimeout() time.Duration {
-	return b.Engine.Timeout
+// BeeTimeout returns the bee engine execution timeout.
+func (b BeeConfig) BeeTimeout() time.Duration {
+	return b.Engine.Timeout.Bee
 }
 
-// WorkerTimeoutFor returns the shared engine timeout (same for all engines now).
+// WorkerTimeout returns the worker engine execution timeout.
+func (b BeeConfig) WorkerTimeout() time.Duration {
+	return b.Engine.Timeout.Worker
+}
+
+// WorkerTimeoutFor returns the worker engine execution timeout.
 func (b BeeConfig) WorkerTimeoutFor(_ string) time.Duration {
-	return b.Engine.Timeout
+	return b.Engine.Timeout.Worker
 }
 
 // EffectiveEngine returns the configured default engine name, defaulting to "claude".
@@ -165,8 +176,7 @@ type PlatformsConfig struct {
 }
 
 type FeederConfig struct {
-	Timeout          time.Duration `yaml:"timeout"`
-	MaxConcurrentBee int           `yaml:"max_concurrent_bee"`
+	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
 }
 
 type FeishuConfig struct {
@@ -262,14 +272,14 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.MessageDebounce == 0 {
 		cfg.Bee.MessageDebounce = 300 * time.Millisecond
 	}
-	if cfg.Bee.Feeder.Timeout == 0 {
-		cfg.Bee.Feeder.Timeout = 5 * time.Minute
-	}
 	if cfg.Bee.Feeder.MaxConcurrentBee == 0 {
 		cfg.Bee.Feeder.MaxConcurrentBee = 5
 	}
-	if cfg.Bee.Engine.Timeout == 0 {
-		cfg.Bee.Engine.Timeout = 30 * time.Minute
+	if cfg.Bee.Engine.Timeout.Bee == 0 {
+		cfg.Bee.Engine.Timeout.Bee = 5 * time.Minute
+	}
+	if cfg.Bee.Engine.Timeout.Worker == 0 {
+		cfg.Bee.Engine.Timeout.Worker = 30 * time.Minute
 	}
 	if cfg.Bee.Engines.Claude.Path == "" {
 		cfg.Bee.Engines.Claude.Path = "claude"

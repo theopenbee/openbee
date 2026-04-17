@@ -66,8 +66,31 @@ bee:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Feeder.Timeout != 5*time.Minute {
-		t.Errorf("default timeout: want 5m got %v", cfg.Bee.Feeder.Timeout)
+	// Feeder.Timeout has been removed; bee execution timeout is now Engine.Timeout.Bee
+	// covered by TestBeeConfig_EngineTimeoutSplitDefaults below.
+	_ = cfg
+}
+
+func TestBeeConfig_EngineTimeoutSplitDefaults(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`
+server:
+  port: 8080
+bee:
+  name: "bee"
+`)
+	f.Close()
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Bee.Engine.Timeout.Bee != 5*time.Minute {
+		t.Errorf("default engine.timeout.bee: want 5m got %v", cfg.Bee.Engine.Timeout.Bee)
+	}
+	if cfg.Bee.Engine.Timeout.Worker != 30*time.Minute {
+		t.Errorf("default engine.timeout.worker: want 30m got %v", cfg.Bee.Engine.Timeout.Worker)
 	}
 }
 
