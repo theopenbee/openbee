@@ -1596,3 +1596,32 @@ func TestCallTool_ListOutboundMessages(t *testing.T) {
 		t.Errorf("filtered total: want 1, got %v", m2["total"])
 	}
 }
+
+func TestCallTool_CreateWorker_WithEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "EngineBot",
+		"engine": "claude",
+	}))
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	w, ok := result.(model.Worker)
+	if !ok {
+		t.Fatalf("expected model.Worker, got %T", result)
+	}
+	if w.Engine != "claude" {
+		t.Errorf("expected engine claude, got %q", w.Engine)
+	}
+}
+
+func TestCallTool_CreateWorker_InvalidEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "EngineBot",
+		"engine": "not-a-real-engine",
+	}))
+	if err == nil {
+		t.Error("expected error for unknown engine, got nil")
+	}
+}

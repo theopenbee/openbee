@@ -11,6 +11,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -239,6 +240,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 		Description      string `json:"description"`
 		Memory           string `json:"memory"`
 		WorkDir          string `json:"work_dir"`
+		Engine           string `json:"engine"`
 		DepartmentIDs    string `json:"department_ids"`
 		PermissionScopes string `json:"permission_scopes"`
 	}
@@ -248,6 +250,11 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
+	if params.Engine != "" {
+		if err := ai.ValidateEngine(params.Engine); err != nil {
+			return nil, err
+		}
+	}
 	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
 		return nil, err
 	}
@@ -256,6 +263,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 		Description:      params.Description,
 		Memory:           params.Memory,
 		WorkDir:          params.WorkDir,
+		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
 	})
 	if err != nil {
