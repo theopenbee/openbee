@@ -92,7 +92,7 @@ describe("KimiParser", () => {
     expect(tool.input).toBe("not-json")
   })
 
-  it("updates tool entry with result when role=tool arrives", () => {
+  it("updates tool entry with result when role=tool arrives (string content)", () => {
     const assistantLine = JSON.stringify({
       role: "assistant",
       content: "doing it",
@@ -104,6 +104,27 @@ describe("KimiParser", () => {
     const entries = run([assistantLine, toolLine])
     const tool = entries.find((e) => e.kind === "tool") as Extract<ParsedEntry, { kind: "tool" }>
     expect(tool.result).toBe("file1\nfile2")
+  })
+
+  it("updates tool entry with result when role=tool arrives (array content blocks)", () => {
+    const assistantLine = JSON.stringify({
+      role: "assistant",
+      content: "",
+      tool_calls: [
+        { type: "function", id: "tc_arr", function: { name: "Shell", arguments: '{"command":"free -h"}' } },
+      ],
+    })
+    const toolLine = JSON.stringify({
+      role: "tool",
+      tool_call_id: "tc_arr",
+      content: [
+        { type: "text", text: "<system>Command executed successfully.</system>" },
+        { type: "text", text: '{"total":"16G","used":"8G"}' },
+      ],
+    })
+    const entries = run([assistantLine, toolLine])
+    const tool = entries.find((e) => e.kind === "tool") as Extract<ParsedEntry, { kind: "tool" }>
+    expect(tool.result).toBe('<system>Command executed successfully.</system>\n{"total":"16G","used":"8G"}')
   })
 
   it("ignores role=tool when tool_call_id not in itemMap", () => {

@@ -1,5 +1,6 @@
 import type { ParsedEntry, StreamParser } from "./types"
 import { appendRawEntry, appendTextEntry } from "./types"
+import { extractToolResultText } from "./claude-parser"
 
 interface KimiContentBlock {
   type: string
@@ -87,7 +88,7 @@ export class KimiParser implements StreamParser {
         if (idx === undefined) return
         const existing = entries[idx]
         if (existing?.kind !== "tool") return
-        entries[idx] = { ...existing, result: typeof content === "string" ? content : "" }
+        entries[idx] = { ...existing, result: extractToolResultText(content) }
         itemMap.delete(tool_call_id)
         return
       }
