@@ -71,6 +71,7 @@
       "name": "Name",
       "workDir": "Work Directory",
       "status": "Status",
+      "engine": "Engine",
       "activeTime": "Active Time",
       "actions": "Actions"
     },

@@ -71,6 +71,7 @@
       "name": "名称",
       "workDir": "工作目录",
       "status": "状态",
+      "engine": "引擎",
       "activeTime": "活跃时间",
       "actions": "操作"
     },
