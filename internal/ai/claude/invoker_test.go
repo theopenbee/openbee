@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewInvoker(t *testing.T) {
-	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080")
+	inv := NewInvoker("/usr/bin/claude", "http://localhost:8080", nil)
 	if inv.binary != "/usr/bin/claude" {
 		t.Errorf("binary: want /usr/bin/claude, got %s", inv.binary)
 	}
@@ -40,7 +40,7 @@ func TestNewInvoker(t *testing.T) {
 }
 
 func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
-	inv := NewInvoker("echo", "")
+	inv := NewInvoker("echo", "", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -73,7 +73,7 @@ func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
 }
 
 func TestInvoker_Run_SessionFlags(t *testing.T) {
-	inv := NewInvoker("echo", "")
+	inv := NewInvoker("echo", "", nil)
 	ctx := context.Background()
 
 	// Test --session-id flag written to log file
@@ -100,7 +100,7 @@ func TestInvoker_Run_SessionFlags(t *testing.T) {
 }
 
 func TestProcess_Stop(t *testing.T) {
-	inv := NewInvoker("sleep", "")
+	inv := NewInvoker("sleep", "", nil)
 	ctx := context.Background()
 
 	logPath := filepath.Join(t.TempDir(), "stop.log")
@@ -119,7 +119,7 @@ func TestProcess_Stop(t *testing.T) {
 }
 
 func TestInvoker_ConcurrentRuns(t *testing.T) {
-	inv := NewInvoker("echo", "")
+	inv := NewInvoker("echo", "", nil)
 	ctx := context.Background()
 
 	logPath1 := filepath.Join(t.TempDir(), "one.log")
@@ -150,7 +150,7 @@ func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
 	// BuildBaseEnv inherits os.Environ(), so t.Setenv propagates to the child.
 	t.Setenv("GO_TEST_EMIT_IS_ERROR", "1")
 
-	inv := NewInvoker(os.Args[0], "")
+	inv := NewInvoker(os.Args[0], "", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

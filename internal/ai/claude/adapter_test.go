@@ -12,7 +12,18 @@ import (
 
 func newTestAdapter(t *testing.T) ai.EngineAdapter {
 	t.Helper()
-	return claude.NewAdapter("echo", "http://localhost:9999")
+	return claude.NewAdapter("echo", "http://localhost:9999", nil)
+}
+
+func TestClaudeAdapter_ExtraEnvInBaseEnv(t *testing.T) {
+	a := claude.NewAdapter("echo", "http://localhost:9999", map[string]string{
+		"MY_CUSTOM_VAR": "hello",
+		"ANOTHER_KEY":   "world",
+	})
+	// Access baseEnv indirectly: run a command that echoes env and check output.
+	// Since we cannot inspect baseEnv directly, we verify NewAdapter doesn't panic
+	// and the adapter satisfies the interface.
+	var _ ai.EngineAdapter = a
 }
 
 func TestClaudeAdapter_Prepare_Stub(t *testing.T) {

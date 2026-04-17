@@ -17,7 +17,8 @@ func init() {
 		if path == "" {
 			path = ai.EngineClaude
 		}
-		return NewAdapter(path, cfg.OpenbeeURL), nil
+		extraEnv, _ := cfg.Raw["env"].(map[string]string)
+		return NewAdapter(path, cfg.OpenbeeURL, extraEnv), nil
 	})
 }
 
@@ -25,8 +26,8 @@ type claudeAdapter struct {
 	invoker *Invoker
 }
 
-func NewAdapter(binaryPath, openbeeURL string) ai.EngineAdapter {
-	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL)}
+func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
+	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
 }
 
 func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
