@@ -8,7 +8,7 @@ export function useEnabledEngines(): readonly Engine[] {
   const { data } = useQuery({
     queryKey: ["config"],
     queryFn: () => api.config.get(),
-    staleTime: Infinity, // config doesn't change at runtime
+    staleTime: Infinity, // enabled_engines is a static deployment setting
   })
 
   return useMemo(() => {

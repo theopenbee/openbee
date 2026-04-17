@@ -118,11 +118,6 @@ type BeeConfig struct {
 	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
-// BeeTimeout returns the bee engine execution timeout.
-func (b BeeConfig) BeeTimeout() time.Duration {
-	return b.Engine.Timeout.Bee
-}
-
 // WorkerTimeout returns the worker engine execution timeout.
 func (b BeeConfig) WorkerTimeout() time.Duration {
 	return b.Engine.Timeout.Worker

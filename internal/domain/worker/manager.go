@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +32,6 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
-	defaultEngine  string // static fallback when enginecfg is uninitialized
 	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -56,14 +54,12 @@ func NewManager(
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
-		defaultEngine:   bc.EffectiveEngine(),
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
 
-// resolveEngine returns the EngineAdapter for w, falling back to the default if w.Engine is empty or unknown.
-// Uses enginecfg.Get() as the dynamic default; falls back to m.defaultEngine if enginecfg is uninitialized.
+// resolveEngine returns the EngineAdapter for w, falling back to the enginecfg default if w.Engine is empty or unknown.
 func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
@@ -73,22 +69,20 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	defaultEngine := enginecfg.Get()
-	if defaultEngine == "" {
-		defaultEngine = m.defaultEngine
-	}
 	if e, ok := m.engines[defaultEngine]; ok {
 		return e, nil
 	}
 	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
 }
 
-// EnabledEngines returns the names of all currently enabled engines in stable order.
+// EnabledEngines returns the names of all currently enabled engines in canonical order.
 func (m *Manager) EnabledEngines() []string {
 	names := make([]string, 0, len(m.engines))
-	for name := range m.engines {
-		names = append(names, name)
+	for _, name := range ai.AllEngines {
+		if _, ok := m.engines[name]; ok {
+			names = append(names, name)
+		}
 	}
-	slices.Sort(names)
 	return names
 }
 

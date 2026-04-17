@@ -60,7 +60,6 @@ func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEn
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
-		defaultEngine:   defaultEngine,
 		envService:      envSvc,
 		activeProcesses: make(map[string]ai.Process),
 	}

@@ -103,8 +103,14 @@ func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessio
 func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error {
 	beeEngine = normalizeSessionEngine(beeEngine)
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	// Clear bee — only the active engine.
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM bee_session_contexts
 		 WHERE session_key = ? AND agent_id = 'bee' AND engine = ?`,
 		sessionKey, beeEngine,
@@ -116,7 +122,7 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, bee
 	//   Explicit engine set → match on that engine.
 	//   No engine set      → fall back to beeEngine.
 	//   Worker deleted     → no row in bee_workers → clean up orphan.
-	_, err := s.db.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM bee_session_contexts
 		WHERE session_key = ? AND agent_id != 'bee'
 		  AND (
@@ -129,8 +135,11 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, bee
 		     OR NOT EXISTS (SELECT 1 FROM bee_workers w WHERE w.id = agent_id)
 		      )`,
 		sessionKey, beeEngine,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // SessionAgent represents one agent's session context entry, enriched with

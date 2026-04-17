@@ -61,3 +61,13 @@ export function parseJsonEvent<T extends { type: string }>(line: string): T | nu
     return null
   }
 }
+
+export function parseJsonObject(line: string): Record<string, unknown> | null {
+  try {
+    const obj = JSON.parse(line)
+    if (obj && typeof obj === "object") return obj as Record<string, unknown>
+    return null
+  } catch {
+    return null
+  }
+}

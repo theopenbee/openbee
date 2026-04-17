@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"testing"
+
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func setupSystemConfigDB(t *testing.T) *SystemConfigStore {
@@ -30,10 +32,10 @@ func TestSystemConfigStore_SetAndGet(t *testing.T) {
 	s := setupSystemConfigDB(t)
 	ctx := context.Background()
 
-	if err := s.Set(ctx, "default_engine", "claude"); err != nil {
+	if err := s.Set(ctx, model.SystemConfigKeyDefaultEngine, "claude"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
-	cfg, found, err := s.Get(ctx, "default_engine")
+	cfg, found, err := s.Get(ctx, model.SystemConfigKeyDefaultEngine)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -49,10 +51,10 @@ func TestSystemConfigStore_SetOverwrites(t *testing.T) {
 	s := setupSystemConfigDB(t)
 	ctx := context.Background()
 
-	_ = s.Set(ctx, "default_engine", "claude")
-	_ = s.Set(ctx, "default_engine", "codex")
+	_ = s.Set(ctx, model.SystemConfigKeyDefaultEngine, "claude")
+	_ = s.Set(ctx, model.SystemConfigKeyDefaultEngine, "codex")
 
-	cfg, _, _ := s.Get(ctx, "default_engine")
+	cfg, _, _ := s.Get(ctx, model.SystemConfigKeyDefaultEngine)
 	if cfg.Value != "codex" {
 		t.Errorf("expected codex after overwrite, got %s", cfg.Value)
 	}

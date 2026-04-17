@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
@@ -18,14 +20,18 @@ func NewDynamicAdapter(engines map[string]EngineAdapter) *DynamicAdapter {
 	return &DynamicAdapter{engines: engines}
 }
 
-// Prepare calls Prepare on every available engine adapter.
+// Prepare calls Prepare on all engine adapters concurrently.
 func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
+	g := &errgroup.Group{}
 	for name, e := range d.engines {
-		if err := e.Prepare(workDir, opts); err != nil {
-			return fmt.Errorf("prepare engine %q: %w", name, err)
-		}
+		g.Go(func() error {
+			if err := e.Prepare(workDir, opts); err != nil {
+				return fmt.Errorf("prepare engine %q: %w", name, err)
+			}
+			return nil
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 // Run executes using the engine currently selected in enginecfg.

@@ -95,7 +95,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
     }
-  }, [open, enabledEngines])
+  }, [open, enabledEngines[0]])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
