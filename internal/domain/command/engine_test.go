@@ -2,6 +2,7 @@ package command_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -14,8 +15,9 @@ import (
 // --- fakes ---
 
 type fakeWorkerRepo struct {
-	workers map[string]model.Worker // name → worker
-	updated []model.Worker
+	workers   map[string]model.Worker // name → worker
+	updated   []model.Worker
+	updateErr error
 }
 
 func (f *fakeWorkerRepo) GetByName(name string) (model.Worker, error) {
@@ -26,15 +28,22 @@ func (f *fakeWorkerRepo) GetByName(name string) (model.Worker, error) {
 	return w, nil
 }
 func (f *fakeWorkerRepo) Update(w model.Worker) (model.Worker, error) {
+	if f.updateErr != nil {
+		return model.Worker{}, f.updateErr
+	}
 	f.updated = append(f.updated, w)
 	return w, nil
 }
 
 type fakeSysConfig struct {
-	vals map[string]string
+	vals   map[string]string
+	setErr error
 }
 
 func (f *fakeSysConfig) Set(_ context.Context, key, value string) error {
+	if f.setErr != nil {
+		return f.setErr
+	}
 	f.vals[key] = value
 	return nil
 }
@@ -144,6 +153,46 @@ func TestEngineCommand_NoArgs(t *testing.T) {
 		t.Fatal("expected handled=true")
 	}
 	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定 worker 的 engine"
+	if len(sender.sent) != 1 || sender.sent[0] != want {
+		t.Errorf("unexpected reply: %v", sender.sent)
+	}
+}
+
+func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
+	enginecfg.Init("claude")
+	sender := &fakeSender{}
+	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
+	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	h := command.NewEngineCommandHandler(repo, cfg, senders)
+
+	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	// enginecfg must NOT be updated when DB write fails
+	if enginecfg.Get() != "claude" {
+		t.Errorf("expected enginecfg to remain claude, got %s", enginecfg.Get())
+	}
+	want := "切换失败，请稍后重试"
+	if len(sender.sent) != 1 || sender.sent[0] != want {
+		t.Errorf("unexpected reply: %v", sender.sent)
+	}
+}
+
+func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
+	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
+	sender := &fakeSender{}
+	cfg := &fakeSysConfig{vals: make(map[string]string)}
+	repo := &fakeWorkerRepo{workers: workers, updateErr: errors.New("update error")}
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	h := command.NewEngineCommandHandler(repo, cfg, senders)
+
+	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	want := "切换失败，请稍后重试"
 	if len(sender.sent) != 1 || sender.sent[0] != want {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
