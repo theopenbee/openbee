@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -93,7 +92,7 @@ func (m *Manager) ValidateEngine(name string) error {
 		return nil
 	}
 	if _, ok := m.engines[name]; !ok {
-		return fmt.Errorf("engine %q is not enabled; valid values: %s", name, strings.Join(m.EnabledEngines(), ", "))
+		return fmt.Errorf("engine %q is not enabled", name)
 	}
 	return nil
 }

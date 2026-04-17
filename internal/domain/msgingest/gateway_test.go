@@ -256,7 +256,8 @@ type mockCommandHandler struct {
 	mu       sync.Mutex
 	handled  bool
 	contents []string
-	called   chan struct{} // closed when HandleCommand is invoked
+	called   chan struct{} // closed on first HandleCommand invocation
+	closeOnce sync.Once
 }
 
 func newMockCommandHandler(handled bool) *mockCommandHandler {
@@ -270,7 +271,7 @@ func (m *mockCommandHandler) HandleCommand(_ context.Context, content string, _ 
 	m.mu.Lock()
 	m.contents = append(m.contents, content)
 	m.mu.Unlock()
-	close(m.called)
+	m.closeOnce.Do(func() { close(m.called) })
 	return m.handled
 }
 

@@ -114,30 +114,11 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
-	// This test verifies CancelExecution calls StopExecution on the active process.
-	// We use a real Manager with a mock engine that never finishes.
-	// Since we can't easily inject a mock engine, we verify the method exists
-	// and returns a sensible error for an unknown execution ID.
-	cfg := config.BeeConfig{}
-	cfg.Engines.Claude.Path = "echo" // won't actually run; just needs to not panic
-	dir := t.TempDir()
-	db, err := store.InitDB(dir + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	ws := store.NewWorkerStore(db)
-	es := store.NewExecutionStore(db, dir)
+	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	mgr := newTestManager(t, engines, ai.EngineClaude)
 
-	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
-	mgr := NewManager(dir, cfg, ws, es, engines, envSvc)
-
-	err = mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
+	err := mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
 	if err == nil {
 		t.Error("expected error for unknown executionID, got nil")
 	}

@@ -219,7 +219,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 1 — Engine config
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	// engineLabel is called after i18n is loaded.
 	enabledByName := map[string]bool{
 		ai.EngineClaude: vals.ClaudeEnabled,
 		ai.EngineCodex:  vals.CodexEnabled,
@@ -262,7 +261,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	for _, e := range selectedEngines {
 		switch engineName(e) {
-		case "claude":
+		case ai.EngineClaude:
 			vals.ClaudeEnabled = true
 			if err := configureClaudeExecutable(&vals); err != nil {
 				return err
@@ -270,17 +269,17 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			if err := configureClaudeProvider(&vals); err != nil {
 				return err
 			}
-		case "codex":
+		case ai.EngineCodex:
 			vals.CodexEnabled = true
 			if err := configureCodexExecutable(&vals); err != nil {
 				return err
 			}
-		case "pi":
+		case ai.EnginePi:
 			vals.PiEnabled = true
 			if err := configurePiExecutable(&vals); err != nil {
 				return err
 			}
-		case "kimi":
+		case ai.EngineKimi:
 			vals.KimiEnabled = true
 			if err := configureKimiExecutable(&vals); err != nil {
 				return err
