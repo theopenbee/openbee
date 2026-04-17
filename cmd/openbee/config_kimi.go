@@ -8,8 +8,6 @@ func configureKimiExecutable(vals *configValues) error {
 		i18n.M.Output.Config.KimiFound,
 		i18n.M.Output.Config.KimiManualEntry,
 		i18n.M.Prompt.KimiPath,
-		i18n.M.Prompt.KimiTimeout,
 		&vals.KimiPath,
-		&vals.KimiTimeout,
 	)
 }

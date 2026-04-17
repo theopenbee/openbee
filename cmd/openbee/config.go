@@ -693,7 +693,7 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
-func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeoutMsg string, pathDst, timeoutDst *string) error {
+func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg string, pathDst *string) error {
 	if found, err := exec.LookPath(binaryName); err == nil {
 		fmt.Printf(foundMsg+"\n", found)
 		*pathDst = found
@@ -705,12 +705,6 @@ func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeout
 		}, pathDst, survey.WithValidator(executablePathValidator)); err != nil {
 			return handleSurveyErr(err)
 		}
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: timeoutMsg,
-		Default: *timeoutDst,
-	}, timeoutDst); err != nil {
-		return handleSurveyErr(err)
 	}
 	return nil
 }
