@@ -270,6 +270,12 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Pi.Timeout == 0 {
 		cfg.Bee.Pi.Timeout = 30 * time.Minute
 	}
+	if cfg.Bee.Kimi.Path == "" {
+		cfg.Bee.Kimi.Path = "kimi"
+	}
+	if cfg.Bee.Kimi.Timeout == 0 {
+		cfg.Bee.Kimi.Timeout = 30 * time.Minute
+	}
 	if cfg.Bee.Media.FFprobePath == "" {
 		cfg.Bee.Media.FFprobePath = "ffprobe"
 	}
