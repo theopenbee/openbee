@@ -327,6 +327,17 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "add_engine_to_bee_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
 	},
+	{
+		version: 37,
+		name:    "create_bee_system_configs_table",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_system_configs (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    `,
+	},
 }
 
 type whereBuilder struct {
