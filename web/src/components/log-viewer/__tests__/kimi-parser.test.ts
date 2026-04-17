@@ -127,6 +127,52 @@ describe("KimiParser", () => {
     expect(tool.result).toBe('<system>Command executed successfully.</system>\n{"total":"16G","used":"8G"}')
   })
 
+  it("replaces (Empty response:) with stdin content from preceding openbee message-send Shell call", () => {
+    const sentText = "好哒～这是我们的对话总结：\n\n1. 问候\n2. 查看员工"
+    const shellCommand = `openbee ctl message send --message-id abc --stdin << 'EOF'\n${sentText}\nEOF\n`
+    const assistantLine = JSON.stringify({
+      role: "assistant",
+      content: [{ type: "think", think: "send it" }],
+      tool_calls: [
+        {
+          type: "function",
+          id: "tc_send",
+          function: { name: "Shell", arguments: JSON.stringify({ command: shellCommand }) },
+        },
+      ],
+    })
+    const toolLine = JSON.stringify({
+      role: "tool",
+      tool_call_id: "tc_send",
+      content: [{ type: "text", text: '{"status":"sent"}' }],
+    })
+    const emptyLine = JSON.stringify({
+      role: "assistant",
+      content: [
+        { type: "think", think: "done" },
+        {
+          type: "text",
+          text: "(Empty response: {'content': [], 'stop_reason': 'end_turn', 'model': 'claude-opus-4-5-20251101', 'usage': {'input_tokens': 8237, 'output_tokens': 2}})",
+        },
+      ],
+    })
+    const entries = run([assistantLine, toolLine, emptyLine])
+    const textEntries = entries.filter((e) => e.kind === "text")
+    expect(textEntries).toHaveLength(1)
+    expect((textEntries[0] as Extract<ParsedEntry, { kind: "text" }>).text).toBe(sentText)
+  })
+
+  it("silently drops (Empty response:) when no preceding openbee message-send call", () => {
+    const emptyLine = JSON.stringify({
+      role: "assistant",
+      content: [
+        { type: "text", text: "(Empty response: {'content': [], 'stop_reason': 'end_turn'})" },
+      ],
+    })
+    const entries = run([emptyLine])
+    expect(entries.filter((e) => e.kind === "text")).toHaveLength(0)
+  })
+
   it("ignores role=tool when tool_call_id not in itemMap", () => {
     const toolLine = JSON.stringify({ role: "tool", tool_call_id: "unknown", content: "result" })
     expect(run([toolLine])).toHaveLength(0)

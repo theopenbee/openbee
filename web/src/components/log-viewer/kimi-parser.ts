@@ -31,7 +31,20 @@ function parseToolInput(args: string): unknown {
   }
 }
 
+/**
+ * Extracts the heredoc stdin content from an `openbee ctl message send --stdin` shell command.
+ * Returns null if the command is not a message-send call or has no heredoc.
+ */
+function extractSentMessage(command: string): string | null {
+  if (!command.includes("openbee ctl message send") || !command.includes("--stdin")) return null
+  const match = command.match(/<<\s*['"]?EOF['"]?\n([\s\S]*?)\nEOF/)
+  return match ? match[1] : null
+}
+
 export class KimiParser implements StreamParser {
+  /** Stdin content from the last `openbee ctl message send --stdin` Shell call, if any. */
+  private pendingSentMessage: string | null = null
+
   parseLine(
     line: string,
     logType: string,
@@ -65,7 +78,15 @@ export class KimiParser implements StreamParser {
           appendTextEntry(msg.content, entries)
         } else if (Array.isArray(msg.content)) {
           for (const block of msg.content) {
-            if (block.type === "text" && block.text?.trim()) {
+            if (block.type !== "text" || !block.text?.trim()) continue
+            if (block.text.startsWith("(Empty response:")) {
+              // The actual response was already sent via `openbee ctl message send --stdin`.
+              // Render that content instead of the placeholder.
+              if (this.pendingSentMessage) {
+                appendTextEntry(this.pendingSentMessage, entries)
+                this.pendingSentMessage = null
+              }
+            } else {
               appendTextEntry(block.text, entries)
             }
           }
@@ -74,6 +95,11 @@ export class KimiParser implements StreamParser {
           for (const tc of msg.tool_calls) {
             if (!tc.id || !tc.function?.name) continue
             const input = parseToolInput(tc.function.arguments ?? "")
+            if (tc.function.name === "Shell") {
+              const command = (input as Record<string, string>)?.command ?? ""
+              const sent = extractSentMessage(command)
+              if (sent) this.pendingSentMessage = sent
+            }
             itemMap.set(tc.id, entries.length)
             entries.push({ kind: "tool", id: tc.id, name: tc.function.name, input, result: undefined })
           }
