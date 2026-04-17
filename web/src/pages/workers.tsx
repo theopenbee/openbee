@@ -134,7 +134,7 @@ export function Workers() {
 
       <div className="min-h-[320px]">
       {isLoading ? (
-        <SkeletonTable rows={6} columns={4} />
+        <SkeletonTable rows={6} columns={5} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
