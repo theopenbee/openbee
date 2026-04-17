@@ -40,6 +40,7 @@ OpenBee 支持多种 AI 引擎作为底层执行后端：
 | **Claude Code** | Anthropic 官方 Agentic 编码工具，默认推荐引擎 |
 | **Codex** | OpenAI Codex Agent，通过插件引擎支持 |
 | **Pi** | Pi Agent，通过插件引擎支持 |
+| **Kimi** | Moonshot AI 的 Kimi Agent，通过插件引擎支持 |
 
 ## 🚀 快速开始
 
