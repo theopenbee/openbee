@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -121,6 +123,10 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	if store.vals["default_engine"] != "claude" {
 		t.Errorf("expected store to have claude, got %q", store.vals["default_engine"])
 	}
+	if got := enginecfg.Get(); got != "claude" {
+		t.Errorf("enginecfg cache not updated: got %q", got)
+	}
+	t.Cleanup(func() { enginecfg.Set("") })
 }
 
 func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
@@ -150,5 +156,30 @@ func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
+	store := &fakeSysConfigStore{err: errors.New("db down")}
+	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
+	store := &fakeSysConfigStore{err: errors.New("db down")}
+	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
+	router := newSysConfigRouter(store, validator)
+	body, _ := json.Marshal(map[string]string{"value": "claude"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/default_engine", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
 	}
 }
