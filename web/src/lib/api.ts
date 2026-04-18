@@ -184,4 +184,12 @@ export const api = {
       }),
     delete: (id: string) => fetchAPI(`/envs/${id}`, { method: "DELETE" }),
   },
+  systemConfigs: {
+    get: () => fetchAPI<Record<string, string>>("/system-configs"),
+    set: (key: string, value: string) =>
+      fetchAPI<{ ok: boolean }>(`/system-configs/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
+  },
 }
