@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { SectionHeading } from "@/components/create-worker-sheet"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE } from "@/lib/types"
@@ -39,6 +40,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
+  const enabledEnginesKey = enabledEngines.join(",")
 
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
@@ -54,7 +56,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setDeptSearch("")
       setSubmitError("")
     }
-  }, [open, worker, enabledEngines])
+  }, [open, worker, enabledEnginesKey])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -135,16 +137,10 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
           {flatDepts.length > 0 && (
             <div className="border-t border-border/60 px-6 py-5 space-y-3">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                  {t("workers.form.sectionDepartment")}
-                </p>
-                {selectedDeptIds.size > 0 && (
-                  <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary tabular-nums">
-                    {selectedDeptIds.size}
-                  </span>
-                )}
-              </div>
+              <SectionHeading
+                text={t("workers.form.sectionDepartment")}
+                badge={selectedDeptIds.size}
+              />
 
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />

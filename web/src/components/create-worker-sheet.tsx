@@ -51,7 +51,7 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   }
 }
 
-function SectionHeading({ text, badge }: { text: string; badge?: number }) {
+export function SectionHeading({ text, badge }: { text: string; badge?: number }) {
   return (
     <div className="flex items-center gap-2">
       <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{text}</p>

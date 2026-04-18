@@ -35,7 +35,6 @@ func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
 	return g.Wait()
 }
 
-// Run executes using the engine currently selected in enginecfg.
 func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (Process, <-chan Output, error) {
 	name := enginecfg.Get()
 	e, ok := d.engines[name]
@@ -45,7 +44,6 @@ func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts R
 	return e.Run(ctx, workDir, prompt, opts, logPath)
 }
 
-// ExtractResult extracts the result using the engine currently selected in enginecfg.
 func (d *DynamicAdapter) ExtractResult(logPath string) string {
 	name := enginecfg.Get()
 	e, ok := d.engines[name]

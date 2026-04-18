@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
