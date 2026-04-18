@@ -34,9 +34,10 @@ export function SystemSettings() {
     onSuccess: () => setOptimisticEngine(null),
   })
 
-  function handleEngineChange(value: string) {
-    setOptimisticEngine(value)
-    saveEngine(value)
+  function handleEngineChange(value: string | null) {
+    const v = value ?? ""
+    setOptimisticEngine(v)
+    saveEngine(v)
   }
 
   return (
