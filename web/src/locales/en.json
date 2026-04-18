@@ -7,7 +7,8 @@
     "departments": "Departments",
     "directory": "Directory",
     "settings": "Env Variables",
-    "systemSettings": "System Settings"
+    "systemSettings": "System Settings",
+    "systemConfig": "System Config"
   },
   "common": {
     "save": "Save",

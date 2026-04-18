@@ -7,7 +7,8 @@
     "departments": "部门",
     "directory": "通讯录",
     "settings": "环境变量",
-    "systemSettings": "系统设置"
+    "systemSettings": "系统设置",
+    "systemConfig": "系统配置"
   },
   "common": {
     "save": "保存",
