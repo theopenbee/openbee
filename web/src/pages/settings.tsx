@@ -7,39 +7,33 @@ import { DetailSection } from "@/components/detail-primitives"
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { useEnabledEngines, useDefaultEngine } from "@/hooks/use-config"
+import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE } from "@/lib/types"
 
 export function SystemSettings() {
   const { t } = useTranslation()
   const enabledEngines = useEnabledEngines()
-  const defaultEngine = useDefaultEngine()
 
   const { data: sysConfigs } = useQuery({
     queryKey: ["system-configs"],
     queryFn: () => api.systemConfigs.get(),
   })
 
-  const [optimisticEngine, setOptimisticEngine] = useState<string | null>(null)
-  const engine = optimisticEngine ?? sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
+  const savedEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
+  const [pendingEngine, setPendingEngine] = useState<string | null>(null)
+  const engine = pendingEngine ?? savedEngine
 
   const { mutate: saveEngine, isPending } = useMutation({
     mutationFn: (value: string) => api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
-    onError: () => setOptimisticEngine(null),
-    onSuccess: () => setOptimisticEngine(null),
+    onError: () => setPendingEngine(null),
+    onSuccess: () => setPendingEngine(null),
   })
-
-  function handleEngineChange(value: string | null) {
-    const v = value ?? ""
-    setOptimisticEngine(v)
-    saveEngine(v)
-  }
 
   return (
     <FadeIn>
@@ -55,21 +49,26 @@ export function SystemSettings() {
               {t("systemSettings.engineSection.hint")}
             </p>
           </div>
-          <Select
-            value={engine}
-            onValueChange={handleEngineChange}
-            disabled={isPending}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder={t("systemSettings.engineSection.systemDefault", { engine: defaultEngine })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">
-                {t("systemSettings.engineSection.systemDefault", { engine: defaultEngine })}
-              </SelectItem>
-              <EngineSelectItems engines={enabledEngines} />
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Select
+              value={engine}
+              onValueChange={setPendingEngine}
+              disabled={isPending}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <EngineSelectItems engines={enabledEngines} />
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => saveEngine(engine)}
+              disabled={isPending || pendingEngine === null || pendingEngine === savedEngine}
+            >
+              {t("common.save")}
+            </Button>
+          </div>
         </DetailSection>
       </div>
     </FadeIn>

@@ -24,7 +24,3 @@ export function useEnabledEngines(): readonly Engine[] {
   }, [data?.enabled_engines])
 }
 
-export function useDefaultEngine(): string {
-  const { data } = useAppConfig()
-  return data?.default_engine ?? ""
-}
