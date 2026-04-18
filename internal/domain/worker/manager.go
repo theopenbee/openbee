@@ -31,6 +31,7 @@ type Manager struct {
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
+	enabledEngines []string // canonical order, computed once at construction
 	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -45,6 +46,12 @@ func NewManager(
 	engines map[string]ai.EngineAdapter,
 	envService *env.Service,
 ) *Manager {
+	enabled := make([]string, 0, len(engines))
+	for _, name := range ai.AllEngines() {
+		if _, ok := engines[name]; ok {
+			enabled = append(enabled, name)
+		}
+	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
@@ -53,6 +60,7 @@ func NewManager(
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
+		enabledEngines:  enabled,
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
@@ -76,13 +84,7 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 
 // EnabledEngines returns the names of all currently enabled engines in canonical order.
 func (m *Manager) EnabledEngines() []string {
-	names := make([]string, 0, len(m.engines))
-	for _, name := range ai.AllEngines() {
-		if _, ok := m.engines[name]; ok {
-			names = append(names, name)
-		}
-	}
-	return names
+	return m.enabledEngines
 }
 
 // ValidateEngine returns an error if name is not an enabled engine.

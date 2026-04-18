@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 // MCP endpoint path prefixes.
@@ -85,13 +87,13 @@ type EnginesConfig struct {
 
 func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 	switch name {
-	case "claude":
+	case ai.EngineClaude:
 		return e.Claude
-	case "codex":
+	case ai.EngineCodex:
 		return e.Codex
-	case "pi":
+	case ai.EnginePi:
 		return e.Pi
-	case "kimi":
+	case ai.EngineKimi:
 		return e.Kimi
 	}
 	return EngineItemConfig{}

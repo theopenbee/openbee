@@ -68,6 +68,13 @@ type Process interface {
 	Stop() error
 }
 
+// EngineResultExtractor is an optional extension of EngineAdapter for adapters
+// that can extract a result for a specific named engine (e.g. DynamicAdapter).
+// Use a type-assertion to check whether the runner supports this.
+type EngineResultExtractor interface {
+	ExtractResultFor(engine, logPath string) string
+}
+
 // EngineAdapter is the complete plugin contract for an AI engine.
 // Implementations must be safe for concurrent use.
 type EngineAdapter interface {

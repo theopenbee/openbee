@@ -265,11 +265,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 }
 
-// extractResult calls ExtractResultFor on a DynamicAdapter (preserving the engine snapshotted at
-// Run time), or falls back to ExtractResult on any other adapter type.
+// extractResult extracts the result using the engine snapshotted at Run time if the runner
+// supports it (EngineResultExtractor), or falls back to ExtractResult on the current engine.
 func (f *Feeder) extractResult(engineName, logPath string) string {
-	if da, ok := f.runner.(*ai.DynamicAdapter); ok {
-		return da.ExtractResultFor(engineName, logPath)
+	if extractor, ok := f.runner.(ai.EngineResultExtractor); ok {
+		return extractor.ExtractResultFor(engineName, logPath)
 	}
 	return f.runner.ExtractResult(logPath)
 }
