@@ -6,7 +6,8 @@
     "tasks": "定时任务",
     "departments": "部门",
     "directory": "通讯录",
-    "settings": "环境变量"
+    "settings": "环境变量",
+    "systemSettings": "系统设置"
   },
   "common": {
     "save": "保存",
@@ -440,5 +441,14 @@
     "source": "来源",
     "noEffective": "该员工暂无任何环境变量配置。",
     "depEnvTitle": "环境变量"
+  },
+  "systemSettings": {
+    "title": "系统设置",
+    "engineSection": {
+      "title": "默认引擎",
+      "hint": "未为员工单独设置引擎时，Bee 调度时使用的默认 AI 引擎。",
+      "systemDefault": "系统默认 (claude)"
+    },
+    "updated": "默认引擎已更新"
   }
 }

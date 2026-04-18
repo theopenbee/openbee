@@ -6,7 +6,8 @@
     "tasks": "Scheduled Tasks",
     "departments": "Departments",
     "directory": "Directory",
-    "settings": "Env Variables"
+    "settings": "Env Variables",
+    "systemSettings": "System Settings"
   },
   "common": {
     "save": "Save",
@@ -441,5 +442,14 @@
     "source": "Source",
     "noEffective": "No env variables configured for this worker.",
     "depEnvTitle": "Env Variables"
+  },
+  "systemSettings": {
+    "title": "System Settings",
+    "engineSection": {
+      "title": "Default Engine",
+      "hint": "The AI engine Bee uses by default when no per-worker engine is set.",
+      "systemDefault": "System Default (claude)"
+    },
+    "updated": "Default engine updated"
   }
 }
