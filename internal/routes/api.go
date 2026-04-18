@@ -50,4 +50,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/envs", s.Envs.Create)
 	r.PUT("/envs/:id", s.Envs.Update)
 	r.DELETE("/envs/:id", s.Envs.Delete)
+
+	r.GET("/system-configs", s.SystemConfigs.Get)
+	r.PUT("/system-configs/:key", s.SystemConfigs.Set)
 }

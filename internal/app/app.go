@@ -326,6 +326,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
+		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr),
 		BeeMCP:            beeMCPSrv,
 		MCPAuthMiddleware: mcpAuthMiddleware,
 		StaticFS:          webui.DistFS,
