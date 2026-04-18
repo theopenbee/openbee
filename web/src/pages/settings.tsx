@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useQuery, useMutation } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Check } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
@@ -18,6 +19,7 @@ import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE } from "@/lib/types"
 
 export function SystemSettings() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const enabledEngines = useEnabledEngines()
 
   const { data: sysConfigs } = useQuery({
@@ -27,12 +29,18 @@ export function SystemSettings() {
 
   const savedEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
   const [pendingEngine, setPendingEngine] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState(false)
   const engine = pendingEngine ?? savedEngine
 
   const { mutate: saveEngine, isPending } = useMutation({
     mutationFn: (value: string) => api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
     onError: () => setPendingEngine(null),
-    onSuccess: () => setPendingEngine(null),
+    onSuccess: () => {
+      setPendingEngine(null)
+      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 2000)
+    },
   })
 
   return (
@@ -66,7 +74,7 @@ export function SystemSettings() {
               onClick={() => saveEngine(engine)}
               disabled={isPending || pendingEngine === null || pendingEngine === savedEngine}
             >
-              {t("common.save")}
+              {justSaved ? <Check className="size-4" /> : t("common.save")}
             </Button>
           </div>
         </DetailSection>
