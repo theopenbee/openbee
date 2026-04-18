@@ -132,6 +132,9 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
+// Mirrors model.SystemConfigKeyDefaultEngine in Go — keep in sync.
+export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
+
 // Mirrors ai.AllEngines in Go — keep in sync.
 export const ENGINES = ["claude", "codex", "pi", "kimi"] as const
 export type Engine = (typeof ENGINES)[number]

@@ -9,9 +9,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-// configureClaudeExecutable handles claude path detection:
-// 1. Auto-detect claude in PATH
-// 2. If not found: manual input or download
 func configureClaudeExecutable(vals *configValues) error {
 	if claudePath, err := exec.LookPath("claude"); err == nil {
 		fmt.Printf(i18n.M.Output.Config.ClaudeFound+"\n", claudePath)

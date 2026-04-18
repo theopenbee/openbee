@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { FadeIn } from "@/components/fade-in"
@@ -14,8 +14,7 @@ import {
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
-
-const DEFAULT_ENGINE_KEY = "default_engine"
+import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE } from "@/lib/types"
 
 export function SystemSettings() {
   const { t } = useTranslation()
@@ -26,23 +25,17 @@ export function SystemSettings() {
     queryFn: () => api.systemConfigs.get(),
   })
 
-  const [engine, setEngine] = useState<string>("")
-
-  useEffect(() => {
-    if (sysConfigs !== undefined) {
-      setEngine(sysConfigs[DEFAULT_ENGINE_KEY] ?? "")
-    }
-  }, [sysConfigs])
+  const [optimisticEngine, setOptimisticEngine] = useState<string | null>(null)
+  const engine = optimisticEngine ?? sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
 
   const { mutate: saveEngine, isPending } = useMutation({
-    mutationFn: (value: string) => api.systemConfigs.set(DEFAULT_ENGINE_KEY, value),
-    onError: () => {
-      setEngine(sysConfigs?.[DEFAULT_ENGINE_KEY] ?? "")
-    },
+    mutationFn: (value: string) => api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
+    onError: () => setOptimisticEngine(null),
+    onSuccess: () => setOptimisticEngine(null),
   })
 
   function handleEngineChange(value: string) {
-    setEngine(value)
+    setOptimisticEngine(value)
     saveEngine(value)
   }
 

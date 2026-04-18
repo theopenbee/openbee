@@ -286,8 +286,8 @@ type RuntimeMessages struct {
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
 type EngineCommandMessages struct {
-	Usage               string `yaml:"usage"`                 // usage hint
-	SwitchFailed        string `yaml:"switch_failed"`         // generic switch failure
+	Usage               string `yaml:"usage"`
+	SwitchFailed        string `yaml:"switch_failed"`
 	DefaultSwitched     string `yaml:"default_switched"`      // contains %s (engine name)
 	WorkerNotFound      string `yaml:"worker_not_found"`      // contains %s (worker name)
 	WorkerSwitched      string `yaml:"worker_switched"`       // contains %s, %s (worker, engine)
