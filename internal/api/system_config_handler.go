@@ -44,7 +44,7 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 }
 
 type setSystemConfigRequest struct {
-	Value string `json:"value" binding:"required"`
+	Value string `json:"value"`
 }
 
 // Set updates a single system config key.

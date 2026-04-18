@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import type { Worker } from "@/lib/types"
+import type { Worker, Engine } from "@/lib/types"
 
 export function useWorkers(departmentId?: string) {
   return useQuery({
@@ -21,7 +21,7 @@ export function useCreateWorker() {
   return useMutation({
     mutationFn: (data: {
       name: string
-      engine: string
+      engine: Engine
       description: string
       memory?: string
       work_dir?: string

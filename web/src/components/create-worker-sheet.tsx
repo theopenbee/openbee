@@ -70,6 +70,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
+  const enabledEnginesKey = enabledEngines.join(",")
   const isCopy = initialValues !== undefined
   const initialValuesRef = useRef(initialValues)
   initialValuesRef.current = initialValues
@@ -95,7 +96,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
     }
-  }, [open, enabledEngines])
+  }, [open, enabledEnginesKey])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

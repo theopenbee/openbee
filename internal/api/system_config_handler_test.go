@@ -81,13 +81,13 @@ func TestSystemConfigHandler_Get_Empty(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp["default_engine"] != "" {
-		t.Errorf("expected empty default_engine, got %q", resp["default_engine"])
+	if resp[model.SystemConfigKeyDefaultEngine] != "" {
+		t.Errorf("expected empty default_engine, got %q", resp[model.SystemConfigKeyDefaultEngine])
 	}
 }
 
 func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
-	store := &fakeSysConfigStore{vals: map[string]string{"default_engine": "claude"}}
+	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
 	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	w := httptest.NewRecorder()
@@ -101,8 +101,8 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp["default_engine"] != "claude" {
-		t.Errorf("expected claude, got %q", resp["default_engine"])
+	if resp[model.SystemConfigKeyDefaultEngine] != "claude" {
+		t.Errorf("expected claude, got %q", resp[model.SystemConfigKeyDefaultEngine])
 	}
 }
 
@@ -113,18 +113,37 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/default_engine", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if store.vals["default_engine"] != "claude" {
-		t.Errorf("expected store to have claude, got %q", store.vals["default_engine"])
+	if store.vals[model.SystemConfigKeyDefaultEngine] != "claude" {
+		t.Errorf("expected store to have claude, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
 	}
 	if got := enginecfg.Get(); got != "claude" {
 		t.Errorf("enginecfg cache not updated: got %q", got)
+	}
+	t.Cleanup(func() { enginecfg.Set("") })
+}
+
+func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
+	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+
+	body, _ := json.Marshal(map[string]string{"value": ""})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 when clearing to system default, got %d: %s", w.Code, w.Body.String())
+	}
+	if store.vals[model.SystemConfigKeyDefaultEngine] != "" {
+		t.Errorf("expected store to have empty value, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
 	}
 	t.Cleanup(func() { enginecfg.Set("") })
 }
@@ -136,7 +155,7 @@ func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{"value": "unknown-engine"})
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/default_engine", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
 
@@ -176,7 +195,7 @@ func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	router := newSysConfigRouter(store, validator)
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/default_engine", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
