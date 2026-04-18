@@ -37,7 +37,7 @@ export function SystemSettings() {
   const { mutate: saveEngine, isPending } = useMutation({
     mutationFn: (value: string) => api.systemConfigs.set(DEFAULT_ENGINE_KEY, value),
     onError: () => {
-      setEngine(sysConfigs?.["default_engine"] ?? "")
+      setEngine(sysConfigs?.[DEFAULT_ENGINE_KEY] ?? "")
     },
   })
 

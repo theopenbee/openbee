@@ -1,5 +1,5 @@
 import type { ParsedEntry, StreamParser } from "./types"
-import { appendRawEntry, appendTextEntry } from "./types"
+import { appendRawEntry, appendTextEntry, parseJsonObject } from "./types"
 import { extractToolResultText } from "./claude-parser"
 
 interface KimiContentBlock {
@@ -56,18 +56,12 @@ export class KimiParser implements StreamParser {
       return
     }
 
-    let msg: KimiMessage
-    try {
-      const parsed = JSON.parse(line)
-      if (!parsed || typeof parsed.role !== "string") {
-        appendRawEntry(line, logType, entries)
-        return
-      }
-      msg = parsed as KimiMessage
-    } catch {
+    const parsed = parseJsonObject(line)
+    if (!parsed || typeof parsed.role !== "string") {
       appendRawEntry(line, logType, entries)
       return
     }
+    const msg = parsed as unknown as KimiMessage
 
     switch (msg.role) {
       case "user":

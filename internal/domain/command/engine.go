@@ -11,6 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -120,7 +121,7 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 	if err := sender.Send(ctx, platform.OutboundMessage{
 		Content:    text,
 		ReplyTo:    replyTo,
-		SourceType: "system",
+		SourceType: store.SourceTypeSystem,
 	}); err != nil {
 		log.Warn("engine command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
 	}

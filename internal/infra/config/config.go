@@ -130,7 +130,7 @@ func (b BeeConfig) EffectiveEngine() string {
 	if b.Engine.Default != "" {
 		return b.Engine.Default
 	}
-	return "claude"
+	return ai.EngineClaude
 }
 
 // EngineConfigRaw returns the raw config map for the default engine.

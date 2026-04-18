@@ -19,6 +19,12 @@ type LogViewerVariant = "standalone" | "embedded"
 
 const FILTER_ALIAS: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
 
+const PARSER_FACTORY: Record<string, () => StreamParser> = {
+  codex: () => new CodexParser(),
+  pi: () => new PiParser(),
+  kimi: () => new KimiParser(),
+}
+
 interface LogViewerProps {
   executionId: string
   status: ExecutionStatus
@@ -406,14 +412,7 @@ export function LogViewer({
     const ensureParser = (lines: string[]): StreamParser => {
       if (!parserRef.current) {
         const engine = detectEngine(lines)
-        parserRef.current =
-          engine === "codex"
-            ? new CodexParser()
-            : engine === "pi"
-              ? new PiParser()
-              : engine === "kimi"
-                ? new KimiParser()
-                : new ClaudeParser()
+        parserRef.current = (PARSER_FACTORY[engine] ?? (() => new ClaudeParser()))()
       }
       return parserRef.current
     }
