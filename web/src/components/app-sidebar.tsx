@@ -40,6 +40,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("nav.executions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
     { title: t("nav.settings"), url: "/env", icon: <SettingsIcon /> },
+    { title: t("nav.systemSettings"), url: "/settings", icon: <SettingsIcon /> },
   ], [t])
 
   return (
