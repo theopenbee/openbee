@@ -12,13 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { useEnabledEngines } from "@/hooks/use-config"
+import { useEnabledEngines, useDefaultEngine } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE } from "@/lib/types"
 
 export function SystemSettings() {
   const { t } = useTranslation()
   const enabledEngines = useEnabledEngines()
+  const defaultEngine = useDefaultEngine()
 
   const { data: sysConfigs } = useQuery({
     queryKey: ["system-configs"],
@@ -60,11 +61,11 @@ export function SystemSettings() {
             disabled={isPending}
           >
             <SelectTrigger className="w-48">
-              <SelectValue placeholder={t("systemSettings.engineSection.systemDefault")} />
+              <SelectValue placeholder={t("systemSettings.engineSection.systemDefault", { engine: defaultEngine })} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">
-                {t("systemSettings.engineSection.systemDefault")}
+                {t("systemSettings.engineSection.systemDefault", { engine: defaultEngine })}
               </SelectItem>
               <EngineSelectItems engines={enabledEngines} />
             </SelectContent>

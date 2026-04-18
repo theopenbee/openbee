@@ -9,15 +9,17 @@ import (
 type configResponse struct {
 	Language       string   `json:"language"`
 	EnabledEngines []string `json:"enabled_engines"`
+	DefaultEngine  string   `json:"default_engine"`
 }
 
 type ConfigHandler struct {
 	language       string
 	enabledEngines []string
+	defaultEngine  string
 }
 
-func NewConfigHandler(lang string, enabledEngines []string) *ConfigHandler {
-	return &ConfigHandler{language: lang, enabledEngines: enabledEngines}
+func NewConfigHandler(lang string, enabledEngines []string, defaultEngine string) *ConfigHandler {
+	return &ConfigHandler{language: lang, enabledEngines: enabledEngines, defaultEngine: defaultEngine}
 }
 
 func (h *ConfigHandler) Get(c *gin.Context) {
@@ -28,5 +30,6 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, configResponse{
 		Language:       lang,
 		EnabledEngines: h.enabledEngines,
+		DefaultEngine:  h.defaultEngine,
 	})
 }

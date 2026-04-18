@@ -449,7 +449,7 @@
     "engineSection": {
       "title": "Default Engine",
       "hint": "The AI engine Bee uses by default when no per-worker engine is set.",
-      "systemDefault": "System Default (claude)"
+      "systemDefault": "System Default ({{engine}})"
     },
     "updated": "Default engine updated"
   }

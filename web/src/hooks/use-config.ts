@@ -4,12 +4,16 @@ import { api } from "@/lib/api"
 import { ENGINES } from "@/lib/types"
 import type { Engine } from "@/lib/types"
 
-export function useEnabledEngines(): readonly Engine[] {
-  const { data } = useQuery({
+function useAppConfig() {
+  return useQuery({
     queryKey: ["config"],
     queryFn: () => api.config.get(),
-    staleTime: Infinity, // enabled_engines is a static deployment setting
+    staleTime: Infinity, // static deployment setting
   })
+}
+
+export function useEnabledEngines(): readonly Engine[] {
+  const { data } = useAppConfig()
 
   return useMemo(() => {
     if (!data?.enabled_engines?.length) {
@@ -18,4 +22,9 @@ export function useEnabledEngines(): readonly Engine[] {
     // Preserve canonical ordering from ENGINES constant
     return ENGINES.filter((e) => data.enabled_engines.includes(e))
   }, [data?.enabled_engines])
+}
+
+export function useDefaultEngine(): string {
+  const { data } = useAppConfig()
+  return data?.default_engine ?? ""
 }
