@@ -4,14 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+func TestMain(m *testing.M) {
+	if err := i18n.Load("zh"); err != nil {
+		panic("failed to load zh locale: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
 
 // --- fakes ---
 

@@ -225,3 +225,10 @@ runtime:
     has_associated_workers: "This department has associated workers. Please move them to another department first."
     parent_not_found: "Parent department not found."
     circular_reference: "Cannot set a descendant as the parent department."
+  engine_command:
+    usage: "Usage:\n/engine {engine} — switch the default engine\n/engine {engine} {workerName} — switch the engine for a specific worker"
+    switch_failed: "Switch failed, please try again later"
+    default_switched: "Default engine switched to %s"
+    worker_not_found: "Worker %q not found"
+    worker_switched: "Worker %q engine switched to %s"
+    unknown_engine: "Unknown engine: %s, supported engines: %s"

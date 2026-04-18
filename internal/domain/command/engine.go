@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -50,8 +51,6 @@ func NewEngineCommandHandler(
 	return &EngineCommandHandler{workers: workers, sysCfg: sysCfg, validator: validator, senders: senders}
 }
 
-const usageMsg = "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定 worker 的 engine"
-
 // HandleCommand implements msgingest.CommandHandler.
 // Returns true if content is a /engine command (whether or not it succeeded).
 func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
@@ -62,13 +61,13 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 
 	switch len(fields) {
 	case 1:
-		h.reply(ctx, replyTo, usageMsg)
+		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
 	case 2:
 		h.handleBeeEngine(ctx, replyTo, fields[1])
 	case 3:
 		h.handleWorkerEngine(ctx, replyTo, fields[1], fields[2])
 	default:
-		h.reply(ctx, replyTo, usageMsg)
+		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
 	}
 	return true
 }
@@ -77,35 +76,37 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 	if !h.isValidEngine(ctx, replyTo, engineName) {
 		return
 	}
+	m := i18n.M.Runtime.EngineCommand
 	if err := h.sysCfg.Set(ctx, model.SystemConfigKeyDefaultEngine, engineName); err != nil {
-		h.reply(ctx, replyTo, "切换失败，请稍后重试")
+		h.reply(ctx, replyTo, m.SwitchFailed)
 		return
 	}
 	enginecfg.Set(engineName)
-	h.reply(ctx, replyTo, fmt.Sprintf("已将默认 engine 切换为 %s", engineName))
+	h.reply(ctx, replyTo, fmt.Sprintf(m.DefaultSwitched, engineName))
 }
 
 func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName, workerName string) {
 	if !h.isValidEngine(ctx, replyTo, engineName) {
 		return
 	}
+	m := i18n.M.Runtime.EngineCommand
 	w, err := h.workers.GetByName(workerName)
 	if err != nil {
-		h.reply(ctx, replyTo, fmt.Sprintf("Worker %q 不存在", workerName))
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
 		return
 	}
 	w.Engine = engineName
 	if _, err := h.workers.Update(w); err != nil {
-		h.reply(ctx, replyTo, "切换失败，请稍后重试")
+		h.reply(ctx, replyTo, m.SwitchFailed)
 		return
 	}
-	h.reply(ctx, replyTo, fmt.Sprintf("已将 Worker %q 的 engine 切换为 %s", workerName, engineName))
+	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerSwitched, workerName, engineName))
 }
 
 // isValidEngine validates engineName. On failure it sends an error reply and returns false.
 func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) bool {
 	if err := h.validator.ValidateEngine(engineName); err != nil {
-		h.reply(ctx, replyTo, fmt.Sprintf("未知的 engine: %s，支持的 engine：%s",
+		h.reply(ctx, replyTo, fmt.Sprintf(i18n.M.Runtime.EngineCommand.UnknownEngine,
 			engineName, strings.Join(h.validator.EnabledEngines(), " / ")))
 		return false
 	}

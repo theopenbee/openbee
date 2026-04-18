@@ -281,6 +281,17 @@ type RuntimeMessages struct {
 	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
 	MCP             MCPRuntimeMessages        `yaml:"mcp"`
 	Department      DepartmentRuntimeMessages `yaml:"department"`
+	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
+}
+
+// EngineCommandMessages holds text sent to IM users by the /engine command handler.
+type EngineCommandMessages struct {
+	Usage               string `yaml:"usage"`                 // usage hint
+	SwitchFailed        string `yaml:"switch_failed"`         // generic switch failure
+	DefaultSwitched     string `yaml:"default_switched"`      // contains %s (engine name)
+	WorkerNotFound      string `yaml:"worker_not_found"`      // contains %s (worker name)
+	WorkerSwitched      string `yaml:"worker_switched"`       // contains %s, %s (worker, engine)
+	UnknownEngine       string `yaml:"unknown_engine"`        // contains %s, %s (engine, supported list)
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.
