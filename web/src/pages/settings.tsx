@@ -15,6 +15,8 @@ import { EngineSelectItems } from "@/components/engine-select-items"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 
+const DEFAULT_ENGINE_KEY = "default_engine"
+
 export function SystemSettings() {
   const { t } = useTranslation()
   const enabledEngines = useEnabledEngines()
@@ -28,12 +30,12 @@ export function SystemSettings() {
 
   useEffect(() => {
     if (sysConfigs !== undefined) {
-      setEngine(sysConfigs["default_engine"] ?? "")
+      setEngine(sysConfigs[DEFAULT_ENGINE_KEY] ?? "")
     }
   }, [sysConfigs])
 
   const { mutate: saveEngine, isPending } = useMutation({
-    mutationFn: (value: string) => api.systemConfigs.set("default_engine", value),
+    mutationFn: (value: string) => api.systemConfigs.set(DEFAULT_ENGINE_KEY, value),
     onError: () => {
       setEngine(sysConfigs?.["default_engine"] ?? "")
     },

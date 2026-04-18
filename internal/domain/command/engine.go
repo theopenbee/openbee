@@ -103,7 +103,6 @@ func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo p
 	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerSwitched, workerName, engineName))
 }
 
-// isValidEngine validates engineName. On failure it sends an error reply and returns false.
 func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) bool {
 	if err := h.validator.ValidateEngine(engineName); err != nil {
 		h.reply(ctx, replyTo, fmt.Sprintf(i18n.M.Runtime.EngineCommand.UnknownEngine,

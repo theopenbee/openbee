@@ -232,7 +232,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if len(defaultEngines) == 0 {
-		defaultEngines = []string{i18n.M.Prompt.OptionEngineClaude}
+		defaultEngines = []string{engineLabel(ai.EngineClaude)}
 	}
 
 	allEngineLabels := make([]string, len(engineMappings()))
@@ -744,7 +744,6 @@ func handleSurveyErr(err error) error {
 
 type engineMapping struct{ name, label string }
 
-// engineMappings returns the canonical name↔i18n-label pairs for all engines.
 // Add new engines here; engineLabel and engineName derive from this single source.
 func engineMappings() []engineMapping {
 	return []engineMapping{
@@ -755,8 +754,6 @@ func engineMappings() []engineMapping {
 	}
 }
 
-// engineLabel returns the i18n display label for the given engine name ("claude", "codex", etc.).
-// Returns "" for unknown names.
 func engineLabel(name string) string {
 	for _, m := range engineMappings() {
 		if m.name == name {
@@ -766,8 +763,6 @@ func engineLabel(name string) string {
 	return ""
 }
 
-// engineName converts an i18n display label back to its canonical engine name.
-// Returns "" for unknown labels.
 func engineName(label string) string {
 	for _, m := range engineMappings() {
 		if m.label == label {

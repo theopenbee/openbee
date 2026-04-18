@@ -30,9 +30,8 @@ type Manager struct {
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	engines        map[string]ai.EngineAdapter
-	enabledEngines []string // canonical order, computed once at construction
-	envService     *env.Service
+	engines    map[string]ai.EngineAdapter
+	envService *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -46,12 +45,6 @@ func NewManager(
 	engines map[string]ai.EngineAdapter,
 	envService *env.Service,
 ) *Manager {
-	enabled := make([]string, 0, len(engines))
-	for _, name := range ai.AllEngines() {
-		if _, ok := engines[name]; ok {
-			enabled = append(enabled, name)
-		}
-	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
@@ -60,7 +53,6 @@ func NewManager(
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
-		enabledEngines:  enabled,
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
@@ -82,12 +74,16 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
 }
 
-// EnabledEngines returns the names of all currently enabled engines in canonical order.
 func (m *Manager) EnabledEngines() []string {
-	return m.enabledEngines
+	enabled := make([]string, 0, len(m.engines))
+	for _, name := range ai.AllEngines() {
+		if _, ok := m.engines[name]; ok {
+			enabled = append(enabled, name)
+		}
+	}
+	return enabled
 }
 
-// ValidateEngine returns an error if name is not an enabled engine.
 // An empty name is accepted (means "use server default").
 func (m *Manager) ValidateEngine(name string) error {
 	if name == "" {
