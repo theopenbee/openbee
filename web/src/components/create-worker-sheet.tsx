@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
+import { ChevronDown, Search } from "lucide-react"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -13,7 +14,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet"
 import {
@@ -23,9 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
-import { getErrorMessage } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
 import { DEFAULT_ENGINE } from "@/lib/types"
 import type { Engine } from "@/lib/types"
@@ -52,9 +51,16 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   }
 }
 
-function SectionHeading({ text }: { text: string }) {
+function SectionHeading({ text, badge }: { text: string; badge?: number }) {
   return (
-    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{text}</p>
+    <div className="flex items-center gap-2">
+      <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{text}</p>
+      {badge !== undefined && badge > 0 && (
+        <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary tabular-nums">
+          {badge}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -83,6 +89,8 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [submitError, setSubmitError] = useState("")
+  const [showOptional, setShowOptional] = useState(false)
+  const [deptSearch, setDeptSearch] = useState("")
 
   useEffect(() => {
     if (open) {
@@ -95,6 +103,8 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
+      setShowOptional(isCopy && !!(iv?.description || iv?.memory || iv?.work_dir))
+      setDeptSearch("")
     }
   }, [open, enabledEnginesKey])
 
@@ -119,6 +129,14 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
     }
   }
 
+  const isPending = createWorker.isPending || setWorkerDepts.isPending
+
+  const filteredDepts = deptSearch.trim()
+    ? flatDepts.filter(({ dept }) =>
+        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
+      )
+    : flatDepts
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
@@ -126,24 +144,23 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <SheetTitle>
             {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
           </SheetTitle>
-          <SheetDescription>
-            {isCopy ? t("workers.form.copyPanelDescription") : t("workers.form.panelDescription")}
-          </SheetDescription>
         </SheetHeader>
+
         <Separator />
+
         <form
           id="create-worker-form"
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto px-6 py-5 space-y-6"
+          className="flex-1 overflow-y-auto"
         >
-          {submitError && (
-            <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {submitError}
-            </div>
-          )}
+          {/* Required fields */}
+          <div className="px-6 py-5 space-y-5">
+            {submitError && (
+              <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </div>
+            )}
 
-          <div className="space-y-4">
-            <SectionHeading text={t("workers.form.sectionBasic")} />
             <div className="space-y-1.5">
               <Label htmlFor="cws-name">
                 {t("workers.form.name")}
@@ -159,23 +176,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cws-desc">{t("workers.form.description")}</Label>
-              <Textarea
-                id="cws-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("workers.form.descriptionPlaceholder")}
-                rows={2}
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
-            </div>
-          </div>
 
-          <Separator />
-
-          <div className="space-y-4">
-            <SectionHeading text={t("workers.form.sectionConfig")} />
             <div className="space-y-1.5">
               <Label htmlFor="cws-engine">
                 {t("workers.form.engine")}
@@ -191,60 +192,130 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
               </Select>
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cws-workdir">{t("workers.form.workDir")}</Label>
-              <Input
-                id="cws-workdir"
-                value={workDir}
-                onChange={(e) => setWorkDir(e.target.value)}
-                placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-xs"
+          </div>
+
+          {/* Optional settings */}
+          <div className="border-t border-border/60">
+            <button
+              type="button"
+              onClick={() => setShowOptional((v) => !v)}
+              aria-expanded={showOptional}
+              className="flex w-full items-center justify-between px-6 py-3 text-left text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+            >
+              <span>{t("workers.form.optionalSettings")}</span>
+              <ChevronDown
+                className={cn(
+                  "size-3.5 transition-transform duration-200",
+                  showOptional && "rotate-180"
+                )}
               />
-              <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cws-memory">{t("workers.form.memory")}</Label>
-              <Textarea
-                id="cws-memory"
-                value={memory}
-                onChange={(e) => setMemory(e.target.value)}
-                placeholder={t("workers.form.memoryPlaceholder")}
-                rows={5}
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
+            </button>
+
+            <div
+              className="grid transition-[grid-template-rows] duration-200 ease-out"
+              style={{ gridTemplateRows: showOptional ? "1fr" : "0fr" }}
+            >
+              <div className="overflow-hidden">
+                <div className="px-6 pb-5 space-y-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cws-desc">{t("workers.form.description")}</Label>
+                    <Textarea
+                      id="cws-desc"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder={t("workers.form.descriptionPlaceholder")}
+                      rows={2}
+                    />
+                    <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cws-workdir">{t("workers.form.workDir")}</Label>
+                    <Input
+                      id="cws-workdir"
+                      value={workDir}
+                      onChange={(e) => setWorkDir(e.target.value)}
+                      placeholder={t("workers.form.workDirPlaceholder")}
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cws-memory">{t("workers.form.memory")}</Label>
+                    <Textarea
+                      id="cws-memory"
+                      value={memory}
+                      onChange={(e) => setMemory(e.target.value)}
+                      placeholder={t("workers.form.memoryPlaceholder")}
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <Separator />
-
-          <div className="space-y-4">
-            <SectionHeading text={t("workers.form.sectionPermissions")} />
-            <div className="space-y-2">
+          {/* Permissions */}
+          <div className="border-t border-border/60 px-6 py-5 space-y-3">
+            <SectionHeading
+              text={t("workers.form.sectionPermissions")}
+              badge={selectedScopes.length}
+            />
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
               {KNOWN_SCOPES.map((scope) => (
-                <ScopeToggleCard
+                <label
                   key={scope.id}
-                  scope={scope}
-                  checked={selectedScopes.includes(scope.id)}
-                  onToggle={(scopeId, val) =>
-                    setSelectedScopes((prev) => toggleScope(prev, scopeId, val))
-                  }
-                  disabled={createWorker.isPending}
-                />
+                  className="flex items-center gap-2 cursor-pointer group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedScopes.includes(scope.id)}
+                    onChange={(e) =>
+                      setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
+                    }
+                    disabled={isPending}
+                    className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                  />
+                  <span className="text-sm text-foreground/75 group-hover:text-foreground transition-colors leading-snug">
+                    {t(scope.titleKey)}
+                  </span>
+                </label>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
           </div>
 
+          {/* Departments */}
           {flatDepts.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <SectionHeading text={t("workers.form.sectionDepartment")} />
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {flatDepts.map(({ dept, depth }) => (
-                    <div
+            <div className="border-t border-border/60 px-6 py-5 space-y-3">
+              <SectionHeading
+                text={t("workers.form.sectionDepartment")}
+                badge={selectedDeptIds.size}
+              />
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={deptSearch}
+                  onChange={(e) => setDeptSearch(e.target.value)}
+                  placeholder={t("workers.form.searchDepartments")}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
+                {filteredDepts.length === 0 ? (
+                  <p className="py-3 text-xs text-muted-foreground text-center">
+                    {t("workers.form.noMatchingDepartments")}
+                  </p>
+                ) : (
+                  filteredDepts.map(({ dept, depth }) => (
+                    <label
                       key={dept.id}
-                      className="flex items-center gap-2"
-                      style={{ paddingLeft: `${depth * 12}px` }}
+                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ paddingLeft: `${12 + depth * 12}px` }}
                     >
                       <input
                         type="checkbox"
@@ -256,19 +327,19 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-4 cursor-pointer rounded accent-primary"
+                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
                       />
-                      <Label htmlFor={`cws-dept-${dept.id}`} className="cursor-pointer text-sm font-normal">
-                        {dept.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
+                    </label>
+                  ))
+                )}
               </div>
-            </>
+
+              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+            </div>
           )}
         </form>
+
         <Separator />
         <SheetFooter className="px-6 py-4 flex-row gap-2">
           <Button
@@ -282,7 +353,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           <Button
             type="submit"
             form="create-worker-form"
-            disabled={createWorker.isPending || setWorkerDepts.isPending || !name.trim()}
+            disabled={isPending || !name.trim()}
             className="flex-1"
           >
             {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
