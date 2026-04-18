@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
-import { useDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
-import { useEnabledEngines } from "@/hooks/use-config"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
@@ -19,14 +16,13 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
-import { flattenDeptTree } from "@/lib/department-utils"
-import type { DepartmentTree, EnvScope, Engine } from "@/lib/types"
-import { DEFAULT_ENGINE } from "@/lib/types"
+import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
 import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
+import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
 import {
   Table,
   TableBody,
@@ -35,13 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { EngineSelectItems } from "@/components/engine-select-items"
 
 const PAGE_SIZE = 20
 
@@ -147,12 +136,8 @@ export function WorkerDetail() {
 
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
-  const [isEditingDesc, setIsEditingDesc] = useState(false)
-  const [editDesc, setEditDesc] = useState("")
   const [isEditingMemory, setIsEditingMemory] = useState(false)
   const [editMemory, setEditMemory] = useState("")
-  const [isEditingEngine, setIsEditingEngine] = useState(false)
-  const [editEngine, setEditEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
@@ -161,17 +146,12 @@ export function WorkerDetail() {
     setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
   }, [worker?.permission_scopes])
 
-  const { data: departments = [] } = useDepartments()
-  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
-  const setWorkerDepts = useSetWorkerDepartments()
-  const [deptDialogOpen, setDeptDialogOpen] = useState(false)
   const [copySheetOpen, setCopySheetOpen] = useState(false)
-  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([])
+  const [editInfoSheetOpen, setEditInfoSheetOpen] = useState(false)
   const workerDeptIds = useMemo(
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
     [worker?.departments]
   )
-  const enabledEngines = useEnabledEngines()
   if (!worker) return <SkeletonPage />
 
   return (
@@ -181,6 +161,10 @@ export function WorkerDetail() {
           title={worker.name}
           actions={
             <>
+              <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
+                <Pencil className="size-4" />
+                {t("common.edit")}
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setCopySheetOpen(true)}>
                 <Copy className="size-4" />
                 {t("common.copy")}
@@ -188,6 +172,11 @@ export function WorkerDetail() {
               <StatusBadge status={worker.status} />
             </>
           }
+        />
+        <EditWorkerInfoSheet
+          open={editInfoSheetOpen}
+          onOpenChange={setEditInfoSheetOpen}
+          worker={worker}
         />
         <CreateWorkerSheet
           open={copySheetOpen}
@@ -212,119 +201,15 @@ export function WorkerDetail() {
                     {worker.id}
                   </h2>
 
-                  {isEditingDesc ? (
-                    <div className="max-w-3xl space-y-3">
-                      <Textarea
-                        value={editDesc}
-                        onChange={(event) => setEditDesc(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") {
-                            setIsEditingDesc(false)
-                            setEditDesc(worker.description)
-                          }
-                        }}
-                        autoFocus
-                        rows={3}
-                        className="bg-background/80 text-sm"
-                      />
+                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                    {worker.description || t("common.noDescription")}
+                  </p>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            await updateWorker.mutateAsync({ id: id!, data: { description: editDesc } })
-                            setIsEditingDesc(false)
-                          }}
-                        >
-                          <Check className="size-3" />
-                          {t("common.save")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditingDesc(false)
-                            setEditDesc(worker.description)
-                          }}
-                        >
-                          <X className="size-3" />
-                          {t("common.cancel")}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-start gap-3">
-                      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                        {worker.description || t("common.noDescription")}
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditDesc(worker.description)
-                          setIsEditingDesc(true)
-                        }}
-                        aria-label={t("workerDetail.editDescription")}
-                      >
-                        <Pencil className="size-3.5" />
-                        {t("workerDetail.editDescription")}
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5 min-w-0">
-                      <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
-                      {isEditingEngine ? (
-                        <div className="flex items-center gap-2 mt-1">
-                          <Select value={editEngine} onValueChange={(v) => v && setEditEngine(v as Engine)}>
-                            <SelectTrigger className="h-8 text-sm w-48">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <EngineSelectItems engines={enabledEngines} />
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 shrink-0"
-                            disabled={updateWorker.isPending}
-                            onClick={async () => {
-                              await updateWorker.mutateAsync({ id: id!, data: { engine: editEngine } })
-                              setIsEditingEngine(false)
-                            }}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 shrink-0"
-                            onClick={() => setIsEditingEngine(false)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-sm">
-                          {worker.engine ? t(`workers.engines.${worker.engine}`) : "—"}
-                        </p>
-                      )}
-                    </div>
-                    {!isEditingEngine && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 mt-0.5"
-                        onClick={() => {
-                          setEditEngine(worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
-                          setIsEditingEngine(true)
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
+                    <p className="text-sm">
+                      {worker.engine ? t(`workers.engines.${worker.engine}`) : "—"}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -348,17 +233,6 @@ export function WorkerDetail() {
                   ) : (
                     <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedDeptIds(worker.departments?.map((d) => d.id) ?? [])
-                      setDeptDialogOpen(true)
-                    }}
-                  >
-                    <Pencil className="size-3" />
-                    {t("departments.manage")}
-                  </Button>
                 </div>
               </div>
             </div>
@@ -639,56 +513,6 @@ export function WorkerDetail() {
         </Tabs>
       </div>
 
-      <Dialog open={deptDialogOpen} onOpenChange={setDeptDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("departments.title")}</DialogTitle>
-            <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {flatDepts.map(({ dept, depth }) => (
-              <label
-                key={dept.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer"
-                style={{ paddingLeft: `${depth * 16 + 8}px` }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedDeptIds.includes(dept.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedDeptIds([...selectedDeptIds, dept.id])
-                    } else {
-                      setSelectedDeptIds(selectedDeptIds.filter((id) => id !== dept.id))
-                    }
-                  }}
-                  className="size-4 rounded accent-primary"
-                />
-                <span className="text-sm">{dept.name}</span>
-              </label>
-            ))}
-            {departments.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                {t("departments.empty")}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeptDialogOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              onClick={async () => {
-                await setWorkerDepts.mutateAsync({ workerId: id!, departmentIds: selectedDeptIds })
-                setDeptDialogOpen(false)
-              }}
-              disabled={setWorkerDepts.isPending}
-            >
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </FadeIn>
   )
 }

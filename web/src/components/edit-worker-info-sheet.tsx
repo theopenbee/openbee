@@ -1,0 +1,216 @@
+import { useState, useEffect, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
+import { Search } from "lucide-react"
+import { useUpdateWorker } from "@/hooks/use-workers"
+import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
+import { useEnabledEngines } from "@/hooks/use-config"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet"
+import {
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { EngineSelectItems } from "@/components/engine-select-items"
+import { getErrorMessage } from "@/lib/utils"
+import type { Worker, Engine } from "@/lib/types"
+import { DEFAULT_ENGINE } from "@/lib/types"
+
+interface EditWorkerInfoSheetProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  worker: Worker
+}
+
+export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerInfoSheetProps) {
+  const { t } = useTranslation()
+  const updateWorker = useUpdateWorker()
+  const setWorkerDepts = useSetWorkerDepartments()
+  const flatDepts = useFlatDepartments()
+  const enabledEngines = useEnabledEngines()
+
+  const [description, setDescription] = useState("")
+  const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
+  const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
+  const [deptSearch, setDeptSearch] = useState("")
+  const [submitError, setSubmitError] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setDescription(worker.description ?? "")
+      setEngine(worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
+      setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
+      setDeptSearch("")
+      setSubmitError("")
+    }
+  }, [open, worker, enabledEngines])
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setSubmitError("")
+    try {
+      const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
+      const newDeptIds = [...selectedDeptIds].sort().join(",")
+      const workerChanged =
+        description !== (worker.description ?? "") || engine !== (worker.engine ?? DEFAULT_ENGINE)
+      const deptsChanged = newDeptIds !== originalDeptIds
+
+      if (workerChanged) {
+        await updateWorker.mutateAsync({ id: worker.id, data: { description, engine } })
+      }
+      if (deptsChanged) {
+        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
+      }
+      onOpenChange(false)
+    } catch (err) {
+      setSubmitError(getErrorMessage(err))
+    }
+  }
+
+  const isPending = updateWorker.isPending || setWorkerDepts.isPending
+
+  const filteredDepts = deptSearch.trim()
+    ? flatDepts.filter(({ dept }) =>
+        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
+      )
+    : flatDepts
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
+        <SheetHeader className="px-6 pt-6 pb-4">
+          <SheetTitle>{t("workerDetail.workerInfo")}</SheetTitle>
+        </SheetHeader>
+
+        <Separator />
+
+        <form
+          id="edit-worker-info-form"
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="px-6 py-5 space-y-5">
+            {submitError && (
+              <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ewis-desc">{t("workers.form.description")}</Label>
+              <Textarea
+                id="ewis-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("workers.form.descriptionPlaceholder")}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ewis-engine">{t("workers.form.engine")}</Label>
+              <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
+                <SelectTrigger id="ewis-engine">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <EngineSelectItems engines={enabledEngines} />
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
+            </div>
+          </div>
+
+          {flatDepts.length > 0 && (
+            <div className="border-t border-border/60 px-6 py-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  {t("workers.form.sectionDepartment")}
+                </p>
+                {selectedDeptIds.size > 0 && (
+                  <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary tabular-nums">
+                    {selectedDeptIds.size}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={deptSearch}
+                  onChange={(e) => setDeptSearch(e.target.value)}
+                  placeholder={t("workers.form.searchDepartments")}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
+                {filteredDepts.length === 0 ? (
+                  <p className="py-3 text-xs text-muted-foreground text-center">
+                    {t("workers.form.noMatchingDepartments")}
+                  </p>
+                ) : (
+                  filteredDepts.map(({ dept, depth }) => (
+                    <label
+                      key={dept.id}
+                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ paddingLeft: `${12 + depth * 12}px` }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDeptIds.has(dept.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedDeptIds)
+                          if (e.target.checked) next.add(dept.id)
+                          else next.delete(dept.id)
+                          setSelectedDeptIds(next)
+                        }}
+                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                      />
+                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+            </div>
+          )}
+        </form>
+
+        <Separator />
+        <SheetFooter className="px-6 py-4 flex-row gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form="edit-worker-info-form"
+            disabled={isPending}
+            className="flex-1"
+          >
+            {t("common.save")}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
+}
