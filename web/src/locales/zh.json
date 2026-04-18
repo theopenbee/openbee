@@ -447,7 +447,7 @@
     "title": "系统设置",
     "engineSection": {
       "title": "默认引擎",
-      "hint": "未为员工单独设置引擎时，Bee 调度时使用的默认 AI 引擎。"
+      "hint": "Bee 调度时使用的默认 AI 引擎"
     },
     "updated": "默认引擎已更新"
   }
