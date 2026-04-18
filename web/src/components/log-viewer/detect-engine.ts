@@ -1,6 +1,7 @@
+import type { Engine } from "@/lib/types"
 import { parseJsonObject } from "./types"
 
-export function detectEngine(lines: string[]): "claude" | "codex" | "pi" | "kimi" {
+export function detectEngine(lines: string[]): Engine {
   for (const line of lines) {
     const obj = parseJsonObject(line)
     if (!obj) continue

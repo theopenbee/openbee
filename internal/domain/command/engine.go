@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
+
+var log = logger.With(zap.String("component", "command"))
 
 // WorkerRepository is the subset of WorkerStore needed by EngineCommandHandler.
 type WorkerRepository interface {
@@ -112,9 +117,11 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 	if !ok {
 		return
 	}
-	_ = sender.Send(ctx, platform.OutboundMessage{
+	if err := sender.Send(ctx, platform.OutboundMessage{
 		Content:    text,
 		ReplyTo:    replyTo,
 		SourceType: "system",
-	})
+	}); err != nil {
+		log.Warn("engine command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
+	}
 }

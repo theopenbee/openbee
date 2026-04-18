@@ -177,7 +177,7 @@ export function Workers() {
                     <StatusBadge status={w.status} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {w.engine ? t(`workers.engines.${w.engine}`, w.engine) : "—"}
+                    {w.engine ? t(`workers.engines.${w.engine}`) : "—"}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}

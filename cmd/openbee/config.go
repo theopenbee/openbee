@@ -226,7 +226,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		ai.EngineKimi:   vals.KimiEnabled,
 	}
 	var defaultEngines []string
-	for _, name := range ai.AllEngines {
+	for _, name := range ai.AllEngines() {
 		if enabledByName[name] {
 			defaultEngines = append(defaultEngines, engineLabel(name))
 		}
@@ -235,15 +235,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		defaultEngines = []string{i18n.M.Prompt.OptionEngineClaude}
 	}
 
+	allEngineLabels := make([]string, len(engineMappings()))
+	for i, m := range engineMappings() {
+		allEngineLabels[i] = m.label
+	}
+
 	var selectedEngines []string
 	if err := survey.AskOne(&survey.MultiSelect{
 		Message: i18n.M.Prompt.EngineSelect,
-		Options: []string{
-			i18n.M.Prompt.OptionEngineClaude,
-			i18n.M.Prompt.OptionEngineCodex,
-			i18n.M.Prompt.OptionEnginePi,
-			i18n.M.Prompt.OptionEngineKimi,
-		},
+		Options: allEngineLabels,
 		Default: defaultEngines,
 	}, &selectedEngines, survey.WithValidator(func(ans any) error {
 		if v, ok := ans.([]survey.OptionAnswer); ok && len(v) == 0 {
@@ -767,6 +767,7 @@ func engineLabel(name string) string {
 }
 
 // engineName converts an i18n display label back to its canonical engine name.
+// Returns "" for unknown labels.
 func engineName(label string) string {
 	for _, m := range engineMappings() {
 		if m.label == label {

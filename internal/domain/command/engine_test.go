@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -72,7 +73,7 @@ func (v *fakeValidator) ValidateEngine(name string) error {
 
 func (v *fakeValidator) EnabledEngines() []string { return v.engines }
 
-var defaultValidator = &fakeValidator{engines: []string{"claude", "codex", "pi", "kimi"}}
+var defaultValidator = &fakeValidator{engines: ai.AllEngines()}
 
 func makeReplyTo() platform.InboundMessage {
 	return platform.InboundMessage{
@@ -113,8 +114,8 @@ func TestEngineCommand_SwitchBeeEngine(t *testing.T) {
 	if enginecfg.Get() != "codex" {
 		t.Errorf("expected enginecfg=codex, got %s", enginecfg.Get())
 	}
-	if cfg.vals["default_engine"] != "codex" {
-		t.Errorf("expected DB updated to codex, got %s", cfg.vals["default_engine"])
+	if cfg.vals[model.SystemConfigKeyDefaultEngine] != "codex" {
+		t.Errorf("expected DB updated to codex, got %s", cfg.vals[model.SystemConfigKeyDefaultEngine])
 	}
 	if len(sender.sent) != 1 {
 		t.Fatal("expected one reply")

@@ -77,7 +77,7 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 // EnabledEngines returns the names of all currently enabled engines in canonical order.
 func (m *Manager) EnabledEngines() []string {
 	names := make([]string, 0, len(m.engines))
-	for _, name := range ai.AllEngines {
+	for _, name := range ai.AllEngines() {
 		if _, ok := m.engines[name]; ok {
 			names = append(names, name)
 		}

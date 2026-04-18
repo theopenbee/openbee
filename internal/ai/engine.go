@@ -47,7 +47,14 @@ const (
 	EngineKimi   = "kimi"
 )
 
-var AllEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
+var allEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
+
+// AllEngines returns a snapshot of the canonical engine name list in registration order.
+func AllEngines() []string {
+	cp := make([]string, len(allEngines))
+	copy(cp, allEngines)
+	return cp
+}
 
 // Output is a single lifecycle event.
 type Output struct {

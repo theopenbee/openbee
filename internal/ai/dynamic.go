@@ -54,3 +54,14 @@ func (d *DynamicAdapter) ExtractResult(logPath string) string {
 	}
 	return e.ExtractResult(logPath)
 }
+
+// ExtractResultFor extracts the result using the named engine adapter.
+// Use this when the engine was snapshotted at Run time to avoid a TOCTOU race
+// if the default engine changes between Run and ExtractResult.
+func (d *DynamicAdapter) ExtractResultFor(name, logPath string) string {
+	e, ok := d.engines[name]
+	if !ok {
+		return ""
+	}
+	return e.ExtractResult(logPath)
+}
