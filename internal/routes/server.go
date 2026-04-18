@@ -13,18 +13,18 @@ import (
 )
 
 type ServerParams struct {
-	Workers     *api.WorkerHandler
-	Executions  *api.ExecutionHandler
-	Messages    *api.MessageHandler
-	Tasks       *api.TaskHandler
-	Departments *api.DepartmentHandler
-	Stats       *api.StatsHandler
-	Config      *api.ConfigHandler
-	LocalChat   *api.LocalChatHandler
-	Auth        *auth.AuthHandler
-	Envs        *api.EnvHandler
-	SystemConfigs *api.SystemConfigHandler
-	BeeMCP          *mcp.MCPServer
+	Workers           *api.WorkerHandler
+	Executions        *api.ExecutionHandler
+	Messages          *api.MessageHandler
+	Tasks             *api.TaskHandler
+	Departments       *api.DepartmentHandler
+	Stats             *api.StatsHandler
+	Config            *api.ConfigHandler
+	LocalChat         *api.LocalChatHandler
+	Auth              *auth.AuthHandler
+	Envs              *api.EnvHandler
+	SystemConfigs     *api.SystemConfigHandler
+	BeeMCP            *mcp.MCPServer
 	MCPAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
 	JWTMiddleware     gin.HandlerFunc
