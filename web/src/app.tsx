@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react"
 import { HashRouter, Routes, Route } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { Toaster } from "sonner"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -29,6 +30,7 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster theme="system" richColors />
       <TooltipProvider>
         <HashRouter>
           <Suspense fallback={null}>

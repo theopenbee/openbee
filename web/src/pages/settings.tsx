@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Check } from "lucide-react"
+import { toast } from "sonner"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
@@ -29,7 +29,6 @@ export function SystemSettings() {
 
   const savedEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
   const [pendingEngine, setPendingEngine] = useState<string | null>(null)
-  const [justSaved, setJustSaved] = useState(false)
   const engine = pendingEngine ?? savedEngine
 
   const { mutate: saveEngine, isPending } = useMutation({
@@ -38,8 +37,7 @@ export function SystemSettings() {
     onSuccess: () => {
       setPendingEngine(null)
       queryClient.invalidateQueries({ queryKey: ["system-configs"] })
-      setJustSaved(true)
-      setTimeout(() => setJustSaved(false), 2000)
+      toast.success(t("systemSettings.updated"))
     },
   })
 
@@ -74,7 +72,7 @@ export function SystemSettings() {
               onClick={() => saveEngine(engine)}
               disabled={isPending || pendingEngine === null || pendingEngine === savedEngine}
             >
-              {justSaved ? <Check className="size-4" /> : t("common.save")}
+              {t("common.save")}
             </Button>
           </div>
         </DetailSection>
