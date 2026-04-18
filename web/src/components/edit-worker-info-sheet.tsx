@@ -40,7 +40,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
-  const enabledEnginesKey = enabledEngines.join(",")
 
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
@@ -56,7 +55,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setDeptSearch("")
       setSubmitError("")
     }
-  }, [open, worker, enabledEnginesKey])
+  }, [open, worker, enabledEngines])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

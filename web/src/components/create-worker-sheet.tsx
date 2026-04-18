@@ -76,7 +76,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
-  const enabledEnginesKey = enabledEngines.join(",")
   const isCopy = initialValues !== undefined
   const initialValuesRef = useRef(initialValues)
   initialValuesRef.current = initialValues
@@ -106,7 +105,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setShowOptional(isCopy && !!(iv?.description || iv?.memory || iv?.work_dir))
       setDeptSearch("")
     }
-  }, [open, enabledEnginesKey])
+  }, [open, enabledEngines])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -153,7 +152,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto"
         >
-          {/* Required fields */}
           <div className="px-6 py-5 space-y-5">
             {submitError && (
               <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -194,7 +192,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             </div>
           </div>
 
-          {/* Optional settings */}
           <div className="border-t border-border/60">
             <button
               type="button"
@@ -257,7 +254,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             </div>
           </div>
 
-          {/* Permissions */}
           <div className="border-t border-border/60 px-6 py-5 space-y-3">
             <SectionHeading
               text={t("workers.form.sectionPermissions")}
@@ -287,7 +283,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
           </div>
 
-          {/* Departments */}
           {flatDepts.length > 0 && (
             <div className="border-t border-border/60 px-6 py-5 space-y-3">
               <SectionHeading
