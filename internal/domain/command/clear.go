@@ -227,10 +227,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	}
 
 	w := workers[0]
-	activeEngine := w.Engine
-	if activeEngine == "" {
-		activeEngine = h.engineCfg.Get()
-	}
+	activeEngine := h.engineCfg.Resolve(w.Engine)
 
 	deleted, err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
 	if err != nil {

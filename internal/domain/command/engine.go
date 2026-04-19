@@ -59,30 +59,18 @@ type SystemBusyChecker interface {
 	TaskActivityChecker
 }
 
-// NewSystemBusyChecker bundles three independent activity sources into a
-// single SystemBusyChecker. Useful when each check lives on a different store.
 func NewSystemBusyChecker(
 	msg MessageActivityChecker,
 	exec ExecutionActivityChecker,
 	task TaskActivityChecker,
 ) SystemBusyChecker {
-	return compositeBusyChecker{msg: msg, exec: exec, task: task}
+	return compositeBusyChecker{msg, exec, task}
 }
 
 type compositeBusyChecker struct {
-	msg  MessageActivityChecker
-	exec ExecutionActivityChecker
-	task TaskActivityChecker
-}
-
-func (c compositeBusyChecker) HasActiveMessages(ctx context.Context) (bool, error) {
-	return c.msg.HasActiveMessages(ctx)
-}
-func (c compositeBusyChecker) HasActiveExecutions(ctx context.Context) (bool, error) {
-	return c.exec.HasActiveExecutions(ctx)
-}
-func (c compositeBusyChecker) HasActiveImmediateTasks(ctx context.Context) (bool, error) {
-	return c.task.HasActiveImmediateTasks(ctx)
+	MessageActivityChecker
+	ExecutionActivityChecker
+	TaskActivityChecker
 }
 
 // EngineCommandHandler handles the /engine slash command.

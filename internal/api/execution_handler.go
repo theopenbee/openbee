@@ -95,11 +95,6 @@ func (h *ExecutionHandler) ListBySession(c *gin.Context) {
 
 func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 	id := c.Param("id")
-	exec, err := h.executions.GetByID(id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 
 	var since int64
 	if raw := c.Query("since"); raw != "" {
@@ -116,7 +111,7 @@ func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if exec.Status == model.ExecStatusCompleted || exec.Status == model.ExecStatusFailed {
+	if slice.Status == model.ExecStatusCompleted || slice.Status == model.ExecStatusFailed {
 		c.Header("Cache-Control", "public, max-age=3600")
 	}
 	c.JSON(http.StatusOK, gin.H{

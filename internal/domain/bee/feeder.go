@@ -152,8 +152,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	// Snapshot the engine once so all session-context ops key off the same engine,
-	// even if /engine fires mid-execution. Result extraction is already engine-bound
-	// via RunResult.ExtractResult below.
+	// even if /engine fires mid-execution.
 	engineName := f.engineCfg.Get()
 
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)

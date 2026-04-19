@@ -17,10 +17,13 @@ import (
 // current byte length; callers use it as the next "since" offset. Truncated
 // is true when the caller's since exceeded Size (file rotated/reset), in
 // which case Content holds the full file and callers should rebuild state.
+// Status is the execution's current status, returned alongside the slice so
+// callers (e.g. log viewers) can decide whether to keep polling.
 type LogSlice struct {
 	Content   string
 	Size      int64
 	Truncated bool
+	Status    model.ExecutionStatus
 }
 
 type ExecutionStore struct {
@@ -203,25 +206,27 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
-// ReadLogSince returns the log bytes at or after the given offset.
-//   - since <= 0 (or file smaller than since's expected content): returns full file
+// ReadLogSince returns the log bytes at or after the given offset, along with
+// the execution's current status (so callers can avoid a separate GetByID).
+//   - since <= 0: returns full file
 //   - since == Size: returns empty content (caller is caught up)
 //   - since > Size: returns full content with Truncated=true (file was rotated/reset)
 //
-// Returns a zero LogSlice (no error) when no log path is set or the file does not yet exist.
+// Returns a LogSlice with empty content (and the current status) when no log
+// path is set or the file does not yet exist.
 func (s *ExecutionStore) ReadLogSince(id string, since int64) (LogSlice, error) {
-	row := s.db.QueryRow(`SELECT log_path FROM bee_executions WHERE id = ?`, id)
 	var logPath string
-	if err := row.Scan(&logPath); err != nil {
+	var status model.ExecutionStatus
+	if err := s.db.QueryRow(`SELECT log_path, status FROM bee_executions WHERE id = ?`, id).Scan(&logPath, &status); err != nil {
 		return LogSlice{}, fmt.Errorf("get log_path: %w", err)
 	}
 	if logPath == "" {
-		return LogSlice{}, nil
+		return LogSlice{Status: status}, nil
 	}
 	f, err := os.Open(logPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return LogSlice{}, nil
+			return LogSlice{Status: status}, nil
 		}
 		return LogSlice{}, fmt.Errorf("open log file: %w", err)
 	}
@@ -239,12 +244,12 @@ func (s *ExecutionStore) ReadLogSince(id string, since int64) (LogSlice, error) 
 		if err != nil {
 			return LogSlice{}, fmt.Errorf("read log file: %w", err)
 		}
-		return LogSlice{Content: string(b), Size: size, Truncated: true}, nil
+		return LogSlice{Content: string(b), Size: size, Truncated: true, Status: status}, nil
 	}
 
 	// caller up to date.
 	if since == size {
-		return LogSlice{Size: size}, nil
+		return LogSlice{Size: size, Status: status}, nil
 	}
 
 	if since > 0 {
@@ -256,7 +261,7 @@ func (s *ExecutionStore) ReadLogSince(id string, since int64) (LogSlice, error) 
 	if err != nil {
 		return LogSlice{}, fmt.Errorf("read log file: %w", err)
 	}
-	return LogSlice{Content: string(b), Size: size}, nil
+	return LogSlice{Content: string(b), Size: size, Status: status}, nil
 }
 
 // PrepareLogPath creates the date-partitioned log directory, records the log path in

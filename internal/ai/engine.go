@@ -69,13 +69,21 @@ type Process interface {
 }
 
 // RunResult is the handle returned from EngineAdapter.Run. ExtractResult is
-// bound to the concrete engine chosen at Run time, so callers collecting
-// results asynchronously see the same engine even if DynamicAdapter's
-// routing target changes mid-execution.
+// bound to the engine that handled this Run, so it remains correct even if
+// the active engine later changes.
 type RunResult struct {
 	Process       Process
 	Output        <-chan Output
 	ExtractResult func(logPath string) string
+}
+
+// NewRunResult wraps the (process, output, error) tuple returned by an engine
+// invoker into a RunResult, attaching the engine's result extractor on success.
+func NewRunResult(proc Process, out <-chan Output, err error, extract func(logPath string) string) (RunResult, error) {
+	if err != nil {
+		return RunResult{}, err
+	}
+	return RunResult{Process: proc, Output: out, ExtractResult: extract}, nil
 }
 
 // EngineAdapter is the complete plugin contract for an AI engine.

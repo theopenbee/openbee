@@ -57,9 +57,6 @@ func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
 	}
 }
 
-// TestDynamicAdapter_RunBindsExtractResultToEngine verifies that the ExtractResult
-// returned by Run stays bound to the engine chosen at Run time, even when the
-// default engine switches before ExtractResult is invoked.
 func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
 	cfg := enginecfg.NewStore("a")
 	a := &stubEngine{name: "a"}

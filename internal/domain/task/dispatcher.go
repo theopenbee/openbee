@@ -316,11 +316,7 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 				zap.String("workerID", workerID), zap.Error(err))
 			return d.engineCfg.Get(), nil
 		}
-		engine := w.Engine
-		if engine == "" {
-			engine = d.engineCfg.Get()
-		}
-		return engine, &w
+		return d.engineCfg.Resolve(w.Engine), &w
 	}
 	return d.engineCfg.Get(), nil
 }

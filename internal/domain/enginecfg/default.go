@@ -29,3 +29,11 @@ func (s *Store) Set(engine string) {
 	defer s.mu.Unlock()
 	s.val = engine
 }
+
+// Resolve returns workerEngine if non-empty, otherwise the current default.
+func (s *Store) Resolve(workerEngine string) string {
+	if workerEngine != "" {
+		return workerEngine
+	}
+	return s.Get()
+}
