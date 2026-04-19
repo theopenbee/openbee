@@ -51,15 +51,47 @@ type TaskActivityChecker interface {
 	HasActiveImmediateTasks(ctx context.Context) (bool, error)
 }
 
+// SystemBusyChecker composes the activity checks that block engine switching
+// while the system has in-flight work.
+type SystemBusyChecker interface {
+	MessageActivityChecker
+	ExecutionActivityChecker
+	TaskActivityChecker
+}
+
+// NewSystemBusyChecker bundles three independent activity sources into a
+// single SystemBusyChecker. Useful when each check lives on a different store.
+func NewSystemBusyChecker(
+	msg MessageActivityChecker,
+	exec ExecutionActivityChecker,
+	task TaskActivityChecker,
+) SystemBusyChecker {
+	return compositeBusyChecker{msg: msg, exec: exec, task: task}
+}
+
+type compositeBusyChecker struct {
+	msg  MessageActivityChecker
+	exec ExecutionActivityChecker
+	task TaskActivityChecker
+}
+
+func (c compositeBusyChecker) HasActiveMessages(ctx context.Context) (bool, error) {
+	return c.msg.HasActiveMessages(ctx)
+}
+func (c compositeBusyChecker) HasActiveExecutions(ctx context.Context) (bool, error) {
+	return c.exec.HasActiveExecutions(ctx)
+}
+func (c compositeBusyChecker) HasActiveImmediateTasks(ctx context.Context) (bool, error) {
+	return c.task.HasActiveImmediateTasks(ctx)
+}
+
 // EngineCommandHandler handles the /engine slash command.
 type EngineCommandHandler struct {
-	workers    WorkerRepository
-	sysCfg     SystemConfigWriter
-	validator  EngineValidator
-	senders    map[string]platform.PlatformSenderAdapter
-	msgChecker  MessageActivityChecker
-	execChecker ExecutionActivityChecker
-	taskChecker TaskActivityChecker
+	workers   WorkerRepository
+	sysCfg    SystemConfigWriter
+	validator EngineValidator
+	senders   map[string]platform.PlatformSenderAdapter
+	busy      SystemBusyChecker
 }
 
 func NewEngineCommandHandler(
@@ -67,18 +99,14 @@ func NewEngineCommandHandler(
 	sysCfg SystemConfigWriter,
 	senders map[string]platform.PlatformSenderAdapter,
 	validator EngineValidator,
-	msgChecker MessageActivityChecker,
-	execChecker ExecutionActivityChecker,
-	taskChecker TaskActivityChecker,
+	busy SystemBusyChecker,
 ) *EngineCommandHandler {
 	return &EngineCommandHandler{
-		workers:     workers,
-		sysCfg:      sysCfg,
-		validator:   validator,
-		senders:     senders,
-		msgChecker:  msgChecker,
-		execChecker: execChecker,
-		taskChecker: taskChecker,
+		workers:   workers,
+		sysCfg:    sysCfg,
+		validator: validator,
+		senders:   senders,
+		busy:      busy,
 	}
 }
 
@@ -128,15 +156,15 @@ func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
 	taskCh := make(chan busyCheck, 1)
 
 	go func() {
-		active, err := h.msgChecker.HasActiveMessages(ctx)
+		active, err := h.busy.HasActiveMessages(ctx)
 		msgCh <- busyCheck{active, err, m.BusyMessages, "engine command: failed to check active messages"}
 	}()
 	go func() {
-		active, err := h.execChecker.HasActiveExecutions(ctx)
+		active, err := h.busy.HasActiveExecutions(ctx)
 		execCh <- busyCheck{active, err, m.BusyExecutions, "engine command: failed to check active executions"}
 	}()
 	go func() {
-		active, err := h.taskChecker.HasActiveImmediateTasks(ctx)
+		active, err := h.busy.HasActiveImmediateTasks(ctx)
 		taskCh <- busyCheck{active, err, m.BusyTasks, "engine command: failed to check active immediate tasks"}
 	}()
 

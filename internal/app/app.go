@@ -152,7 +152,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier)
-	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, s.msgStore, s.execStore, s.taskStore)
+	busyChecker := command.NewSystemBusyChecker(s.msgStore, s.execStore, s.taskStore)
+	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, busyChecker)
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, msgingest.WithCommandHandler(cmdChain))

@@ -113,7 +113,8 @@ func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, notBusy, notBusy, notBusy)
+	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 	return h, sender, cfg
 }
 
@@ -208,7 +209,8 @@ func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, notBusy, notBusy, notBusy)
+	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -230,7 +232,8 @@ func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers, updateErr: errors.New("update error")}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, notBusy, notBusy, notBusy)
+	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {
@@ -243,12 +246,13 @@ func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
 }
 
 func TestEngineCommand_BusyMessages(t *testing.T) {
-	busy := &fakeActivityChecker{active: true}
+	busyMsg := &fakeActivityChecker{active: true}
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, notBusy, notBusy)
+	busy := command.NewSystemBusyChecker(busyMsg, notBusy, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -261,12 +265,13 @@ func TestEngineCommand_BusyMessages(t *testing.T) {
 }
 
 func TestEngineCommand_BusyExecutions(t *testing.T) {
-	busy := &fakeActivityChecker{active: true}
+	busyExec := &fakeActivityChecker{active: true}
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, notBusy, busy, notBusy)
+	busy := command.NewSystemBusyChecker(notBusy, busyExec, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -279,12 +284,13 @@ func TestEngineCommand_BusyExecutions(t *testing.T) {
 }
 
 func TestEngineCommand_BusyTasks(t *testing.T) {
-	busy := &fakeActivityChecker{active: true}
+	busyTask := &fakeActivityChecker{active: true}
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, notBusy, notBusy, busy)
+	busy := command.NewSystemBusyChecker(notBusy, notBusy, busyTask)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -297,13 +303,14 @@ func TestEngineCommand_BusyTasks(t *testing.T) {
 }
 
 func TestEngineCommand_BusyBlocksWorkerSwitch(t *testing.T) {
-	busy := &fakeActivityChecker{active: true}
+	busyMsg := &fakeActivityChecker{active: true}
 	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, notBusy, notBusy)
+	busy := command.NewSystemBusyChecker(busyMsg, notBusy, notBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {
@@ -316,12 +323,13 @@ func TestEngineCommand_BusyBlocksWorkerSwitch(t *testing.T) {
 }
 
 func TestEngineCommand_BusyDoesNotBlockUsage(t *testing.T) {
-	busy := &fakeActivityChecker{active: true}
+	allBusy := &fakeActivityChecker{active: true}
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, busy, busy)
+	busy := command.NewSystemBusyChecker(allBusy, allBusy, allBusy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
 
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
 	if !handled {
