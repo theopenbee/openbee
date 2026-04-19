@@ -40,7 +40,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ], [t])
 
   const navMain = React.useMemo(() => [
-    { title: t("nav.executions"), url: "/sessions", icon: <ActivityIcon /> },
+    { title: t("nav.sessions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
   ], [t])
 

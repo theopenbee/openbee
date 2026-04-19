@@ -63,13 +63,13 @@ export function Sessions() {
   const subtitle =
     totalSessions > 0
       ? activeCount > 0
-        ? t("executions.summaryWithActive", { count: totalSessions, active: activeCount })
-        : t("executions.summary", { count: totalSessions })
+        ? t("sessions.summaryWithActive", { count: totalSessions, active: activeCount })
+        : t("sessions.summary", { count: totalSessions })
       : undefined
 
   return (
     <FadeIn>
-      <PageHeader title={t("executions.title")} subtitle={subtitle} />
+      <PageHeader title={t("sessions.title")} subtitle={subtitle} />
 
       {error && (
         <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -90,12 +90,12 @@ export function Sessions() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  <TableHead className="pl-5 w-28">{t("executions.columns.session")}</TableHead>
-                  <TableHead className="w-36">{t("executions.columns.worker")}</TableHead>
-                  <TableHead>{t("executions.columns.turns")}</TableHead>
-                  <TableHead className="w-28">{t("executions.columns.latestStatus")}</TableHead>
-                  <TableHead className="w-24">{t("executions.columns.started")}</TableHead>
-                  <TableHead className="w-20">{t("executions.columns.duration")}</TableHead>
+                  <TableHead className="pl-5 w-28">{t("sessions.columns.session")}</TableHead>
+                  <TableHead className="w-36">{t("sessions.columns.worker")}</TableHead>
+                  <TableHead>{t("sessions.columns.turns")}</TableHead>
+                  <TableHead className="w-28">{t("sessions.columns.latestStatus")}</TableHead>
+                  <TableHead className="w-24">{t("sessions.columns.started")}</TableHead>
+                  <TableHead className="w-20">{t("sessions.columns.duration")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -119,7 +119,7 @@ export function Sessions() {
                       >
                         <Link
                           to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
-                          aria-label={t("executions.viewSession", { id: latest.session_id })}
+                          aria-label={t("sessions.viewSession", { id: latest.session_id })}
                           className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
                         >
                           {latest.session_id.slice(0, 8)}
@@ -142,7 +142,7 @@ export function Sessions() {
                       <TableCell>
                         <div className="flex flex-col gap-1.5">
                           <span className="text-xs font-mono text-muted-foreground">
-                            {t("executions.turnCount", { count: group.length })}
+                            {t("sessions.turnCount", { count: group.length })}
                           </span>
                           <TurnPips executions={group} />
                         </div>

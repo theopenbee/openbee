@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "员工",
-    "executions": "会话",
+    "sessions": "会话",
     "tasks": "定时任务",
     "departments": "部门",
     "directory": "通讯录",
@@ -124,7 +124,7 @@
       "kimi": "Kimi"
     }
   },
-  "executions": {
+  "sessions": {
     "title": "会话记录",
     "noExecutions": "还没有会话记录。",
     "viewSession": "查看会话 {{id}}",

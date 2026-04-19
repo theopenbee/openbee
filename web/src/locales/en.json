@@ -2,7 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "workers": "Workers",
-    "executions": "Sessions",
+    "sessions": "Sessions",
     "tasks": "Scheduled",
     "departments": "Departments",
     "directory": "Directory",
@@ -124,7 +124,7 @@
       "kimi": "Kimi"
     }
   },
-  "executions": {
+  "sessions": {
     "title": "Sessions",
     "noExecutions": "No sessions yet.",
     "viewSession": "View session {{id}}",

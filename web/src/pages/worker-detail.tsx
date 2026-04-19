@@ -240,7 +240,7 @@ export function WorkerDetail() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <DetailOverviewStat
                 icon={Activity}
-                label={t("executions.columns.latestStatus")}
+                label={t("sessions.columns.latestStatus")}
                 value={
                   <span className={cn("inline-flex items-center gap-2", statusTone(worker.status))}>
                     <StatusDot status={worker.status} />
@@ -252,7 +252,7 @@ export function WorkerDetail() {
                 icon={Logs}
                 label={t("workerDetail.sessions")}
                 value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
-                hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("executions.noExecutions")}
+                hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
               />
               <DetailOverviewStat
                 icon={FolderOpenIcon}
@@ -306,19 +306,19 @@ export function WorkerDetail() {
                       {t("workerDetail.sessions")}
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {t("executions.turnCount", { count: data?.total ?? 0 })}
+                      {t("sessions.turnCount", { count: data?.total ?? 0 })}
                     </p>
                   </div>
 
                   <span className="font-mono text-xs text-muted-foreground">
-                    {t("executions.pagination.page", { page, totalPages })}
+                    {t("sessions.pagination.page", { page, totalPages })}
                   </span>
                 </div>
               </div>
 
               {sessionGroups.length === 0 ? (
                 <div className="px-5 py-10 sm:px-6">
-                  <EmptyState title={t("executions.noExecutions")} />
+                  <EmptyState title={t("sessions.noExecutions")} />
                 </div>
               ) : (
                 <div className="divide-y divide-border/70">
@@ -344,7 +344,7 @@ export function WorkerDetail() {
                               {latest.session_id}
                             </Link>
                             <span className="text-xs text-muted-foreground">
-                              {t("executions.turnCount", { count: group.length })}
+                              {t("sessions.turnCount", { count: group.length })}
                             </span>
                           </div>
 
