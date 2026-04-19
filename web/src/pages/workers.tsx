@@ -4,6 +4,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
+import { formatEngineLabel } from "@/lib/format"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { Button } from "@/components/ui/button"
 import {
@@ -177,7 +178,7 @@ export function Workers() {
                     <StatusBadge status={w.status} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {w.engine ? t(`workers.engines.${w.engine}`) : "—"}
+                    {formatEngineLabel(w.engine, t)}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}

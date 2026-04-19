@@ -16,6 +16,11 @@ var log = logger.With(zap.String("component", "msgingest"))
 
 const mergedSeparator = "\n\n---\n\n"
 
+// seenMaxSize caps the dedup set at ~2x this value via a two-generation rotation.
+// Once the active generation hits the cap, it rotates to cold and a fresh map
+// takes over. Entries older than one full cap fall out naturally.
+const seenMaxSize = 10000
+
 // IngestedMessage is a deduplicated, debounced, normalized message ready for routing.
 type IngestedMessage struct {
 	MsgID      string
@@ -43,6 +48,7 @@ type Gateway struct {
 	debounce       time.Duration
 	sessions       map[string]*debounceState
 	seen           map[string]struct{} // in-memory dedup set keyed by platform_msg_id
+	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
 	commandHandler CommandHandler // optional; intercepts slash commands before DB write
@@ -96,12 +102,19 @@ func (g *Gateway) emit(msg IngestedMessage) {
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	g.mu.Lock()
 
-	// In-memory dedup: drop if platform_msg_id already seen this process lifetime.
 	if msg.PlatformMessageID != "" {
-		if _, dup := g.seen[msg.PlatformMessageID]; dup {
+		_, dup := g.seen[msg.PlatformMessageID]
+		if !dup {
+			_, dup = g.seenPrev[msg.PlatformMessageID]
+		}
+		if dup {
 			g.mu.Unlock()
 			log.Info("duplicate dropped", zap.String("platformMsgID", msg.PlatformMessageID))
 			return
+		}
+		if len(g.seen) >= seenMaxSize {
+			g.seenPrev = g.seen
+			g.seen = make(map[string]struct{})
 		}
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}

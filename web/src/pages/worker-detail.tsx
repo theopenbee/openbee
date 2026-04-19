@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatEngineLabel, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -208,7 +208,7 @@ export function WorkerDetail() {
                   <div className="space-y-0.5">
                     <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
                     <p className="text-sm">
-                      {worker.engine ? t(`workers.engines.${worker.engine}`) : "—"}
+                      {formatEngineLabel(worker.engine, t)}
                     </p>
                   </div>
                 </div>
