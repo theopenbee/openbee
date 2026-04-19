@@ -18,12 +18,6 @@ import (
 
 const clearConfirmTimeout = 30 * time.Second
 
-type pendingClear struct {
-	workerID  string // empty = full /clear
-	engine    string
-	expiresAt time.Time
-}
-
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
 }
@@ -56,7 +50,7 @@ type ClearCommandHandler struct {
 	senders      map[string]platform.PlatformSenderAdapter
 
 	mu      sync.Mutex
-	pending map[string]*pendingClear // key: sessionKey + "::" + normalized command
+	pending map[string]time.Time // key: sessionKey + "::" + normalized command → expiry
 }
 
 func NewClearCommandHandler(
@@ -74,7 +68,7 @@ func NewClearCommandHandler(
 		execStopper:  execStopper,
 		sessionClear: sessionClear,
 		senders:      senders,
-		pending:      make(map[string]*pendingClear),
+		pending:      make(map[string]time.Time),
 	}
 	go h.sweepExpired()
 	return h
@@ -86,8 +80,8 @@ func (h *ClearCommandHandler) sweepExpired() {
 	for range ticker.C {
 		now := time.Now()
 		h.mu.Lock()
-		for k, p := range h.pending {
-			if now.After(p.expiresAt) {
+		for k, expiresAt := range h.pending {
+			if now.After(expiresAt) {
 				delete(h.pending, k)
 			}
 		}
@@ -117,40 +111,9 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	sessionKey := replyTo.SessionKey
 	pendingKey := h.pendingKey(sessionKey, "/clear")
 
-	if p := h.consumePending(pendingKey); p != nil {
-		agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
-		if err != nil {
-			log.Error("list session contexts for /clear confirm", zap.Error(err))
-		}
-
-		runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
-		if err != nil {
-			log.Error("list running tasks for /clear confirm", zap.Error(err))
-		}
-		for _, t := range runningTasks {
-			if t.ExecutionID != "" {
-				if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
-					log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
-				}
-			}
-		}
-
-		cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey)
-		if err != nil {
-			log.Error("cancel tasks for /clear confirm", zap.Error(err))
-		}
-		h.sessionClear.ClearSession(sessionKey)
-
-		if len(agents) == 0 {
-			h.reply(ctx, replyTo, m.NoContext)
-			return
-		}
-		list := formatAgentList(agents)
-		if cancelled > 0 {
-			h.reply(ctx, replyTo, fmt.Sprintf(m.ClearedWithTasks, list, cancelled))
-		} else {
-			h.reply(ctx, replyTo, fmt.Sprintf(m.Cleared, list))
-		}
+	// Second /clear within timeout: confirmed execution after seeing running tasks warning.
+	if h.consumePending(pendingKey) {
+		h.executeClearAll(ctx, replyTo, sessionKey)
 		return
 	}
 
@@ -167,20 +130,56 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	if err != nil {
 		log.Error("list running tasks for /clear", zap.Error(err))
 	}
-	list := formatAgentList(agents)
 
-	var confirmMsg string
+	// Only require confirmation when running tasks will be cancelled.
 	if len(runningTasks) > 0 {
-		confirmMsg = fmt.Sprintf(m.ConfirmAllWithTasks, list, len(runningTasks))
-	} else {
-		confirmMsg = fmt.Sprintf(m.ConfirmAll, list)
+		list := formatAgentList(agents)
+		h.mu.Lock()
+		h.pending[pendingKey] = time.Now().Add(clearConfirmTimeout)
+		h.mu.Unlock()
+		h.reply(ctx, replyTo, fmt.Sprintf(m.ConfirmAllWithTasks, list, len(runningTasks)))
+		return
 	}
 
-	h.mu.Lock()
-	h.pending[pendingKey] = &pendingClear{expiresAt: time.Now().Add(clearConfirmTimeout)}
-	h.mu.Unlock()
+	h.executeClearAll(ctx, replyTo, sessionKey)
+}
 
-	h.reply(ctx, replyTo, confirmMsg)
+func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platform.InboundMessage, sessionKey string) {
+	m := i18n.M.Runtime.ClearCommand
+
+	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
+	if err != nil {
+		log.Error("list session contexts for /clear exec", zap.Error(err))
+	}
+
+	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+	if err != nil {
+		log.Error("list running tasks for /clear exec", zap.Error(err))
+	}
+	for _, t := range runningTasks {
+		if t.ExecutionID != "" {
+			if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
+				log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
+			}
+		}
+	}
+
+	cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey)
+	if err != nil {
+		log.Error("cancel tasks for /clear exec", zap.Error(err))
+	}
+	h.sessionClear.ClearSession(sessionKey)
+
+	if len(agents) == 0 {
+		h.reply(ctx, replyTo, m.NoContext)
+		return
+	}
+	list := formatAgentList(agents)
+	if cancelled > 0 {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.ClearedWithTasks, list, cancelled))
+	} else {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.Cleared, list))
+	}
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
@@ -212,18 +211,6 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		activeEngine = enginecfg.Get()
 	}
 
-	pendingKey := h.pendingKey(sessionKey, "/clear "+workerName)
-
-	if p := h.consumePending(pendingKey); p != nil {
-		if err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, p.workerID, p.engine); err != nil {
-			log.Error("delete worker session context", zap.String("workerID", p.workerID), zap.Error(err))
-			h.reply(ctx, replyTo, m.NoContext)
-			return
-		}
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, p.engine))
-		return
-	}
-
 	sessionID, err := h.sessions.GetSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
 	if err != nil {
 		log.Error("get session context for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
@@ -233,15 +220,13 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		return
 	}
 
-	h.mu.Lock()
-	h.pending[pendingKey] = &pendingClear{
-		workerID:  w.ID,
-		engine:    activeEngine,
-		expiresAt: time.Now().Add(clearConfirmTimeout),
+	// No running tasks are cancelled for worker-specific clear, so execute directly.
+	if err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine); err != nil {
+		log.Error("delete worker session context", zap.String("workerID", w.ID), zap.Error(err))
+		h.reply(ctx, replyTo, m.NoContext)
+		return
 	}
-	h.mu.Unlock()
-
-	h.reply(ctx, replyTo, fmt.Sprintf(m.ConfirmWorker, w.Name, activeEngine, workerName))
+	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, activeEngine))
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
@@ -249,16 +234,15 @@ func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 }
 
 // consumePending atomically retrieves and removes a valid (non-expired) pending entry.
-// Returns nil if no valid entry exists.
-func (h *ClearCommandHandler) consumePending(key string) *pendingClear {
+func (h *ClearCommandHandler) consumePending(key string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	p, exists := h.pending[key]
-	if !exists || !time.Now().Before(p.expiresAt) {
-		return nil
+	expiresAt, exists := h.pending[key]
+	if !exists || !time.Now().Before(expiresAt) {
+		return false
 	}
 	delete(h.pending, key)
-	return p
+	return true
 }
 
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
