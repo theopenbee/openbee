@@ -67,12 +67,14 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         description !== (worker.description ?? "") || engine !== pickDefaultEngine(worker.engine, enabledEngines)
       const deptsChanged = newDeptIds !== originalDeptIds
 
+      const ops: Promise<unknown>[] = []
       if (workerChanged) {
-        await updateWorker.mutateAsync({ id: worker.id, data: { description, engine } })
+        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine } }))
       }
       if (deptsChanged) {
-        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
+        ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
       }
+      await Promise.all(ops)
       onOpenChange(false)
     } catch (err) {
       setSubmitError(getErrorMessage(err))

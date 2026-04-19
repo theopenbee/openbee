@@ -17,20 +17,24 @@ import (
 	"github.com/theopenbee/openbee/internal/routes"
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/domain/bee"
-	"github.com/theopenbee/openbee/internal/domain/command"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
-	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/infra/media"
-	"github.com/theopenbee/openbee/internal/infra/model"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	_ "github.com/theopenbee/openbee/internal/ai/claude"
 	_ "github.com/theopenbee/openbee/internal/ai/codex"
 	_ "github.com/theopenbee/openbee/internal/ai/kimi"
 	_ "github.com/theopenbee/openbee/internal/ai/pi"
-	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/domain/bee"
+	"github.com/theopenbee/openbee/internal/domain/command"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/task"
+	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/media"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/mcp"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
@@ -38,10 +42,6 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
-	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/domain/env"
-	"github.com/theopenbee/openbee/internal/domain/task"
-	"github.com/theopenbee/openbee/internal/domain/worker"
 	webui "github.com/theopenbee/openbee/web"
 )
 
@@ -107,12 +107,13 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init engines: %w", err)
 	}
-	if engines[cfg.Bee.EffectiveEngine()] == nil {
-		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", cfg.Bee.EffectiveEngine())
+	defaultEngine := cfg.Bee.EffectiveEngine()
+	if engines[defaultEngine] == nil {
+		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", defaultEngine)
 	}
 
 	// Initialize the default engine store from DB, falling back to config.
-	engineCfg := enginecfg.NewStore(cfg.Bee.EffectiveEngine())
+	engineCfg := enginecfg.NewStore(defaultEngine)
 	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
 	if dbErr != nil {
 		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))

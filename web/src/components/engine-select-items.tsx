@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { SelectItem } from "@/components/ui/select"
+import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
 import type { Engine } from "@/lib/types"
 
@@ -12,7 +13,7 @@ export function EngineSelectItems({ engines = ENGINES }: EngineSelectItemsProps)
   return (
     <>
       {engines.map((e) => (
-        <SelectItem key={e} value={e}>{t(`workers.engines.${e}`)}</SelectItem>
+        <SelectItem key={e} value={e}>{formatEngineLabel(e, t)}</SelectItem>
       ))}
     </>
   )
