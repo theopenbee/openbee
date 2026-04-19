@@ -73,18 +73,14 @@ func (s *WorkerStore) ListByName(name string) ([]model.Worker, error) {
 // GetByName looks up a worker by name (case-insensitive for ASCII).
 // When names collide, the earliest-created worker is returned.
 func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
-	row := s.db.QueryRow(
-		`SELECT `+workerColumns+` FROM bee_workers
-		 WHERE LOWER(name) = LOWER(?)
-		 ORDER BY created_at ASC, ROWID ASC
-		 LIMIT 1`,
-		name,
-	)
-	w, err := scanWorker(row)
+	workers, err := s.ListByName(name)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("get worker by name: %w", err)
 	}
-	return w, nil
+	if len(workers) == 0 {
+		return model.Worker{}, fmt.Errorf("get worker by name: %w", sql.ErrNoRows)
+	}
+	return workers[0], nil
 }
 
 func (s *WorkerStore) GetByID(id string) (model.Worker, error) {

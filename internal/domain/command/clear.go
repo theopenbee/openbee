@@ -74,7 +74,7 @@ func NewClearCommandHandler(
 	sessionClear ClearSessionDispatcher,
 	senders map[string]platform.PlatformSenderAdapter,
 ) *ClearCommandHandler {
-	return &ClearCommandHandler{
+	h := &ClearCommandHandler{
 		workers:      workers,
 		sessions:     sessions,
 		tasks:        tasks,
@@ -82,6 +82,23 @@ func NewClearCommandHandler(
 		sessionClear: sessionClear,
 		senders:      senders,
 		pending:      make(map[string]*pendingClear),
+	}
+	go h.sweepExpired()
+	return h
+}
+
+func (h *ClearCommandHandler) sweepExpired() {
+	ticker := time.NewTicker(clearConfirmTimeout)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		h.mu.Lock()
+		for k, p := range h.pending {
+			if now.After(p.expiresAt) {
+				delete(h.pending, k)
+			}
+		}
+		h.mu.Unlock()
 	}
 }
 
@@ -245,17 +262,7 @@ func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 }
 
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
-	sender, ok := h.senders[replyTo.Platform]
-	if !ok {
-		return
-	}
-	if err := sender.Send(ctx, platform.OutboundMessage{
-		Content:    text,
-		ReplyTo:    replyTo,
-		SourceType: store.SourceTypeSystem,
-	}); err != nil {
-		log.Warn("clear command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
-	}
+	sendReply(ctx, h.senders, replyTo, text)
 }
 
 func formatAgentList(agents []store.SessionAgent) string {

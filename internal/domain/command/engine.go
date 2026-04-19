@@ -114,7 +114,11 @@ func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platfo
 }
 
 func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
-	sender, ok := h.senders[replyTo.Platform]
+	sendReply(ctx, h.senders, replyTo, text)
+}
+
+func sendReply(ctx context.Context, senders map[string]platform.PlatformSenderAdapter, replyTo platform.InboundMessage, text string) {
+	sender, ok := senders[replyTo.Platform]
 	if !ok {
 		return
 	}
@@ -123,6 +127,6 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 		ReplyTo:    replyTo,
 		SourceType: store.SourceTypeSystem,
 	}); err != nil {
-		log.Warn("engine command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
+		log.Warn("command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
 	}
 }
