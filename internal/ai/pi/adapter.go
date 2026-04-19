@@ -8,12 +8,7 @@ import (
 
 func init() {
 	ai.Register(ai.EnginePi, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		path, _ := cfg.Raw["path"].(string)
-		if path == "" {
-			path = ai.EnginePi
-		}
-		extraEnv, _ := cfg.Raw["env"].(map[string]string)
-		return NewAdapter(path, cfg.OpenbeeURL, extraEnv)
+		return NewAdapter(cfg.PathOrDefault(ai.EnginePi), cfg.OpenbeeURL, cfg.ExtraEnv())
 	})
 }
 

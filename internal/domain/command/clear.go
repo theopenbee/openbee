@@ -74,33 +74,9 @@ func NewClearCommandHandler(
 	}
 }
 
-func (h *ClearCommandHandler) Run(ctx context.Context) {
-	h.sweepExpired(ctx)
-}
-
-func (h *ClearCommandHandler) sweepExpired(ctx context.Context) {
-	ticker := time.NewTicker(clearConfirmTimeout)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			now := time.Now()
-			h.mu.Lock()
-			for k, expiresAt := range h.pending {
-				if now.After(expiresAt) {
-					delete(h.pending, k)
-				}
-			}
-			h.mu.Unlock()
-		}
-	}
-}
-
 func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
-	if len(fields) == 0 || fields[0] != "/clear" {
+	if len(fields) == 0 || fields[0] != CmdClear {
 		return false
 	}
 
@@ -118,13 +94,8 @@ func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string,
 func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platform.InboundMessage) {
 	m := i18n.M.Runtime.ClearCommand
 	sessionKey := replyTo.SessionKey
-	pendingKey := h.pendingKey(sessionKey, "/clear")
-
-	// Second /clear within timeout: confirmed execution after seeing running tasks warning.
-	if h.consumePending(pendingKey) {
-		h.executeClearAll(ctx, replyTo, sessionKey, nil, nil)
-		return
-	}
+	pendingKey := h.pendingKey(sessionKey, CmdClear)
+	confirmed := h.consumePending(pendingKey)
 
 	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
 	if err != nil {
@@ -144,44 +115,19 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	// Only require confirmation when running tasks will be cancelled.
-	if len(runningTasks) > 0 {
+	if len(runningTasks) > 0 && !confirmed {
 		list := formatAgentList(agents)
-		h.mu.Lock()
-		h.pending[pendingKey] = time.Now().Add(clearConfirmTimeout)
-		h.mu.Unlock()
+		h.storePending(pendingKey)
 		h.reply(ctx, replyTo, fmt.Sprintf(m.ConfirmAllWithTasks, list, len(runningTasks)))
 		return
 	}
 
-	h.executeClearAll(ctx, replyTo, sessionKey, agents, runningTasks)
-}
-
-// executeClearAll runs the full clear sequence. Pass prefetched agents and runningTasks
-// to avoid redundant DB reads; pass nil for either to fetch on demand (confirmation path).
-func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platform.InboundMessage, sessionKey string, agents []store.SessionAgent, runningTasks []model.Task) {
-	m := i18n.M.Runtime.ClearCommand
-
-	if agents == nil {
-		var err error
-		agents, err = h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
-		if err != nil {
-			log.Error("list session contexts for /clear exec", zap.Error(err))
-		}
-	}
-
-	if runningTasks == nil {
-		var err error
-		runningTasks, err = h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
-		if err != nil {
-			log.Error("list running tasks for /clear exec", zap.Error(err))
-		}
-	}
 	for _, t := range runningTasks {
-		if t.ExecutionID != "" {
-			if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
-				log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
-			}
+		if t.ExecutionID == "" {
+			continue
+		}
+		if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
+			log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
 		}
 	}
 
@@ -191,10 +137,6 @@ func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platf
 	}
 	h.sessionClear.ClearSession(sessionKey)
 
-	if len(agents) == 0 {
-		h.reply(ctx, replyTo, m.NoContext)
-		return
-	}
 	list := formatAgentList(agents)
 	if cancelled > 0 {
 		h.reply(ctx, replyTo, fmt.Sprintf(m.ClearedWithTasks, list, cancelled))
@@ -256,6 +198,20 @@ func (h *ClearCommandHandler) consumePending(key string) bool {
 	}
 	delete(h.pending, key)
 	return true
+}
+
+// storePending records a confirmation deadline and opportunistically reaps any
+// other expired entries — the only path that grows the map, so it bounds size.
+func (h *ClearCommandHandler) storePending(key string) {
+	now := time.Now()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for k, expiresAt := range h.pending {
+		if !now.Before(expiresAt) {
+			delete(h.pending, k)
+		}
+	}
+	h.pending[key] = now.Add(clearConfirmTimeout)
 }
 
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {

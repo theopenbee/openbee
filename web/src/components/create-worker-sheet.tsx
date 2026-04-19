@@ -23,11 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { SectionHeading } from "@/components/section-heading"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { cn, getErrorMessage } from "@/lib/utils"
-import type { Worker } from "@/lib/types"
-import { DEFAULT_ENGINE } from "@/lib/types"
-import type { Engine } from "@/lib/types"
+import type { Worker, Engine } from "@/lib/types"
+import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
 export interface WorkerInitialValues {
   name: string
@@ -49,19 +49,6 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     engine: worker.engine ?? DEFAULT_ENGINE,
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
   }
-}
-
-export function SectionHeading({ text, badge }: { text: string; badge?: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{text}</p>
-      {badge !== undefined && badge > 0 && (
-        <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary tabular-nums">
-          {badge}
-        </span>
-      )}
-    </div>
-  )
 }
 
 interface CreateWorkerSheetProps {
@@ -98,7 +85,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setDescription(iv?.description ?? "")
       setMemory(iv?.memory ?? "")
       setWorkDir(iv?.work_dir ?? "")
-      setEngine(iv?.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
+      setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")

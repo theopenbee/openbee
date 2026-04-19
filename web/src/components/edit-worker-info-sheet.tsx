@@ -23,10 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { SectionHeading } from "@/components/create-worker-sheet"
+import { SectionHeading } from "@/components/section-heading"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
-import { DEFAULT_ENGINE } from "@/lib/types"
+import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
 interface EditWorkerInfoSheetProps {
   open: boolean
@@ -50,7 +50,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   useEffect(() => {
     if (open) {
       setDescription(worker.description ?? "")
-      setEngine(worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
+      setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
       setDeptSearch("")
       setSubmitError("")
@@ -64,7 +64,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
       const workerChanged =
-        description !== (worker.description ?? "") || engine !== (worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
+        description !== (worker.description ?? "") || engine !== pickDefaultEngine(worker.engine, enabledEngines)
       const deptsChanged = newDeptIds !== originalDeptIds
 
       if (workerChanged) {

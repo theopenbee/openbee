@@ -166,7 +166,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sched.RecoverRunning(context.Background())
 
 	runners := []func(ctx context.Context){
-		func(ctx context.Context) { clearCmdHandler.Run(ctx) },
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
 		func(ctx context.Context) {

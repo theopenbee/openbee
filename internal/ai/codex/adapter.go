@@ -9,12 +9,7 @@ import (
 
 func init() {
 	ai.Register(ai.EngineCodex, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		path, _ := cfg.Raw["path"].(string)
-		if path == "" {
-			path = ai.EngineCodex
-		}
-		extraEnv, _ := cfg.Raw["env"].(map[string]string)
-		return NewAdapter(path, cfg.OpenbeeURL, extraEnv)
+		return NewAdapter(cfg.PathOrDefault(ai.EngineCodex), cfg.OpenbeeURL, cfg.ExtraEnv())
 	})
 }
 

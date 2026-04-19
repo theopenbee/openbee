@@ -13,12 +13,7 @@ import (
 
 func init() {
 	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		path, _ := cfg.Raw["path"].(string)
-		if path == "" {
-			path = ai.EngineClaude
-		}
-		extraEnv, _ := cfg.Raw["env"].(map[string]string)
-		return NewAdapter(path, cfg.OpenbeeURL, extraEnv), nil
+		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.OpenbeeURL, cfg.ExtraEnv()), nil
 	})
 }
 

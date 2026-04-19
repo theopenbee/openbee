@@ -140,6 +140,14 @@ export const ENGINES = ["claude", "codex", "pi", "kimi"] as const
 export type Engine = (typeof ENGINES)[number]
 export const DEFAULT_ENGINE: Engine = ENGINES[0]
 
+// pickDefaultEngine returns the most appropriate engine to seed a form with:
+// the worker's current engine if set, else the first server-enabled engine,
+// else the global default. Shared by create/edit worker sheets so the rule
+// stays in one place.
+export function pickDefaultEngine(current: Engine | undefined, enabled: readonly Engine[]): Engine {
+  return current ?? enabled[0] ?? DEFAULT_ENGINE
+}
+
 export interface EnvConfig {
   id: string
   scope: EnvScope

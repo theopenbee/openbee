@@ -17,6 +17,13 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+const (
+	// CmdEngine is the slash command that switches engines.
+	CmdEngine = "/engine"
+	// CmdClear is the slash command that clears session contexts.
+	CmdClear = "/clear"
+)
+
 var log = logger.With(zap.String("component", "command"))
 
 // WorkerRepository is the subset of WorkerStore needed by EngineCommandHandler.
@@ -105,74 +112,60 @@ func NewEngineCommandHandler(
 // Returns true if content is a /engine command (whether or not it succeeded).
 func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
-	if len(fields) == 0 || fields[0] != "/engine" {
+	if len(fields) == 0 || fields[0] != CmdEngine {
 		return false
 	}
 
-	switch len(fields) {
-	case 1:
+	if len(fields) == 1 || len(fields) > 3 {
 		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
-	case 2:
-		if busyMsg, busy := h.checkBusy(ctx); busy {
-			h.reply(ctx, replyTo, busyMsg)
-		} else {
-			h.handleBeeEngine(ctx, replyTo, fields[1])
-		}
-	case 3:
-		if busyMsg, busy := h.checkBusy(ctx); busy {
-			h.reply(ctx, replyTo, busyMsg)
-		} else {
-			h.handleWorkerEngine(ctx, replyTo, fields[1], fields[2])
-		}
-	default:
-		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
+		return true
+	}
+
+	engineName := fields[1]
+	if !h.isValidEngine(ctx, replyTo, engineName) {
+		return true
+	}
+	if busyMsg, busy := h.checkBusy(ctx); busy {
+		h.reply(ctx, replyTo, busyMsg)
+		return true
+	}
+
+	if len(fields) == 2 {
+		h.handleBeeEngine(ctx, replyTo, engineName)
+	} else {
+		h.handleWorkerEngine(ctx, replyTo, engineName, fields[2])
 	}
 	return true
 }
 
-type busyCheck struct {
-	active  bool
-	err     error
-	msg     string
-	warnMsg string
-}
-
-// checkBusy returns a non-empty message and true when any activity condition blocks engine switching.
-// All three checks run concurrently; results are evaluated in priority order.
+// checkBusy returns a non-empty message and true on the first activity condition that
+// blocks engine switching. Checks run sequentially and short-circuit; SQLite serialises
+// reads anyway, so concurrent checks would not improve latency.
 func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
 	m := i18n.M.Runtime.EngineCommand
-
-	msgCh := make(chan busyCheck, 1)
-	execCh := make(chan busyCheck, 1)
-	taskCh := make(chan busyCheck, 1)
-
-	go func() {
-		active, err := h.busy.HasActiveMessages(ctx)
-		msgCh <- busyCheck{active, err, m.BusyMessages, "engine command: failed to check active messages"}
-	}()
-	go func() {
-		active, err := h.busy.HasActiveExecutions(ctx)
-		execCh <- busyCheck{active, err, m.BusyExecutions, "engine command: failed to check active executions"}
-	}()
-	go func() {
-		active, err := h.busy.HasActiveImmediateTasks(ctx)
-		taskCh <- busyCheck{active, err, m.BusyTasks, "engine command: failed to check active immediate tasks"}
-	}()
-
-	for _, c := range []busyCheck{<-msgCh, <-execCh, <-taskCh} {
-		if c.err != nil {
-			log.Warn(c.warnMsg, zap.Error(c.err))
-		} else if c.active {
-			return c.msg, true
+	checks := []struct {
+		fn   func(context.Context) (bool, error)
+		busy string
+		warn string
+	}{
+		{h.busy.HasActiveMessages, m.BusyMessages, "engine command: failed to check active messages"},
+		{h.busy.HasActiveExecutions, m.BusyExecutions, "engine command: failed to check active executions"},
+		{h.busy.HasActiveImmediateTasks, m.BusyTasks, "engine command: failed to check active immediate tasks"},
+	}
+	for _, c := range checks {
+		active, err := c.fn(ctx)
+		if err != nil {
+			log.Warn(c.warn, zap.Error(err))
+			continue
+		}
+		if active {
+			return c.busy, true
 		}
 	}
 	return "", false
 }
 
 func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) {
-	if !h.isValidEngine(ctx, replyTo, engineName) {
-		return
-	}
 	m := i18n.M.Runtime.EngineCommand
 	if err := h.sysCfg.Set(ctx, model.SystemConfigKeyDefaultEngine, engineName); err != nil {
 		h.reply(ctx, replyTo, m.SwitchFailed)
@@ -183,9 +176,6 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 }
 
 func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName, workerName string) {
-	if !h.isValidEngine(ctx, replyTo, engineName) {
-		return
-	}
 	m := i18n.M.Runtime.EngineCommand
 	w, err := h.workers.GetByName(workerName)
 	if err != nil {
