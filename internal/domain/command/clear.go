@@ -20,39 +20,33 @@ const clearConfirmTimeout = 30 * time.Second
 
 type pendingClear struct {
 	workerID  string // empty = full /clear
-	engine    string // resolved active engine for worker clear
+	engine    string
 	expiresAt time.Time
 }
 
-// WorkerNameLookup finds workers by name.
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
 }
 
-// ClearSessionStore is the subset of store.SessionStore used by ClearCommandHandler.
 type ClearSessionStore interface {
 	ListSessionContexts(ctx context.Context, sessionKey string) ([]store.SessionAgent, error)
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
 }
 
-// ClearTaskStore is the subset of store.TaskStore used by ClearCommandHandler.
 type ClearTaskStore interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 	CancelBySessionKey(ctx context.Context, sessionKey string) (int64, error)
 }
 
-// ClearExecStopper stops running worker executions.
 type ClearExecStopper interface {
 	StopExecution(executionID string) error
 }
 
-// ClearSessionDispatcher clears session contexts and in-memory queues.
 type ClearSessionDispatcher interface {
 	ClearSession(sessionKey string)
 }
 
-// ClearCommandHandler handles the /clear slash command.
 type ClearCommandHandler struct {
 	workers      WorkerNameLookup
 	sessions     ClearSessionStore
@@ -65,7 +59,6 @@ type ClearCommandHandler struct {
 	pending map[string]*pendingClear // key: sessionKey + "::" + normalized command
 }
 
-// NewClearCommandHandler constructs a ClearCommandHandler.
 func NewClearCommandHandler(
 	workers WorkerNameLookup,
 	sessions ClearSessionStore,
@@ -102,8 +95,6 @@ func (h *ClearCommandHandler) sweepExpired() {
 	}
 }
 
-// HandleCommand implements msgingest.CommandHandler.
-// Returns true if content is a /clear command (whether or not it succeeded).
 func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
 	if len(fields) == 0 || fields[0] != "/clear" {
@@ -135,9 +126,15 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	h.mu.Unlock()
 
 	if isValid {
-		agents, _ := h.sessions.ListSessionContexts(ctx, sessionKey)
+		agents, err := h.sessions.ListSessionContexts(ctx, sessionKey)
+		if err != nil {
+			log.Error("list session contexts for /clear confirm", zap.Error(err))
+		}
 
-		runningTasks, _ := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+		runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+		if err != nil {
+			log.Error("list running tasks for /clear confirm", zap.Error(err))
+		}
 		for _, t := range runningTasks {
 			if t.ExecutionID != "" {
 				if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
@@ -146,7 +143,10 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 			}
 		}
 
-		cancelled, _ := h.tasks.CancelBySessionKey(ctx, sessionKey)
+		cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey)
+		if err != nil {
+			log.Error("cancel tasks for /clear confirm", zap.Error(err))
+		}
 		h.sessionClear.ClearSession(sessionKey)
 
 		if len(agents) == 0 {
