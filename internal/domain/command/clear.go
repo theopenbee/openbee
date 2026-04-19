@@ -29,7 +29,7 @@ type WorkerNameLookup interface {
 }
 
 type ClearSessionStore interface {
-	ListSessionContexts(ctx context.Context, sessionKey string) ([]store.SessionAgent, error)
+	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
 }
@@ -118,7 +118,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	pendingKey := h.pendingKey(sessionKey, "/clear")
 
 	if p := h.consumePending(pendingKey); p != nil {
-		agents, err := h.sessions.ListSessionContexts(ctx, sessionKey)
+		agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
 		if err != nil {
 			log.Error("list session contexts for /clear confirm", zap.Error(err))
 		}
@@ -154,7 +154,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	agents, err := h.sessions.ListSessionContexts(ctx, sessionKey)
+	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
 	if err != nil {
 		log.Error("list session contexts for /clear", zap.Error(err))
 	}

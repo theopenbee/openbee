@@ -189,6 +189,61 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 	return result, rows.Err()
 }
 
+// ListActiveSessionContexts returns only the session contexts that would be
+// cleared by ClearSessionContexts for the given beeEngine. The filtering
+// mirrors the DELETE logic exactly:
+//   - bee: only the row whose engine matches beeEngine.
+//   - workers with an explicit engine: only the row matching that engine.
+//   - workers with no engine set: only the row matching beeEngine (fallback).
+//   - deleted workers (absent from bee_workers): all their rows (orphaned data).
+func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]SessionAgent, error) {
+	beeEngine = normalizeSessionEngine(beeEngine)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT sc.agent_id, sc.engine, sc.updated_at,
+		       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
+		FROM bee_session_contexts sc
+		LEFT JOIN bee_workers w ON w.id = sc.agent_id
+		WHERE sc.session_key = ?
+		  AND (
+		        (sc.agent_id = 'bee' AND sc.engine = ?)
+		     OR (sc.agent_id != 'bee'
+		         AND EXISTS (SELECT 1 FROM bee_workers w2
+		                     WHERE w2.id = sc.agent_id AND w2.engine != ''
+		                       AND w2.engine = sc.engine))
+		     OR (sc.agent_id != 'bee'
+		         AND EXISTS (SELECT 1 FROM bee_workers w2
+		                     WHERE w2.id = sc.agent_id AND w2.engine = ''
+		                       AND sc.engine = ?))
+		     OR (sc.agent_id != 'bee'
+		         AND NOT EXISTS (SELECT 1 FROM bee_workers w2 WHERE w2.id = sc.agent_id))
+		      )
+		ORDER BY sc.updated_at DESC`,
+		sessionKey, beeEngine, beeEngine,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []SessionAgent
+	for rows.Next() {
+		var a SessionAgent
+		if err := rows.Scan(&a.AgentID, &a.Engine, &a.UpdatedAt, &a.Name); err != nil {
+			return nil, err
+		}
+		if a.AgentID == BeeAgentID {
+			a.AgentType = BeeAgentType
+		} else {
+			a.AgentType = WorkerAgentType
+		}
+		result = append(result, a)
+	}
+	if result == nil {
+		result = []SessionAgent{}
+	}
+	return result, rows.Err()
+}
+
 // DeleteWorkerSessionContext removes all session context rows for one worker
 // under a sessionKey across engines.
 // Deleting a non-existent row is not an error.
