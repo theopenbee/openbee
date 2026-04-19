@@ -10,7 +10,7 @@ const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login }
 const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m.Dashboard })))
 const Workers = lazy(() => import("@/pages/workers").then(m => ({ default: m.Workers })))
 const WorkerDetail = lazy(() => import("@/pages/worker-detail").then(m => ({ default: m.WorkerDetail })))
-const Executions = lazy(() => import("@/pages/executions").then(m => ({ default: m.Executions })))
+const Executions = lazy(() => import("@/pages/sessions").then(m => ({ default: m.Executions })))
 const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ default: m.SessionDetail })))
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks })))

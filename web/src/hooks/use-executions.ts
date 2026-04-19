@@ -6,6 +6,7 @@ export function useExecutions(page: number = 1, pageSize: number = 20) {
     queryKey: ["executions", page, pageSize],
     queryFn: () => api.executions.list(page, pageSize),
     placeholderData: keepPreviousData,
+    refetchInterval: 500,
   })
 }
 
@@ -19,7 +20,7 @@ export function useSessionExecutions(sessionId: string) {
       const hasActive = executions.some(
         (e) => e.status === "running" || e.status === "pending"
       )
-      return hasActive ? 3000 : false
+      return hasActive ? 500 : false
     },
   })
 }
