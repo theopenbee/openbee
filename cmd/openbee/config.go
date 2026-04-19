@@ -14,6 +14,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -72,16 +73,18 @@ type configValues struct {
 	WeixinCDNBaseURL string
 	WeixinUserID     string
 
-	Engine        string
+	EngineDefault       string
+	EngineTimeoutBee    string
+	EngineTimeoutWorker string
+	ClaudeEnabled       bool
+	CodexEnabled  bool
+	PiEnabled     bool
+	KimiEnabled   bool
 	ClaudePath    string
-	ClaudeTimeout string
 	CodexPath     string
-	CodexTimeout  string
 	PiPath        string
-	PiTimeout     string
-	PiEnv         map[string]string
+	KimiPath      string
 
-	FeederTimeout          string
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
 	FFprobePath            string
@@ -147,15 +150,17 @@ func loadExistingConfig(path string) *configValues {
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
-		Engine:               cfg.Bee.Engine,
-		ClaudePath:           cfg.Bee.Claude.Path,
-		ClaudeTimeout:        cfg.Bee.Claude.Timeout.String(),
-		CodexPath:            cfg.Bee.Codex.Path,
-		CodexTimeout:         cfg.Bee.Codex.Timeout.String(),
-		PiPath:               cfg.Bee.Pi.Path,
-		PiTimeout:            cfg.Bee.Pi.Timeout.String(),
-		PiEnv:                cfg.Bee.Pi.Env,
-		FeederTimeout:        cfg.Bee.Feeder.Timeout.String(),
+		EngineDefault:          cfg.Bee.Engine.Default,
+		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
+		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
+		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
+		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
+		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
+		KimiEnabled:            cfg.Bee.Engines.Kimi.Enabled,
+		ClaudePath:             cfg.Bee.Engines.Claude.Path,
+		CodexPath:              cfg.Bee.Engines.Codex.Path,
+		PiPath:                 cfg.Bee.Engines.Pi.Path,
+		KimiPath:               cfg.Bee.Engines.Kimi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
 		FFprobePath:          cfg.Bee.Media.FFprobePath,
@@ -173,15 +178,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		ServerPort:             "8080",
 		ServerHost:             "localhost",
 		DBPath:                 "./data/openbee.db",
-		Engine:                 "claude",
+		EngineDefault:          "claude",
+		EngineTimeoutBee:       "5m",
+		EngineTimeoutWorker:    "30m",
+		ClaudeEnabled:          true,
 		ClaudePath:             "claude",
-		ClaudeTimeout:          "30m",
 		CodexPath:              "codex",
-		CodexTimeout:           "30m",
 		PiPath:                 "pi",
-		PiTimeout:              "30m",
+		KimiPath:               "kimi",
 		MCPTokenTTL:            "2h",
-		FeederTimeout:          "5m",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		FFprobePath:            "ffprobe",
@@ -214,45 +219,113 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 1 — Engine config
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	defaultEngineOpt := i18n.M.Prompt.OptionEngineClaude
-	switch vals.Engine {
-	case "codex":
-		defaultEngineOpt = i18n.M.Prompt.OptionEngineCodex
-	case "pi":
-		defaultEngineOpt = i18n.M.Prompt.OptionEnginePi
+	enabledByName := map[string]bool{
+		ai.EngineClaude: vals.ClaudeEnabled,
+		ai.EngineCodex:  vals.CodexEnabled,
+		ai.EnginePi:     vals.PiEnabled,
+		ai.EngineKimi:   vals.KimiEnabled,
 	}
-	var selectedEngine string
-	if err := survey.AskOne(&survey.Select{
+	var defaultEngines []string
+	for _, name := range ai.AllEngines() {
+		if enabledByName[name] {
+			defaultEngines = append(defaultEngines, engineLabel(name))
+		}
+	}
+	if len(defaultEngines) == 0 {
+		defaultEngines = []string{engineLabel(ai.EngineClaude)}
+	}
+
+	mappings := engineMappings()
+	allEngineLabels := make([]string, len(mappings))
+	for i, m := range mappings {
+		allEngineLabels[i] = m.label
+	}
+
+	var selectedEngines []string
+	if err := survey.AskOne(&survey.MultiSelect{
 		Message: i18n.M.Prompt.EngineSelect,
-		Options: []string{
-			i18n.M.Prompt.OptionEngineClaude,
-			i18n.M.Prompt.OptionEngineCodex,
-			i18n.M.Prompt.OptionEnginePi,
-		},
-		Default: defaultEngineOpt,
-	}, &selectedEngine); err != nil {
+		Options: allEngineLabels,
+		Default: defaultEngines,
+	}, &selectedEngines, survey.WithValidator(func(ans any) error {
+		if v, ok := ans.([]survey.OptionAnswer); ok && len(v) == 0 {
+			return errors.New("select at least one engine")
+		}
+		return nil
+	})); err != nil {
 		return handleSurveyErr(err)
 	}
 
-	switch selectedEngine {
-	case i18n.M.Prompt.OptionEngineClaude:
-		vals.Engine = "claude"
-		if err := configureClaudeExecutable(&vals); err != nil {
-			return err
+	vals.ClaudeEnabled = false
+	vals.CodexEnabled = false
+	vals.PiEnabled = false
+	vals.KimiEnabled = false
+
+	for _, e := range selectedEngines {
+		switch engineName(e) {
+		case ai.EngineClaude:
+			vals.ClaudeEnabled = true
+			if err := configureClaudeExecutable(&vals); err != nil {
+				return err
+			}
+			if err := configureClaudeProvider(&vals); err != nil {
+				return err
+			}
+		case ai.EngineCodex:
+			vals.CodexEnabled = true
+			if err := configureCodexExecutable(&vals); err != nil {
+				return err
+			}
+		case ai.EnginePi:
+			vals.PiEnabled = true
+			if err := configurePiExecutable(&vals); err != nil {
+				return err
+			}
+		case ai.EngineKimi:
+			vals.KimiEnabled = true
+			if err := configureKimiExecutable(&vals); err != nil {
+				return err
+			}
 		}
-		if err := configureClaudeProvider(&vals); err != nil {
-			return err
+	}
+
+	// Select default engine from enabled ones.
+	// Find the label for the current default if it is still in the selection; otherwise fall back to first.
+	currentDefaultLabel := engineLabel(vals.EngineDefault)
+	defaultEngineOpt := selectedEngines[0]
+	for _, e := range selectedEngines {
+		if e == currentDefaultLabel {
+			defaultEngineOpt = e
+			break
 		}
-	case i18n.M.Prompt.OptionEngineCodex:
-		vals.Engine = "codex"
-		if err := configureCodexExecutable(&vals); err != nil {
-			return err
+	}
+
+	var selectedDefault string
+	if len(selectedEngines) == 1 {
+		selectedDefault = selectedEngines[0]
+	} else {
+		if err := survey.AskOne(&survey.Select{
+			Message: i18n.M.Prompt.EngineDefault,
+			Options: selectedEngines,
+			Default: defaultEngineOpt,
+		}, &selectedDefault); err != nil {
+			return handleSurveyErr(err)
 		}
-	case i18n.M.Prompt.OptionEnginePi:
-		vals.Engine = "pi"
-		if err := configurePiExecutable(&vals); err != nil {
-			return err
-		}
+	}
+
+	vals.EngineDefault = engineName(selectedDefault)
+
+	if err := survey.AskOne(&survey.Input{
+		Message: i18n.M.Prompt.EngineTimeoutBee,
+		Default: vals.EngineTimeoutBee,
+	}, &vals.EngineTimeoutBee); err != nil {
+		return handleSurveyErr(err)
+	}
+
+	if err := survey.AskOne(&survey.Input{
+		Message: i18n.M.Prompt.EngineTimeoutWorker,
+		Default: vals.EngineTimeoutWorker,
+	}, &vals.EngineTimeoutWorker); err != nil {
+		return handleSurveyErr(err)
 	}
 
 	installBuiltinSkills()
@@ -494,13 +567,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			return handleSurveyErr(err)
 		}
 
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.FeederTimeout,
-			Default: vals.FeederTimeout,
-		}, &vals.FeederTimeout); err != nil {
-			return handleSurveyErr(err)
-		}
-
 		var concurrentBeeStr string
 		if err := survey.AskOne(&survey.Input{
 			Message: i18n.M.Prompt.MaxConcurrentBee,
@@ -677,7 +743,36 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
-func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeoutMsg string, pathDst, timeoutDst *string) error {
+type engineMapping struct{ name, label string }
+
+func engineMappings() []engineMapping {
+	return []engineMapping{
+		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
+		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
+		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
+		{ai.EngineKimi, i18n.M.Prompt.OptionEngineKimi},
+	}
+}
+
+func engineLabel(name string) string {
+	for _, m := range engineMappings() {
+		if m.name == name {
+			return m.label
+		}
+	}
+	return ""
+}
+
+func engineName(label string) string {
+	for _, m := range engineMappings() {
+		if m.label == label {
+			return m.name
+		}
+	}
+	return ""
+}
+
+func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg string, pathDst *string) error {
 	if found, err := exec.LookPath(binaryName); err == nil {
 		fmt.Printf(foundMsg+"\n", found)
 		*pathDst = found
@@ -689,12 +784,6 @@ func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg, timeout
 		}, pathDst, survey.WithValidator(executablePathValidator)); err != nil {
 			return handleSurveyErr(err)
 		}
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: timeoutMsg,
-		Default: *timeoutDst,
-	}, timeoutDst); err != nil {
-		return handleSurveyErr(err)
 	}
 	return nil
 }

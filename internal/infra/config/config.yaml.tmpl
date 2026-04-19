@@ -16,22 +16,24 @@ database:
   path: {{.DBPath}}
 
 bee:
-  engine: {{.Engine}}
-  claude:
-    path: {{.ClaudePath}}
-    timeout: {{.ClaudeTimeout}}
-  codex:
-    path: {{.CodexPath}}
-    timeout: {{.CodexTimeout}}
-  pi:
-    path: {{.PiPath}}
-    timeout: {{.PiTimeout}}
-    {{- if .PiEnv}}
-    env:
-    {{- range $k, $v := .PiEnv}}
-      {{$k}}: "{{$v}}"
-    {{- end}}
-    {{- end}}
+  engine:
+    default: {{.EngineDefault}}
+    timeout:
+      bee: {{.EngineTimeoutBee}}
+      worker: {{.EngineTimeoutWorker}}
+  engines:
+    claude:
+      enabled: {{.ClaudeEnabled}}
+      path: {{.ClaudePath}}
+    codex:
+      enabled: {{.CodexEnabled}}
+      path: {{.CodexPath}}
+    pi:
+      enabled: {{.PiEnabled}}
+      path: {{.PiPath}}
+    kimi:
+      enabled: {{.KimiEnabled}}
+      path: {{.KimiPath}}
   mcp:
     token_secret: "{{.MCPTokenSecret}}"
     token_ttl: {{.MCPTokenTTL}}
@@ -59,7 +61,6 @@ bee:
       cdn_base_url: "{{.WeixinCDNBaseURL}}"
       user_id: "{{.WeixinUserID}}"
   feeder:
-    timeout: {{.FeederTimeout}}
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:
     ffprobe_path: {{.FFprobePath}}

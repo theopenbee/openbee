@@ -12,11 +12,18 @@ import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
 import { CodexParser } from "./log-viewer/codex-parser"
 import { PiParser } from "./log-viewer/pi-parser"
+import { KimiParser } from "./log-viewer/kimi-parser"
 
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
 
 const FILTER_ALIAS: Partial<Record<string, LogFilter>> = { "codex-command": "tool", "pi-thinking": "text" }
+
+const PARSER_FACTORY: Record<string, () => StreamParser> = {
+  codex: () => new CodexParser(),
+  pi: () => new PiParser(),
+  kimi: () => new KimiParser(),
+}
 
 interface LogViewerProps {
   executionId: string
@@ -405,12 +412,7 @@ export function LogViewer({
     const ensureParser = (lines: string[]): StreamParser => {
       if (!parserRef.current) {
         const engine = detectEngine(lines)
-        parserRef.current =
-          engine === "codex"
-            ? new CodexParser()
-            : engine === "pi"
-              ? new PiParser()
-              : new ClaudeParser()
+        parserRef.current = (PARSER_FACTORY[engine] ?? (() => new ClaudeParser()))()
       }
       return parserRef.current
     }
@@ -467,20 +469,19 @@ export function LogViewer({
 
     const fetchLogs = async () => {
       try {
-        const content = await api.executions.logs(executionId)
+        const { content, size, truncated } = await api.executions.logs(executionId, parsedLengthRef.current)
         if (disposed) return
 
         const flushTail = !isActiveStatus(status)
-        if (content.length < parsedLengthRef.current) {
+        if (truncated) {
           rebuildEntries(content, flushTail)
-          parsedLengthRef.current = content.length
+          parsedLengthRef.current = size
           return
         }
 
-        if (content.length > parsedLengthRef.current) {
-          const chunk = content.slice(parsedLengthRef.current)
-          parsedLengthRef.current = content.length
-          consumeChunk(chunk, flushTail)
+        if (content.length > 0) {
+          parsedLengthRef.current = size
+          consumeChunk(content, flushTail)
           return
         }
 
@@ -495,7 +496,7 @@ export function LogViewer({
     fetchLogs()
 
     if (isActiveStatus(status)) {
-      const interval = setInterval(fetchLogs, 2000)
+      const interval = setInterval(fetchLogs, 500)
       return () => {
         disposed = true
         clearInterval(interval)

@@ -18,18 +18,22 @@ const ROUTES: { test: RegExp; crumbs: CrumbDef[] }[] = [
   },
   {
     test: /^\/sessions$/,
-    crumbs: [{ labelKey: "nav.executions" }],
+    crumbs: [{ labelKey: "nav.sessions" }],
   },
   {
     test: /^\/sessions\//,
     crumbs: [
-      { labelKey: "nav.executions", to: "/sessions" },
+      { labelKey: "nav.sessions", to: "/sessions" },
       { labelKey: "breadcrumb.detail" },
     ],
   },
   {
     test: /^\/tasks$/,
     crumbs: [{ labelKey: "nav.tasks" }],
+  },
+  {
+    test: /^\/settings$/,
+    crumbs: [{ labelKey: "nav.systemSettings" }],
   },
   {
     test: /^\/chat$/,

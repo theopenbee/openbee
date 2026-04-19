@@ -219,6 +219,104 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	}
 }
 
+func TestExecutionStore_ReadLogSince(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	logsDir := t.TempDir()
+	es := NewExecutionStore(db, logsDir)
+
+	exec, _ := es.CreateBeeExecution("session1", "test prompt")
+
+	// No log path yet → zero slice, no error.
+	slice, err := es.ReadLogSince(exec.ID, 0)
+	if err != nil {
+		t.Fatalf("ReadLogSince (no log_path): %v", err)
+	}
+	if slice.Content != "" || slice.Size != 0 || slice.Truncated {
+		t.Errorf("expected zero slice, got %+v", slice)
+	}
+
+	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// File not yet created → zero slice.
+	slice, err = es.ReadLogSince(exec.ID, 0)
+	if err != nil {
+		t.Fatalf("ReadLogSince (file missing): %v", err)
+	}
+	if slice.Content != "" || slice.Size != 0 || slice.Truncated {
+		t.Errorf("expected zero slice, got %+v", slice)
+	}
+
+	// Write initial content; since=0 must return everything.
+	initial := []byte("line1\nline2\n")
+	if err := os.WriteFile(logPath, initial, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	slice, err = es.ReadLogSince(exec.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slice.Content != string(initial) || slice.Size != int64(len(initial)) || slice.Truncated {
+		t.Errorf("full read mismatch: %+v", slice)
+	}
+
+	// Append; since=len(initial) must return only the tail.
+	tail := []byte("line3\n")
+	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(tail); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slice.Content != string(tail) {
+		t.Errorf("tail content mismatch: got %q want %q", slice.Content, string(tail))
+	}
+	if slice.Size != int64(len(initial)+len(tail)) {
+		t.Errorf("size mismatch: got %d want %d", slice.Size, len(initial)+len(tail))
+	}
+	if slice.Truncated {
+		t.Error("should not be truncated")
+	}
+
+	// since == size → empty content.
+	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)+len(tail)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slice.Content != "" || slice.Truncated {
+		t.Errorf("caught-up read mismatch: %+v", slice)
+	}
+	if slice.Size != int64(len(initial)+len(tail)) {
+		t.Errorf("size should still match: got %d", slice.Size)
+	}
+
+	// since > size → truncated=true with full content.
+	slice, err = es.ReadLogSince(exec.ID, 99999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slice.Truncated {
+		t.Error("expected truncated=true when since > size")
+	}
+	if slice.Content != string(initial)+string(tail) {
+		t.Errorf("truncated content mismatch: got %q", slice.Content)
+	}
+}
+
 func TestExecutionStore_PrepareLogPath(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {

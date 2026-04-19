@@ -8,12 +8,7 @@ import (
 
 func init() {
 	ai.Register(ai.EnginePi, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		path, _ := cfg.Raw["path"].(string)
-		if path == "" {
-			path = ai.EnginePi
-		}
-		extraEnv, _ := cfg.Raw["env"].(map[string]string)
-		return NewAdapter(path, cfg.OpenbeeURL, extraEnv)
+		return NewAdapter(cfg.PathOrDefault(ai.EnginePi), cfg.OpenbeeURL, cfg.ExtraEnv())
 	})
 }
 
@@ -34,12 +29,9 @@ func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 }
 
 func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,
-	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-}
-
-func (a *piAdapter) ExtractResult(logPath string) string {
-	return ExtractResultFromLog(logPath)
+	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
+	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
 var _ ai.EngineAdapter = (*piAdapter)(nil)

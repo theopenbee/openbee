@@ -3,12 +3,13 @@ package msgingest_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // mockMsgStore implements msgingest.MessageStore for testing.
@@ -247,6 +248,90 @@ func TestGateway_ClearMessage_DebounceAsNormal(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timeout waiting for debounced message")
+	}
+}
+
+// mockCommandHandler records whether HandleCommand was called and what to return.
+type mockCommandHandler struct {
+	mu       sync.Mutex
+	handled  bool
+	contents []string
+	called   chan struct{} // closed on first HandleCommand invocation
+	closeOnce sync.Once
+}
+
+func newMockCommandHandler(handled bool) *mockCommandHandler {
+	return &mockCommandHandler{
+		handled: handled,
+		called:  make(chan struct{}),
+	}
+}
+
+func (m *mockCommandHandler) HandleCommand(_ context.Context, content string, _ platform.InboundMessage) bool {
+	m.mu.Lock()
+	m.contents = append(m.contents, content)
+	m.mu.Unlock()
+	m.closeOnce.Do(func() { close(m.called) })
+	return m.handled
+}
+
+func (m *mockCommandHandler) getContents() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make([]string, len(m.contents))
+	copy(cp, m.contents)
+	return cp
+}
+
+func TestGateway_CommandHandlerInterceptsBeforeDB(t *testing.T) {
+	st := newMock()
+	handler := newMockCommandHandler(true)
+	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+
+	g.Dispatch(platform.InboundMessage{
+		Platform:   "feishu",
+		SessionKey: "feishu:c1:u1",
+		Content:    "/engine claude",
+	})
+
+	// Wait for the command handler to be called.
+	select {
+	case <-handler.called:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for command handler to be called")
+	}
+
+	if len(st.batches) != 0 {
+		t.Errorf("expected 0 DB writes when command handled, got %d", len(st.batches))
+	}
+	contents := handler.getContents()
+	if len(contents) != 1 || contents[0] != "/engine claude" {
+		t.Errorf("expected handler called with '/engine claude', got %v", contents)
+	}
+}
+
+func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
+	st := newMock()
+	handler := newMockCommandHandler(false)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+	go g.Run(ctx)
+
+	g.Dispatch(platform.InboundMessage{
+		Platform:   "feishu",
+		SessionKey: "feishu:c1:u1",
+		Content:    "hello",
+	})
+
+	select {
+	case <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for message to be emitted")
+	}
+
+	if len(st.batches) != 1 {
+		t.Errorf("expected 1 DB write for non-command, got %d", len(st.batches))
 	}
 }
 

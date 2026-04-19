@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -29,7 +30,8 @@ type Manager struct {
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	engine         ai.EngineAdapter
+	engines        map[string]ai.EngineAdapter
+	engineCfg      *enginecfg.Store
 	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -41,7 +43,8 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
-	engine ai.EngineAdapter,
+	engines map[string]ai.EngineAdapter,
+	engineCfg *enginecfg.Store,
 	envService *env.Service,
 ) *Manager {
 	return &Manager{
@@ -51,10 +54,48 @@ func NewManager(
 		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,
-		engine:          engine,
+		engines:         engines,
+		engineCfg:       engineCfg,
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
+}
+
+// resolveEngine returns the EngineAdapter for w, falling back to the configured default if w.Engine is empty or unknown.
+func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
+	if w.Engine != "" {
+		if e, ok := m.engines[w.Engine]; ok {
+			return e, nil
+		}
+		log.Error("unknown engine on worker, falling back to default",
+			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
+	}
+	defaultEngine := m.engineCfg.Get()
+	if e, ok := m.engines[defaultEngine]; ok {
+		return e, nil
+	}
+	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
+}
+
+func (m *Manager) EnabledEngines() []string {
+	enabled := make([]string, 0, len(m.engines))
+	for _, name := range ai.AllEngines() {
+		if _, ok := m.engines[name]; ok {
+			enabled = append(enabled, name)
+		}
+	}
+	return enabled
+}
+
+// An empty name is accepted (means "use server default").
+func (m *Manager) ValidateEngine(name string) error {
+	if name == "" {
+		return nil
+	}
+	if _, ok := m.engines[name]; !ok {
+		return fmt.Errorf("engine %q is not enabled", name)
+	}
+	return nil
 }
 
 // CreateWorkerParams holds the inputs for creating a new worker.
@@ -64,6 +105,7 @@ type CreateWorkerParams struct {
 	Memory           string
 	WorkDir          string
 	PermissionScopes string
+	Engine           string
 }
 
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
@@ -76,18 +118,24 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
-	if err := m.engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
-	}
-
-	return m.workerStore.Create(model.Worker{
+	workerModel := model.Worker{
 		ID:               id,
 		Name:             p.Name,
 		Description:      p.Description,
 		Memory:           p.Memory,
 		WorkDir:          p.WorkDir,
+		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,
-	})
+	}
+	engine, err := m.resolveEngine(workerModel)
+	if err != nil {
+		return model.Worker{}, err
+	}
+	if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
+	}
+
+	return m.workerStore.Create(workerModel)
 }
 
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
@@ -108,12 +156,18 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := m.engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	engine, err := m.resolveEngine(worker)
+	if err != nil {
+		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		return exec, err
+	}
+	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(exec, worker, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -124,7 +178,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 
 // launchRuntime applies timeout, prepares the log path, starts the invoker,
 // registers the process, updates PID, and launches monitoring.
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -149,7 +203,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
-	proc, outputCh, err := m.engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
+	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
@@ -161,25 +215,25 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	}
 
 	m.mu.Lock()
-	m.activeProcesses[exec.ID] = proc
+	m.activeProcesses[exec.ID] = runRes.Process
 	m.mu.Unlock()
 
-	m.executionStore.UpdatePID(exec.ID, proc.PID())
-	go m.monitorExecution(exec, worker, outputCh, cancel, logPath)
+	m.executionStore.UpdatePID(exec.ID, runRes.Process.PID())
+	go m.monitorExecution(exec, worker, runRes, cancel, logPath)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
 	defer cancel()
 
-	for out := range outputCh {
+	for out := range runRes.Output {
 		switch out.Type {
 		case ai.OutputDone:
-			result := m.engine.ExtractResult(logPath)
+			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case ai.OutputError:
-			result := m.engine.ExtractResult(logPath)
+			result := runRes.ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}

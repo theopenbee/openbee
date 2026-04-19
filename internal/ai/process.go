@@ -38,12 +38,27 @@ func (p *CmdProcess) Stop() error {
 }
 
 // BuildRunEnv assembles the final env slice for a subprocess run.
+// Entries are ordered baseEnv → extraEnv → apiKey; for duplicate keys the
+// last value wins (standard subprocess env resolution on Linux/macOS), so
+// extraEnv overrides baseEnv and apiKey overrides both.
 func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
 	env := make([]string, 0, len(baseEnv)+len(extraEnv)+1)
 	env = append(env, baseEnv...)
 	env = append(env, extraEnv...)
 	env = append(env, "OPENBEE_API_KEY="+apiKey)
 	return env
+}
+
+// AppendExtraEnv appends non-empty entries from extraEnv to base and returns
+// the result re-clipped to its length, preventing concurrent Run() appends from
+// sharing the backing array with other goroutines.
+func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
+	for k, v := range extraEnv {
+		if v != "" {
+			base = append(base, k+"="+v)
+		}
+	}
+	return base[:len(base):len(base)]
 }
 
 // BuildBaseEnv constructs the base environment for engine subprocesses.

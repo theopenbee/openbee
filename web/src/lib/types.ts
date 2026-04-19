@@ -7,6 +7,7 @@ export interface Worker {
   description: string
   memory: string
   work_dir: string
+  engine: Engine
   permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
@@ -131,6 +132,22 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
+// Mirrors model.SystemConfigKeyDefaultEngine in Go — keep in sync.
+export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
+
+// Mirrors ai.AllEngines in Go — keep in sync.
+export const ENGINES = ["claude", "codex", "pi", "kimi"] as const
+export type Engine = (typeof ENGINES)[number]
+export const DEFAULT_ENGINE: Engine = ENGINES[0]
+
+// pickDefaultEngine returns the most appropriate engine to seed a form with:
+// the worker's current engine if set, else the first server-enabled engine,
+// else the global default. Shared by create/edit worker sheets so the rule
+// stays in one place.
+export function pickDefaultEngine(current: Engine | undefined, enabled: readonly Engine[]): Engine {
+  return current ?? enabled[0] ?? DEFAULT_ENGINE
+}
+
 export interface EnvConfig {
   id: string
   scope: EnvScope
@@ -139,4 +156,9 @@ export interface EnvConfig {
   masked: string
   created_at: number
   updated_at: number
+}
+
+export interface AppConfig {
+  language: string
+  enabled_engines: Engine[]
 }

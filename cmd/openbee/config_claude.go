@@ -9,10 +9,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-// configureClaudeExecutable handles Step 2a:
-// 1. Auto-detect claude in PATH
-// 2. If not found: manual input or download
-// 3. Prompt for timeout
 func configureClaudeExecutable(vals *configValues) error {
 	if claudePath, err := exec.LookPath("claude"); err == nil {
 		fmt.Printf(i18n.M.Output.Config.ClaudeFound+"\n", claudePath)
@@ -44,14 +40,6 @@ func configureClaudeExecutable(vals *configValues) error {
 			}
 		}
 	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.ClaudeTimeout,
-		Default: vals.ClaudeTimeout,
-	}, &vals.ClaudeTimeout); err != nil {
-		return handleSurveyErr(err)
-	}
-
 	return nil
 }
 

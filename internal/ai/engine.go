@@ -44,7 +44,17 @@ const (
 	EngineClaude = "claude"
 	EngineCodex  = "codex"
 	EnginePi     = "pi"
+	EngineKimi   = "kimi"
 )
+
+var allEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
+
+// AllEngines returns a snapshot of the canonical engine name list in registration order.
+func AllEngines() []string {
+	cp := make([]string, len(allEngines))
+	copy(cp, allEngines)
+	return cp
+}
 
 // Output is a single lifecycle event.
 type Output struct {
@@ -58,6 +68,24 @@ type Process interface {
 	Stop() error
 }
 
+// RunResult is the handle returned from EngineAdapter.Run. ExtractResult is
+// bound to the engine that handled this Run, so it remains correct even if
+// the active engine later changes.
+type RunResult struct {
+	Process       Process
+	Output        <-chan Output
+	ExtractResult func(logPath string) string
+}
+
+// NewRunResult wraps the (process, output, error) tuple returned by an engine
+// invoker into a RunResult, attaching the engine's result extractor on success.
+func NewRunResult(proc Process, out <-chan Output, err error, extract func(logPath string) string) (RunResult, error) {
+	if err != nil {
+		return RunResult{}, err
+	}
+	return RunResult{Process: proc, Output: out, ExtractResult: extract}, nil
+}
+
 // EngineAdapter is the complete plugin contract for an AI engine.
 // Implementations must be safe for concurrent use.
 type EngineAdapter interface {
@@ -66,12 +94,9 @@ type EngineAdapter interface {
 	// other engines return nil.
 	Prepare(workDir string, opts PrepareOptions) error
 
-	// Run executes a task and returns a process handle and an event channel.
-	// The channel is closed after the process exits.
+	// Run executes a task and returns a RunResult carrying the process handle,
+	// event channel, and an engine-bound result extractor. The event channel
+	// is closed after the process exits.
 	Run(ctx context.Context, workDir, prompt string,
-		opts RunOptions, logPath string) (Process, <-chan Output, error)
-
-	// ExtractResult parses the engine-specific log file and returns the final
-	// result string, or "" if none found.
-	ExtractResult(logPath string) string
+		opts RunOptions, logPath string) (RunResult, error)
 }

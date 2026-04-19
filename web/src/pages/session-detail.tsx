@@ -140,7 +140,7 @@ export function SessionDetail() {
 
                 <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
                   <Activity className={cn("size-3.5", statusTone(latestExecution.status))} />
-                  <span>{t("executions.columns.latestStatus")}</span>
+                  <span>{t("sessions.columns.latestStatus")}</span>
                   <span className={cn("font-medium", statusTone(latestExecution.status))}>
                     {latestExecution.status}
                   </span>
@@ -151,8 +151,8 @@ export function SessionDetail() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <DetailOverviewStat
                 icon={Logs}
-                label={t("executions.columns.turns")}
-                value={t("executions.turnCount", { count: executions.length })}
+                label={t("sessions.columns.turns")}
+                value={t("sessions.turnCount", { count: executions.length })}
                 hint={
                   <span>
                     {t("sessionDetail.latestTurn")}{" "}
@@ -166,7 +166,7 @@ export function SessionDetail() {
                 value={workerLabel}
                 hint={
                   <span>
-                    {t("executions.columns.latestStatus")}{" "}
+                    {t("sessions.columns.latestStatus")}{" "}
                     <span className={cn("font-medium", statusTone(latestExecution.status))}>
                       {latestExecution.status}
                     </span>
@@ -175,13 +175,13 @@ export function SessionDetail() {
               />
               <DetailOverviewStat
                 icon={Clock3}
-                label={t("executions.columns.started")}
+                label={t("sessions.columns.started")}
                 value={formatTimestamp(firstExecution.started_at)}
                 hint={formatTimestamp(latestExecution.completed_at ?? latestExecution.started_at)}
               />
               <DetailOverviewStat
                 icon={Activity}
-                label={t("executions.columns.duration")}
+                label={t("sessions.columns.duration")}
                 value={sessionDuration}
                 hint={
                   isActiveStatus(latestExecution.status)
@@ -358,7 +358,7 @@ export function SessionDetail() {
                       />
 
                       <DetailField label={t("executionDetail.session")} value={currentSessionId} mono />
-                      <DetailField label={t("executions.columns.duration")} value={selectedDuration} />
+                      <DetailField label={t("sessions.columns.duration")} value={selectedDuration} />
                       <DetailField label={t("executionDetail.started")} value={formatTimestamp(selectedExecution.started_at)} />
                       <DetailField label={t("executionDetail.completed")} value={formatTimestamp(selectedExecution.completed_at)} />
                       <DetailField label={t("executionDetail.pid")} value={selectedExecution.ai_process_pid || "—"} mono />

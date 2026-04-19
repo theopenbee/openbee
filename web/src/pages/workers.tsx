@@ -4,6 +4,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
+import { formatEngineLabel } from "@/lib/format"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { Button } from "@/components/ui/button"
 import {
@@ -134,7 +135,7 @@ export function Workers() {
 
       <div className="min-h-[320px]">
       {isLoading ? (
-        <SkeletonTable rows={6} columns={4} />
+        <SkeletonTable rows={6} columns={5} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
@@ -152,6 +153,7 @@ export function Workers() {
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
                 <TableHead>{t("workers.columns.status")}</TableHead>
+                <TableHead>{t("workers.columns.engine")}</TableHead>
                 <TableHead>{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
@@ -174,6 +176,9 @@ export function Workers() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={w.status} />
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatEngineLabel(w.engine, t)}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}

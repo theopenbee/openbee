@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,6 +12,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
+
+// LogSlice is the result of a byte-offset log read. Size reports the file's
+// current byte length; callers use it as the next "since" offset. Truncated
+// is true when the caller's since exceeded Size (file rotated/reset), in
+// which case Content holds the full file and callers should rebuild state.
+// Status is the execution's current status, returned alongside the slice so
+// callers (e.g. log viewers) can decide whether to keep polling.
+type LogSlice struct {
+	Content   string
+	Size      int64
+	Truncated bool
+	Status    model.ExecutionStatus
+}
 
 type ExecutionStore struct {
 	db      *sql.DB
@@ -167,6 +181,16 @@ func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExe
 	return &e, nil
 }
 
+// HasActiveExecutions reports whether any executions with status pending or running exist.
+func (s *ExecutionStore) HasActiveExecutions(ctx context.Context) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM bee_executions WHERE status IN (?, ?))`,
+		model.ExecStatusPending, model.ExecStatusRunning,
+	).Scan(&exists)
+	return exists == 1, err
+}
+
 func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_executions SET status=? WHERE id=?`, status, id)
 	return err
@@ -182,25 +206,62 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
-// ReadLog returns the log content for an execution.
-// Returns empty string (no error) when no log path is set or the file does not yet exist.
-func (s *ExecutionStore) ReadLog(id string) (string, error) {
-	row := s.db.QueryRow(`SELECT log_path FROM bee_executions WHERE id = ?`, id)
+// ReadLogSince returns the log bytes at or after the given offset, along with
+// the execution's current status (so callers can avoid a separate GetByID).
+//   - since <= 0: returns full file
+//   - since == Size: returns empty content (caller is caught up)
+//   - since > Size: returns full content with Truncated=true (file was rotated/reset)
+//
+// Returns a LogSlice with empty content (and the current status) when no log
+// path is set or the file does not yet exist.
+func (s *ExecutionStore) ReadLogSince(id string, since int64) (LogSlice, error) {
 	var logPath string
-	if err := row.Scan(&logPath); err != nil {
-		return "", fmt.Errorf("get log_path: %w", err)
+	var status model.ExecutionStatus
+	if err := s.db.QueryRow(`SELECT log_path, status FROM bee_executions WHERE id = ?`, id).Scan(&logPath, &status); err != nil {
+		return LogSlice{}, fmt.Errorf("get log_path: %w", err)
 	}
 	if logPath == "" {
-		return "", nil
+		return LogSlice{Status: status}, nil
 	}
-	b, err := os.ReadFile(logPath)
+	f, err := os.Open(logPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return LogSlice{Status: status}, nil
 		}
-		return "", fmt.Errorf("read log file: %w", err)
+		return LogSlice{}, fmt.Errorf("open log file: %w", err)
 	}
-	return string(b), nil
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return LogSlice{}, fmt.Errorf("stat log file: %w", err)
+	}
+	size := info.Size()
+
+	// since out of range — file shrank/rotated; rebuild from scratch.
+	if since > size {
+		b, err := io.ReadAll(f)
+		if err != nil {
+			return LogSlice{}, fmt.Errorf("read log file: %w", err)
+		}
+		return LogSlice{Content: string(b), Size: size, Truncated: true, Status: status}, nil
+	}
+
+	// caller up to date.
+	if since == size {
+		return LogSlice{Size: size, Status: status}, nil
+	}
+
+	if since > 0 {
+		if _, err := f.Seek(since, io.SeekStart); err != nil {
+			return LogSlice{}, fmt.Errorf("seek log file: %w", err)
+		}
+	}
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return LogSlice{}, fmt.Errorf("read log file: %w", err)
+	}
+	return LogSlice{Content: string(b), Size: size, Status: status}, nil
 }
 
 // PrepareLogPath creates the date-partitioned log directory, records the log path in

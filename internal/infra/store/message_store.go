@@ -212,6 +212,16 @@ func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, er
 	return ids, nil
 }
 
+// HasActiveMessages reports whether any messages with status received or feeding exist.
+func (s *MessageStore) HasActiveMessages(ctx context.Context) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM bee_platform_messages WHERE status IN (?, ?))`,
+		MsgStatusReceived, MsgStatusFeeding,
+	).Scan(&exists)
+	return exists == 1, err
+}
+
 // CountReceived returns the number of messages with status 'received'.
 func (s *MessageStore) CountReceived(ctx context.Context) (int, error) {
 	var count int

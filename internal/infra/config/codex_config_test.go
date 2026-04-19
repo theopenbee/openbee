@@ -6,8 +6,8 @@ import (
 
 func TestEngineConfigRaw_Codex(t *testing.T) {
 	cfg := BeeConfig{
-		Engine: "codex",
-		Codex:  CodexConfig{Path: "/usr/local/bin/codex"},
+		Engine:  EngineDefaultConfig{Default: "codex"},
+		Engines: EnginesConfig{Codex: EngineItemConfig{Path: "/usr/local/bin/codex"}},
 	}
 	raw := cfg.EngineConfigRaw()
 	if raw == nil {
@@ -20,13 +20,9 @@ func TestEngineConfigRaw_Codex(t *testing.T) {
 }
 
 func TestEngineConfigRaw_CodexEmptyPath(t *testing.T) {
-	cfg := BeeConfig{Engine: "codex"}
+	cfg := BeeConfig{Engine: EngineDefaultConfig{Default: "codex"}}
 	raw := cfg.EngineConfigRaw()
-	if raw == nil {
-		t.Fatal("expected non-nil raw config for codex engine with empty path")
-	}
-	path, _ := raw["path"].(string)
-	if path != "" {
-		t.Fatalf("expected empty path, got %q", path)
+	if raw != nil {
+		t.Fatalf("expected nil raw config for codex engine with empty path, got %v", raw)
 	}
 }

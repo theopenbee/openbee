@@ -44,19 +44,22 @@ type CmdMessages struct {
 type PromptMessages struct {
 	// Engine selection
 	EngineSelect       string `yaml:"engine_select"`
+	EngineDefault      string `yaml:"engine_default"`
+	EngineTimeoutBee    string `yaml:"engine_timeout_bee"`
+	EngineTimeoutWorker string `yaml:"engine_timeout_worker"`
 	OptionEngineClaude string `yaml:"option_engine_claude"`
 	OptionEngineCodex  string `yaml:"option_engine_codex"`
 	OptionEnginePi     string `yaml:"option_engine_pi"`
+	OptionEngineKimi   string `yaml:"option_engine_kimi"`
 	// Claude setup
 	ClaudeNotFound string `yaml:"claude_not_found"`
 	ClaudePath     string `yaml:"claude_path"`
-	ClaudeTimeout  string `yaml:"claude_timeout"`
 	// Codex setup
-	CodexPath    string `yaml:"codex_path"`
-	CodexTimeout string `yaml:"codex_timeout"`
+	CodexPath string `yaml:"codex_path"`
 	// Pi setup
-	PiPath    string `yaml:"pi_path"`
-	PiTimeout string `yaml:"pi_timeout"`
+	PiPath string `yaml:"pi_path"`
+	// Kimi setup
+	KimiPath string `yaml:"kimi_path"`
 	// Platform
 	PlatformSelect   string `yaml:"platform_select"`
 	PlatformFeishu   string `yaml:"platform_feishu"`
@@ -90,7 +93,6 @@ type PromptMessages struct {
 	ServerHost          string `yaml:"server_host"`
 	DebugMode           string `yaml:"debug_mode"`
 	DBPath              string `yaml:"db_path"`
-	FeederTimeout       string `yaml:"feeder_timeout"`
 	MaxConcurrentBee    string `yaml:"max_concurrent_bee"`
 	MessageDebounce     string `yaml:"message_debounce"`
 	FFprobePath         string `yaml:"ffprobe_path"`
@@ -237,6 +239,8 @@ type ConfigOutput struct {
 	CodexManualEntry        string `yaml:"codex_manual_entry"`
 	PiFound                 string `yaml:"pi_found"`                 // contains %s
 	PiManualEntry           string `yaml:"pi_manual_entry"`
+	KimiFound               string `yaml:"kimi_found"`               // contains %s
+	KimiManualEntry         string `yaml:"kimi_manual_entry"`
 	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
 	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
 	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s
@@ -277,6 +281,34 @@ type RuntimeMessages struct {
 	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
 	MCP             MCPRuntimeMessages        `yaml:"mcp"`
 	Department      DepartmentRuntimeMessages `yaml:"department"`
+	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
+	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
+}
+
+// EngineCommandMessages holds text sent to IM users by the /engine command handler.
+type EngineCommandMessages struct {
+	Usage           string `yaml:"usage"`
+	SwitchFailed    string `yaml:"switch_failed"`
+	DefaultSwitched string `yaml:"default_switched"` // contains %s (engine name)
+	WorkerNotFound  string `yaml:"worker_not_found"` // contains %s (worker name)
+	WorkerSwitched  string `yaml:"worker_switched"`  // contains %s, %s (worker, engine)
+	UnknownEngine   string `yaml:"unknown_engine"`   // contains %s, %s (engine, supported list)
+	BusyMessages    string `yaml:"busy_messages"`
+	BusyExecutions  string `yaml:"busy_executions"`
+	BusyTasks       string `yaml:"busy_tasks"`
+}
+
+// ClearCommandMessages holds text sent to IM users by the /clear command handler.
+type ClearCommandMessages struct {
+	Usage               string `yaml:"usage"`
+	WorkerNotFound      string `yaml:"worker_not_found"`       // contains %s (worker name)
+	WorkerDuplicate     string `yaml:"worker_duplicate"`        // contains %s, %s (name, id list)
+	NoContext           string `yaml:"no_context"`
+	LookupFailed        string `yaml:"lookup_failed"`
+	ConfirmAllWithTasks string `yaml:"confirm_all_with_tasks"`  // contains %s, %d (list, task count)
+	Cleared             string `yaml:"cleared"`                 // contains %s (agent/engine list)
+	ClearedWithTasks    string `yaml:"cleared_with_tasks"`      // contains %s, %d (list, cancelled count)
+	WorkerCleared       string `yaml:"worker_cleared"`          // contains %s, %s (worker name, engine)
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

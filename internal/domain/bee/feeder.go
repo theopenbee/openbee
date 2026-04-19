@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -54,13 +55,14 @@ type Feeder struct {
 	runner          ai.EngineAdapter
 	workDir         string
 	cfg             config.BeeConfig
+	engineCfg       *enginecfg.Store
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
@@ -69,6 +71,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		runner:       runner,
 		workDir:      workDir,
 		cfg:          cfg,
+		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
 	}
 	for _, o := range opts {
@@ -148,7 +151,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
+	// Snapshot the engine once so all session-context ops key off the same engine,
+	// even if /engine fires mid-execution.
+	engineName := f.engineCfg.Get()
+
+	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.failMessages(ctx, msgs, err.Error())
@@ -160,7 +167,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	// Pre-flight: ensures the session ID is visible before the process starts.
-	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
+	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, engineName); err != nil {
 		log.Error("pre-flight upsert bee session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 
@@ -198,16 +205,16 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Feeder.Timeout)
+	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Engine.Timeout.Bee)
 	defer cancel()
 
-	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		// Rollback the pre-flight record; process never started so no session was established.
 		if !resume {
-			if delErr := f.sessionStore.DeleteSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine()); delErr != nil {
+			if _, delErr := f.sessionStore.DeleteSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName); delErr != nil {
 				log.Error("rollback pre-flight session context", zap.String("sessionKey", sessionKey), zap.Error(delErr))
 			}
 		}
@@ -215,14 +222,14 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
+	if pidErr := f.execStore.UpdatePID(exec.ID, runRes.Process.PID()); pidErr != nil {
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	drainErr := f.waitBeeOutput(outputCh)
+	drainErr := f.waitBeeOutput(runRes.Output)
 
 	finalStatus := model.ExecStatusCompleted
-	resultMsg := f.runner.ExtractResult(logPath)
+	resultMsg := runRes.ExtractResult(logPath)
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
 		if resultMsg == "" {
@@ -242,7 +249,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// On resume, skip if the session was cleared mid-execution (concurrent clear wins).
 	upsert := true
 	if resume {
-		currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, f.cfg.EffectiveEngine())
+		currentID, checkErr := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
 		if checkErr == nil && currentID == "" {
 			log.Info("session cleared during bee execution, skipping context upsert",
 				zap.String("sessionKey", sessionKey))
@@ -250,7 +257,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, f.cfg.EffectiveEngine()); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, engineName); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}

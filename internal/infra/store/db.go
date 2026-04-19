@@ -322,6 +322,30 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             ON bee_env_configs(scope, scope_id);
     `,
 	},
+	{
+		version: 36,
+		name:    "add_engine_to_bee_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
+	},
+	{
+		version: 37,
+		name:    "create_bee_system_configs_table",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_system_configs (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    `,
+	},
+	{
+		version: 38,
+		name:    "seed_system_configs_defaults",
+		sql: `
+        INSERT OR IGNORE INTO bee_system_configs (key, value, updated_at)
+        VALUES ('default_engine', 'claude', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+    `,
+	},
 }
 
 type whereBuilder struct {

@@ -5,6 +5,13 @@
 ## [0.0.25] - 2026-04-16
 
 ### Added
+- Add Kimi agent
+- Add `/engine` and `/clear` commands
+- Add `engine` field to employees for specifying the AI agent per employee
+
+## [0.0.25] - 2026-04-16
+
+### Added
 - Add worker copy feature
 - Add `OPENBEE_LOG_LEVEL` environment variable to control log verbosity (supported levels: `debug`, `info`, `warn`, `error`; default: `info`)
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -24,10 +25,9 @@ type stubEngineAdapter struct{}
 func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
-func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
-	return nil, nil, nil
+func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
 }
-func (s *stubEngineAdapter) ExtractResult(_ string) string { return "" }
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Helper()
@@ -43,9 +43,9 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		&stubEngineAdapter{}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
@@ -242,9 +242,9 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		&stubEngineAdapter{}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
@@ -490,9 +490,9 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	ms := store.NewMessageStore(db)
 	mgr := worker.NewManager(
 		t.TempDir(),
-		config.BeeConfig{Claude: config.ClaudeConfig{Path: "claude"}},
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		&stubEngineAdapter{}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
@@ -1594,5 +1594,99 @@ func TestCallTool_ListOutboundMessages(t *testing.T) {
 	m2 := decodeResult(t, result2)
 	if m2["total"].(float64) != 1 {
 		t.Errorf("filtered total: want 1, got %v", m2["total"])
+	}
+}
+
+func TestCallTool_CreateWorker_WithEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "EngineBot",
+		"engine": "claude",
+	}))
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	w, ok := result.(model.Worker)
+	if !ok {
+		t.Fatalf("expected model.Worker, got %T", result)
+	}
+	if w.Engine != "claude" {
+		t.Errorf("expected engine claude, got %q", w.Engine)
+	}
+}
+
+func TestCallTool_CreateWorker_InvalidEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	_, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "EngineBot",
+		"engine": "not-a-real-engine",
+	}))
+	if err == nil {
+		t.Error("expected error for unknown engine, got nil")
+	}
+}
+
+func TestCallTool_UpdateWorker_WithEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "claude",
+	}))
+	if err != nil {
+		t.Fatalf("update_worker: %v", err)
+	}
+	updated, ok := result.(model.Worker)
+	if !ok {
+		t.Fatalf("expected model.Worker, got %T", result)
+	}
+	if updated.Engine != "claude" {
+		t.Errorf("expected engine claude, got %q", updated.Engine)
+	}
+}
+
+func TestCallTool_UpdateWorker_InvalidEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bot"}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	_, err = s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "not-a-real-engine",
+	}))
+	if err == nil {
+		t.Error("expected error for unknown engine, got nil")
+	}
+}
+
+func TestCallTool_UpdateWorker_ClearEngine(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+	created, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "Bot",
+		"engine": "claude",
+	}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "",
+	}))
+	if err != nil {
+		t.Fatalf("update_worker: %v", err)
+	}
+	updated := result.(model.Worker)
+	if updated.Engine != "" {
+		t.Errorf("expected engine cleared, got %q", updated.Engine)
 	}
 }

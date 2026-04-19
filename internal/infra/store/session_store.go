@@ -83,24 +83,73 @@ func (s *SessionStore) GetSessionContextForEngine(ctx context.Context, sessionKe
 }
 
 // DeleteSessionContextForEngine removes one session context row for
-// (sessionKey, agentID, engine). Deleting a non-existent row is not an error.
-func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error {
+// (sessionKey, agentID, engine). Returns (true, nil) if a row was deleted,
+// (false, nil) if the row did not exist, or (false, err) on DB error.
+func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error) {
 	engine = normalizeSessionEngine(engine)
-	_, err := s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM bee_session_contexts WHERE session_key = ? AND agent_id = ? AND engine = ?`,
 		sessionKey, agentID, engine,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
-// ClearSessionContexts deletes all session_contexts rows for sessionKey,
-// resetting session state for bee and all workers under that key across engines.
-func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_session_contexts WHERE session_key = ?`,
-		sessionKey,
-	)
-	return err
+// activeWorkerSessionContextsFilter matches session context rows for non-bee agents
+// whose engine is currently "active":
+//   - worker has explicit engine → row matches that engine
+//   - worker has no engine set → row matches the bee default (first ? param)
+//   - worker deleted (no row in bee_workers) → all their rows are considered orphans
+//
+// Callers must bind the bee default engine exactly once to the ? placeholder.
+const activeWorkerSessionContextsFilter = `
+	agent_id != 'bee'
+	AND (
+	      EXISTS (SELECT 1 FROM bee_workers w
+	              WHERE w.id = bee_session_contexts.agent_id AND w.engine != ''
+	                AND w.engine = bee_session_contexts.engine)
+	   OR EXISTS (SELECT 1 FROM bee_workers w
+	              WHERE w.id = bee_session_contexts.agent_id AND w.engine = ''
+	                AND bee_session_contexts.engine = ?)
+	   OR NOT EXISTS (SELECT 1 FROM bee_workers w WHERE w.id = bee_session_contexts.agent_id)
+	)`
+
+// ClearSessionContexts deletes session context rows for sessionKey, scoped to
+// each agent's currently active engine:
+//   - bee: only the specified beeEngine row is removed.
+//   - workers: only the row matching their configured engine (bee_workers.engine)
+//     is removed; workers with no engine set fall back to beeEngine.
+//   - deleted workers (absent from bee_workers): all their rows are removed as
+//     orphaned data.
+func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error {
+	beeEngine = normalizeSessionEngine(beeEngine)
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM bee_session_contexts
+		 WHERE session_key = ? AND agent_id = 'bee' AND engine = ?`,
+		sessionKey, beeEngine,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM bee_session_contexts
+		 WHERE session_key = ? AND `+activeWorkerSessionContextsFilter,
+		sessionKey, beeEngine,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // SessionAgent represents one agent's session context entry, enriched with
@@ -111,6 +160,24 @@ type SessionAgent struct {
 	Engine    string
 	Name      string // worker name, "bee", or "(deleted)"
 	UpdatedAt int64
+}
+
+// scanSessionAgents reads all rows into a SessionAgent slice, deriving AgentType from AgentID.
+func scanSessionAgents(rows *sql.Rows) ([]SessionAgent, error) {
+	var result []SessionAgent
+	for rows.Next() {
+		var a SessionAgent
+		if err := rows.Scan(&a.AgentID, &a.Engine, &a.UpdatedAt, &a.Name); err != nil {
+			return nil, err
+		}
+		if a.AgentID == BeeAgentID {
+			a.AgentType = BeeAgentType
+		} else {
+			a.AgentType = WorkerAgentType
+		}
+		result = append(result, a)
+	}
+	return result, rows.Err()
 }
 
 // ListSessionContexts returns all agent/engine session contexts for sessionKey,
@@ -130,24 +197,31 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 		return nil, err
 	}
 	defer rows.Close()
+	return scanSessionAgents(rows)
+}
 
-	var result []SessionAgent
-	for rows.Next() {
-		var a SessionAgent
-		if err := rows.Scan(&a.AgentID, &a.Engine, &a.UpdatedAt, &a.Name); err != nil {
-			return nil, err
-		}
-		if a.AgentID == BeeAgentID {
-			a.AgentType = BeeAgentType
-		} else {
-			a.AgentType = WorkerAgentType
-		}
-		result = append(result, a)
+// ListActiveSessionContexts returns only the session contexts that would be
+// cleared by ClearSessionContexts for the given beeEngine.
+func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]SessionAgent, error) {
+	beeEngine = normalizeSessionEngine(beeEngine)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT bee_session_contexts.agent_id, bee_session_contexts.engine, bee_session_contexts.updated_at,
+		       COALESCE(w.name, CASE WHEN bee_session_contexts.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
+		FROM bee_session_contexts
+		LEFT JOIN bee_workers w ON w.id = bee_session_contexts.agent_id
+		WHERE session_key = ?
+		  AND (
+		        (bee_session_contexts.agent_id = 'bee' AND bee_session_contexts.engine = ?)
+		     OR (`+activeWorkerSessionContextsFilter+`)
+		      )
+		ORDER BY bee_session_contexts.updated_at DESC`,
+		sessionKey, beeEngine, beeEngine,
+	)
+	if err != nil {
+		return nil, err
 	}
-	if result == nil {
-		result = []SessionAgent{}
-	}
-	return result, rows.Err()
+	defer rows.Close()
+	return scanSessionAgents(rows)
 }
 
 // DeleteWorkerSessionContext removes all session context rows for one worker

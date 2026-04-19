@@ -16,7 +16,7 @@ export function PaginationControls({ page, totalPages, onPageChange }: Paginatio
   return (
     <div className="flex items-center justify-between mt-4">
       <span className="text-sm text-muted-foreground">
-        {t("executions.pagination.page", { page, totalPages })}
+        {t("sessions.pagination.page", { page, totalPages })}
       </span>
       <div className="flex gap-2">
         <Button
@@ -25,14 +25,14 @@ export function PaginationControls({ page, totalPages, onPageChange }: Paginatio
           onClick={() => onPageChange(Math.max(1, page - 1))}
         >
           <ChevronLeft className="size-4" />
-          {t("executions.pagination.previous")}
+          {t("sessions.pagination.previous")}
         </Button>
         <Button
           variant="outline"
           disabled={page >= totalPages}
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         >
-          {t("executions.pagination.next")}
+          {t("sessions.pagination.next")}
           <ChevronRight className="size-4" />
         </Button>
       </div>

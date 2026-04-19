@@ -13,6 +13,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/bee"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -64,12 +65,12 @@ func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
 	m.mu.Unlock()
 	if m.err != nil {
-		return nil, nil, m.err
+		return ai.RunResult{}, m.err
 	}
 	var lines []ai.Output
 	if len(m.outputLines) > 0 {
@@ -82,10 +83,8 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 		ch <- l
 	}
 	close(ch)
-	return &mockProcess{}, ch, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
-
-func (m *mockBeeRunner) ExtractResult(_ string) string { return "" }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
@@ -99,10 +98,9 @@ func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 
 func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
-	cfg.Engine = engine
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg)
+	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(engine))
 }
 
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
@@ -433,9 +431,9 @@ func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	notifier := &mockFailureNotifier{}
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, bee.WithFailureNotifier(notifier))
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""), bee.WithFailureNotifier(notifier))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -485,9 +483,9 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -550,9 +548,9 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 3 // deliberately small
-	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg)
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -584,9 +582,7 @@ func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 
-func (r *callbackBeeRunner) ExtractResult(_ string) string { return "" }
-
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output, 1)
 	go func() {
 		r.fn()
@@ -596,7 +592,7 @@ func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions,
 		ch <- ai.Output{Type: ai.OutputDone}
 		close(ch)
 	}()
-	return &mockProcess{}, ch, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
@@ -607,8 +603,9 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	ws := store.NewWorkerStore(db)
 
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
-		Feeder: config.FeederConfig{Timeout: 5 * time.Second, MaxConcurrentBee: 5},
-	}, bee.WithWorkerDispatch(ws))
+		Engine: config.EngineDefaultConfig{Timeout: config.EngineTimeoutConfig{Bee: 5 * time.Second}},
+		Feeder: config.FeederConfig{MaxConcurrentBee: 5},
+	}, enginecfg.NewStore(""), bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -629,9 +626,9 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
 		bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -691,9 +688,9 @@ func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
 	}
 
 	cfg := config.BeeConfig{}
-	cfg.Feeder.Timeout = 5 * time.Second
+	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg,
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
 		bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

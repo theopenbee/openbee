@@ -2,11 +2,13 @@
   "nav": {
     "dashboard": "Dashboard",
     "workers": "Workers",
-    "executions": "Sessions",
-    "tasks": "Scheduled Tasks",
+    "sessions": "Sessions",
+    "tasks": "Scheduled",
     "departments": "Departments",
     "directory": "Directory",
-    "settings": "Env Variables"
+    "settings": "Env Variables",
+    "systemSettings": "Settings",
+    "systemConfig": "System Config"
   },
   "common": {
     "save": "Save",
@@ -71,6 +73,7 @@
       "name": "Name",
       "workDir": "Work Directory",
       "status": "Status",
+      "engine": "Engine",
       "activeTime": "Active Time",
       "actions": "Actions"
     },
@@ -80,6 +83,9 @@
       "copySuffix": "Copy",
       "sectionBasic": "Basic Info",
       "sectionConfig": "Configuration",
+      "engine": "AI Engine",
+      "engineHelper": "The AI agent engine this worker will use to execute tasks.",
+      "engineDefault": "Select engine",
       "name": "Name",
       "namePlaceholder": "e.g. sam",
       "nameHelper": "Used for identification",
@@ -94,6 +100,9 @@
       "memoryHelper": "Persistent context loaded into the worker at the start of every session.",
       "sectionDepartment": "Department",
       "departmentHelper": "Assign the worker to departments (optional)",
+      "searchDepartments": "Filter departments",
+      "noMatchingDepartments": "No matching departments",
+      "optionalSettings": "Optional settings",
       "sectionPermissions": "Permissions",
       "permissionsHelper": "When no permissions are selected, the Worker token is denied access to all system built-in tools"
     },
@@ -107,9 +116,15 @@
       "deleteWorkDir": "Also delete work directory",
       "confirmNameLabel": "Type {{name}} to go to the next step",
       "confirmNamePlaceholder": "Enter worker name"
+    },
+    "engines": {
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi",
+      "kimi": "Kimi"
     }
   },
-  "executions": {
+  "sessions": {
     "title": "Sessions",
     "noExecutions": "No sessions yet.",
     "viewSession": "View session {{id}}",
@@ -221,7 +236,7 @@
     "thinking": "Thinking"
   },
   "tasks": {
-    "title": "Scheduled tasks",
+    "title": "Scheduled",
     "summary_one": "{{count}} active task",
     "summary_other": "{{count}} active tasks",
     "columns": {
@@ -431,5 +446,13 @@
     "source": "Source",
     "noEffective": "No env variables configured for this worker.",
     "depEnvTitle": "Env Variables"
+  },
+  "systemSettings": {
+    "title": "Settings",
+    "engineSection": {
+      "title": "Default Engine",
+      "hint": "The default AI engine Bee uses for scheduling"
+    },
+    "updated": "Default engine updated"
   }
 }

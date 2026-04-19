@@ -13,8 +13,9 @@ server:
   host: "localhost"
   port: 8080
 bee:
-  claude:
-    path: "claude-custom"
+  engines:
+    claude:
+      path: "claude-custom"
 `)
 	f.Close()
 
@@ -26,8 +27,8 @@ bee:
 	if cfg.Bee.MCPBaseURL != "http://localhost:8080" {
 		t.Errorf("MCPBaseURL: want http://localhost:8080 got %q", cfg.Bee.MCPBaseURL)
 	}
-	if cfg.Bee.Claude.Path != "claude-custom" {
-		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Claude.Path)
+	if cfg.Bee.Engines.Claude.Path != "claude-custom" {
+		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Engines.Claude.Path)
 	}
 }
 
@@ -45,12 +46,12 @@ server:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Claude.Path != "claude" {
-		t.Errorf("Claude.Path default: want claude got %q", cfg.Bee.Claude.Path)
+	if cfg.Bee.Engines.Claude.Path != "claude" {
+		t.Errorf("Claude.Path default: want claude got %q", cfg.Bee.Engines.Claude.Path)
 	}
 }
 
-func TestBeeConfig_Defaults(t *testing.T) {
+func TestBeeConfig_EngineTimeoutSplitDefaults(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`
 server:
@@ -65,8 +66,11 @@ bee:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Feeder.Timeout != 5*time.Minute {
-		t.Errorf("default timeout: want 5m got %v", cfg.Bee.Feeder.Timeout)
+	if cfg.Bee.Engine.Timeout.Bee != 5*time.Minute {
+		t.Errorf("default engine.timeout.bee: want 5m got %v", cfg.Bee.Engine.Timeout.Bee)
+	}
+	if cfg.Bee.Engine.Timeout.Worker != 30*time.Minute {
+		t.Errorf("default engine.timeout.worker: want 30m got %v", cfg.Bee.Engine.Timeout.Worker)
 	}
 }
 
@@ -211,5 +215,93 @@ bee:
 	}
 	if cfg.Bee.MCP.TokenTTL != 4*time.Hour {
 		t.Errorf("TokenTTL explicit: want 4h got %v", cfg.Bee.MCP.TokenTTL)
+	}
+}
+
+func TestEngineItemConfig_EnvField(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`
+server:
+  port: 8080
+bee:
+  engines:
+    claude:
+      path: claude
+      env:
+        ANTHROPIC_BASE_URL: https://proxy.example.com
+        CUSTOM_KEY: "value with spaces"
+    pi:
+      path: pi
+      env:
+        PI_VAR: pi_value
+    kimi:
+      path: kimi
+    codex:
+      path: codex
+`)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if got := cfg.Bee.Engines.Claude.Env["ANTHROPIC_BASE_URL"]; got != "https://proxy.example.com" {
+		t.Errorf("Claude.Env[ANTHROPIC_BASE_URL]: want https://proxy.example.com got %q", got)
+	}
+	if got := cfg.Bee.Engines.Claude.Env["CUSTOM_KEY"]; got != "value with spaces" {
+		t.Errorf("Claude.Env[CUSTOM_KEY]: want 'value with spaces' got %q", got)
+	}
+	if got := cfg.Bee.Engines.Pi.Env["PI_VAR"]; got != "pi_value" {
+		t.Errorf("Pi.Env[PI_VAR]: want pi_value got %q", got)
+	}
+	if cfg.Bee.Engines.Kimi.Env != nil {
+		t.Errorf("Kimi.Env should be nil when not set, got %v", cfg.Bee.Engines.Kimi.Env)
+	}
+}
+
+func TestEngineConfigRawFor_IncludesEnv(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`
+server:
+  port: 8080
+bee:
+  engines:
+    claude:
+      path: my-claude
+      env:
+        MY_KEY: my_value
+    codex:
+      path: codex
+`)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	raw := cfg.Bee.EngineConfigRawFor("claude")
+	if raw == nil {
+		t.Fatal("EngineConfigRawFor(claude): want non-nil")
+	}
+	if got, _ := raw["path"].(string); got != "my-claude" {
+		t.Errorf("raw[path]: want my-claude got %q", got)
+	}
+	env, _ := raw["env"].(map[string]string)
+	if env["MY_KEY"] != "my_value" {
+		t.Errorf("raw[env][MY_KEY]: want my_value got %q", env["MY_KEY"])
+	}
+
+	// Engine with no env — raw["env"] must still be present (nil is fine for type assertion)
+	rawCodex := cfg.Bee.EngineConfigRawFor("codex")
+	if rawCodex == nil {
+		t.Fatal("EngineConfigRawFor(codex): want non-nil")
+	}
+	envCodex, _ := rawCodex["env"].(map[string]string)
+	if len(envCodex) != 0 {
+		t.Errorf("codex raw[env] should be empty, got %v", envCodex)
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
+	Engine           string `json:"engine"`
 	Description      string `json:"description"`
 	Memory           string `json:"memory"`
 	WorkDir          string `json:"work_dir"`
@@ -40,8 +41,14 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if err := h.manager.ValidateEngine(req.Engine); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             req.Name,
+		Engine:           req.Engine,
 		Description:      req.Description,
 		Memory:           req.Memory,
 		WorkDir:          req.WorkDir,
@@ -113,6 +120,7 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		Description      *string `json:"description"`
 		Memory           *string `json:"memory"`
 		PermissionScopes *string `json:"permission_scopes"`
+		Engine           *string `json:"engine"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -134,6 +142,14 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 			return
 		}
 		w.PermissionScopes = *req.PermissionScopes
+	}
+
+	if req.Engine != nil {
+		if err := h.manager.ValidateEngine(*req.Engine); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		w.Engine = *req.Engine
 	}
 
 	updated, err := h.workers.Update(w)

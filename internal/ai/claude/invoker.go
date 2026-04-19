@@ -11,15 +11,17 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// Invoker spawns Claude CLI processes. It is stateless and safe for concurrent use.
+// Invoker spawns Claude CLI processes. It is immutable after construction and safe for concurrent use.
 type Invoker struct {
 	binary  string
 	baseEnv []string
 }
 
 // NewInvoker creates an Invoker. openbeeURL is injected as OPENBEE_URL into subprocesses.
-func NewInvoker(binary, openbeeURL string) *Invoker {
-	return &Invoker{binary: binary, baseEnv: ai.BuildBaseEnv(openbeeURL)}
+// extraEnv entries are merged into the base environment at lowest priority.
+func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker {
+	base := ai.BuildBaseEnv(openbeeURL)
+	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}
 }
 
 type streamEvent struct {

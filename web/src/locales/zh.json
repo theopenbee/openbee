@@ -2,11 +2,13 @@
   "nav": {
     "dashboard": "仪表板",
     "workers": "员工",
-    "executions": "会话",
+    "sessions": "会话",
     "tasks": "定时任务",
     "departments": "部门",
     "directory": "通讯录",
-    "settings": "环境变量"
+    "settings": "环境变量",
+    "systemSettings": "系统设置",
+    "systemConfig": "系统配置"
   },
   "common": {
     "save": "保存",
@@ -71,6 +73,7 @@
       "name": "名称",
       "workDir": "工作目录",
       "status": "状态",
+      "engine": "引擎",
       "activeTime": "活跃时间",
       "actions": "操作"
     },
@@ -80,6 +83,9 @@
       "copySuffix": "副本",
       "sectionBasic": "基本信息",
       "sectionConfig": "配置",
+      "engine": "AI 引擎",
+      "engineHelper": "该员工执行任务所使用的 AI 引擎。",
+      "engineDefault": "选择引擎",
       "name": "名称",
       "namePlaceholder": "例如：sam",
       "nameHelper": "用于身份识别",
@@ -94,6 +100,9 @@
       "memoryHelper": "在每次会话开始时加载到员工中的持久化上下文。",
       "sectionDepartment": "部门",
       "departmentHelper": "将员工分配到所属部门（可选）",
+      "searchDepartments": "搜索部门",
+      "noMatchingDepartments": "没有匹配的部门",
+      "optionalSettings": "可选配置",
       "sectionPermissions": "权限配置",
       "permissionsHelper": "未勾选任何权限时，Worker token 禁止访问任何系统内置工具"
     },
@@ -107,9 +116,15 @@
       "deleteWorkDir": "同时删除工作目录",
       "confirmNameLabel": "输入 {{name}} 以进入下一步",
       "confirmNamePlaceholder": "输入员工名称"
+    },
+    "engines": {
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi",
+      "kimi": "Kimi"
     }
   },
-  "executions": {
+  "sessions": {
     "title": "会话记录",
     "noExecutions": "还没有会话记录。",
     "viewSession": "查看会话 {{id}}",
@@ -430,5 +445,13 @@
     "source": "来源",
     "noEffective": "该员工暂无任何环境变量配置。",
     "depEnvTitle": "环境变量"
+  },
+  "systemSettings": {
+    "title": "系统设置",
+    "engineSection": {
+      "title": "默认引擎",
+      "hint": "Bee 调度时使用的默认 AI 引擎"
+    },
+    "updated": "默认引擎已更新"
   }
 }

@@ -130,6 +130,7 @@ type workerBrief struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Engine      string `json:"engine"`
 }
 
 type ActiveTaskSummary struct {
@@ -189,7 +190,7 @@ func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (
 
 	briefs := make([]workerBrief, 0, len(workers))
 	for _, w := range workers {
-		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description})
+		briefs = append(briefs, workerBrief{ID: w.ID, Name: w.Name, Description: w.Description, Engine: w.Engine})
 	}
 
 	return pagedResult(briefs, total, page, pageSize), nil
@@ -239,6 +240,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 		Description      string `json:"description"`
 		Memory           string `json:"memory"`
 		WorkDir          string `json:"work_dir"`
+		Engine           string `json:"engine"`
 		DepartmentIDs    string `json:"department_ids"`
 		PermissionScopes string `json:"permission_scopes"`
 	}
@@ -248,6 +250,9 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	if params.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
+	if err := s.manager.ValidateEngine(params.Engine); err != nil {
+		return nil, err
+	}
 	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
 		return nil, err
 	}
@@ -256,6 +261,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 		Description:      params.Description,
 		Memory:           params.Memory,
 		WorkDir:          params.WorkDir,
+		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
 	})
 	if err != nil {
@@ -275,6 +281,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		Name             *string `json:"name"`
 		Description      *string `json:"description"`
 		Memory           *string `json:"memory"`
+		Engine           *string `json:"engine"`
 		DepartmentIDs    *string `json:"department_ids"`
 		PermissionScopes *string `json:"permission_scopes"`
 	}
@@ -288,7 +295,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.PermissionScopes != nil
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.Engine != nil || params.PermissionScopes != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
@@ -297,6 +304,12 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	}
 	if params.Memory != nil {
 		w.Memory = *params.Memory
+	}
+	if params.Engine != nil {
+		if err := s.manager.ValidateEngine(*params.Engine); err != nil {
+			return nil, err
+		}
+		w.Engine = *params.Engine
 	}
 	if params.PermissionScopes != nil {
 		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {

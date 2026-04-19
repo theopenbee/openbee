@@ -150,7 +150,7 @@ Most common commands for daily use:
 
 ```bash
 # List all workers
-openbee ctl worker list
+openbee ctl worker list [--name <name>]
 
 # Create a task and assign to a worker
 openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type immediate
@@ -161,8 +161,8 @@ message content
 EOF
 
 # Create/update/delete a worker
-openbee ctl worker create --name <name> [--description <desc>] [--department <id|name>]
-openbee ctl worker update <id> [--name <name>] [--description <desc>]
+openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--department <id|name>]
+openbee ctl worker update <id> [--name <name>] [--description <desc>] [--engine <engine>]
 openbee ctl worker delete <id>
 ```
 

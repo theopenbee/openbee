@@ -13,6 +13,20 @@ type EngineConfig struct {
 	Raw map[string]any
 }
 
+// PathOrDefault returns Raw["path"] when it's a non-empty string, else def.
+func (c EngineConfig) PathOrDefault(def string) string {
+	if path, _ := c.Raw["path"].(string); path != "" {
+		return path
+	}
+	return def
+}
+
+// ExtraEnv returns Raw["env"] as a map[string]string, or nil if absent / mistyped.
+func (c EngineConfig) ExtraEnv() map[string]string {
+	env, _ := c.Raw["env"].(map[string]string)
+	return env
+}
+
 // Factory creates an EngineAdapter from the supplied config.
 type Factory func(cfg EngineConfig) (EngineAdapter, error)
 

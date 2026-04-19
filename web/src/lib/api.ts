@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, AppConfig, Engine } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -52,6 +52,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  config: {
+    get: () => fetchAPI<AppConfig>("/config"),
+  },
   workers: {
     list: async (departmentId?: string) => {
       const qs = departmentId ? `?department_id=${departmentId}` : ""
@@ -61,6 +64,7 @@ export const api = {
     get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
     create: (data: {
       name: string
+      engine: Engine
       description: string
       memory?: string
       work_dir?: string
@@ -88,15 +92,16 @@ export const api = {
         `/executions?page=${page}&page_size=${pageSize}`
       )
     },
-    logs: async (id: string): Promise<string> => {
-      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
+    logs: async (id: string, since: number = 0): Promise<{ content: string; size: number; truncated: boolean }> => {
+      const qs = since > 0 ? `?since=${since}` : ""
+      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs${qs}`, {
         headers: { "Accept-Language": i18n.language || "en" },
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
         throw new Error(err.error || res.statusText)
       }
-      return res.text()
+      return res.json()
     },
   },
   sessions: {
@@ -179,5 +184,13 @@ export const api = {
         body: JSON.stringify({ value }),
       }),
     delete: (id: string) => fetchAPI(`/envs/${id}`, { method: "DELETE" }),
+  },
+  systemConfigs: {
+    get: () => fetchAPI<Record<string, string>>("/system-configs"),
+    set: (key: string, value: string) =>
+      fetchAPI<{ ok: boolean }>(`/system-configs/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
   },
 }

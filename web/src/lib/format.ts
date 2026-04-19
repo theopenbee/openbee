@@ -43,6 +43,10 @@ export function isActiveStatus(status: string) {
   return status === "running" || status === "pending"
 }
 
+export function formatEngineLabel(engine: string | null | undefined, t: (key: string) => string): string {
+  return engine ? t(`workers.engines.${engine}`) : "—"
+}
+
 export function isSameDay(left: number, right: number) {
   const leftDate = new Date(left)
   const rightDate = new Date(right)

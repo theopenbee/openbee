@@ -1,6 +1,7 @@
 package store
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -141,6 +142,49 @@ func TestWorkerStore_GetByName_DuplicateName_ReturnsEarliest(t *testing.T) {
 	}
 	if got.ID != first.ID {
 		t.Errorf("expected earliest worker %s, got %s", first.ID, got.ID)
+	}
+}
+
+func TestWorkerStore_EngineField(t *testing.T) {
+	dir := t.TempDir()
+	db, err := InitDB(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ws := NewWorkerStore(db)
+
+	w, err := ws.Create(model.Worker{
+		Name:    "test-worker",
+		WorkDir: dir,
+		Engine:  "codex",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Engine != "codex" {
+		t.Errorf("expected engine %q, got %q", "codex", w.Engine)
+	}
+
+	got, err := ws.GetByID(w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Engine != "codex" {
+		t.Errorf("after get: expected engine %q, got %q", "codex", got.Engine)
+	}
+
+	updated, err := ws.Update(model.Worker{
+		ID:      w.ID,
+		Name:    w.Name,
+		WorkDir: w.WorkDir,
+		Engine:  "pi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Engine != "pi" {
+		t.Errorf("after update: expected engine %q, got %q", "pi", updated.Engine)
 	}
 }
 

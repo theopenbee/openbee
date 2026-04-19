@@ -29,14 +29,7 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) (*Invoker
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
 	base := ai.BuildBaseEnv(openbeeURL)
-	for k, v := range extraEnv {
-		if v != "" {
-			base = append(base, k+"="+v)
-		}
-	}
-	// Re-clip so concurrent Run() appends cannot share the backing array.
-	base = base[:len(base):len(base)]
-	return &Invoker{binary: binary, baseEnv: base, sessionDir: sessionDir}, nil
+	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), sessionDir: sessionDir}, nil
 }
 
 type piAgentEnd struct {
