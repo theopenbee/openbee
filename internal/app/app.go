@@ -112,20 +112,17 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	// Initialize the default engine cache from DB, falling back to config.
+	enginecfg.Set(cfg.Bee.EffectiveEngine())
 	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
 	if dbErr != nil {
 		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))
-	}
-	if dbErr == nil && found {
+	} else if found {
 		if engines[dbCfg.Value] != nil {
 			enginecfg.Set(dbCfg.Value)
 		} else {
 			logger.Warn("DB default engine is not enabled, falling back to config",
 				zap.String("db_value", dbCfg.Value))
-			enginecfg.Set(cfg.Bee.EffectiveEngine())
 		}
-	} else {
-		enginecfg.Set(cfg.Bee.EffectiveEngine())
 	}
 
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
@@ -156,7 +153,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, s.msgStore, s.execStore, s.taskStore)
-	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
+	clearCmdHandler := command.NewClearCommandHandler(context.Background(), s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, msgingest.WithCommandHandler(cmdChain))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(cmdChain))

@@ -157,24 +157,8 @@ type SessionAgent struct {
 	UpdatedAt int64
 }
 
-// ListSessionContexts returns all agent/engine session contexts for sessionKey,
-// ordered by updated_at DESC. Worker names are resolved via LEFT JOIN; deleted
-// workers appear as "(deleted)". AgentType is derived in Go from AgentID.
-func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey string) ([]SessionAgent, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT sc.agent_id, sc.engine, sc.updated_at,
-		       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
-		FROM bee_session_contexts sc
-		LEFT JOIN bee_workers w ON w.id = sc.agent_id
-		WHERE sc.session_key = ?
-		ORDER BY sc.updated_at DESC`,
-		sessionKey,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+// scanSessionAgents reads all rows into a SessionAgent slice, deriving AgentType from AgentID.
+func scanSessionAgents(rows *sql.Rows) ([]SessionAgent, error) {
 	var result []SessionAgent
 	for rows.Next() {
 		var a SessionAgent
@@ -192,6 +176,26 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 		result = []SessionAgent{}
 	}
 	return result, rows.Err()
+}
+
+// ListSessionContexts returns all agent/engine session contexts for sessionKey,
+// ordered by updated_at DESC. Worker names are resolved via LEFT JOIN; deleted
+// workers appear as "(deleted)". AgentType is derived in Go from AgentID.
+func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey string) ([]SessionAgent, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT sc.agent_id, sc.engine, sc.updated_at,
+		       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
+		FROM bee_session_contexts sc
+		LEFT JOIN bee_workers w ON w.id = sc.agent_id
+		WHERE sc.session_key = ?
+		ORDER BY sc.updated_at DESC`,
+		sessionKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSessionAgents(rows)
 }
 
 // ListActiveSessionContexts returns only the session contexts that would be
@@ -229,24 +233,7 @@ func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey
 		return nil, err
 	}
 	defer rows.Close()
-
-	var result []SessionAgent
-	for rows.Next() {
-		var a SessionAgent
-		if err := rows.Scan(&a.AgentID, &a.Engine, &a.UpdatedAt, &a.Name); err != nil {
-			return nil, err
-		}
-		if a.AgentID == BeeAgentID {
-			a.AgentType = BeeAgentType
-		} else {
-			a.AgentType = WorkerAgentType
-		}
-		result = append(result, a)
-	}
-	if result == nil {
-		result = []SessionAgent{}
-	}
-	return result, rows.Err()
+	return scanSessionAgents(rows)
 }
 
 // DeleteWorkerSessionContext removes all session context rows for one worker

@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -110,9 +112,10 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 }
 
 type busyCheck struct {
-	active bool
-	err    error
-	msg    string
+	active  bool
+	err     error
+	msg     string
+	warnMsg string
 }
 
 // checkBusy returns a non-empty message and true when any activity condition blocks engine switching.
@@ -126,22 +129,20 @@ func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
 
 	go func() {
 		active, err := h.msgChecker.HasActiveMessages(ctx)
-		msgCh <- busyCheck{active, err, m.BusyMessages}
+		msgCh <- busyCheck{active, err, m.BusyMessages, "engine command: failed to check active messages"}
 	}()
 	go func() {
 		active, err := h.execChecker.HasActiveExecutions(ctx)
-		execCh <- busyCheck{active, err, m.BusyExecutions}
+		execCh <- busyCheck{active, err, m.BusyExecutions, "engine command: failed to check active executions"}
 	}()
 	go func() {
 		active, err := h.taskChecker.HasActiveImmediateTasks(ctx)
-		taskCh <- busyCheck{active, err, m.BusyTasks}
+		taskCh <- busyCheck{active, err, m.BusyTasks, "engine command: failed to check active immediate tasks"}
 	}()
 
-	checks := []busyCheck{<-msgCh, <-execCh, <-taskCh}
-	warns := []string{"engine command: failed to check active messages", "engine command: failed to check active executions", "engine command: failed to check active immediate tasks"}
-	for i, c := range checks {
+	for _, c := range []busyCheck{<-msgCh, <-execCh, <-taskCh} {
 		if c.err != nil {
-			log.Warn(warns[i], zap.Error(c.err))
+			log.Warn(c.warnMsg, zap.Error(c.err))
 		} else if c.active {
 			return c.msg, true
 		}
@@ -169,7 +170,12 @@ func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo p
 	m := i18n.M.Runtime.EngineCommand
 	w, err := h.workers.GetByName(workerName)
 	if err != nil {
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
+		if errors.Is(err, sql.ErrNoRows) {
+			h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
+		} else {
+			log.Error("get worker by name for /engine", zap.String("name", workerName), zap.Error(err))
+			h.reply(ctx, replyTo, m.SwitchFailed)
+		}
 		return
 	}
 	w.Engine = engineName

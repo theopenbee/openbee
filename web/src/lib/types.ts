@@ -153,5 +153,4 @@ export interface EnvConfig {
 export interface AppConfig {
   language: string
   enabled_engines: Engine[]
-  default_engine: string
 }

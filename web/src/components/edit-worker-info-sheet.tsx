@@ -64,7 +64,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
       const workerChanged =
-        description !== (worker.description ?? "") || engine !== (worker.engine ?? DEFAULT_ENGINE)
+        description !== (worker.description ?? "") || engine !== (worker.engine ?? enabledEngines[0] ?? DEFAULT_ENGINE)
       const deptsChanged = newDeptIds !== originalDeptIds
 
       if (workerChanged) {

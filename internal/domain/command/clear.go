@@ -53,6 +53,7 @@ type ClearCommandHandler struct {
 }
 
 func NewClearCommandHandler(
+	ctx context.Context,
 	workers WorkerNameLookup,
 	sessions ClearSessionStore,
 	tasks ClearTaskStore,
@@ -69,22 +70,27 @@ func NewClearCommandHandler(
 		senders:      senders,
 		pending:      make(map[string]time.Time),
 	}
-	go h.sweepExpired()
+	go h.sweepExpired(ctx)
 	return h
 }
 
-func (h *ClearCommandHandler) sweepExpired() {
+func (h *ClearCommandHandler) sweepExpired(ctx context.Context) {
 	ticker := time.NewTicker(clearConfirmTimeout)
 	defer ticker.Stop()
-	for range ticker.C {
-		now := time.Now()
-		h.mu.Lock()
-		for k, expiresAt := range h.pending {
-			if now.After(expiresAt) {
-				delete(h.pending, k)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			h.mu.Lock()
+			for k, expiresAt := range h.pending {
+				if now.After(expiresAt) {
+					delete(h.pending, k)
+				}
 			}
+			h.mu.Unlock()
 		}
-		h.mu.Unlock()
 	}
 }
 
@@ -112,7 +118,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 
 	// Second /clear within timeout: confirmed execution after seeing running tasks warning.
 	if h.consumePending(pendingKey) {
-		h.executeClearAll(ctx, replyTo, sessionKey)
+		h.executeClearAll(ctx, replyTo, sessionKey, nil, nil)
 		return
 	}
 
@@ -140,20 +146,28 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	h.executeClearAll(ctx, replyTo, sessionKey)
+	h.executeClearAll(ctx, replyTo, sessionKey, agents, runningTasks)
 }
 
-func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platform.InboundMessage, sessionKey string) {
+// executeClearAll runs the full clear sequence. Pass prefetched agents and runningTasks
+// to avoid redundant DB reads; pass nil for either to fetch on demand (confirmation path).
+func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platform.InboundMessage, sessionKey string, agents []store.SessionAgent, runningTasks []model.Task) {
 	m := i18n.M.Runtime.ClearCommand
 
-	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
-	if err != nil {
-		log.Error("list session contexts for /clear exec", zap.Error(err))
+	if agents == nil {
+		var err error
+		agents, err = h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
+		if err != nil {
+			log.Error("list session contexts for /clear exec", zap.Error(err))
+		}
 	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
-	if err != nil {
-		log.Error("list running tasks for /clear exec", zap.Error(err))
+	if runningTasks == nil {
+		var err error
+		runningTasks, err = h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+		if err != nil {
+			log.Error("list running tasks for /clear exec", zap.Error(err))
+		}
 	}
 	for _, t := range runningTasks {
 		if t.ExecutionID != "" {

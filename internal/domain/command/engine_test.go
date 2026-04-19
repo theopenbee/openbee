@@ -2,6 +2,7 @@ package command_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -33,7 +34,7 @@ type fakeWorkerRepo struct {
 func (f *fakeWorkerRepo) GetByName(name string) (model.Worker, error) {
 	w, ok := f.workers[name]
 	if !ok {
-		return model.Worker{}, fmt.Errorf("worker not found")
+		return model.Worker{}, fmt.Errorf("get worker by name: %w", sql.ErrNoRows)
 	}
 	return w, nil
 }
