@@ -117,15 +117,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	sessionKey := replyTo.SessionKey
 	pendingKey := h.pendingKey(sessionKey, "/clear")
 
-	h.mu.Lock()
-	p, exists := h.pending[pendingKey]
-	isValid := exists && time.Now().Before(p.expiresAt)
-	if isValid {
-		delete(h.pending, pendingKey)
-	}
-	h.mu.Unlock()
-
-	if isValid {
+	if p := h.consumePending(pendingKey); p != nil {
 		agents, err := h.sessions.ListSessionContexts(ctx, sessionKey)
 		if err != nil {
 			log.Error("list session contexts for /clear confirm", zap.Error(err))
@@ -171,7 +163,10 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	runningTasks, _ := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+	if err != nil {
+		log.Error("list running tasks for /clear", zap.Error(err))
+	}
 	list := formatAgentList(agents)
 
 	var confirmMsg string
@@ -219,15 +214,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 
 	pendingKey := h.pendingKey(sessionKey, "/clear "+workerName)
 
-	h.mu.Lock()
-	p, exists := h.pending[pendingKey]
-	isValid := exists && time.Now().Before(p.expiresAt)
-	if isValid {
-		delete(h.pending, pendingKey)
-	}
-	h.mu.Unlock()
-
-	if isValid {
+	if p := h.consumePending(pendingKey); p != nil {
 		if err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, p.workerID, p.engine); err != nil {
 			log.Error("delete worker session context", zap.String("workerID", p.workerID), zap.Error(err))
 			h.reply(ctx, replyTo, m.NoContext)
@@ -259,6 +246,19 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 	return sessionKey + "::" + cmd
+}
+
+// consumePending atomically retrieves and removes a valid (non-expired) pending entry.
+// Returns nil if no valid entry exists.
+func (h *ClearCommandHandler) consumePending(key string) *pendingClear {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	p, exists := h.pending[key]
+	if !exists || !time.Now().Before(p.expiresAt) {
+		return nil
+	}
+	delete(h.pending, key)
+	return p
 }
 
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
