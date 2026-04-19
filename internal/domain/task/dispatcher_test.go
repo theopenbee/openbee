@@ -226,9 +226,13 @@ func (s *orderedMockSessionStore) UpsertSessionContext(ctx context.Context, sess
 }
 
 func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
+	return newTaskDispatcherWithEngine(mgr, eq, ss, "", opts...)
+}
+
+func newTaskDispatcherWithEngine(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, engine string, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, ss, eq, in, opts...)
+	d := task.New(mgr, ts, ss, eq, in, enginecfg.NewStore(engine), opts...)
 	return d, in, ts
 }
 
@@ -366,7 +370,7 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -416,8 +420,7 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted, Result: "resumed!"}}
-	enginecfg.Set("claude")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "claude")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -446,8 +449,7 @@ func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *test
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id"},
 	}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id", Status: model.ExecStatusCompleted, Result: "fresh!"}}
-	enginecfg.Set("codex")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "codex")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -520,8 +522,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	enginecfg.Set("codex")
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("codex"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -763,7 +764,7 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
 
 	in := make(chan task.DispatchTask, 8)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in)
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -843,7 +844,7 @@ func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -884,7 +885,7 @@ func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in)
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -921,7 +922,7 @@ func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
 	ss := newMockSessionStore()
 
 	ch := make(chan task.DispatchTask, 1)
-	d := task.New(mgr, ts, ss, execStore, ch)
+	d := task.New(mgr, ts, ss, execStore, ch, enginecfg.NewStore(""))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -969,7 +970,7 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 	taskStore := &mockTaskStore{}
 	sessionStore := newMockSessionStore()
 
-	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh)
+	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh, enginecfg.NewStore(""))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)
@@ -1144,8 +1145,7 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	// Engine name must match enginecfg.Set value so
 	// GetSessionContextForEngine returns the stored session ID.
 	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
-	enginecfg.Set("testengine")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "testengine")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1333,8 +1333,7 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
 
-	enginecfg.Set("claude")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss)
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "claude")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1376,8 +1375,7 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 		worker: model.Worker{ID: "w1", Engine: "pi"},
 	}
 	// System default is "kimi", but the worker is configured with "pi".
-	enginecfg.Set("kimi")
-	d, in, _ := newTaskDispatcher(mgr, eq, ss,
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "kimi",
 		task.WithWorkerLookup(lookup),
 	)
 

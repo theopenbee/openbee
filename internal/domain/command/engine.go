@@ -92,6 +92,7 @@ type EngineCommandHandler struct {
 	validator EngineValidator
 	senders   map[string]platform.PlatformSenderAdapter
 	busy      SystemBusyChecker
+	engineCfg *enginecfg.Store
 }
 
 func NewEngineCommandHandler(
@@ -100,6 +101,7 @@ func NewEngineCommandHandler(
 	senders map[string]platform.PlatformSenderAdapter,
 	validator EngineValidator,
 	busy SystemBusyChecker,
+	engineCfg *enginecfg.Store,
 ) *EngineCommandHandler {
 	return &EngineCommandHandler{
 		workers:   workers,
@@ -107,6 +109,7 @@ func NewEngineCommandHandler(
 		validator: validator,
 		senders:   senders,
 		busy:      busy,
+		engineCfg: engineCfg,
 	}
 }
 
@@ -187,7 +190,7 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 		h.reply(ctx, replyTo, m.SwitchFailed)
 		return
 	}
-	enginecfg.Set(engineName)
+	h.engineCfg.Set(engineName)
 	h.reply(ctx, replyTo, fmt.Sprintf(m.DefaultSwitched, engineName))
 }
 

@@ -108,20 +108,21 @@ func makeReplyTo() platform.InboundMessage {
 	}
 }
 
-func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler, *fakeSender, *fakeSysConfig) {
+func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler, *fakeSender, *fakeSysConfig, *enginecfg.Store) {
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
-	return h, sender, cfg
+	engineCfg := enginecfg.NewStore("")
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, engineCfg)
+	return h, sender, cfg, engineCfg
 }
 
 // --- tests ---
 
 func TestEngineCommand_NotACommand(t *testing.T) {
-	h, sender, _ := makeHandler(nil)
+	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "hello world", makeReplyTo())
 	if handled {
 		t.Error("should not handle non-command")
@@ -132,14 +133,14 @@ func TestEngineCommand_NotACommand(t *testing.T) {
 }
 
 func TestEngineCommand_SwitchBeeEngine(t *testing.T) {
-	enginecfg.Set("claude")
-	h, sender, cfg := makeHandler(nil)
+	h, sender, cfg, engineCfg := makeHandler(nil)
+	engineCfg.Set("claude")
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	if enginecfg.Get() != "codex" {
-		t.Errorf("expected enginecfg=codex, got %s", enginecfg.Get())
+	if engineCfg.Get() != "codex" {
+		t.Errorf("expected engineCfg=codex, got %s", engineCfg.Get())
 	}
 	if cfg.vals[model.SystemConfigKeyDefaultEngine] != "codex" {
 		t.Errorf("expected DB updated to codex, got %s", cfg.vals[model.SystemConfigKeyDefaultEngine])
@@ -154,7 +155,7 @@ func TestEngineCommand_SwitchBeeEngine(t *testing.T) {
 
 func TestEngineCommand_SwitchWorkerEngine(t *testing.T) {
 	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
-	h, sender, _ := makeHandler(workers)
+	h, sender, _, _ := makeHandler(workers)
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -165,7 +166,7 @@ func TestEngineCommand_SwitchWorkerEngine(t *testing.T) {
 }
 
 func TestEngineCommand_InvalidEngine(t *testing.T) {
-	h, sender, _ := makeHandler(nil)
+	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine xyz", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -180,7 +181,7 @@ func TestEngineCommand_InvalidEngine(t *testing.T) {
 }
 
 func TestEngineCommand_WorkerNotFound(t *testing.T) {
-	h, sender, _ := makeHandler(map[string]model.Worker{})
+	h, sender, _, _ := makeHandler(map[string]model.Worker{})
 	handled := h.HandleCommand(context.Background(), "/engine claude nobody", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -192,7 +193,7 @@ func TestEngineCommand_WorkerNotFound(t *testing.T) {
 }
 
 func TestEngineCommand_NoArgs(t *testing.T) {
-	h, sender, _ := makeHandler(nil)
+	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -204,21 +205,21 @@ func TestEngineCommand_NoArgs(t *testing.T) {
 }
 
 func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
-	enginecfg.Set("claude")
+	engineCfg := enginecfg.NewStore("claude")
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, engineCfg)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	// enginecfg must NOT be updated when DB write fails
-	if enginecfg.Get() != "claude" {
-		t.Errorf("expected enginecfg to remain claude, got %s", enginecfg.Get())
+	// engineCfg must NOT be updated when DB write fails
+	if engineCfg.Get() != "claude" {
+		t.Errorf("expected engineCfg to remain claude, got %s", engineCfg.Get())
 	}
 	want := "切换失败，请稍后重试"
 	if len(sender.sent) != 1 || sender.sent[0] != want {
@@ -233,7 +234,7 @@ func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
 	repo := &fakeWorkerRepo{workers: workers, updateErr: errors.New("update error")}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(notBusy, notBusy, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {
@@ -252,7 +253,7 @@ func TestEngineCommand_BusyMessages(t *testing.T) {
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(busyMsg, notBusy, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -271,7 +272,7 @@ func TestEngineCommand_BusyExecutions(t *testing.T) {
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(notBusy, busyExec, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -290,7 +291,7 @@ func TestEngineCommand_BusyTasks(t *testing.T) {
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(notBusy, notBusy, busyTask)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	if !handled {
@@ -310,7 +311,7 @@ func TestEngineCommand_BusyBlocksWorkerSwitch(t *testing.T) {
 	repo := &fakeWorkerRepo{workers: workers}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(busyMsg, notBusy, notBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	if !handled {
@@ -329,7 +330,7 @@ func TestEngineCommand_BusyDoesNotBlockUsage(t *testing.T) {
 	repo := &fakeWorkerRepo{}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	busy := command.NewSystemBusyChecker(allBusy, allBusy, allBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy)
+	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, busy, enginecfg.NewStore(""))
 
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
 	if !handled {

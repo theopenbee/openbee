@@ -10,16 +10,17 @@ import (
 )
 
 // DynamicAdapter wraps multiple EngineAdapters and routes each Run call to
-// whichever engine enginecfg.Get() returns at call time. The RunResult's
+// whichever engine cfg.Get() returns at call time. The RunResult's
 // ExtractResult closes over the engine that was actually picked, so callers
 // processing results asynchronously are immune to later /engine switches.
 type DynamicAdapter struct {
 	engines map[string]EngineAdapter
+	cfg     *enginecfg.Store
 }
 
-// NewDynamicAdapter constructs a DynamicAdapter from a map of engine adapters.
-func NewDynamicAdapter(engines map[string]EngineAdapter) *DynamicAdapter {
-	return &DynamicAdapter{engines: engines}
+// NewDynamicAdapter constructs a DynamicAdapter routing through cfg.
+func NewDynamicAdapter(engines map[string]EngineAdapter, cfg *enginecfg.Store) *DynamicAdapter {
+	return &DynamicAdapter{engines: engines, cfg: cfg}
 }
 
 // Prepare initialises every engine adapter for the given workDir concurrently.
@@ -38,7 +39,7 @@ func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
 }
 
 func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (RunResult, error) {
-	name := enginecfg.Get()
+	name := d.cfg.Get()
 	e, ok := d.engines[name]
 	if !ok {
 		return RunResult{}, fmt.Errorf("engine %q not available", name)

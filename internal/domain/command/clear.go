@@ -47,6 +47,7 @@ type ClearCommandHandler struct {
 	execStopper  ClearExecStopper
 	sessionClear ClearSessionDispatcher
 	senders      map[string]platform.PlatformSenderAdapter
+	engineCfg    *enginecfg.Store
 
 	mu      sync.Mutex
 	pending map[string]time.Time // key: sessionKey + "::" + normalized command → expiry
@@ -59,6 +60,7 @@ func NewClearCommandHandler(
 	execStopper ClearExecStopper,
 	sessionClear ClearSessionDispatcher,
 	senders map[string]platform.PlatformSenderAdapter,
+	engineCfg *enginecfg.Store,
 ) *ClearCommandHandler {
 	return &ClearCommandHandler{
 		workers:      workers,
@@ -67,6 +69,7 @@ func NewClearCommandHandler(
 		execStopper:  execStopper,
 		sessionClear: sessionClear,
 		senders:      senders,
+		engineCfg:    engineCfg,
 		pending:      make(map[string]time.Time),
 	}
 }
@@ -123,7 +126,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
+	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
 	if err != nil {
 		log.Error("list session contexts for /clear", zap.Error(err))
 	}
@@ -157,7 +160,7 @@ func (h *ClearCommandHandler) executeClearAll(ctx context.Context, replyTo platf
 
 	if agents == nil {
 		var err error
-		agents, err = h.sessions.ListActiveSessionContexts(ctx, sessionKey, enginecfg.Get())
+		agents, err = h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
 		if err != nil {
 			log.Error("list session contexts for /clear exec", zap.Error(err))
 		}
@@ -222,7 +225,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	w := workers[0]
 	activeEngine := w.Engine
 	if activeEngine == "" {
-		activeEngine = enginecfg.Get()
+		activeEngine = h.engineCfg.Get()
 	}
 
 	deleted, err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)

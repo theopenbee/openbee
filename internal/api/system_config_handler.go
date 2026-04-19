@@ -22,10 +22,11 @@ type engineValidatorForSys interface {
 type SystemConfigHandler struct {
 	store     sysConfigStore
 	validator engineValidatorForSys
+	engineCfg *enginecfg.Store
 }
 
-func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys) *SystemConfigHandler {
-	return &SystemConfigHandler{store: store, validator: validator}
+func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store) *SystemConfigHandler {
+	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg}
 }
 
 // Get returns all known system config keys as a JSON object.
@@ -68,6 +69,6 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	enginecfg.Set(req.Value)
+	h.engineCfg.Set(req.Value)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

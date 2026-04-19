@@ -30,8 +30,9 @@ type Manager struct {
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	engines    map[string]ai.EngineAdapter
-	envService *env.Service
+	engines        map[string]ai.EngineAdapter
+	engineCfg      *enginecfg.Store
+	envService     *env.Service
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -43,6 +44,7 @@ func NewManager(
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
 	engines map[string]ai.EngineAdapter,
+	engineCfg *enginecfg.Store,
 	envService *env.Service,
 ) *Manager {
 	return &Manager{
@@ -53,12 +55,13 @@ func NewManager(
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
+		engineCfg:       engineCfg,
 		envService:      envService,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
 
-// resolveEngine returns the EngineAdapter for w, falling back to the enginecfg default if w.Engine is empty or unknown.
+// resolveEngine returns the EngineAdapter for w, falling back to the configured default if w.Engine is empty or unknown.
 func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
@@ -67,7 +70,7 @@ func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
 		log.Error("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
-	defaultEngine := enginecfg.Get()
+	defaultEngine := m.engineCfg.Get()
 	if e, ok := m.engines[defaultEngine]; ok {
 		return e, nil
 	}

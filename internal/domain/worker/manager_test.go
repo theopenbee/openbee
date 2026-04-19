@@ -34,7 +34,6 @@ func (p *mockProcess) Stop() error { return nil }
 
 func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
 	t.Helper()
-	enginecfg.Set(defaultEngine)
 	dir := t.TempDir()
 	db, err := store.InitDB(filepath.Join(dir, "test.db"))
 	if err != nil {
@@ -58,6 +57,7 @@ func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEn
 		workerStore:     ws,
 		executionStore:  es,
 		engines:         engines,
+		engineCfg:       enginecfg.NewStore(defaultEngine),
 		envService:      envSvc,
 		activeProcesses: make(map[string]ai.Process),
 	}

@@ -55,13 +55,14 @@ type Feeder struct {
 	runner          ai.EngineAdapter
 	workDir         string
 	cfg             config.BeeConfig
+	engineCfg       *enginecfg.Store
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
@@ -70,6 +71,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		runner:       runner,
 		workDir:      workDir,
 		cfg:          cfg,
+		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
 	}
 	for _, o := range opts {
@@ -152,7 +154,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	// Snapshot the engine once so all session-context ops key off the same engine,
 	// even if /engine fires mid-execution. Result extraction is already engine-bound
 	// via RunResult.ExtractResult below.
-	engineName := enginecfg.Get()
+	engineName := f.engineCfg.Get()
 
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
 	if err != nil {

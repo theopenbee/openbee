@@ -55,20 +55,21 @@ func (f *fakeEngineValidatorForSys) ValidateEngine(name string) error {
 	return fmt.Errorf("engine %q not enabled", name)
 }
 
-func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) *gin.Engine {
+func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store) {
 	gin.SetMode(gin.TestMode)
-	h := NewSystemConfigHandler(store, validator)
+	cfg := enginecfg.NewStore("")
+	h := NewSystemConfigHandler(store, validator, cfg)
 	r := gin.New()
 	api := r.Group("/api")
 	api.GET("/system-configs", h.Get)
 	api.PUT("/system-configs/:key", h.Set)
-	return r
+	return r, cfg
 }
 
 // --- tests ---
 
 func TestSystemConfigHandler_Get_Empty(t *testing.T) {
-	router := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
+	router, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
@@ -88,7 +89,7 @@ func TestSystemConfigHandler_Get_Empty(t *testing.T) {
 
 func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
-	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
@@ -109,7 +110,7 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router := newSysConfigRouter(store, validator)
+	router, cfg := newSysConfigRouter(store, validator)
 
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
@@ -123,15 +124,14 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	if store.vals[model.SystemConfigKeyDefaultEngine] != "claude" {
 		t.Errorf("expected store to have claude, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
 	}
-	if got := enginecfg.Get(); got != "claude" {
-		t.Errorf("enginecfg cache not updated: got %q", got)
+	if got := cfg.Get(); got != "claude" {
+		t.Errorf("engineCfg not updated: got %q", got)
 	}
-	t.Cleanup(func() { enginecfg.Set("") })
 }
 
 func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
-	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": ""})
 	w := httptest.NewRecorder()
@@ -145,13 +145,12 @@ func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
 	if store.vals[model.SystemConfigKeyDefaultEngine] != "" {
 		t.Errorf("expected store to have empty value, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
 	}
-	t.Cleanup(func() { enginecfg.Set("") })
 }
 
 func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router := newSysConfigRouter(store, validator)
+	router, _ := newSysConfigRouter(store, validator)
 
 	body, _ := json.Marshal(map[string]string{"value": "unknown-engine"})
 	w := httptest.NewRecorder()
@@ -165,7 +164,7 @@ func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 }
 
 func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
-	router := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
+	router, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": "something"})
 	w := httptest.NewRecorder()
@@ -180,7 +179,7 @@ func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
 
 func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
 	store := &fakeSysConfigStore{err: errors.New("db down")}
-	router := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
 	router.ServeHTTP(w, req)
@@ -192,7 +191,7 @@ func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
 func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	store := &fakeSysConfigStore{err: errors.New("db down")}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router := newSysConfigRouter(store, validator)
+	router, _ := newSysConfigRouter(store, validator)
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))

@@ -83,6 +83,7 @@ type TaskDispatcher struct {
 	taskStore       TaskStore                     // persists task-to-execution mapping and state
 	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
 	execStore       ExecutionQuerier              // queries execution state by ID
+	engineCfg       *enginecfg.Store              // resolves the current default engine
 	failureNotifier FailureNotifier               // sends failure notifications (optional)
 	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
 	inCh            <-chan DispatchTask           // inbound task channel
@@ -94,12 +95,13 @@ type TaskDispatcher struct {
 }
 
 // New constructs a TaskDispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, opts ...Option) *TaskDispatcher {
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, engineCfg *enginecfg.Store, opts ...Option) *TaskDispatcher {
 	d := &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
 		execStore:    execStore,
+		engineCfg:    engineCfg,
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
@@ -183,7 +185,7 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	// Clear DB synchronously so feeder can detect the clear after bee exits.
-	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, enginecfg.Get()); err != nil {
+	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineCfg.Get()); err != nil {
 		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 	// Signal Run loop to clear in-memory queues.
@@ -312,15 +314,15 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 		if err != nil {
 			log.Warn("worker lookup failed, falling back to default engine",
 				zap.String("workerID", workerID), zap.Error(err))
-			return enginecfg.Get(), nil
+			return d.engineCfg.Get(), nil
 		}
 		engine := w.Engine
 		if engine == "" {
-			engine = enginecfg.Get()
+			engine = d.engineCfg.Get()
 		}
 		return engine, &w
 	}
-	return enginecfg.Get(), nil
+	return d.engineCfg.Get(), nil
 }
 
 // executeWithHint builds the skill hint + persona and starts a fresh execution.

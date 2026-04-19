@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -44,7 +45,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
@@ -243,7 +244,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
@@ -491,7 +492,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
