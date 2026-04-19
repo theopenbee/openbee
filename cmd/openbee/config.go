@@ -745,7 +745,6 @@ func handleSurveyErr(err error) error {
 
 type engineMapping struct{ name, label string }
 
-// engineMappings is the canonical list of engines for the config wizard.
 // Add new engines here; engineLabel and engineName derive from this single source.
 func engineMappings() []engineMapping {
 	return []engineMapping{

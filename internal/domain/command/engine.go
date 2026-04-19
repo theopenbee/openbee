@@ -42,7 +42,6 @@ type EngineCommandHandler struct {
 	senders   map[string]platform.PlatformSenderAdapter
 }
 
-// NewEngineCommandHandler constructs an EngineCommandHandler.
 func NewEngineCommandHandler(
 	workers WorkerRepository,
 	sysCfg SystemConfigWriter,
