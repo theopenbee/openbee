@@ -47,7 +47,7 @@ function TurnPips({ executions }: { executions: WorkerExecution[] }) {
   )
 }
 
-export function Executions() {
+export function Sessions() {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const { data, error, isLoading } = useExecutions(page, PAGE_SIZE)
