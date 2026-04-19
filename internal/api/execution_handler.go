@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -99,7 +100,18 @@ func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	content, err := h.executions.ReadLog(id)
+
+	var since int64
+	if raw := c.Query("since"); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid since parameter"})
+			return
+		}
+		since = n
+	}
+
+	slice, err := h.executions.ReadLogSince(id, since)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -107,5 +119,9 @@ func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 	if exec.Status == model.ExecStatusCompleted || exec.Status == model.ExecStatusFailed {
 		c.Header("Cache-Control", "public, max-age=3600")
 	}
-	c.String(http.StatusOK, content)
+	c.JSON(http.StatusOK, gin.H{
+		"content":   slice.Content,
+		"size":      slice.Size,
+		"truncated": slice.Truncated,
+	})
 }

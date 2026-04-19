@@ -92,15 +92,16 @@ export const api = {
         `/executions?page=${page}&page_size=${pageSize}`
       )
     },
-    logs: async (id: string): Promise<string> => {
-      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs`, {
+    logs: async (id: string, since: number = 0): Promise<{ content: string; size: number; truncated: boolean }> => {
+      const qs = since > 0 ? `?since=${since}` : ""
+      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs${qs}`, {
         headers: { "Accept-Language": i18n.language || "en" },
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
         throw new Error(err.error || res.statusText)
       }
-      return res.text()
+      return res.json()
     },
   },
   sessions: {

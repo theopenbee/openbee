@@ -469,20 +469,19 @@ export function LogViewer({
 
     const fetchLogs = async () => {
       try {
-        const content = await api.executions.logs(executionId)
+        const { content, size, truncated } = await api.executions.logs(executionId, parsedLengthRef.current)
         if (disposed) return
 
         const flushTail = !isActiveStatus(status)
-        if (content.length < parsedLengthRef.current) {
+        if (truncated) {
           rebuildEntries(content, flushTail)
-          parsedLengthRef.current = content.length
+          parsedLengthRef.current = size
           return
         }
 
-        if (content.length > parsedLengthRef.current) {
-          const chunk = content.slice(parsedLengthRef.current)
-          parsedLengthRef.current = content.length
-          consumeChunk(chunk, flushTail)
+        if (content.length > 0) {
+          parsedLengthRef.current = size
+          consumeChunk(content, flushTail)
           return
         }
 
