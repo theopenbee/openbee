@@ -295,7 +295,7 @@ func TestSessionStore_DeleteSessionContextForEngine_Basic(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "claude") //nolint:errcheck
 	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "codex")   //nolint:errcheck
 
-	if err := ss.DeleteSessionContextForEngine(ctx, "sk", "worker-1", "codex"); err != nil {
+	if _, err := ss.DeleteSessionContextForEngine(ctx, "sk", "worker-1", "codex"); err != nil {
 		t.Fatalf("delete by engine: %v", err)
 	}
 

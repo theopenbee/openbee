@@ -83,14 +83,19 @@ func (s *SessionStore) GetSessionContextForEngine(ctx context.Context, sessionKe
 }
 
 // DeleteSessionContextForEngine removes one session context row for
-// (sessionKey, agentID, engine). Deleting a non-existent row is not an error.
-func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error {
+// (sessionKey, agentID, engine). Returns (true, nil) if a row was deleted,
+// (false, nil) if the row did not exist, or (false, err) on DB error.
+func (s *SessionStore) DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error) {
 	engine = normalizeSessionEngine(engine)
-	_, err := s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM bee_session_contexts WHERE session_key = ? AND agent_id = ? AND engine = ?`,
 		sessionKey, agentID, engine,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // ClearSessionContexts deletes session context rows for sessionKey, scoped to

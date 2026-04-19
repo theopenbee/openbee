@@ -109,23 +109,42 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 	return true
 }
 
+type busyCheck struct {
+	active bool
+	err    error
+	msg    string
+}
+
 // checkBusy returns a non-empty message and true when any activity condition blocks engine switching.
+// All three checks run concurrently; results are evaluated in priority order.
 func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
 	m := i18n.M.Runtime.EngineCommand
-	if active, err := h.msgChecker.HasActiveMessages(ctx); err != nil {
-		log.Warn("engine command: failed to check active messages", zap.Error(err))
-	} else if active {
-		return m.BusyMessages, true
-	}
-	if active, err := h.execChecker.HasActiveExecutions(ctx); err != nil {
-		log.Warn("engine command: failed to check active executions", zap.Error(err))
-	} else if active {
-		return m.BusyExecutions, true
-	}
-	if active, err := h.taskChecker.HasActiveImmediateTasks(ctx); err != nil {
-		log.Warn("engine command: failed to check active immediate tasks", zap.Error(err))
-	} else if active {
-		return m.BusyTasks, true
+
+	msgCh := make(chan busyCheck, 1)
+	execCh := make(chan busyCheck, 1)
+	taskCh := make(chan busyCheck, 1)
+
+	go func() {
+		active, err := h.msgChecker.HasActiveMessages(ctx)
+		msgCh <- busyCheck{active, err, m.BusyMessages}
+	}()
+	go func() {
+		active, err := h.execChecker.HasActiveExecutions(ctx)
+		execCh <- busyCheck{active, err, m.BusyExecutions}
+	}()
+	go func() {
+		active, err := h.taskChecker.HasActiveImmediateTasks(ctx)
+		taskCh <- busyCheck{active, err, m.BusyTasks}
+	}()
+
+	checks := []busyCheck{<-msgCh, <-execCh, <-taskCh}
+	warns := []string{"engine command: failed to check active messages", "engine command: failed to check active executions", "engine command: failed to check active immediate tasks"}
+	for i, c := range checks {
+		if c.err != nil {
+			log.Warn(warns[i], zap.Error(c.err))
+		} else if c.active {
+			return c.msg, true
+		}
 	}
 	return "", false
 }

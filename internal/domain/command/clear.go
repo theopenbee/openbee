@@ -24,8 +24,7 @@ type WorkerNameLookup interface {
 
 type ClearSessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
-	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
-	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
+	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
 }
 
 type ClearTaskStore interface {
@@ -211,18 +210,13 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		activeEngine = enginecfg.Get()
 	}
 
-	sessionID, err := h.sessions.GetSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
+	deleted, err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
 	if err != nil {
-		log.Error("get session context for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
-	}
-	if sessionID == "" {
+		log.Error("delete worker session context", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
-
-	// No running tasks are cancelled for worker-specific clear, so execute directly.
-	if err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine); err != nil {
-		log.Error("delete worker session context", zap.String("workerID", w.ID), zap.Error(err))
+	if !deleted {
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}

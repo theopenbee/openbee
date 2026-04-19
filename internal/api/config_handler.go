@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
 type configResponse struct {
@@ -15,11 +16,10 @@ type configResponse struct {
 type ConfigHandler struct {
 	language       string
 	enabledEngines []string
-	defaultEngine  string
 }
 
-func NewConfigHandler(lang string, enabledEngines []string, defaultEngine string) *ConfigHandler {
-	return &ConfigHandler{language: lang, enabledEngines: enabledEngines, defaultEngine: defaultEngine}
+func NewConfigHandler(lang string, enabledEngines []string) *ConfigHandler {
+	return &ConfigHandler{language: lang, enabledEngines: enabledEngines}
 }
 
 func (h *ConfigHandler) Get(c *gin.Context) {
@@ -30,6 +30,6 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, configResponse{
 		Language:       lang,
 		EnabledEngines: h.enabledEngines,
-		DefaultEngine:  h.defaultEngine,
+		DefaultEngine:  enginecfg.Get(),
 	})
 }

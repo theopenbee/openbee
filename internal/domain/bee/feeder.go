@@ -212,7 +212,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		// Rollback the pre-flight record; process never started so no session was established.
 		if !resume {
-			if delErr := f.sessionStore.DeleteSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName); delErr != nil {
+			if _, delErr := f.sessionStore.DeleteSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName); delErr != nil {
 				log.Error("rollback pre-flight session context", zap.String("sessionKey", sessionKey), zap.Error(delErr))
 			}
 		}

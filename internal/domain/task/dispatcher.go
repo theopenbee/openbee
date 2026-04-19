@@ -57,7 +57,7 @@ type FailureNotifier interface {
 type SessionStore interface {
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
 	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
-	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) error
+	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
 	ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error
 }
 
@@ -360,7 +360,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if task.SessionKey != "" && task.WorkerID != "" {
-		if clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); clearErr != nil {
+		if _, clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); clearErr != nil {
 			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}

@@ -109,13 +109,14 @@ func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, a
 	s.data[newMockSessionRef(sessionKey, agentID, engine)] = sessionID
 	return nil
 }
-func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) error {
+func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ref := newMockSessionRef(sessionKey, agentID, engine)
+	_, existed := s.data[ref]
 	delete(s.data, ref)
 	s.deleted = append(s.deleted, ref)
-	return nil
+	return existed, nil
 }
 func (s *mockSessionStore) ClearSessionContexts(_ context.Context, sessionKey, _ string) error {
 	s.mu.Lock()
