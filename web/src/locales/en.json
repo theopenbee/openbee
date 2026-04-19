@@ -236,7 +236,7 @@
     "thinking": "Thinking"
   },
   "tasks": {
-    "title": "Scheduled tasks",
+    "title": "Scheduled",
     "summary_one": "{{count}} active task",
     "summary_other": "{{count}} active tasks",
     "columns": {
@@ -448,7 +448,7 @@
     "depEnvTitle": "Env Variables"
   },
   "systemSettings": {
-    "title": "System Settings",
+    "title": "Settings",
     "engineSection": {
       "title": "Default Engine",
       "hint": "The default AI engine Bee uses for scheduling"
