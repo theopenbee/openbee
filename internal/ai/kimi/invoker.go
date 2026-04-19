@@ -28,7 +28,7 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 func buildArgs(sessionID string) []string {
 	return []string{
 		"--session=" + sessionID,
-		"--yolo", // suppresses interactive tool-use confirmations
+		"--yolo",
 		"--output-format=stream-json",
 		"--print",
 	}

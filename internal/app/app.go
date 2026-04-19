@@ -153,7 +153,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, s.msgStore, s.execStore, s.taskStore)
-	clearCmdHandler := command.NewClearCommandHandler(context.Background(), s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
+	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, msgingest.WithCommandHandler(cmdChain))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(cmdChain))
@@ -165,6 +165,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sched.RecoverRunning(context.Background())
 
 	runners := []func(ctx context.Context){
+		func(ctx context.Context) { clearCmdHandler.Run(ctx) },
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
 		func(ctx context.Context) {

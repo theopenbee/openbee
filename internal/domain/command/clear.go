@@ -53,7 +53,6 @@ type ClearCommandHandler struct {
 }
 
 func NewClearCommandHandler(
-	ctx context.Context,
 	workers WorkerNameLookup,
 	sessions ClearSessionStore,
 	tasks ClearTaskStore,
@@ -61,7 +60,7 @@ func NewClearCommandHandler(
 	sessionClear ClearSessionDispatcher,
 	senders map[string]platform.PlatformSenderAdapter,
 ) *ClearCommandHandler {
-	h := &ClearCommandHandler{
+	return &ClearCommandHandler{
 		workers:      workers,
 		sessions:     sessions,
 		tasks:        tasks,
@@ -70,8 +69,10 @@ func NewClearCommandHandler(
 		senders:      senders,
 		pending:      make(map[string]time.Time),
 	}
-	go h.sweepExpired(ctx)
-	return h
+}
+
+func (h *ClearCommandHandler) Run(ctx context.Context) {
+	h.sweepExpired(ctx)
 }
 
 func (h *ClearCommandHandler) sweepExpired(ctx context.Context) {
