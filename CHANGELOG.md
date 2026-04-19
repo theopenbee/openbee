@@ -7,9 +7,6 @@
 - Add `/engine` and `/clear` commands
 - Add `engine` field to employees for specifying the AI agent per employee
 
-### Fixed
-- `/clear` command always replied "No session contexts to clear." because the session-context lookup SQL had an ambiguous `engine` reference after a LEFT JOIN and silently returned an empty list; the SQL now qualifies the ambiguous columns and DB lookup errors surface to the user instead of being swallowed.
-
 ## [0.0.25] - 2026-04-16
 
 ### Added
