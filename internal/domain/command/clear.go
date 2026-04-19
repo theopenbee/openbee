@@ -129,6 +129,8 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
 	if err != nil {
 		log.Error("list session contexts for /clear", zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
+		return
 	}
 	if len(agents) == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
@@ -138,6 +140,8 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
 	if err != nil {
 		log.Error("list running tasks for /clear", zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
+		return
 	}
 
 	// Only require confirmation when running tasks will be cancelled.

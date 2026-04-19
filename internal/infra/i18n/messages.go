@@ -304,6 +304,7 @@ type ClearCommandMessages struct {
 	WorkerNotFound      string `yaml:"worker_not_found"`       // contains %s (worker name)
 	WorkerDuplicate     string `yaml:"worker_duplicate"`        // contains %s, %s (name, id list)
 	NoContext           string `yaml:"no_context"`
+	LookupFailed        string `yaml:"lookup_failed"`
 	ConfirmAllWithTasks string `yaml:"confirm_all_with_tasks"`  // contains %s, %d (list, task count)
 	Cleared             string `yaml:"cleared"`                 // contains %s (agent/engine list)
 	ClearedWithTasks    string `yaml:"cleared_with_tasks"`      // contains %s, %d (list, cancelled count)

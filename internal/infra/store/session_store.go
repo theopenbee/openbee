@@ -211,10 +211,10 @@ func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey
 		LEFT JOIN bee_workers w ON w.id = bee_session_contexts.agent_id
 		WHERE session_key = ?
 		  AND (
-		        (agent_id = 'bee' AND engine = ?)
+		        (bee_session_contexts.agent_id = 'bee' AND bee_session_contexts.engine = ?)
 		     OR (`+activeWorkerSessionContextsFilter+`)
 		      )
-		ORDER BY updated_at DESC`,
+		ORDER BY bee_session_contexts.updated_at DESC`,
 		sessionKey, beeEngine, beeEngine,
 	)
 	if err != nil {

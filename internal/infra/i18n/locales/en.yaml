@@ -240,6 +240,7 @@ runtime:
     worker_not_found: "Worker %q not found"
     worker_duplicate: "Multiple workers named %q found:\n%s"
     no_context: "No session contexts to clear."
+    lookup_failed: "⚠️ Failed to look up session contexts. Please retry; if this persists, check server logs."
     confirm_all_with_tasks: "⚠️ Will clear session contexts: %s\nThis will also stop %d running task(s).\nSend /clear again within 30s to confirm."
     cleared: "✅ Cleared: %s"
     cleared_with_tasks: "✅ Cleared: %s. Cancelled %d task(s)."
