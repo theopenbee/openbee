@@ -282,6 +282,7 @@ type RuntimeMessages struct {
 	MCP             MCPRuntimeMessages        `yaml:"mcp"`
 	Department      DepartmentRuntimeMessages `yaml:"department"`
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
+	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -292,6 +293,20 @@ type EngineCommandMessages struct {
 	WorkerNotFound      string `yaml:"worker_not_found"`      // contains %s (worker name)
 	WorkerSwitched      string `yaml:"worker_switched"`       // contains %s, %s (worker, engine)
 	UnknownEngine       string `yaml:"unknown_engine"`        // contains %s, %s (engine, supported list)
+}
+
+// ClearCommandMessages holds text sent to IM users by the /clear command handler.
+type ClearCommandMessages struct {
+	Usage               string `yaml:"usage"`
+	WorkerNotFound      string `yaml:"worker_not_found"`       // contains %s (worker name)
+	WorkerDuplicate     string `yaml:"worker_duplicate"`        // contains %s, %s (name, id list)
+	NoContext           string `yaml:"no_context"`
+	ConfirmAll          string `yaml:"confirm_all"`             // contains %s (agent/engine list)
+	ConfirmAllWithTasks string `yaml:"confirm_all_with_tasks"`  // contains %s, %d (list, task count)
+	ConfirmWorker       string `yaml:"confirm_worker"`          // contains %s, %s, %s (worker name, engine, workerName for cmd)
+	Cleared             string `yaml:"cleared"`                 // contains %s (agent/engine list)
+	ClearedWithTasks    string `yaml:"cleared_with_tasks"`      // contains %s, %d (list, cancelled count)
+	WorkerCleared       string `yaml:"worker_cleared"`          // contains %s, %s (worker name, engine)
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.
