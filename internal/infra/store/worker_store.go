@@ -55,6 +55,21 @@ func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	return w, nil
 }
 
+// ListByName returns all workers whose name matches (case-insensitive).
+func (s *WorkerStore) ListByName(name string) ([]model.Worker, error) {
+	rows, err := s.db.Query(
+		`SELECT `+workerColumns+` FROM bee_workers
+		 WHERE LOWER(name) = LOWER(?)
+		 ORDER BY created_at ASC, ROWID ASC`,
+		name,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list workers by name: %w", err)
+	}
+	defer rows.Close()
+	return scanWorkers(rows)
+}
+
 // GetByName looks up a worker by name (case-insensitive for ASCII).
 // When names collide, the earliest-created worker is returned.
 func (s *WorkerStore) GetByName(name string) (model.Worker, error) {

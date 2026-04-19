@@ -12,3 +12,22 @@ import (
 type CommandHandler interface {
 	HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool
 }
+
+// ChainHandlers returns a CommandHandler that tries each handler in order,
+// returning true on the first match.
+func ChainHandlers(handlers ...CommandHandler) CommandHandler {
+	return &chainedHandler{handlers: handlers}
+}
+
+type chainedHandler struct {
+	handlers []CommandHandler
+}
+
+func (c *chainedHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
+	for _, h := range c.handlers {
+		if h.HandleCommand(ctx, content, replyTo) {
+			return true
+		}
+	}
+	return false
+}

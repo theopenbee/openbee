@@ -154,9 +154,12 @@ func BuildApp(cfg config.Config) (*App, error) {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
 
+	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr)
-	ingest, disp := buildPipeline(cfg.Bee.MessageDebounce, s, mgr, dispatchCh, failureNotifier, engineCmdHandler)
-	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(engineCmdHandler))
+	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform)
+	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler)
+	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, msgingest.WithCommandHandler(cmdChain))
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(cmdChain))
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 
@@ -270,20 +273,16 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 	return feeder, sched
 }
 
-func buildPipeline(
-	debounce time.Duration,
+func buildDispatcher(
 	s appStores,
 	mgr *worker.Manager,
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
-	cmdHandler msgingest.CommandHandler,
-) (*msgingest.Gateway, *task.TaskDispatcher) {
-	ingest := msgingest.New(s.msgStore, debounce, msgingest.WithCommandHandler(cmdHandler))
-	disp := task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
+) *task.TaskDispatcher {
+	return task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh,
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
 	)
-	return ingest, disp
 }
 
 func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, wxc config.WeixinConfig, mc config.MediaConfig) []platform.Platform {
