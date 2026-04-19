@@ -36,20 +36,16 @@ func (p *BeeProcess) Prepare(workDir string, opts ai.PrepareOptions) error {
 	return p.engine.Prepare(workDir, opts)
 }
 
-func (p *BeeProcess) ExtractResult(logPath string) string {
-	return p.engine.ExtractResult(logPath)
-}
-
 // Run injects a bee auth token then delegates to the engine.
-func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
+func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	token, err := auth.GenerateBeeToken(p.tokenSecret, p.tokenTTL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate bee token: %w", err)
+		return ai.RunResult{}, fmt.Errorf("generate bee token: %w", err)
 	}
 
 	extraEnv, err := p.envService.ResolveBeeEnv(defaultBeeID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve bee env: %w", err)
+		return ai.RunResult{}, fmt.Errorf("resolve bee env: %w", err)
 	}
 	opts.ExtraEnv = extraEnv
 	opts.APIKey = token

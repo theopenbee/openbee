@@ -30,12 +30,12 @@ func (a *kimiAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 }
 
 func (a *kimiAdapter) Run(ctx context.Context, workDir, prompt string,
-	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-}
-
-func (a *kimiAdapter) ExtractResult(logPath string) string {
-	return ExtractResultFromLog(logPath)
+	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
+	if err != nil {
+		return ai.RunResult{}, err
+	}
+	return ai.RunResult{Process: proc, Output: out, ExtractResult: ExtractResultFromLog}, nil
 }
 
 var _ ai.EngineAdapter = (*kimiAdapter)(nil)

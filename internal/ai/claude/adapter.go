@@ -39,10 +39,10 @@ func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
 }
 
 func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
-	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	return a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-}
-
-func (a *claudeAdapter) ExtractResult(logPath string) string {
-	return ExtractResultFromLog(logPath)
+	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
+	if err != nil {
+		return ai.RunResult{}, err
+	}
+	return ai.RunResult{Process: proc, Output: out, ExtractResult: ExtractResultFromLog}, nil
 }

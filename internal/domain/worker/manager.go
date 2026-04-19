@@ -200,7 +200,7 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
-	proc, outputCh, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
+	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
@@ -212,25 +212,25 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	}
 
 	m.mu.Lock()
-	m.activeProcesses[exec.ID] = proc
+	m.activeProcesses[exec.ID] = runRes.Process
 	m.mu.Unlock()
 
-	m.executionStore.UpdatePID(exec.ID, proc.PID())
-	go m.monitorExecution(exec, worker, engine, outputCh, cancel, logPath)
+	m.executionStore.UpdatePID(exec.ID, runRes.Process.PID())
+	go m.monitorExecution(exec, worker, runRes, cancel, logPath)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, outputCh <-chan ai.Output, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
 	defer cancel()
 
-	for out := range outputCh {
+	for out := range runRes.Output {
 		switch out.Type {
 		case ai.OutputDone:
-			result := engine.ExtractResult(logPath)
+			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 		case ai.OutputError:
-			result := engine.ExtractResult(logPath)
+			result := runRes.ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}

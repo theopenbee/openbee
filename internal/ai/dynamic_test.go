@@ -19,10 +19,12 @@ func (s *stubEngine) Prepare(workDir string, _ ai.PrepareOptions) error {
 	s.prepared = append(s.prepared, workDir)
 	return nil
 }
-func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
-	return nil, nil, errors.New(s.name + " run called")
+func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	name := s.name
+	return ai.RunResult{
+		ExtractResult: func(string) string { return name + "-result" },
+	}, errors.New(s.name + " run called")
 }
-func (s *stubEngine) ExtractResult(_ string) string { return s.name + "-result" }
 
 func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
 	a := &stubEngine{name: "a"}
@@ -42,38 +44,41 @@ func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
 	b := &stubEngine{name: "b"}
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b})
 
-	_, _, err := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
+	_, err := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
 	if err == nil || err.Error() != "a run called" {
 		t.Errorf("expected 'a run called', got %v", err)
 	}
 
 	enginecfg.Set("b")
-	_, _, err = d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
+	_, err = d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
 	if err == nil || err.Error() != "b run called" {
 		t.Errorf("expected 'b run called', got %v", err)
 	}
 }
 
-func TestDynamicAdapter_ExtractResultRoutesToCurrentEngine(t *testing.T) {
+// TestDynamicAdapter_RunBindsExtractResultToEngine verifies that the ExtractResult
+// returned by Run stays bound to the engine chosen at Run time, even when the
+// process-wide default engine switches before ExtractResult is invoked.
+func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
 	enginecfg.Set("a")
 	a := &stubEngine{name: "a"}
 	b := &stubEngine{name: "b"}
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b})
 
-	if got := d.ExtractResult("/log"); got != "a-result" {
-		t.Errorf("expected a-result, got %s", got)
-	}
+	res, _ := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
 
+	// Simulate /engine switch mid-execution.
 	enginecfg.Set("b")
-	if got := d.ExtractResult("/log"); got != "b-result" {
-		t.Errorf("expected b-result, got %s", got)
+
+	if got := res.ExtractResult("/log"); got != "a-result" {
+		t.Errorf("expected Run-time engine 'a' extractor; got %s", got)
 	}
 }
 
 func TestDynamicAdapter_RunUnknownEngine(t *testing.T) {
 	enginecfg.Set("missing")
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": &stubEngine{name: "a"}})
-	_, _, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
+	_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
 	if err == nil {
 		t.Error("expected error for unknown engine")
 	}

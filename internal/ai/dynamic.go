@@ -9,8 +9,10 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
-// DynamicAdapter wraps multiple EngineAdapters and routes each Run/ExtractResult
-// call to whichever engine enginecfg.Get() returns at call time.
+// DynamicAdapter wraps multiple EngineAdapters and routes each Run call to
+// whichever engine enginecfg.Get() returns at call time. The RunResult's
+// ExtractResult closes over the engine that was actually picked, so callers
+// processing results asynchronously are immune to later /engine switches.
 type DynamicAdapter struct {
 	engines map[string]EngineAdapter
 }
@@ -35,31 +37,11 @@ func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
 	return g.Wait()
 }
 
-func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (Process, <-chan Output, error) {
+func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (RunResult, error) {
 	name := enginecfg.Get()
 	e, ok := d.engines[name]
 	if !ok {
-		return nil, nil, fmt.Errorf("engine %q not available", name)
+		return RunResult{}, fmt.Errorf("engine %q not available", name)
 	}
 	return e.Run(ctx, workDir, prompt, opts, logPath)
-}
-
-func (d *DynamicAdapter) ExtractResult(logPath string) string {
-	name := enginecfg.Get()
-	e, ok := d.engines[name]
-	if !ok {
-		return ""
-	}
-	return e.ExtractResult(logPath)
-}
-
-// ExtractResultFor extracts the result using the named engine adapter.
-// Use this when the engine was snapshotted at Run time to avoid a TOCTOU race
-// if the default engine changes between Run and ExtractResult.
-func (d *DynamicAdapter) ExtractResultFor(name, logPath string) string {
-	e, ok := d.engines[name]
-	if !ok {
-		return ""
-	}
-	return e.ExtractResult(logPath)
 }

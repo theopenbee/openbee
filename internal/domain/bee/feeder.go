@@ -149,8 +149,9 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	// Snapshot the engine once so all session-context ops and ExtractResult use the same engine,
-	// even if /engine fires mid-execution.
+	// Snapshot the engine once so all session-context ops key off the same engine,
+	// even if /engine fires mid-execution. Result extraction is already engine-bound
+	// via RunResult.ExtractResult below.
 	engineName := enginecfg.Get()
 
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
@@ -206,7 +207,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Engine.Timeout.Bee)
 	defer cancel()
 
-	proc, outputCh, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -220,14 +221,14 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	if pidErr := f.execStore.UpdatePID(exec.ID, proc.PID()); pidErr != nil {
+	if pidErr := f.execStore.UpdatePID(exec.ID, runRes.Process.PID()); pidErr != nil {
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	drainErr := f.waitBeeOutput(outputCh)
+	drainErr := f.waitBeeOutput(runRes.Output)
 
 	finalStatus := model.ExecStatusCompleted
-	resultMsg := f.extractResult(engineName, logPath)
+	resultMsg := runRes.ExtractResult(logPath)
 	if drainErr != nil {
 		finalStatus = model.ExecStatusFailed
 		if resultMsg == "" {
@@ -263,15 +264,6 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
-}
-
-// extractResult extracts the result using the engine snapshotted at Run time if the runner
-// supports it (EngineResultExtractor), or falls back to ExtractResult on the current engine.
-func (f *Feeder) extractResult(engineName, logPath string) string {
-	if extractor, ok := f.runner.(ai.EngineResultExtractor); ok {
-		return extractor.ExtractResultFor(engineName, logPath)
-	}
-	return f.runner.ExtractResult(logPath)
 }
 
 func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, reason string) {

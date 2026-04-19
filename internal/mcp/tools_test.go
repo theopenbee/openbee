@@ -24,10 +24,9 @@ type stubEngineAdapter struct{}
 func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
-func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
-	return nil, nil, nil
+func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
 }
-func (s *stubEngineAdapter) ExtractResult(_ string) string { return "" }
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Helper()

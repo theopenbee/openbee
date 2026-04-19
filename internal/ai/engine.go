@@ -68,11 +68,14 @@ type Process interface {
 	Stop() error
 }
 
-// EngineResultExtractor is an optional extension of EngineAdapter for adapters
-// that can extract a result for a specific named engine (e.g. DynamicAdapter).
-// Use a type-assertion to check whether the runner supports this.
-type EngineResultExtractor interface {
-	ExtractResultFor(engine, logPath string) string
+// RunResult is the handle returned from EngineAdapter.Run. ExtractResult is
+// bound to the concrete engine chosen at Run time, so callers collecting
+// results asynchronously see the same engine even if DynamicAdapter's
+// routing target changes mid-execution.
+type RunResult struct {
+	Process       Process
+	Output        <-chan Output
+	ExtractResult func(logPath string) string
 }
 
 // EngineAdapter is the complete plugin contract for an AI engine.
@@ -83,12 +86,9 @@ type EngineAdapter interface {
 	// other engines return nil.
 	Prepare(workDir string, opts PrepareOptions) error
 
-	// Run executes a task and returns a process handle and an event channel.
-	// The channel is closed after the process exits.
+	// Run executes a task and returns a RunResult carrying the process handle,
+	// event channel, and an engine-bound result extractor. The event channel
+	// is closed after the process exits.
 	Run(ctx context.Context, workDir, prompt string,
-		opts RunOptions, logPath string) (Process, <-chan Output, error)
-
-	// ExtractResult parses the engine-specific log file and returns the final
-	// result string, or "" if none found.
-	ExtractResult(logPath string) string
+		opts RunOptions, logPath string) (RunResult, error)
 }

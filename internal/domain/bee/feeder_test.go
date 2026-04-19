@@ -65,12 +65,12 @@ func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
+func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
 	m.mu.Unlock()
 	if m.err != nil {
-		return nil, nil, m.err
+		return ai.RunResult{}, m.err
 	}
 	var lines []ai.Output
 	if len(m.outputLines) > 0 {
@@ -83,10 +83,8 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 		ch <- l
 	}
 	close(ch)
-	return &mockProcess{}, ch, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
-
-func (m *mockBeeRunner) ExtractResult(_ string) string { return "" }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
@@ -585,9 +583,7 @@ func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
 }
 
-func (r *callbackBeeRunner) ExtractResult(_ string) string { return "" }
-
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.Process, <-chan ai.Output, error) {
+func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output, 1)
 	go func() {
 		r.fn()
@@ -597,7 +593,7 @@ func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions,
 		ch <- ai.Output{Type: ai.OutputDone}
 		close(ch)
 	}()
-	return &mockProcess{}, ch, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
