@@ -287,12 +287,15 @@ type RuntimeMessages struct {
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
 type EngineCommandMessages struct {
-	Usage               string `yaml:"usage"`
-	SwitchFailed        string `yaml:"switch_failed"`
-	DefaultSwitched     string `yaml:"default_switched"`      // contains %s (engine name)
-	WorkerNotFound      string `yaml:"worker_not_found"`      // contains %s (worker name)
-	WorkerSwitched      string `yaml:"worker_switched"`       // contains %s, %s (worker, engine)
-	UnknownEngine       string `yaml:"unknown_engine"`        // contains %s, %s (engine, supported list)
+	Usage           string `yaml:"usage"`
+	SwitchFailed    string `yaml:"switch_failed"`
+	DefaultSwitched string `yaml:"default_switched"` // contains %s (engine name)
+	WorkerNotFound  string `yaml:"worker_not_found"` // contains %s (worker name)
+	WorkerSwitched  string `yaml:"worker_switched"`  // contains %s, %s (worker, engine)
+	UnknownEngine   string `yaml:"unknown_engine"`   // contains %s, %s (engine, supported list)
+	BusyMessages    string `yaml:"busy_messages"`
+	BusyExecutions  string `yaml:"busy_executions"`
+	BusyTasks       string `yaml:"busy_tasks"`
 }
 
 // ClearCommandMessages holds text sent to IM users by the /clear command handler.

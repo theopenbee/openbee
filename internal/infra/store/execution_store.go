@@ -167,6 +167,16 @@ func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExe
 	return &e, nil
 }
 
+// HasActiveExecutions reports whether any executions with status pending or running exist.
+func (s *ExecutionStore) HasActiveExecutions(ctx context.Context) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM bee_executions WHERE status IN (?, ?))`,
+		model.ExecStatusPending, model.ExecStatusRunning,
+	).Scan(&exists)
+	return exists == 1, err
+}
+
 func (s *ExecutionStore) UpdateStatus(id string, status model.ExecutionStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_executions SET status=? WHERE id=?`, status, id)
 	return err

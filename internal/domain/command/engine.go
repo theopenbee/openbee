@@ -34,12 +34,30 @@ type EngineValidator interface {
 	EnabledEngines() []string
 }
 
+// MessageActivityChecker reports whether active platform messages exist.
+type MessageActivityChecker interface {
+	HasActiveMessages(ctx context.Context) (bool, error)
+}
+
+// ExecutionActivityChecker reports whether active executions exist.
+type ExecutionActivityChecker interface {
+	HasActiveExecutions(ctx context.Context) (bool, error)
+}
+
+// TaskActivityChecker reports whether active immediate tasks exist.
+type TaskActivityChecker interface {
+	HasActiveImmediateTasks(ctx context.Context) (bool, error)
+}
+
 // EngineCommandHandler handles the /engine slash command.
 type EngineCommandHandler struct {
-	workers   WorkerRepository
-	sysCfg    SystemConfigWriter
-	validator EngineValidator
-	senders   map[string]platform.PlatformSenderAdapter
+	workers    WorkerRepository
+	sysCfg     SystemConfigWriter
+	validator  EngineValidator
+	senders    map[string]platform.PlatformSenderAdapter
+	msgChecker  MessageActivityChecker
+	execChecker ExecutionActivityChecker
+	taskChecker TaskActivityChecker
 }
 
 func NewEngineCommandHandler(
@@ -47,8 +65,19 @@ func NewEngineCommandHandler(
 	sysCfg SystemConfigWriter,
 	senders map[string]platform.PlatformSenderAdapter,
 	validator EngineValidator,
+	msgChecker MessageActivityChecker,
+	execChecker ExecutionActivityChecker,
+	taskChecker TaskActivityChecker,
 ) *EngineCommandHandler {
-	return &EngineCommandHandler{workers: workers, sysCfg: sysCfg, validator: validator, senders: senders}
+	return &EngineCommandHandler{
+		workers:     workers,
+		sysCfg:      sysCfg,
+		validator:   validator,
+		senders:     senders,
+		msgChecker:  msgChecker,
+		execChecker: execChecker,
+		taskChecker: taskChecker,
+	}
 }
 
 // HandleCommand implements msgingest.CommandHandler.
@@ -63,13 +92,42 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 	case 1:
 		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
 	case 2:
-		h.handleBeeEngine(ctx, replyTo, fields[1])
+		if busyMsg, busy := h.checkBusy(ctx); busy {
+			h.reply(ctx, replyTo, busyMsg)
+		} else {
+			h.handleBeeEngine(ctx, replyTo, fields[1])
+		}
 	case 3:
-		h.handleWorkerEngine(ctx, replyTo, fields[1], fields[2])
+		if busyMsg, busy := h.checkBusy(ctx); busy {
+			h.reply(ctx, replyTo, busyMsg)
+		} else {
+			h.handleWorkerEngine(ctx, replyTo, fields[1], fields[2])
+		}
 	default:
 		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
 	}
 	return true
+}
+
+// checkBusy returns a non-empty message and true when any activity condition blocks engine switching.
+func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
+	m := i18n.M.Runtime.EngineCommand
+	if active, err := h.msgChecker.HasActiveMessages(ctx); err != nil {
+		log.Warn("engine command: failed to check active messages", zap.Error(err))
+	} else if active {
+		return m.BusyMessages, true
+	}
+	if active, err := h.execChecker.HasActiveExecutions(ctx); err != nil {
+		log.Warn("engine command: failed to check active executions", zap.Error(err))
+	} else if active {
+		return m.BusyExecutions, true
+	}
+	if active, err := h.taskChecker.HasActiveImmediateTasks(ctx); err != nil {
+		log.Warn("engine command: failed to check active immediate tasks", zap.Error(err))
+	} else if active {
+		return m.BusyTasks, true
+	}
+	return "", false
 }
 
 func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) {

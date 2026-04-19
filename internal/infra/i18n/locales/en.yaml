@@ -232,6 +232,9 @@ runtime:
     worker_not_found: "Worker %q not found"
     worker_switched: "Worker %q engine switched to %s"
     unknown_engine: "Unknown engine: %s, supported engines: %s"
+    busy_messages: "Cannot switch engine: there are messages being received or processed. Please wait until they are completed."
+    busy_executions: "Cannot switch engine: there are executions in progress. Please wait until they are completed."
+    busy_tasks: "Cannot switch engine: there are immediate tasks pending or running. Please wait until they are completed."
   clear_command:
     usage: "Usage:\n/clear — clear all session contexts for this session\n/clear {workerName} — clear session context for a specific worker"
     worker_not_found: "Worker %q not found"

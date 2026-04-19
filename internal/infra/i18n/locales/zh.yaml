@@ -232,6 +232,9 @@ runtime:
     worker_not_found: "Worker %q 不存在"
     worker_switched: "已将 Worker %q 的 engine 切换为 %s"
     unknown_engine: "未知的 engine: %s，支持的 engine：%s"
+    busy_messages: "当前有消息正在接收或处理中，无法切换引擎，请等待完成后再试。"
+    busy_executions: "当前有执行中的 execution，无法切换引擎，请等待完成后再试。"
+    busy_tasks: "当前有即时任务正在等待或执行中，无法切换引擎，请等待完成后再试。"
   clear_command:
     usage: "用法：\n/clear — 清除当前会话的全部上下文\n/clear {workerName} — 清除指定 worker 的上下文"
     worker_not_found: "Worker %q 不存在"
