@@ -497,7 +497,7 @@ export function LogViewer({
     fetchLogs()
 
     if (isActiveStatus(status)) {
-      const interval = setInterval(fetchLogs, 2000)
+      const interval = setInterval(fetchLogs, 500)
       return () => {
         disposed = true
         clearInterval(interval)
