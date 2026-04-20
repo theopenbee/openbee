@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.28] - 2026-04-20
+
 ### Added
 - Add confirmation dialog before cancelling a scheduled task
 
