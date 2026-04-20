@@ -82,9 +82,8 @@ func stripBotMentions(content string, botNames []string) string {
 	for _, name := range botNames {
 		mentions["@"+name] = struct{}{}
 	}
-	fields := strings.Fields(content)
-	out := fields[:0]
-	for _, f := range fields {
+	var out []string
+	for _, f := range strings.Fields(content) {
 		if _, skip := mentions[f]; !skip {
 			out = append(out, f)
 		}

@@ -399,11 +399,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.BotName,
-				Default: vals.FeishuBotName,
-			}, &vals.FeishuBotName); err != nil {
-				return handleSurveyErr(err)
+			if err := promptBotName(&vals.FeishuBotName); err != nil {
+				return err
 			}
 		case i18n.M.Prompt.PlatformDingTalk:
 			vals.DingtalkEnabled = true
@@ -419,11 +416,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.BotName,
-				Default: vals.DingtalkBotName,
-			}, &vals.DingtalkBotName); err != nil {
-				return handleSurveyErr(err)
+			if err := promptBotName(&vals.DingtalkBotName); err != nil {
+				return err
 			}
 		case i18n.M.Prompt.PlatformWeCom:
 			vals.WecomEnabled = true
@@ -439,11 +433,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.BotName,
-				Default: vals.WecomBotName,
-			}, &vals.WecomBotName); err != nil {
-				return handleSurveyErr(err)
+			if err := promptBotName(&vals.WecomBotName); err != nil {
+				return err
 			}
 		case i18n.M.Prompt.PlatformTelegram:
 			vals.TelegramEnabled = true
@@ -466,11 +457,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.TelegramAuthCode); err != nil {
 				return handleSurveyErr(err)
 			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.BotName,
-				Default: vals.TelegramBotName,
-			}, &vals.TelegramBotName); err != nil {
-				return handleSurveyErr(err)
+			if err := promptBotName(&vals.TelegramBotName); err != nil {
+				return err
 			}
 		case i18n.M.Prompt.PlatformWeixin:
 			vals.WeixinEnabled = true
@@ -523,11 +511,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
 			}
 			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.BotName,
-				Default: vals.WeixinBotName,
-			}, &vals.WeixinBotName); err != nil {
-				return handleSurveyErr(err)
+			if err := promptBotName(&vals.WeixinBotName); err != nil {
+				return err
 			}
 		}
 	}
@@ -781,6 +766,13 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+func promptBotName(fieldPtr *string) error {
+	return handleSurveyErr(survey.AskOne(&survey.Input{
+		Message: i18n.M.Prompt.BotName,
+		Default: *fieldPtr,
+	}, fieldPtr))
 }
 
 type engineMapping struct{ name, label string }
