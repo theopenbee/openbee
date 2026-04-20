@@ -58,29 +58,31 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	cmdCh          chan commandTask // serialized command dispatch queue
-	commandHandler CommandHandler  // intercepts slash commands before DB write
-	botNames       []string        // @mention tokens to strip before command matching
+	cmdCh          chan commandTask  // serialized command dispatch queue
+	commandHandler CommandHandler   // intercepts slash commands before DB write
+	botNameREs     []*regexp.Regexp // compiled @mention patterns, built once from bot names
 }
 
 // Option configures a Gateway.
 type Option func(*Gateway)
 
 // WithBotNames sets the bot display names whose @mentions are stripped from message
-// content before command matching. Does not affect stored message content.
+// content before command matching, debounce accumulation, and DB storage.
 func WithBotNames(names []string) Option {
-	return func(g *Gateway) { g.botNames = names }
+	res := make([]*regexp.Regexp, 0, len(names))
+	for _, n := range names {
+		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
+	}
+	return func(g *Gateway) { g.botNameREs = res }
 }
 
 // stripBotMentions removes every occurrence of "@<name>" and any immediately
-// surrounding whitespace (spaces, tabs, newlines) for each configured bot name.
-// Applied to all messages before command matching, debounce accumulation, and DB storage.
-func stripBotMentions(content string, botNames []string) string {
-	if len(botNames) == 0 {
+// surrounding whitespace (spaces, tabs, newlines) for each compiled bot-name pattern.
+func stripBotMentions(content string, res []*regexp.Regexp) string {
+	if len(res) == 0 {
 		return content
 	}
-	for _, name := range botNames {
-		re := regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
+	for _, re := range res {
 		content = re.ReplaceAllString(content, " ")
 	}
 	return strings.TrimSpace(content)
@@ -151,7 +153,7 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
-	stripped := stripBotMentions(msg.Content, g.botNames)
+	stripped := stripBotMentions(msg.Content, g.botNameREs)
 	if g.commandHandler.IsCommand(stripped) {
 		g.mu.Unlock()
 		select {
@@ -220,7 +222,7 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			ID:            ids[i],
 			SessionKey:    m.SessionKey,
 			Platform:      m.Platform,
-			Content:       stripBotMentions(m.Content, g.botNames),
+			Content:       stripBotMentions(m.Content, g.botNameREs),
 			Raw:           m.Raw,
 			PlatformMsgID: m.PlatformMessageID,
 			MessageTime:   mt,
