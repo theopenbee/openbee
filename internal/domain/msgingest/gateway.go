@@ -52,19 +52,12 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	commandHandler CommandHandler // optional; intercepts slash commands before DB write
+	commandHandler CommandHandler // intercepts slash commands before DB write
 	botNames       []string       // @mention tokens to strip before command matching
 }
 
 // Option configures a Gateway.
 type Option func(*Gateway)
-
-// WithCommandHandler sets an optional slash-command handler.
-// When set, each debounced message is offered to the handler before DB write.
-// If the handler returns true, the message is consumed and not stored.
-func WithCommandHandler(h CommandHandler) Option {
-	return func(g *Gateway) { g.commandHandler = h }
-}
 
 // WithBotNames sets the bot display names whose @mentions are stripped from message
 // content before command matching. Does not affect stored message content.
@@ -92,13 +85,14 @@ func stripBotMentions(content string, botNames []string) string {
 }
 
 // New constructs a Gateway.
-func New(msgStore MessageStore, debounce time.Duration, opts ...Option) *Gateway {
+func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, opts ...Option) *Gateway {
 	g := &Gateway{
-		msgStore: msgStore,
-		debounce: debounce,
-		sessions: make(map[string]*debounceState),
-		seen:     make(map[string]struct{}),
-		out:      make(chan IngestedMessage, 64),
+		msgStore:       msgStore,
+		debounce:       debounce,
+		commandHandler: handler,
+		sessions:       make(map[string]*debounceState),
+		seen:           make(map[string]struct{}),
+		out:            make(chan IngestedMessage, 64),
 	}
 	for _, o := range opts {
 		o(g)
@@ -219,11 +213,9 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 		batch[i] = bm
 	}
 
-	if g.commandHandler != nil {
-		cmdContent := stripBotMentions(content, g.botNames)
-		if g.commandHandler.HandleCommand(context.Background(), cmdContent, msgs[n-1]) {
-			return
-		}
+	cmdContent := stripBotMentions(content, g.botNames)
+	if g.commandHandler.HandleCommand(context.Background(), cmdContent, msgs[n-1]) {
+		return
 	}
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)

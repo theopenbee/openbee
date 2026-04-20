@@ -46,6 +46,13 @@ func (m *mockMsgStore) CreateBatch(_ context.Context, msgs []store.BatchMsg) (in
 	return int64(len(msgs)), nil
 }
 
+// noopHandler is a pass-through CommandHandler for tests that don't exercise command handling.
+type noopHandler struct{}
+
+func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool {
+	return false
+}
+
 func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage {
 	return platform.InboundMessage{
 		Platform:          "test",
@@ -59,7 +66,7 @@ func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage 
 // platform_msg_id in one debounce window result in exactly one row written.
 func TestGateway_Dedup_InMemory(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 150*time.Millisecond)
+	g := msgingest.New(st, 150*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -85,7 +92,7 @@ func TestGateway_Dedup_InMemory(t *testing.T) {
 // one debounce window are merged into one IngestedMessage with combined content.
 func TestGateway_Debounce_EmitsSingleMergedMessage(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -114,7 +121,7 @@ func TestGateway_Debounce_EmitsSingleMergedMessage(t *testing.T) {
 // CreateBatch call: 2 merged rows + 1 received row, correct MergedInto.
 func TestGateway_Debounce_BatchWrite(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -165,7 +172,7 @@ func TestGateway_Debounce_BatchWrite(t *testing.T) {
 // exactly one received row and no merged rows.
 func TestGateway_Debounce_SingleMessage(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -193,7 +200,7 @@ func TestGateway_Debounce_SingleMessage(t *testing.T) {
 // during debounce suppresses the emit.
 func TestGateway_BatchWrite_Error_NormalPath(t *testing.T) {
 	st := newMock().withError(errors.New("db down"))
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -213,7 +220,7 @@ func TestGateway_BatchWrite_Error_NormalPath(t *testing.T) {
 func TestGateway_BatchWrite_PartialInsert(t *testing.T) {
 	// 3 messages dispatched → batch of 3; mock returns only 2 inserted
 	st := newMock().withPartialInsert(2)
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -234,7 +241,7 @@ func TestGateway_BatchWrite_PartialInsert(t *testing.T) {
 // debounced normally (no special command handling).
 func TestGateway_ClearMessage_DebounceAsNormal(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -286,7 +293,7 @@ func (m *mockCommandHandler) getContents() []string {
 func TestGateway_CommandHandlerInterceptsBeforeDB(t *testing.T) {
 	st := newMock()
 	handler := newMockCommandHandler(true)
-	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+	g := msgingest.New(st, 0, handler)
 
 	g.Dispatch(platform.InboundMessage{
 		Platform:   "feishu",
@@ -315,7 +322,7 @@ func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
 	handler := newMockCommandHandler(false)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+	g := msgingest.New(st, 0, handler)
 	go g.Run(ctx)
 
 	g.Dispatch(platform.InboundMessage{
@@ -339,7 +346,7 @@ func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
 // a normal message within the debounce window is merged into one message.
 func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 200*time.Millisecond)
+	g := msgingest.New(st, 200*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)

@@ -169,10 +169,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 			botNames = append(botNames, n)
 		}
 	}
-	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce,
-		msgingest.WithCommandHandler(cmdChain),
+	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
 		msgingest.WithBotNames(botNames))
-	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(cmdChain))
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 
