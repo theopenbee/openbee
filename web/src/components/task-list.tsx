@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
@@ -208,9 +207,9 @@ export function TaskList({
             <DialogDescription>{t("tasks.cancelConfirmDescription")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t("common.cancel")}</Button>
-            </DialogClose>
+            <Button variant="outline" onClick={() => setConfirmCancelId(null)}>
+              {t("common.cancel")}
+            </Button>
             <Button
               variant="destructive"
               onClick={() => {
