@@ -254,6 +254,8 @@
     "nextRun": "Next run",
     "triggerAt": "Trigger at",
     "cancelTask": "Cancel task",
+    "cancelConfirmTitle": "Cancel task",
+    "cancelConfirmDescription": "Are you sure you want to cancel this task? This action cannot be undone.",
     "cancelAll": "Cancel pending tasks",
     "cancelSuccess": "Task cancelled",
     "cancelAllSuccess": "All pending tasks cancelled",

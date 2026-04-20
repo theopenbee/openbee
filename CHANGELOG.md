@@ -5,6 +5,14 @@
 ### Added
 - Add platform bot name configuration that automatically strips `@BotName` mentions from incoming messages, fixing a bug where group chat commands were not recognized
 
+## [0.0.28] - 2026-04-20
+
+### Added
+- Add confirmation dialog before cancelling a scheduled task
+
+### Fixed
+- Fix bug where resetting a session caused scheduled tasks and countdown tasks to be cancelled
+
 ## [0.0.27] - 2026-04-20
 
 ### Fixed

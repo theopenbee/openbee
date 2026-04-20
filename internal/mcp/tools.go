@@ -626,7 +626,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	} else {
 		var err error
-		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, "")
+		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
 		if err != nil {
 			return nil, fmt.Errorf("list running tasks: %w", err)
 		}
@@ -641,7 +641,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 		}
 	}
 
-	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey)
+	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey, model.TaskTypeImmediate)
 	if err != nil {
 		return nil, fmt.Errorf("cancel tasks: %w", err)
 	}
