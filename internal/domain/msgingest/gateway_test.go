@@ -295,6 +295,9 @@ func TestGateway_CommandHandlerInterceptsBeforeDB(t *testing.T) {
 	st := newMock()
 	handler := newMockCommandHandler(true)
 	g := msgingest.New(st, 0, handler)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
 
 	g.Dispatch(platform.InboundMessage{
 		Platform:   "feishu",
@@ -351,6 +354,9 @@ func TestGateway_Command_BypassesDebounce(t *testing.T) {
 	st := newMock()
 	handler := newMockCommandHandler(true)
 	g := msgingest.New(st, 500*time.Millisecond, handler)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
 
 	start := time.Now()
 	g.Dispatch(platform.InboundMessage{

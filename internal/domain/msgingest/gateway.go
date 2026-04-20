@@ -43,6 +43,11 @@ type debounceState struct {
 	content    string                    // merged content string
 }
 
+type commandTask struct {
+	content string
+	msg     platform.InboundMessage
+}
+
 // Gateway receives raw platform messages, deduplicates, debounces, and emits IngestedMessages.
 type Gateway struct {
 	msgStore       MessageStore
@@ -52,8 +57,9 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	commandHandler CommandHandler // intercepts slash commands before DB write
-	botNames       []string       // @mention tokens to strip before command matching
+	cmdCh          chan commandTask // serialized command dispatch queue
+	commandHandler CommandHandler  // intercepts slash commands before DB write
+	botNames       []string        // @mention tokens to strip before command matching
 }
 
 // Option configures a Gateway.
@@ -93,6 +99,7 @@ func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, 
 		sessions:       make(map[string]*debounceState),
 		seen:           make(map[string]struct{}),
 		out:            make(chan IngestedMessage, 64),
+		cmdCh:          make(chan commandTask, 32),
 	}
 	for _, o := range opts {
 		o(g)
@@ -105,8 +112,16 @@ func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
 
 // Run blocks until ctx is cancelled, then closes Out().
 func (g *Gateway) Run(ctx context.Context) {
+	go g.runCommandConsumer()
 	<-ctx.Done()
+	close(g.cmdCh)
 	close(g.out)
+}
+
+func (g *Gateway) runCommandConsumer() {
+	for task := range g.cmdCh {
+		g.commandHandler.HandleCommand(context.Background(), task.content, task.msg)
+	}
 }
 
 // emit sends msg to the output channel non-blocking; drops and logs if the channel is full.
@@ -143,7 +158,11 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	cmdContent := stripBotMentions(msg.Content, g.botNames)
 	if g.commandHandler.IsCommand(cmdContent) {
 		g.mu.Unlock()
-		g.commandHandler.HandleCommand(context.Background(), cmdContent, msg)
+		select {
+		case g.cmdCh <- commandTask{cmdContent, msg}:
+		default:
+			log.Warn("command channel full, dropping command", zap.String("sessionKey", msg.SessionKey))
+		}
 		return
 	}
 
@@ -218,11 +237,6 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			bm.Status = "received"
 		}
 		batch[i] = bm
-	}
-
-	cmdContent := stripBotMentions(content, g.botNames)
-	if g.commandHandler.HandleCommand(context.Background(), cmdContent, msgs[n-1]) {
-		return
 	}
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)
