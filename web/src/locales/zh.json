@@ -254,6 +254,8 @@
     "nextRun": "下次运行",
     "triggerAt": "触发时间",
     "cancelTask": "取消任务",
+    "cancelConfirmTitle": "取消任务",
+    "cancelConfirmDescription": "确定要取消此任务吗？此操作无法撤销。",
     "cancelAll": "取消所有待执行任务",
     "cancelSuccess": "任务已取消",
     "cancelAllSuccess": "所有待执行任务已取消",

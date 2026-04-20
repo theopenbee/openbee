@@ -29,7 +29,7 @@ type ClearSessionStore interface {
 
 type ClearTaskStore interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
-	CancelBySessionKey(ctx context.Context, sessionKey string) (int64, error)
+	CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error)
 }
 
 type ClearExecStopper interface {
@@ -108,7 +108,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, "")
+	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
 	if err != nil {
 		log.Error("list running tasks for /clear", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
@@ -131,7 +131,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		}
 	}
 
-	cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey)
+	cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey, model.TaskTypeImmediate)
 	if err != nil {
 		log.Error("cancel tasks for /clear exec", zap.Error(err))
 	}

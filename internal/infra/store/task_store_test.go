@@ -451,7 +451,7 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	n, err := ts.CancelBySessionKey(ctx, "session-A")
+	n, err := ts.CancelBySessionKey(ctx, "session-A", "")
 	if err != nil {
 		t.Fatalf("CancelBySessionKey: %v", err)
 	}
@@ -475,6 +475,51 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 	tasksB, _ := ts.ListBySessionKey(ctx, "session-B", "pending", "")
 	if len(tasksB) != 1 {
 		t.Errorf("session-B task should be unaffected, got %d", len(tasksB))
+	}
+}
+
+func TestTaskStore_CancelBySessionKey_ImmediateOnly(t *testing.T) {
+	ts, cleanup := newTaskStoreWithTwoSessions(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	// immediate pending + running → should be cancelled
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "imm-pending",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "imm-running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// countdown pending → should survive
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "countdown-pending",
+		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	// scheduled pending → should survive
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "scheduled-pending",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	n, err := ts.CancelBySessionKey(ctx, "session-A", model.TaskTypeImmediate)
+	if err != nil {
+		t.Fatalf("CancelBySessionKey: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("expected 2 cancelled (immediate only), got %d", n)
+	}
+
+	// countdown and scheduled tasks must still be pending
+	surviving, _ := ts.ListBySessionKey(ctx, "session-A", "pending", "")
+	if len(surviving) != 2 {
+		t.Errorf("expected 2 surviving pending tasks (countdown+scheduled), got %d", len(surviving))
 	}
 }
 
