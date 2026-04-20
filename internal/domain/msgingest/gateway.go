@@ -117,13 +117,17 @@ func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
 func (g *Gateway) Run(ctx context.Context) {
 	go g.runCommandConsumer(ctx)
 	<-ctx.Done()
-	close(g.cmdCh)
 	close(g.out)
 }
 
 func (g *Gateway) runCommandConsumer(ctx context.Context) {
-	for task := range g.cmdCh {
-		g.commandHandler.HandleCommand(ctx, task.content, task.msg)
+	for {
+		select {
+		case task := <-g.cmdCh:
+			g.commandHandler.HandleCommand(ctx, task.content, task.msg)
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -181,6 +185,7 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	} else {
 		state.content = state.content + mergedSeparator + stripped
 	}
+	msg.Content = stripped
 	state.msgs = append(state.msgs, msg)
 
 	if state.timer != nil {
@@ -227,7 +232,7 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			ID:            ids[i],
 			SessionKey:    m.SessionKey,
 			Platform:      m.Platform,
-			Content:       stripBotMentions(m.Content, g.botNameREs),
+			Content:       m.Content,
 			Raw:           m.Raw,
 			PlatformMsgID: m.PlatformMessageID,
 			MessageTime:   mt,

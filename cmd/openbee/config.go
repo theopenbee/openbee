@@ -772,7 +772,7 @@ func promptBotName(fieldPtr *string) error {
 	return handleSurveyErr(survey.AskOne(&survey.Input{
 		Message: i18n.M.Prompt.BotName,
 		Default: *fieldPtr,
-	}, fieldPtr, survey.WithValidator(survey.Required)))
+	}, fieldPtr))
 }
 
 type engineMapping struct{ name, label string }
