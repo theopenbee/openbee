@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"fmt"
+	"strings"
 )
 
 // DecryptFile decrypts a WeCom media file using AES-256-CBC.
@@ -19,7 +20,7 @@ func DecryptFile(encrypted []byte, aesKeyBase64 string) ([]byte, error) {
 		return nil, fmt.Errorf("decryptFile: encrypted data is empty")
 	}
 
-	key, err := base64.StdEncoding.DecodeString(aesKeyBase64)
+	key, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(aesKeyBase64, "="))
 	if err != nil {
 		return nil, fmt.Errorf("decryptFile: decode aesKey: %w", err)
 	}

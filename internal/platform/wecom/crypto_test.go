@@ -73,6 +73,21 @@ func TestDecryptFile_EmptyInput(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestDecryptFile_UnpaddedKey(t *testing.T) {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	// Simulate WeChat's actual format: unpadded base64
+	aesKeyB64 := base64.RawStdEncoding.EncodeToString(key)
+
+	plaintext := []byte("wecom unpadded key test")
+	encrypted := encryptForTest(t, plaintext, key)
+
+	got, err := DecryptFile(encrypted, aesKeyB64)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, got)
+}
+
 func TestDecryptFile_InvalidBase64Key(t *testing.T) {
 	_, err := DecryptFile([]byte("somedata"), "not-valid-base64!!!")
 	assert.Error(t, err)
