@@ -2,6 +2,7 @@ package msgingest
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +53,7 @@ type Gateway struct {
 	mu             sync.Mutex
 	out            chan IngestedMessage
 	commandHandler CommandHandler // optional; intercepts slash commands before DB write
+	botNames       []string       // @mention tokens to strip before command matching
 }
 
 // Option configures a Gateway.
@@ -62,6 +64,32 @@ type Option func(*Gateway)
 // If the handler returns true, the message is consumed and not stored.
 func WithCommandHandler(h CommandHandler) Option {
 	return func(g *Gateway) { g.commandHandler = h }
+}
+
+// WithBotNames sets the bot display names whose @mentions are stripped from message
+// content before command matching. Does not affect stored message content.
+func WithBotNames(names []string) Option {
+	return func(g *Gateway) { g.botNames = names }
+}
+
+// stripBotMentions removes any token equal to "@<name>" for each configured bot name.
+// Used only for command matching; never mutates stored message content.
+func stripBotMentions(content string, botNames []string) string {
+	if len(botNames) == 0 {
+		return content
+	}
+	mentions := make(map[string]struct{}, len(botNames))
+	for _, name := range botNames {
+		mentions["@"+name] = struct{}{}
+	}
+	fields := strings.Fields(content)
+	out := fields[:0]
+	for _, f := range fields {
+		if _, skip := mentions[f]; !skip {
+			out = append(out, f)
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // New constructs a Gateway.
@@ -193,7 +221,8 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 	}
 
 	if g.commandHandler != nil {
-		if g.commandHandler.HandleCommand(context.Background(), content, msgs[n-1]) {
+		cmdContent := stripBotMentions(content, g.botNames)
+		if g.commandHandler.HandleCommand(context.Background(), cmdContent, msgs[n-1]) {
 			return
 		}
 	}
