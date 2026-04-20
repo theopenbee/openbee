@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Fix bug where resetting a session caused scheduled tasks and countdown tasks to be cancelled
+
 ## [0.0.27] - 2026-04-20
 
 ### Fixed
