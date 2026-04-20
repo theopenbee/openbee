@@ -140,6 +140,13 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
+	cmdContent := stripBotMentions(msg.Content, g.botNames)
+	if g.commandHandler.IsCommand(cmdContent) {
+		g.mu.Unlock()
+		g.commandHandler.HandleCommand(context.Background(), cmdContent, msg)
+		return
+	}
+
 	// Accumulate into debounce state.
 	state, ok := g.sessions[msg.SessionKey]
 	if !ok {

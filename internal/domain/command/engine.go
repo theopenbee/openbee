@@ -108,6 +108,12 @@ func NewEngineCommandHandler(
 	}
 }
 
+// IsCommand implements msgingest.CommandHandler.
+func (h *EngineCommandHandler) IsCommand(content string) bool {
+	fields := strings.Fields(content)
+	return len(fields) > 0 && fields[0] == CmdEngine
+}
+
 // HandleCommand implements msgingest.CommandHandler.
 // Returns true if content is a /engine command (whether or not it succeeded).
 func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {

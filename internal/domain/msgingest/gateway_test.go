@@ -49,9 +49,8 @@ func (m *mockMsgStore) CreateBatch(_ context.Context, msgs []store.BatchMsg) (in
 // noopHandler is a pass-through CommandHandler for tests that don't exercise command handling.
 type noopHandler struct{}
 
-func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool {
-	return false
-}
+func (noopHandler) IsCommand(_ string) bool                                                   { return false }
+func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool { return false }
 
 func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage {
 	return platform.InboundMessage{
@@ -274,6 +273,8 @@ func newMockCommandHandler(handled bool) *mockCommandHandler {
 	}
 }
 
+func (m *mockCommandHandler) IsCommand(_ string) bool { return m.handled }
+
 func (m *mockCommandHandler) HandleCommand(_ context.Context, content string, _ platform.InboundMessage) bool {
 	m.mu.Lock()
 	m.contents = append(m.contents, content)
@@ -344,6 +345,34 @@ func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
 
 // TestGateway_ClearMessage_MergedWithDebounce verifies that "clear" sent after
 // a normal message within the debounce window is merged into one message.
+// TestGateway_Command_BypassesDebounce verifies that a recognized command is
+// handled immediately in Dispatch (no debounce wait) and never written to DB.
+func TestGateway_Command_BypassesDebounce(t *testing.T) {
+	st := newMock()
+	handler := newMockCommandHandler(true)
+	g := msgingest.New(st, 500*time.Millisecond, handler)
+
+	start := time.Now()
+	g.Dispatch(platform.InboundMessage{
+		Platform:   "feishu",
+		SessionKey: "feishu:c1:u1",
+		Content:    "/engine claude",
+	})
+
+	select {
+	case <-handler.called:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("command handler not called within 200ms — debounce not bypassed")
+	}
+
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Errorf("command took %v, expected < 200ms (debounce is 500ms)", elapsed)
+	}
+	if len(st.batches) != 0 {
+		t.Errorf("expected 0 DB writes for command, got %d", len(st.batches))
+	}
+}
+
 func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 	st := newMock()
 	g := msgingest.New(st, 200*time.Millisecond, noopHandler{})

@@ -74,6 +74,12 @@ func NewClearCommandHandler(
 	}
 }
 
+// IsCommand implements msgingest.CommandHandler.
+func (h *ClearCommandHandler) IsCommand(content string) bool {
+	fields := strings.Fields(content)
+	return len(fields) > 0 && fields[0] == CmdClear
+}
+
 func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
 	if len(fields) == 0 || fields[0] != CmdClear {
