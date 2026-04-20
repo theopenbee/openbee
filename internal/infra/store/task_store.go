@@ -306,9 +306,7 @@ func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error
 	return err
 }
 
-// CancelBySessionKey cancels all pending/running tasks for a given session.
-// taskType filters by task type (e.g. model.TaskTypeImmediate); empty means all types.
-// Returns the number of tasks cancelled.
+// CancelBySessionKey cancels pending/running tasks for a session; empty taskType matches all types.
 func (s *TaskStore) CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error) {
 	q := `UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
 	      WHERE message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)

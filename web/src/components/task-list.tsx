@@ -213,10 +213,8 @@ export function TaskList({
             <Button
               variant="destructive"
               onClick={() => {
-                if (confirmCancelId) {
-                  cancelTask.mutate(confirmCancelId)
-                  setConfirmCancelId(null)
-                }
+                cancelTask.mutate(confirmCancelId!)
+                setConfirmCancelId(null)
               }}
             >
               {t("tasks.cancelTask")}
