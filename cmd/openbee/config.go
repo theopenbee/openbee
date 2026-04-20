@@ -54,24 +54,29 @@ type configValues struct {
 	FeishuEnabled   bool
 	FeishuAppID     string
 	FeishuAppSecret string
+	FeishuBotName   string
 
 	DingtalkEnabled      bool
 	DingtalkClientID     string
 	DingtalkClientSecret string
+	DingtalkBotName      string
 
 	WecomEnabled bool
 	WecomBotID   string
 	WecomSecret  string
+	WecomBotName string
 
 	TelegramEnabled  bool
 	TelegramToken    string
 	TelegramAuthCode string
+	TelegramBotName  string
 
 	WeixinEnabled    bool
 	WeixinToken      string
 	WeixinBaseURL    string
 	WeixinCDNBaseURL string
 	WeixinUserID     string
+	WeixinBotName    string
 
 	EngineDefault       string
 	EngineTimeoutBee    string
@@ -136,20 +141,25 @@ func loadExistingConfig(path string) *configValues {
 		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
 		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
 		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
+		FeishuBotName:        cfg.Bee.Platforms.Feishu.BotName,
 		DingtalkEnabled:      cfg.Bee.Platforms.DingTalk.Enabled,
 		DingtalkClientID:     cfg.Bee.Platforms.DingTalk.ClientID,
 		DingtalkClientSecret: cfg.Bee.Platforms.DingTalk.ClientSecret,
+		DingtalkBotName:      cfg.Bee.Platforms.DingTalk.BotName,
 		WecomEnabled:         cfg.Bee.Platforms.WeCom.Enabled,
 		WecomBotID:           cfg.Bee.Platforms.WeCom.BotID,
 		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
+		WecomBotName:         cfg.Bee.Platforms.WeCom.BotName,
 		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
 		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
 		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
+		TelegramBotName:      cfg.Bee.Platforms.Telegram.BotName,
 		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
 		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
 		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
+		WeixinBotName:        cfg.Bee.Platforms.Weixin.BotName,
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -389,6 +399,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.BotName,
+				Default: vals.FeishuBotName,
+			}, &vals.FeishuBotName); err != nil {
+				return handleSurveyErr(err)
+			}
 		case i18n.M.Prompt.PlatformDingTalk:
 			vals.DingtalkEnabled = true
 			if err := survey.AskOne(&survey.Input{
@@ -403,6 +419,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
 				return handleSurveyErr(err)
 			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.BotName,
+				Default: vals.DingtalkBotName,
+			}, &vals.DingtalkBotName); err != nil {
+				return handleSurveyErr(err)
+			}
 		case i18n.M.Prompt.PlatformWeCom:
 			vals.WecomEnabled = true
 			if err := survey.AskOne(&survey.Input{
@@ -415,6 +437,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				Message: i18n.M.Prompt.WecomSecret,
 				Default: vals.WecomSecret,
 			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.BotName,
+				Default: vals.WecomBotName,
+			}, &vals.WecomBotName); err != nil {
 				return handleSurveyErr(err)
 			}
 		case i18n.M.Prompt.PlatformTelegram:
@@ -436,6 +464,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				Default: authCodeDefault,
 				Help:    i18n.M.Prompt.TelegramAuthCodeHelp,
 			}, &vals.TelegramAuthCode); err != nil {
+				return handleSurveyErr(err)
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.BotName,
+				Default: vals.TelegramBotName,
+			}, &vals.TelegramBotName); err != nil {
 				return handleSurveyErr(err)
 			}
 		case i18n.M.Prompt.PlatformWeixin:
@@ -489,6 +523,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
 			}
 			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.BotName,
+				Default: vals.WeixinBotName,
+			}, &vals.WeixinBotName); err != nil {
+				return handleSurveyErr(err)
+			}
 		}
 	}
 

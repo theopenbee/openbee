@@ -42,24 +42,29 @@ bee:
       enabled: {{.FeishuEnabled}}
       app_id: "{{.FeishuAppID}}"
       app_secret: "{{.FeishuAppSecret}}"
+      bot_name: "{{.FeishuBotName}}"
     dingtalk:
       enabled: {{.DingtalkEnabled}}
       client_id: "{{.DingtalkClientID}}"
       client_secret: "{{.DingtalkClientSecret}}"
+      bot_name: "{{.DingtalkBotName}}"
     wecom:
       enabled: {{.WecomEnabled}}
       bot_id: "{{.WecomBotID}}"
       secret: "{{.WecomSecret}}"
+      bot_name: "{{.WecomBotName}}"
     telegram:
       enabled: {{.TelegramEnabled}}
       token: "{{.TelegramToken}}"
       auth_code: "{{.TelegramAuthCode}}"
+      bot_name: "{{.TelegramBotName}}"
     weixin:
       enabled: {{.WeixinEnabled}}
       token: "{{.WeixinToken}}"
       base_url: "{{.WeixinBaseURL}}"
       cdn_base_url: "{{.WeixinCDNBaseURL}}"
       user_id: "{{.WeixinUserID}}"
+      bot_name: "{{.WeixinBotName}}"
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:

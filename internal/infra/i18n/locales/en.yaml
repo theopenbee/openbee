@@ -70,6 +70,7 @@ prompt:
   weixin_reacquire: "Existing Weixin token found (%s). Re-acquire via QR code?"
   weixin_bot_token: "Weixin Bot Token:"
   weixin_user_id: "Weixin User ID:"
+  bot_name: "Bot name for @mention stripping in group chats (leave empty to skip):"
   username: "Username:"
   password_change_confirm: "Password already configured. Change it?"
   password_setup: "Password setup:"

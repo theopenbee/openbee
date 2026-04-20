@@ -80,6 +80,7 @@ type PromptMessages struct {
 	WeixinReacquire      string `yaml:"weixin_reacquire"` // contains %s placeholder
 	WeixinBotToken       string `yaml:"weixin_bot_token"`
 	WeixinUserID         string `yaml:"weixin_user_id"`
+	BotName              string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`
