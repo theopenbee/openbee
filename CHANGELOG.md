@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.27] - 2026-04-20
+
 ### Fixed
 - Fix WeChat Work (WeCom) image decryption failure caused by unpadded base64 AES key
 
