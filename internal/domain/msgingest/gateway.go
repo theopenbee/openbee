@@ -143,6 +143,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
+	stripped := stripBotMentions(msg.Content, g.botNameREs)
 	g.mu.Lock()
 
 	if msg.PlatformMessageID != "" {
@@ -162,7 +163,6 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
-	stripped := stripBotMentions(msg.Content, g.botNameREs)
 	if g.commandHandler.IsCommand(stripped) {
 		g.mu.Unlock()
 		select {
