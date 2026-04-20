@@ -11,6 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { SkeletonTable } from "@/components/skeleton-loader"
@@ -77,6 +86,7 @@ export function TaskList({
   const { data, error, isLoading } = useTasks({ workerID: workerId, page, pageSize })
   const cancelTask = useCancelTask()
   const cancelAll = useCancelWorkerTasks()
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
 
   const tasks = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
@@ -171,7 +181,7 @@ export function TaskList({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => cancelTask.mutate(task.id)}
+                          onClick={() => setConfirmCancelId(task.id)}
                           disabled={cancelTask.isPending}
                           className="text-destructive hover:text-destructive"
                         >
@@ -190,6 +200,31 @@ export function TaskList({
           <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
+
+      <Dialog open={confirmCancelId !== null} onOpenChange={(open) => { if (!open) setConfirmCancelId(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("tasks.cancelConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("tasks.cancelConfirmDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">{t("common.cancel")}</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmCancelId) {
+                  cancelTask.mutate(confirmCancelId)
+                  setConfirmCancelId(null)
+                }
+              }}
+            >
+              {t("tasks.cancelTask")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
