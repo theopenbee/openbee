@@ -66,18 +66,24 @@ type Gateway struct {
 // Option configures a Gateway.
 type Option func(*Gateway)
 
+func compileBotNameREs(names []string) []*regexp.Regexp {
+	res := make([]*regexp.Regexp, 0, len(names))
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
+	}
+	return res
+}
+
 // WithBotNames sets the bot display names whose @mentions are stripped from message
 // content before command matching, debounce accumulation, and DB storage.
 func WithBotNames(names []string) Option {
-	res := make([]*regexp.Regexp, 0, len(names))
-	for _, n := range names {
-		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
-	}
+	res := compileBotNameREs(names)
 	return func(g *Gateway) { g.botNameREs = res }
 }
 
-// stripBotMentions removes every occurrence of "@<name>" and any immediately
-// surrounding whitespace (spaces, tabs, newlines) for each compiled bot-name pattern.
 func stripBotMentions(content string, res []*regexp.Regexp) string {
 	if len(res) == 0 {
 		return content
@@ -108,17 +114,16 @@ func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, 
 // Out returns the channel of outgoing IngestedMessages.
 func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
 
-// Run blocks until ctx is cancelled, then closes Out().
 func (g *Gateway) Run(ctx context.Context) {
-	go g.runCommandConsumer()
+	go g.runCommandConsumer(ctx)
 	<-ctx.Done()
 	close(g.cmdCh)
 	close(g.out)
 }
 
-func (g *Gateway) runCommandConsumer() {
+func (g *Gateway) runCommandConsumer(ctx context.Context) {
 	for task := range g.cmdCh {
-		g.commandHandler.HandleCommand(context.Background(), task.content, task.msg)
+		g.commandHandler.HandleCommand(ctx, task.content, task.msg)
 	}
 }
 

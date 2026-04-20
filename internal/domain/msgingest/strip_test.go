@@ -1,17 +1,8 @@
 package msgingest
 
 import (
-	"regexp"
 	"testing"
 )
-
-func compileBotNames(names []string) []*regexp.Regexp {
-	res := make([]*regexp.Regexp, 0, len(names))
-	for _, n := range names {
-		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
-	}
-	return res
-}
 
 func TestStripBotMentions(t *testing.T) {
 	tests := []struct {
@@ -114,7 +105,7 @@ func TestStripBotMentions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripBotMentions(tt.content, compileBotNames(tt.botNames))
+			got := stripBotMentions(tt.content, compileBotNameREs(tt.botNames))
 			if got != tt.want {
 				t.Errorf("stripBotMentions(%q, %v) = %q, want %q", tt.content, tt.botNames, got, tt.want)
 			}

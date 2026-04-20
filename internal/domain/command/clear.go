@@ -75,7 +75,7 @@ func NewClearCommandHandler(
 }
 
 func (h *ClearCommandHandler) IsCommand(content string) bool {
-	return content == CmdClear || strings.HasPrefix(content, CmdClear+" ")
+	return isExactOrPrefixed(content, CmdClear)
 }
 
 func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
