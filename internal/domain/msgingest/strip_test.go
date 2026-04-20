@@ -77,6 +77,30 @@ func TestStripBotMentions(t *testing.T) {
 			botNames: []string{"机器人"},
 			want:     "",
 		},
+		{
+			name:     "mention mid-sentence no word boundary",
+			content:  "prefix@机器人suffix",
+			botNames: []string{"机器人"},
+			want:     "prefix suffix",
+		},
+		{
+			name:     "mention on its own line",
+			content:  "hello\n@机器人\nworld",
+			botNames: []string{"机器人"},
+			want:     "hello world",
+		},
+		{
+			name:     "mention with leading newline",
+			content:  "@机器人\nhello",
+			botNames: []string{"机器人"},
+			want:     "hello",
+		},
+		{
+			name:     "mention with trailing newline",
+			content:  "hello\n@机器人",
+			botNames: []string{"机器人"},
+			want:     "hello",
+		},
 	}
 
 	for _, tt := range tests {

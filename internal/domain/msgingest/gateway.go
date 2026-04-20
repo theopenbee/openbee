@@ -2,6 +2,7 @@ package msgingest
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -71,23 +72,18 @@ func WithBotNames(names []string) Option {
 	return func(g *Gateway) { g.botNames = names }
 }
 
-// stripBotMentions removes any token equal to "@<name>" for each configured bot name.
-// Used only for command matching; never mutates stored message content.
+// stripBotMentions removes every occurrence of "@<name>" and any immediately
+// surrounding whitespace (spaces, tabs, newlines) for each configured bot name.
+// Applied to all messages before command matching, debounce accumulation, and DB storage.
 func stripBotMentions(content string, botNames []string) string {
 	if len(botNames) == 0 {
 		return content
 	}
-	mentions := make(map[string]struct{}, len(botNames))
 	for _, name := range botNames {
-		mentions["@"+name] = struct{}{}
+		re := regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
+		content = re.ReplaceAllString(content, " ")
 	}
-	var out []string
-	for _, f := range strings.Fields(content) {
-		if _, skip := mentions[f]; !skip {
-			out = append(out, f)
-		}
-	}
-	return strings.Join(out, " ")
+	return strings.TrimSpace(content)
 }
 
 // New constructs a Gateway.
@@ -155,11 +151,11 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
-	cmdContent := stripBotMentions(msg.Content, g.botNames)
-	if g.commandHandler.IsCommand(cmdContent) {
+	stripped := stripBotMentions(msg.Content, g.botNames)
+	if g.commandHandler.IsCommand(stripped) {
 		g.mu.Unlock()
 		select {
-		case g.cmdCh <- commandTask{cmdContent, msg}:
+		case g.cmdCh <- commandTask{stripped, msg}:
 		default:
 			log.Warn("command channel full, dropping command", zap.String("sessionKey", msg.SessionKey))
 		}
@@ -174,9 +170,9 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	}
 
 	if state.content == "" {
-		state.content = msg.Content
+		state.content = stripped
 	} else {
-		state.content = state.content + mergedSeparator + msg.Content
+		state.content = state.content + mergedSeparator + stripped
 	}
 	state.msgs = append(state.msgs, msg)
 
@@ -224,7 +220,7 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			ID:            ids[i],
 			SessionKey:    m.SessionKey,
 			Platform:      m.Platform,
-			Content:       m.Content,
+			Content:       stripBotMentions(m.Content, g.botNames),
 			Raw:           m.Raw,
 			PlatformMsgID: m.PlatformMessageID,
 			MessageTime:   mt,

@@ -405,3 +405,70 @@ func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+// TestGateway_BotMention_StrippedInEmitAndDB verifies that @BotName mentions are
+// stripped from both IngestedMessage.Content and BatchMsg.Content for normal messages.
+func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithBotNames([]string{"OpenBee"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@OpenBee hello world", "m1"))
+
+	var emitted msgingest.IngestedMessage
+	select {
+	case emitted = <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for debounced message")
+	}
+
+	if emitted.Content != "hello world" {
+		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, "hello world")
+	}
+	if len(st.batches) != 1 || len(st.batches[0]) != 1 {
+		t.Fatalf("expected 1 batch with 1 row, got %v", st.batches)
+	}
+	if got := st.batches[0][0].Content; got != "hello world" {
+		t.Errorf("BatchMsg.Content = %q, want %q", got, "hello world")
+	}
+}
+
+// TestGateway_BotMention_MergedMessagesStripped verifies that merged messages each
+// have their bot mentions stripped before being combined.
+func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 150*time.Millisecond, noopHandler{},
+		msgingest.WithBotNames([]string{"Bot"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot hello", "m1"))
+	g.Dispatch(inbound("s1", "world @Bot", "m2"))
+
+	var emitted msgingest.IngestedMessage
+	select {
+	case emitted = <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for debounced message")
+	}
+
+	const want = "hello\n\n---\n\nworld"
+	if emitted.Content != want {
+		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, want)
+	}
+	if len(st.batches) != 1 || len(st.batches[0]) != 2 {
+		t.Fatalf("expected 1 batch with 2 rows, got %v", st.batches)
+	}
+	if got := st.batches[0][0].Content; got != "hello" {
+		t.Errorf("batch[0].Content = %q, want %q", got, "hello")
+	}
+	if got := st.batches[0][1].Content; got != "world" {
+		t.Errorf("batch[1].Content = %q, want %q", got, "world")
+	}
+}
