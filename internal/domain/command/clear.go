@@ -74,6 +74,10 @@ func NewClearCommandHandler(
 	}
 }
 
+func (h *ClearCommandHandler) IsCommand(content string) bool {
+	return isExactOrPrefixed(content, CmdClear)
+}
+
 func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
 	if len(fields) == 0 || fields[0] != CmdClear {

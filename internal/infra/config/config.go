@@ -167,12 +167,14 @@ type FeishuConfig struct {
 	AppID        string `yaml:"app_id"`
 	AppSecret    string `yaml:"app_secret"`
 	MaxMediaSize int    `yaml:"max_media_size"` // maximum media download size in bytes; default 100 MB
+	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
 }
 
 type DingTalkConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
+	BotName      string `yaml:"bot_name"` // bot display name used to strip @mention in group commands
 }
 
 type WeComConfig struct {
@@ -180,6 +182,7 @@ type WeComConfig struct {
 	BotID        string `yaml:"bot_id"`
 	Secret       string `yaml:"secret"`
 	WebSocketURL string `yaml:"websocket_url"`
+	BotName      string `yaml:"bot_name"` // bot display name used to strip @mention in group commands
 }
 
 type TelegramConfig struct {
@@ -187,6 +190,7 @@ type TelegramConfig struct {
 	Token        string `yaml:"token"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 50MB
 	AuthCode     string `yaml:"auth_code"`      // passcode for user authorization; empty = no auth required
+	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
 }
 
 type WeixinConfig struct {
@@ -197,6 +201,7 @@ type WeixinConfig struct {
 	RouteTag     int    `yaml:"route_tag"`
 	UserID       string `yaml:"user_id"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 100MB
+	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
 }
 
 type MCPConfig struct {

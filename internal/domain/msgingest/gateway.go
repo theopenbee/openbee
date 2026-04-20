@@ -2,6 +2,8 @@ package msgingest
 
 import (
 	"context"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +44,11 @@ type debounceState struct {
 	content    string                    // merged content string
 }
 
+type commandTask struct {
+	content string
+	msg     platform.InboundMessage
+}
+
 // Gateway receives raw platform messages, deduplicates, debounces, and emits IngestedMessages.
 type Gateway struct {
 	msgStore       MessageStore
@@ -51,27 +58,52 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	commandHandler CommandHandler // optional; intercepts slash commands before DB write
+	cmdCh          chan commandTask  // serialized command dispatch queue
+	commandHandler CommandHandler   // intercepts slash commands before DB write
+	botNameREs     []*regexp.Regexp // compiled @mention patterns, built once from bot names
 }
 
 // Option configures a Gateway.
 type Option func(*Gateway)
 
-// WithCommandHandler sets an optional slash-command handler.
-// When set, each debounced message is offered to the handler before DB write.
-// If the handler returns true, the message is consumed and not stored.
-func WithCommandHandler(h CommandHandler) Option {
-	return func(g *Gateway) { g.commandHandler = h }
+func compileBotNameREs(names []string) []*regexp.Regexp {
+	res := make([]*regexp.Regexp, 0, len(names))
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
+	}
+	return res
+}
+
+// WithBotNames sets the bot display names whose @mentions are stripped from message
+// content before command matching, debounce accumulation, and DB storage.
+func WithBotNames(names []string) Option {
+	res := compileBotNameREs(names)
+	return func(g *Gateway) { g.botNameREs = res }
+}
+
+func stripBotMentions(content string, res []*regexp.Regexp) string {
+	if len(res) == 0 {
+		return content
+	}
+	for _, re := range res {
+		content = re.ReplaceAllString(content, " ")
+	}
+	return strings.TrimSpace(content)
 }
 
 // New constructs a Gateway.
-func New(msgStore MessageStore, debounce time.Duration, opts ...Option) *Gateway {
+func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, opts ...Option) *Gateway {
 	g := &Gateway{
-		msgStore: msgStore,
-		debounce: debounce,
-		sessions: make(map[string]*debounceState),
-		seen:     make(map[string]struct{}),
-		out:      make(chan IngestedMessage, 64),
+		msgStore:       msgStore,
+		debounce:       debounce,
+		commandHandler: handler,
+		sessions:       make(map[string]*debounceState),
+		seen:           make(map[string]struct{}),
+		out:            make(chan IngestedMessage, 64),
+		cmdCh:          make(chan commandTask, 32),
 	}
 	for _, o := range opts {
 		o(g)
@@ -82,10 +114,21 @@ func New(msgStore MessageStore, debounce time.Duration, opts ...Option) *Gateway
 // Out returns the channel of outgoing IngestedMessages.
 func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
 
-// Run blocks until ctx is cancelled, then closes Out().
 func (g *Gateway) Run(ctx context.Context) {
+	go g.runCommandConsumer(ctx)
 	<-ctx.Done()
 	close(g.out)
+}
+
+func (g *Gateway) runCommandConsumer(ctx context.Context) {
+	for {
+		select {
+		case task := <-g.cmdCh:
+			g.commandHandler.HandleCommand(ctx, task.content, task.msg)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // emit sends msg to the output channel non-blocking; drops and logs if the channel is full.
@@ -100,6 +143,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
+	stripped := stripBotMentions(msg.Content, g.botNameREs)
 	g.mu.Lock()
 
 	if msg.PlatformMessageID != "" {
@@ -119,6 +163,16 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
+	if g.commandHandler.IsCommand(stripped) {
+		g.mu.Unlock()
+		select {
+		case g.cmdCh <- commandTask{stripped, msg}:
+		default:
+			log.Warn("command channel full, dropping command", zap.String("sessionKey", msg.SessionKey))
+		}
+		return
+	}
+
 	// Accumulate into debounce state.
 	state, ok := g.sessions[msg.SessionKey]
 	if !ok {
@@ -127,10 +181,11 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 	}
 
 	if state.content == "" {
-		state.content = msg.Content
+		state.content = stripped
 	} else {
-		state.content = state.content + mergedSeparator + msg.Content
+		state.content = state.content + mergedSeparator + stripped
 	}
+	msg.Content = stripped
 	state.msgs = append(state.msgs, msg)
 
 	if state.timer != nil {
@@ -190,12 +245,6 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			bm.Status = "received"
 		}
 		batch[i] = bm
-	}
-
-	if g.commandHandler != nil {
-		if g.commandHandler.HandleCommand(context.Background(), content, msgs[n-1]) {
-			return
-		}
 	}
 
 	inserted, err := g.msgStore.CreateBatch(context.Background(), batch)

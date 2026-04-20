@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add platform bot name configuration that automatically strips `@BotName` mentions from incoming messages, fixing a bug where group chat commands were not recognized
+
 ## [0.0.28] - 2026-04-20
 
 ### Added

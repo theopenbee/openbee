@@ -157,8 +157,21 @@ func BuildApp(cfg config.Config) (*App, error) {
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, busyChecker, engineCfg)
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform, engineCfg)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler)
-	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, msgingest.WithCommandHandler(cmdChain))
-	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, msgingest.WithCommandHandler(cmdChain))
+	var botNames []string
+	for _, n := range []string{
+		cfg.Bee.Platforms.Feishu.BotName,
+		cfg.Bee.Platforms.DingTalk.BotName,
+		cfg.Bee.Platforms.WeCom.BotName,
+		cfg.Bee.Platforms.Telegram.BotName,
+		cfg.Bee.Platforms.Weixin.BotName,
+	} {
+		if n != "" {
+			botNames = append(botNames, n)
+		}
+	}
+	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
+		msgingest.WithBotNames(botNames))
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
 

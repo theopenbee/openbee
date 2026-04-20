@@ -46,6 +46,12 @@ func (m *mockMsgStore) CreateBatch(_ context.Context, msgs []store.BatchMsg) (in
 	return int64(len(msgs)), nil
 }
 
+// noopHandler is a pass-through CommandHandler for tests that don't exercise command handling.
+type noopHandler struct{}
+
+func (noopHandler) IsCommand(_ string) bool                                                   { return false }
+func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool { return false }
+
 func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage {
 	return platform.InboundMessage{
 		Platform:          "test",
@@ -59,7 +65,7 @@ func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage 
 // platform_msg_id in one debounce window result in exactly one row written.
 func TestGateway_Dedup_InMemory(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 150*time.Millisecond)
+	g := msgingest.New(st, 150*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -85,7 +91,7 @@ func TestGateway_Dedup_InMemory(t *testing.T) {
 // one debounce window are merged into one IngestedMessage with combined content.
 func TestGateway_Debounce_EmitsSingleMergedMessage(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -114,7 +120,7 @@ func TestGateway_Debounce_EmitsSingleMergedMessage(t *testing.T) {
 // CreateBatch call: 2 merged rows + 1 received row, correct MergedInto.
 func TestGateway_Debounce_BatchWrite(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -165,7 +171,7 @@ func TestGateway_Debounce_BatchWrite(t *testing.T) {
 // exactly one received row and no merged rows.
 func TestGateway_Debounce_SingleMessage(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -193,7 +199,7 @@ func TestGateway_Debounce_SingleMessage(t *testing.T) {
 // during debounce suppresses the emit.
 func TestGateway_BatchWrite_Error_NormalPath(t *testing.T) {
 	st := newMock().withError(errors.New("db down"))
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -213,7 +219,7 @@ func TestGateway_BatchWrite_Error_NormalPath(t *testing.T) {
 func TestGateway_BatchWrite_PartialInsert(t *testing.T) {
 	// 3 messages dispatched → batch of 3; mock returns only 2 inserted
 	st := newMock().withPartialInsert(2)
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -234,7 +240,7 @@ func TestGateway_BatchWrite_PartialInsert(t *testing.T) {
 // debounced normally (no special command handling).
 func TestGateway_ClearMessage_DebounceAsNormal(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond)
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -267,6 +273,8 @@ func newMockCommandHandler(handled bool) *mockCommandHandler {
 	}
 }
 
+func (m *mockCommandHandler) IsCommand(_ string) bool { return m.handled }
+
 func (m *mockCommandHandler) HandleCommand(_ context.Context, content string, _ platform.InboundMessage) bool {
 	m.mu.Lock()
 	m.contents = append(m.contents, content)
@@ -286,7 +294,10 @@ func (m *mockCommandHandler) getContents() []string {
 func TestGateway_CommandHandlerInterceptsBeforeDB(t *testing.T) {
 	st := newMock()
 	handler := newMockCommandHandler(true)
-	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+	g := msgingest.New(st, 0, handler)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
 
 	g.Dispatch(platform.InboundMessage{
 		Platform:   "feishu",
@@ -315,7 +326,7 @@ func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
 	handler := newMockCommandHandler(false)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	g := msgingest.New(st, 0, msgingest.WithCommandHandler(handler))
+	g := msgingest.New(st, 0, handler)
 	go g.Run(ctx)
 
 	g.Dispatch(platform.InboundMessage{
@@ -337,9 +348,40 @@ func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
 
 // TestGateway_ClearMessage_MergedWithDebounce verifies that "clear" sent after
 // a normal message within the debounce window is merged into one message.
+// TestGateway_Command_BypassesDebounce verifies that a recognized command is
+// handled immediately in Dispatch (no debounce wait) and never written to DB.
+func TestGateway_Command_BypassesDebounce(t *testing.T) {
+	st := newMock()
+	handler := newMockCommandHandler(true)
+	g := msgingest.New(st, 500*time.Millisecond, handler)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	start := time.Now()
+	g.Dispatch(platform.InboundMessage{
+		Platform:   "feishu",
+		SessionKey: "feishu:c1:u1",
+		Content:    "/engine claude",
+	})
+
+	select {
+	case <-handler.called:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("command handler not called within 200ms — debounce not bypassed")
+	}
+
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Errorf("command took %v, expected < 200ms (debounce is 500ms)", elapsed)
+	}
+	if len(st.batches) != 0 {
+		t.Errorf("expected 0 DB writes for command, got %d", len(st.batches))
+	}
+}
+
 func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 	st := newMock()
-	g := msgingest.New(st, 200*time.Millisecond)
+	g := msgingest.New(st, 200*time.Millisecond, noopHandler{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go g.Run(ctx)
@@ -361,5 +403,72 @@ func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 	case extra := <-g.Out():
 		t.Fatalf("unexpected extra message: %+v", extra)
 	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// TestGateway_BotMention_StrippedInEmitAndDB verifies that @BotName mentions are
+// stripped from both IngestedMessage.Content and BatchMsg.Content for normal messages.
+func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithBotNames([]string{"OpenBee"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@OpenBee hello world", "m1"))
+
+	var emitted msgingest.IngestedMessage
+	select {
+	case emitted = <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for debounced message")
+	}
+
+	if emitted.Content != "hello world" {
+		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, "hello world")
+	}
+	if len(st.batches) != 1 || len(st.batches[0]) != 1 {
+		t.Fatalf("expected 1 batch with 1 row, got %v", st.batches)
+	}
+	if got := st.batches[0][0].Content; got != "hello world" {
+		t.Errorf("BatchMsg.Content = %q, want %q", got, "hello world")
+	}
+}
+
+// TestGateway_BotMention_MergedMessagesStripped verifies that merged messages each
+// have their bot mentions stripped before being combined.
+func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 150*time.Millisecond, noopHandler{},
+		msgingest.WithBotNames([]string{"Bot"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot hello", "m1"))
+	g.Dispatch(inbound("s1", "world @Bot", "m2"))
+
+	var emitted msgingest.IngestedMessage
+	select {
+	case emitted = <-g.Out():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for debounced message")
+	}
+
+	const want = "hello\n\n---\n\nworld"
+	if emitted.Content != want {
+		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, want)
+	}
+	if len(st.batches) != 1 || len(st.batches[0]) != 2 {
+		t.Fatalf("expected 1 batch with 2 rows, got %v", st.batches)
+	}
+	if got := st.batches[0][0].Content; got != "hello" {
+		t.Errorf("batch[0].Content = %q, want %q", got, "hello")
+	}
+	if got := st.batches[0][1].Content; got != "world" {
+		t.Errorf("batch[1].Content = %q, want %q", got, "world")
 	}
 }

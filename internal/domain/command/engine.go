@@ -90,6 +90,10 @@ type EngineCommandHandler struct {
 	engineCfg *enginecfg.Store
 }
 
+func isExactOrPrefixed(content, cmd string) bool {
+	return content == cmd || strings.HasPrefix(content, cmd+" ")
+}
+
 func NewEngineCommandHandler(
 	workers WorkerRepository,
 	sysCfg SystemConfigWriter,
@@ -108,8 +112,10 @@ func NewEngineCommandHandler(
 	}
 }
 
-// HandleCommand implements msgingest.CommandHandler.
-// Returns true if content is a /engine command (whether or not it succeeded).
+func (h *EngineCommandHandler) IsCommand(content string) bool {
+	return isExactOrPrefixed(content, CmdEngine)
+}
+
 func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
 	fields := strings.Fields(content)
 	if len(fields) == 0 || fields[0] != CmdEngine {
