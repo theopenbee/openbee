@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add confirmation dialog before cancelling a scheduled task
+
 ### Fixed
 - Fix bug where resetting a session caused scheduled tasks and countdown tasks to be cancelled
 
