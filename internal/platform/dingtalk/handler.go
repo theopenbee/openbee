@@ -698,16 +698,20 @@ func imageContentType(path string) string {
 
 // uploadMediaToDingTalk uploads a file to DingTalk's OAPI media endpoint.
 func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, filePath, mediaType string) (string, error) {
-	data, err := os.ReadFile(filePath)
+	fi, err := os.Stat(filePath)
 	if err != nil {
-		return "", fmt.Errorf("read file: %w", err)
+		return "", fmt.Errorf("stat file: %w", err)
 	}
-	limit := maxUploadSize
+	limit := int64(maxUploadSize)
 	if mediaType == "voice" {
 		limit = maxVoiceUploadSize
 	}
-	if len(data) > limit {
-		return "", fmt.Errorf("file too large: %d bytes (max %d)", len(data), limit)
+	if fi.Size() > limit {
+		return "", fmt.Errorf("file too large: %d bytes (max %d)", fi.Size(), limit)
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("read file: %w", err)
 	}
 
 	token, err := getOAPIToken(cfg.ClientID, cfg.ClientSecret)
