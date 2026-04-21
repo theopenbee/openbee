@@ -136,8 +136,8 @@ export function WorkerDetail() {
 
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
-  const [isEditingMemory, setIsEditingMemory] = useState(false)
-  const [editMemory, setEditMemory] = useState("")
+  const [isEditingConstraints, setIsEditingConstraints] = useState(false)
+  const [editConstraints, setEditConstraints] = useState("")
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
@@ -388,13 +388,13 @@ export function WorkerDetail() {
                     </p>
                   </div>
 
-                  {!isEditingMemory ? (
+                  {!isEditingConstraints ? (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setEditMemory(worker.memory || "")
-                        setIsEditingMemory(true)
+                        setEditConstraints(worker.constraints || "")
+                        setIsEditingConstraints(true)
                       }}
                       aria-label={t("workerDetail.editMemory")}
                     >
@@ -404,15 +404,15 @@ export function WorkerDetail() {
                   ) : null}
                 </div>
 
-                {isEditingMemory ? (
+                {isEditingConstraints ? (
                   <div className="space-y-3">
                     <Textarea
-                      value={editMemory}
-                      onChange={(event) => setEditMemory(event.target.value)}
+                      value={editConstraints}
+                      onChange={(event) => setEditConstraints(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Escape") {
-                          setIsEditingMemory(false)
-                          setEditMemory(worker.memory || "")
+                          setIsEditingConstraints(false)
+                          setEditConstraints(worker.constraints || "")
                         }
                       }}
                       autoFocus
@@ -424,8 +424,8 @@ export function WorkerDetail() {
                       <Button
                         size="sm"
                         onClick={async () => {
-                          await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
-                          setIsEditingMemory(false)
+                          await updateWorker.mutateAsync({ id: id!, data: { constraints: editConstraints } })
+                          setIsEditingConstraints(false)
                         }}
                       >
                         <Check className="size-3" />
@@ -435,8 +435,8 @@ export function WorkerDetail() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setIsEditingMemory(false)
-                          setEditMemory(worker.memory || "")
+                          setIsEditingConstraints(false)
+                          setEditConstraints(worker.constraints || "")
                         }}
                       >
                         <X className="size-3" />
@@ -444,10 +444,10 @@ export function WorkerDetail() {
                       </Button>
                     </div>
                   </div>
-                ) : worker.memory ? (
+                ) : worker.constraints ? (
                   <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
                     <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
-                      {worker.memory}
+                      {worker.constraints}
                     </pre>
                   </div>
                 ) : (

@@ -5,7 +5,7 @@ export interface Worker {
   id: string
   name: string
   description: string
-  memory: string
+  constraints: string
   work_dir: string
   engine: Engine
   permission_scopes?: string
