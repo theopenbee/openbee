@@ -7,6 +7,7 @@
 
 ### Changed
 - Rename worker memory concept to worker constraints to avoid conflicts with the agent's built-in memory feature
+- Rename bee coordinator memory management to constraint management to avoid conflicts with the agent's built-in memory feature
 
 ### Fixed
 - Fix agent execution error message not being delivered to IM
