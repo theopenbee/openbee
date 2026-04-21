@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	DefaultRetryCount = 5
+	DefaultRetryDelay = 500 * time.Millisecond
+)
+
 func RetryWithBackoff(ctx context.Context, fn func() error, maxRetries int, baseDelay time.Duration) error {
 	if maxRetries <= 0 {
 		return fn()

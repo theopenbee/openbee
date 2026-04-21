@@ -36,11 +36,7 @@ import (
 
 var log = logger.With(zap.String("component", "feishu"))
 
-const (
-	mentionPrefix      = "@"
-	reactionRetryCount = 5
-	reactionRetryDelay = 500 * time.Millisecond
-)
+const mentionPrefix = "@"
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
@@ -148,9 +144,11 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 							Build()).
 						Build()).
 					Build()
+				addCtx, addCancel := context.WithTimeout(ctx, 30*time.Second)
+				defer addCancel()
 				var reactionID string
-				err := retryutil.RetryWithBackoff(ctx, func() error {
-					resp, e := r.larkClient.Im.MessageReaction.Create(ctx, req)
+				err := retryutil.RetryWithBackoff(addCtx, func() error {
+					resp, e := r.larkClient.Im.MessageReaction.Create(addCtx, req)
 					if e != nil {
 						return e
 					}
@@ -161,7 +159,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						reactionID = *resp.Data.ReactionId
 					}
 					return nil
-				}, reactionRetryCount, reactionRetryDelay)
+				}, retryutil.DefaultRetryCount, retryutil.DefaultRetryDelay)
 				if err != nil {
 					log.Error("add reaction failed after retries", zap.Error(err))
 					close(reactionCh)
@@ -480,13 +478,13 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	if val, ok := s.pendingReactions.LoadAndDelete(messageID); ok {
 		if ch, ok := val.(chan string); ok {
 			go func() {
+				recallCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
 				timer := time.NewTimer(5 * time.Second)
 				defer timer.Stop()
 				select {
 				case reactionID, received := <-ch:
 					if received && reactionID != "" {
-						recallCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-						defer cancel()
 						req := larkim.NewDeleteMessageReactionReqBuilder().
 							MessageId(messageID).
 							ReactionId(reactionID).
@@ -500,7 +498,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 								return fmt.Errorf("recall reaction: %w", resp.CodeError)
 							}
 							return nil
-						}, reactionRetryCount, reactionRetryDelay); err != nil {
+						}, retryutil.DefaultRetryCount, retryutil.DefaultRetryDelay); err != nil {
 							log.Warn("recall reaction failed after retries", zap.Error(err))
 						}
 					}
