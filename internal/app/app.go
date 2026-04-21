@@ -328,7 +328,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 	mcpAuthMiddleware := mcp.JWTAuthMiddleware(mcpCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
-		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr),
+		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
 		Executions:        api.NewExecutionHandler(s.execStore),
 		Messages:          api.NewMessageHandler(s.msgStore),
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore),

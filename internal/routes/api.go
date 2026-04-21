@@ -11,6 +11,7 @@ func (s *Server) registerAuthRoutes() {
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/workers", s.Workers.Create)
 	r.GET("/workers", s.Workers.List)
+	r.GET("/workers/random-name", s.Workers.RandomName)
 	r.GET("/workers/:id", s.Workers.Get)
 	r.PUT("/workers/:id", s.Workers.Update)
 	r.DELETE("/workers/:id", s.Workers.Delete)
