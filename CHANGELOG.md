@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add random worker name generation feature
+
 ### Changed
 - Rename worker memory concept to worker constraints to avoid conflicts with the agent's built-in memory feature
 
