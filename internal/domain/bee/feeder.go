@@ -242,7 +242,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if drainErr != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
-		f.failMessages(ctx, msgs, drainErr.Error())
+		f.failMessages(ctx, msgs, resultMsg)
 		return
 	}
 
@@ -281,7 +281,7 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 	}
 	for _, m := range msgs {
 		log.Warn("message failed", zap.String("messageID", m.ID), zap.String("reason", reason))
-		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason}); notifyErr != nil {
+		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason, WorkerName: "bee"}); notifyErr != nil {
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}
