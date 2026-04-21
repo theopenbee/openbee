@@ -208,6 +208,18 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create stub bee_platform_messages: %v", err)
 	}
+	// bee_memories is required by migration 40 (rename to bee_constraints).
+	if _, err := db.Exec(`CREATE TABLE bee_memories (
+		id         TEXT PRIMARY KEY,
+		scope      TEXT NOT NULL,
+		key        TEXT NOT NULL,
+		value      TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		UNIQUE(scope, key)
+	)`); err != nil {
+		t.Fatalf("create stub bee_memories: %v", err)
+	}
 	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
 		VALUES ('sk', 'bee', 'legacy-sid', 1)`); err != nil {
 		t.Fatalf("seed legacy session row: %v", err)

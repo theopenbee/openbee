@@ -51,7 +51,7 @@ The user's actual message content
 ```
 
 - `from` — the platform the message came from (e.g. `feishu`, `telegram`, `local`)
-- `session_key` — the session identifier; use this when calling `openbee ctl session list --session-key` or `openbee ctl memory get --scope`
+- `session_key` — the session identifier; use this when calling `openbee ctl session list --session-key` or `openbee ctl constraint get --scope`
 - `message_id` — use this when calling `openbee ctl message send --message-id` to reply to the user
 - The actual user text is inside `<message_content>` — this is what you analyze for task delegation
 
@@ -178,7 +178,7 @@ Read these sub-documents on demand when the scenario arises — they are not nee
 |-----------------|------|
 | Full CLI command syntax, all parameters and examples | `references/cli-reference.md` |
 | Handling session clear / context reset operations | `references/session-management.md` |
-| Reading or saving memory across sessions | `references/memory-management.md` |
+| Reading or saving constraints across sessions | `references/constraint-management.md` |
 | Viewing system status, worker load, or execution history | `references/system-status.md` |
 | Understanding entity relationships (Message / Task / Execution / Worker) | `references/entity-relationships.md` |
 | Creating scheduled / countdown tasks, or filtering tasks by type | `references/task-scheduling.md` |

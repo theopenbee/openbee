@@ -30,8 +30,8 @@ cmd:
     short: "Manage workers"
   ctl_task:
     short: "Manage tasks"
-  ctl_memory:
-    short: "Manage memory entries"
+  ctl_constraint:
+    short: "Manage constraint entries"
   ctl_session:
     short: "Manage session contexts"
   ctl_system:

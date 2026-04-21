@@ -45,7 +45,7 @@ func applyCtlTranslations() {
 	ctlCmd.Short = m.Cmd.Ctl.Short
 	ctlWorkerCmd.Short = m.Cmd.CtlWorker.Short
 	ctlTaskCmd.Short = m.Cmd.CtlTask.Short
-	ctlMemoryCmd.Short = m.Cmd.CtlMemory.Short
+	ctlConstraintCmd.Short = m.Cmd.CtlConstraint.Short
 	ctlSessionCmd.Short = m.Cmd.CtlSession.Short
 	ctlSystemCmd.Short = m.Cmd.CtlSystem.Short
 	ctlMessageCmd.Short = m.Cmd.CtlMessage.Short

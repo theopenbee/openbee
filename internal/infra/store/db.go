@@ -351,6 +351,24 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "rename_bee_workers_memory_to_constraints",
 		sql:     `ALTER TABLE bee_workers RENAME COLUMN memory TO constraints`,
 	},
+	{
+		version: 40,
+		name:    "rename_bee_memories_to_bee_constraints",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_constraints (
+            id         TEXT PRIMARY KEY,
+            scope      TEXT NOT NULL,
+            key        TEXT NOT NULL,
+            value      TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE(scope, key)
+        );
+        INSERT INTO bee_constraints (id, scope, key, value, created_at, updated_at)
+        SELECT id, scope, key, value, created_at, updated_at FROM bee_memories;
+        DROP TABLE bee_memories;
+    `,
+	},
 }
 
 type whereBuilder struct {

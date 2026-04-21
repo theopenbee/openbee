@@ -30,8 +30,8 @@ cmd:
     short: "管理员工"
   ctl_task:
     short: "管理任务"
-  ctl_memory:
-    short: "管理记忆条目"
+  ctl_constraint:
+    short: "管理约束条目"
   ctl_session:
     short: "管理会话上下文"
   ctl_system:

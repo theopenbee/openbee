@@ -50,7 +50,7 @@ External Platform
 
 ## Practical Implications for the Bee
 
-- Use `session_key` from the incoming `<message_meta>` to scope memory, session, and task queries to the current conversation
+- Use `session_key` from the incoming `<message_meta>` to scope constraint, session, and task queries to the current conversation
 - When querying task history for a conversation, filter by `--session-key` on `openbee ctl task list`
 - When querying outbound message history, use `--source-type worker --source-id <id>` to isolate a specific worker's replies
 - `openbee ctl execution list` lets you inspect runtime details (logs, timing, status) for any Worker's executions

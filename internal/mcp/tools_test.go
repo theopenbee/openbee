@@ -48,7 +48,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -247,7 +247,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -497,7 +497,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, es, store.NewMemoryStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
@@ -639,10 +639,10 @@ func TestCallTool_ListBeeExecutions(t *testing.T) {
 	}
 }
 
-func TestCallTool_SaveMemory(t *testing.T) {
+func TestCallTool_SaveConstraint(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	result, err := s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "test_pref",
 		"value": "user likes concise replies",
@@ -656,18 +656,18 @@ func TestCallTool_SaveMemory(t *testing.T) {
 	}
 }
 
-func TestCallTool_GetMemory(t *testing.T) {
+func TestCallTool_GetConstraint(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
 	// Save first
-	s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 		"value": "value1",
 	}))
 
 	// Get by key
-	result, err := s.CallTool(context.Background(), utils.GetMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.GetConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "pref1",
 	}))
@@ -675,11 +675,11 @@ func TestCallTool_GetMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result == nil {
-		t.Fatal("expected memory, got nil")
+		t.Fatal("expected constraint, got nil")
 	}
 
 	// List by scope (no key)
-	result2, err := s.CallTool(context.Background(), utils.GetMemory, mustMarshal(t, map[string]any{
+	result2, err := s.CallTool(context.Background(), utils.GetConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 	}))
 	if err != nil {
@@ -688,16 +688,16 @@ func TestCallTool_GetMemory(t *testing.T) {
 	_ = result2
 }
 
-func TestCallTool_DeleteMemory(t *testing.T) {
+func TestCallTool_DeleteConstraint(t *testing.T) {
 	s := setupMCPServerWithMessaging(t)
 
-	s.CallTool(context.Background(), utils.SaveMemory, mustMarshal(t, map[string]any{
+	s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 		"value": "temp",
 	}))
 
-	result, err := s.CallTool(context.Background(), utils.DeleteMemory, mustMarshal(t, map[string]any{
+	result, err := s.CallTool(context.Background(), utils.DeleteConstraint, mustMarshal(t, map[string]any{
 		"scope": "global",
 		"key":   "to_delete",
 	}))
