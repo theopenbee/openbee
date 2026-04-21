@@ -23,10 +23,11 @@ type WorkerHandler struct {
 	workers     *store.WorkerStore
 	departments *store.DepartmentStore
 	manager     *worker.Manager
+	language    string
 }
 
-func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager) *WorkerHandler {
-	return &WorkerHandler{workers: ws, departments: ds, manager: mgr}
+func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager, lang string) *WorkerHandler {
+	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, language: lang}
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -147,4 +148,23 @@ func (h *WorkerHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *WorkerHandler) RandomName(c *gin.Context) {
+	pool := worker.NamePool(h.language)
+	names, err := h.workers.ListNames()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	used := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		used[n] = struct{}{}
+	}
+	name, ok := worker.PickRandomName(pool, used)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"exhausted": true})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"name": name})
 }

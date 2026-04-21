@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronDown, Search } from "lucide-react"
-import { useCreateWorker } from "@/hooks/use-workers"
+import { ChevronDown, Search, Shuffle, Loader2 } from "lucide-react"
+import { useCreateWorker, useRandomWorkerName } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Sheet,
   SheetContent,
@@ -77,6 +82,8 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [submitError, setSubmitError] = useState("")
   const [showOptional, setShowOptional] = useState(false)
   const [deptSearch, setDeptSearch] = useState("")
+  const randomName = useRandomWorkerName()
+  const nameExhausted = randomName.data?.exhausted ?? false
 
   useEffect(() => {
     if (open) {
@@ -91,6 +98,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSubmitError("")
       setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
       setDeptSearch("")
+      randomName.reset()
     }
   }, [open, enabledEngines])
 
@@ -112,6 +120,16 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       onOpenChange(false)
     } catch (err) {
       setSubmitError(getErrorMessage(err))
+    }
+  }
+
+  const handleRandomName = async () => {
+    try {
+      const result = await randomName.mutateAsync()
+      if (!result.exhausted && result.name) {
+        setName(result.name)
+      }
+    } catch {
     }
   }
 
@@ -151,14 +169,39 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                 {t("workers.form.name")}
                 <span className="ml-1 text-destructive" aria-hidden>*</span>
               </Label>
-              <Input
-                id="cws-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("workers.form.namePlaceholder")}
-                required
-                autoFocus
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="cws-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("workers.form.namePlaceholder")}
+                  required
+                  autoFocus
+                  className="flex-1"
+                />
+                <Tooltip open={nameExhausted || undefined}>
+                  <TooltipTrigger render={<span className="inline-flex" />}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={nameExhausted || randomName.isPending}
+                      onClick={handleRandomName}
+                      aria-label={t("workers.form.randomName")}
+                    >
+                      {randomName.isPending
+                        ? <Loader2 className="size-4 animate-spin" />
+                        : <Shuffle className="size-4" />
+                      }
+                    </Button>
+                  </TooltipTrigger>
+                  {nameExhausted && (
+                    <TooltipContent>
+                      <p>{t("workers.form.randomNameExhausted")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </div>
               <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
             </div>
 

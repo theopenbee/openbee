@@ -209,3 +209,36 @@ func TestWorkerStore_CountByStatus(t *testing.T) {
 		t.Errorf("unexpected counts: %v", counts)
 	}
 }
+
+func TestWorkerStore_ListNames(t *testing.T) {
+	s := setupTestDB(t)
+
+	// Empty store returns empty slice without error
+	names, err := s.ListNames()
+	if err != nil {
+		t.Fatalf("ListNames on empty store: %v", err)
+	}
+	if len(names) != 0 {
+		t.Errorf("expected 0 names, got %d", len(names))
+	}
+
+	// Seed two workers
+	s.Create(model.Worker{Name: "Alpha"})
+	s.Create(model.Worker{Name: "Beta"})
+
+	names, err = s.ListNames()
+	if err != nil {
+		t.Fatalf("ListNames: %v", err)
+	}
+	if len(names) != 2 {
+		t.Errorf("expected 2 names, got %d: %v", len(names), names)
+	}
+
+	nameSet := map[string]bool{}
+	for _, n := range names {
+		nameSet[n] = true
+	}
+	if !nameSet["Alpha"] || !nameSet["Beta"] {
+		t.Errorf("expected Alpha and Beta in %v", names)
+	}
+}

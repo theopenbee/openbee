@@ -85,6 +85,7 @@ export const api = {
         `/workers/${id}/executions?page=${page}&page_size=${pageSize}`
       )
     },
+    randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
   },
   executions: {
     list: async (page: number = 1, pageSize: number = 20) => {

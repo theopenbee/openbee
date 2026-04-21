@@ -146,6 +146,23 @@ func (s *WorkerStore) List() ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
+func (s *WorkerStore) ListNames() ([]string, error) {
+	rows, err := s.db.Query(`SELECT name FROM bee_workers`)
+	if err != nil {
+		return nil, fmt.Errorf("list worker names: %w", err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
+
 // WorkerFilter holds optional filter criteria for listing workers.
 type WorkerFilter struct {
 	Name      string   // case-insensitive partial match; empty means no filter

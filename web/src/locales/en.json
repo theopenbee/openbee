@@ -89,6 +89,8 @@
       "name": "Name",
       "namePlaceholder": "e.g. sam",
       "nameHelper": "Used for identification",
+      "randomName": "Random name",
+      "randomNameExhausted": "All names are in use",
       "description": "Description",
       "descriptionPlaceholder": "What does this worker do?",
       "descriptionHelper": "Used for task dispatching",

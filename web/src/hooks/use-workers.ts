@@ -63,3 +63,9 @@ export function useWorkerExecutions(workerId: string, page: number = 1, pageSize
     placeholderData: keepPreviousData,
   })
 }
+
+export function useRandomWorkerName() {
+  return useMutation({
+    mutationFn: () => api.workers.randomName(),
+  })
+}
