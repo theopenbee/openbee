@@ -65,12 +65,12 @@ openbee ctl task create --message-id <id> --worker-id <id> --instruction <instru
 openbee ctl task cancel <id>
 ```
 
-## memory subcommand
+## constraint subcommand
 
 ```bash
-openbee ctl memory get --scope <global|session_key> [--key <key>]
-openbee ctl memory save --scope <global|session_key> --key <key> --value <value>
-openbee ctl memory delete --scope <global|session_key> --key <key>
+openbee ctl constraint get --scope <global|session_key> [--key <key>]
+openbee ctl constraint save --scope <global|session_key> --key <key> --value <value>
+openbee ctl constraint delete --scope <global|session_key> --key <key>
 ```
 
 ## session subcommand
