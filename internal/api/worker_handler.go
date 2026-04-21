@@ -14,7 +14,7 @@ type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
 	Engine           string `json:"engine"`
 	Description      string `json:"description"`
-	Memory           string `json:"memory"`
+	Constraints      string `json:"constraints"`
 	WorkDir          string `json:"work_dir"`
 	PermissionScopes string `json:"permission_scopes"`
 }
@@ -50,7 +50,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		Name:             req.Name,
 		Engine:           req.Engine,
 		Description:      req.Description,
-		Memory:           req.Memory,
+		Constraints:      req.Constraints,
 		WorkDir:          req.WorkDir,
 		PermissionScopes: req.PermissionScopes,
 	})
@@ -118,7 +118,7 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	var req struct {
 		Name             *string `json:"name"`
 		Description      *string `json:"description"`
-		Memory           *string `json:"memory"`
+		Constraints      *string `json:"constraints"`
 		PermissionScopes *string `json:"permission_scopes"`
 		Engine           *string `json:"engine"`
 	}
@@ -133,8 +133,8 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 	if req.Description != nil {
 		w.Description = *req.Description
 	}
-	if req.Memory != nil {
-		w.Memory = *req.Memory
+	if req.Constraints != nil {
+		w.Constraints = *req.Constraints
 	}
 	if req.PermissionScopes != nil {
 		if err := auth.ValidatePermissionScopes(*req.PermissionScopes); err != nil {
