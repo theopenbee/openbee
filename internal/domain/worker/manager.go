@@ -108,6 +108,50 @@ type CreateWorkerParams struct {
 	Engine           string
 }
 
+// UpdateWorkerParams holds the inputs for a partial worker update.
+type UpdateWorkerParams struct {
+	Name             *string `json:"name"`
+	Description      *string `json:"description"`
+	Constraints      *string `json:"constraints"`
+	PermissionScopes *string `json:"permission_scopes"`
+	Engine           *string `json:"engine"`
+}
+
+func (p UpdateWorkerParams) HasChanges() bool {
+	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
+		p.PermissionScopes != nil || p.Engine != nil
+}
+
+func (p UpdateWorkerParams) Validate(m *Manager) error {
+	if p.PermissionScopes != nil {
+		if err := auth.ValidatePermissionScopes(*p.PermissionScopes); err != nil {
+			return err
+		}
+	}
+	if p.Engine != nil {
+		return m.ValidateEngine(*p.Engine)
+	}
+	return nil
+}
+
+func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
+	if p.Name != nil {
+		w.Name = *p.Name
+	}
+	if p.Description != nil {
+		w.Description = *p.Description
+	}
+	if p.Constraints != nil {
+		w.Constraints = *p.Constraints
+	}
+	if p.PermissionScopes != nil {
+		w.PermissionScopes = *p.PermissionScopes
+	}
+	if p.Engine != nil {
+		w.Engine = *p.Engine
+	}
+}
+
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	id := uuid.New().String()
 	if p.WorkDir == "" {
