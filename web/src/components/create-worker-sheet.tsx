@@ -125,11 +125,15 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   }
 
   const handleRandomName = async () => {
-    const result = await randomName.mutateAsync()
-    if (result.exhausted) {
-      setNameExhausted(true)
-    } else if (result.name) {
-      setName(result.name)
+    try {
+      const result = await randomName.mutateAsync()
+      if (result.exhausted) {
+        setNameExhausted(true)
+      } else if (result.name) {
+        setName(result.name)
+      }
+    } catch {
+      // button returns to non-pending state automatically via useMutation
     }
   }
 
@@ -180,21 +184,24 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   className="flex-1"
                 />
                 <TooltipProvider>
-                  <Tooltip>
+                  <Tooltip open={nameExhausted || undefined}>
                     <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        disabled={nameExhausted || randomName.isPending}
-                        onClick={handleRandomName}
-                        aria-label={t("workers.form.randomName")}
-                      >
-                        {randomName.isPending
-                          ? <Loader2 className="size-4 animate-spin" />
-                          : <Shuffle className="size-4" />
-                        }
-                      </Button>
+                      <span className="inline-flex">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={nameExhausted || randomName.isPending}
+                          onClick={handleRandomName}
+                          aria-label={t("workers.form.randomName")}
+                          style={{ pointerEvents: nameExhausted ? "none" : undefined }}
+                        >
+                          {randomName.isPending
+                            ? <Loader2 className="size-4 animate-spin" />
+                            : <Shuffle className="size-4" />
+                          }
+                        </Button>
+                      </span>
                     </TooltipTrigger>
                     {nameExhausted && (
                       <TooltipContent>
