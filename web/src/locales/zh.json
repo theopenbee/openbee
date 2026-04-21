@@ -89,6 +89,8 @@
       "name": "名称",
       "namePlaceholder": "例如：sam",
       "nameHelper": "用于身份识别",
+      "randomName": "随机姓名",
+      "randomNameExhausted": "所有名字已被使用",
       "description": "描述",
       "descriptionPlaceholder": "这个员工做什么？",
       "descriptionHelper": "用于任务分发",
