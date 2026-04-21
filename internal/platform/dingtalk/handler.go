@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -21,7 +20,6 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/handler"
-	"github.com/open-dingtalk/dingtalk-stream-sdk-go/payload"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -52,39 +50,21 @@ func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return 
 
 // DingTalkReceiver connects to DingTalk via the stream SDK and dispatches inbound messages.
 type DingTalkReceiver struct {
-	cfg              config.DingTalkConfig
-	pendingEmojis    *sync.Map
-	mediaSvc         *media.Service
-	mu               sync.Mutex
-	cli              *client.StreamClient
-	lastActivityTime atomic.Value // time.Time
+	cfg           config.DingTalkConfig
+	pendingEmojis *sync.Map
+	mediaSvc      *media.Service
 }
 
 func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
-	r.lastActivityTime.Store(time.Now())
-	if err := r.createAndStartClient(ctx, dispatch); err != nil {
-		return fmt.Errorf("initial connection failed: %w", err)
-	}
-	log.Info("DingTalk bot started with heartbeat supervisor")
-	r.supervisorLoop(ctx, dispatch)
-	return nil
-}
-
-func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch func(platform.InboundMessage)) error {
 	cli := client.NewStreamClient(
 		client.WithAppCredential(client.NewAppCredentialConfig(r.cfg.ClientID, r.cfg.ClientSecret)),
 		client.WithKeepAlive(30*time.Second),
 		client.WithAutoReconnect(true),
 	)
 
-	// Register system ping handler to track activity from server-side pings.
-	cli.RegisterRouter("SYSTEM", "ping", handler.IFrameHandler(func(ctx context.Context, df *payload.DataFrame) (*payload.DataFrameResponse, error) {
-		r.lastActivityTime.Store(time.Now())
-		return cli.OnPing(ctx, df)
-	}))
+	cli.RegisterRouter("SYSTEM", "ping", handler.IFrameHandler(cli.OnPing))
 
 	cli.RegisterChatBotCallbackRouter(func(ctx context.Context, data *chatbot.BotCallbackDataModel) ([]byte, error) {
-		r.lastActivityTime.Store(time.Now())
 		log.Info("received message",
 			zap.String("msgId", data.MsgId),
 			zap.String("conversationId", data.ConversationId),
@@ -155,78 +135,14 @@ func (r *DingTalkReceiver) createAndStartClient(ctx context.Context, dispatch fu
 	})
 
 	if err := cli.Start(ctx); err != nil {
-		return err
+		return fmt.Errorf("connection failed: %w", err)
 	}
 
-	r.mu.Lock()
-	r.cli = cli
-	r.mu.Unlock()
-
-	log.Info("DingTalk stream client connected")
+	log.Info("DingTalk bot started")
+	<-ctx.Done()
+	cli.AutoReconnect = false
+	cli.Close()
 	return nil
-}
-
-const (
-	supervisorCheckInterval = 30 * time.Second
-	activityTimeout         = 90 * time.Second
-	reconnectDelay          = 5 * time.Second
-)
-
-func (r *DingTalkReceiver) supervisorLoop(ctx context.Context, dispatch func(platform.InboundMessage)) {
-	ticker := time.NewTicker(supervisorCheckInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info("DingTalk supervisor shutting down")
-			r.mu.Lock()
-			if r.cli != nil {
-				r.cli.AutoReconnect = false
-				r.cli.Close()
-			}
-			r.mu.Unlock()
-			return
-
-		case <-ticker.C:
-			last, ok := r.lastActivityTime.Load().(time.Time)
-			if !ok {
-				continue
-			}
-			elapsed := time.Since(last)
-			if elapsed <= activityTimeout {
-				continue
-			}
-
-			log.Warn("DingTalk heartbeat timeout, triggering reconnect", zap.Duration("elapsed", elapsed))
-
-			r.mu.Lock()
-			if r.cli != nil {
-				r.cli.AutoReconnect = false
-				r.cli.Close()
-				r.cli = nil
-			}
-			r.mu.Unlock()
-
-			r.lastActivityTime.Store(time.Now())
-			if err := r.createAndStartClient(ctx, dispatch); err != nil {
-				log.Error("DingTalk reconnect failed, retrying", zap.Error(err))
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(reconnectDelay):
-				}
-				r.lastActivityTime.Store(time.Now())
-				if err := r.createAndStartClient(ctx, dispatch); err != nil {
-					log.Error("DingTalk reconnect retry failed", zap.Error(err))
-				} else {
-					log.Info("DingTalk reconnected successfully after retry")
-				}
-			} else {
-				log.Info("DingTalk reconnected successfully")
-			}
-		}
-	}
 }
 
 // exchangeDownloadCode exchanges a downloadCode for a download URL via DingTalk API.
