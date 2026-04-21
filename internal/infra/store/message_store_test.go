@@ -461,3 +461,75 @@ func TestMessageStore_MarkFailed(t *testing.T) {
 		t.Errorf("expected status=failed, got %q", status)
 	}
 }
+
+func TestMessageStore_ClaimBatch_StalesLateArrivingMessage(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'bee_processed', ?, ?, ?)`, now+1000, now, now)
+	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'received', ?, ?, ?)`, now, now, now)
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Errorf("expected 0 claimed messages (msgA is stale), got %d", len(msgs))
+	}
+
+	var status string
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT status FROM bee_platform_messages WHERE id = 'msgA'`,
+	).Scan(&status); err != nil {
+		t.Fatalf("scan msgA status: %v", err)
+	}
+	if status != MsgStatusStale {
+		t.Errorf("msgA: want status=%q, got %q", MsgStatusStale, status)
+	}
+}
+
+func TestMessageStore_ClaimBatch_DoesNotStaleMessageWithNoNewerProcessed(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+	          VALUES ('msgA', 'sk1', 'feishu', 'hello', 'received', ?, ?, ?)`, now, now, now)
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 claimed message, got %d", len(msgs))
+	}
+	if msgs[0].ID != "msgA" {
+		t.Errorf("expected msgA to be claimed, got %q", msgs[0].ID)
+	}
+}
+
+func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	// B is newer than A — it should be claimed, not staled.
+	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'bee_processed', ?, ?, ?)`, now, now, now)
+	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'received', ?, ?, ?)`, now+1000, now, now)
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 claimed message, got %d", len(msgs))
+	}
+	if msgs[0].ID != "msgB" {
+		t.Errorf("expected msgB to be claimed, got %q", msgs[0].ID)
+	}
+}

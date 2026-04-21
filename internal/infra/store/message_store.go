@@ -15,6 +15,7 @@ const (
 	MsgStatusMerged       = "merged"
 	MsgStatusBeeProcessed = "bee_processed"
 	MsgStatusFailed       = "failed"
+	MsgStatusStale        = "stale"
 )
 
 // BatchMsg is a single row for a bulk insert via CreateBatch.
@@ -121,21 +122,38 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	now := time.Now().UnixMilli()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE bee_platform_messages
+		 SET    status = ?, updated_at = ?
+		 WHERE  status = ?
+		   AND  EXISTS (
+		          SELECT 1
+		          FROM   bee_platform_messages b2
+		          WHERE  b2.session_key  = bee_platform_messages.session_key
+		            AND  b2.status       = ?
+		            AND  b2.received_at  > bee_platform_messages.received_at
+		        )`,
+		MsgStatusStale, now, MsgStatusReceived, MsgStatusBeeProcessed,
+	); err != nil {
+		return nil, fmt.Errorf("mark stale: %w", err)
+	}
+
 	rows, err := tx.QueryContext(ctx,
 		`SELECT id, session_key, platform, content
 		 FROM bee_platform_messages m
-		 WHERE status = 'received'
+		 WHERE status = ?
 		   AND session_key NOT IN (
-		       SELECT session_key FROM bee_platform_messages WHERE status = 'feeding'
+		       SELECT session_key FROM bee_platform_messages WHERE status = ?
 		   )
 		   AND received_at = (
 		       SELECT MIN(received_at)
 		       FROM bee_platform_messages m2
 		       WHERE m2.session_key = m.session_key
-		         AND m2.status = 'received'
+		         AND m2.status = ?
 		   )
 		 ORDER BY received_at ASC
-		 LIMIT ?`, batchSize)
+		 LIMIT ?`, MsgStatusReceived, MsgStatusFeeding, MsgStatusReceived, batchSize)
 	if err != nil {
 		return nil, fmt.Errorf("select batch: %w", err)
 	}
@@ -153,7 +171,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		return nil, err
 	}
 	if len(msgs) == 0 {
-		return nil, nil
+		return nil, tx.Commit()
 	}
 
 	ids := make([]string, len(msgs))
@@ -161,7 +179,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		ids[i] = m.ID
 	}
 	args := make([]any, 0, len(ids)+2)
-	args = append(args, MsgStatusFeeding, time.Now().UnixMilli())
+	args = append(args, MsgStatusFeeding, now)
 	for _, id := range ids {
 		args = append(args, id)
 	}
