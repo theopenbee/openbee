@@ -47,7 +47,7 @@ type MCPServer struct {
 	execStopper          ExecutionStopper
 	sessionClearer       SessionClearer
 	executionStore       *store.ExecutionStore
-	memoryStore          *store.MemoryStore
+	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
 
@@ -65,7 +65,7 @@ func NewBeeServer(
 	execStopper ExecutionStopper,
 	sessionClearer SessionClearer,
 	es *store.ExecutionStore,
-	memStore *store.MemoryStore,
+	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
 	ds *store.DepartmentStore,
 ) *MCPServer {
@@ -79,7 +79,7 @@ func NewBeeServer(
 		execStopper:          execStopper,
 		sessionClearer:       sessionClearer,
 		executionStore:       es,
-		memoryStore:          memStore,
+		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,
 		departmentStore:      ds,
 	}

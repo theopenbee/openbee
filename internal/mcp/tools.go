@@ -90,12 +90,12 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolGetSystemOverview(ctx)
 	case utils.ListBeeExecutions:
 		return s.toolListBeeExecutions(args)
-	case utils.SaveMemory:
-		return s.toolSaveMemory(args)
-	case utils.GetMemory:
-		return s.toolGetMemory(args)
-	case utils.DeleteMemory:
-		return s.toolDeleteMemory(args)
+	case utils.SaveConstraint:
+		return s.toolSaveConstraint(args)
+	case utils.GetConstraint:
+		return s.toolGetConstraint(args)
+	case utils.DeleteConstraint:
+		return s.toolDeleteConstraint(args)
 	case utils.ListSessionContexts:
 		return s.toolListSessionContexts(ctx, args)
 	case utils.ClearWorkerSession:
@@ -793,7 +793,7 @@ func (s *MCPServer) toolListBeeExecutions(args json.RawMessage) (any, error) {
 	return results, nil
 }
 
-func (s *MCPServer) toolSaveMemory(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolSaveConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -805,13 +805,13 @@ func (s *MCPServer) toolSaveMemory(args json.RawMessage) (any, error) {
 	if p.Scope == "" || p.Key == "" || p.Value == "" {
 		return nil, fmt.Errorf("scope, key, and value are required")
 	}
-	if err := s.memoryStore.Save(p.Scope, p.Key, p.Value); err != nil {
-		return nil, fmt.Errorf("failed to save memory: %w", err)
+	if err := s.constraintStore.Save(p.Scope, p.Key, p.Value); err != nil {
+		return nil, fmt.Errorf("failed to save constraint: %w", err)
 	}
 	return map[string]string{"status": "saved"}, nil
 }
 
-func (s *MCPServer) toolGetMemory(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolGetConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -823,23 +823,23 @@ func (s *MCPServer) toolGetMemory(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("scope is required")
 	}
 	if p.Key != "" {
-		mem, err := s.memoryStore.Get(p.Scope, p.Key)
+		c, err := s.constraintStore.Get(p.Scope, p.Key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get memory: %w", err)
+			return nil, fmt.Errorf("failed to get constraint: %w", err)
 		}
-		if mem == nil {
+		if c == nil {
 			return map[string]string{"status": "not_found"}, nil
 		}
-		return mem, nil
+		return c, nil
 	}
-	memories, err := s.memoryStore.ListByScope(p.Scope, 50)
+	constraints, err := s.constraintStore.ListByScope(p.Scope, 50)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list memories: %w", err)
+		return nil, fmt.Errorf("failed to list constraints: %w", err)
 	}
-	return memories, nil
+	return constraints, nil
 }
 
-func (s *MCPServer) toolDeleteMemory(args json.RawMessage) (any, error) {
+func (s *MCPServer) toolDeleteConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -850,8 +850,8 @@ func (s *MCPServer) toolDeleteMemory(args json.RawMessage) (any, error) {
 	if p.Scope == "" || p.Key == "" {
 		return nil, fmt.Errorf("scope and key are required")
 	}
-	if err := s.memoryStore.Delete(p.Scope, p.Key); err != nil {
-		return nil, fmt.Errorf("failed to delete memory: %w", err)
+	if err := s.constraintStore.Delete(p.Scope, p.Key); err != nil {
+		return nil, fmt.Errorf("failed to delete constraint: %w", err)
 	}
 	return map[string]string{"status": "deleted"}, nil
 }
