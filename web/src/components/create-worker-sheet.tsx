@@ -12,7 +12,6 @@ import { Separator } from "@/components/ui/separator"
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
@@ -180,30 +179,28 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   autoFocus
                   className="flex-1"
                 />
-                <TooltipProvider>
-                  <Tooltip open={nameExhausted ? true : undefined}>
-                    <TooltipTrigger render={<span className="inline-flex" />}>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        disabled={nameExhausted || randomName.isPending}
-                        onClick={handleRandomName}
-                        aria-label={t("workers.form.randomName")}
-                      >
-                        {randomName.isPending
-                          ? <Loader2 className="size-4 animate-spin" />
-                          : <Shuffle className="size-4" />
-                        }
-                      </Button>
-                    </TooltipTrigger>
-                    {nameExhausted && (
-                      <TooltipContent>
-                        <p>{t("workers.form.randomNameExhausted")}</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip open={nameExhausted || undefined}>
+                  <TooltipTrigger render={<span className="inline-flex" />}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={nameExhausted || randomName.isPending}
+                      onClick={handleRandomName}
+                      aria-label={t("workers.form.randomName")}
+                    >
+                      {randomName.isPending
+                        ? <Loader2 className="size-4 animate-spin" />
+                        : <Shuffle className="size-4" />
+                      }
+                    </Button>
+                  </TooltipTrigger>
+                  {nameExhausted && (
+                    <TooltipContent>
+                      <p>{t("workers.form.randomNameExhausted")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
             </div>
