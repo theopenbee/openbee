@@ -47,7 +47,7 @@ External Platform
 - **Task → Execution**: your current Task corresponds to exactly one Execution record (queryable via `openbee ctl execution list`)
 - **Worker ↔ Department**: you may belong to multiple Departments; departments are used for grouping and filtering only
 - **Outbound Message → Message**: every reply you send via `openbee ctl message send` is recorded as an Outbound Message linked to the original inbound Message
-- **Session**: your conversation context is isolated per `session_key`; each new session starts fresh unless constraints carry over
+- **Session**: your conversation context is isolated per `session_key`; each new session_key starts fresh with no prior conversation history; constraints are re-injected from your worker config at the start of every session
 
 ## Practical Implications for a Worker
 
