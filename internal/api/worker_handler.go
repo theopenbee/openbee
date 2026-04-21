@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -160,7 +159,7 @@ func (h *WorkerHandler) RandomName(c *gin.Context) {
 	}
 	used := make(map[string]struct{}, len(names))
 	for _, n := range names {
-		used[strings.ToLower(n)] = struct{}{}
+		used[n] = struct{}{}
 	}
 	name, ok := worker.PickRandomName(pool, used)
 	if !ok {

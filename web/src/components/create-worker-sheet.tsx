@@ -83,8 +83,8 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [submitError, setSubmitError] = useState("")
   const [showOptional, setShowOptional] = useState(false)
   const [deptSearch, setDeptSearch] = useState("")
-  const [nameExhausted, setNameExhausted] = useState(false)
   const randomName = useRandomWorkerName()
+  const nameExhausted = randomName.data?.exhausted ?? false
 
   useEffect(() => {
     if (open) {
@@ -99,7 +99,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSubmitError("")
       setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
       setDeptSearch("")
-      setNameExhausted(false)
+      randomName.reset()
     }
   }, [open, enabledEngines])
 
@@ -127,13 +127,10 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const handleRandomName = async () => {
     try {
       const result = await randomName.mutateAsync()
-      if (result.exhausted) {
-        setNameExhausted(true)
-      } else if (result.name) {
+      if (!result.exhausted && result.name) {
         setName(result.name)
       }
     } catch {
-      // button returns to non-pending state automatically via useMutation
     }
   }
 
@@ -184,7 +181,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   className="flex-1"
                 />
                 <TooltipProvider>
-                  <Tooltip open={nameExhausted || undefined}>
+                  <Tooltip open={nameExhausted ? true : undefined}>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
                         <Button
@@ -194,7 +191,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                           disabled={nameExhausted || randomName.isPending}
                           onClick={handleRandomName}
                           aria-label={t("workers.form.randomName")}
-                          style={{ pointerEvents: nameExhausted ? "none" : undefined }}
                         >
                           {randomName.isPending
                             ? <Loader2 className="size-4 animate-spin" />
