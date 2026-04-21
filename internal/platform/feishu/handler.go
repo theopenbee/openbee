@@ -31,6 +31,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
 var log = logger.With(zap.String("component", "feishu"))
@@ -135,23 +136,31 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				defer time.AfterFunc(10*time.Minute, func() {
 					r.pendingReactions.Delete(*msg.MessageId)
 				})
-				resp, err := r.larkClient.Im.MessageReaction.Create(ctx,
-					larkim.NewCreateMessageReactionReqBuilder().
-						MessageId(*msg.MessageId).
-						Body(larkim.NewCreateMessageReactionReqBodyBuilder().
-							ReactionType(larkim.NewEmojiBuilder().
-								EmojiType("Typing").
-								Build()).
+				req := larkim.NewCreateMessageReactionReqBuilder().
+					MessageId(*msg.MessageId).
+					Body(larkim.NewCreateMessageReactionReqBodyBuilder().
+						ReactionType(larkim.NewEmojiBuilder().
+							EmojiType("Typing").
 							Build()).
-						Build())
-				if err != nil || !resp.Success() {
-					log.Error("add reaction error", zap.Error(err), zap.Any("resp", resp))
-					close(reactionCh)
-					return
-				}
-				if resp.Data != nil && resp.Data.ReactionId != nil {
-					reactionCh <- *resp.Data.ReactionId
-				} else {
+						Build()).
+					Build()
+				err := retryutil.RetryWithBackoff(ctx, func() error {
+					resp, e := r.larkClient.Im.MessageReaction.Create(ctx, req)
+					if e != nil {
+						return e
+					}
+					if !resp.Success() {
+						return fmt.Errorf("add reaction: %v", resp.CodeError)
+					}
+					if resp.Data != nil && resp.Data.ReactionId != nil {
+						reactionCh <- *resp.Data.ReactionId
+					} else {
+						close(reactionCh)
+					}
+					return nil
+				}, 5, 500*time.Millisecond)
+				if err != nil {
+					log.Error("add reaction failed after retries", zap.Error(err))
 					close(reactionCh)
 				}
 			}()
@@ -469,15 +478,23 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 				select {
 				case reactionID, received := <-ch:
 					if received && reactionID != "" {
-						recallCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-						resp, err := s.larkClient.Im.MessageReaction.Delete(recallCtx,
-							larkim.NewDeleteMessageReactionReqBuilder().
-								MessageId(messageID).
-								ReactionId(reactionID).
-								Build())
-						cancel()
-						if err != nil || !resp.Success() {
-							log.Warn("recall reaction error", zap.Error(err), zap.Any("resp", resp))
+						recallCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+						defer cancel()
+						req := larkim.NewDeleteMessageReactionReqBuilder().
+							MessageId(messageID).
+							ReactionId(reactionID).
+							Build()
+						if err := retryutil.RetryWithBackoff(recallCtx, func() error {
+							resp, e := s.larkClient.Im.MessageReaction.Delete(recallCtx, req)
+							if e != nil {
+								return e
+							}
+							if !resp.Success() {
+								return fmt.Errorf("recall reaction: %v", resp.CodeError)
+							}
+							return nil
+						}, 5, 500*time.Millisecond); err != nil {
+							log.Warn("recall reaction failed after retries", zap.Error(err))
 						}
 					}
 				case <-timer.C:
