@@ -346,6 +346,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
         VALUES ('default_engine', 'claude', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
     `,
 	},
+	{
+		version: 39,
+		name:    "rename_bee_workers_memory_to_constraints",
+		sql:     `ALTER TABLE bee_workers RENAME COLUMN memory TO constraints`,
+	},
 }
 
 type whereBuilder struct {
