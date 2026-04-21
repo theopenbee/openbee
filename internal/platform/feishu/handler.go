@@ -150,7 +150,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						return e
 					}
 					if !resp.Success() {
-						return fmt.Errorf("add reaction: %v", resp.CodeError)
+						return fmt.Errorf("add reaction: %w", resp.CodeError)
 					}
 					if resp.Data != nil && resp.Data.ReactionId != nil {
 						reactionCh <- *resp.Data.ReactionId
@@ -490,7 +490,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 								return e
 							}
 							if !resp.Success() {
-								return fmt.Errorf("recall reaction: %v", resp.CodeError)
+								return fmt.Errorf("recall reaction: %w", resp.CodeError)
 							}
 							return nil
 						}, 5, 500*time.Millisecond); err != nil {
