@@ -10,6 +10,9 @@ import (
 // doubling each round. Returns ctx.Err() if cancelled between retries, or the
 // last error if all attempts fail.
 func RetryWithBackoff(ctx context.Context, fn func() error, maxRetries int, baseDelay time.Duration) error {
+	if maxRetries <= 0 {
+		return fn()
+	}
 	var err error
 	delay := baseDelay
 	for i := 0; i < maxRetries; i++ {

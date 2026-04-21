@@ -71,3 +71,17 @@ func TestRetryWithBackoff_ContextCancelled(t *testing.T) {
 		t.Fatalf("expected 1 call before cancel, got %d", calls)
 	}
 }
+
+func TestRetryWithBackoff_ZeroMaxRetries(t *testing.T) {
+	called := false
+	err := utils.RetryWithBackoff(context.Background(), func() error {
+		called = true
+		return errFake
+	}, 0, time.Millisecond)
+	if !errors.Is(err, errFake) {
+		t.Fatalf("expected errFake, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected fn to be called once")
+	}
+}
