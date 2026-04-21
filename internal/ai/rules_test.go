@@ -39,8 +39,8 @@ func TestWorkerPersona_Full(t *testing.T) {
 	if !strings.Contains(got, "Description: does things") {
 		t.Errorf("missing description, got: %q", got)
 	}
-	if !strings.Contains(got, "## Memory Constraints") {
-		t.Errorf("missing memory header, got: %q", got)
+	if !strings.Contains(got, "## Work Constraints") {
+		t.Errorf("missing constraints header, got: %q", got)
 	}
 	if !strings.Contains(got, "remember X") {
 		t.Errorf("missing memory content, got: %q", got)

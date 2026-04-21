@@ -3,7 +3,7 @@ package ai
 import "fmt"
 
 // WorkerPersona returns the persona-only content injected into new worker session prompts.
-func WorkerPersona(name, description, memory string) string {
+func WorkerPersona(name, description, constraints string) string {
 	s := "You are a Worker in an AI team.\n"
 	if name != "" {
 		s += fmt.Sprintf("Name: %s\n", name)
@@ -11,8 +11,8 @@ func WorkerPersona(name, description, memory string) string {
 	if description != "" {
 		s += fmt.Sprintf("Description: %s\n", description)
 	}
-	if memory != "" {
-		s += fmt.Sprintf("\n## Memory Constraints\n%s\n", memory)
+	if constraints != "" {
+		s += fmt.Sprintf("\n## Work Constraints\n%s\n", constraints)
 	}
 	return s
 }
