@@ -949,6 +949,11 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 	return payload
 }
 
+const (
+	emojiRetryCount = 5
+	emojiRetryDelay = 500 * time.Millisecond
+)
+
 func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) error {
 	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
@@ -984,7 +989,7 @@ func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chat
 	defer cancel()
 	if err := retryutil.RetryWithBackoff(retryCtx, func() error {
 		return doEmojiRequest(retryCtx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply")
-	}, 5, 500*time.Millisecond); err != nil {
+	}, emojiRetryCount, emojiRetryDelay); err != nil {
 		log.Error("add emoji failed after retries", zap.Error(err))
 	}
 }
@@ -994,7 +999,7 @@ func recallThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *c
 	defer cancel()
 	if err := retryutil.RetryWithBackoff(retryCtx, func() error {
 		return doEmojiRequest(retryCtx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/recall", 3*time.Second, "recall")
-	}, 5, 500*time.Millisecond); err != nil {
+	}, emojiRetryCount, emojiRetryDelay); err != nil {
 		log.Warn("recall emoji failed after retries", zap.Error(err))
 	}
 }

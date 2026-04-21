@@ -36,7 +36,11 @@ import (
 
 var log = logger.With(zap.String("component", "feishu"))
 
-const mentionPrefix = "@"
+const (
+	mentionPrefix      = "@"
+	reactionRetryCount = 5
+	reactionRetryDelay = 500 * time.Millisecond
+)
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
@@ -157,7 +161,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						reactionID = *resp.Data.ReactionId
 					}
 					return nil
-				}, 5, 500*time.Millisecond)
+				}, reactionRetryCount, reactionRetryDelay)
 				if err != nil {
 					log.Error("add reaction failed after retries", zap.Error(err))
 					close(reactionCh)
@@ -496,7 +500,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 								return fmt.Errorf("recall reaction: %w", resp.CodeError)
 							}
 							return nil
-						}, 5, 500*time.Millisecond); err != nil {
+						}, reactionRetryCount, reactionRetryDelay); err != nil {
 							log.Warn("recall reaction failed after retries", zap.Error(err))
 						}
 					}
