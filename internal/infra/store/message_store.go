@@ -122,7 +122,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	// Mark received messages as stale when a newer bee_processed message exists in the same session.
+	now := time.Now().UnixMilli()
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE bee_platform_messages
 		 SET    status = ?, updated_at = ?
@@ -134,7 +134,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		            AND  b2.status       = ?
 		            AND  b2.received_at  > bee_platform_messages.received_at
 		        )`,
-		MsgStatusStale, time.Now().UnixMilli(), MsgStatusReceived, MsgStatusBeeProcessed,
+		MsgStatusStale, now, MsgStatusReceived, MsgStatusBeeProcessed,
 	); err != nil {
 		return nil, fmt.Errorf("mark stale: %w", err)
 	}
@@ -179,7 +179,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		ids[i] = m.ID
 	}
 	args := make([]any, 0, len(ids)+2)
-	args = append(args, MsgStatusFeeding, time.Now().UnixMilli())
+	args = append(args, MsgStatusFeeding, now)
 	for _, id := range ids {
 		args = append(args, id)
 	}
