@@ -364,7 +364,8 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             updated_at INTEGER NOT NULL,
             UNIQUE(scope, key)
         );
-        INSERT INTO bee_constraints SELECT * FROM bee_memories;
+        INSERT INTO bee_constraints (id, scope, key, value, created_at, updated_at)
+        SELECT id, scope, key, value, created_at, updated_at FROM bee_memories;
         DROP TABLE bee_memories;
     `,
 	},
