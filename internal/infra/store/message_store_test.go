@@ -467,10 +467,8 @@ func TestMessageStore_ClaimBatch_StalesLateArrivingMessage(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UnixMilli()
-	// Message B arrived first and was processed (received_at = now+1000).
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
 	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'bee_processed', ?, ?, ?)`, now+1000, now, now)
-	// Message A arrives late (received_at = now, older than B).
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
 	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'received', ?, ?, ?)`, now, now, now)
 

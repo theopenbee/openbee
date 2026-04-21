@@ -142,18 +142,18 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	rows, err := tx.QueryContext(ctx,
 		`SELECT id, session_key, platform, content
 		 FROM bee_platform_messages m
-		 WHERE status = 'received'
+		 WHERE status = ?
 		   AND session_key NOT IN (
-		       SELECT session_key FROM bee_platform_messages WHERE status = 'feeding'
+		       SELECT session_key FROM bee_platform_messages WHERE status = ?
 		   )
 		   AND received_at = (
 		       SELECT MIN(received_at)
 		       FROM bee_platform_messages m2
 		       WHERE m2.session_key = m.session_key
-		         AND m2.status = 'received'
+		         AND m2.status = ?
 		   )
 		 ORDER BY received_at ASC
-		 LIMIT ?`, batchSize)
+		 LIMIT ?`, MsgStatusReceived, MsgStatusFeeding, MsgStatusReceived, batchSize)
 	if err != nil {
 		return nil, fmt.Errorf("select batch: %w", err)
 	}
