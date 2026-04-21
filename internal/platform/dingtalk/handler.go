@@ -27,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
+	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
 var log = logger.With(zap.String("component", "dingtalk"))
@@ -948,46 +949,56 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 	return payload
 }
 
-func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) {
+func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) error {
 	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
-		log.Warn("failed to get access token for emoji "+action, zap.Error(err))
-		return
+		return fmt.Errorf("get access token for emoji %s: %w", action, err)
 	}
 
 	payload := buildEmojiPayload(cfg, data)
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		log.Warn("failed to create emoji "+action+" request", zap.Error(err))
-		return
+		return fmt.Errorf("create emoji %s request: %w", action, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-acs-dingtalk-access-token", token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Warn("failed to "+action+" emoji reaction", zap.Error(err))
-		return
+		return fmt.Errorf("%s emoji reaction: %w", action, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Warn("emoji "+action+" returned non-200", zap.Int("status", resp.StatusCode))
+		return fmt.Errorf("emoji %s returned non-200: %d", action, resp.StatusCode)
 	}
+	return nil
 }
 
 // addThinkingEmoji adds a thinking emoji reaction to the user's message.
 func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
-	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply")
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := retryutil.RetryWithBackoff(retryCtx, func() error {
+		return doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply")
+	}, 5, 500*time.Millisecond); err != nil {
+		log.Error("add emoji failed after retries", zap.Error(err))
+	}
 }
 
 // recallThinkingEmoji recalls the thinking emoji reaction from the user's message.
 func recallThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
-	doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/recall", 3*time.Second, "recall")
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := retryutil.RetryWithBackoff(retryCtx, func() error {
+		return doEmojiRequest(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/recall", 3*time.Second, "recall")
+	}, 5, 500*time.Millisecond); err != nil {
+		log.Warn("recall emoji failed after retries", zap.Error(err))
+	}
 }
 
 var _ platform.Platform = (*DingTalkPlatform)(nil)
