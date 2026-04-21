@@ -4,6 +4,7 @@
 
 ### Added
 - Add random worker name generation feature
+- Stale messages are automatically skipped
 
 ### Changed
 - Rename worker memory concept to worker constraints to avoid conflicts with the agent's built-in memory feature
