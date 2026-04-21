@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 )
 
@@ -72,5 +72,5 @@ func PickRandomName(pool []string, used map[string]struct{}) (string, bool) {
 	if len(available) == 0 {
 		return "", false
 	}
-	return available[rand.Intn(len(available))], true
+	return available[rand.IntN(len(available))], true
 }

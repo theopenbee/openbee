@@ -65,3 +65,10 @@ func TestNamePool_EN(t *testing.T) {
 		t.Errorf("en pool: want 200 names, got %d", len(pool))
 	}
 }
+
+func TestNamePool_DefaultsToEN(t *testing.T) {
+	pool := NamePool("fr")
+	if len(pool) != 200 {
+		t.Errorf("unknown lang: want 200-name EN pool, got %d", len(pool))
+	}
+}
