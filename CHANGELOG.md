@@ -13,6 +13,7 @@
 
 ### Fixed
 - Fix agent execution error message not being delivered to IM
+- Fix unstable DingTalk connection caused by redundant heartbeat supervisor
 
 ## [0.0.29] - 2026-04-20
 
