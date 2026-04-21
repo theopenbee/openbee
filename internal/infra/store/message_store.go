@@ -15,6 +15,7 @@ const (
 	MsgStatusMerged       = "merged"
 	MsgStatusBeeProcessed = "bee_processed"
 	MsgStatusFailed       = "failed"
+	MsgStatusStale        = "stale"
 )
 
 // BatchMsg is a single row for a bulk insert via CreateBatch.
@@ -121,6 +122,23 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	// Mark received messages as stale when a newer bee_processed message exists in the same session.
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE bee_platform_messages
+		 SET    status = ?, updated_at = ?
+		 WHERE  status = ?
+		   AND  EXISTS (
+		          SELECT 1
+		          FROM   bee_platform_messages b2
+		          WHERE  b2.session_key  = bee_platform_messages.session_key
+		            AND  b2.status       = ?
+		            AND  b2.received_at  > bee_platform_messages.received_at
+		        )`,
+		MsgStatusStale, time.Now().UnixMilli(), MsgStatusReceived, MsgStatusBeeProcessed,
+	); err != nil {
+		return nil, fmt.Errorf("mark stale: %w", err)
+	}
+
 	rows, err := tx.QueryContext(ctx,
 		`SELECT id, session_key, platform, content
 		 FROM bee_platform_messages m
@@ -153,7 +171,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		return nil, err
 	}
 	if len(msgs) == 0 {
-		return nil, nil
+		return nil, tx.Commit()
 	}
 
 	ids := make([]string, len(msgs))
