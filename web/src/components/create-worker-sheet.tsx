@@ -226,15 +226,15 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="cws-constraints">{t("workers.form.memory")}</Label>
+                    <Label htmlFor="cws-constraints">{t("workers.form.constraints")}</Label>
                     <Textarea
                       id="cws-constraints"
                       value={constraints}
                       onChange={(e) => setConstraints(e.target.value)}
-                      placeholder={t("workers.form.memoryPlaceholder")}
+                      placeholder={t("workers.form.constraintsPlaceholder")}
                       rows={4}
                     />
-                    <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
+                    <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
                   </div>
                 </div>
               </div>

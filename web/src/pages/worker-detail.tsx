@@ -290,7 +290,7 @@ export function WorkerDetail() {
           <TabsList variant="line">
             <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
             <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
-            <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
+            <TabsTrigger value="constraints">{t("workerDetail.constraints")}</TabsTrigger>
             <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
             <TabsTrigger value="env">
               {t("envConfig.title")}
@@ -375,16 +375,16 @@ export function WorkerDetail() {
             <TaskList workerId={id!} />
           </TabsContent>
 
-          <TabsContent value="memory" className="mt-6">
+          <TabsContent value="constraints" className="mt-6">
             <DetailSection className="p-5 sm:p-6">
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("workerDetail.memory")}
+                      {t("workerDetail.constraints")}
                     </p>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      {t("workers.form.memoryHelper")}
+                      {t("workers.form.constraintsHelper")}
                     </p>
                   </div>
 
@@ -396,10 +396,10 @@ export function WorkerDetail() {
                         setEditConstraints(worker.constraints || "")
                         setIsEditingConstraints(true)
                       }}
-                      aria-label={t("workerDetail.editMemory")}
+                      aria-label={t("workerDetail.editConstraints")}
                     >
                       <Pencil className="size-3.5" />
-                      {t("workerDetail.editMemory")}
+                      {t("workerDetail.editConstraints")}
                     </Button>
                   ) : null}
                 </div>
@@ -452,7 +452,7 @@ export function WorkerDetail() {
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
-                    {t("workerDetail.noMemory")}
+                    {t("workerDetail.noConstraints")}
                   </div>
                 )}
               </div>

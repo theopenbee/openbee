@@ -43,7 +43,7 @@ func TestWorkerPersona_Full(t *testing.T) {
 		t.Errorf("missing constraints header, got: %q", got)
 	}
 	if !strings.Contains(got, "remember X") {
-		t.Errorf("missing memory content, got: %q", got)
+		t.Errorf("missing constraints content, got: %q", got)
 	}
 	if strings.Contains(got, "openbee-worker") {
 		t.Errorf("persona must NOT contain skill rule directive, got: %q", got)
