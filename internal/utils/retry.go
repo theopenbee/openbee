@@ -20,10 +20,12 @@ func RetryWithBackoff(ctx context.Context, fn func() error, maxRetries int, base
 			return nil
 		}
 		if i < maxRetries-1 {
+			t := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				t.Stop()
 				return ctx.Err()
-			case <-time.After(delay):
+			case <-t.C:
 			}
 			delay *= 2
 		}

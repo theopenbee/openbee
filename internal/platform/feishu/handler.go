@@ -144,6 +144,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 							Build()).
 						Build()).
 					Build()
+				var reactionID string
 				err := retryutil.RetryWithBackoff(ctx, func() error {
 					resp, e := r.larkClient.Im.MessageReaction.Create(ctx, req)
 					if e != nil {
@@ -153,14 +154,16 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 						return fmt.Errorf("add reaction: %w", resp.CodeError)
 					}
 					if resp.Data != nil && resp.Data.ReactionId != nil {
-						reactionCh <- *resp.Data.ReactionId
-					} else {
-						close(reactionCh)
+						reactionID = *resp.Data.ReactionId
 					}
 					return nil
 				}, 5, 500*time.Millisecond)
 				if err != nil {
 					log.Error("add reaction failed after retries", zap.Error(err))
+					close(reactionCh)
+				} else if reactionID != "" {
+					reactionCh <- reactionID
+				} else {
 					close(reactionCh)
 				}
 			}()
