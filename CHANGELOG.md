@@ -8,6 +8,7 @@
 ### Changed
 - Rename worker memory concept to worker constraints to avoid conflicts with the agent's built-in memory feature
 - Rename bee coordinator memory management to constraint management to avoid conflicts with the agent's built-in memory feature
+- Feishu and DingTalk reaction add/recall now retry up to 5 times with exponential backoff (500ms base delay) on network failures, improving resilience to transient connectivity issues.
 
 ### Fixed
 - Fix agent execution error message not being delivered to IM
