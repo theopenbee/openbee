@@ -173,7 +173,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		msgingest.WithBotNames(botNames))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.memoryStore, s.sessionStore, s.departmentStore)
+	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
@@ -226,7 +226,7 @@ type appStores struct {
 	taskStore         *store.TaskStore
 	sessionStore      *store.SessionStore
 	outboundMsgStore  *store.OutboundMessageStore
-	memoryStore       *store.MemoryStore
+	constraintStore   *store.ConstraintStore
 	departmentStore   *store.DepartmentStore
 	statsStore        *store.StatsStore
 }
@@ -245,7 +245,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		taskStore:         store.NewTaskStore(db),
 		sessionStore:      store.NewSessionStore(db),
 		outboundMsgStore:  store.NewOutboundMessageStore(db),
-		memoryStore:       store.NewMemoryStore(db),
+		constraintStore:   store.NewConstraintStore(db),
 		departmentStore:   store.NewDepartmentStore(db),
 		statsStore:        store.NewStatsStore(db),
 	}, nil
