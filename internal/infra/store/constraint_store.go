@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ func (s *ConstraintStore) Get(scope, key string) (*Constraint, error) {
 	)
 	var c Constraint
 	err := row.Scan(&c.Key, &c.Value, &c.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -58,7 +59,7 @@ func (s *ConstraintStore) ListByScope(scope string, limit int) ([]Constraint, er
 	}
 	defer rows.Close()
 
-	var constraints []Constraint
+	constraints := make([]Constraint, 0, limit)
 	for rows.Next() {
 		var c Constraint
 		if err := rows.Scan(&c.Key, &c.Value, &c.UpdatedAt); err != nil {

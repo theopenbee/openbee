@@ -72,9 +72,15 @@ func TestConstraintStore_ListByScope(t *testing.T) {
 
 	cs := NewConstraintStore(db)
 
-	cs.Save("global", "key1", "val1")
-	cs.Save("global", "key2", "val2")
-	cs.Save("user123", "key3", "val3")
+	if err := cs.Save("global", "key1", "val1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Save("global", "key2", "val2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Save("user123", "key3", "val3"); err != nil {
+		t.Fatal(err)
+	}
 
 	constraints, err := cs.ListByScope("global", 50)
 	if err != nil {
@@ -93,7 +99,9 @@ func TestConstraintStore_Delete(t *testing.T) {
 	defer db.Close()
 
 	cs := NewConstraintStore(db)
-	cs.Save("global", "key1", "val1")
+	if err := cs.Save("global", "key1", "val1"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := cs.Delete("global", "key1"); err != nil {
 		t.Fatal(err)
