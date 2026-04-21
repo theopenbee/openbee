@@ -394,13 +394,10 @@ func (r *DingTalkReceiver) handleDingTalkFile(ctx context.Context, content map[s
 }
 
 func (r *DingTalkReceiver) handleDingTalkAudio(ctx context.Context, content map[string]any) string {
-	recognition := ""
-	if content != nil {
-		recognition, _ = content["recognition"].(string)
-	}
 	if content == nil {
-		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
+		return r.mediaSvc.BuildPlaceholder("audio", "", "")
 	}
+	recognition, _ := content["recognition"].(string)
 	downloadCode, _ := content["downloadCode"].(string)
 	if downloadCode == "" {
 		return r.mediaSvc.BuildPlaceholder("audio", "", recognition)
@@ -599,12 +596,8 @@ func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCall
 		})
 		msgParam = string(p)
 	case "voice":
-		duration := strconv.Itoa(info.durationMs)
-		if info.durationMs == 0 {
-			duration = "0"
-		}
 		msgKey = "sampleAudio"
-		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "duration": duration})
+		p, _ := json.Marshal(map[string]string{"mediaId": mediaID, "duration": strconv.Itoa(info.durationMs)})
 		msgParam = string(p)
 	case "video":
 		msgKey = "sampleVideo"
@@ -704,20 +697,16 @@ func imageContentType(path string) string {
 
 // uploadMediaToDingTalk uploads a file to DingTalk's OAPI media endpoint.
 func uploadMediaToDingTalk(ctx context.Context, cfg config.DingTalkConfig, filePath, mediaType string) (string, error) {
-	fi, err := os.Stat(filePath)
-	if err != nil {
-		return "", fmt.Errorf("stat file: %w", err)
-	}
-	limit := int64(maxUploadSize)
-	if mediaType == "voice" {
-		limit = maxVoiceUploadSize
-	}
-	if fi.Size() > limit {
-		return "", fmt.Errorf("file too large: %d bytes (max %d)", fi.Size(), limit)
-	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("read file: %w", err)
+	}
+	limit := maxUploadSize
+	if mediaType == "voice" {
+		limit = maxVoiceUploadSize
+	}
+	if len(data) > limit {
+		return "", fmt.Errorf("file too large: %d bytes (max %d)", len(data), limit)
 	}
 
 	token, err := getOAPIToken(cfg.ClientID, cfg.ClientSecret)
@@ -792,13 +781,9 @@ func sendMediaViaDingTalk(ctx context.Context, cfg config.DingTalkConfig, webhoo
 			"markdown": map[string]string{"title": "Image", "text": fmt.Sprintf("![image](%s)", mediaID)},
 		}
 	case "voice":
-		duration := strconv.Itoa(info.durationMs)
-		if info.durationMs == 0 {
-			duration = "0"
-		}
 		payload = map[string]any{
 			"msgtype": "voice",
-			"voice":   map[string]string{"mediaId": mediaID, "duration": duration},
+			"voice":   map[string]string{"mediaId": mediaID, "duration": strconv.Itoa(info.durationMs)},
 		}
 	case "video":
 		payload = map[string]any{
@@ -867,7 +852,7 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel, url string, timeout time.Duration, action string) {
 	token, err := getAccessToken(cfg.ClientID, cfg.ClientSecret)
 	if err != nil {
-		log.Warn("failed to get access token for emoji "+action, zap.Error(err))
+		log.Warn("failed to get access token for emoji", zap.String("action", action), zap.Error(err))
 		return
 	}
 
@@ -878,7 +863,7 @@ func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbo
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		log.Warn("failed to create emoji "+action+" request", zap.Error(err))
+		log.Warn("failed to create emoji request", zap.String("action", action), zap.Error(err))
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -886,13 +871,13 @@ func doEmojiRequest(ctx context.Context, cfg config.DingTalkConfig, data *chatbo
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Warn("failed to "+action+" emoji reaction", zap.Error(err))
+		log.Warn("failed to send emoji reaction", zap.String("action", action), zap.Error(err))
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Warn("emoji "+action+" returned non-200", zap.Int("status", resp.StatusCode))
+		log.Warn("emoji returned non-200", zap.String("action", action), zap.Int("status", resp.StatusCode))
 	}
 }
 
