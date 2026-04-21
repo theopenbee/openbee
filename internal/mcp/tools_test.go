@@ -675,7 +675,7 @@ func TestCallTool_GetConstraint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result == nil {
-		t.Fatal("expected memory, got nil")
+		t.Fatal("expected constraint, got nil")
 	}
 
 	// List by scope (no key)
