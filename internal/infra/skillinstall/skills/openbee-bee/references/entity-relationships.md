@@ -10,7 +10,7 @@ Understanding the relationships between the core entities helps you make better 
 | **Outbound Message** | A reply sent from the system (Bee, Worker, or system) back to the user on the originating platform. Linked to the originating Message via `inbound_msg_id`; `source_type` distinguishes whether it came from `bee`, `worker`, or `system`. |
 | **Task** | A unit of work created by the Bee from a Message and assigned to a Worker. Carries `instruction`, `type` (immediate / countdown / scheduled), and `status`. Links back to the originating Message via `message_id` and to the assigned Worker via `worker_id`. |
 | **Execution** | The runtime instance that is created when a Task is actually dispatched and run. Records the process lifecycle: PID, log path, start/end time, result, and final status (`pending` / `running` / `completed` / `failed`). One Task produces one Execution. |
-| **Worker** | An AI agent that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `memory`. |
+| **Worker** | An AI agent that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `constraints`. |
 | **Department** | A hierarchical grouping of Workers (tree structure). A Worker can belong to multiple Departments. Used for organizational management and worker filtering. |
 | **Session** | Per-agent conversation context, keyed by `(session_key, agent_id)`. Both the Bee and each Worker maintain their own independent Session so multi-turn conversations remain coherent. Clearing a session resets an agent's memory of prior exchanges. |
 
