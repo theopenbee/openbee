@@ -161,9 +161,9 @@ func TestCallTool_UpdateWorker(t *testing.T) {
 	w := created.(model.Worker)
 
 	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
-		"worker_id": w.ID,
-		"name":      "NewName",
-		"memory":    "New memory",
+		"worker_id":   w.ID,
+		"name":        "NewName",
+		"constraints": "New constraints",
 	}))
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
@@ -172,8 +172,8 @@ func TestCallTool_UpdateWorker(t *testing.T) {
 	if updated.Name != "NewName" {
 		t.Errorf("expected NewName, got %s", updated.Name)
 	}
-	if updated.Memory != "New memory" {
-		t.Errorf("expected new memory, got %s", updated.Memory)
+	if updated.Constraints != "New constraints" {
+		t.Errorf("expected new constraints, got %s", updated.Constraints)
 	}
 	if updated.Description != w.Description {
 		t.Errorf("description changed unexpectedly: %s", updated.Description)

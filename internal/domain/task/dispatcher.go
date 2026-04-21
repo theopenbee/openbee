@@ -330,7 +330,7 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 		if worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Memory)
+		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
 		hint += "\n<worker_persona>\n" + persona + "</worker_persona>"
 	}
 	sessionID := uuid.New().String()

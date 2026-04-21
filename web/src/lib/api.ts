@@ -66,7 +66,7 @@ export const api = {
       name: string
       engine: Engine
       description: string
-      memory?: string
+      constraints?: string
       work_dir?: string
       permission_scopes?: string
     }) => fetchAPI<Worker>("/workers", { method: "POST", body: JSON.stringify(data) }),

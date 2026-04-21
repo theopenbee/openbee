@@ -102,7 +102,7 @@ func (m *Manager) ValidateEngine(name string) error {
 type CreateWorkerParams struct {
 	Name             string
 	Description      string
-	Memory           string
+	Constraints      string
 	WorkDir          string
 	PermissionScopes string
 	Engine           string
@@ -122,7 +122,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		ID:               id,
 		Name:             p.Name,
 		Description:      p.Description,
-		Memory:           p.Memory,
+		Constraints:      p.Constraints,
 		WorkDir:          p.WorkDir,
 		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,

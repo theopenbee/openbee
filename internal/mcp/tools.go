@@ -238,7 +238,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		Name             string `json:"name"`
 		Description      string `json:"description"`
-		Memory           string `json:"memory"`
+		Constraints      string `json:"constraints"`
 		WorkDir          string `json:"work_dir"`
 		Engine           string `json:"engine"`
 		DepartmentIDs    string `json:"department_ids"`
@@ -259,7 +259,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	w, err := s.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             params.Name,
 		Description:      params.Description,
-		Memory:           params.Memory,
+		Constraints:      params.Constraints,
 		WorkDir:          params.WorkDir,
 		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
@@ -280,7 +280,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 		WorkerID         string  `json:"worker_id"`
 		Name             *string `json:"name"`
 		Description      *string `json:"description"`
-		Memory           *string `json:"memory"`
+		Constraints      *string `json:"constraints"`
 		Engine           *string `json:"engine"`
 		DepartmentIDs    *string `json:"department_ids"`
 		PermissionScopes *string `json:"permission_scopes"`
@@ -295,15 +295,15 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.Engine != nil || params.PermissionScopes != nil
+	fieldsChanged := params.Name != nil || params.Description != nil || params.Constraints != nil || params.Engine != nil || params.PermissionScopes != nil
 	if params.Name != nil {
 		w.Name = *params.Name
 	}
 	if params.Description != nil {
 		w.Description = *params.Description
 	}
-	if params.Memory != nil {
-		w.Memory = *params.Memory
+	if params.Constraints != nil {
+		w.Constraints = *params.Constraints
 	}
 	if params.Engine != nil {
 		if err := s.manager.ValidateEngine(*params.Engine); err != nil {
