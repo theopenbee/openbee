@@ -23,7 +23,7 @@ export function useCreateWorker() {
       name: string
       engine: Engine
       description: string
-      memory?: string
+      constraints?: string
       work_dir?: string
       permission_scopes?: string
     }) => api.workers.create(data),

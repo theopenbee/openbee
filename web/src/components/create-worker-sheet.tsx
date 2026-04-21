@@ -32,7 +32,7 @@ import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 export interface WorkerInitialValues {
   name: string
   description: string
-  memory: string
+  constraints: string
   work_dir: string
   permission_scopes: string
   engine: Engine
@@ -43,7 +43,7 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   return {
     name: worker.name,
     description: worker.description,
-    memory: worker.memory,
+    constraints: worker.constraints,
     work_dir: worker.work_dir,
     permission_scopes: worker.permission_scopes ?? "",
     engine: worker.engine ?? DEFAULT_ENGINE,
@@ -69,7 +69,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [memory, setMemory] = useState("")
+  const [constraints, setConstraints] = useState("")
   const [workDir, setWorkDir] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
@@ -83,13 +83,13 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       const iv = initialValuesRef.current
       setName(iv ? `${iv.name} ${t("workers.form.copySuffix")}` : "")
       setDescription(iv?.description ?? "")
-      setMemory(iv?.memory ?? "")
+      setConstraints(iv?.constraints ?? "")
       setWorkDir(iv?.work_dir ?? "")
       setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setSubmitError("")
-      setShowOptional(isCopy && !!(iv?.description || iv?.memory || iv?.work_dir))
+      setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
       setDeptSearch("")
     }
   }, [open, enabledEngines])
@@ -102,7 +102,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         name: name.trim(),
         engine,
         description,
-        memory: memory || undefined,
+        constraints: constraints || undefined,
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
       })
@@ -226,15 +226,15 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="cws-memory">{t("workers.form.memory")}</Label>
+                    <Label htmlFor="cws-constraints">{t("workers.form.constraints")}</Label>
                     <Textarea
-                      id="cws-memory"
-                      value={memory}
-                      onChange={(e) => setMemory(e.target.value)}
-                      placeholder={t("workers.form.memoryPlaceholder")}
+                      id="cws-constraints"
+                      value={constraints}
+                      onChange={(e) => setConstraints(e.target.value)}
+                      placeholder={t("workers.form.constraintsPlaceholder")}
                       rows={4}
                     />
-                    <p className="text-xs text-muted-foreground">{t("workers.form.memoryHelper")}</p>
+                    <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
                   </div>
                 </div>
               </div>

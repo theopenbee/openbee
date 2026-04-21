@@ -1175,7 +1175,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 			ID:          "w1",
 			Name:        "毛毛",
 			Description: "负责 openbee 开发",
-			Memory:      "记住老板的偏好",
+			Constraints: "记住老板的偏好",
 		},
 	}
 	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(),
@@ -1209,7 +1209,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 		t.Errorf("instruction missing worker description, got: %q", instr)
 	}
 	if !strings.Contains(instr, "记住老板的偏好") {
-		t.Errorf("instruction missing worker memory, got: %q", instr)
+		t.Errorf("instruction missing worker constraints, got: %q", instr)
 	}
 	if !strings.Contains(instr, "</worker_persona>") {
 		t.Errorf("instruction missing </worker_persona> tag, got: %q", instr)

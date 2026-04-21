@@ -136,8 +136,8 @@ export function WorkerDetail() {
 
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
-  const [isEditingMemory, setIsEditingMemory] = useState(false)
-  const [editMemory, setEditMemory] = useState("")
+  const [isEditingConstraints, setIsEditingConstraints] = useState(false)
+  const [editConstraints, setEditConstraints] = useState("")
   const [copiedWorkDir, setCopiedWorkDir] = useState(false)
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
@@ -290,7 +290,7 @@ export function WorkerDetail() {
           <TabsList variant="line">
             <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
             <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
-            <TabsTrigger value="memory">{t("workerDetail.memory")}</TabsTrigger>
+            <TabsTrigger value="constraints">{t("workerDetail.constraints")}</TabsTrigger>
             <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
             <TabsTrigger value="env">
               {t("envConfig.title")}
@@ -375,44 +375,44 @@ export function WorkerDetail() {
             <TaskList workerId={id!} />
           </TabsContent>
 
-          <TabsContent value="memory" className="mt-6">
+          <TabsContent value="constraints" className="mt-6">
             <DetailSection className="p-5 sm:p-6">
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      {t("workerDetail.memory")}
+                      {t("workerDetail.constraints")}
                     </p>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      {t("workers.form.memoryHelper")}
+                      {t("workers.form.constraintsHelper")}
                     </p>
                   </div>
 
-                  {!isEditingMemory ? (
+                  {!isEditingConstraints ? (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setEditMemory(worker.memory || "")
-                        setIsEditingMemory(true)
+                        setEditConstraints(worker.constraints || "")
+                        setIsEditingConstraints(true)
                       }}
-                      aria-label={t("workerDetail.editMemory")}
+                      aria-label={t("workerDetail.editConstraints")}
                     >
                       <Pencil className="size-3.5" />
-                      {t("workerDetail.editMemory")}
+                      {t("workerDetail.editConstraints")}
                     </Button>
                   ) : null}
                 </div>
 
-                {isEditingMemory ? (
+                {isEditingConstraints ? (
                   <div className="space-y-3">
                     <Textarea
-                      value={editMemory}
-                      onChange={(event) => setEditMemory(event.target.value)}
+                      value={editConstraints}
+                      onChange={(event) => setEditConstraints(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Escape") {
-                          setIsEditingMemory(false)
-                          setEditMemory(worker.memory || "")
+                          setIsEditingConstraints(false)
+                          setEditConstraints(worker.constraints || "")
                         }
                       }}
                       autoFocus
@@ -424,8 +424,8 @@ export function WorkerDetail() {
                       <Button
                         size="sm"
                         onClick={async () => {
-                          await updateWorker.mutateAsync({ id: id!, data: { memory: editMemory } })
-                          setIsEditingMemory(false)
+                          await updateWorker.mutateAsync({ id: id!, data: { constraints: editConstraints } })
+                          setIsEditingConstraints(false)
                         }}
                       >
                         <Check className="size-3" />
@@ -435,8 +435,8 @@ export function WorkerDetail() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setIsEditingMemory(false)
-                          setEditMemory(worker.memory || "")
+                          setIsEditingConstraints(false)
+                          setEditConstraints(worker.constraints || "")
                         }}
                       >
                         <X className="size-3" />
@@ -444,15 +444,15 @@ export function WorkerDetail() {
                       </Button>
                     </div>
                   </div>
-                ) : worker.memory ? (
+                ) : worker.constraints ? (
                   <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
                     <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
-                      {worker.memory}
+                      {worker.constraints}
                     </pre>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
-                    {t("workerDetail.noMemory")}
+                    {t("workerDetail.noConstraints")}
                   </div>
                 )}
               </div>

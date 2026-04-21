@@ -10,7 +10,7 @@ Understanding the relationships between the core entities helps you interpret yo
 | **Outbound Message** | A reply sent from the system (Bee, Worker, or system) back to the user. When you call `openbee ctl message send`, the system creates an Outbound Message linked to the originating Message via `inbound_msg_id`, with `source_type = "worker"` and `source_id = your worker ID`. |
 | **Task** | The unit of work you receive and execute. Created by the Bee from a Message. Carries `instruction`, `type` (immediate / countdown / scheduled), and `status`. Each Task you execute is linked to the originating Message (`message_id`) and to you (`worker_id`). |
 | **Execution** | The runtime instance created when your Task is dispatched. Records your process lifecycle: PID, log path, start/end time, result, and final status (`pending` / `running` / `completed` / `failed`). One Task produces one Execution. |
-| **Worker** | An AI agent (you) that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `memory`. |
+| **Worker** | An AI agent (you) that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `constraints`. |
 | **Department** | A hierarchical grouping of Workers (tree structure). A Worker can belong to multiple Departments. Used for organizational management. |
 | **Session** | Per-agent conversation context, keyed by `(session_key, agent_id)`. You and the Bee each maintain independent Sessions. Your Session accumulates conversation history across multiple tasks in the same session, enabling multi-turn context. |
 
@@ -47,7 +47,7 @@ External Platform
 - **Task → Execution**: your current Task corresponds to exactly one Execution record (queryable via `openbee ctl execution list`)
 - **Worker ↔ Department**: you may belong to multiple Departments; departments are used for grouping and filtering only
 - **Outbound Message → Message**: every reply you send via `openbee ctl message send` is recorded as an Outbound Message linked to the original inbound Message
-- **Session**: your conversation context is isolated per `session_key`; each new session starts fresh unless memory carries over
+- **Session**: your conversation context is isolated per `session_key`; each new session_key starts fresh with no prior conversation history; constraints are re-injected from your worker config at the start of every session
 
 ## Practical Implications for a Worker
 

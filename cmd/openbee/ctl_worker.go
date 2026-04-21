@@ -55,7 +55,7 @@ var ctlWorkerStatusCmd = &cobra.Command{
 var (
 	workerCreateName        string
 	workerCreateDescription string
-	workerCreateMemory      string
+	workerCreateConstraints string
 	workerCreateWorkDir     string
 	workerCreateEngine      string
 	workerCreateScopes      string
@@ -69,8 +69,8 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateDescription != "" {
 			a["description"] = workerCreateDescription
 		}
-		if workerCreateMemory != "" {
-			a["memory"] = workerCreateMemory
+		if workerCreateConstraints != "" {
+			a["constraints"] = workerCreateConstraints
 		}
 		if workerCreateWorkDir != "" {
 			a["work_dir"] = workerCreateWorkDir
@@ -91,7 +91,7 @@ var ctlWorkerCreateCmd = &cobra.Command{
 var (
 	workerUpdateName        string
 	workerUpdateDescription string
-	workerUpdateMemory      string
+	workerUpdateConstraints string
 	workerUpdateEngine      string
 	workerUpdateScopes      string
 )
@@ -108,8 +108,8 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("description") {
 			a["description"] = workerUpdateDescription
 		}
-		if cmd.Flags().Changed("memory") {
-			a["memory"] = workerUpdateMemory
+		if cmd.Flags().Changed("constraints") {
+			a["constraints"] = workerUpdateConstraints
 		}
 		if cmd.Flags().Changed("engine") {
 			a["engine"] = workerUpdateEngine
@@ -153,13 +153,13 @@ func init() {
 	ctlWorkerCreateCmd.Flags().StringVarP(&workerCreateName, "name", "n", "", "Worker name (required)")
 	ctlWorkerCreateCmd.MarkFlagRequired("name")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDescription, "description", "", "Worker description")
-	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateMemory, "memory", "", "Worker memory content")
+	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateConstraints, "constraints", "", "Worker constraints content")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateWorkDir, "work-dir", "", "Working directory path")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi, kimi); leave empty for server default")
 
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateName, "name", "", "New name")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDescription, "description", "", "New description")
-	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateMemory, "memory", "", "New memory content")
+	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateConstraints, "constraints", "", "New constraints content")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi, kimi); leave empty to keep unchanged")
 
 	ctlWorkerDeleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")

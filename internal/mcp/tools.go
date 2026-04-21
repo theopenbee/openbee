@@ -238,7 +238,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		Name             string `json:"name"`
 		Description      string `json:"description"`
-		Memory           string `json:"memory"`
+		Constraints      string `json:"constraints"`
 		WorkDir          string `json:"work_dir"`
 		Engine           string `json:"engine"`
 		DepartmentIDs    string `json:"department_ids"`
@@ -259,7 +259,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	w, err := s.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             params.Name,
 		Description:      params.Description,
-		Memory:           params.Memory,
+		Constraints:      params.Constraints,
 		WorkDir:          params.WorkDir,
 		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
@@ -277,13 +277,9 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 
 func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID         string  `json:"worker_id"`
-		Name             *string `json:"name"`
-		Description      *string `json:"description"`
-		Memory           *string `json:"memory"`
-		Engine           *string `json:"engine"`
-		DepartmentIDs    *string `json:"department_ids"`
-		PermissionScopes *string `json:"permission_scopes"`
+		WorkerID      string  `json:"worker_id"`
+		DepartmentIDs *string `json:"department_ids"`
+		worker.UpdateWorkerParams
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -295,29 +291,11 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	fieldsChanged := params.Name != nil || params.Description != nil || params.Memory != nil || params.Engine != nil || params.PermissionScopes != nil
-	if params.Name != nil {
-		w.Name = *params.Name
+	if err := params.UpdateWorkerParams.Validate(s.manager); err != nil {
+		return nil, err
 	}
-	if params.Description != nil {
-		w.Description = *params.Description
-	}
-	if params.Memory != nil {
-		w.Memory = *params.Memory
-	}
-	if params.Engine != nil {
-		if err := s.manager.ValidateEngine(*params.Engine); err != nil {
-			return nil, err
-		}
-		w.Engine = *params.Engine
-	}
-	if params.PermissionScopes != nil {
-		if err := auth.ValidatePermissionScopes(*params.PermissionScopes); err != nil {
-			return nil, err
-		}
-		w.PermissionScopes = *params.PermissionScopes
-	}
-	if fieldsChanged {
+	if params.HasChanges() {
+		params.ApplyTo(&w)
 		w, err = s.workerStore.Update(w)
 		if err != nil {
 			return nil, err
