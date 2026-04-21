@@ -182,22 +182,20 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                 />
                 <TooltipProvider>
                   <Tooltip open={nameExhausted ? true : undefined}>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={nameExhausted || randomName.isPending}
-                          onClick={handleRandomName}
-                          aria-label={t("workers.form.randomName")}
-                        >
-                          {randomName.isPending
-                            ? <Loader2 className="size-4 animate-spin" />
-                            : <Shuffle className="size-4" />
-                          }
-                        </Button>
-                      </span>
+                    <TooltipTrigger render={<span className="inline-flex" />}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        disabled={nameExhausted || randomName.isPending}
+                        onClick={handleRandomName}
+                        aria-label={t("workers.form.randomName")}
+                      >
+                        {randomName.isPending
+                          ? <Loader2 className="size-4 animate-spin" />
+                          : <Shuffle className="size-4" />
+                        }
+                      </Button>
                     </TooltipTrigger>
                     {nameExhausted && (
                       <TooltipContent>
