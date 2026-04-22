@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 var log = logger.With(zap.String("component", "taskdispatcher"))
@@ -256,8 +257,8 @@ func buildInstruction(t DispatchTask) string {
 			MessageID: t.MessageID,
 			TaskID:    t.TaskID,
 		}
-		if t.ReplyTo.PlatformContext != "" {
-			meta.PlatformContext = json.RawMessage(t.ReplyTo.PlatformContext)
+		if ctx := platform.ExtractContext(t.ReplyTo.Platform, t.ReplyTo.Raw); ctx != "" {
+			meta.PlatformContext = json.RawMessage(ctx)
 		}
 		b, _ := json.Marshal(meta)
 		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)

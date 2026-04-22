@@ -8,12 +8,15 @@ import (
 )
 
 func TestBuildInstruction_WithPlatformContext(t *testing.T) {
-	ctx := `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz"}}`
+	platform.RegisterExtractor("testplatform", func(_ string) string {
+		return `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz"}}`
+	})
 	task := DispatchTask{
 		TaskID:    "task-1",
 		MessageID: "msg-1",
 		ReplyTo: platform.InboundMessage{
-			PlatformContext: ctx,
+			Platform: "testplatform",
+			Raw:      "any-raw",
 		},
 		Instruction: "do something",
 	}
