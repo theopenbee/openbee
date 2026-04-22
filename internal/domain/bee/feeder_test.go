@@ -614,13 +614,13 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 
 	// Bee must have been called (normal flow)
 	if len(runner.getCalls()) == 0 {
-		t.Error("expected bee runner to be called for non-@mention message")
+		t.Error("expected bee runner to be called for non-direct-dispatch message")
 	}
 }
 
 func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "sk1", "@unknown do something")
+	insertMessage(t, db, "m1", "sk1", " unknown do something")
 
 	runner := &mockBeeRunner{}
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
@@ -676,9 +676,54 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	}
 }
 
-func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
+func TestFeeder_DirectDispatch_AtPrefix_SkipsBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "sk1", "@天天 write a report")
+
+	runner := &mockBeeRunner{}
+	ws := store.NewWorkerStore(db)
+	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+		bee.WithWorkerDispatch(ws))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	if len(runner.getCalls()) != 0 {
+		t.Error("expected bee runner NOT to be called for direct dispatch")
+	}
+
+	var workerID, instruction, status string
+	db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
+	if workerID != w.ID {
+		t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
+	}
+	if instruction != "write a report" {
+		t.Errorf("expected instruction 'write a report', got %q", instruction)
+	}
+	if status != "pending" {
+		t.Errorf("expected task status 'pending', got %q", status)
+	}
+
+	var msgStatus string
+	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
+	if msgStatus != "bee_processed" {
+		t.Errorf("expected bee_processed, got %q", msgStatus)
+	}
+}
+
+func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", " 天天 write a report")
 
 	runner := &mockBeeRunner{}
 	ws := store.NewWorkerStore(db)

@@ -327,7 +327,10 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 }
 
 func parseDirectMention(content string) (workerName, instruction string, ok bool) {
-	rest, found := strings.CutPrefix(content, "@")
+	rest, found := strings.CutPrefix(content, " ")
+	if !found {
+		rest, found = strings.CutPrefix(content, "@")
+	}
 	if !found {
 		return "", "", false
 	}
@@ -355,7 +358,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 
 	worker, err := f.workerLookup.GetByName(workerName)
 	if err != nil {
-		log.Warn("@mention: worker not found, falling back to bee",
+		log.Warn("direct: worker not found, falling back to bee",
 			zap.String("name", workerName))
 		return false
 	}
@@ -368,15 +371,15 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		Status:      model.TaskStatusPending,
 	})
 	if err != nil {
-		log.Error("@mention: create task record", zap.Error(err))
+		log.Error("direct: create task record", zap.Error(err))
 		return false
 	}
 
-	log.Info("@mention: dispatched task to worker via scheduler",
+	log.Info("direct: dispatched task to worker via scheduler",
 		zap.String("name", workerName), zap.String("workerID", worker.ID))
 
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
-		log.Error("@mention: mark bee_processed", zap.Error(err))
+		log.Error("direct: mark bee_processed", zap.Error(err))
 	}
 	return true
 }
