@@ -284,6 +284,7 @@ type RuntimeMessages struct {
 	Department      DepartmentRuntimeMessages `yaml:"department"`
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
 	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
+	StopCommand     StopCommandMessages       `yaml:"stop_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -310,6 +311,14 @@ type ClearCommandMessages struct {
 	Cleared             string `yaml:"cleared"`                 // contains %s (agent/engine list)
 	ClearedWithTasks    string `yaml:"cleared_with_tasks"`      // contains %s, %d (list, cancelled count)
 	WorkerCleared       string `yaml:"worker_cleared"`          // contains %s, %s (worker name, engine)
+}
+
+// StopCommandMessages holds text sent to IM users by the /stop command handler.
+type StopCommandMessages struct {
+	Stopped             string `yaml:"stopped"`
+	StoppedWithMessages string `yaml:"stopped_with_messages"`
+	CancelledMessages   string `yaml:"cancelled_messages"`
+	NothingToStop       string `yaml:"nothing_to_stop"`
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

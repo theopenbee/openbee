@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,6 +60,8 @@ type Feeder struct {
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
+	runningMu       sync.Mutex
+	running         map[string]context.CancelFunc
 }
 
 // NewFeeder creates a Feeder.
@@ -73,11 +76,22 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		cfg:          cfg,
 		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
+		running: make(map[string]context.CancelFunc),
 	}
 	for _, o := range opts {
 		o(f)
 	}
 	return f
+}
+
+func (f *Feeder) StopSession(sessionKey string) bool {
+	f.runningMu.Lock()
+	cancel, ok := f.running[sessionKey]
+	f.runningMu.Unlock()
+	if ok {
+		cancel()
+	}
+	return ok
 }
 
 // RecoverFeeding resets any messages stuck in 'feeding' status back to 'received'
@@ -206,7 +220,15 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	beeCtx, cancel := context.WithTimeout(ctx, f.cfg.Engine.Timeout.Bee)
-	defer cancel()
+	f.runningMu.Lock()
+	f.running[sessionKey] = cancel
+	f.runningMu.Unlock()
+	defer func() {
+		cancel()
+		f.runningMu.Lock()
+		delete(f.running, sessionKey)
+		f.runningMu.Unlock()
+	}()
 
 	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
 	if err != nil {

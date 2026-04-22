@@ -22,6 +22,8 @@ const (
 	CmdEngine = "/engine"
 	// CmdClear is the slash command that clears session contexts.
 	CmdClear = "/clear"
+	// CmdStop is the slash command that stops the running bee and cancels pending messages.
+	CmdStop = "/stop"
 )
 
 var log = logger.With(zap.String("component", "command"))

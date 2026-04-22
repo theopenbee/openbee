@@ -246,3 +246,8 @@ runtime:
     cleared: "✅ 已清除：%s"
     cleared_with_tasks: "✅ 已清除：%s，取消了 %d 个任务。"
     worker_cleared: "✅ 已清除 %s（engine：%s）的会话上下文。"
+  stop_command:
+    stopped: "✅ 已停止 bee 执行"
+    stopped_with_messages: "✅ 已停止 bee 执行，取消了 %d 条待处理消息"
+    cancelled_messages: "✅ 已取消 %d 条待处理消息"
+    nothing_to_stop: "当前会话没有需要停止的内容"
