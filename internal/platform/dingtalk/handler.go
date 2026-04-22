@@ -30,6 +30,24 @@ import (
 
 var log = logger.With(zap.String("component", "dingtalk"))
 
+// buildDingTalkContext constructs a JSON string containing DingTalk-specific context fields.
+func buildDingTalkContext(data *chatbot.BotCallbackDataModel) string {
+	fields := map[string]map[string]string{
+		"dingtalk": {
+			"sender_staff_id":    data.SenderStaffId,
+			"sender_nick":        data.SenderNick,
+			"sender_corp_id":     data.SenderCorpId,
+			"conversation_id":    data.ConversationId,
+			"conversation_type":  data.ConversationType,
+			"conversation_title": data.ConversationTitle,
+			"is_admin":           strconv.FormatBool(data.IsAdmin),
+			"chatbot_corp_id":    data.ChatbotCorpId,
+		},
+	}
+	b, _ := json.Marshal(fields)
+	return string(b)
+}
+
 // DingTalkPlatform implements platform.Platform for DingTalk.
 type DingTalkPlatform struct {
 	receiver      *DingTalkReceiver
@@ -116,14 +134,16 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			return []byte(""), nil
 		}
 
+		platformCtxJSON := buildDingTalkContext(data)
 		msg := platform.InboundMessage{
-			Platform:          "dingtalk",
-			SenderID:          data.SenderStaffId,
-			SessionKey:        "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
-			Content:           textContent,
-			Raw:               string(rawBytes),
+			Platform:         "dingtalk",
+			SenderID:         data.SenderStaffId,
+			SessionKey:       "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
+			Content:          textContent,
+			Raw:              string(rawBytes),
 			PlatformMessageID: data.MsgId,
-			MessageTime:       data.CreateAt,
+			MessageTime:      data.CreateAt,
+			PlatformContext:  platformCtxJSON,
 		}
 		go func() {
 			addThinkingEmoji(ctx, r.cfg, data)
