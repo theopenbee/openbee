@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/domain/command"
-	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -26,15 +25,6 @@ type fakeStopMsgStore struct {
 
 func (f *fakeStopMsgStore) FailReceived(_ context.Context, _ string) ([]string, error) {
 	return f.ids, f.err
-}
-
-type fakeStopNotifier struct {
-	notified []string
-}
-
-func (f *fakeStopNotifier) NotifyTaskFailure(_ context.Context, messageID string, _ model.FailureInfo) error {
-	f.notified = append(f.notified, messageID)
-	return nil
 }
 
 type fakeStopSender struct {
@@ -58,7 +48,6 @@ func TestStop_IsCommand(t *testing.T) {
 	h := command.NewStopCommandHandler(
 		&fakeBeeStopper{},
 		&fakeStopMsgStore{},
-		&fakeStopNotifier{},
 		nil,
 	)
 	if !h.IsCommand("/stop") {
@@ -75,24 +64,19 @@ func TestStop_IsCommand(t *testing.T) {
 func TestStop_BeeRunning_PendingMessages(t *testing.T) {
 	stopper := &fakeBeeStopper{wasRunning: true}
 	msgStore := &fakeStopMsgStore{ids: []string{"msg-1", "msg-2"}}
-	notifier := &fakeStopNotifier{}
 	sender := &fakeStopSender{}
 
-	h := command.NewStopCommandHandler(stopper, msgStore, notifier,
+	h := command.NewStopCommandHandler(stopper, msgStore,
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	if !stopper.stopped {
 		t.Error("expected StopSession to be called")
 	}
-	if len(notifier.notified) != 2 {
-		t.Errorf("expected 2 notifications, got %d", len(notifier.notified))
-	}
 	if len(sender.sent) != 1 {
 		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
 	}
-	reply := sender.sent[0]
-	if reply == "" {
+	if sender.sent[0] == "" {
 		t.Error("expected non-empty reply")
 	}
 }
@@ -102,7 +86,7 @@ func TestStop_BeeRunning_NoMessages(t *testing.T) {
 	msgStore := &fakeStopMsgStore{ids: nil}
 	sender := &fakeStopSender{}
 
-	h := command.NewStopCommandHandler(stopper, msgStore, &fakeStopNotifier{},
+	h := command.NewStopCommandHandler(stopper, msgStore,
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
@@ -116,7 +100,7 @@ func TestStop_NothingToStop(t *testing.T) {
 	msgStore := &fakeStopMsgStore{ids: nil}
 	sender := &fakeStopSender{}
 
-	h := command.NewStopCommandHandler(stopper, msgStore, &fakeStopNotifier{},
+	h := command.NewStopCommandHandler(stopper, msgStore,
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
@@ -128,16 +112,12 @@ func TestStop_NothingToStop(t *testing.T) {
 func TestStop_OnlyMessages(t *testing.T) {
 	stopper := &fakeBeeStopper{wasRunning: false}
 	msgStore := &fakeStopMsgStore{ids: []string{"msg-3"}}
-	notifier := &fakeStopNotifier{}
 	sender := &fakeStopSender{}
 
-	h := command.NewStopCommandHandler(stopper, msgStore, notifier,
+	h := command.NewStopCommandHandler(stopper, msgStore,
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
-	if len(notifier.notified) != 1 {
-		t.Errorf("expected 1 notification, got %d", len(notifier.notified))
-	}
 	if len(sender.sent) != 1 {
 		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
 	}

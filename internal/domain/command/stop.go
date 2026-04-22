@@ -7,7 +7,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
-	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -19,24 +18,18 @@ type StopMessageStore interface {
 	FailReceived(ctx context.Context, sessionKey string) ([]string, error)
 }
 
-type StopFailureNotifier interface {
-	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
-}
-
 type StopCommandHandler struct {
-	feeder   BeeStopper
-	msgs     StopMessageStore
-	notifier StopFailureNotifier
-	senders  map[string]platform.PlatformSenderAdapter
+	feeder  BeeStopper
+	msgs    StopMessageStore
+	senders map[string]platform.PlatformSenderAdapter
 }
 
 func NewStopCommandHandler(
 	feeder BeeStopper,
 	msgs StopMessageStore,
-	notifier StopFailureNotifier,
 	senders map[string]platform.PlatformSenderAdapter,
 ) *StopCommandHandler {
-	return &StopCommandHandler{feeder: feeder, msgs: msgs, notifier: notifier, senders: senders}
+	return &StopCommandHandler{feeder: feeder, msgs: msgs, senders: senders}
 }
 
 func (h *StopCommandHandler) IsCommand(content string) bool {
@@ -53,15 +46,6 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 	ids, err := h.msgs.FailReceived(ctx, sessionKey)
 	if err != nil {
 		log.Error("stop: fail received messages", zap.String("sessionKey", sessionKey), zap.Error(err))
-	}
-
-	for _, id := range ids {
-		if notifyErr := h.notifier.NotifyTaskFailure(ctx, id, model.FailureInfo{
-			Reason:     "stopped by /stop",
-			WorkerName: "bee",
-		}); notifyErr != nil {
-			log.Error("stop: notify failure", zap.String("messageID", id), zap.Error(notifyErr))
-		}
 	}
 
 	beeWasStopped := h.feeder.StopSession(sessionKey)
