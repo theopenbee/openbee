@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- Direct dispatch now supports "space + employee name + space" format in addition to @mention
+- Direct dispatch now supports "space + worker name + space" format in addition to @mention
 - Add `/stop` command support
 
 ### Fixed
@@ -47,7 +47,7 @@
 ### Added
 - Add Kimi agent
 - Add `/engine` and `/clear` commands
-- Add `engine` field to employees for specifying the AI agent per employee
+- Add `engine` field to workers for specifying the AI agent per worker
 
 ## [0.0.25] - 2026-04-16
 
@@ -61,7 +61,7 @@
 ## [0.0.24] - 2026-04-15
 
 ### Added
-- Add environment variable configuration at global, employee, department, and scheduler levels
+- Add environment variable configuration at global, worker, department, and scheduler levels
 
 ### Fixed
 - Fix agent execution result recording
@@ -88,7 +88,7 @@
 ## [0.0.22] - 2026-04-13
 
 ### Added
-- Add system data query permission and grant access to employees
+- Add system data query permission and grant access to workers
 
 ### Changed
 - Optimize session clearing logic to improve clearing efficiency
