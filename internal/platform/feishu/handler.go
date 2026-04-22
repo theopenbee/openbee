@@ -170,7 +170,6 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				}
 			}()
 
-			platformCtxJSON := buildFeishuContext(sender, msg)
 			dispatch(platform.InboundMessage{
 				Platform:          "feishu",
 				SenderID:          senderID,
@@ -179,7 +178,6 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				Raw:               string(rawBytes),
 				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),
 				MessageTime:       utils.ParseMillis(msg.CreateTime),
-				PlatformContext:   platformCtxJSON,
 			})
 
 			return nil
@@ -643,7 +641,18 @@ var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 
-func buildFeishuContext(sender *larkim.EventSender, msg *larkim.EventMessage) string {
+// ExtractContext extracts platform-native fields from a raw Feishu P2MessageReceiveV1 JSON payload.
+// Returns "" if raw is not a valid event or required fields are absent.
+func ExtractContext(raw string) string {
+	var event larkim.P2MessageReceiveV1
+	if err := json.Unmarshal([]byte(raw), &event); err != nil || event.Event == nil {
+		return ""
+	}
+	sender := event.Event.Sender
+	msg := event.Event.Message
+	if sender == nil || msg == nil || sender.SenderId == nil {
+		return ""
+	}
 	return platform.BuildPlatformContext("feishu", map[string]string{
 		"open_id":    utils.DerefStrOrEmpty(sender.SenderId.OpenId),
 		"union_id":   utils.DerefStrOrEmpty(sender.SenderId.UnionId),

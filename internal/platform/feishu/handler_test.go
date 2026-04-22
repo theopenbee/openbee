@@ -1,6 +1,7 @@
 package feishu
 
 import (
+	"strings"
 	"testing"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -267,5 +268,27 @@ func TestUploadAndSendFile_ContentByType(t *testing.T) {
 				t.Errorf("msgType %q: hasFileName = %v, want %v", tt.msgType, hasFileName, tt.wantFileName)
 			}
 		})
+	}
+}
+
+func TestExtractContext_ValidFeishuRaw(t *testing.T) {
+	// Minimal Feishu P2MessageReceiveV1 JSON with the fields we extract.
+	raw := `{"schema":"2.0","header":{"event_id":"evt1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_abc","union_id":"on_abc"},"tenant_key":"tk1"},"message":{"message_id":"om_1","chat_id":"oc_xyz","chat_type":"group"}}}`
+	got := ExtractContext(raw)
+	if got == "" {
+		t.Fatal("expected non-empty context")
+	}
+	if !strings.Contains(got, `"open_id"`) {
+		t.Errorf("expected open_id in context, got: %q", got)
+	}
+	if !strings.Contains(got, "ou_abc") {
+		t.Errorf("expected open_id value in context, got: %q", got)
+	}
+}
+
+func TestExtractContext_InvalidRaw(t *testing.T) {
+	got := ExtractContext("not-json")
+	if got != "" {
+		t.Errorf("expected empty string for invalid raw, got %q", got)
 	}
 }
