@@ -40,9 +40,8 @@ func ExtractContext(raw string) string {
 	if body.ChatType == chatTypeGroup {
 		chatID = body.ChatID
 	}
-	senderID := body.From.UserID
 	return platform.BuildPlatformContext("wecom", map[string]string{
-		"userid":   senderID,
+		"userid":   body.From.UserID,
 		"chatid":   chatID,
 		"chattype": body.ChatType,
 		"aibotid":  body.AiBotID,
