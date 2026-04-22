@@ -620,7 +620,7 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 
 func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "sk1", " unknown do something")
+	insertMessage(t, db, "m1", "sk1", "unknown do something")
 
 	runner := &mockBeeRunner{}
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
@@ -682,7 +682,9 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 		msg  string
 	}{
 		{"at-prefix", "@天天 write a report"},
-		{"space-prefix", " 天天 write a report"},
+		{"at-prefix-newline", "@天天\nwrite a report"},
+		{"no-prefix-space", "天天 write a report"},
+		{"no-prefix-newline", "天天\nwrite a report"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db, ms, ts, ss, es := setupFeederDB(t)
