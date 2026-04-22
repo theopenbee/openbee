@@ -30,7 +30,6 @@ import (
 
 var log = logger.With(zap.String("component", "dingtalk"))
 
-// ExtractContext extracts platform-native fields from a raw DingTalk BotCallbackDataModel JSON payload.
 func ExtractContext(raw string) string {
 	var data chatbot.BotCallbackDataModel
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {

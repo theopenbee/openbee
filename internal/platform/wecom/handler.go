@@ -26,7 +26,6 @@ import (
 
 var log = logger.With(zap.String("component", "wecom"))
 
-// ExtractContext extracts platform-native fields from a raw WeCom WsFrame JSON payload.
 func ExtractContext(raw string) string {
 	var frame WsFrame
 	if err := json.Unmarshal([]byte(raw), &frame); err != nil {

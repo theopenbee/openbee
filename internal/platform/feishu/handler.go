@@ -641,8 +641,6 @@ var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 
-// ExtractContext extracts platform-native fields from a raw Feishu P2MessageReceiveV1 JSON payload.
-// Returns "" if raw is not a valid event or required fields are absent.
 func ExtractContext(raw string) string {
 	var event struct {
 		Event *struct {

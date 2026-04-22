@@ -74,7 +74,7 @@ func TestBuildPrompt_MultipleMessages_WithHint(t *testing.T) {
 
 func TestBuildPrompt_WithPlatformContext(t *testing.T) {
 	platform.RegisterExtractor("testplatform", func(_ string) string {
-		return `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz","chat_type":"group","tenant_key":"t1","message_id":"om_1","union_id":"on_1"}}`
+		return `{"testplatform":{"sender":{"open_id":"ou_abc","union_id":"on_1"},"message":{"chat_id":"oc_xyz","chat_type":"group","message_id":"om_1"}}}`
 	})
 	msgs := []store.ClaimedMessage{
 		{ID: "msg-1", Platform: "testplatform", SessionKey: "feishu:oc_xyz:ou_abc", Content: "hello", Raw: "any-raw"},
