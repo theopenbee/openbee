@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.30] - 2026-04-21
+
 ### Added
 - Add random worker name generation feature
 - Stale messages are automatically skipped
