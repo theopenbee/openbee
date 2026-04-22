@@ -200,6 +200,28 @@ func (s *MessageStore) MarkFailed(ctx context.Context, ids []string) error {
 	return s.UpdateStatusBatch(ctx, ids, MsgStatusFailed)
 }
 
+// FailReceived marks all 'received' messages for sessionKey as 'failed'.
+// Returns the IDs of the affected messages.
+func (s *MessageStore) FailReceived(ctx context.Context, sessionKey string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id FROM bee_platform_messages WHERE session_key = ? AND status = ?`,
+		sessionKey, MsgStatusReceived)
+	if err != nil {
+		return nil, fmt.Errorf("select received: %w", err)
+	}
+	ids, err := scanIDs(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if err := s.UpdateStatusBatch(ctx, ids, MsgStatusFailed); err != nil {
+		return nil, fmt.Errorf("mark failed: %w", err)
+	}
+	return ids, nil
+}
+
 // ResetFeedingToReceived resets all messages stuck in 'feeding' back to 'received'.
 // Returns the IDs of affected rows so the caller can delete orphaned pending tasks.
 func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, error) {
@@ -208,17 +230,8 @@ func (s *MessageStore) ResetFeedingToReceived(ctx context.Context) ([]string, er
 	if err != nil {
 		return nil, fmt.Errorf("select feeding: %w", err)
 	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
+	ids, err := scanIDs(rows)
+	if err != nil {
 		return nil, err
 	}
 	if len(ids) == 0 {
@@ -415,4 +428,17 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	}
 	slices.Reverse(msgs)
 	return msgs, nil
+}
+
+func scanIDs(rows *sql.Rows) ([]string, error) {
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

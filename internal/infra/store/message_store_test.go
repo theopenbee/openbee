@@ -533,3 +533,51 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testin
 		t.Errorf("expected msgB to be claimed, got %q", msgs[0].ID)
 	}
 }
+
+func TestMessageStore_FailReceived(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	insert := func(id, sessionKey, status string) {
+		_, err := s.db.ExecContext(ctx,
+			`INSERT INTO bee_platform_messages (id, session_key, platform, content, raw, received_at, status, created_at, updated_at)
+             VALUES (?, ?, 'test', 'x', '', 0, ?, 0, 0)`,
+			id, sessionKey, status)
+		if err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	insert("msg-a1", "sessionA", MsgStatusReceived)
+	insert("msg-a2", "sessionA", MsgStatusReceived)
+	insert("msg-b1", "sessionB", MsgStatusReceived)
+	insert("msg-a3", "sessionA", MsgStatusFeeding)
+
+	ids, err := s.FailReceived(ctx, "sessionA")
+	if err != nil {
+		t.Fatalf("FailReceived: %v", err)
+	}
+
+	if len(ids) != 2 {
+		t.Fatalf("expected 2 IDs, got %d: %v", len(ids), ids)
+	}
+	got := map[string]bool{ids[0]: true, ids[1]: true}
+	if !got["msg-a1"] || !got["msg-a2"] {
+		t.Errorf("expected msg-a1 and msg-a2, got %v", ids)
+	}
+
+	for _, id := range []string{"msg-a1", "msg-a2"} {
+		var status string
+		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status)
+		if status != MsgStatusFailed {
+			t.Errorf("%s: want status=failed, got %q", id, status)
+		}
+	}
+
+	for id, want := range map[string]string{"msg-b1": MsgStatusReceived, "msg-a3": MsgStatusFeeding} {
+		var status string
+		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status)
+		if status != want {
+			t.Errorf("%s: want status=%s, got %q", id, want, status)
+		}
+	}
+}

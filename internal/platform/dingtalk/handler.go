@@ -843,11 +843,11 @@ func buildEmojiPayload(cfg config.DingTalkConfig, data *chatbot.BotCallbackDataM
 		"openMsgId":          data.MsgId,
 		"openConversationId": data.ConversationId,
 		"emotionType":        2,
-		"emotionName":        "🤔 Thinking...",
+		"emotionName":        "🤔思考中",
 		"textEmotion": map[string]string{
 			"emotionId":    "2659900",
-			"emotionName":  "🤔 Thinking...",
-			"text":         "🤔 Thinking...",
+			"emotionName":  "🤔思考中",
+			"text":         "🤔思考中",
 			"backgroundId": "im_bg_1",
 		},
 	})
@@ -894,7 +894,7 @@ func doEmojiRequestWithRetry(ctx context.Context, cfg config.DingTalkConfig, dat
 }
 
 func addThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
-	doEmojiRequestWithRetry(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply", log.Error)
+	doEmojiRequestWithRetry(ctx, cfg, data, "https://api.dingtalk.com/v1.0/robot/emotion/reply", 5*time.Second, "reply", log.Warn)
 }
 
 func recallThinkingEmoji(ctx context.Context, cfg config.DingTalkConfig, data *chatbot.BotCallbackDataModel) {
