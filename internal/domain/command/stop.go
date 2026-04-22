@@ -33,7 +33,7 @@ func NewStopCommandHandler(
 }
 
 func (h *StopCommandHandler) IsCommand(content string) bool {
-	return content == CmdStop
+	return isExactOrPrefixed(content, CmdStop)
 }
 
 func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
