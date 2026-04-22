@@ -26,7 +26,21 @@ import (
 
 var log = logger.With(zap.String("component", "wecom"))
 
-func buildWeComContext(body messageBody, chatID, senderID string) string {
+// ExtractContext extracts platform-native fields from a raw WeCom WsFrame JSON payload.
+func ExtractContext(raw string) string {
+	var frame WsFrame
+	if err := json.Unmarshal([]byte(raw), &frame); err != nil {
+		return ""
+	}
+	var body messageBody
+	if err := json.Unmarshal(frame.Body, &body); err != nil {
+		return ""
+	}
+	chatID := body.From.UserID
+	if body.ChatType == chatTypeGroup {
+		chatID = body.ChatID
+	}
+	senderID := body.From.UserID
 	return platform.BuildPlatformContext("wecom", map[string]string{
 		"userid":   senderID,
 		"chatid":   chatID,
@@ -272,7 +286,6 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 	time.AfterFunc(10*time.Minute, func() { r.pendingStreams.Delete(body.MsgID) })
 
 	rawBytes, _ := json.Marshal(frame)
-	platformCtxJSON := buildWeComContext(body, chatID, senderID)
 	dispatch(platform.InboundMessage{
 		Platform:          "wecom",
 		SenderID:          senderID,
@@ -282,7 +295,6 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 		Raw:               string(rawBytes),
 		PlatformMessageID: body.MsgID,
 		MessageTime:       body.CreateTime * 1000, // WeCom create_time is Unix seconds
-		PlatformContext:   platformCtxJSON,
 	})
 }
 

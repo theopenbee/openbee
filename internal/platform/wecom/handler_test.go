@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -429,4 +430,24 @@ func buildRawFrame(t *testing.T, reqID string, body messageBody) string {
 	}
 	raw, _ := json.Marshal(frame)
 	return string(raw)
+}
+
+func TestExtractContext_ValidWeComRaw(t *testing.T) {
+	// WsFrame with a messageBody in Body
+	body := `{"msgid":"msg1","aibotid":"bot1","chatid":"","chattype":"single","from":{"userid":"user1"},"create_time":1700000000}`
+	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":` + body + `}`
+	got := ExtractContext(frame)
+	if got == "" {
+		t.Fatal("expected non-empty context")
+	}
+	if !strings.Contains(got, "user1") {
+		t.Errorf("expected userid in context, got: %q", got)
+	}
+}
+
+func TestExtractContext_InvalidWeComRaw(t *testing.T) {
+	got := ExtractContext("not-json")
+	if got != "" {
+		t.Errorf("expected empty string for invalid raw, got %q", got)
+	}
 }
