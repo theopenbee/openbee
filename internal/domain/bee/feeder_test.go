@@ -676,95 +676,57 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	}
 }
 
-func TestFeeder_DirectDispatch_AtPrefix_SkipsBee(t *testing.T) {
-	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "sk1", "@天天 write a report")
+func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		msg  string
+	}{
+		{"at-prefix", "@天天 write a report"},
+		{"space-prefix", " 天天 write a report"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, ms, ts, ss, es := setupFeederDB(t)
+			insertMessage(t, db, "m1", "sk1", tc.msg)
 
-	runner := &mockBeeRunner{}
-	ws := store.NewWorkerStore(db)
-	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
+			runner := &mockBeeRunner{}
+			ws := store.NewWorkerStore(db)
+			w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
+			if err != nil {
+				t.Fatalf("create worker: %v", err)
+			}
 
-	cfg := config.BeeConfig{}
-	cfg.Engine.Timeout.Bee = 5 * time.Second
-	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
-		bee.WithWorkerDispatch(ws))
+			cfg := config.BeeConfig{}
+			cfg.Engine.Timeout.Bee = 5 * time.Second
+			cfg.Feeder.MaxConcurrentBee = 5
+			f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+				bee.WithWorkerDispatch(ws))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	go f.Run(ctx)
-	time.Sleep(700 * time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			go f.Run(ctx)
+			time.Sleep(700 * time.Millisecond)
 
-	if len(runner.getCalls()) != 0 {
-		t.Error("expected bee runner NOT to be called for direct dispatch")
-	}
+			if len(runner.getCalls()) != 0 {
+				t.Error("expected bee runner NOT to be called for direct dispatch")
+			}
 
-	var workerID, instruction, status string
-	db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
-	if workerID != w.ID {
-		t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
-	}
-	if instruction != "write a report" {
-		t.Errorf("expected instruction 'write a report', got %q", instruction)
-	}
-	if status != "pending" {
-		t.Errorf("expected task status 'pending', got %q", status)
-	}
+			var workerID, instruction, status string
+			db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
+			if workerID != w.ID {
+				t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
+			}
+			if instruction != "write a report" {
+				t.Errorf("expected instruction 'write a report', got %q", instruction)
+			}
+			if status != model.TaskStatusPending {
+				t.Errorf("expected task status %q, got %q", model.TaskStatusPending, status)
+			}
 
-	var msgStatus string
-	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
-	if msgStatus != "bee_processed" {
-		t.Errorf("expected bee_processed, got %q", msgStatus)
-	}
-}
-
-func TestFeeder_DirectDispatch_Success_SkipsBee(t *testing.T) {
-	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "sk1", " 天天 write a report")
-
-	runner := &mockBeeRunner{}
-	ws := store.NewWorkerStore(db)
-	w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-
-	cfg := config.BeeConfig{}
-	cfg.Engine.Timeout.Bee = 5 * time.Second
-	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
-		bee.WithWorkerDispatch(ws))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	go f.Run(ctx)
-	time.Sleep(700 * time.Millisecond)
-
-	// Bee must NOT have been called
-	if len(runner.getCalls()) != 0 {
-		t.Error("expected bee runner NOT to be called for direct dispatch")
-	}
-
-	// A pending task must have been created in the DB for the worker
-	var workerID, instruction, status string
-	db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
-	if workerID != w.ID {
-		t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
-	}
-	if instruction != "write a report" {
-		t.Errorf("expected instruction 'write a report', got %q", instruction)
-	}
-	if status != "pending" {
-		t.Errorf("expected task status 'pending', got %q", status)
-	}
-
-	// Message must be marked bee_processed
-	var msgStatus string
-	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
-	if msgStatus != "bee_processed" {
-		t.Errorf("expected bee_processed, got %q", msgStatus)
+			var msgStatus string
+			db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
+			if msgStatus != store.MsgStatusBeeProcessed {
+				t.Errorf("expected %q, got %q", store.MsgStatusBeeProcessed, msgStatus)
+			}
+		})
 	}
 }

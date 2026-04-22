@@ -39,7 +39,7 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-// WithWorkerDispatch enables @mention direct dispatch by providing the worker lookup store.
+// WithWorkerDispatch enables direct dispatch via "@workerName" or " workerName" prefix.
 func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	return func(f *Feeder) {
 		f.workerLookup = lookup
@@ -327,13 +327,16 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 }
 
 func parseDirectMention(content string) (workerName, instruction string, ok bool) {
-	rest, found := strings.CutPrefix(content, " ")
-	if !found {
-		rest, found = strings.CutPrefix(content, "@")
-	}
-	if !found {
+	if len(content) == 0 {
 		return "", "", false
 	}
+	switch content[0] {
+	case ' ', '@':
+	default:
+		return "", "", false
+	}
+	rest := content[1:]
+	var found bool
 	workerName, instruction, found = strings.Cut(rest, " ")
 	if !found || workerName == "" {
 		return "", "", false
