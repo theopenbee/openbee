@@ -647,12 +647,12 @@ var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 func buildFeishuContext(sender *larkim.EventSender, msg *larkim.EventMessage) string {
 	fields := map[string]map[string]string{
 		"feishu": {
-			"open_id":    utils.DerefStr(sender.SenderId.OpenId),
-			"union_id":   utils.DerefStr(sender.SenderId.UnionId),
-			"chat_id":    utils.DerefStr(msg.ChatId),
-			"chat_type":  utils.DerefStr(msg.ChatType),
-			"tenant_key": utils.DerefStr(sender.TenantKey),
-			"message_id": utils.DerefStr(msg.MessageId),
+			"open_id":    utils.DerefStrOrEmpty(sender.SenderId.OpenId),
+			"union_id":   utils.DerefStrOrEmpty(sender.SenderId.UnionId),
+			"chat_id":    utils.DerefStrOrEmpty(msg.ChatId),
+			"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
+			"tenant_key": utils.DerefStrOrEmpty(sender.TenantKey),
+			"message_id": utils.DerefStrOrEmpty(msg.MessageId),
 		},
 	}
 	b, _ := json.Marshal(fields)
