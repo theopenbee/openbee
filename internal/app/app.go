@@ -300,6 +300,10 @@ func buildDispatcher(
 }
 
 func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, wxc config.WeixinConfig, mc config.MediaConfig) []platform.Platform {
+	platform.RegisterExtractor("feishu", feishu.ExtractContext)
+	platform.RegisterExtractor("dingtalk", dingtalk.ExtractContext)
+	platform.RegisterExtractor("wecom", wecom.ExtractContext)
+
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
