@@ -1,6 +1,9 @@
 package platform
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync"
+)
 
 // BuildPlatformContext encodes platform-native fields as a JSON string keyed by platform name.
 func BuildPlatformContext(name string, fields map[string]string) string {
@@ -8,12 +11,17 @@ func BuildPlatformContext(name string, fields map[string]string) string {
 	return string(b)
 }
 
-var extractors = map[string]func(string) string{}
+var (
+	extractorsMu sync.RWMutex
+	extractors   = map[string]func(string) string{}
+)
 
 // RegisterExtractor registers a platform-specific context extractor.
 // Called once at server startup per enabled platform.
 func RegisterExtractor(name string, fn func(string) string) {
+	extractorsMu.Lock()
 	extractors[name] = fn
+	extractorsMu.Unlock()
 }
 
 // ExtractContext returns a platform_context JSON string for the given platform
@@ -22,7 +30,9 @@ func ExtractContext(platformName, raw string) string {
 	if raw == "" {
 		return ""
 	}
+	extractorsMu.RLock()
 	fn, ok := extractors[platformName]
+	extractorsMu.RUnlock()
 	if !ok {
 		return ""
 	}
