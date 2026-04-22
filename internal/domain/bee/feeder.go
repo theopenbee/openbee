@@ -352,17 +352,21 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 	if len(content) == 0 {
 		return "", "", false
 	}
-	switch content[0] {
-	case ' ', '@':
-	default:
+	if content[0] == '@' {
+		rest := content[1:]
+		workerName, instruction, ok = strings.Cut(rest, " ")
+		if !ok || workerName == "" {
+			return "", "", false
+		}
+		instruction = strings.TrimSpace(instruction)
+		return workerName, instruction, instruction != ""
+	}
+	idx := strings.IndexAny(content, " \n")
+	if idx <= 0 {
 		return "", "", false
 	}
-	rest := content[1:]
-	workerName, instruction, ok = strings.Cut(rest, " ")
-	if !ok || workerName == "" {
-		return "", "", false
-	}
-	instruction = strings.TrimSpace(instruction)
+	workerName = content[:idx]
+	instruction = strings.TrimSpace(content[idx+1:])
 	return workerName, instruction, instruction != ""
 }
 
