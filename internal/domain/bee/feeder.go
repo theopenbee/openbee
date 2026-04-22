@@ -336,9 +336,8 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 		return "", "", false
 	}
 	rest := content[1:]
-	var found bool
-	workerName, instruction, found = strings.Cut(rest, " ")
-	if !found || workerName == "" {
+	workerName, instruction, ok = strings.Cut(rest, " ")
+	if !ok || workerName == "" {
 		return "", "", false
 	}
 	instruction = strings.TrimSpace(instruction)
