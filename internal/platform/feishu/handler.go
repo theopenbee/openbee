@@ -651,12 +651,14 @@ func ExtractContext(raw string) string {
 					OpenID  *string `json:"open_id"`
 					UnionID *string `json:"union_id"`
 				} `json:"sender_id"`
+				SenderType *string `json:"sender_type"`
 			} `json:"sender"`
 			Message *struct {
-				MessageID *string `json:"message_id"`
-				ChatID    *string `json:"chat_id"`
-				ChatType  *string `json:"chat_type"`
-				Mentions  []struct {
+				MessageID   *string `json:"message_id"`
+				ChatID      *string `json:"chat_id"`
+				ChatType    *string `json:"chat_type"`
+				MessageType *string `json:"message_type"`
+				Mentions    []struct {
 					Key  *string `json:"key"`
 					ID   *struct {
 						OpenID  *string `json:"open_id"`
@@ -697,12 +699,18 @@ func ExtractContext(raw string) string {
 
 	ctx := map[string]any{
 		"feishu": map[string]any{
-			"open_id":    utils.DerefStrOrEmpty(sender.SenderID.OpenID),
-			"union_id":   utils.DerefStrOrEmpty(sender.SenderID.UnionID),
-			"chat_id":    utils.DerefStrOrEmpty(msg.ChatID),
-			"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
-			"message_id": utils.DerefStrOrEmpty(msg.MessageID),
-			"mentions":   mentions,
+			"sender": map[string]any{
+				"open_id":     utils.DerefStrOrEmpty(sender.SenderID.OpenID),
+				"union_id":    utils.DerefStrOrEmpty(sender.SenderID.UnionID),
+				"sender_type": utils.DerefStrOrEmpty(sender.SenderType),
+			},
+			"message": map[string]any{
+				"chat_id":      utils.DerefStrOrEmpty(msg.ChatID),
+				"chat_type":    utils.DerefStrOrEmpty(msg.ChatType),
+				"message_id":   utils.DerefStrOrEmpty(msg.MessageID),
+				"message_type": utils.DerefStrOrEmpty(msg.MessageType),
+				"mentions":     mentions,
+			},
 		},
 	}
 	b, _ := json.Marshal(ctx)

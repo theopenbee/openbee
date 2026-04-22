@@ -273,16 +273,25 @@ func TestUploadAndSendFile_ContentByType(t *testing.T) {
 
 func TestExtractContext_ValidFeishuRaw(t *testing.T) {
 	// Minimal Feishu P2MessageReceiveV1 JSON with the fields we extract.
-	raw := `{"schema":"2.0","header":{"event_id":"evt1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_abc","union_id":"on_abc"},"tenant_key":"tk1"},"message":{"message_id":"om_1","chat_id":"oc_xyz","chat_type":"group"}}}`
+	raw := `{"schema":"2.0","header":{"event_id":"evt1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_abc","union_id":"on_abc"},"sender_type":"user","tenant_key":"tk1"},"message":{"message_id":"om_1","chat_id":"oc_xyz","chat_type":"group","message_type":"text"}}}`
 	got := ExtractContext(raw)
 	if got == "" {
 		t.Fatal("expected non-empty context")
 	}
-	if !strings.Contains(got, `"open_id"`) {
-		t.Errorf("expected open_id in context, got: %q", got)
+	if !strings.Contains(got, `"sender"`) {
+		t.Errorf("expected sender namespace in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"message"`) {
+		t.Errorf("expected message namespace in context, got: %q", got)
 	}
 	if !strings.Contains(got, "ou_abc") {
 		t.Errorf("expected open_id value in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"sender_type"`) {
+		t.Errorf("expected sender_type in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"message_type"`) {
+		t.Errorf("expected message_type in context, got: %q", got)
 	}
 }
 
