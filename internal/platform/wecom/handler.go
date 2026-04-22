@@ -26,6 +26,21 @@ import (
 
 var log = logger.With(zap.String("component", "wecom"))
 
+// buildWeComContext constructs the platform context JSON for a WeCom message.
+func buildWeComContext(body messageBody, chatID, senderID string) string {
+	fields := map[string]map[string]string{
+		"wecom": {
+			"userid":   senderID,
+			"chatid":   chatID,
+			"chattype": body.ChatType,
+			"aibotid":  body.AiBotID,
+			"msgid":    body.MsgID,
+		},
+	}
+	b, _ := json.Marshal(fields)
+	return string(b)
+}
+
 // ─── Media size constants ──────────────────────────────────────────────────
 
 const (
@@ -262,6 +277,7 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 	time.AfterFunc(10*time.Minute, func() { r.pendingStreams.Delete(body.MsgID) })
 
 	rawBytes, _ := json.Marshal(frame)
+	platformCtxJSON := buildWeComContext(body, chatID, senderID)
 	dispatch(platform.InboundMessage{
 		Platform:          "wecom",
 		SenderID:          senderID,
@@ -271,6 +287,7 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 		Raw:               string(rawBytes),
 		PlatformMessageID: body.MsgID,
 		MessageTime:       body.CreateTime * 1000, // WeCom create_time is Unix seconds
+		PlatformContext:   platformCtxJSON,
 	})
 }
 
