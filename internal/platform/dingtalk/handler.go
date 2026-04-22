@@ -30,7 +30,12 @@ import (
 
 var log = logger.With(zap.String("component", "dingtalk"))
 
-func buildDingTalkContext(data *chatbot.BotCallbackDataModel) string {
+// ExtractContext extracts platform-native fields from a raw DingTalk BotCallbackDataModel JSON payload.
+func ExtractContext(raw string) string {
+	var data chatbot.BotCallbackDataModel
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		return ""
+	}
 	return platform.BuildPlatformContext("dingtalk", map[string]string{
 		"sender_staff_id":    data.SenderStaffId,
 		"sender_nick":        data.SenderNick,
@@ -129,7 +134,6 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			return []byte(""), nil
 		}
 
-		platformCtxJSON := buildDingTalkContext(data)
 		msg := platform.InboundMessage{
 			Platform:         "dingtalk",
 			SenderID:         data.SenderStaffId,
@@ -138,7 +142,6 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			Raw:              string(rawBytes),
 			PlatformMessageID: data.MsgId,
 			MessageTime:      data.CreateAt,
-			PlatformContext:  platformCtxJSON,
 		}
 		go func() {
 			addThinkingEmoji(ctx, r.cfg, data)

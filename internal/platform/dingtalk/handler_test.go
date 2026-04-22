@@ -2,6 +2,7 @@ package dingtalk
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,4 +127,22 @@ func TestSend_RoutesCorrectlyOnExpiry(t *testing.T) {
 		SessionWebhook:            "https://example.com/webhook",
 	}
 	assert.False(t, isWebhookExpired(&validData))
+}
+
+func TestExtractContext_ValidDingTalkRaw(t *testing.T) {
+	raw := `{"senderStaffId":"emp001","senderNick":"Alice","senderCorpId":"corp1","conversationId":"conv1","conversationType":"1","conversationTitle":"Test","isAdmin":false,"chatbotCorpId":"botcorp1","msgId":"msg1","createAt":1700000000000}`
+	got := ExtractContext(raw)
+	if got == "" {
+		t.Fatal("expected non-empty context")
+	}
+	if !strings.Contains(got, "emp001") {
+		t.Errorf("expected senderStaffId in context, got: %q", got)
+	}
+}
+
+func TestExtractContext_InvalidDingTalkRaw(t *testing.T) {
+	got := ExtractContext("not-json")
+	if got != "" {
+		t.Errorf("expected empty string for invalid raw, got %q", got)
+	}
 }
