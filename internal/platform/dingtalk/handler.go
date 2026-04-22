@@ -30,34 +30,28 @@ import (
 
 var log = logger.With(zap.String("component", "dingtalk"))
 
-var dingtalkContextWhitelist = map[string]bool{
-	"conversationId":    true,
-	"atUsers":           true,
-	"chatbotCorpId":     true,
-	"chatbotUserId":     true,
-	"msgId":             true,
-	"senderNick":        true,
-	"isAdmin":           true,
-	"senderStaffId":     true,
-	"senderCorpId":      true,
-	"conversationType":  true,
-	"senderId":          true,
-	"conversationTitle": true,
-	"msgtype":           true,
+type dingtalkContextFields struct {
+	ConversationID    string          `json:"conversationId,omitempty"`
+	AtUsers           json.RawMessage `json:"atUsers,omitempty"`
+	ChatbotCorpID     string          `json:"chatbotCorpId,omitempty"`
+	ChatbotUserID     string          `json:"chatbotUserId,omitempty"`
+	MsgID             string          `json:"msgId,omitempty"`
+	SenderNick        string          `json:"senderNick,omitempty"`
+	IsAdmin           *bool           `json:"isAdmin,omitempty"`
+	SenderStaffID     string          `json:"senderStaffId,omitempty"`
+	SenderCorpID      string          `json:"senderCorpId,omitempty"`
+	ConversationType  string          `json:"conversationType,omitempty"`
+	SenderID          string          `json:"senderId,omitempty"`
+	ConversationTitle string          `json:"conversationTitle,omitempty"`
+	MsgType           string          `json:"msgtype,omitempty"`
 }
 
 func ExtractContext(raw string) string {
-	var all map[string]any
-	if err := json.Unmarshal([]byte(raw), &all); err != nil {
+	var ctx dingtalkContextFields
+	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
 		return ""
 	}
-	filtered := make(map[string]any, len(dingtalkContextWhitelist))
-	for k, v := range all {
-		if dingtalkContextWhitelist[k] {
-			filtered[k] = v
-		}
-	}
-	b, _ := json.Marshal(map[string]any{"dingtalk": filtered})
+	b, _ := json.Marshal(map[string]any{"dingtalk": ctx})
 	return string(b)
 }
 
