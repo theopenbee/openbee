@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
 	"go.uber.org/zap"
 )
 
@@ -348,8 +349,8 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 			SessionKey: m.SessionKey,
 			MessageID:  m.ID,
 		}
-		if m.PlatformContext != "" {
-			meta.PlatformContext = json.RawMessage(m.PlatformContext)
+		if ctx := platform.ExtractContext(m.Platform, m.Raw); ctx != "" {
+			meta.PlatformContext = json.RawMessage(ctx)
 		}
 		b, _ := json.Marshal(meta)
 		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
