@@ -682,6 +682,7 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 		msg  string
 	}{
 		{"at-prefix", "@天天 write a report"},
+		{"at-prefix-newline", "@天天\nwrite a report"},
 		{"no-prefix-space", "天天 write a report"},
 		{"no-prefix-newline", "天天\nwrite a report"},
 	} {
