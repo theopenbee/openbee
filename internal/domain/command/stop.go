@@ -77,10 +77,6 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 	default:
 		reply = m.NothingToStop
 	}
-	h.reply(ctx, replyTo, reply)
+	sendReply(ctx, h.senders, replyTo, reply)
 	return true
-}
-
-func (h *StopCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
-	sendReply(ctx, h.senders, replyTo, text)
 }
