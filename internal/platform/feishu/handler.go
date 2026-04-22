@@ -644,23 +644,69 @@ var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 // ExtractContext extracts platform-native fields from a raw Feishu P2MessageReceiveV1 JSON payload.
 // Returns "" if raw is not a valid event or required fields are absent.
 func ExtractContext(raw string) string {
-	var event larkim.P2MessageReceiveV1
+	var event struct {
+		Event *struct {
+			Sender *struct {
+				SenderID *struct {
+					OpenID  *string `json:"open_id"`
+					UnionID *string `json:"union_id"`
+				} `json:"sender_id"`
+			} `json:"sender"`
+			Message *struct {
+				MessageID *string `json:"message_id"`
+				ChatID    *string `json:"chat_id"`
+				ChatType  *string `json:"chat_type"`
+				Mentions  []struct {
+					Key  *string `json:"key"`
+					ID   *struct {
+						OpenID  *string `json:"open_id"`
+						UnionID *string `json:"union_id"`
+					} `json:"id"`
+					Name *string `json:"name"`
+				} `json:"mentions"`
+			} `json:"message"`
+		} `json:"event"`
+	}
 	if err := json.Unmarshal([]byte(raw), &event); err != nil || event.Event == nil {
 		return ""
 	}
 	sender := event.Event.Sender
 	msg := event.Event.Message
-	if sender == nil || msg == nil || sender.SenderId == nil {
+	if sender == nil || msg == nil || sender.SenderID == nil {
 		return ""
 	}
-	return platform.BuildPlatformContext("feishu", map[string]string{
-		"open_id":    utils.DerefStrOrEmpty(sender.SenderId.OpenId),
-		"union_id":   utils.DerefStrOrEmpty(sender.SenderId.UnionId),
-		"chat_id":    utils.DerefStrOrEmpty(msg.ChatId),
-		"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
-		"tenant_key": utils.DerefStrOrEmpty(sender.TenantKey),
-		"message_id": utils.DerefStrOrEmpty(msg.MessageId),
-	})
+
+	type mentionInfo struct {
+		Key     string `json:"key"`
+		OpenID  string `json:"open_id"`
+		UnionID string `json:"union_id"`
+		Name    string `json:"name"`
+	}
+	var mentions []mentionInfo
+	for _, m := range msg.Mentions {
+		if m.Key == nil || m.Name == nil {
+			continue
+		}
+		mi := mentionInfo{Key: *m.Key, Name: *m.Name}
+		if m.ID != nil {
+			mi.OpenID = utils.DerefStrOrEmpty(m.ID.OpenID)
+			mi.UnionID = utils.DerefStrOrEmpty(m.ID.UnionID)
+		}
+		mentions = append(mentions, mi)
+	}
+
+	ctx := map[string]any{
+		"feishu": map[string]any{
+			"open_id":    utils.DerefStrOrEmpty(sender.SenderID.OpenID),
+			"union_id":   utils.DerefStrOrEmpty(sender.SenderID.UnionID),
+			"chat_id":    utils.DerefStrOrEmpty(msg.ChatID),
+			"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
+			"message_id": utils.DerefStrOrEmpty(msg.MessageID),
+			"mentions":   mentions,
+		},
+	}
+	b, _ := json.Marshal(ctx)
+	return string(b)
 }
 
 // resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
