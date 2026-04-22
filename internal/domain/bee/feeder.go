@@ -40,7 +40,7 @@ func WithFailureNotifier(n FailureNotifier) Option {
 	return func(f *Feeder) { f.failureNotifier = n }
 }
 
-// WithWorkerDispatch enables @mention direct dispatch by providing the worker lookup store.
+// WithWorkerDispatch enables direct dispatch via "@workerName" or " workerName" prefix.
 func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	return func(f *Feeder) {
 		f.workerLookup = lookup
@@ -349,12 +349,17 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 }
 
 func parseDirectMention(content string) (workerName, instruction string, ok bool) {
-	rest, found := strings.CutPrefix(content, "@")
-	if !found {
+	if len(content) == 0 {
 		return "", "", false
 	}
-	workerName, instruction, found = strings.Cut(rest, " ")
-	if !found || workerName == "" {
+	switch content[0] {
+	case ' ', '@':
+	default:
+		return "", "", false
+	}
+	rest := content[1:]
+	workerName, instruction, ok = strings.Cut(rest, " ")
+	if !ok || workerName == "" {
 		return "", "", false
 	}
 	instruction = strings.TrimSpace(instruction)
@@ -377,7 +382,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 
 	worker, err := f.workerLookup.GetByName(workerName)
 	if err != nil {
-		log.Warn("@mention: worker not found, falling back to bee",
+		log.Warn("direct: worker not found, falling back to bee",
 			zap.String("name", workerName))
 		return false
 	}
@@ -390,15 +395,15 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		Status:      model.TaskStatusPending,
 	})
 	if err != nil {
-		log.Error("@mention: create task record", zap.Error(err))
+		log.Error("direct: create task record", zap.Error(err))
 		return false
 	}
 
-	log.Info("@mention: dispatched task to worker via scheduler",
+	log.Info("direct: dispatched task to worker via scheduler",
 		zap.String("name", workerName), zap.String("workerID", worker.ID))
 
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
-		log.Error("@mention: mark bee_processed", zap.Error(err))
+		log.Error("direct: mark bee_processed", zap.Error(err))
 	}
 	return true
 }
