@@ -107,14 +107,14 @@ func TestMessageStore_CreateBatch_Empty(t *testing.T) {
 	}
 }
 
-func TestMessageStore_CreateBatch_PlatformContext(t *testing.T) {
+func TestMessageStore_CreateBatch_RawRoundtrip(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
 	msg := BatchMsg{
-		ID: "ctx-1", SessionKey: "s1", Platform: "feishu",
-		Content: "hello", Raw: "", PlatformMsgID: "pmsg-ctx-1",
-		PlatformContext: `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz","chat_type":"group"}}`,
+		ID: "raw-1", SessionKey: "s1", Platform: "feishu",
+		Content: "hello", Raw: `{"event":{"sender":{"sender_id":{"open_id":"ou_abc"}}}}`,
+		PlatformMsgID: "pmsg-raw-1",
 		MessageTime: time.Now().UnixMilli(), Status: "received", MergedInto: "",
 	}
 
@@ -126,7 +126,6 @@ func TestMessageStore_CreateBatch_PlatformContext(t *testing.T) {
 		t.Fatalf("expected 1 row, got %d", inserted)
 	}
 
-	// ClaimBatch should return it with platform_context intact.
 	claimed, err := s.ClaimBatch(ctx, 10)
 	if err != nil {
 		t.Fatalf("ClaimBatch error: %v", err)
@@ -134,8 +133,8 @@ func TestMessageStore_CreateBatch_PlatformContext(t *testing.T) {
 	if len(claimed) != 1 {
 		t.Fatalf("expected 1 claimed message, got %d", len(claimed))
 	}
-	if claimed[0].PlatformContext != msg.PlatformContext {
-		t.Errorf("PlatformContext mismatch\nwant: %s\ngot:  %s", msg.PlatformContext, claimed[0].PlatformContext)
+	if claimed[0].Raw != msg.Raw {
+		t.Errorf("Raw mismatch\nwant: %s\ngot:  %s", msg.Raw, claimed[0].Raw)
 	}
 }
 

@@ -369,11 +369,6 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
         DROP TABLE bee_memories;
     `,
 	},
-	{
-		version: 41,
-		name:    "add_platform_context_to_platform_messages",
-		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN platform_context TEXT NOT NULL DEFAULT ''`,
-	},
 }
 
 type whereBuilder struct {
