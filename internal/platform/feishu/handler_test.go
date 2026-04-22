@@ -182,47 +182,54 @@ func TestResolveMentions(t *testing.T) {
 		name     string
 		text     string
 		mentions []*larkim.MentionEvent
+		botName  string
 		want     string
 	}{
 		{
-			name: "single mention replaced",
-			text: "@_user_1 hello",
+			name: "bot mention replaced, user mention preserved",
+			text: "@_user_1 @_user_2 hello",
 			mentions: []*larkim.MentionEvent{
-				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+				{Key: strPtr("@_user_1"), Name: strPtr("OpenBee")},
+				{Key: strPtr("@_user_2"), Name: strPtr("Tom")},
 			},
-			want: "@Tom hello",
+			botName: "OpenBee",
+			want:    "@OpenBee @_user_2 hello",
 		},
 		{
-			name: "multiple mentions replaced",
+			name: "multiple user mentions preserved",
 			text: "@_user_1 and @_user_2",
 			mentions: []*larkim.MentionEvent{
 				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
 				{Key: strPtr("@_user_2"), Name: strPtr("Alice")},
 			},
-			want: "@Tom and @Alice",
-		},
-		{
-			name: "unknown key preserved",
-			text: "@_user_1 @_user_2",
-			mentions: []*larkim.MentionEvent{
-				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
-			},
-			want: "@Tom @_user_2",
+			botName: "OpenBee",
+			want:    "@_user_1 and @_user_2",
 		},
 		{
 			name:     "empty mentions no change",
 			text:     "@_user_1 hello",
 			mentions: nil,
+			botName:  "OpenBee",
 			want:     "@_user_1 hello",
+		},
+		{
+			name: "empty botName no replacement",
+			text: "@_user_1 hello",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+			},
+			botName: "",
+			want:    "@_user_1 hello",
 		},
 		{
 			name: "nil key skipped",
 			text: "@_user_1 hello",
 			mentions: []*larkim.MentionEvent{
-				{Key: nil, Name: strPtr("Tom")},
-				{Key: strPtr("@_user_1"), Name: strPtr("Bob")},
+				{Key: nil, Name: strPtr("OpenBee")},
+				{Key: strPtr("@_user_1"), Name: strPtr("OpenBee")},
 			},
-			want: "@Bob hello",
+			botName: "OpenBee",
+			want:    "@OpenBee hello",
 		},
 		{
 			name: "nil name skipped",
@@ -230,12 +237,13 @@ func TestResolveMentions(t *testing.T) {
 			mentions: []*larkim.MentionEvent{
 				{Key: strPtr("@_user_1"), Name: nil},
 			},
-			want: "@_user_1 hello",
+			botName: "OpenBee",
+			want:    "@_user_1 hello",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveMentions(tt.text, tt.mentions)
+			got := resolveMentions(tt.text, tt.mentions, tt.botName)
 			if got != tt.want {
 				t.Errorf("resolveMentions() = %q, want %q", got, tt.want)
 			}

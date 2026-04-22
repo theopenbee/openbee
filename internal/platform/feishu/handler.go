@@ -110,7 +110,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				return nil
 			}
 
-			textContent = resolveMentions(textContent, msg.Mentions)
+			textContent = resolveMentions(textContent, msg.Mentions, r.cfg.BotName)
 			sender := event.Event.Sender
 			if sender == nil || sender.SenderId == nil || sender.SenderId.OpenId == nil {
 				log.Warn("skipping message with nil sender or OpenId")
@@ -717,21 +717,22 @@ func ExtractContext(raw string) string {
 	return string(b)
 }
 
-// resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
-// human-readable names (e.g. "@Tom"). Feishu delivers @mentions as placeholder
-// keys in the message text and resolves them separately in the Mentions slice;
-// we need to stitch them back together before passing content upstream.
-// Keys with no corresponding entry in mentions are left unchanged.
-func resolveMentions(text string, mentions []*larkim.MentionEvent) string {
-	if len(mentions) == 0 {
+// resolveMentions replaces only the bot's mention key (e.g. "@_user_1") with
+// the bot's display name (e.g. "@OpenBee"), so that the downstream
+// stripBotMentions pass can remove it. User mentions are intentionally left as
+// opaque keys to preserve the original message structure.
+func resolveMentions(text string, mentions []*larkim.MentionEvent, botName string) string {
+	if len(mentions) == 0 || botName == "" {
 		return text
 	}
-	pairs := make([]string, 0, len(mentions)*2)
+	pairs := make([]string, 0, 2)
 	for _, m := range mentions {
 		if m.Key == nil || m.Name == nil {
 			continue
 		}
-		pairs = append(pairs, *m.Key, mentionPrefix+*m.Name)
+		if *m.Name == botName {
+			pairs = append(pairs, *m.Key, mentionPrefix+*m.Name)
+		}
 	}
 	if len(pairs) == 0 {
 		return text
