@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add `/stop` command support
+
 ### Fixed
 - Fix DingTalk reaction 500 error caused by sending English emotion text ("🤔 Thinking...") instead of the required Chinese text ("🤔思考中"); also downgrade emoji failure log level from Error to Warn since it is non-blocking.
 

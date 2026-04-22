@@ -246,3 +246,8 @@ runtime:
     cleared: "✅ Cleared: %s"
     cleared_with_tasks: "✅ Cleared: %s. Cancelled %d task(s)."
     worker_cleared: "✅ Cleared %s (engine: %s)."
+  stop_command:
+    stopped: "✅ Stopped bee execution"
+    stopped_with_messages: "✅ Stopped bee execution and cancelled %d pending message(s)"
+    cancelled_messages: "✅ Cancelled %d pending message(s)"
+    nothing_to_stop: "Nothing to stop in this session"
