@@ -107,6 +107,38 @@ func TestMessageStore_CreateBatch_Empty(t *testing.T) {
 	}
 }
 
+func TestMessageStore_CreateBatch_PlatformContext(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	msg := BatchMsg{
+		ID: "ctx-1", SessionKey: "s1", Platform: "feishu",
+		Content: "hello", Raw: "", PlatformMsgID: "pmsg-ctx-1",
+		PlatformContext: `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz","chat_type":"group"}}`,
+		MessageTime: time.Now().UnixMilli(), Status: "received", MergedInto: "",
+	}
+
+	inserted, err := s.CreateBatch(ctx, []BatchMsg{msg})
+	if err != nil {
+		t.Fatalf("CreateBatch error: %v", err)
+	}
+	if inserted != 1 {
+		t.Fatalf("expected 1 row, got %d", inserted)
+	}
+
+	// ClaimBatch should return it with platform_context intact.
+	claimed, err := s.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimBatch error: %v", err)
+	}
+	if len(claimed) != 1 {
+		t.Fatalf("expected 1 claimed message, got %d", len(claimed))
+	}
+	if claimed[0].PlatformContext != msg.PlatformContext {
+		t.Errorf("PlatformContext mismatch\nwant: %s\ngot:  %s", msg.PlatformContext, claimed[0].PlatformContext)
+	}
+}
+
 func setupMessageStore(t *testing.T) *MessageStore {
 	t.Helper()
 	db, err := InitDB(t.TempDir() + "/test.db")

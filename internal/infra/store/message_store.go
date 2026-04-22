@@ -20,15 +20,16 @@ const (
 
 // BatchMsg is a single row for a bulk insert via CreateBatch.
 type BatchMsg struct {
-	ID            string
-	SessionKey    string
-	Platform      string
-	Content       string
-	Raw           string
-	PlatformMsgID string
-	MessageTime   int64
-	Status        string // "received" or "merged"
-	MergedInto    string // non-empty only when Status == "merged"
+	ID              string
+	SessionKey      string
+	Platform        string
+	Content         string
+	Raw             string
+	PlatformMsgID   string
+	PlatformContext string
+	MessageTime     int64
+	Status          string // "received" or "merged"
+	MergedInto      string // non-empty only when Status == "merged"
 }
 
 // MessageStore persists platform messages to the bee_platform_messages table.
@@ -106,10 +107,11 @@ func (s *MessageStore) FetchMergedContent(ctx context.Context, primaryID string)
 
 // ClaimedMessage is a bee_platform_messages row claimed by the Feeder.
 type ClaimedMessage struct {
-	ID         string
-	SessionKey string
-	Platform   string
-	Content    string
+	ID              string
+	SessionKey      string
+	Platform        string
+	Content         string
+	PlatformContext string
 }
 
 // ClaimBatch atomically selects up to batchSize 'received' messages — at most one per
@@ -140,7 +142,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content
+		`SELECT id, session_key, platform, content, platform_context
 		 FROM bee_platform_messages m
 		 WHERE status = ?
 		   AND session_key NOT IN (
@@ -160,7 +162,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	var msgs []ClaimedMessage
 	for rows.Next() {
 		var m ClaimedMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.PlatformContext); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan: %w", err)
 		}
@@ -269,22 +271,22 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 	}
 
 	now := time.Now().UnixMilli()
-	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
+	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
 	placeholders = placeholders[:len(placeholders)-1]
 
-	args := make([]any, 0, len(msgs)*11)
+	args := make([]any, 0, len(msgs)*12)
 	for _, m := range msgs {
 		mt := m.MessageTime
 		if mt == 0 {
 			mt = now
 		}
 		args = append(args, m.ID, m.SessionKey, m.Platform, m.Content, m.Raw,
-			m.PlatformMsgID, mt, m.Status, m.MergedInto, now, now)
+			m.PlatformMsgID, m.PlatformContext, mt, m.Status, m.MergedInto, now, now)
 	}
 
 	result, err := s.db.ExecContext(ctx,
 		fmt.Sprintf(`INSERT OR IGNORE INTO bee_platform_messages
-			(id, session_key, platform, content, raw, platform_msg_id, received_at, status, merged_into, created_at, updated_at)
+			(id, session_key, platform, content, raw, platform_msg_id, platform_context, received_at, status, merged_into, created_at, updated_at)
 			VALUES %s`, placeholders),
 		args...,
 	)
