@@ -60,8 +60,8 @@ type Feeder struct {
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
-	runningMu sync.Mutex
-	running   map[string]context.CancelFunc
+	runningMu       sync.Mutex
+	running         map[string]context.CancelFunc
 }
 
 // NewFeeder creates a Feeder.
@@ -84,8 +84,6 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 	return f
 }
 
-// StopSession cancels the running bee for sessionKey.
-// Returns true if a bee was running and its context was cancelled.
 func (f *Feeder) StopSession(sessionKey string) bool {
 	f.runningMu.Lock()
 	cancel, ok := f.running[sessionKey]

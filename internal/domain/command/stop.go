@@ -11,22 +11,18 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-// BeeStopper cancels the running bee for a session.
 type BeeStopper interface {
 	StopSession(sessionKey string) bool
 }
 
-// StopMessageStore cancels pending messages for a session.
 type StopMessageStore interface {
 	FailReceived(ctx context.Context, sessionKey string) ([]string, error)
 }
 
-// StopFailureNotifier sends failure notifications for individual messages.
 type StopFailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
 }
 
-// StopCommandHandler handles the /stop command.
 type StopCommandHandler struct {
 	feeder   BeeStopper
 	msgs     StopMessageStore
@@ -34,7 +30,6 @@ type StopCommandHandler struct {
 	senders  map[string]platform.PlatformSenderAdapter
 }
 
-// NewStopCommandHandler creates a StopCommandHandler.
 func NewStopCommandHandler(
 	feeder BeeStopper,
 	msgs StopMessageStore,
@@ -82,6 +77,10 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 	default:
 		reply = m.NothingToStop
 	}
-	sendReply(ctx, h.senders, replyTo, reply)
+	h.reply(ctx, replyTo, reply)
 	return true
+}
+
+func (h *StopCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
+	sendReply(ctx, h.senders, replyTo, text)
 }
