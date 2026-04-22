@@ -22,9 +22,10 @@ import (
 var log = logger.With(zap.String("component", "feeder"))
 
 type messageMeta struct {
-	From       string `json:"from"`
-	SessionKey string `json:"session_key"`
-	MessageID  string `json:"message_id"`
+	From            string          `json:"from"`
+	SessionKey      string          `json:"session_key"`
+	MessageID       string          `json:"message_id"`
+	PlatformContext json.RawMessage `json:"platform_context,omitempty"`
 }
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
@@ -342,7 +343,15 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		b, _ := json.Marshal(messageMeta{From: m.Platform, SessionKey: m.SessionKey, MessageID: m.ID})
+		meta := messageMeta{
+			From:       m.Platform,
+			SessionKey: m.SessionKey,
+			MessageID:  m.ID,
+		}
+		if m.PlatformContext != "" {
+			meta.PlatformContext = json.RawMessage(m.PlatformContext)
+		}
+		b, _ := json.Marshal(meta)
 		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
 	}
 	return sb.String()

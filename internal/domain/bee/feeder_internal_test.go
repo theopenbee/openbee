@@ -70,3 +70,29 @@ func TestBuildPrompt_MultipleMessages_WithHint(t *testing.T) {
 		t.Errorf("expected 2 message_meta blocks, got: %q", got)
 	}
 }
+
+func TestBuildPrompt_WithPlatformContext(t *testing.T) {
+	ctx := `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz","chat_type":"group","tenant_key":"t1","message_id":"om_1","union_id":"on_1"}}`
+	msgs := []store.ClaimedMessage{
+		{ID: "msg-1", Platform: "feishu", SessionKey: "feishu:oc_xyz:ou_abc", Content: "hello", PlatformContext: ctx},
+	}
+	got := buildPrompt(msgs, "")
+
+	if !strings.Contains(got, `"platform_context"`) {
+		t.Errorf("expected platform_context in message_meta, got: %q", got)
+	}
+	if !strings.Contains(got, `"ou_abc"`) {
+		t.Errorf("expected open_id value in message_meta, got: %q", got)
+	}
+}
+
+func TestBuildPrompt_NoPlatformContext(t *testing.T) {
+	msgs := []store.ClaimedMessage{
+		{ID: "msg-1", Platform: "local", SessionKey: "local:default:local", Content: "hello", PlatformContext: ""},
+	}
+	got := buildPrompt(msgs, "")
+
+	if strings.Contains(got, `"platform_context"`) {
+		t.Errorf("platform_context should be omitted when empty, got: %q", got)
+	}
+}
