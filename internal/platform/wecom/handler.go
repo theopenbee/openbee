@@ -26,19 +26,14 @@ import (
 
 var log = logger.With(zap.String("component", "wecom"))
 
-// buildWeComContext constructs the platform context JSON for a WeCom message.
 func buildWeComContext(body messageBody, chatID, senderID string) string {
-	fields := map[string]map[string]string{
-		"wecom": {
-			"userid":   senderID,
-			"chatid":   chatID,
-			"chattype": body.ChatType,
-			"aibotid":  body.AiBotID,
-			"msgid":    body.MsgID,
-		},
-	}
-	b, _ := json.Marshal(fields)
-	return string(b)
+	return platform.BuildPlatformContext("wecom", map[string]string{
+		"userid":   senderID,
+		"chatid":   chatID,
+		"chattype": body.ChatType,
+		"aibotid":  body.AiBotID,
+		"msgid":    body.MsgID,
+	})
 }
 
 // ─── Media size constants ──────────────────────────────────────────────────

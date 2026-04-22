@@ -643,20 +643,15 @@ var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 
-// buildFeishuContext constructs a JSON string with Feishu-specific context information.
 func buildFeishuContext(sender *larkim.EventSender, msg *larkim.EventMessage) string {
-	fields := map[string]map[string]string{
-		"feishu": {
-			"open_id":    utils.DerefStrOrEmpty(sender.SenderId.OpenId),
-			"union_id":   utils.DerefStrOrEmpty(sender.SenderId.UnionId),
-			"chat_id":    utils.DerefStrOrEmpty(msg.ChatId),
-			"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
-			"tenant_key": utils.DerefStrOrEmpty(sender.TenantKey),
-			"message_id": utils.DerefStrOrEmpty(msg.MessageId),
-		},
-	}
-	b, _ := json.Marshal(fields)
-	return string(b)
+	return platform.BuildPlatformContext("feishu", map[string]string{
+		"open_id":    utils.DerefStrOrEmpty(sender.SenderId.OpenId),
+		"union_id":   utils.DerefStrOrEmpty(sender.SenderId.UnionId),
+		"chat_id":    utils.DerefStrOrEmpty(msg.ChatId),
+		"chat_type":  utils.DerefStrOrEmpty(msg.ChatType),
+		"tenant_key": utils.DerefStrOrEmpty(sender.TenantKey),
+		"message_id": utils.DerefStrOrEmpty(msg.MessageId),
+	})
 }
 
 // resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
