@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Direct dispatch now supports "space + employee name + space" format in addition to @mention
+
 ## [0.0.30] - 2026-04-21
 
 ### Added
