@@ -2,7 +2,6 @@ package dingtalk
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -130,19 +129,68 @@ func TestSend_RoutesCorrectlyOnExpiry(t *testing.T) {
 }
 
 func TestExtractContext_ValidDingTalkRaw(t *testing.T) {
-	raw := `{"senderStaffId":"emp001","senderNick":"Alice","senderCorpId":"corp1","conversationId":"conv1","conversationType":"1","conversationTitle":"Test","isAdmin":false,"chatbotCorpId":"botcorp1","msgId":"msg1","createAt":1700000000000}`
+	raw := `{
+		"conversationId": "conv1",
+		"atUsers": [
+			{"dingtalkId": "dt001", "staffId": "s001"},
+			{"dingtalkId": "dt002", "staffId": ""}
+		],
+		"chatbotCorpId": "botcorp1",
+		"chatbotUserId": "botuser1",
+		"msgId": "msg1",
+		"senderNick": "Alice",
+		"isAdmin": true,
+		"senderStaffId": "emp001",
+		"senderCorpId": "corp1",
+		"conversationType": "2",
+		"senderId": "sender1",
+		"conversationTitle": "Test Group",
+		"msgtype": "text",
+		"sessionWebhook": "https://should-be-excluded.example.com",
+		"createAt": 1700000000000
+	}`
+
 	got := ExtractContext(raw)
-	if got == "" {
-		t.Fatal("expected non-empty context")
-	}
-	if !strings.Contains(got, "emp001") {
-		t.Errorf("expected senderStaffId in context, got: %q", got)
-	}
+	assert.NotEmpty(t, got)
+
+	var wrapper map[string]any
+	assert.NoError(t, json.Unmarshal([]byte(got), &wrapper))
+
+	ctx, ok := wrapper["dingtalk"].(map[string]any)
+	assert.True(t, ok, "expected dingtalk key with object value")
+
+	// Whitelist fields present with original names
+	assert.Equal(t, "conv1", ctx["conversationId"])
+	assert.Equal(t, "botcorp1", ctx["chatbotCorpId"])
+	assert.Equal(t, "botuser1", ctx["chatbotUserId"])
+	assert.Equal(t, "msg1", ctx["msgId"])
+	assert.Equal(t, "Alice", ctx["senderNick"])
+	assert.Equal(t, "emp001", ctx["senderStaffId"])
+	assert.Equal(t, "corp1", ctx["senderCorpId"])
+	assert.Equal(t, "2", ctx["conversationType"])
+	assert.Equal(t, "sender1", ctx["senderId"])
+	assert.Equal(t, "Test Group", ctx["conversationTitle"])
+	assert.Equal(t, "text", ctx["msgtype"])
+
+	// isAdmin is bool, not string
+	isAdmin, ok := ctx["isAdmin"].(bool)
+	assert.True(t, ok, "isAdmin should be bool")
+	assert.True(t, isAdmin)
+
+	// atUsers is array
+	atUsers, ok := ctx["atUsers"].([]any)
+	assert.True(t, ok, "atUsers should be array")
+	assert.Len(t, atUsers, 2)
+	first := atUsers[0].(map[string]any)
+	assert.Equal(t, "dt001", first["dingtalkId"])
+	assert.Equal(t, "s001", first["staffId"])
+
+	// Excluded fields must not appear
+	assert.NotContains(t, ctx, "sessionWebhook")
+	assert.NotContains(t, ctx, "createAt")
 }
 
 func TestExtractContext_InvalidDingTalkRaw(t *testing.T) {
 	got := ExtractContext("not-json")
-	if got != "" {
-		t.Errorf("expected empty string for invalid raw, got %q", got)
-	}
+	assert.Empty(t, got)
 }

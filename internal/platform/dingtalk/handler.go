@@ -30,21 +30,35 @@ import (
 
 var log = logger.With(zap.String("component", "dingtalk"))
 
+var dingtalkContextWhitelist = map[string]bool{
+	"conversationId":    true,
+	"atUsers":           true,
+	"chatbotCorpId":     true,
+	"chatbotUserId":     true,
+	"msgId":             true,
+	"senderNick":        true,
+	"isAdmin":           true,
+	"senderStaffId":     true,
+	"senderCorpId":      true,
+	"conversationType":  true,
+	"senderId":          true,
+	"conversationTitle": true,
+	"msgtype":           true,
+}
+
 func ExtractContext(raw string) string {
-	var data chatbot.BotCallbackDataModel
-	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+	var all map[string]any
+	if err := json.Unmarshal([]byte(raw), &all); err != nil {
 		return ""
 	}
-	return platform.BuildPlatformContext("dingtalk", map[string]string{
-		"sender_staff_id":    data.SenderStaffId,
-		"sender_nick":        data.SenderNick,
-		"sender_corp_id":     data.SenderCorpId,
-		"conversation_id":    data.ConversationId,
-		"conversation_type":  data.ConversationType,
-		"conversation_title": data.ConversationTitle,
-		"is_admin":           strconv.FormatBool(data.IsAdmin),
-		"chatbot_corp_id":    data.ChatbotCorpId,
-	})
+	filtered := make(map[string]any, len(dingtalkContextWhitelist))
+	for k, v := range all {
+		if dingtalkContextWhitelist[k] {
+			filtered[k] = v
+		}
+	}
+	b, _ := json.Marshal(map[string]any{"dingtalk": filtered})
+	return string(b)
 }
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
