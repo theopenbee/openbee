@@ -170,6 +170,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				}
 			}()
 
+			platformCtxJSON := buildFeishuContext(sender, msg)
 			dispatch(platform.InboundMessage{
 				Platform:          "feishu",
 				SenderID:          senderID,
@@ -178,6 +179,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				Raw:               string(rawBytes),
 				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),
 				MessageTime:       utils.ParseMillis(msg.CreateTime),
+				PlatformContext:   platformCtxJSON,
 			})
 
 			return nil
@@ -640,6 +642,22 @@ func (s *FeishuSender) uploadAndSendFile(ctx context.Context, data []byte, fileN
 var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
+
+// buildFeishuContext constructs a JSON string with Feishu-specific context information.
+func buildFeishuContext(sender *larkim.EventSender, msg *larkim.EventMessage) string {
+	fields := map[string]map[string]string{
+		"feishu": {
+			"open_id":    utils.DerefStr(sender.SenderId.OpenId),
+			"union_id":   utils.DerefStr(sender.SenderId.UnionId),
+			"chat_id":    utils.DerefStr(msg.ChatId),
+			"chat_type":  utils.DerefStr(msg.ChatType),
+			"tenant_key": utils.DerefStr(sender.TenantKey),
+			"message_id": utils.DerefStr(msg.MessageId),
+		},
+	}
+	b, _ := json.Marshal(fields)
+	return string(b)
+}
 
 // resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
 // human-readable names (e.g. "@Tom"). Feishu delivers @mentions as placeholder
