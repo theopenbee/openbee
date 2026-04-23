@@ -2,9 +2,12 @@ package worker
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -49,17 +52,10 @@ func NewManager(
 	engineCfg *enginecfg.Store,
 	envService *env.Service,
 ) *Manager {
-	var botNames []string
-	for _, n := range []string{
-		bc.Platforms.Feishu.BotName,
-		bc.Platforms.DingTalk.BotName,
-		bc.Platforms.WeCom.BotName,
-		bc.Platforms.Telegram.BotName,
-		bc.Platforms.Weixin.BotName,
-	} {
-		if n != "" {
-			botNames = append(botNames, n)
-		}
+	rawBotNames := bc.Platforms.BotNames()
+	botNames := make([]string, len(rawBotNames))
+	for i, n := range rawBotNames {
+		botNames[i] = strings.ToLower(strings.TrimSpace(n))
 	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
@@ -168,15 +164,12 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 }
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
-	name = strings.TrimSpace(name)
 	if name == "" {
 		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
 	}
 	lower := strings.ToLower(name)
-	for _, bn := range m.botNames {
-		if strings.ToLower(strings.TrimSpace(bn)) == lower {
-			return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
-		}
+	if slices.Contains(m.botNames, lower) {
+		return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 	}
 	exists, err := m.workerStore.ExistsByName(name, excludeID)
 	if err != nil {
@@ -191,7 +184,10 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
 	w, err := m.workerStore.GetByID(id)
 	if err != nil {
-		return model.Worker{}, ErrNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Worker{}, ErrNotFound
+		}
+		return model.Worker{}, fmt.Errorf("get worker: %w", err)
 	}
 	if err := p.Validate(m); err != nil {
 		return model.Worker{}, err
