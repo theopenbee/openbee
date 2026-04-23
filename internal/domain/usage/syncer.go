@@ -20,24 +20,24 @@ type usageSyncStore interface {
 }
 
 type SyncerConfig struct {
+	Interval         time.Duration
+	BatchSize        int
 	PiSessionsDir    string // e.g. ~/.openbee/.pi/sessions
 	CodexStoreDir    string // e.g. ~/.openbee/.codex/sessions (uuid→thread_id mapping files)
 	CodexSessionsDir string // codex native sessions dir, e.g. ~/.codex/sessions
 }
 
 type UsageSyncer struct {
-	store     usageSyncStore
-	cfg       SyncerConfig
-	interval  time.Duration
-	batchSize int
+	store usageSyncStore
+	cfg   SyncerConfig
 }
 
-func NewUsageSyncer(store usageSyncStore, interval time.Duration, batchSize int, cfg SyncerConfig) *UsageSyncer {
-	return &UsageSyncer{store: store, cfg: cfg, interval: interval, batchSize: batchSize}
+func NewUsageSyncer(store usageSyncStore, cfg SyncerConfig) *UsageSyncer {
+	return &UsageSyncer{store: store, cfg: cfg}
 }
 
 func (s *UsageSyncer) Run(ctx context.Context) {
-	ticker := time.NewTicker(s.interval)
+	ticker := time.NewTicker(s.cfg.Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -54,7 +54,7 @@ func (s *UsageSyncer) Run(ctx context.Context) {
 }
 
 func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
-	execs, err := s.store.ListUnsynced(s.batchSize)
+	execs, err := s.store.ListUnsynced(s.cfg.BatchSize)
 	if err != nil {
 		log.Error("list unsynced executions", zap.Error(err))
 		return false
@@ -83,6 +83,8 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 			log.Error("parse usage", zap.String("executionID", exec.ID), zap.Error(err))
 		}
 		if data == nil {
+			// A zero-value record is inserted even on parse failure so the execution
+			// is marked synced and won't be retried on the next tick.
 			data = &usageparser.UsageData{}
 		}
 		log.Debug("parsed usage",
@@ -114,5 +116,5 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 		zap.Int64("duration_ms", time.Since(start).Milliseconds()),
 	)
 
-	return len(execs) == s.batchSize
+	return len(execs) == s.cfg.BatchSize
 }

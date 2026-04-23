@@ -175,7 +175,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
-	usageSyncer := usagesyncer.NewUsageSyncer(s.usageStore, 60*time.Second, 50, usagesyncer.SyncerConfig{
+	usageSyncer := usagesyncer.NewUsageSyncer(s.usageStore, usagesyncer.SyncerConfig{
+		Interval:         60 * time.Second,
+		BatchSize:        50,
 		PiSessionsDir:    config.DefaultPiSessionsDir(),
 		CodexStoreDir:    config.DefaultCodexSessionsDir(),
 		CodexSessionsDir: config.DefaultCodexNativeSessionsDir(),
