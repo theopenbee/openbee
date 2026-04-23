@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.31] - 2026-04-22
 
 ### Added
 - Add `/stop` command support
