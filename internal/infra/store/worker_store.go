@@ -72,7 +72,7 @@ func (s *WorkerStore) ListByName(name string) ([]model.Worker, error) {
 func (s *WorkerStore) ExistsByName(name, excludeID string) (bool, error) {
 	var count int
 	err := s.db.QueryRow(
-		`SELECT COUNT(*) FROM bee_workers WHERE LOWER(name) = LOWER(?) AND id != ?`,
+		`SELECT COUNT(*) FROM bee_workers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id != ?`,
 		name, excludeID,
 	).Scan(&count)
 	return count > 0, err
@@ -231,6 +231,14 @@ func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 func (s *WorkerStore) UpdateStatus(id string, status model.WorkerStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_workers SET status=?, updated_at=? WHERE id=?`, status, time.Now().UnixMilli(), id)
 	return err
+}
+
+func (s *WorkerStore) UpdateEngine(id, engine string) error {
+	_, err := s.db.Exec(`UPDATE bee_workers SET engine=?, updated_at=? WHERE id=?`, engine, time.Now().UnixMilli(), id)
+	if err != nil {
+		return fmt.Errorf("update worker engine: %w", err)
+	}
+	return nil
 }
 
 func (s *WorkerStore) Delete(id string) error {

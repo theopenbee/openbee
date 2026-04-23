@@ -169,6 +169,9 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
 	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
+	}
 	lower := strings.ToLower(name)
 	for _, bn := range m.botNames {
 		if strings.ToLower(strings.TrimSpace(bn)) == lower {
@@ -188,14 +191,18 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
 	w, err := m.workerStore.GetByID(id)
 	if err != nil {
-		return model.Worker{}, fmt.Errorf("worker not found: %w", ErrNotFound)
+		return model.Worker{}, ErrNotFound
 	}
 	if err := p.Validate(m); err != nil {
 		return model.Worker{}, err
 	}
-	if p.Name != nil && !strings.EqualFold(*p.Name, w.Name) {
-		if err := m.validateWorkerName(*p.Name, id); err != nil {
-			return model.Worker{}, err
+	if p.Name != nil {
+		trimmed := strings.TrimSpace(*p.Name)
+		p.Name = &trimmed
+		if trimmed != w.Name {
+			if err := m.validateWorkerName(trimmed, id); err != nil {
+				return model.Worker{}, err
+			}
 		}
 	}
 	if !p.HasChanges() {
@@ -206,6 +213,7 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 }
 
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
+	p.Name = strings.TrimSpace(p.Name)
 	if err := m.validateWorkerName(p.Name, ""); err != nil {
 		return model.Worker{}, err
 	}
