@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-func BuildPlatformContext(name string, fields map[string]string) string {
-	b, _ := json.Marshal(map[string]map[string]string{name: fields})
+func MarshalContext(name string, v any) string {
+	b, _ := json.Marshal(map[string]any{name: v})
 	return string(b)
 }
 

@@ -51,8 +51,7 @@ func ExtractContext(raw string) string {
 	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
 		return ""
 	}
-	b, _ := json.Marshal(map[string]any{"dingtalk": ctx})
-	return string(b)
+	return platform.MarshalContext("dingtalk", ctx)
 }
 
 // DingTalkPlatform implements platform.Platform for DingTalk.

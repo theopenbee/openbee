@@ -43,8 +43,7 @@ func ExtractContext(raw string) string {
 		From:     body.From,
 		MsgType:  body.MsgType,
 	}
-	b, _ := json.Marshal(map[string]any{"wecom": ctx})
-	return string(b)
+	return platform.MarshalContext("wecom", ctx)
 }
 
 // ─── Media size constants ──────────────────────────────────────────────────

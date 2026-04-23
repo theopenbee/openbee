@@ -695,24 +695,20 @@ func ExtractContext(raw string) string {
 		mentions = append(mentions, mi)
 	}
 
-	ctx := map[string]any{
-		"feishu": map[string]any{
-			"sender": map[string]any{
-				"open_id":     utils.DerefStrOrEmpty(sender.SenderID.OpenID),
-				"union_id":    utils.DerefStrOrEmpty(sender.SenderID.UnionID),
-				"sender_type": utils.DerefStrOrEmpty(sender.SenderType),
-			},
-			"message": map[string]any{
-				"chat_id":      utils.DerefStrOrEmpty(msg.ChatID),
-				"chat_type":    utils.DerefStrOrEmpty(msg.ChatType),
-				"message_id":   utils.DerefStrOrEmpty(msg.MessageID),
-				"message_type": utils.DerefStrOrEmpty(msg.MessageType),
-				"mentions":     mentions,
-			},
+	return platform.MarshalContext("feishu", map[string]any{
+		"sender": map[string]any{
+			"open_id":     utils.DerefStrOrEmpty(sender.SenderID.OpenID),
+			"union_id":    utils.DerefStrOrEmpty(sender.SenderID.UnionID),
+			"sender_type": utils.DerefStrOrEmpty(sender.SenderType),
 		},
-	}
-	b, _ := json.Marshal(ctx)
-	return string(b)
+		"message": map[string]any{
+			"chat_id":      utils.DerefStrOrEmpty(msg.ChatID),
+			"chat_type":    utils.DerefStrOrEmpty(msg.ChatType),
+			"message_id":   utils.DerefStrOrEmpty(msg.MessageID),
+			"message_type": utils.DerefStrOrEmpty(msg.MessageType),
+			"mentions":     mentions,
+		},
+	})
 }
 
 // resolveMentions replaces only the bot's mention key (e.g. "@_user_1") with
