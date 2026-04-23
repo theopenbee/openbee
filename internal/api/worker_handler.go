@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,14 +11,7 @@ import (
 )
 
 func respondWorkerError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, worker.ErrNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case errors.Is(err, worker.ErrValidation):
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-	}
+	respondDomainError(c, err, worker.ErrNotFound, worker.ErrValidation)
 }
 
 type createWorkerRequest struct {
