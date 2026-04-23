@@ -60,7 +60,10 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 		return false
 	}
 
-	now := time.Now().UnixMilli()
+	log.Debug("sync batch start", zap.Int("unsynced_count", len(execs)))
+
+	start := time.Now()
+	now := start.UnixMilli()
 	records := make([]*model.UsageRecord, 0, len(execs))
 	for _, exec := range execs {
 		if ctx.Err() != nil {
@@ -82,9 +85,16 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 		if data == nil {
 			data = &usageparser.UsageData{}
 		}
+		log.Debug("parsed usage",
+			zap.String("executionID", exec.ID),
+			zap.String("engine", data.Engine),
+			zap.Int64("total_tokens", data.TotalTokens),
+			zap.Float64("cost_usd", data.CostUSD),
+		)
 		records = append(records, &model.UsageRecord{
 			ID:                  uuid.New().String(),
 			ExecutionID:         exec.ID,
+			Engine:              data.Engine,
 			Model:               data.Model,
 			InputTokens:         data.InputTokens,
 			OutputTokens:        data.OutputTokens,
@@ -98,6 +108,11 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 	if err := s.store.InsertBatch(records); err != nil {
 		log.Error("insert usage batch", zap.Error(err))
 	}
+
+	log.Debug("sync batch done",
+		zap.Int("count", len(records)),
+		zap.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
 
 	return len(execs) == s.batchSize
 }
