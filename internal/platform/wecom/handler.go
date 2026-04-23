@@ -35,17 +35,16 @@ func ExtractContext(raw string) string {
 	if err := json.Unmarshal(frame.Body, &body); err != nil {
 		return ""
 	}
-	chatID := body.From.UserID
-	if body.ChatType == chatTypeGroup {
-		chatID = body.ChatID
+	ctx := wecomContextFields{
+		MsgID:    body.MsgID,
+		AiBotID:  body.AiBotID,
+		ChatID:   body.ChatID,
+		ChatType: body.ChatType,
+		From:     body.From,
+		MsgType:  body.MsgType,
 	}
-	return platform.BuildPlatformContext("wecom", map[string]string{
-		"userid":   body.From.UserID,
-		"chatid":   chatID,
-		"chattype": body.ChatType,
-		"aibotid":  body.AiBotID,
-		"msgid":    body.MsgID,
-	})
+	b, _ := json.Marshal(map[string]any{"wecom": ctx})
+	return string(b)
 }
 
 // ─── Media size constants ──────────────────────────────────────────────────
@@ -125,6 +124,17 @@ type quoteContent struct {
 	Image   *encryptedMedia `json:"image"`
 	File    *encryptedMedia `json:"file"`
 	Mixed   *mixedContent `json:"mixed"`
+}
+
+// wecomContextFields is the whitelist of fields passed to AI workers as platform context.
+// Field names match the WeCom wire format exactly.
+type wecomContextFields struct {
+	MsgID    string      `json:"msgid"`
+	AiBotID  string      `json:"aibotid"`
+	ChatID   string      `json:"chatid"`
+	ChatType string      `json:"chattype"`
+	From     messageFrom `json:"from"`
+	MsgType  string      `json:"msgtype"`
 }
 
 // ─── Outbound body types ───────────────────────────────────────────────────
