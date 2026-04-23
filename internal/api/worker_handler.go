@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,18 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
+
+func respondWorkerError(c *gin.Context, err error) {
+	if errors.Is(err, worker.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, worker.ErrValidation) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
 
 type createWorkerRequest struct {
 	Name             string `json:"name" binding:"required"`
@@ -56,7 +69,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		PermissionScopes: req.PermissionScopes,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondWorkerError(c, err)
 		return
 	}
 
@@ -110,30 +123,17 @@ func (h *WorkerHandler) Get(c *gin.Context) {
 }
 
 func (h *WorkerHandler) Update(c *gin.Context) {
-	w, err := h.workers.GetByID(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
-		return
-	}
-
 	var req worker.UpdateWorkerParams
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := req.Validate(h.manager); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	req.ApplyTo(&w)
-
-	updated, err := h.workers.Update(w)
+	w, err := h.manager.UpdateWorker(c.Param("id"), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondWorkerError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, updated)
+	c.JSON(http.StatusOK, w)
 }
 
 func (h *WorkerHandler) Delete(c *gin.Context) {

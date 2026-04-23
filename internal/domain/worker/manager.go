@@ -171,7 +171,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 	lower := strings.ToLower(name)
 	for _, bn := range m.botNames {
 		if strings.ToLower(bn) == lower {
-			return fmt.Errorf("worker name %q conflicts with bot name", name)
+			return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 		}
 	}
 	exists, err := m.workerStore.ExistsByName(name, excludeID)
@@ -179,7 +179,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 		return fmt.Errorf("check worker name: %w", err)
 	}
 	if exists {
-		return fmt.Errorf("worker name %q is already taken", name)
+		return fmt.Errorf("worker name %q is already taken: %w", name, ErrValidation)
 	}
 	return nil
 }
@@ -187,7 +187,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
 	w, err := m.workerStore.GetByID(id)
 	if err != nil {
-		return model.Worker{}, fmt.Errorf("worker not found: %w", err)
+		return model.Worker{}, fmt.Errorf("worker not found: %w", ErrNotFound)
 	}
 	if err := p.Validate(m); err != nil {
 		return model.Worker{}, err
