@@ -168,9 +168,10 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 }
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
+	name = strings.TrimSpace(name)
 	lower := strings.ToLower(name)
 	for _, bn := range m.botNames {
-		if strings.ToLower(bn) == lower {
+		if strings.ToLower(strings.TrimSpace(bn)) == lower {
 			return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 		}
 	}
