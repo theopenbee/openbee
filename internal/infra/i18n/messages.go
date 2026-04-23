@@ -331,10 +331,11 @@ type DepartmentRuntimeMessages struct {
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.
 type FailureNotifierMessages struct {
-	TaskFailed  string `yaml:"task_failed"`  // prefix e.g. "❌ Task execution failed"
-	ParseFailed string `yaml:"parse_failed"` // worker-line when message parse failed; contains leading \n
-	WorkerLine  string `yaml:"worker_line"`  // worker-line template when worker name is known; contains leading \n and %s
-	Failed      string `yaml:"failed"`       // error suffix template; contains %s
+	TaskFailed    string `yaml:"task_failed"`    // prefix e.g. "❌ Task execution failed"
+	TaskCancelled string `yaml:"task_cancelled"` // prefix for cancellation notifications
+	ParseFailed   string `yaml:"parse_failed"`   // worker-line when message parse failed; contains leading \n
+	WorkerLine    string `yaml:"worker_line"`    // worker-line template when worker name is known; contains leading \n and %s
+	Failed        string `yaml:"failed"`         // error suffix template; contains %s
 }
 
 // FeishuRuntimeMessages holds Feishu platform runtime text.
