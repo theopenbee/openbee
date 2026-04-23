@@ -168,7 +168,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
@@ -201,7 +201,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, localChatHandler, cfg.Language, envSvc, engineCfg)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeMCPSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -317,7 +317,7 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeMCPSrv *mcp.MCPServer, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -329,7 +329,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
 		Executions:        api.NewExecutionHandler(s.execStore),
 		Messages:          api.NewMessageHandler(s.msgStore),
-		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore),
+		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Stats:             api.NewStatsHandler(s.statsStore),
 		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),

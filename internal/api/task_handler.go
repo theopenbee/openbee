@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -26,13 +27,19 @@ type taskResponse struct {
 	UpdatedAt   int64  `json:"updated_at"`
 }
 
-type TaskHandler struct {
-	tasks   *store.TaskStore
-	workers *store.WorkerStore
+// TaskCanceller cancels a task in both the DB and the dispatcher's in-memory queue.
+type TaskCanceller interface {
+	CancelTask(ctx context.Context, taskID string) error
 }
 
-func NewTaskHandler(ts *store.TaskStore, ws *store.WorkerStore) *TaskHandler {
-	return &TaskHandler{tasks: ts, workers: ws}
+type TaskHandler struct {
+	tasks     *store.TaskStore
+	workers   *store.WorkerStore
+	canceller TaskCanceller
+}
+
+func NewTaskHandler(ts *store.TaskStore, ws *store.WorkerStore, canceller TaskCanceller) *TaskHandler {
+	return &TaskHandler{tasks: ts, workers: ws, canceller: canceller}
 }
 
 func (h *TaskHandler) List(c *gin.Context) {
@@ -120,12 +127,12 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
-	if task.Status != model.TaskStatusPending {
-		c.JSON(http.StatusConflict, gin.H{"error": "task is not in pending state"})
+	if task.Status != model.TaskStatusPending && task.Status != model.TaskStatusRunning {
+		c.JSON(http.StatusConflict, gin.H{"error": "task cannot be cancelled"})
 		return
 	}
 
-	if err := h.tasks.CancelTask(c.Request.Context(), id); err != nil {
+	if err := h.canceller.CancelTask(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

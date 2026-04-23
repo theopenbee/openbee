@@ -48,7 +48,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -247,7 +247,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -497,7 +497,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {

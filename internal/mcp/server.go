@@ -36,6 +36,11 @@ type SessionClearer interface {
 	ClearSession(sessionKey string)
 }
 
+// TaskCanceller cancels a task in both the DB and the dispatcher's in-memory queue.
+type TaskCanceller interface {
+	CancelTask(ctx context.Context, taskID string) error
+}
+
 // MCPServer dispatches tool calls.
 type MCPServer struct {
 	workerStore          *store.WorkerStore
@@ -46,6 +51,7 @@ type MCPServer struct {
 	senders              map[string]platform.PlatformSenderAdapter
 	execStopper          ExecutionStopper
 	sessionClearer       SessionClearer
+	taskCanceller        TaskCanceller
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
@@ -64,6 +70,7 @@ func NewBeeServer(
 	senders map[string]platform.PlatformSenderAdapter,
 	execStopper ExecutionStopper,
 	sessionClearer SessionClearer,
+	taskCanceller TaskCanceller,
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
@@ -78,6 +85,7 @@ func NewBeeServer(
 		senders:              senders,
 		execStopper:          execStopper,
 		sessionClearer:       sessionClearer,
+		taskCanceller:        taskCanceller,
 		executionStore:       es,
 		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,
