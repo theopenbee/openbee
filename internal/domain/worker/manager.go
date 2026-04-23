@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ type Manager struct {
 	engines        map[string]ai.EngineAdapter
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
+	botNames       []string
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -47,6 +49,18 @@ func NewManager(
 	engineCfg *enginecfg.Store,
 	envService *env.Service,
 ) *Manager {
+	var botNames []string
+	for _, n := range []string{
+		bc.Platforms.Feishu.BotName,
+		bc.Platforms.DingTalk.BotName,
+		bc.Platforms.WeCom.BotName,
+		bc.Platforms.Telegram.BotName,
+		bc.Platforms.Weixin.BotName,
+	} {
+		if n != "" {
+			botNames = append(botNames, n)
+		}
+	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
@@ -57,6 +71,7 @@ func NewManager(
 		engines:         engines,
 		engineCfg:       engineCfg,
 		envService:      envService,
+		botNames:        botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
@@ -152,7 +167,47 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 	}
 }
 
+func (m *Manager) validateWorkerName(name, excludeID string) error {
+	lower := strings.ToLower(name)
+	for _, bn := range m.botNames {
+		if strings.ToLower(bn) == lower {
+			return fmt.Errorf("worker name %q conflicts with bot name", name)
+		}
+	}
+	exists, err := m.workerStore.ExistsByName(name, excludeID)
+	if err != nil {
+		return fmt.Errorf("check worker name: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("worker name %q is already taken", name)
+	}
+	return nil
+}
+
+func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
+	w, err := m.workerStore.GetByID(id)
+	if err != nil {
+		return model.Worker{}, fmt.Errorf("worker not found: %w", err)
+	}
+	if err := p.Validate(m); err != nil {
+		return model.Worker{}, err
+	}
+	if p.Name != nil && !strings.EqualFold(*p.Name, w.Name) {
+		if err := m.validateWorkerName(*p.Name, id); err != nil {
+			return model.Worker{}, err
+		}
+	}
+	if !p.HasChanges() {
+		return w, nil
+	}
+	p.ApplyTo(&w)
+	return m.workerStore.Update(w)
+}
+
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
+	if err := m.validateWorkerName(p.Name, ""); err != nil {
+		return model.Worker{}, err
+	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
 		p.WorkDir = filepath.Join(m.workerBaseDir, id)

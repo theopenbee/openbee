@@ -69,6 +69,15 @@ func (s *WorkerStore) ListByName(name string) ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
+func (s *WorkerStore) ExistsByName(name, excludeID string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM bee_workers WHERE LOWER(name) = LOWER(?) AND id != ?`,
+		name, excludeID,
+	).Scan(&count)
+	return count > 0, err
+}
+
 // When names collide, the earliest-created worker is returned.
 func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
 	row := s.db.QueryRow(

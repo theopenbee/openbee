@@ -287,19 +287,9 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	w, err := s.workerStore.GetByID(params.WorkerID)
+	w, err := s.manager.UpdateWorker(params.WorkerID, params.UpdateWorkerParams)
 	if err != nil {
-		return nil, fmt.Errorf("worker not found: %w", err)
-	}
-	if err := params.UpdateWorkerParams.Validate(s.manager); err != nil {
 		return nil, err
-	}
-	if params.HasChanges() {
-		params.ApplyTo(&w)
-		w, err = s.workerStore.Update(w)
-		if err != nil {
-			return nil, err
-		}
 	}
 	if params.DepartmentIDs != nil {
 		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
