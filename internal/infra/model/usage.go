@@ -3,6 +3,7 @@ package model
 type UsageRecord struct {
 	ID                  string  `json:"id" db:"id"`
 	ExecutionID         string  `json:"execution_id" db:"execution_id"`
+	Engine              string  `json:"engine" db:"engine"`
 	Model               string  `json:"model" db:"model"`
 	InputTokens         int64   `json:"input_tokens" db:"input_tokens"`
 	OutputTokens        int64   `json:"output_tokens" db:"output_tokens"`
