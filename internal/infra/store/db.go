@@ -373,21 +373,21 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		version: 41,
 		name:    "create_bee_usage_records",
 		sql: `
-		CREATE TABLE IF NOT EXISTS bee_usage_records (
-			id                    TEXT PRIMARY KEY,
-			execution_id          TEXT NOT NULL UNIQUE,
-			model                 TEXT NOT NULL DEFAULT '',
-			input_tokens          INTEGER NOT NULL DEFAULT 0,
-			output_tokens         INTEGER NOT NULL DEFAULT 0,
-			cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-			cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
-			total_tokens          INTEGER NOT NULL DEFAULT 0,
-			cost_usd              REAL NOT NULL DEFAULT 0,
-			synced_at             INTEGER NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_usage_execution_id ON bee_usage_records(execution_id);
-		CREATE INDEX IF NOT EXISTS idx_usage_synced_at ON bee_usage_records(synced_at);
-	`,
+        CREATE TABLE IF NOT EXISTS bee_usage_records (
+            id                    TEXT PRIMARY KEY,
+            execution_id          TEXT NOT NULL UNIQUE,
+            model                 TEXT NOT NULL DEFAULT '',
+            input_tokens          INTEGER NOT NULL DEFAULT 0,
+            output_tokens         INTEGER NOT NULL DEFAULT 0,
+            cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+            total_tokens          INTEGER NOT NULL DEFAULT 0,
+            cost_usd              REAL NOT NULL DEFAULT 0,
+            synced_at             INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_execution_id ON bee_usage_records(execution_id);
+        CREATE INDEX IF NOT EXISTS idx_usage_synced_at ON bee_usage_records(synced_at);
+    `,
 	},
 }
 
