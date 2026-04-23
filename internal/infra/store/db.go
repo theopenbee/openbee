@@ -377,6 +377,7 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             id                    TEXT PRIMARY KEY,
             execution_id          TEXT NOT NULL UNIQUE,
             model                 TEXT NOT NULL DEFAULT '',
+            engine                TEXT NOT NULL DEFAULT '',
             input_tokens          INTEGER NOT NULL DEFAULT 0,
             output_tokens         INTEGER NOT NULL DEFAULT 0,
             cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
