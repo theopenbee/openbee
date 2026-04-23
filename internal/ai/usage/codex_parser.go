@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 type codexTokenCount struct {
@@ -101,7 +103,7 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 	needle := `"` + threadID + `"`
 
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(nil, 2*1024*1024)
+	scanner.Buffer(nil, ai.ScannerBufSize)
 
 	for scanner.Scan() {
 		line := scanner.Text()

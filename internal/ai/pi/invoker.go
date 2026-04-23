@@ -195,7 +195,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 		var writeErr error
 		scanner := bufio.NewScanner(stdoutPipe)
-		scanner.Buffer(nil, 2*1024*1024)
+		scanner.Buffer(nil, ai.ScannerBufSize)
 		newline := []byte{'\n'}
 		for scanner.Scan() {
 			line := scanner.Bytes()

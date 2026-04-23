@@ -19,7 +19,6 @@ type usageSyncStore interface {
 	InsertBatch(records []*model.UsageRecord) error
 }
 
-// SyncerConfig holds filesystem paths needed to locate engine session files.
 type SyncerConfig struct {
 	PiSessionsDir    string // e.g. ~/.openbee/.pi/sessions
 	CodexStoreDir    string // e.g. ~/.openbee/.codex/sessions (uuid→thread_id mapping files)
