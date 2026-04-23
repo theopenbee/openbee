@@ -20,6 +20,7 @@ func TestUsageStore_Insert_And_Get(t *testing.T) {
 	record := &model.UsageRecord{
 		ID:                  uuid.New().String(),
 		ExecutionID:         execID,
+		Engine:              "pi",
 		Model:               "claude-sonnet-4-6",
 		InputTokens:         100,
 		OutputTokens:        200,
@@ -40,6 +41,7 @@ func TestUsageStore_Insert_And_Get(t *testing.T) {
 	assert.Equal(t, int64(100), got.InputTokens)
 	assert.Equal(t, int64(650), got.TotalTokens)
 	assert.InDelta(t, 0.42, got.CostUSD, 0.001)
+	assert.Equal(t, "pi", got.Engine)
 }
 
 func TestUsageStore_Insert_Idempotent(t *testing.T) {

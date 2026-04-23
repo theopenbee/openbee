@@ -51,6 +51,7 @@ func TestUsageSyncer_SyncBatch_InsertsRecord(t *testing.T) {
 	assert.Equal(t, "claude-sonnet-4-6", stub.inserted[0].Model)
 	assert.Equal(t, int64(15), stub.inserted[0].TotalTokens)
 	assert.InDelta(t, 0.10, stub.inserted[0].CostUSD, 0.001)
+	assert.Equal(t, "claude", stub.inserted[0].Engine)
 }
 
 func TestUsageSyncer_SyncBatch_MissingLog(t *testing.T) {

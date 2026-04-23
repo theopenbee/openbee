@@ -50,6 +50,7 @@ func TestParseUsage_Claude_NoResultEvent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), data.TotalTokens)
 	assert.Equal(t, float64(0), data.CostUSD)
+	assert.Equal(t, "claude", data.Engine)
 }
 
 // --- Codex ---
