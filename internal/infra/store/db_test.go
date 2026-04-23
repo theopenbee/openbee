@@ -260,3 +260,31 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 		t.Fatalf("expected 2 per-engine rows after migration, got %d", count)
 	}
 }
+
+func TestMigration_UsageRecordsTable(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer db.Close()
+
+	var name string
+	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='bee_usage_records'`).Scan(&name); err != nil {
+		t.Fatalf("bee_usage_records table not found: %v", err)
+	}
+
+	// Verify execution_id unique constraint by inserting duplicate
+	_, err = db.Exec(`INSERT INTO bee_usage_records (id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at) VALUES ('r1','exec1','m',1,2,3,4,10,0.1,1)`)
+	if err != nil {
+		t.Fatalf("first insert failed: %v", err)
+	}
+	_, err = db.Exec(`INSERT OR IGNORE INTO bee_usage_records (id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at) VALUES ('r2','exec1','m',1,2,3,4,10,0.1,1)`)
+	if err != nil {
+		t.Fatalf("INSERT OR IGNORE on duplicate should not error: %v", err)
+	}
+	var count int
+	db.QueryRow(`SELECT COUNT(*) FROM bee_usage_records WHERE execution_id='exec1'`).Scan(&count)
+	if count != 1 {
+		t.Errorf("expected 1 row after duplicate INSERT OR IGNORE, got %d", count)
+	}
+}
