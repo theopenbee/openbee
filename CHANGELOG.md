@@ -4,6 +4,7 @@
 
 ### Added
 - Add `/stop` command support
+- Worker name must be globally unique and cannot conflict with any bot name
 
 ### Changed
 - Messages starting with `@workerName` + space/newline or `workerName` + space/newline are now directly dispatched to the corresponding worker

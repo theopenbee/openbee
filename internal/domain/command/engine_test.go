@@ -27,7 +27,6 @@ func TestMain(m *testing.M) {
 
 type fakeWorkerRepo struct {
 	workers   map[string]model.Worker // name → worker
-	updated   []model.Worker
 	updateErr error
 }
 
@@ -38,12 +37,8 @@ func (f *fakeWorkerRepo) GetByName(name string) (model.Worker, error) {
 	}
 	return w, nil
 }
-func (f *fakeWorkerRepo) Update(w model.Worker) (model.Worker, error) {
-	if f.updateErr != nil {
-		return model.Worker{}, f.updateErr
-	}
-	f.updated = append(f.updated, w)
-	return w, nil
+func (f *fakeWorkerRepo) UpdateEngine(_ string, _ string) error {
+	return f.updateErr
 }
 
 type fakeSysConfig struct {
