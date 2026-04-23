@@ -9,22 +9,23 @@ import (
 	"time"
 )
 
-// codexTokenCount is the payload inside a token_count event_msg.
 type codexTokenCount struct {
-	InputTokens            int64 `json:"input_tokens"`
-	CachedInputTokens      int64 `json:"cached_input_tokens"`
-	CacheReadInputTokens   int64 `json:"cache_read_input_tokens"` // alias
-	OutputTokens           int64 `json:"output_tokens"`
-	ReasoningOutputTokens  int64 `json:"reasoning_output_tokens"`
-	TotalTokens            int64 `json:"total_tokens"`
+	InputTokens           int64 `json:"input_tokens"`
+	CachedInputTokens     int64 `json:"cached_input_tokens"`
+	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"` // alias
+	OutputTokens          int64 `json:"output_tokens"`
+	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
+	TotalTokens           int64 `json:"total_tokens"`
 }
 
 type codexEventMsg struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`
 	Payload   *struct {
-		Type string `json:"type"`
-		Info *struct {
+		Type      string `json:"type"`
+		Model     string `json:"model"`      // populated on turn_context events
+		ModelName string `json:"model_name"` // populated on turn_context events
+		Info      *struct {
 			LastTokenUsage  *codexTokenCount `json:"last_token_usage"`
 			TotalTokenUsage *codexTokenCount `json:"total_token_usage"`
 			Model           string           `json:"model"`
@@ -77,9 +78,9 @@ func subtractCodexUsage(cur, prev *codexTokenCount) *codexTokenCount {
 	}
 }
 
-// parseCodexSessionFile parses a single codex native session JSONL file and
-// accumulates token usage for events within [startedAt, completedAt] (Unix ms).
-func parseCodexSessionFile(path string, startedAt, completedAt int64) (*UsageData, error) {
+// parseCodexSessionFile scans path for token usage events within [startedAt, completedAt].
+// threadID is verified inline to avoid a separate pre-scan pass; returns nil data if not found.
+func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) (*UsageData, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -89,6 +90,8 @@ func parseCodexSessionFile(path string, startedAt, completedAt int64) (*UsageDat
 	var data UsageData
 	var prevTotals *codexTokenCount
 	var currentModel string
+	var foundThreadID bool
+	needle := `"` + threadID + `"`
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(nil, 2*1024*1024)
@@ -99,25 +102,20 @@ func parseCodexSessionFile(path string, startedAt, completedAt int64) (*UsageDat
 			continue
 		}
 
+		if !foundThreadID && strings.Contains(line, needle) {
+			foundThreadID = true
+		}
+
 		var ev codexEventMsg
 		if json.Unmarshal([]byte(line), &ev) != nil {
 			continue
 		}
 
-		// Track model from turn_context entries.
-		if ev.Type == "turn_context" {
-			var ctx struct {
-				Payload *struct {
-					Model     string `json:"model"`
-					ModelName string `json:"model_name"`
-				} `json:"payload"`
-			}
-			if json.Unmarshal([]byte(line), &ctx) == nil && ctx.Payload != nil {
-				if ctx.Payload.Model != "" {
-					currentModel = ctx.Payload.Model
-				} else if ctx.Payload.ModelName != "" {
-					currentModel = ctx.Payload.ModelName
-				}
+		if ev.Type == "turn_context" && ev.Payload != nil {
+			if ev.Payload.Model != "" {
+				currentModel = ev.Payload.Model
+			} else if ev.Payload.ModelName != "" {
+				currentModel = ev.Payload.ModelName
 			}
 			continue
 		}
@@ -180,14 +178,13 @@ func parseCodexSessionFile(path string, startedAt, completedAt int64) (*UsageDat
 		}
 	}
 
+	if !foundThreadID {
+		return nil, nil
+	}
 	return &data, scanner.Err()
 }
 
-// parseCodexUsage looks up the codex thread_id for the given openbee session,
-// searches the codex native sessions directory for a matching session file, then
-// parses token usage events within the execution time window.
 func parseCodexUsage(codexStoreDir, codexSessionsDir, sessionID string, startedAt, completedAt int64) (*UsageData, error) {
-	// Step 1: Read codex thread_id from openbee's codex session store.
 	threadIDBytes, err := os.ReadFile(filepath.Join(codexStoreDir, sessionID))
 	if err != nil {
 		return &UsageData{}, nil
@@ -197,24 +194,18 @@ func parseCodexUsage(codexStoreDir, codexSessionsDir, sessionID string, startedA
 		return &UsageData{}, nil
 	}
 
-	// Step 2: Glob the codex native sessions directory for JSONL files.
-	// Also try one level deep since codex may organise sessions into subdirectories.
 	matches, err := filepath.Glob(filepath.Join(codexSessionsDir, "*.jsonl"))
 	if err != nil {
 		return &UsageData{}, nil
 	}
+	// Also try one level deep since codex may organise sessions into subdirectories.
 	subMatches, _ := filepath.Glob(filepath.Join(codexSessionsDir, "*", "*.jsonl"))
 	matches = append(matches, subMatches...)
 
-	// Step 3: Find the session file that contains the thread_id, then parse it.
 	var combined UsageData
-	found := false
 	for _, sessionFile := range matches {
-		if !fileContainsThreadID(sessionFile, threadID) {
-			continue
-		}
-		d, err := parseCodexSessionFile(sessionFile, startedAt, completedAt)
-		if err != nil {
+		d, err := parseCodexSessionFile(sessionFile, threadID, startedAt, completedAt)
+		if err != nil || d == nil {
 			continue
 		}
 		combined.InputTokens += d.InputTokens
@@ -226,29 +217,6 @@ func parseCodexUsage(codexStoreDir, codexSessionsDir, sessionID string, startedA
 		if d.Model != "" {
 			combined.Model = d.Model
 		}
-		found = true
-	}
-	if !found {
-		return &UsageData{}, nil
 	}
 	return &combined, nil
-}
-
-// fileContainsThreadID does a quick scan of the file looking for the thread_id string.
-func fileContainsThreadID(path, threadID string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-
-	needle := `"` + threadID + `"`
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(nil, 512*1024)
-	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), needle) {
-			return true
-		}
-	}
-	return false
 }

@@ -1,10 +1,11 @@
 package usage
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"time"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 type piSessionEntry struct {
@@ -14,12 +15,12 @@ type piSessionEntry struct {
 		Role  string `json:"role"`
 		Model string `json:"model"`
 		Usage *struct {
-			Input      int64   `json:"input"`
-			Output     int64   `json:"output"`
-			CacheRead  int64   `json:"cacheRead"`
-			CacheWrite int64   `json:"cacheWrite"`
+			Input       int64  `json:"input"`
+			Output      int64  `json:"output"`
+			CacheRead   int64  `json:"cacheRead"`
+			CacheWrite  int64  `json:"cacheWrite"`
 			TotalTokens *int64 `json:"totalTokens"`
-			Cost       *struct {
+			Cost        *struct {
 				Total float64 `json:"total"`
 			} `json:"cost"`
 		} `json:"usage"`
@@ -37,38 +38,26 @@ func parsePiUsage(sessionFilePath string, startedAt, completedAt int64) (*UsageD
 	defer f.Close()
 
 	var data UsageData
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(nil, 1024*1024)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
+	ai.ScanJSONLines(f, func(line string) bool {
 		var entry piSessionEntry
 		if json.Unmarshal([]byte(line), &entry) != nil {
-			continue
+			return true
 		}
-
-		isMessage := entry.Type == "" || entry.Type == "message"
-		if !isMessage {
-			continue
+		if entry.Type != "" && entry.Type != "message" {
+			return true
 		}
 		if entry.Message.Role != "assistant" || entry.Message.Usage == nil {
-			continue
+			return true
 		}
-
-		// Filter by time window when bounds are set.
 		if startedAt > 0 && completedAt > 0 && entry.Timestamp != "" {
 			t, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
 			if err == nil {
 				ms := t.UnixMilli()
 				if ms < startedAt || ms > completedAt {
-					continue
+					return true
 				}
 			}
 		}
-
 		u := entry.Message.Usage
 		data.InputTokens += u.Input
 		data.OutputTokens += u.Output
@@ -85,7 +74,8 @@ func parsePiUsage(sessionFilePath string, startedAt, completedAt int64) (*UsageD
 		if entry.Message.Model != "" {
 			data.Model = entry.Message.Model
 		}
-	}
+		return true
+	})
 
-	return &data, scanner.Err()
+	return &data, nil
 }

@@ -51,6 +51,16 @@ func DefaultPiSessionsDir() string {
 	return filepath.Join(home, ".openbee", ".pi", "sessions")
 }
 
+// DefaultCodexNativeSessionsDir returns the codex CLI's own session directory (~/.codex/sessions).
+// CODEX_HOME overrides the base directory when set.
+func DefaultCodexNativeSessionsDir() string {
+	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
+		return filepath.Join(codexHome, "sessions")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".codex", "sessions")
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`

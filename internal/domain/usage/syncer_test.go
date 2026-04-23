@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestUsageSyncer_SyncBatch_InsertsRecord(t *testing.T) {
 	}
 
 	syncer := NewUsageSyncer(stub, 60*time.Second, 50, SyncerConfig{})
-	more := syncer.syncBatch()
+	more := syncer.syncBatch(context.Background())
 
 	assert.False(t, more, "batch < limit so more should be false")
 	require.Len(t, stub.inserted, 1)
@@ -59,7 +60,7 @@ func TestUsageSyncer_SyncBatch_MissingLog(t *testing.T) {
 		},
 	}
 	syncer := NewUsageSyncer(stub, 60*time.Second, 50, SyncerConfig{})
-	_ = syncer.syncBatch()
+	_ = syncer.syncBatch(context.Background())
 
 	// Missing log → zero-value record inserted to prevent retry
 	require.Len(t, stub.inserted, 1)
@@ -75,6 +76,6 @@ func TestUsageSyncer_SyncBatch_MoreWhenFull(t *testing.T) {
 		},
 	}
 	syncer := NewUsageSyncer(stub, 60*time.Second, 2, SyncerConfig{}) // batchSize == len(unsynced)
-	more := syncer.syncBatch()
+	more := syncer.syncBatch(context.Background())
 	assert.True(t, more, "full batch should signal more")
 }

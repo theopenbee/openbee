@@ -38,8 +38,6 @@ const (
 	engineCodex
 )
 
-// detectEngine reads the first recognisable event type from the log to determine which AI engine
-// produced it without re-reading the file a second time.
 func detectEngine(logPath string) engine {
 	f, err := os.Open(logPath)
 	if err != nil {

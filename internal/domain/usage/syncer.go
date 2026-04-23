@@ -43,7 +43,7 @@ func (s *UsageSyncer) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			for s.syncBatch() {
+			for s.syncBatch(ctx) {
 				if ctx.Err() != nil {
 					return
 				}
@@ -54,7 +54,7 @@ func (s *UsageSyncer) Run(ctx context.Context) {
 	}
 }
 
-func (s *UsageSyncer) syncBatch() bool {
+func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 	execs, err := s.store.ListUnsynced(s.batchSize)
 	if err != nil {
 		log.Error("list unsynced executions", zap.Error(err))
@@ -63,7 +63,10 @@ func (s *UsageSyncer) syncBatch() bool {
 
 	now := time.Now().UnixMilli()
 	for _, exec := range execs {
-		ctx := usageparser.ParseContext{
+		if ctx.Err() != nil {
+			return false
+		}
+		parseCtx := usageparser.ParseContext{
 			LogPath:          exec.LogPath,
 			SessionID:        exec.SessionID,
 			PiSessionsDir:    s.cfg.PiSessionsDir,
@@ -72,9 +75,10 @@ func (s *UsageSyncer) syncBatch() bool {
 			StartedAt:        exec.StartedAt,
 			CompletedAt:      exec.CompletedAt,
 		}
-		data, err := usageparser.ParseUsage(ctx)
-		if err != nil {
+		data, err := usageparser.ParseUsage(parseCtx)
+		if err != nil || data == nil {
 			log.Error("parse usage", zap.String("executionID", exec.ID), zap.Error(err))
+			continue
 		}
 		record := &model.UsageRecord{
 			ID:                  uuid.New().String(),
