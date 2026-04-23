@@ -38,12 +38,14 @@ const (
 	engineCodex
 )
 
+type jsonTypePeek struct {
+	Type string `json:"type"`
+}
+
 func detectEngineFromReader(r io.Reader) engine {
 	detected := engineUnknown
 	ai.ScanJSONLines(r, func(line string) bool {
-		var peek struct {
-			Type string `json:"type"`
-		}
+		var peek jsonTypePeek
 		if json.Unmarshal([]byte(line), &peek) != nil {
 			return true
 		}
@@ -93,9 +95,7 @@ func parseClaudeUsageFromReader(r io.Reader) (*UsageData, error) {
 	var model string
 
 	ai.ScanJSONLines(r, func(line string) bool {
-		var peek struct {
-			Type string `json:"type"`
-		}
+		var peek jsonTypePeek
 		if json.Unmarshal([]byte(line), &peek) != nil {
 			return true
 		}

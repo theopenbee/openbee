@@ -40,6 +40,37 @@ func (s *UsageStore) Insert(record *model.UsageRecord) error {
 	return nil
 }
 
+func (s *UsageStore) InsertBatch(records []*model.UsageRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO bee_usage_records
+         (id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("prepare insert: %w", err)
+	}
+	defer stmt.Close()
+	for _, r := range records {
+		if _, err := stmt.Exec(r.ID, r.ExecutionID, r.Model,
+			r.InputTokens, r.OutputTokens,
+			r.CacheCreationTokens, r.CacheReadTokens,
+			r.TotalTokens, r.CostUSD, r.SyncedAt); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("insert usage record %s: %w", r.ExecutionID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
 func (s *UsageStore) GetByExecutionID(executionID string) (*model.UsageRecord, error) {
 	row := s.db.QueryRow(usageSelect+` WHERE execution_id = ?`, executionID)
 	r, err := scanUsageRecord(row)

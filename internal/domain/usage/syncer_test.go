@@ -24,8 +24,8 @@ func (s *stubStore) ListUnsynced(limit int) ([]model.UnsyncedExecution, error) {
 	return s.unsynced, nil
 }
 
-func (s *stubStore) Insert(record *model.UsageRecord) error {
-	s.inserted = append(s.inserted, record)
+func (s *stubStore) InsertBatch(records []*model.UsageRecord) error {
+	s.inserted = append(s.inserted, records...)
 	return nil
 }
 

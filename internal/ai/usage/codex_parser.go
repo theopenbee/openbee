@@ -62,6 +62,13 @@ func clampedSub(a, b int64) int64 {
 	return 0
 }
 
+func coalesceModel(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
 func subtractCodexUsage(cur, prev *codexTokenCount) *codexTokenCount {
 	if prev == nil {
 		return cur
@@ -79,7 +86,7 @@ func subtractCodexUsage(cur, prev *codexTokenCount) *codexTokenCount {
 	}
 }
 
-// threadID is verified inline to avoid a separate pre-scan pass; returns nil data if not found.
+// threadID is verified inline to avoid a separate pre-scan pass.
 func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) (*UsageData, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -112,11 +119,7 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 		}
 
 		if ev.Type == "turn_context" && ev.Payload != nil {
-			if ev.Payload.Model != "" {
-				currentModel = ev.Payload.Model
-			} else if ev.Payload.ModelName != "" {
-				currentModel = ev.Payload.ModelName
-			}
+			currentModel = coalesceModel(ev.Payload.Model, ev.Payload.ModelName)
 			continue
 		}
 
@@ -146,12 +149,13 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 		var delta *codexTokenCount
 		if info.LastTokenUsage != nil {
 			delta = normalizeCodexUsage(info.LastTokenUsage)
-		} else if info.TotalTokenUsage != nil {
-			total := normalizeCodexUsage(info.TotalTokenUsage)
-			delta = subtractCodexUsage(total, prevTotals)
 		}
 		if info.TotalTokenUsage != nil {
-			prevTotals = normalizeCodexUsage(info.TotalTokenUsage)
+			normalized := normalizeCodexUsage(info.TotalTokenUsage)
+			if delta == nil {
+				delta = subtractCodexUsage(normalized, prevTotals)
+			}
+			prevTotals = normalized
 		}
 
 		if delta == nil {
@@ -166,12 +170,8 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 		data.OutputTokens += delta.OutputTokens
 		data.TotalTokens += delta.TotalTokens
 
-		if info.Model != "" {
-			data.Model = info.Model
-		} else if info.ModelName != "" {
-			data.Model = info.ModelName
-		} else if currentModel != "" {
-			data.Model = currentModel
+		if m := coalesceModel(coalesceModel(info.Model, info.ModelName), currentModel); m != "" {
+			data.Model = m
 		}
 	}
 

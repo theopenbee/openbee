@@ -16,7 +16,7 @@ var log = logger.With(zap.String("component", "usagesyncer"))
 
 type usageSyncStore interface {
 	ListUnsynced(limit int) ([]model.UnsyncedExecution, error)
-	Insert(record *model.UsageRecord) error
+	InsertBatch(records []*model.UsageRecord) error
 }
 
 // SyncerConfig holds filesystem paths needed to locate engine session files.
@@ -62,6 +62,7 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 	}
 
 	now := time.Now().UnixMilli()
+	records := make([]*model.UsageRecord, 0, len(execs))
 	for _, exec := range execs {
 		if ctx.Err() != nil {
 			return false
@@ -82,7 +83,7 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 		if data == nil {
 			data = &usageparser.UsageData{}
 		}
-		record := &model.UsageRecord{
+		records = append(records, &model.UsageRecord{
 			ID:                  uuid.New().String(),
 			ExecutionID:         exec.ID,
 			Model:               data.Model,
@@ -93,10 +94,10 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 			TotalTokens:         data.TotalTokens,
 			CostUSD:             data.CostUSD,
 			SyncedAt:            now,
-		}
-		if err := s.store.Insert(record); err != nil {
-			log.Error("insert usage record", zap.String("executionID", exec.ID), zap.Error(err))
-		}
+		})
+	}
+	if err := s.store.InsertBatch(records); err != nil {
+		log.Error("insert usage batch", zap.Error(err))
 	}
 
 	return len(execs) == s.batchSize
