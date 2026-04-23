@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -38,15 +39,9 @@ const (
 	engineCodex
 )
 
-func detectEngine(logPath string) engine {
-	f, err := os.Open(logPath)
-	if err != nil {
-		return engineUnknown
-	}
-	defer f.Close()
-
+func detectEngineFromReader(r io.Reader) engine {
 	detected := engineUnknown
-	ai.ScanJSONLines(f, func(line string) bool {
+	ai.ScanJSONLines(r, func(line string) bool {
 		var peek struct {
 			Type string `json:"type"`
 		}
@@ -72,10 +67,19 @@ func detectEngine(logPath string) engine {
 // ParseUsage auto-detects the engine from the log and delegates to the appropriate parser.
 // Returns a zero-value UsageData (not an error) when data cannot be determined.
 func ParseUsage(ctx ParseContext) (*UsageData, error) {
-	eng := detectEngine(ctx.LogPath)
+	f, err := os.Open(ctx.LogPath)
+	if err != nil {
+		return &UsageData{}, nil
+	}
+	defer f.Close()
+
+	eng := detectEngineFromReader(f)
 	switch eng {
 	case engineClaude:
-		return parseClaudeUsage(ctx.LogPath)
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return &UsageData{}, nil
+		}
+		return parseClaudeUsageFromReader(f)
 	case enginePi:
 		sessionFile := filepath.Join(ctx.PiSessionsDir, ctx.SessionID+".jsonl")
 		return parsePiUsage(sessionFile, ctx.StartedAt, ctx.CompletedAt)
@@ -86,17 +90,11 @@ func ParseUsage(ctx ParseContext) (*UsageData, error) {
 	}
 }
 
-func parseClaudeUsage(logPath string) (*UsageData, error) {
-	f, err := os.Open(logPath)
-	if err != nil {
-		return &UsageData{}, nil
-	}
-	defer f.Close()
-
+func parseClaudeUsageFromReader(r io.Reader) (*UsageData, error) {
 	var data UsageData
 	var model string
 
-	ai.ScanJSONLines(f, func(line string) bool {
+	ai.ScanJSONLines(r, func(line string) bool {
 		var peek struct {
 			Type string `json:"type"`
 		}

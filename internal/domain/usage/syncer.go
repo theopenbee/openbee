@@ -76,9 +76,11 @@ func (s *UsageSyncer) syncBatch(ctx context.Context) bool {
 			CompletedAt:      exec.CompletedAt,
 		}
 		data, err := usageparser.ParseUsage(parseCtx)
-		if err != nil || data == nil {
+		if err != nil {
 			log.Error("parse usage", zap.String("executionID", exec.ID), zap.Error(err))
-			continue
+		}
+		if data == nil {
+			data = &usageparser.UsageData{}
 		}
 		record := &model.UsageRecord{
 			ID:                  uuid.New().String(),

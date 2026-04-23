@@ -12,7 +12,7 @@ import (
 type codexTokenCount struct {
 	InputTokens           int64 `json:"input_tokens"`
 	CachedInputTokens     int64 `json:"cached_input_tokens"`
-	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"` // alias
+	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
 	OutputTokens          int64 `json:"output_tokens"`
 	ReasoningOutputTokens int64 `json:"reasoning_output_tokens"`
 	TotalTokens           int64 `json:"total_tokens"`
@@ -55,25 +55,26 @@ func normalizeCodexUsage(tc *codexTokenCount) *codexTokenCount {
 	}
 }
 
+func clampedSub(a, b int64) int64 {
+	if a-b > 0 {
+		return a - b
+	}
+	return 0
+}
+
 func subtractCodexUsage(cur, prev *codexTokenCount) *codexTokenCount {
 	if prev == nil {
 		return cur
 	}
-	maxz := func(a, b int64) int64 {
-		if a-b > 0 {
-			return a - b
-		}
-		return 0
-	}
-	total := maxz(cur.TotalTokens, prev.TotalTokens)
+	total := clampedSub(cur.TotalTokens, prev.TotalTokens)
 	if total == 0 {
-		total = maxz(cur.InputTokens, prev.InputTokens) + maxz(cur.OutputTokens, prev.OutputTokens)
+		total = clampedSub(cur.InputTokens, prev.InputTokens) + clampedSub(cur.OutputTokens, prev.OutputTokens)
 	}
 	return &codexTokenCount{
-		InputTokens:           maxz(cur.InputTokens, prev.InputTokens),
-		CachedInputTokens:     maxz(cur.CachedInputTokens, prev.CachedInputTokens),
-		OutputTokens:          maxz(cur.OutputTokens, prev.OutputTokens),
-		ReasoningOutputTokens: maxz(cur.ReasoningOutputTokens, prev.ReasoningOutputTokens),
+		InputTokens:           clampedSub(cur.InputTokens, prev.InputTokens),
+		CachedInputTokens:     clampedSub(cur.CachedInputTokens, prev.CachedInputTokens),
+		OutputTokens:          clampedSub(cur.OutputTokens, prev.OutputTokens),
+		ReasoningOutputTokens: clampedSub(cur.ReasoningOutputTokens, prev.ReasoningOutputTokens),
 		TotalTokens:           total,
 	}
 }
@@ -124,7 +125,6 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 			continue
 		}
 
-		// Time-window filter.
 		if startedAt > 0 && completedAt > 0 && ev.Timestamp != "" {
 			t, err := time.Parse(time.RFC3339Nano, ev.Timestamp)
 			if err == nil {
@@ -144,7 +144,6 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 			continue
 		}
 
-		// Prefer last_token_usage (per-event delta); fall back to total minus previous.
 		var delta *codexTokenCount
 		if info.LastTokenUsage != nil {
 			delta = normalizeCodexUsage(info.LastTokenUsage)
@@ -168,7 +167,6 @@ func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) 
 		data.OutputTokens += delta.OutputTokens
 		data.TotalTokens += delta.TotalTokens
 
-		// Resolve model: prefer info fields, then turn_context.
 		if info.Model != "" {
 			data.Model = info.Model
 		} else if info.ModelName != "" {
@@ -217,6 +215,7 @@ func parseCodexUsage(codexStoreDir, codexSessionsDir, sessionID string, startedA
 		if d.Model != "" {
 			combined.Model = d.Model
 		}
+		break
 	}
 	return &combined, nil
 }
