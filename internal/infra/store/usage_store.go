@@ -24,7 +24,6 @@ func scanUsageRecord(scanner interface{ Scan(...any) error }) (model.UsageRecord
 	return r, err
 }
 
-// INSERT OR IGNORE makes duplicate execution_id calls safe (idempotent).
 func (s *UsageStore) Insert(record *model.UsageRecord) error {
 	_, err := s.db.Exec(
 		`INSERT OR IGNORE INTO bee_usage_records

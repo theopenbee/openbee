@@ -82,10 +82,9 @@ func TestUsageStore_ListUnsynced(t *testing.T) {
 	w, _ := ws.Create(model.Worker{Name: "bot", WorkDir: "/tmp"})
 
 	// Create 3 completed executions with a log_path
-	for i := range 3 {
+	for range 3 {
 		exec, _ := es.Create(w.ID, "task", uuid.New().String())
 		db.Exec(`UPDATE bee_executions SET status='completed', log_path='/tmp/fake.log' WHERE id=?`, exec.ID)
-		_ = i
 	}
 
 	// Create 1 failed execution with log_path

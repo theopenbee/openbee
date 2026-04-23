@@ -36,6 +36,9 @@ func (s *UsageSyncer) Run(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			for s.syncBatch() {
+				if ctx.Err() != nil {
+					return
+				}
 			}
 		case <-ctx.Done():
 			return
