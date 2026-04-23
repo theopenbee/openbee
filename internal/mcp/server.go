@@ -36,7 +36,6 @@ type SessionClearer interface {
 	ClearSession(sessionKey string)
 }
 
-// TaskCanceller cancels a task in both the DB and the dispatcher's in-memory queue.
 type TaskCanceller interface {
 	CancelTask(ctx context.Context, taskID string) error
 }

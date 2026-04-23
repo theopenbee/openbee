@@ -302,7 +302,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	// just-launched worker before entering waitForResult.
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
-		d.notifyCancel(context.Background(), task.MessageID, task.WorkerID)
+		d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
 		return
 	}
 
@@ -451,11 +451,11 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, in
 	}
 }
 
-func (d *TaskDispatcher) notifyCancel(ctx context.Context, messageID, wName string) {
+func (d *TaskDispatcher) notifyCancel(ctx context.Context, messageID, workerName string) {
 	if d.failureNotifier == nil || messageID == "" {
 		return
 	}
-	if err := d.failureNotifier.NotifyTaskCancelled(ctx, messageID, wName); err != nil {
+	if err := d.failureNotifier.NotifyTaskCancelled(ctx, messageID, workerName); err != nil {
 		log.Error("notify task cancel", zap.String("messageID", messageID), zap.Error(err))
 	}
 }
