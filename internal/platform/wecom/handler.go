@@ -24,7 +24,28 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+const PlatformID = "wecom"
+
 var log = logger.With(zap.String("component", "wecom"))
+
+func ExtractContext(raw string) string {
+	var frame WsFrame
+	if err := json.Unmarshal([]byte(raw), &frame); err != nil {
+		return ""
+	}
+	var body messageBody
+	if err := json.Unmarshal(frame.Body, &body); err != nil {
+		return ""
+	}
+	return platform.MarshalContext(PlatformID, map[string]any{
+		"msgid":    body.MsgID,
+		"aibotid":  body.AiBotID,
+		"chatid":   body.ChatID,
+		"chattype": body.ChatType,
+		"from":     body.From,
+		"msgtype":  body.MsgType,
+	})
+}
 
 // ─── Media size constants ──────────────────────────────────────────────────
 
@@ -191,7 +212,7 @@ func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platf
 	return p
 }
 
-func (p *WeComPlatform) ID() string                                 { return "wecom" }
+func (p *WeComPlatform) ID() string                                 { return PlatformID }
 func (p *WeComPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *WeComPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
@@ -263,9 +284,9 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 
 	rawBytes, _ := json.Marshal(frame)
 	dispatch(platform.InboundMessage{
-		Platform:          "wecom",
+		Platform:          PlatformID,
 		SenderID:          senderID,
-		SessionKey:        "wecom:" + chatID + ":" + senderID,
+		SessionKey:        PlatformID + ":" + chatID + ":" + senderID,
 		Content:           content,
 		RawContent:        rawText,
 		Raw:               string(rawBytes),

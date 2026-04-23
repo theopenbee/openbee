@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 func TestBuildPrompt_NoHint(t *testing.T) {
@@ -68,5 +69,19 @@ func TestBuildPrompt_MultipleMessages_WithHint(t *testing.T) {
 	}
 	if strings.Count(got, "<message_meta>") != 2 {
 		t.Errorf("expected 2 message_meta blocks, got: %q", got)
+	}
+}
+
+func TestBuildPrompt_NeverHasPlatformContext(t *testing.T) {
+	platform.RegisterExtractor("testplatform2", func(_ string) string {
+		return `{"testplatform2":{"sender":{"open_id":"ou_abc"}}}`
+	})
+	msgs := []store.ClaimedMessage{
+		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:oc_xyz:ou_abc", Content: "hello"},
+	}
+	got := buildPrompt(msgs, "")
+
+	if strings.Contains(got, `"platform_context"`) {
+		t.Errorf("platform_context must never appear in bee message_meta, got: %q", got)
 	}
 }

@@ -13,13 +13,15 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 var log = logger.With(zap.String("component", "taskdispatcher"))
 
 type taskMeta struct {
-	MessageID string `json:"message_id"`
-	TaskID    string `json:"task_id,omitempty"`
+	MessageID       string          `json:"message_id"`
+	TaskID          string          `json:"task_id,omitempty"`
+	PlatformContext json.RawMessage `json:"platform_context,omitempty"`
 }
 
 const (
@@ -251,7 +253,14 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 // can call mark_task_success and send_message via MCP.
 func buildInstruction(t DispatchTask) string {
 	if t.TaskID != "" || t.MessageID != "" {
-		b, _ := json.Marshal(taskMeta{MessageID: t.MessageID, TaskID: t.TaskID})
+		meta := taskMeta{
+			MessageID: t.MessageID,
+			TaskID:    t.TaskID,
+		}
+		if ctx := platform.ExtractContext(t.ReplyTo.Platform, t.ReplyTo.Raw); ctx != "" {
+			meta.PlatformContext = json.RawMessage(ctx)
+		}
+		b, _ := json.Marshal(meta)
 		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)
 	}
 	return t.Instruction

@@ -34,6 +34,8 @@ import (
 	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
+const PlatformID = "feishu"
+
 var log = logger.With(zap.String("component", "feishu"))
 
 const mentionPrefix = "@"
@@ -54,7 +56,7 @@ func NewPlatform(cfg config.FeishuConfig, mediaSvc *media.Service) platform.Plat
 	return p
 }
 
-func (f *FeishuPlatform) ID() string                                 { return "feishu" }
+func (f *FeishuPlatform) ID() string                                 { return PlatformID }
 func (f *FeishuPlatform) Receiver() platform.PlatformReceiverAdapter { return f.receiver }
 func (f *FeishuPlatform) Sender() platform.PlatformSenderAdapter     { return f.sender }
 
@@ -110,7 +112,7 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				return nil
 			}
 
-			textContent = resolveMentions(textContent, msg.Mentions)
+			textContent = resolveMentions(textContent, msg.Mentions, r.cfg.BotName)
 			sender := event.Event.Sender
 			if sender == nil || sender.SenderId == nil || sender.SenderId.OpenId == nil {
 				log.Warn("skipping message with nil sender or OpenId")
@@ -171,9 +173,9 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			}()
 
 			dispatch(platform.InboundMessage{
-				Platform:          "feishu",
+				Platform:          PlatformID,
 				SenderID:          senderID,
-				SessionKey:        "feishu:" + *msg.ChatId + ":" + senderID,
+				SessionKey:        PlatformID + ":" + *msg.ChatId + ":" + senderID,
 				Content:           textContent,
 				Raw:               string(rawBytes),
 				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),
@@ -641,24 +643,88 @@ var _ platform.Platform = (*FeishuPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*FeishuReceiver)(nil)
 var _ platform.PlatformSenderAdapter = (*FeishuSender)(nil)
 
-// resolveMentions replaces Feishu's opaque mention keys (e.g. "@_user_1") with
-// human-readable names (e.g. "@Tom"). Feishu delivers @mentions as placeholder
-// keys in the message text and resolves them separately in the Mentions slice;
-// we need to stitch them back together before passing content upstream.
-// Keys with no corresponding entry in mentions are left unchanged.
-func resolveMentions(text string, mentions []*larkim.MentionEvent) string {
-	if len(mentions) == 0 {
+func ExtractContext(raw string) string {
+	var event struct {
+		Event *struct {
+			Sender *struct {
+				SenderID *struct {
+					OpenID  *string `json:"open_id"`
+					UnionID *string `json:"union_id"`
+				} `json:"sender_id"`
+				SenderType *string `json:"sender_type"`
+			} `json:"sender"`
+			Message *struct {
+				MessageID   *string `json:"message_id"`
+				ChatID      *string `json:"chat_id"`
+				ChatType    *string `json:"chat_type"`
+				MessageType *string `json:"message_type"`
+				Mentions    []struct {
+					Key  *string `json:"key"`
+					ID   *struct {
+						OpenID  *string `json:"open_id"`
+						UnionID *string `json:"union_id"`
+					} `json:"id"`
+					Name *string `json:"name"`
+				} `json:"mentions"`
+			} `json:"message"`
+		} `json:"event"`
+	}
+	if err := json.Unmarshal([]byte(raw), &event); err != nil || event.Event == nil {
+		return ""
+	}
+	sender := event.Event.Sender
+	msg := event.Event.Message
+	if sender == nil || msg == nil || sender.SenderID == nil {
+		return ""
+	}
+
+	type mentionInfo struct {
+		Key     string `json:"key"`
+		OpenID  string `json:"open_id"`
+		UnionID string `json:"union_id"`
+		Name    string `json:"name"`
+	}
+	var mentions []mentionInfo
+	for _, m := range msg.Mentions {
+		if m.Key == nil || m.Name == nil {
+			continue
+		}
+		mi := mentionInfo{Key: *m.Key, Name: *m.Name}
+		if m.ID != nil {
+			mi.OpenID = utils.DerefStrOrEmpty(m.ID.OpenID)
+			mi.UnionID = utils.DerefStrOrEmpty(m.ID.UnionID)
+		}
+		mentions = append(mentions, mi)
+	}
+
+	return platform.MarshalContext(PlatformID, map[string]any{
+		"sender": map[string]any{
+			"open_id":     utils.DerefStrOrEmpty(sender.SenderID.OpenID),
+			"union_id":    utils.DerefStrOrEmpty(sender.SenderID.UnionID),
+			"sender_type": utils.DerefStrOrEmpty(sender.SenderType),
+		},
+		"message": map[string]any{
+			"chat_id":      utils.DerefStrOrEmpty(msg.ChatID),
+			"chat_type":    utils.DerefStrOrEmpty(msg.ChatType),
+			"message_id":   utils.DerefStrOrEmpty(msg.MessageID),
+			"message_type": utils.DerefStrOrEmpty(msg.MessageType),
+			"mentions":     mentions,
+		},
+	})
+}
+
+// User mentions are intentionally left as opaque keys; only the bot's own key is resolved.
+func resolveMentions(text string, mentions []*larkim.MentionEvent, botName string) string {
+	if len(mentions) == 0 || botName == "" {
 		return text
 	}
-	pairs := make([]string, 0, len(mentions)*2)
 	for _, m := range mentions {
 		if m.Key == nil || m.Name == nil {
 			continue
 		}
-		pairs = append(pairs, *m.Key, mentionPrefix+*m.Name)
+		if *m.Name == botName {
+			return strings.ReplaceAll(text, *m.Key, mentionPrefix+*m.Name)
+		}
 	}
-	if len(pairs) == 0 {
-		return text
-	}
-	return strings.NewReplacer(pairs...).Replace(text)
+	return text
 }

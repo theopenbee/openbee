@@ -159,7 +159,13 @@ func BuildApp(cfg config.Config) (*App, error) {
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
-		msgingest.WithBotNames(cfg.Bee.Platforms.BotNames()))
+		msgingest.WithPlatformBotNames(map[string]string{
+			feishu.PlatformID:   cfg.Bee.Platforms.Feishu.BotName,
+			dingtalk.PlatformID: cfg.Bee.Platforms.DingTalk.BotName,
+			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
+			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
+			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
+		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
@@ -291,12 +297,15 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
+		platform.RegisterExtractor(feishu.PlatformID, feishu.ExtractContext)
 		result = append(result, feishu.NewPlatform(fc, mediaSvc))
 	}
 	if dc.Enabled {
+		platform.RegisterExtractor(dingtalk.PlatformID, dingtalk.ExtractContext)
 		result = append(result, dingtalk.NewPlatform(dc, mc, mediaSvc))
 	}
 	if wc.Enabled {
+		platform.RegisterExtractor(wecom.PlatformID, wecom.ExtractContext)
 		result = append(result, wecom.NewPlatform(wc, mediaSvc))
 	}
 	if tc.Enabled {

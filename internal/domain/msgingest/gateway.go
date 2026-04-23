@@ -60,38 +60,30 @@ type Gateway struct {
 	out            chan IngestedMessage
 	cmdCh          chan commandTask  // serialized command dispatch queue
 	commandHandler CommandHandler   // intercepts slash commands before DB write
-	botNameREs     []*regexp.Regexp // compiled @mention patterns, built once from bot names
+	botNameREs     map[string]*regexp.Regexp // platform → compiled @mention regex
 }
 
 // Option configures a Gateway.
 type Option func(*Gateway)
 
-func compileBotNameREs(names []string) []*regexp.Regexp {
-	res := make([]*regexp.Regexp, 0, len(names))
-	for _, n := range names {
-		if n == "" {
-			continue
+// WithPlatformBotNames sets a per-platform bot display name whose @mention is stripped
+// from message content before command matching, debounce accumulation, and DB storage.
+func WithPlatformBotNames(names map[string]string) Option {
+	res := make(map[string]*regexp.Regexp, len(names))
+	for platform, name := range names {
+		if name != "" {
+			res[platform] = regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
 		}
-		res = append(res, regexp.MustCompile(`\s*@`+regexp.QuoteMeta(n)+`\s*`))
 	}
-	return res
-}
-
-// WithBotNames sets the bot display names whose @mentions are stripped from message
-// content before command matching, debounce accumulation, and DB storage.
-func WithBotNames(names []string) Option {
-	res := compileBotNameREs(names)
 	return func(g *Gateway) { g.botNameREs = res }
 }
 
-func stripBotMentions(content string, res []*regexp.Regexp) string {
-	if len(res) == 0 {
+func (g *Gateway) stripBotMention(content, platform string) string {
+	re, ok := g.botNameREs[platform]
+	if !ok || !strings.Contains(content, "@") {
 		return content
 	}
-	for _, re := range res {
-		content = re.ReplaceAllString(content, " ")
-	}
-	return strings.TrimSpace(content)
+	return strings.TrimSpace(re.ReplaceAllString(content, " "))
 }
 
 // New constructs a Gateway.
@@ -143,7 +135,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
-	stripped := stripBotMentions(msg.Content, g.botNameREs)
+	stripped := g.stripBotMention(msg.Content, msg.Platform)
 	g.mu.Lock()
 
 	if msg.PlatformMessageID != "" {

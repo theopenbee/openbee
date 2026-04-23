@@ -1,6 +1,7 @@
 package feishu
 
 import (
+	"strings"
 	"testing"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -181,47 +182,54 @@ func TestResolveMentions(t *testing.T) {
 		name     string
 		text     string
 		mentions []*larkim.MentionEvent
+		botName  string
 		want     string
 	}{
 		{
-			name: "single mention replaced",
-			text: "@_user_1 hello",
+			name: "bot mention replaced, user mention preserved",
+			text: "@_user_1 @_user_2 hello",
 			mentions: []*larkim.MentionEvent{
-				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+				{Key: strPtr("@_user_1"), Name: strPtr("OpenBee")},
+				{Key: strPtr("@_user_2"), Name: strPtr("Tom")},
 			},
-			want: "@Tom hello",
+			botName: "OpenBee",
+			want:    "@OpenBee @_user_2 hello",
 		},
 		{
-			name: "multiple mentions replaced",
+			name: "multiple user mentions preserved",
 			text: "@_user_1 and @_user_2",
 			mentions: []*larkim.MentionEvent{
 				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
 				{Key: strPtr("@_user_2"), Name: strPtr("Alice")},
 			},
-			want: "@Tom and @Alice",
-		},
-		{
-			name: "unknown key preserved",
-			text: "@_user_1 @_user_2",
-			mentions: []*larkim.MentionEvent{
-				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
-			},
-			want: "@Tom @_user_2",
+			botName: "OpenBee",
+			want:    "@_user_1 and @_user_2",
 		},
 		{
 			name:     "empty mentions no change",
 			text:     "@_user_1 hello",
 			mentions: nil,
+			botName:  "OpenBee",
 			want:     "@_user_1 hello",
+		},
+		{
+			name: "empty botName no replacement",
+			text: "@_user_1 hello",
+			mentions: []*larkim.MentionEvent{
+				{Key: strPtr("@_user_1"), Name: strPtr("Tom")},
+			},
+			botName: "",
+			want:    "@_user_1 hello",
 		},
 		{
 			name: "nil key skipped",
 			text: "@_user_1 hello",
 			mentions: []*larkim.MentionEvent{
-				{Key: nil, Name: strPtr("Tom")},
-				{Key: strPtr("@_user_1"), Name: strPtr("Bob")},
+				{Key: nil, Name: strPtr("OpenBee")},
+				{Key: strPtr("@_user_1"), Name: strPtr("OpenBee")},
 			},
-			want: "@Bob hello",
+			botName: "OpenBee",
+			want:    "@OpenBee hello",
 		},
 		{
 			name: "nil name skipped",
@@ -229,12 +237,13 @@ func TestResolveMentions(t *testing.T) {
 			mentions: []*larkim.MentionEvent{
 				{Key: strPtr("@_user_1"), Name: nil},
 			},
-			want: "@_user_1 hello",
+			botName: "OpenBee",
+			want:    "@_user_1 hello",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveMentions(tt.text, tt.mentions)
+			got := resolveMentions(tt.text, tt.mentions, tt.botName)
 			if got != tt.want {
 				t.Errorf("resolveMentions() = %q, want %q", got, tt.want)
 			}
@@ -267,5 +276,36 @@ func TestUploadAndSendFile_ContentByType(t *testing.T) {
 				t.Errorf("msgType %q: hasFileName = %v, want %v", tt.msgType, hasFileName, tt.wantFileName)
 			}
 		})
+	}
+}
+
+func TestExtractContext_ValidFeishuRaw(t *testing.T) {
+	// Minimal Feishu P2MessageReceiveV1 JSON with the fields we extract.
+	raw := `{"schema":"2.0","header":{"event_id":"evt1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_abc","union_id":"on_abc"},"sender_type":"user","tenant_key":"tk1"},"message":{"message_id":"om_1","chat_id":"oc_xyz","chat_type":"group","message_type":"text"}}}`
+	got := ExtractContext(raw)
+	if got == "" {
+		t.Fatal("expected non-empty context")
+	}
+	if !strings.Contains(got, `"sender"`) {
+		t.Errorf("expected sender namespace in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"message"`) {
+		t.Errorf("expected message namespace in context, got: %q", got)
+	}
+	if !strings.Contains(got, "ou_abc") {
+		t.Errorf("expected open_id value in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"sender_type"`) {
+		t.Errorf("expected sender_type in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"message_type"`) {
+		t.Errorf("expected message_type in context, got: %q", got)
+	}
+}
+
+func TestExtractContext_InvalidRaw(t *testing.T) {
+	got := ExtractContext("not-json")
+	if got != "" {
+		t.Errorf("expected empty string for invalid raw, got %q", got)
 	}
 }

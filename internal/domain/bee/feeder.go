@@ -342,7 +342,12 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		b, _ := json.Marshal(messageMeta{From: m.Platform, SessionKey: m.SessionKey, MessageID: m.ID})
+		meta := messageMeta{
+			From:       m.Platform,
+			SessionKey: m.SessionKey,
+			MessageID:  m.ID,
+		}
+		b, _ := json.Marshal(meta)
 		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
 	}
 	return sb.String()

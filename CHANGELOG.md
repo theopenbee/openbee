@@ -4,6 +4,7 @@
 
 ### Added
 - Add `/stop` command support
+- Pass more IM platform message data to AI so that AI can leverage IM platform CLI to implement richer features
 - Worker name must be globally unique and cannot conflict with any bot name
 
 ### Changed

@@ -28,7 +28,33 @@ import (
 	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
+const PlatformID = "dingtalk"
+
 var log = logger.With(zap.String("component", "dingtalk"))
+
+type dingtalkContextFields struct {
+	ConversationID    string          `json:"conversationId,omitempty"`
+	AtUsers           json.RawMessage `json:"atUsers,omitempty"`
+	ChatbotCorpID     string          `json:"chatbotCorpId,omitempty"`
+	ChatbotUserID     string          `json:"chatbotUserId,omitempty"`
+	MsgID             string          `json:"msgId,omitempty"`
+	SenderNick        string          `json:"senderNick,omitempty"`
+	IsAdmin           *bool           `json:"isAdmin,omitempty"`
+	SenderStaffID     string          `json:"senderStaffId,omitempty"`
+	SenderCorpID      string          `json:"senderCorpId,omitempty"`
+	ConversationType  string          `json:"conversationType,omitempty"`
+	SenderID          string          `json:"senderId,omitempty"`
+	ConversationTitle string          `json:"conversationTitle,omitempty"`
+	MsgType           string          `json:"msgtype,omitempty"`
+}
+
+func ExtractContext(raw string) string {
+	var ctx dingtalkContextFields
+	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
+		return ""
+	}
+	return platform.MarshalContext(PlatformID, ctx)
+}
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
 type DingTalkPlatform struct {
@@ -45,7 +71,7 @@ func NewPlatform(cfg config.DingTalkConfig, mediaCfg config.MediaConfig, mediaSv
 	return p
 }
 
-func (d *DingTalkPlatform) ID() string                                 { return "dingtalk" }
+func (d *DingTalkPlatform) ID() string                                 { return PlatformID }
 func (d *DingTalkPlatform) Receiver() platform.PlatformReceiverAdapter { return d.receiver }
 func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return d.sender }
 
@@ -117,13 +143,13 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 		}
 
 		msg := platform.InboundMessage{
-			Platform:          "dingtalk",
-			SenderID:          data.SenderStaffId,
-			SessionKey:        "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
-			Content:           textContent,
-			Raw:               string(rawBytes),
+			Platform:         PlatformID,
+			SenderID:         data.SenderStaffId,
+			SessionKey:       PlatformID + ":" + data.ConversationId + ":" + data.SenderStaffId,
+			Content:          textContent,
+			Raw:              string(rawBytes),
 			PlatformMessageID: data.MsgId,
-			MessageTime:       data.CreateAt,
+			MessageTime:      data.CreateAt,
 		}
 		go func() {
 			addThinkingEmoji(ctx, r.cfg, data)
