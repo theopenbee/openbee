@@ -432,22 +432,62 @@ func buildRawFrame(t *testing.T, reqID string, body messageBody) string {
 	return string(raw)
 }
 
-func TestExtractContext_ValidWeComRaw(t *testing.T) {
-	// WsFrame with a messageBody in Body
-	body := `{"msgid":"msg1","aibotid":"bot1","chatid":"","chattype":"single","from":{"userid":"user1"},"create_time":1700000000}`
+func TestExtractContext_SingleChat(t *testing.T) {
+	body := `{"msgid":"msg1","aibotid":"bot1","chatid":"","chattype":"single","from":{"userid":"user1"},"msgtype":"text","create_time":1700000000}`
 	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":` + body + `}`
 	got := ExtractContext(frame)
 	if got == "" {
 		t.Fatal("expected non-empty context")
 	}
-	if !strings.Contains(got, "user1") {
-		t.Errorf("expected userid in context, got: %q", got)
+	// from must be a nested object, not flattened
+	if !strings.Contains(got, `"from"`) {
+		t.Errorf("expected 'from' key in context, got: %q", got)
+	}
+	if !strings.Contains(got, `"userid":"user1"`) {
+		t.Errorf("expected userid inside from, got: %q", got)
+	}
+	// single chat: chatid must be empty string, NOT overridden with userid
+	if !strings.Contains(got, `"chatid":""`) {
+		t.Errorf("expected empty chatid for single chat, got: %q", got)
+	}
+	// msgtype must be present
+	if !strings.Contains(got, `"msgtype":"text"`) {
+		t.Errorf("expected msgtype in context, got: %q", got)
+	}
+	// userid must NOT appear as a top-level key (old flattened field)
+	if strings.Contains(got, `"userid":"user1","`) || strings.HasPrefix(got, `{"wecom":{"userid"`) {
+		t.Errorf("userid should not be a top-level context field, got: %q", got)
 	}
 }
 
-func TestExtractContext_InvalidWeComRaw(t *testing.T) {
+func TestExtractContext_GroupChat(t *testing.T) {
+	body := `{"msgid":"msg2","aibotid":"bot1","chatid":"group1","chattype":"group","from":{"userid":"user1"},"msgtype":"text","create_time":1700000000}`
+	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":` + body + `}`
+	got := ExtractContext(frame)
+	if got == "" {
+		t.Fatal("expected non-empty context")
+	}
+	// group chat: chatid must be the group ID
+	if !strings.Contains(got, `"chatid":"group1"`) {
+		t.Errorf("expected group chatid, got: %q", got)
+	}
+	if !strings.Contains(got, `"chattype":"group"`) {
+		t.Errorf("expected chattype group, got: %q", got)
+	}
+}
+
+func TestExtractContext_InvalidRaw(t *testing.T) {
 	got := ExtractContext("not-json")
 	if got != "" {
 		t.Errorf("expected empty string for invalid raw, got %q", got)
+	}
+}
+
+func TestExtractContext_InvalidBody(t *testing.T) {
+	// Valid WsFrame but body is not a messageBody
+	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":"not-an-object"}`
+	got := ExtractContext(frame)
+	if got != "" {
+		t.Errorf("expected empty string for invalid body, got %q", got)
 	}
 }
