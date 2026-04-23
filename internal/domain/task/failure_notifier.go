@@ -68,6 +68,41 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 	return nil
 }
 
-func (n *PlatformFailureNotifier) NotifyTaskCancelled(_ context.Context, _ string, _ string) error {
+func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error {
+	stored, err := n.msgStore.GetByID(ctx, messageID)
+	if err != nil {
+		return fmt.Errorf("get message for cancel notification: %w", err)
+	}
+
+	sender, ok := n.senders[stored.Platform]
+	if !ok {
+		return fmt.Errorf("no sender for platform %q", stored.Platform)
+	}
+
+	m := i18n.M.Runtime.FailureNotifier
+	content := m.TaskCancelled
+	if workerName != "" {
+		content += fmt.Sprintf(m.WorkerLine, workerName)
+	}
+	const maxRunes = 500
+	runes := []rune(content)
+	if len(runes) > maxRunes {
+		content = string(runes[:maxRunes-1]) + "…"
+	}
+
+	outbound := platform.OutboundMessage{
+		Content: content,
+		ReplyTo: platform.InboundMessage{
+			Platform:   stored.Platform,
+			SessionKey: stored.SessionKey,
+			Raw:        stored.Raw,
+		},
+		SourceType:   store.SourceTypeSystem,
+		InboundMsgID: messageID,
+	}
+	if err := sender.Send(ctx, outbound); err != nil {
+		log.Error("send cancel notification", zap.String("messageID", messageID), zap.Error(err))
+		return fmt.Errorf("send cancel notification: %w", err)
+	}
 	return nil
 }
