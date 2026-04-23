@@ -80,7 +80,7 @@ func WithPlatformBotNames(names map[string]string) Option {
 
 func stripBotMention(content, platform string, res map[string]*regexp.Regexp) string {
 	re, ok := res[platform]
-	if !ok {
+	if !ok || !strings.Contains(content, "@") {
 		return content
 	}
 	return strings.TrimSpace(re.ReplaceAllString(content, " "))

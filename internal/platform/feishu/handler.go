@@ -713,25 +713,19 @@ func ExtractContext(raw string) string {
 	})
 }
 
-// resolveMentions replaces only the bot's mention key (e.g. "@_user_1") with
-// the bot's display name (e.g. "@OpenBee"), so that the downstream
-// stripBotMentions pass can remove it. User mentions are intentionally left as
-// opaque keys to preserve the original message structure.
+// User mentions are intentionally left as opaque keys; only the bot's key is
+// resolved so that the downstream stripBotMention pass can remove it cleanly.
 func resolveMentions(text string, mentions []*larkim.MentionEvent, botName string) string {
 	if len(mentions) == 0 || botName == "" {
 		return text
 	}
-	pairs := make([]string, 0, 2)
 	for _, m := range mentions {
 		if m.Key == nil || m.Name == nil {
 			continue
 		}
 		if *m.Name == botName {
-			pairs = append(pairs, *m.Key, mentionPrefix+*m.Name)
+			return strings.ReplaceAll(text, *m.Key, mentionPrefix+*m.Name)
 		}
 	}
-	if len(pairs) == 0 {
-		return text
-	}
-	return strings.NewReplacer(pairs...).Replace(text)
+	return text
 }

@@ -37,15 +37,14 @@ func ExtractContext(raw string) string {
 	if err := json.Unmarshal(frame.Body, &body); err != nil {
 		return ""
 	}
-	ctx := wecomContextFields{
-		MsgID:    body.MsgID,
-		AiBotID:  body.AiBotID,
-		ChatID:   body.ChatID,
-		ChatType: body.ChatType,
-		From:     body.From,
-		MsgType:  body.MsgType,
-	}
-	return platform.MarshalContext(PlatformID, ctx)
+	return platform.MarshalContext(PlatformID, map[string]any{
+		"msgid":    body.MsgID,
+		"aibotid":  body.AiBotID,
+		"chatid":   body.ChatID,
+		"chattype": body.ChatType,
+		"from":     body.From,
+		"msgtype":  body.MsgType,
+	})
 }
 
 // ─── Media size constants ──────────────────────────────────────────────────
@@ -125,16 +124,6 @@ type quoteContent struct {
 	Image   *encryptedMedia `json:"image"`
 	File    *encryptedMedia `json:"file"`
 	Mixed   *mixedContent `json:"mixed"`
-}
-
-// Field names match the WeCom wire format exactly (no remapping needed on the worker side).
-type wecomContextFields struct {
-	MsgID    string      `json:"msgid"`
-	AiBotID  string      `json:"aibotid"`
-	ChatID   string      `json:"chatid"`
-	ChatType string      `json:"chattype"`
-	From     messageFrom `json:"from"`
-	MsgType  string      `json:"msgtype"`
 }
 
 // ─── Outbound body types ───────────────────────────────────────────────────
