@@ -19,14 +19,22 @@ type usageSyncStore interface {
 	Insert(record *model.UsageRecord) error
 }
 
+// SyncerConfig holds filesystem paths needed to locate engine session files.
+type SyncerConfig struct {
+	PiSessionsDir    string // e.g. ~/.openbee/.pi/sessions
+	CodexStoreDir    string // e.g. ~/.openbee/.codex/sessions (uuid→thread_id mapping files)
+	CodexSessionsDir string // codex native sessions dir, e.g. ~/.codex/sessions
+}
+
 type UsageSyncer struct {
 	store     usageSyncStore
+	cfg       SyncerConfig
 	interval  time.Duration
 	batchSize int
 }
 
-func NewUsageSyncer(store usageSyncStore, interval time.Duration, batchSize int) *UsageSyncer {
-	return &UsageSyncer{store: store, interval: interval, batchSize: batchSize}
+func NewUsageSyncer(store usageSyncStore, interval time.Duration, batchSize int, cfg SyncerConfig) *UsageSyncer {
+	return &UsageSyncer{store: store, cfg: cfg, interval: interval, batchSize: batchSize}
 }
 
 func (s *UsageSyncer) Run(ctx context.Context) {
@@ -55,9 +63,18 @@ func (s *UsageSyncer) syncBatch() bool {
 
 	now := time.Now().UnixMilli()
 	for _, exec := range execs {
-		data, err := usageparser.ParseUsageFromLog(exec.LogPath)
+		ctx := usageparser.ParseContext{
+			LogPath:          exec.LogPath,
+			SessionID:        exec.SessionID,
+			PiSessionsDir:    s.cfg.PiSessionsDir,
+			CodexStoreDir:    s.cfg.CodexStoreDir,
+			CodexSessionsDir: s.cfg.CodexSessionsDir,
+			StartedAt:        exec.StartedAt,
+			CompletedAt:      exec.CompletedAt,
+		}
+		data, err := usageparser.ParseUsage(ctx)
 		if err != nil {
-			log.Error("parse usage log", zap.String("executionID", exec.ID), zap.Error(err))
+			log.Error("parse usage", zap.String("executionID", exec.ID), zap.Error(err))
 		}
 		record := &model.UsageRecord{
 			ID:                  uuid.New().String(),

@@ -14,6 +14,9 @@ type UsageRecord struct {
 }
 
 type UnsyncedExecution struct {
-	ID      string
-	LogPath string
+	ID          string
+	LogPath     string
+	SessionID   string
+	StartedAt   int64
+	CompletedAt int64
 }

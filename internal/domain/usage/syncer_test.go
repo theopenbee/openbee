@@ -41,7 +41,7 @@ func TestUsageSyncer_SyncBatch_InsertsRecord(t *testing.T) {
 		},
 	}
 
-	syncer := NewUsageSyncer(stub, 60*time.Second, 50)
+	syncer := NewUsageSyncer(stub, 60*time.Second, 50, SyncerConfig{})
 	more := syncer.syncBatch()
 
 	assert.False(t, more, "batch < limit so more should be false")
@@ -58,7 +58,7 @@ func TestUsageSyncer_SyncBatch_MissingLog(t *testing.T) {
 			{ID: "exec-2", LogPath: "/no/such/file.log"},
 		},
 	}
-	syncer := NewUsageSyncer(stub, 60*time.Second, 50)
+	syncer := NewUsageSyncer(stub, 60*time.Second, 50, SyncerConfig{})
 	_ = syncer.syncBatch()
 
 	// Missing log → zero-value record inserted to prevent retry
@@ -74,7 +74,7 @@ func TestUsageSyncer_SyncBatch_MoreWhenFull(t *testing.T) {
 			{ID: "e2", LogPath: "/no/such/2.log"},
 		},
 	}
-	syncer := NewUsageSyncer(stub, 60*time.Second, 2) // batchSize == len(unsynced)
+	syncer := NewUsageSyncer(stub, 60*time.Second, 2, SyncerConfig{}) // batchSize == len(unsynced)
 	more := syncer.syncBatch()
 	assert.True(t, more, "full batch should signal more")
 }

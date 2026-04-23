@@ -175,7 +175,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
-	usageSyncer := usagesyncer.NewUsageSyncer(s.usageStore, 60*time.Second, 50)
+	usageSyncer := usagesyncer.NewUsageSyncer(s.usageStore, 60*time.Second, 50, usagesyncer.SyncerConfig{
+		PiSessionsDir:    config.DefaultPiSessionsDir(),
+		CodexStoreDir:    config.DefaultCodexSessionsDir(),
+		CodexSessionsDir: defaultCodexNativeSessionsDir(),
+	})
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -347,4 +351,14 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		StaticFS:          webui.DistFS,
 		JWTMiddleware:     jwtMiddleware,
 	})
+}
+
+// defaultCodexNativeSessionsDir returns the default directory where the codex CLI
+// stores its own session JSONL files (~/.codex/sessions).
+func defaultCodexNativeSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
+		return codexHome + "/sessions"
+	}
+	return home + "/.codex/sessions"
 }

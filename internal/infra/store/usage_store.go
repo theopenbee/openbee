@@ -54,7 +54,8 @@ func (s *UsageStore) GetByExecutionID(executionID string) (*model.UsageRecord, e
 
 func (s *UsageStore) ListUnsynced(limit int) ([]model.UnsyncedExecution, error) {
 	rows, err := s.db.Query(
-		`SELECT e.id, e.log_path
+		`SELECT e.id, e.log_path, e.session_id,
+		        COALESCE(e.started_at, 0), COALESCE(e.completed_at, 0)
          FROM bee_executions e
          LEFT JOIN bee_usage_records u ON e.id = u.execution_id
          WHERE e.status IN (?, ?)
@@ -69,7 +70,7 @@ func (s *UsageStore) ListUnsynced(limit int) ([]model.UnsyncedExecution, error) 
 	result := make([]model.UnsyncedExecution, 0, limit)
 	for rows.Next() {
 		var e model.UnsyncedExecution
-		if err := rows.Scan(&e.ID, &e.LogPath); err != nil {
+		if err := rows.Scan(&e.ID, &e.LogPath, &e.SessionID, &e.StartedAt, &e.CompletedAt); err != nil {
 			return nil, fmt.Errorf("scan unsynced execution: %w", err)
 		}
 		result = append(result, e)
