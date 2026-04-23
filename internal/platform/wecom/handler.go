@@ -24,6 +24,8 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+const PlatformID = "wecom"
+
 var log = logger.With(zap.String("component", "wecom"))
 
 func ExtractContext(raw string) string {
@@ -43,7 +45,7 @@ func ExtractContext(raw string) string {
 		From:     body.From,
 		MsgType:  body.MsgType,
 	}
-	return platform.MarshalContext("wecom", ctx)
+	return platform.MarshalContext(PlatformID, ctx)
 }
 
 // ─── Media size constants ──────────────────────────────────────────────────
@@ -125,8 +127,7 @@ type quoteContent struct {
 	Mixed   *mixedContent `json:"mixed"`
 }
 
-// wecomContextFields is the whitelist of fields passed to AI workers as platform context.
-// Field names match the WeCom wire format exactly.
+// Field names match the WeCom wire format exactly (no remapping needed on the worker side).
 type wecomContextFields struct {
 	MsgID    string      `json:"msgid"`
 	AiBotID  string      `json:"aibotid"`
@@ -222,7 +223,7 @@ func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platf
 	return p
 }
 
-func (p *WeComPlatform) ID() string                                 { return "wecom" }
+func (p *WeComPlatform) ID() string                                 { return PlatformID }
 func (p *WeComPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *WeComPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
@@ -294,9 +295,9 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 
 	rawBytes, _ := json.Marshal(frame)
 	dispatch(platform.InboundMessage{
-		Platform:          "wecom",
+		Platform:          PlatformID,
 		SenderID:          senderID,
-		SessionKey:        "wecom:" + chatID + ":" + senderID,
+		SessionKey:        PlatformID + ":" + chatID + ":" + senderID,
 		Content:           content,
 		RawContent:        rawText,
 		Raw:               string(rawBytes),

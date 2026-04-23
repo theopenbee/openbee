@@ -34,6 +34,8 @@ import (
 	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
+const PlatformID = "feishu"
+
 var log = logger.With(zap.String("component", "feishu"))
 
 const mentionPrefix = "@"
@@ -54,7 +56,7 @@ func NewPlatform(cfg config.FeishuConfig, mediaSvc *media.Service) platform.Plat
 	return p
 }
 
-func (f *FeishuPlatform) ID() string                                 { return "feishu" }
+func (f *FeishuPlatform) ID() string                                 { return PlatformID }
 func (f *FeishuPlatform) Receiver() platform.PlatformReceiverAdapter { return f.receiver }
 func (f *FeishuPlatform) Sender() platform.PlatformSenderAdapter     { return f.sender }
 
@@ -171,9 +173,9 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 			}()
 
 			dispatch(platform.InboundMessage{
-				Platform:          "feishu",
+				Platform:          PlatformID,
 				SenderID:          senderID,
-				SessionKey:        "feishu:" + *msg.ChatId + ":" + senderID,
+				SessionKey:        PlatformID + ":" + *msg.ChatId + ":" + senderID,
 				Content:           textContent,
 				Raw:               string(rawBytes),
 				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),
@@ -695,7 +697,7 @@ func ExtractContext(raw string) string {
 		mentions = append(mentions, mi)
 	}
 
-	return platform.MarshalContext("feishu", map[string]any{
+	return platform.MarshalContext(PlatformID, map[string]any{
 		"sender": map[string]any{
 			"open_id":     utils.DerefStrOrEmpty(sender.SenderID.OpenID),
 			"union_id":    utils.DerefStrOrEmpty(sender.SenderID.UnionID),

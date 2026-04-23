@@ -22,6 +22,8 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+const PlatformID = "weixin"
+
 // ─── Platform ────────────────────────────────────────────────────────────────
 
 type WeixinPlatform struct {
@@ -45,7 +47,7 @@ func NewPlatform(cfg config.WeixinConfig, mc config.MediaConfig, mediaSvc *media
 	return p
 }
 
-func (p *WeixinPlatform) ID() string                                 { return "weixin" }
+func (p *WeixinPlatform) ID() string                                 { return PlatformID }
 func (p *WeixinPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *WeixinPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
@@ -225,7 +227,7 @@ func (r *WeixinReceiver) buildInboundMessage(ctx context.Context, msg weixinMess
 	}
 
 	return &platform.InboundMessage{
-		Platform:          "weixin",
+		Platform:          PlatformID,
 		SenderID:          msg.FromUserID,
 		SessionKey:        buildSessionKey(msg.FromUserID),
 		Content:           content,

@@ -23,6 +23,8 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+const PlatformID = "telegram"
+
 var log = logger.With(zap.String("component", "telegram"))
 
 // ─── Platform ─────────────────────────────────────────────────────────────────
@@ -65,7 +67,7 @@ func setupBotCommands(bot *tgbotapi.BotAPI) {
 	log.Info("bot menu commands registered", zap.Int("count", len(commands)))
 }
 
-func (p *TelegramPlatform) ID() string                                  { return "telegram" }
+func (p *TelegramPlatform) ID() string                                  { return PlatformID }
 func (p *TelegramPlatform) Receiver() platform.PlatformReceiverAdapter  { return p.receiver }
 func (p *TelegramPlatform) Sender() platform.PlatformSenderAdapter      { return p.sender }
 
@@ -288,7 +290,7 @@ func (r *TelegramReceiver) buildInboundMessage(
 	}
 
 	return &platform.InboundMessage{
-		Platform:          "telegram",
+		Platform:          PlatformID,
 		SenderID:          strconv.FormatInt(senderID, 10),
 		SessionKey:        buildSessionKey(m.Chat.ID, senderID),
 		Content:           content,

@@ -28,6 +28,8 @@ import (
 	retryutil "github.com/theopenbee/openbee/internal/utils"
 )
 
+const PlatformID = "dingtalk"
+
 var log = logger.With(zap.String("component", "dingtalk"))
 
 type dingtalkContextFields struct {
@@ -51,7 +53,7 @@ func ExtractContext(raw string) string {
 	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
 		return ""
 	}
-	return platform.MarshalContext("dingtalk", ctx)
+	return platform.MarshalContext(PlatformID, ctx)
 }
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
@@ -69,7 +71,7 @@ func NewPlatform(cfg config.DingTalkConfig, mediaCfg config.MediaConfig, mediaSv
 	return p
 }
 
-func (d *DingTalkPlatform) ID() string                                 { return "dingtalk" }
+func (d *DingTalkPlatform) ID() string                                 { return PlatformID }
 func (d *DingTalkPlatform) Receiver() platform.PlatformReceiverAdapter { return d.receiver }
 func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return d.sender }
 
@@ -141,9 +143,9 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 		}
 
 		msg := platform.InboundMessage{
-			Platform:         "dingtalk",
+			Platform:         PlatformID,
 			SenderID:         data.SenderStaffId,
-			SessionKey:       "dingtalk:" + data.ConversationId + ":" + data.SenderStaffId,
+			SessionKey:       PlatformID + ":" + data.ConversationId + ":" + data.SenderStaffId,
 			Content:          textContent,
 			Raw:              string(rawBytes),
 			PlatformMessageID: data.MsgId,
