@@ -37,7 +37,7 @@ type Manager struct {
 	engines        map[string]ai.EngineAdapter
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
-	botNames       []string
+	botNamesLower  []string
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -67,7 +67,7 @@ func NewManager(
 		engines:         engines,
 		engineCfg:       engineCfg,
 		envService:      envService,
-		botNames:        botNames,
+		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
@@ -167,8 +167,8 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 	if name == "" {
 		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
 	}
-	lower := strings.ToLower(strings.TrimSpace(name))
-	if slices.Contains(m.botNames, lower) {
+	lower := strings.ToLower(name)
+	if slices.Contains(m.botNamesLower, lower) {
 		return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 	}
 	exists, err := m.workerStore.ExistsByName(name, excludeID)
@@ -182,15 +182,15 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 }
 
 func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
+	if err := p.Validate(m); err != nil {
+		return model.Worker{}, err
+	}
 	w, err := m.workerStore.GetByID(id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.Worker{}, ErrNotFound
 		}
 		return model.Worker{}, fmt.Errorf("get worker: %w", err)
-	}
-	if err := p.Validate(m); err != nil {
-		return model.Worker{}, err
 	}
 	if p.Name != nil {
 		trimmed := strings.TrimSpace(*p.Name)

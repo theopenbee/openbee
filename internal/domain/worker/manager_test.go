@@ -64,7 +64,7 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		engines:         engines,
 		engineCfg:       enginecfg.NewStore(defaultEngine),
 		envService:      envSvc,
-		botNames:        botNames,
+		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
 	return m

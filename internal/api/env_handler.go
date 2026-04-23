@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,15 +27,7 @@ type updateEnvRequest struct {
 }
 
 func respondEnvError(c *gin.Context, err error) {
-	if errors.Is(err, env.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	if errors.Is(err, env.ErrValidation) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	respondDomainError(c, err, env.ErrNotFound, env.ErrValidation)
 }
 
 func (h *EnvHandler) List(c *gin.Context) {
