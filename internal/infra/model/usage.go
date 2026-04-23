@@ -1,6 +1,5 @@
 package model
 
-// UsageRecord holds token consumption and cost for a single execution.
 type UsageRecord struct {
 	ID                  string  `json:"id" db:"id"`
 	ExecutionID         string  `json:"execution_id" db:"execution_id"`
@@ -14,7 +13,6 @@ type UsageRecord struct {
 	SyncedAt            int64   `json:"synced_at" db:"synced_at"`
 }
 
-// UnsyncedExecution is a lightweight query result used by UsageSyncer.
 type UnsyncedExecution struct {
 	ID      string
 	LogPath string

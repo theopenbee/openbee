@@ -15,7 +15,16 @@ func NewUsageStore(db *sql.DB) *UsageStore {
 	return &UsageStore{db: db}
 }
 
-// Insert writes a usage record. Uses INSERT OR IGNORE so duplicate execution_id calls are safe.
+const usageSelect = `SELECT id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at FROM bee_usage_records`
+
+func scanUsageRecord(scanner interface{ Scan(...any) error }) (model.UsageRecord, error) {
+	var r model.UsageRecord
+	err := scanner.Scan(&r.ID, &r.ExecutionID, &r.Model, &r.InputTokens, &r.OutputTokens,
+		&r.CacheCreationTokens, &r.CacheReadTokens, &r.TotalTokens, &r.CostUSD, &r.SyncedAt)
+	return r, err
+}
+
+// INSERT OR IGNORE makes duplicate execution_id calls safe (idempotent).
 func (s *UsageStore) Insert(record *model.UsageRecord) error {
 	_, err := s.db.Exec(
 		`INSERT OR IGNORE INTO bee_usage_records
@@ -32,14 +41,9 @@ func (s *UsageStore) Insert(record *model.UsageRecord) error {
 	return nil
 }
 
-// GetByExecutionID returns the usage record for the given execution, or nil if not found.
 func (s *UsageStore) GetByExecutionID(executionID string) (*model.UsageRecord, error) {
-	row := s.db.QueryRow(
-		`SELECT id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at
-         FROM bee_usage_records WHERE execution_id = ?`, executionID)
-	var r model.UsageRecord
-	err := row.Scan(&r.ID, &r.ExecutionID, &r.Model, &r.InputTokens, &r.OutputTokens,
-		&r.CacheCreationTokens, &r.CacheReadTokens, &r.TotalTokens, &r.CostUSD, &r.SyncedAt)
+	row := s.db.QueryRow(usageSelect+` WHERE execution_id = ?`, executionID)
+	r, err := scanUsageRecord(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -49,22 +53,21 @@ func (s *UsageStore) GetByExecutionID(executionID string) (*model.UsageRecord, e
 	return &r, nil
 }
 
-// ListUnsynced returns up to limit completed/failed executions that have no usage record.
 func (s *UsageStore) ListUnsynced(limit int) ([]model.UnsyncedExecution, error) {
 	rows, err := s.db.Query(
 		`SELECT e.id, e.log_path
          FROM bee_executions e
          LEFT JOIN bee_usage_records u ON e.id = u.execution_id
-         WHERE e.status IN ('completed', 'failed')
+         WHERE e.status IN (?, ?)
            AND e.log_path != ''
            AND u.id IS NULL
-         LIMIT ?`, limit)
+         LIMIT ?`, model.ExecStatusCompleted, model.ExecStatusFailed, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list unsynced executions: %w", err)
 	}
 	defer rows.Close()
 
-	var result []model.UnsyncedExecution
+	result := make([]model.UnsyncedExecution, 0, limit)
 	for rows.Next() {
 		var e model.UnsyncedExecution
 		if err := rows.Scan(&e.ID, &e.LogPath); err != nil {

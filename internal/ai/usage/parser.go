@@ -7,7 +7,6 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// UsageData holds the parsed token counts and cost from an execution log.
 type UsageData struct {
 	Model               string
 	InputTokens         int64

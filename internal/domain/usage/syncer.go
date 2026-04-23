@@ -50,8 +50,12 @@ func (s *UsageSyncer) syncBatch() bool {
 		return false
 	}
 
+	now := time.Now().UnixMilli()
 	for _, exec := range execs {
-		data, _ := usageparser.ParseUsageFromLog(exec.LogPath)
+		data, err := usageparser.ParseUsageFromLog(exec.LogPath)
+		if err != nil {
+			log.Error("parse usage log", zap.String("executionID", exec.ID), zap.Error(err))
+		}
 		record := &model.UsageRecord{
 			ID:                  uuid.New().String(),
 			ExecutionID:         exec.ID,
@@ -62,7 +66,7 @@ func (s *UsageSyncer) syncBatch() bool {
 			CacheReadTokens:     data.CacheReadTokens,
 			TotalTokens:         data.TotalTokens,
 			CostUSD:             data.CostUSD,
-			SyncedAt:            time.Now().UnixMilli(),
+			SyncedAt:            now,
 		}
 		if err := s.store.Insert(record); err != nil {
 			log.Error("insert usage record", zap.String("executionID", exec.ID), zap.Error(err))
