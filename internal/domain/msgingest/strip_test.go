@@ -16,11 +16,12 @@ func buildREs(platform, name string) map[string]*regexp.Regexp {
 
 func TestStripBotMention(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		platform string
-		botName  string
-		want     string
+		name        string
+		content     string
+		platform    string // message platform passed to stripBotMention
+		regPlatform string // platform key used when building the regex map; defaults to platform
+		botName     string
+		want        string
 	}{
 		{
 			name:     "prefix mention stripped",
@@ -72,11 +73,12 @@ func TestStripBotMention(t *testing.T) {
 			want:     "@机器人 /clear",
 		},
 		{
-			name:     "unknown platform, no-op",
-			content:  "@机器人 /clear",
-			platform: "other",
-			botName:  "机器人",
-			want:     "@机器人 /clear",
+			name:        "unknown platform, no-op",
+			content:     "@机器人 /clear",
+			platform:    "other",
+			regPlatform: "test", // bot registered for "test"; message from "other" → no-op
+			botName:     "机器人",
+			want:         "@机器人 /clear",
 		},
 		{
 			name:     "case sensitive no match",
@@ -139,7 +141,11 @@ func TestStripBotMention(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := buildREs(tt.platform, tt.botName)
+			regPlatform := tt.regPlatform
+			if regPlatform == "" {
+				regPlatform = tt.platform
+			}
+			res := buildREs(regPlatform, tt.botName)
 			got := stripBotMention(tt.content, tt.platform, res)
 			if got != tt.want {
 				t.Errorf("stripBotMention(%q, %q) = %q, want %q", tt.content, tt.platform, got, tt.want)
