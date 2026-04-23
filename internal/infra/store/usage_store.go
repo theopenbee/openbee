@@ -15,11 +15,11 @@ func NewUsageStore(db *sql.DB) *UsageStore {
 	return &UsageStore{db: db}
 }
 
-const usageSelect = `SELECT id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at FROM bee_usage_records`
+const usageSelect = `SELECT id, execution_id, engine, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at FROM bee_usage_records`
 
 func scanUsageRecord(scanner interface{ Scan(...any) error }) (model.UsageRecord, error) {
 	var r model.UsageRecord
-	err := scanner.Scan(&r.ID, &r.ExecutionID, &r.Model, &r.InputTokens, &r.OutputTokens,
+	err := scanner.Scan(&r.ID, &r.ExecutionID, &r.Engine, &r.Model, &r.InputTokens, &r.OutputTokens,
 		&r.CacheCreationTokens, &r.CacheReadTokens, &r.TotalTokens, &r.CostUSD, &r.SyncedAt)
 	return r, err
 }
@@ -27,9 +27,9 @@ func scanUsageRecord(scanner interface{ Scan(...any) error }) (model.UsageRecord
 func (s *UsageStore) Insert(record *model.UsageRecord) error {
 	_, err := s.db.Exec(
 		`INSERT OR IGNORE INTO bee_usage_records
-         (id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		record.ID, record.ExecutionID, record.Model,
+         (id, execution_id, engine, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		record.ID, record.ExecutionID, record.Engine, record.Model,
 		record.InputTokens, record.OutputTokens,
 		record.CacheCreationTokens, record.CacheReadTokens,
 		record.TotalTokens, record.CostUSD, record.SyncedAt,
@@ -49,15 +49,15 @@ func (s *UsageStore) InsertBatch(records []*model.UsageRecord) error {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO bee_usage_records
-         (id, execution_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+         (id, execution_id, engine, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_tokens, cost_usd, synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("prepare insert: %w", err)
 	}
 	defer stmt.Close()
 	for _, r := range records {
-		if _, err := stmt.Exec(r.ID, r.ExecutionID, r.Model,
+		if _, err := stmt.Exec(r.ID, r.ExecutionID, r.Engine, r.Model,
 			r.InputTokens, r.OutputTokens,
 			r.CacheCreationTokens, r.CacheReadTokens,
 			r.TotalTokens, r.CostUSD, r.SyncedAt); err != nil {

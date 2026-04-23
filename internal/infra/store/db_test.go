@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func TestInitDB(t *testing.T) {
@@ -258,6 +259,43 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("expected 2 per-engine rows after migration, got %d", count)
+	}
+}
+
+func TestUsageStore_InsertBatch_Engine(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`INSERT INTO bee_executions (id, session_id, status, log_path, started_at, completed_at) VALUES ('exec-1','sess-1','completed','/tmp/x.log',1,2)`)
+	if err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
+
+	store := NewUsageStore(db)
+	record := &model.UsageRecord{
+		ID:          "rec-1",
+		ExecutionID: "exec-1",
+		Engine:      "claude",
+		Model:       "claude-sonnet-4-6",
+		TotalTokens: 100,
+		SyncedAt:    1000,
+	}
+	if err := store.InsertBatch([]*model.UsageRecord{record}); err != nil {
+		t.Fatalf("InsertBatch: %v", err)
+	}
+
+	got, err := store.GetByExecutionID("exec-1")
+	if err != nil {
+		t.Fatalf("GetByExecutionID: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected record, got nil")
+	}
+	if got.Engine != "claude" {
+		t.Errorf("Engine: want %q, got %q", "claude", got.Engine)
 	}
 }
 
