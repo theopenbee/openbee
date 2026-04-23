@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -58,8 +59,8 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageI
 
 	// Truncate to avoid exceeding platform limits; use rune slice to avoid splitting multi-byte UTF-8 characters.
 	const maxRunes = 500
-	runes := []rune(content)
-	if len(runes) > maxRunes {
+	if utf8.RuneCountInString(content) > maxRunes {
+		runes := []rune(content)
 		content = string(runes[:maxRunes-1]) + "…"
 	}
 
