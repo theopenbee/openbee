@@ -31,7 +31,7 @@ var log = logger.With(zap.String("component", "command"))
 // WorkerRepository is the subset of WorkerStore needed by EngineCommandHandler.
 type WorkerRepository interface {
 	GetByName(name string) (model.Worker, error)
-	Update(w model.Worker) (model.Worker, error)
+	UpdateEngine(id, engine string) error
 }
 
 // SystemConfigWriter is the subset of SystemConfigStore needed by EngineCommandHandler.
@@ -195,8 +195,7 @@ func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo p
 		}
 		return
 	}
-	w.Engine = engineName
-	if _, err := h.workers.Update(w); err != nil {
+	if err := h.workers.UpdateEngine(w.ID, engineName); err != nil {
 		h.reply(ctx, replyTo, m.SwitchFailed)
 		return
 	}

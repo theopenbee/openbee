@@ -69,6 +69,15 @@ func (s *WorkerStore) ListByName(name string) ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
+func (s *WorkerStore) ExistsByName(name, excludeID string) (bool, error) {
+	var exists int
+	err := s.db.QueryRow(
+		`SELECT EXISTS(SELECT 1 FROM bee_workers WHERE LOWER(name) = LOWER(?) AND id != ?)`,
+		name, excludeID,
+	).Scan(&exists)
+	return exists == 1, err
+}
+
 // When names collide, the earliest-created worker is returned.
 func (s *WorkerStore) GetByName(name string) (model.Worker, error) {
 	row := s.db.QueryRow(
@@ -222,6 +231,14 @@ func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 func (s *WorkerStore) UpdateStatus(id string, status model.WorkerStatus) error {
 	_, err := s.db.Exec(`UPDATE bee_workers SET status=?, updated_at=? WHERE id=?`, status, time.Now().UnixMilli(), id)
 	return err
+}
+
+func (s *WorkerStore) UpdateEngine(id, engine string) error {
+	_, err := s.db.Exec(`UPDATE bee_workers SET engine=?, updated_at=? WHERE id=?`, engine, time.Now().UnixMilli(), id)
+	if err != nil {
+		return fmt.Errorf("update worker engine: %w", err)
+	}
+	return nil
 }
 
 func (s *WorkerStore) Delete(id string) error {

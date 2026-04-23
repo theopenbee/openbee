@@ -2,9 +2,13 @@ package worker
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +37,7 @@ type Manager struct {
 	engines        map[string]ai.EngineAdapter
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
+	botNamesLower  []string
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -47,6 +52,11 @@ func NewManager(
 	engineCfg *enginecfg.Store,
 	envService *env.Service,
 ) *Manager {
+	rawBotNames := bc.Platforms.BotNames()
+	botNames := make([]string, len(rawBotNames))
+	for i, n := range rawBotNames {
+		botNames[i] = strings.ToLower(strings.TrimSpace(n))
+	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.MCP.TokenSecret,
@@ -57,6 +67,7 @@ func NewManager(
 		engines:         engines,
 		engineCfg:       engineCfg,
 		envService:      envService,
+		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
@@ -152,7 +163,58 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 	}
 }
 
+func (m *Manager) validateWorkerName(name, excludeID string) error {
+	if name == "" {
+		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
+	}
+	lower := strings.ToLower(name)
+	if slices.Contains(m.botNamesLower, lower) {
+		return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
+	}
+	exists, err := m.workerStore.ExistsByName(name, excludeID)
+	if err != nil {
+		return fmt.Errorf("check worker name: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("worker name %q is already taken: %w", name, ErrValidation)
+	}
+	return nil
+}
+
+func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
+	if err := p.Validate(m); err != nil {
+		return model.Worker{}, err
+	}
+	w, err := m.workerStore.GetByID(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Worker{}, ErrNotFound
+		}
+		return model.Worker{}, fmt.Errorf("get worker: %w", err)
+	}
+	if p.Name != nil {
+		trimmed := strings.TrimSpace(*p.Name)
+		if trimmed == w.Name {
+			p.Name = nil
+		} else {
+			p.Name = &trimmed
+			if err := m.validateWorkerName(trimmed, id); err != nil {
+				return model.Worker{}, err
+			}
+		}
+	}
+	if !p.HasChanges() {
+		return w, nil
+	}
+	p.ApplyTo(&w)
+	return m.workerStore.Update(w)
+}
+
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
+	p.Name = strings.TrimSpace(p.Name)
+	if err := m.validateWorkerName(p.Name, ""); err != nil {
+		return model.Worker{}, err
+	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
 		p.WorkDir = filepath.Join(m.workerBaseDir, id)

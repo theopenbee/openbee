@@ -158,6 +158,22 @@ type PlatformsConfig struct {
 	Weixin   WeixinConfig   `yaml:"weixin"`
 }
 
+func (p PlatformsConfig) BotNames() []string {
+	var names []string
+	for _, n := range []string{
+		p.Feishu.BotName,
+		p.DingTalk.BotName,
+		p.WeCom.BotName,
+		p.Telegram.BotName,
+		p.Weixin.BotName,
+	} {
+		if n != "" {
+			names = append(names, n)
+		}
+	}
+	return names
+}
+
 type FeederConfig struct {
 	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
 }

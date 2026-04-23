@@ -3,9 +3,12 @@
 ## [Unreleased]
 
 ### Added
-- Direct dispatch now supports "space + worker name + space" format in addition to @mention
 - Add `/stop` command support
 - Pass more IM platform message data to AI so that AI can leverage IM platform CLI to implement richer features
+- Worker name must be globally unique and cannot conflict with any bot name
+
+### Changed
+- Messages starting with `@workerName` + space/newline or `workerName` + space/newline are now directly dispatched to the corresponding worker
 
 ### Fixed
 - Fix DingTalk reaction 500 error caused by sending English emotion text ("🤔 Thinking...") instead of the required Chinese text ("🤔思考中"); also downgrade emoji failure log level from Error to Warn since it is non-blocking.
