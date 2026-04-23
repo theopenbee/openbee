@@ -167,7 +167,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 	if name == "" {
 		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
 	}
-	lower := strings.ToLower(name)
+	lower := strings.ToLower(strings.TrimSpace(name))
 	if slices.Contains(m.botNames, lower) {
 		return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 	}
@@ -194,8 +194,10 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 	}
 	if p.Name != nil {
 		trimmed := strings.TrimSpace(*p.Name)
-		p.Name = &trimmed
-		if trimmed != w.Name {
+		if trimmed == w.Name {
+			p.Name = nil
+		} else {
+			p.Name = &trimmed
 			if err := m.validateWorkerName(trimmed, id); err != nil {
 				return model.Worker{}, err
 			}
