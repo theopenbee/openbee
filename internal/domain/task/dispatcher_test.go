@@ -1424,3 +1424,79 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 		t.Errorf("session context must not be stored under system-default engine 'kimi', got %q", got)
 	}
 }
+
+func TestTaskDispatcher_CancelWhileWaitingForResult_NotifiesCancel(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-poll-cancel"},
+	}
+	eq := &mockExecutionQuerier{
+		result: model.WorkerExecution{ID: "exec-poll-cancel", Status: model.ExecStatusRunning},
+	}
+	fn := &mockFailureNotifier{}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "long task")
+	t1.TaskID = "task-poll-cancel"
+	t1.MessageID = "msg-poll-cancel"
+	in <- t1
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	if err := d.CancelTask(context.Background(), "task-poll-cancel"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	if !fn.waitForCancelCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskCancelled to be called, but it was not")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	got := fn.cancelCalls[0]
+	if got.messageID != "msg-poll-cancel" {
+		t.Errorf("expected messageID=msg-poll-cancel, got %q", got.messageID)
+	}
+	if got.workerName != "w1" {
+		t.Errorf("expected workerName=w1, got %q", got.workerName)
+	}
+}
+
+func TestTaskDispatcher_CancelDuringResolve_NotifiesCancel(t *testing.T) {
+	var cancelCount int64
+	mgr := &cancelTrackingExecManager{cancelCount: &cancelCount}
+	eq := &mockExecutionQuerier{
+		result: model.WorkerExecution{ID: "exec-tracked", Status: model.ExecStatusCompleted},
+	}
+	fn := &mockFailureNotifier{}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "blocked task")
+	t1.TaskID = "task-resolve-cancel"
+	t1.MessageID = "msg-resolve-cancel"
+	in <- t1
+
+	time.Sleep(50 * time.Millisecond)
+
+	if err := d.CancelTask(context.Background(), "task-resolve-cancel"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	if !fn.waitForCancelCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskCancelled to be called, but it was not")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	got := fn.cancelCalls[0]
+	if got.messageID != "msg-resolve-cancel" {
+		t.Errorf("expected messageID=msg-resolve-cancel, got %q", got.messageID)
+	}
+}
