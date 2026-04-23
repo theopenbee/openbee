@@ -411,7 +411,7 @@ func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
 	st := newMock()
 	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
-		msgingest.WithBotNames([]string{"OpenBee"}),
+		msgingest.WithPlatformBotNames(map[string]string{"test": "OpenBee"}),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -442,7 +442,7 @@ func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
 func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
 	st := newMock()
 	g := msgingest.New(st, 150*time.Millisecond, noopHandler{},
-		msgingest.WithBotNames([]string{"Bot"}),
+		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
