@@ -110,7 +110,6 @@ type ClaimedMessage struct {
 	SessionKey string
 	Platform   string
 	Content    string
-	Raw        string
 }
 
 // ClaimBatch atomically selects up to batchSize 'received' messages — at most one per
@@ -141,7 +140,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, raw
+		`SELECT id, session_key, platform, content
 		 FROM bee_platform_messages m
 		 WHERE status = ?
 		   AND session_key NOT IN (
@@ -161,7 +160,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	var msgs []ClaimedMessage
 	for rows.Next() {
 		var m ClaimedMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Raw); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan: %w", err)
 		}

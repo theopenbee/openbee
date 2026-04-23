@@ -713,8 +713,7 @@ func ExtractContext(raw string) string {
 	})
 }
 
-// User mentions are intentionally left as opaque keys; only the bot's key is
-// resolved so that the downstream stripBotMention pass can remove it cleanly.
+// User mentions are intentionally left as opaque keys; only the bot's own key is resolved.
 func resolveMentions(text string, mentions []*larkim.MentionEvent, botName string) string {
 	if len(mentions) == 0 || botName == "" {
 		return text

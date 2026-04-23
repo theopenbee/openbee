@@ -78,8 +78,8 @@ func WithPlatformBotNames(names map[string]string) Option {
 	return func(g *Gateway) { g.botNameREs = res }
 }
 
-func stripBotMention(content, platform string, res map[string]*regexp.Regexp) string {
-	re, ok := res[platform]
+func (g *Gateway) stripBotMention(content, platform string) string {
+	re, ok := g.botNameREs[platform]
 	if !ok || !strings.Contains(content, "@") {
 		return content
 	}
@@ -135,7 +135,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
-	stripped := stripBotMention(msg.Content, msg.Platform, g.botNameREs)
+	stripped := g.stripBotMention(msg.Content, msg.Platform)
 	g.mu.Lock()
 
 	if msg.PlatformMessageID != "" {

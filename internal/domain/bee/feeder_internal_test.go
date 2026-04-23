@@ -77,7 +77,7 @@ func TestBuildPrompt_NeverHasPlatformContext(t *testing.T) {
 		return `{"testplatform2":{"sender":{"open_id":"ou_abc"}}}`
 	})
 	msgs := []store.ClaimedMessage{
-		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:oc_xyz:ou_abc", Content: "hello", Raw: "any-raw"},
+		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:oc_xyz:ou_abc", Content: "hello"},
 	}
 	got := buildPrompt(msgs, "")
 

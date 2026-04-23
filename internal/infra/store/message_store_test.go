@@ -107,37 +107,6 @@ func TestMessageStore_CreateBatch_Empty(t *testing.T) {
 	}
 }
 
-func TestMessageStore_CreateBatch_RawRoundtrip(t *testing.T) {
-	s := setupMessageStore(t)
-	ctx := context.Background()
-
-	msg := BatchMsg{
-		ID: "raw-1", SessionKey: "s1", Platform: "feishu",
-		Content: "hello", Raw: `{"event":{"sender":{"sender_id":{"open_id":"ou_abc"}}}}`,
-		PlatformMsgID: "pmsg-raw-1",
-		MessageTime: time.Now().UnixMilli(), Status: "received", MergedInto: "",
-	}
-
-	inserted, err := s.CreateBatch(ctx, []BatchMsg{msg})
-	if err != nil {
-		t.Fatalf("CreateBatch error: %v", err)
-	}
-	if inserted != 1 {
-		t.Fatalf("expected 1 row, got %d", inserted)
-	}
-
-	claimed, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch error: %v", err)
-	}
-	if len(claimed) != 1 {
-		t.Fatalf("expected 1 claimed message, got %d", len(claimed))
-	}
-	if claimed[0].Raw != msg.Raw {
-		t.Errorf("Raw mismatch\nwant: %s\ngot:  %s", msg.Raw, claimed[0].Raw)
-	}
-}
-
 func setupMessageStore(t *testing.T) *MessageStore {
 	t.Helper()
 	db, err := InitDB(t.TempDir() + "/test.db")

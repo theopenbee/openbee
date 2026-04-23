@@ -5,13 +5,10 @@ import (
 	"testing"
 )
 
-func buildREs(platform, name string) map[string]*regexp.Regexp {
-	if name == "" {
-		return nil
-	}
-	return map[string]*regexp.Regexp{
-		platform: regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`),
-	}
+func buildREs(plat, name string) map[string]*regexp.Regexp {
+	g := &Gateway{}
+	WithPlatformBotNames(map[string]string{plat: name})(g)
+	return g.botNameREs
 }
 
 func TestStripBotMention(t *testing.T) {
@@ -145,8 +142,8 @@ func TestStripBotMention(t *testing.T) {
 			if regPlatform == "" {
 				regPlatform = tt.platform
 			}
-			res := buildREs(regPlatform, tt.botName)
-			got := stripBotMention(tt.content, tt.platform, res)
+			g := &Gateway{botNameREs: buildREs(regPlatform, tt.botName)}
+			got := g.stripBotMention(tt.content, tt.platform)
 			if got != tt.want {
 				t.Errorf("stripBotMention(%q, %q) = %q, want %q", tt.content, tt.platform, got, tt.want)
 			}
