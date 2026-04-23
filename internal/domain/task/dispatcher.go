@@ -48,11 +48,10 @@ type TaskStore interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
 
-// FailureNotifier sends failure notifications to users when a worker execution
-// fails at the system level (e.g. API error, content filtering) and the worker
-// itself had no chance to call send_message.
+// FailureNotifier sends failure and cancellation notifications to users.
 type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
+	NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.

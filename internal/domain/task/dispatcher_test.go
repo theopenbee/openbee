@@ -151,13 +151,19 @@ func (s *mockSessionStore) deletedRef(index int) (mockSessionRef, bool) {
 }
 
 type mockFailureNotifier struct {
-	mu    sync.Mutex
-	calls []failureCall
+	mu          sync.Mutex
+	calls       []failureCall
+	cancelCalls []cancelCall
 }
 
 type failureCall struct {
 	messageID string
 	info      model.FailureInfo
+}
+
+type cancelCall struct {
+	messageID  string
+	workerName string
 }
 
 func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
@@ -167,11 +173,32 @@ func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID str
 	return nil
 }
 
+func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, messageID string, workerName string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: messageID, workerName: workerName})
+	return nil
+}
+
 func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		n.mu.Lock()
 		count := len(n.calls)
+		n.mu.Unlock()
+		if count > 0 {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func (n *mockFailureNotifier) waitForCancelCall(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n.mu.Lock()
+		count := len(n.cancelCalls)
 		n.mu.Unlock()
 		if count > 0 {
 			return true

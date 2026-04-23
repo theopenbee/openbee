@@ -67,3 +67,7 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 	}
 	return nil
 }
+
+func (n *PlatformFailureNotifier) NotifyTaskCancelled(_ context.Context, _ string, _ string) error {
+	return nil
+}
