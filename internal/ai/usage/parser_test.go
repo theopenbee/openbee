@@ -39,6 +39,7 @@ func TestParseUsage_Claude_Success(t *testing.T) {
 	assert.Equal(t, int64(103792), data.CacheReadTokens)
 	assert.Equal(t, int64(8+2849+14984+103792), data.TotalTokens)
 	assert.InDelta(t, 0.35289275, data.CostUSD, 0.000001)
+	assert.Equal(t, "claude", data.Engine)
 }
 
 func TestParseUsage_Claude_NoResultEvent(t *testing.T) {
@@ -101,6 +102,7 @@ func TestParseUsage_Codex_WithSessionFile(t *testing.T) {
 	assert.Equal(t, int64(200), data.CacheReadTokens)
 	assert.Equal(t, int64(500), data.OutputTokens)
 	assert.Equal(t, int64(1700), data.TotalTokens)
+	assert.Equal(t, "codex", data.Engine)
 }
 
 // --- Pi ---
@@ -149,6 +151,7 @@ func TestParseUsage_Pi_ReadsSessionFile(t *testing.T) {
 	assert.Equal(t, int64(10), data.CacheReadTokens)
 	assert.Equal(t, int64(180), data.TotalTokens)
 	assert.InDelta(t, 0.05, data.CostUSD, 0.0001)
+	assert.Equal(t, "pi", data.Engine)
 }
 
 func TestParseUsage_Pi_OutsideTimeWindow(t *testing.T) {

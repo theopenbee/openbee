@@ -10,6 +10,7 @@ import (
 )
 
 type UsageData struct {
+	Engine              string
 	Model               string
 	InputTokens         int64
 	OutputTokens        int64
@@ -79,12 +80,27 @@ func ParseUsage(ctx ParseContext) (*UsageData, error) {
 		if _, err := f.Seek(0, io.SeekStart); err != nil {
 			return &UsageData{}, nil
 		}
-		return parseClaudeUsageFromReader(f)
+		data, err := parseClaudeUsageFromReader(f)
+		if err != nil {
+			return data, err
+		}
+		data.Engine = "claude"
+		return data, nil
 	case enginePi:
 		sessionFile := filepath.Join(ctx.PiSessionsDir, ctx.SessionID+".jsonl")
-		return parsePiUsage(sessionFile, ctx.StartedAt, ctx.CompletedAt)
+		data, err := parsePiUsage(sessionFile, ctx.StartedAt, ctx.CompletedAt)
+		if err != nil {
+			return data, err
+		}
+		data.Engine = "pi"
+		return data, nil
 	case engineCodex:
-		return parseCodexUsage(ctx.CodexStoreDir, ctx.CodexSessionsDir, ctx.SessionID, ctx.StartedAt, ctx.CompletedAt)
+		data, err := parseCodexUsage(ctx.CodexStoreDir, ctx.CodexSessionsDir, ctx.SessionID, ctx.StartedAt, ctx.CompletedAt)
+		if err != nil {
+			return data, err
+		}
+		data.Engine = "codex"
+		return data, nil
 	default:
 		return &UsageData{}, nil
 	}
