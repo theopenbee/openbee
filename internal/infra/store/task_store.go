@@ -283,7 +283,7 @@ func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, statu
 // CancelTask sets a task status to cancelled.
 func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ?`,
+		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'running')`,
 		time.Now().UnixMilli(), taskID)
 	return err
 }

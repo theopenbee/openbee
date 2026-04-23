@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Fix a bug where cancelled tasks were still being executed
+
 ## [0.0.31] - 2026-04-22
 
 ### Added

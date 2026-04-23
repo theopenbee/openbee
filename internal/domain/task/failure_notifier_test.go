@@ -154,6 +154,43 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 	}
 }
 
+func TestPlatformFailureNotifier_CancelSuccess(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-cancel-1", "sess-cancel", "test", "cancel me", `{"raw":true}`, "", 0)
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	err = notifier.NotifyTaskCancelled(ctx, "msg-cancel-1", "my-worker")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 message sent, got %d", len(sender.sent))
+	}
+	content := sender.sent[0].Content
+	if !strings.Contains(content, "Task was cancelled") {
+		t.Errorf("expected cancel prefix in content, got: %s", content)
+	}
+	if !strings.Contains(content, "my-worker") {
+		t.Errorf("expected worker name in content, got: %s", content)
+	}
+	if strings.Contains(content, "Task execution failed") {
+		t.Errorf("cancel notification must not contain failure prefix, got: %s", content)
+	}
+	if strings.Contains(content, "Error:") {
+		t.Errorf("cancel notification must not contain error line, got: %s", content)
+	}
+	if sender.sent[0].ReplyTo.Platform != "test" {
+		t.Errorf("expected platform=test, got %s", sender.sent[0].ReplyTo.Platform)
+	}
+}
+
 func TestPlatformFailureNotifier_StructuredFormat(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()

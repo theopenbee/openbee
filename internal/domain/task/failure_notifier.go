@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -25,16 +26,6 @@ func NewPlatformFailureNotifier(msgStore *store.MessageStore, senders map[string
 }
 
 func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error {
-	stored, err := n.msgStore.GetByID(ctx, messageID)
-	if err != nil {
-		return fmt.Errorf("get message for failure notification: %w", err)
-	}
-
-	sender, ok := n.senders[stored.Platform]
-	if !ok {
-		return fmt.Errorf("no sender for platform %q", stored.Platform)
-	}
-
 	m := i18n.M.Runtime.FailureNotifier
 	var workerLine string
 	if info.WorkerName != "" {
@@ -43,11 +34,33 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		workerLine = m.ParseFailed
 	}
 	content := m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
-	// Truncate very long error messages to avoid exceeding platform limits.
-	// Use rune slice to avoid splitting multi-byte UTF-8 characters.
+	return n.sendNotification(ctx, messageID, content)
+}
+
+func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error {
+	m := i18n.M.Runtime.FailureNotifier
+	content := m.TaskCancelled
+	if workerName != "" {
+		content += fmt.Sprintf(m.WorkerLine, workerName)
+	}
+	return n.sendNotification(ctx, messageID, content)
+}
+
+func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageID, content string) error {
+	stored, err := n.msgStore.GetByID(ctx, messageID)
+	if err != nil {
+		return fmt.Errorf("get message for notification: %w", err)
+	}
+
+	sender, ok := n.senders[stored.Platform]
+	if !ok {
+		return fmt.Errorf("no sender for platform %q", stored.Platform)
+	}
+
+	// Truncate to avoid exceeding platform limits; use rune slice to avoid splitting multi-byte UTF-8 characters.
 	const maxRunes = 500
-	runes := []rune(content)
-	if len(runes) > maxRunes {
+	if utf8.RuneCountInString(content) > maxRunes {
+		runes := []rune(content)
 		content = string(runes[:maxRunes-1]) + "…"
 	}
 
@@ -62,8 +75,8 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		InboundMsgID: messageID,
 	}
 	if err := sender.Send(ctx, outbound); err != nil {
-		log.Error("send failure notification", zap.String("messageID", messageID), zap.Error(err))
-		return fmt.Errorf("send failure notification: %w", err)
+		log.Error("send notification", zap.String("messageID", messageID), zap.Error(err))
+		return fmt.Errorf("send notification: %w", err)
 	}
 	return nil
 }

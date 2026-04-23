@@ -48,11 +48,10 @@ type TaskStore interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
 
-// FailureNotifier sends failure notifications to users when a worker execution
-// fails at the system level (e.g. API error, content filtering) and the worker
-// itself had no chance to call send_message.
+// FailureNotifier sends failure and cancellation notifications to users.
 type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
+	NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
@@ -303,6 +302,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	// just-launched worker before entering waitForResult.
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
+		d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
 		return
 	}
 
@@ -420,6 +420,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case <-ctx.Done():
 			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+			d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
 			return
 		}
 	}
@@ -447,6 +448,15 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, in
 	}
 	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, info); err != nil {
 		log.Error("notify task failure", zap.String("messageID", messageID), zap.Error(err))
+	}
+}
+
+func (d *TaskDispatcher) notifyCancel(ctx context.Context, messageID, workerName string) {
+	if d.failureNotifier == nil || messageID == "" {
+		return
+	}
+	if err := d.failureNotifier.NotifyTaskCancelled(ctx, messageID, workerName); err != nil {
+		log.Error("notify task cancel", zap.String("messageID", messageID), zap.Error(err))
 	}
 }
 

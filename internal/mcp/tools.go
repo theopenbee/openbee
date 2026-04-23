@@ -458,7 +458,7 @@ func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (a
 		}
 	}
 
-	if err := s.taskStore.CancelTask(ctx, params.TaskID); err != nil {
+	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
 		return nil, fmt.Errorf("cancel task: %w", err)
 	}
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil

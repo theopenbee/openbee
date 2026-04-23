@@ -151,13 +151,19 @@ func (s *mockSessionStore) deletedRef(index int) (mockSessionRef, bool) {
 }
 
 type mockFailureNotifier struct {
-	mu    sync.Mutex
-	calls []failureCall
+	mu          sync.Mutex
+	calls       []failureCall
+	cancelCalls []cancelCall
 }
 
 type failureCall struct {
 	messageID string
 	info      model.FailureInfo
+}
+
+type cancelCall struct {
+	messageID  string
+	workerName string
 }
 
 func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
@@ -167,11 +173,32 @@ func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID str
 	return nil
 }
 
+func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, messageID string, workerName string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: messageID, workerName: workerName})
+	return nil
+}
+
 func (n *mockFailureNotifier) waitForCall(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		n.mu.Lock()
 		count := len(n.calls)
+		n.mu.Unlock()
+		if count > 0 {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func (n *mockFailureNotifier) waitForCancelCall(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n.mu.Lock()
+		count := len(n.cancelCalls)
 		n.mu.Unlock()
 		if count > 0 {
 			return true
@@ -1395,5 +1422,81 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 	}
 	if got := ss.sessionID("sk-1", "w1", "kimi"); got != "" {
 		t.Errorf("session context must not be stored under system-default engine 'kimi', got %q", got)
+	}
+}
+
+func TestTaskDispatcher_CancelWhileWaitingForResult_NotifiesCancel(t *testing.T) {
+	mgr := &mockExecManager{
+		execResult: model.WorkerExecution{ID: "exec-poll-cancel"},
+	}
+	eq := &mockExecutionQuerier{
+		result: model.WorkerExecution{ID: "exec-poll-cancel", Status: model.ExecStatusRunning},
+	}
+	fn := &mockFailureNotifier{}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "long task")
+	t1.TaskID = "task-poll-cancel"
+	t1.MessageID = "msg-poll-cancel"
+	in <- t1
+
+	if !waitForExecCount(mgr, 1, 2*time.Second) {
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	if err := d.CancelTask(context.Background(), "task-poll-cancel"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	if !fn.waitForCancelCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskCancelled to be called, but it was not")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	got := fn.cancelCalls[0]
+	if got.messageID != "msg-poll-cancel" {
+		t.Errorf("expected messageID=msg-poll-cancel, got %q", got.messageID)
+	}
+	if got.workerName != "w1" {
+		t.Errorf("expected workerName=w1, got %q", got.workerName)
+	}
+}
+
+func TestTaskDispatcher_CancelDuringResolve_NotifiesCancel(t *testing.T) {
+	var cancelCount int64
+	mgr := &cancelTrackingExecManager{cancelCount: &cancelCount}
+	eq := &mockExecutionQuerier{
+		result: model.WorkerExecution{ID: "exec-tracked", Status: model.ExecStatusCompleted},
+	}
+	fn := &mockFailureNotifier{}
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "blocked task")
+	t1.TaskID = "task-resolve-cancel"
+	t1.MessageID = "msg-resolve-cancel"
+	in <- t1
+
+	time.Sleep(50 * time.Millisecond)
+
+	if err := d.CancelTask(context.Background(), "task-resolve-cancel"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	if !fn.waitForCancelCall(2 * time.Second) {
+		t.Fatal("expected NotifyTaskCancelled to be called, but it was not")
+	}
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	got := fn.cancelCalls[0]
+	if got.messageID != "msg-resolve-cancel" {
+		t.Errorf("expected messageID=msg-resolve-cancel, got %q", got.messageID)
 	}
 }

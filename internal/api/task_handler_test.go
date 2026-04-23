@@ -27,7 +27,7 @@ func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore, func()
 	taskStore := store.NewTaskStore(db)
 	workerStore := store.NewWorkerStore(db)
 
-	h := NewTaskHandler(taskStore, workerStore)
+	h := NewTaskHandler(taskStore, workerStore, taskStore)
 	router := gin.New()
 	api := router.Group("/api")
 	api.GET("/tasks", h.List)
@@ -113,7 +113,7 @@ func TestCancelTask_PendingSucceeds(t *testing.T) {
 	}
 }
 
-func TestCancelTask_NonPendingReturns409(t *testing.T) {
+func TestCancelTask_RunningSucceeds(t *testing.T) {
 	router, ts, cleanup := newTestServerWithTasks(t)
 	defer cleanup()
 
@@ -124,8 +124,34 @@ func TestCancelTask_NonPendingReturns409(t *testing.T) {
 		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
 		CreatedAt: now, UpdatedAt: now,
 	})
-	// Mark it running
 	ts.UpdateStatus(ctx, id, model.TaskStatusRunning)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/tasks/"+id, nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	task, _ := ts.GetByID(ctx, id)
+	if task.Status != model.TaskStatusCancelled {
+		t.Errorf("want cancelled, got %s", task.Status)
+	}
+}
+
+func TestCancelTask_CompletedReturns409(t *testing.T) {
+	router, ts, cleanup := newTestServerWithTasks(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+	id, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "x",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	ts.UpdateStatus(ctx, id, model.TaskStatusCompleted)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodDelete, "/api/tasks/"+id, nil)
