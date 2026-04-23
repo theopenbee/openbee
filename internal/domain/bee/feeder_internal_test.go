@@ -72,30 +72,16 @@ func TestBuildPrompt_MultipleMessages_WithHint(t *testing.T) {
 	}
 }
 
-func TestBuildPrompt_WithPlatformContext(t *testing.T) {
-	platform.RegisterExtractor("testplatform", func(_ string) string {
-		return `{"testplatform":{"sender":{"open_id":"ou_abc","union_id":"on_1"},"message":{"chat_id":"oc_xyz","chat_type":"group","message_id":"om_1"}}}`
+func TestBuildPrompt_NeverHasPlatformContext(t *testing.T) {
+	platform.RegisterExtractor("testplatform2", func(_ string) string {
+		return `{"testplatform2":{"sender":{"open_id":"ou_abc"}}}`
 	})
 	msgs := []store.ClaimedMessage{
-		{ID: "msg-1", Platform: "testplatform", SessionKey: "feishu:oc_xyz:ou_abc", Content: "hello", Raw: "any-raw"},
-	}
-	got := buildPrompt(msgs, "")
-
-	if !strings.Contains(got, `"platform_context"`) {
-		t.Errorf("expected platform_context in message_meta, got: %q", got)
-	}
-	if !strings.Contains(got, `"ou_abc"`) {
-		t.Errorf("expected open_id value in message_meta, got: %q", got)
-	}
-}
-
-func TestBuildPrompt_NoPlatformContext(t *testing.T) {
-	msgs := []store.ClaimedMessage{
-		{ID: "msg-1", Platform: "local", SessionKey: "local:default:local", Content: "hello", Raw: ""},
+		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:oc_xyz:ou_abc", Content: "hello", Raw: "any-raw"},
 	}
 	got := buildPrompt(msgs, "")
 
 	if strings.Contains(got, `"platform_context"`) {
-		t.Errorf("platform_context should be omitted when empty, got: %q", got)
+		t.Errorf("platform_context must never appear in bee message_meta, got: %q", got)
 	}
 }

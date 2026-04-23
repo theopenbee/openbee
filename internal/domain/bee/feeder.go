@@ -16,17 +16,15 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/platform"
 	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "feeder"))
 
 type messageMeta struct {
-	From            string          `json:"from"`
-	SessionKey      string          `json:"session_key"`
-	MessageID       string          `json:"message_id"`
-	PlatformContext json.RawMessage `json:"platform_context,omitempty"`
+	From       string `json:"from"`
+	SessionKey string `json:"session_key"`
+	MessageID  string `json:"message_id"`
 }
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
@@ -348,9 +346,6 @@ func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
 			From:       m.Platform,
 			SessionKey: m.SessionKey,
 			MessageID:  m.ID,
-		}
-		if ctx := platform.ExtractContext(m.Platform, m.Raw); ctx != "" {
-			meta.PlatformContext = json.RawMessage(ctx)
 		}
 		b, _ := json.Marshal(meta)
 		fmt.Fprintf(&sb, "<message_meta>%s</message_meta>\n<message_content>\n%s\n</message_content>\n", b, m.Content)
