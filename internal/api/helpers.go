@@ -1,24 +1,12 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
-
-func respondDomainError(c *gin.Context, err, errNotFound, errValidation error) {
-	switch {
-	case errors.Is(err, errNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case errors.Is(err, errValidation):
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-	}
-}
 
 func parsePagination(c *gin.Context) (page, pageSize, offset int) {
 	page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
