@@ -19,7 +19,6 @@ type UsageData struct {
 	CostUSD             float64
 }
 
-// ParseContext carries all information needed to extract token usage for one execution.
 type ParseContext struct {
 	LogPath          string
 	SessionID        string
@@ -64,7 +63,6 @@ func detectEngineFromReader(r io.Reader) engine {
 	return detected
 }
 
-// ParseUsage auto-detects the engine from the log and delegates to the appropriate parser.
 // Returns a zero-value UsageData (not an error) when data cannot be determined.
 func ParseUsage(ctx ParseContext) (*UsageData, error) {
 	f, err := os.Open(ctx.LogPath)

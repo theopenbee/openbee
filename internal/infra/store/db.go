@@ -387,6 +387,7 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
         );
         CREATE INDEX IF NOT EXISTS idx_usage_execution_id ON bee_usage_records(execution_id);
         CREATE INDEX IF NOT EXISTS idx_usage_synced_at ON bee_usage_records(synced_at);
+        CREATE INDEX IF NOT EXISTS idx_executions_status ON bee_executions(status);
     `,
 	},
 }

@@ -27,8 +27,6 @@ type piSessionEntry struct {
 	} `json:"message"`
 }
 
-// parsePiUsage reads the pi session JSONL file and sums token usage for assistant
-// messages whose timestamp falls within [startedAt, completedAt] (Unix ms).
 // Returns zero-value UsageData when the file is missing or no matching entries exist.
 func parsePiUsage(sessionFilePath string, startedAt, completedAt int64) (*UsageData, error) {
 	f, err := os.Open(sessionFilePath)

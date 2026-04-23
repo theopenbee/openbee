@@ -79,7 +79,6 @@ func subtractCodexUsage(cur, prev *codexTokenCount) *codexTokenCount {
 	}
 }
 
-// parseCodexSessionFile scans path for token usage events within [startedAt, completedAt].
 // threadID is verified inline to avoid a separate pre-scan pass; returns nil data if not found.
 func parseCodexSessionFile(path, threadID string, startedAt, completedAt int64) (*UsageData, error) {
 	f, err := os.Open(path)
@@ -200,22 +199,12 @@ func parseCodexUsage(codexStoreDir, codexSessionsDir, sessionID string, startedA
 	subMatches, _ := filepath.Glob(filepath.Join(codexSessionsDir, "*", "*.jsonl"))
 	matches = append(matches, subMatches...)
 
-	var combined UsageData
 	for _, sessionFile := range matches {
 		d, err := parseCodexSessionFile(sessionFile, threadID, startedAt, completedAt)
 		if err != nil || d == nil {
 			continue
 		}
-		combined.InputTokens += d.InputTokens
-		combined.CacheReadTokens += d.CacheReadTokens
-		combined.CacheCreationTokens += d.CacheCreationTokens
-		combined.OutputTokens += d.OutputTokens
-		combined.TotalTokens += d.TotalTokens
-		combined.CostUSD += d.CostUSD
-		if d.Model != "" {
-			combined.Model = d.Model
-		}
-		break
+		return d, nil
 	}
-	return &combined, nil
+	return &UsageData{}, nil
 }
