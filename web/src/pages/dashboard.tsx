@@ -142,7 +142,7 @@ export function Dashboard() {
               ))}
               {/* Total Tokens — 6th item with hover tooltip */}
               <div
-                className="pl-6 border-l border-border/70 sm:pl-8 sm:border-l sm:border-border/70"
+                className="pl-6 border-l border-border/70 sm:pl-8 sm:border-l sm:border-border/70 pb-6 lg:pb-0"
                 aria-label={t("dashboard.totalTokens")}
               >
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
