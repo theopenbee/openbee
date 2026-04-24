@@ -369,6 +369,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
         DROP TABLE bee_memories;
     `,
 	},
+	{
+		version: 41,
+		name:    "add_engine_extra_args_to_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_extra_args TEXT NOT NULL DEFAULT '{}'`,
+	},
 }
 
 type whereBuilder struct {
