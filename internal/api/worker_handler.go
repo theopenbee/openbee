@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,12 +16,13 @@ func respondWorkerError(c *gin.Context, err error) {
 }
 
 type createWorkerRequest struct {
-	Name             string `json:"name" binding:"required"`
-	Engine           string `json:"engine"`
-	Description      string `json:"description"`
-	Constraints      string `json:"constraints"`
-	WorkDir          string `json:"work_dir"`
-	PermissionScopes string `json:"permission_scopes"`
+	Name             string            `json:"name" binding:"required"`
+	Engine           string            `json:"engine"`
+	Description      string            `json:"description"`
+	Constraints      string            `json:"constraints"`
+	WorkDir          string            `json:"work_dir"`
+	PermissionScopes string            `json:"permission_scopes"`
+	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string
 }
 
 type WorkerHandler struct {
@@ -51,6 +53,14 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		return
 	}
 
+	var engineExtraArgsJSON string
+	if len(req.EngineExtraArgs) > 0 {
+		b, _ := json.Marshal(req.EngineExtraArgs)
+		engineExtraArgsJSON = string(b)
+	} else {
+		engineExtraArgsJSON = "{}"
+	}
+
 	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             req.Name,
 		Engine:           req.Engine,
@@ -58,6 +68,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		Constraints:      req.Constraints,
 		WorkDir:          req.WorkDir,
 		PermissionScopes: req.PermissionScopes,
+		EngineExtraArgs:  engineExtraArgsJSON,
 	})
 	if err != nil {
 		respondWorkerError(c, err)
