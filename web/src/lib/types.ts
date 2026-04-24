@@ -8,6 +8,7 @@ export interface Worker {
   constraints: string
   work_dir: string
   engine: Engine
+  engine_extra_args?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
@@ -162,3 +163,6 @@ export interface AppConfig {
   language: string
   enabled_engines: Engine[]
 }
+
+export const SYSTEM_CONFIG_KEY_ENGINE_EXTRA_ARGS_GLOBAL = "engine_extra_args_global"
+export const SYSTEM_CONFIG_KEY_ENGINE_EXTRA_ARGS_BEE    = "engine_extra_args_bee"
