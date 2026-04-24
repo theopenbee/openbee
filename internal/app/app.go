@@ -35,6 +35,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/tokenstat"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
@@ -174,6 +175,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -185,6 +187,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { feeder.Run(ctx) },
 		func(ctx context.Context) { sched.Run(ctx) },
 		func(ctx context.Context) { disp.Run(ctx) },
+		func(ctx context.Context) { tokenSyncer.Run(ctx) },
 	}
 	for _, p := range platforms {
 		recv := p.Receiver()
@@ -224,6 +227,7 @@ type appStores struct {
 	constraintStore   *store.ConstraintStore
 	departmentStore   *store.DepartmentStore
 	statsStore        *store.StatsStore
+	tokenStatsStore   *store.TokenStatsStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -243,6 +247,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		constraintStore:   store.NewConstraintStore(db),
 		departmentStore:   store.NewDepartmentStore(db),
 		statsStore:        store.NewStatsStore(db),
+		tokenStatsStore:   store.NewTokenStatsStore(db),
 	}, nil
 }
 
