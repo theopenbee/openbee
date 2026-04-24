@@ -30,7 +30,7 @@ interface TrendLineCardProps {
   ariaLabel: string
   emptyTitle: string
   emptyDesc: string
-  chartData: Record<string, unknown>[]
+  chartData: object[]
   isLoading: boolean
   days: DayOption
   onDaysChange: (d: DayOption) => void
