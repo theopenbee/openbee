@@ -47,11 +47,26 @@ export interface WorkerExecution {
   completed_at: number | null
 }
 
+export interface ModelTokenStats {
+  model: string
+  total_tokens: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+}
+
+export interface SessionTokenStats {
+  total_tokens: number
+  by_model: ModelTokenStats[]
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
   page: number
   page_size: number
+  token_stats?: Record<string, SessionTokenStats | null>
 }
 
 export interface ChatMessage {
