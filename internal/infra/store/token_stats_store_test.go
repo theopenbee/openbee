@@ -110,6 +110,28 @@ func TestTokenStatsStore_Upsert_TotalTokensStored(t *testing.T) {
 	if got[0].TotalTokens != 380 {
 		t.Errorf("TotalTokens: want 380, got %d", got[0].TotalTokens)
 	}
+
+	// verify TotalTokens is updated on conflict
+	if err := s.Upsert(model.TokenStats{
+		SessionID:           "session-total",
+		AgentType:           "claude",
+		Model:               "claude-3-5-sonnet",
+		InputTokens:         200,
+		OutputTokens:        300,
+		CacheCreationTokens: 10,
+		CacheReadTokens:     5,
+		TotalTokens:         515,
+		SyncedAt:            time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("second Upsert: %v", err)
+	}
+	got, err = s.GetBySessionID("session-total")
+	if err != nil {
+		t.Fatalf("GetBySessionID after update: %v", err)
+	}
+	if got[0].TotalTokens != 515 {
+		t.Errorf("TotalTokens after update: want 515, got %d", got[0].TotalTokens)
+	}
 }
 
 func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
