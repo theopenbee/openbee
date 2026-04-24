@@ -173,6 +173,7 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
+	defer tx.Rollback() //nolint:errcheck
 	for _, u := range usages {
 		if err := s.tokenStore.UpsertTx(tx, model.TokenStats{
 			SessionID:           u.SessionID,
@@ -184,7 +185,6 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 			CacheReadTokens:     u.CacheReadTokens,
 			SyncedAt:            now,
 		}); err != nil {
-			_ = tx.Rollback()
 			return fmt.Errorf("upsert: %w", err)
 		}
 	}

@@ -49,7 +49,8 @@ func scanJSONLFile(path string, fn func([]byte)) error {
 
 func findWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
 	legacyPath := filepath.Join(dir, legacyName)
-	if _, err := os.Stat(legacyPath); err == nil {
+	if f, err := os.Open(legacyPath); err == nil {
+		f.Close()
 		return legacyPath, nil
 	}
 	return findSessionFile(dir, match)
