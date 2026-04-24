@@ -63,7 +63,6 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (mod
 		ID:           uuid.New().String(),
 		WorkerID:     nil, // bee execution — no worker
 		SessionID:    sessionID,
-		Engine:       "",
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,

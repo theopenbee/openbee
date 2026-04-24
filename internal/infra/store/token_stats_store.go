@@ -22,11 +22,11 @@ func NewTokenStatsStore(db *sql.DB) *TokenStatsStore {
 }
 
 func (s *TokenStatsStore) IsEmpty() (bool, error) {
-	var count int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats`).Scan(&count); err != nil {
-		return false, fmt.Errorf("count token stats: %w", err)
+	var exists int
+	if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM bee_token_stats)`).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check token stats empty: %w", err)
 	}
-	return count == 0, nil
+	return exists == 0, nil
 }
 
 func (s *TokenStatsStore) Upsert(stat model.TokenStats) error {

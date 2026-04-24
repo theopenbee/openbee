@@ -78,7 +78,7 @@ type sessionItem struct {
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 	since := time.Now().AddDate(0, 0, -incrementalDays).UnixMilli()
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.session_id, MAX(e.engine)
+		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
 		WHERE e.worker_id IS NOT NULL
 		  AND (e.engine = '' OR e.engine IN (?, ?, ?))
@@ -118,7 +118,9 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 			}
 			continue
 		}
-		s.storeUsages(sessionID, usages)
+		if err := s.storeUsages(usages); err != nil {
+			return fmt.Errorf("store usages: %w", err)
+		}
 		return nil
 	}
 	if firstErr != nil {
@@ -146,15 +148,14 @@ func (s *Syncer) parserOrder(preferred string) []string {
 	return order
 }
 
-func (s *Syncer) storeUsages(sessionID string, usages []SessionTokenUsage) {
+func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 	if len(usages) == 0 {
-		return
+		return nil
 	}
 	now := time.Now().UnixMilli()
 	tx, err := s.db.Begin()
 	if err != nil {
-		logger.Error("tokenstat: begin transaction", zap.String("session_id", sessionID), zap.Error(err))
-		return
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	for _, u := range usages {
 		if err := s.tokenStore.UpsertTx(tx, model.TokenStats{
@@ -167,14 +168,9 @@ func (s *Syncer) storeUsages(sessionID string, usages []SessionTokenUsage) {
 			CacheReadTokens:     u.CacheReadTokens,
 			SyncedAt:            now,
 		}); err != nil {
-			logger.Error("tokenstat: upsert",
-				zap.String("session_id", sessionID),
-				zap.Error(err))
 			_ = tx.Rollback()
-			return
+			return fmt.Errorf("upsert: %w", err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		logger.Error("tokenstat: commit transaction", zap.String("session_id", sessionID), zap.Error(err))
-	}
+	return tx.Commit()
 }
