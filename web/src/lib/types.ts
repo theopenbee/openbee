@@ -61,6 +61,11 @@ export interface SessionTokenStats {
   by_model: ModelTokenStats[]
 }
 
+export interface SessionDetail {
+  executions: WorkerExecution[]
+  token_stats: SessionTokenStats | null
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

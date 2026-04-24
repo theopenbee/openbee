@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, AppConfig, Engine } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, AppConfig, Engine, SessionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -106,9 +106,12 @@ export const api = {
     },
   },
   sessions: {
-    executions: async (sessionId: string) => {
-      const execs = await fetchAPI<WorkerExecution[] | null>(`/sessions/executions?session_id=${encodeURIComponent(sessionId)}`)
-      return Array.isArray(execs) ? execs : []
+    get: async (sessionId: string) => {
+      const detail = await fetchAPI<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`)
+      return {
+        executions: Array.isArray(detail?.executions) ? detail.executions : [],
+        token_stats: detail?.token_stats ?? null,
+      }
     },
   },
   localChat: {
