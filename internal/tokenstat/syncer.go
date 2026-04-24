@@ -145,10 +145,15 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 	if firstErr != nil {
 		return firstErr
 	}
-	if engine == "" { // legacy execution without engine hint; missing data is expected
-		return nil
+	if engine == "" {
+		logger.Debug("tokenstat: legacy session has no data, writing tombstone",
+			zap.String("session_id", sessionID))
+	} else {
+		logger.Warn("tokenstat: no token data found for session, writing tombstone",
+			zap.String("session_id", sessionID),
+			zap.String("engine", engine))
 	}
-	return fmt.Errorf("no token session data found for %s", sessionID)
+	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: "unknown"}})
 }
 
 func (s *Syncer) parserOrder(preferred string) []string {

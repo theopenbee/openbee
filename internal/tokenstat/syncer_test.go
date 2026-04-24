@@ -275,6 +275,76 @@ func TestSyncer_SyncOnce_LegacyExecutionFallsBackToKimi(t *testing.T) {
 	}
 }
 
+func TestSyncer_SyncOnce_LegacyExecutionNoDataWritesTombstone(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-legacy", "")
+	insertTestExecution(t, db, "worker-legacy", "legacy-no-data-session", time.Now().UnixMilli())
+
+	// point all parsers at empty dirs so every parser returns ErrSessionDataNotFound
+	emptyDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", emptyDir)
+	t.Setenv("HOME", emptyDir)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("legacy-no-data-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 tombstone record, got %d", len(stats))
+	}
+	if stats[0].Model != "unknown" {
+		t.Errorf("Model: want unknown, got %s", stats[0].Model)
+	}
+	if stats[0].TotalTokens != 0 {
+		t.Errorf("TotalTokens: want 0, got %d", stats[0].TotalTokens)
+	}
+
+	// second SyncOnce must not produce a second record (synced_at now > completed_at)
+	syncer.SyncOnce(context.Background())
+	stats2, err := tokenStore.GetBySessionID("legacy-no-data-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID (2nd): %v", err)
+	}
+	if len(stats2) != 1 {
+		t.Errorf("expected still 1 record after second sync, got %d", len(stats2))
+	}
+}
+
+func TestSyncer_SyncOnce_KnownEngineNoDataWritesTombstone(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-claude", "claude")
+	insertTestExecutionWithEngine(t, db, "worker-claude", "claude-no-data-session", "claude", time.Now().UnixMilli())
+
+	// point all parsers at empty dirs so every parser returns ErrSessionDataNotFound
+	emptyDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", emptyDir)
+	t.Setenv("HOME", emptyDir)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("claude-no-data-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 tombstone record, got %d", len(stats))
+	}
+	if stats[0].Model != "unknown" {
+		t.Errorf("Model: want unknown, got %s", stats[0].Model)
+	}
+	if stats[0].TotalTokens != 0 {
+		t.Errorf("TotalTokens: want 0, got %d", stats[0].TotalTokens)
+	}
+}
+
 func TestSyncer_SyncOnce_LegacyExecutionWithoutEngineFallsBackAcrossParsers(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
