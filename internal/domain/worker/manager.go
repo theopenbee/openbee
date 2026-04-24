@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,10 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
+type systemConfigReader interface {
+	Get(ctx context.Context, key string) (model.SystemConfig, bool, error)
+}
+
 var log = logger.With(zap.String("component", "worker"))
 
 type Manager struct {
@@ -37,6 +42,7 @@ type Manager struct {
 	engines        map[string]ai.EngineAdapter
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
+	sysConfigStore systemConfigReader
 	botNamesLower  []string
 
 	activeProcesses map[string]ai.Process // execution_id -> process
@@ -51,6 +57,7 @@ func NewManager(
 	engines map[string]ai.EngineAdapter,
 	engineCfg *enginecfg.Store,
 	envService *env.Service,
+	sysConfigStore systemConfigReader,
 ) *Manager {
 	rawBotNames := bc.Platforms.BotNames()
 	botNames := make([]string, len(rawBotNames))
@@ -67,6 +74,7 @@ func NewManager(
 		engines:         engines,
 		engineCfg:       engineCfg,
 		envService:      envService,
+		sysConfigStore:  sysConfigStore,
 		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
@@ -98,6 +106,37 @@ func (m *Manager) EnabledEngines() []string {
 	return enabled
 }
 
+func (m *Manager) loadGlobalExtraArgs(ctx context.Context) ai.EngineExtraArgsMap {
+	if m.sysConfigStore == nil {
+		return nil
+	}
+	cfg, found, err := m.sysConfigStore.Get(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
+	if err != nil || !found || cfg.Value == "" || cfg.Value == "{}" {
+		return nil
+	}
+	var raw map[string]string
+	if json.Unmarshal([]byte(cfg.Value), &raw) != nil {
+		return nil
+	}
+	parsed, _ := ai.ParseEngineExtraArgs(raw)
+	return parsed
+}
+
+func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) map[string]string {
+	globalMap := m.loadGlobalExtraArgs(ctx)
+
+	var workerMap ai.EngineExtraArgsMap
+	if worker.EngineExtraArgs != "" && worker.EngineExtraArgs != "{}" {
+		var raw map[string]string
+		if json.Unmarshal([]byte(worker.EngineExtraArgs), &raw) == nil {
+			workerMap, _ = ai.ParseEngineExtraArgs(raw)
+		}
+	}
+
+	merged := ai.MergeEngineExtraArgs(globalMap, workerMap)
+	return merged[engineName]
+}
+
 // An empty name is accepted (means "use server default").
 func (m *Manager) ValidateEngine(name string) error {
 	if name == "" {
@@ -117,20 +156,22 @@ type CreateWorkerParams struct {
 	WorkDir          string
 	PermissionScopes string
 	Engine           string
+	EngineExtraArgs  string // JSON: map[engine]rawCLIString
 }
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
 type UpdateWorkerParams struct {
-	Name             *string `json:"name"`
-	Description      *string `json:"description"`
-	Constraints      *string `json:"constraints"`
-	PermissionScopes *string `json:"permission_scopes"`
-	Engine           *string `json:"engine"`
+	Name             *string            `json:"name"`
+	Description      *string            `json:"description"`
+	Constraints      *string            `json:"constraints"`
+	PermissionScopes *string            `json:"permission_scopes"`
+	Engine           *string            `json:"engine"`
+	EngineExtraArgs  map[string]string  `json:"engine_extra_args"` // engine -> raw CLI string; nil = no change
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
 	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
-		p.PermissionScopes != nil || p.Engine != nil
+		p.PermissionScopes != nil || p.Engine != nil || p.EngineExtraArgs != nil
 }
 
 func (p UpdateWorkerParams) Validate(m *Manager) error {
@@ -160,6 +201,21 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 	}
 	if p.Engine != nil {
 		w.Engine = *p.Engine
+	}
+	if p.EngineExtraArgs != nil {
+		existing := make(map[string]string)
+		if w.EngineExtraArgs != "" && w.EngineExtraArgs != "{}" {
+			json.Unmarshal([]byte(w.EngineExtraArgs), &existing) //nolint:errcheck
+		}
+		for engine, args := range p.EngineExtraArgs {
+			if args == "" {
+				delete(existing, engine)
+			} else {
+				existing[engine] = args
+			}
+		}
+		b, _ := json.Marshal(existing)
+		w.EngineExtraArgs = string(b)
 	}
 }
 
@@ -224,6 +280,10 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
+	engineExtraArgs := p.EngineExtraArgs
+	if engineExtraArgs == "" {
+		engineExtraArgs = "{}"
+	}
 	workerModel := model.Worker{
 		ID:               id,
 		Name:             p.Name,
@@ -231,6 +291,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		Constraints:      p.Constraints,
 		WorkDir:          p.WorkDir,
 		Engine:           p.Engine,
+		EngineExtraArgs:  engineExtraArgs,
 		PermissionScopes: p.PermissionScopes,
 	}
 	engine, err := m.resolveEngine(workerModel)
@@ -272,8 +333,12 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
+	engineName := worker.Engine
+	if engineName == "" {
+		engineName = m.engineCfg.Get()
+	}
 
-	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -284,7 +349,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 
 // launchRuntime applies timeout, prepares the log path, starts the invoker,
 // registers the process, updates PID, and launches monitoring.
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -309,11 +374,14 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
+	extraArgs := m.resolveExtraArgs(ctx, worker, engineName)
+
 	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
 		ExtraEnv:  extraEnv,
+		ExtraArgs: extraArgs,
 	}, logPath)
 	if err != nil {
 		cancel()
