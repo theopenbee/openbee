@@ -80,20 +80,27 @@ func NewManager(
 	}
 }
 
-// resolveEngine returns the EngineAdapter for w, falling back to the configured default if w.Engine is empty or unknown.
-func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
+// resolveEngineSelection returns the engine name/adapter pair for w, falling
+// back to the configured default if w.Engine is empty or unknown.
+func (m *Manager) resolveEngineSelection(w model.Worker) (string, ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
-			return e, nil
+			return w.Engine, e, nil
 		}
 		log.Error("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	defaultEngine := m.engineCfg.Get()
 	if e, ok := m.engines[defaultEngine]; ok {
-		return e, nil
+		return defaultEngine, e, nil
 	}
-	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
+	return "", nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
+}
+
+// resolveEngine returns the EngineAdapter for w, falling back to the configured default if w.Engine is empty or unknown.
+func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
+	_, engine, err := m.resolveEngineSelection(w)
+	return engine, err
 }
 
 func (m *Manager) EnabledEngines() []string {
@@ -188,7 +195,7 @@ type UpdateWorkerParams struct {
 	Constraints      *string           `json:"constraints"`
 	PermissionScopes *string           `json:"permission_scopes"`
 	Engine           *string           `json:"engine"`
-	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string; nil = no change
+	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string; nil = no change; empty map clears all
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
@@ -232,6 +239,10 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 		w.Engine = *p.Engine
 	}
 	if p.EngineExtraArgs != nil {
+		if len(p.EngineExtraArgs) == 0 {
+			w.EngineExtraArgs = "{}"
+			return
+		}
 		existing := make(map[string]string)
 		if w.EngineExtraArgs != "" && w.EngineExtraArgs != "{}" {
 			json.Unmarshal([]byte(w.EngineExtraArgs), &existing) //nolint:errcheck
@@ -352,7 +363,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	engine, err := m.resolveEngine(worker)
+	engineName, engine, err := m.resolveEngineSelection(worker)
 	if err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
@@ -362,10 +373,6 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
-	engineName := worker.Engine
-	if engineName == "" {
-		engineName = m.engineCfg.Get()
-	}
 
 	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)

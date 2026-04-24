@@ -58,6 +58,15 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   }
 }
 
+function hasConfiguredEngineExtraArgs(engineExtraArgs?: Record<string, string>) {
+  return Object.values(engineExtraArgs ?? {}).some((value) => value.trim() !== "")
+}
+
+function buildCreateEngineExtraArgsPayload(engineExtraArgs: Record<string, string>) {
+  const entries = Object.entries(engineExtraArgs).filter(([, value]) => value.trim() !== "")
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 interface CreateWorkerSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -100,7 +109,12 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
       setEngineExtraArgs(iv?.engine_extra_args ?? {})
       setSubmitError("")
-      setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
+      setShowOptional(isCopy && !!(
+        iv?.description ||
+        iv?.constraints ||
+        iv?.work_dir ||
+        hasConfiguredEngineExtraArgs(iv?.engine_extra_args)
+      ))
       setDeptSearch("")
       randomName.reset()
     }
@@ -117,7 +131,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         constraints: constraints || undefined,
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
-        engine_extra_args: Object.keys(engineExtraArgs).length > 0 ? engineExtraArgs : undefined,
+        engine_extra_args: buildCreateEngineExtraArgsPayload(engineExtraArgs),
       })
       if (selectedDeptIds.size > 0) {
         await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })

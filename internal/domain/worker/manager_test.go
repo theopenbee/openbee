@@ -116,6 +116,23 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestManager_ResolveEngineSelection_UnknownEngineUsesFallbackName(t *testing.T) {
+	claude := &mockEngine{}
+	engines := map[string]ai.EngineAdapter{"claude": claude}
+	mgr := newTestManager(t, engines, "claude")
+
+	name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "claude" {
+		t.Fatalf("got engine name %q, want %q", name, "claude")
+	}
+	if got != claude {
+		t.Error("expected fallback to default claude engine adapter")
+	}
+}
+
 func TestManager_ValidateEngineExtraArgs_RejectsUnknownEngine(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
 	err := mgr.ValidateEngineExtraArgs(map[string]string{"unknown": "--model foo"})
@@ -256,6 +273,29 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &sameName})
 	if err != nil {
 		t.Errorf("renaming to same name should succeed, got: %v", err)
+	}
+}
+
+func TestManager_UpdateWorker_EmptyEngineExtraArgsClearsAll(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}, ai.EngineCodex: &mockEngine{}}
+	mgr := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{
+		Name:            "alice",
+		EngineExtraArgs: `{"claude":"--model sonnet","codex":"--model o3"}`,
+	})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+		EngineExtraArgs: map[string]string{},
+	})
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if updated.EngineExtraArgs != "{}" {
+		t.Fatalf("got %s, want {}", updated.EngineExtraArgs)
 	}
 }
 
