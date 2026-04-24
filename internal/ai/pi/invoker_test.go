@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildArgs_NewSession(t *testing.T) {
-	args := buildArgs("", "/tmp/session.jsonl")
+	args := buildArgs("", "/tmp/session.jsonl", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", ""}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -19,7 +19,7 @@ func TestBuildArgs_NewSession(t *testing.T) {
 }
 
 func TestBuildArgs_WithPrompt(t *testing.T) {
-	args := buildArgs("hello world", "/tmp/session.jsonl")
+	args := buildArgs("hello world", "/tmp/session.jsonl", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", "hello world"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
