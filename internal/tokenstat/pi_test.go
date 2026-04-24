@@ -29,7 +29,7 @@ func TestPiParser_Parse_AggregatesByModel(t *testing.T) {
 		byModel[u.Model] = u
 	}
 
-	sonnet := byModel["[pi]claude-3-5-sonnet"]
+	sonnet := byModel["claude-3-5-sonnet"]
 	if sonnet.InputTokens != 300 {
 		t.Errorf("sonnet InputTokens: want 300, got %d", sonnet.InputTokens)
 	}
@@ -46,7 +46,7 @@ func TestPiParser_Parse_AggregatesByModel(t *testing.T) {
 		t.Errorf("sonnet AgentType: want pi, got %s", sonnet.AgentType)
 	}
 
-	opus := byModel["[pi]claude-3-opus"]
+	opus := byModel["claude-3-opus"]
 	if opus.InputTokens != 300 {
 		t.Errorf("opus InputTokens: want 300, got %d", opus.InputTokens)
 	}

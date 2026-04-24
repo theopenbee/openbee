@@ -12,8 +12,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
-const piModelPrefix = "[pi]"
-
 type piParser struct {
 	sessionsDir string
 }
@@ -65,7 +63,7 @@ func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		if line.Type != "message" || line.Message.Role != "assistant" || line.Message.Usage == nil {
 			return
 		}
-		m := piModelPrefix + line.Message.Model
+		m := line.Message.Model
 		u := getOrCreate(agg, sessionID, ai.EnginePi, m)
 		u.InputTokens += line.Message.Usage.Input
 		u.OutputTokens += line.Message.Usage.Output
