@@ -27,14 +27,8 @@ const EMPTY: StatsOverview = {
   exec_duration_total_ms: 0,
   scheduled_tasks: 0,
   tokens_total: 0,
-  tokens_total_input: 0,
-  tokens_total_output: 0,
   tokens_today_total: 0,
-  tokens_today_input: 0,
-  tokens_today_output: 0,
   tokens_yesterday_total: 0,
-  tokens_yesterday_input: 0,
-  tokens_yesterday_output: 0,
 }
 
 function SectionRule({ children }: { children: ReactNode }) {
@@ -140,7 +134,6 @@ export function Dashboard() {
                   <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
                 </div>
               ))}
-              {/* Total Tokens — 6th item with hover tooltip */}
               <div
                 className="pl-6 border-l border-border/70 sm:pl-8 sm:border-l sm:border-border/70 pb-6 lg:pb-0"
                 aria-label={t("dashboard.totalTokens")}
@@ -148,18 +141,9 @@ export function Dashboard() {
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
                   {t("dashboard.totalTokens")}
                 </p>
-                <Tooltip>
-                  <TooltipTrigger
-                    type="button"
-                    className="text-3xl font-semibold tabular-nums leading-none cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                  >
-                    {formatTokenCount(ov.tokens_total)}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("dashboard.tokensInput")}: {ov.tokens_total_input.toLocaleString()}</p>
-                    <p>{t("dashboard.tokensOutput")}: {ov.tokens_total_output.toLocaleString()}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <p className="text-3xl font-semibold tabular-nums leading-none">
+                  {formatTokenCount(ov.tokens_total)}
+                </p>
               </div>
             </>
           )}
@@ -391,20 +375,12 @@ export function Dashboard() {
                 </div>
               ) : (
                 <div>
-                  <Tooltip>
-                    <TooltipTrigger
-                      type="button"
-                      aria-label={`${t("dashboard.tokensToday")}: ${formatTokenCount(ov.tokens_today_total)}`}
-                      aria-live="polite"
-                      className="text-5xl font-semibold tabular-nums leading-none mb-4 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                    >
-                      {formatTokenCount(ov.tokens_today_total)}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{t("dashboard.tokensTodayInput")}: {ov.tokens_today_input.toLocaleString()}</p>
-                      <p>{t("dashboard.tokensTodayOutput")}: {ov.tokens_today_output.toLocaleString()}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <p
+                    aria-live="polite"
+                    className="text-5xl font-semibold tabular-nums leading-none mb-4"
+                  >
+                    {formatTokenCount(ov.tokens_today_total)}
+                  </p>
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
                     <div className="flex items-baseline gap-2">
                       <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">

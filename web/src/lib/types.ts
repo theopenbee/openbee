@@ -126,14 +126,8 @@ export interface StatsOverview {
   exec_duration_total_ms: number
   scheduled_tasks: number
   tokens_total: number
-  tokens_total_input: number
-  tokens_total_output: number
   tokens_today_total: number
-  tokens_today_input: number
-  tokens_today_output: number
   tokens_yesterday_total: number
-  tokens_yesterday_input: number
-  tokens_yesterday_output: number
 }
 
 export interface TrendPoint {
