@@ -8,7 +8,7 @@ import { CombinedTrendChart } from "@/components/combined-trend-chart"
 import { TokenTrendChart } from "@/components/token-trend-chart"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useStatsOverview } from "@/hooks/use-stats"
-import { formatChange, formatTotalDuration, formatTokenCount } from "@/lib/format"
+import { formatChange, formatTotalDuration, formatTokenCount, formatNumber } from "@/lib/format"
 import type { StatsOverview } from "@/lib/types"
 
 const EMPTY: StatsOverview = {
@@ -74,6 +74,7 @@ export function Dashboard() {
   const durationChangeLabel = formatChange(durationRatio)
   const durationChangeColor =
     durationDiff > 0 ? "text-status-idle" : durationDiff < 0 ? "text-status-error" : "text-muted-foreground"
+  const DurationChangeIcon = durationDiff > 0 ? TrendingUp : durationDiff < 0 ? TrendingDown : Minus
 
   const tokenDiff = ov.tokens_today_total - ov.tokens_yesterday_total
   const tokenRatio =
@@ -114,7 +115,7 @@ export function Dashboard() {
                 { label: t("dashboard.departments"), value: ov.departments },
                 { label: t("dashboard.workers"), value: ov.workers },
                 { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
-                { label: t("dashboard.totalMessages"), value: ov.messages_total_global },
+                { label: t("dashboard.totalMessages"), value: formatNumber(ov.messages_total_global) },
                 {
                   label: t("dashboard.totalWorkDuration"),
                   value: formatTotalDuration(ov.exec_duration_total_ms),
@@ -316,9 +317,9 @@ export function Dashboard() {
               {isLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-12 w-28" />
-                  <div className="flex gap-6">
-                    <StatSkeleton />
-                    <StatSkeleton />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-12" />
                   </div>
                 </div>
               ) : (
@@ -330,32 +331,24 @@ export function Dashboard() {
                   >
                     {formatTotalDuration(ov.exec_duration_today_ms)}
                   </p>
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.execDurationYesterday")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none text-muted-foreground"
-                        aria-live="polite"
-                      >
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        {t("dashboard.yesterday")}
+                      </span>
+                      <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
                         {formatTotalDuration(ov.exec_duration_yesterday_ms)}
-                      </p>
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.execDurationDayOverDay")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none"
-                        aria-live="polite"
+                    {durationChangeLabel !== null && (
+                      <div
+                        className={`flex items-center gap-1 ${durationChangeColor}`}
+                        aria-label={durationChangeLabel}
                       >
-                        <span className={durationChangeColor}>
-                          {durationDiff >= 0 ? "+" : "−"}{formatTotalDuration(Math.abs(durationDiff))}
-                          {durationChangeLabel !== null && ` (${durationChangeLabel})`}
-                        </span>
-                      </p>
-                    </div>
+                        <DurationChangeIcon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{durationChangeLabel}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
