@@ -238,6 +238,43 @@ func TestSyncer_SyncOnce_Kimi(t *testing.T) {
 	}
 }
 
+func TestSyncer_SyncOnce_LegacyExecutionFallsBackToKimi(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-1", "kimi")
+	insertTestExecution(t, db, "worker-1", "legacy-kimi-session", time.Now().UnixMilli())
+
+	home := t.TempDir()
+	kimiDir := filepath.Join(home, ".kimi", "sessions", "bucket-01", "legacy-kimi-session")
+	os.MkdirAll(kimiDir, 0755)
+	os.WriteFile(filepath.Join(kimiDir, "wire.jsonl"),
+		[]byte(`{"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":200,"output":80,"input_cache_read":0,"input_cache_creation":0}}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("HOME", home)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("legacy-kimi-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat record, got %d", len(stats))
+	}
+	if stats[0].AgentType != "kimi" {
+		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
+	}
+	if stats[0].InputTokens != 200 {
+		t.Errorf("InputTokens: want 200, got %d", stats[0].InputTokens)
+	}
+	if stats[0].OutputTokens != 80 {
+		t.Errorf("OutputTokens: want 80, got %d", stats[0].OutputTokens)
+	}
+}
+
 func TestSyncer_SyncOnce_LegacyExecutionWithoutEngineFallsBackAcrossParsers(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()

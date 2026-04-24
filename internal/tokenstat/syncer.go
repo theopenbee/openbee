@@ -17,7 +17,7 @@ import (
 
 const syncInterval = 10 * time.Minute
 
-var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi}
+var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi}
 
 type Syncer struct {
 	db         *sql.DB
