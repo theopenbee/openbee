@@ -37,12 +37,24 @@ func insertTestWorker(t *testing.T, db *sql.DB, id, engine string) {
 func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, completedAt int64) {
 	t.Helper()
 	_, err := db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, status, completed_at)
-		 VALUES (?, ?, ?, 'completed', ?)`,
+		`INSERT INTO bee_executions (id, worker_id, session_id, engine, status, completed_at)
+		 VALUES (?, ?, ?, '', 'completed', ?)`,
 		"exec-"+sessionID, workerID, sessionID, completedAt,
 	)
 	if err != nil {
 		t.Fatalf("insert execution: %v", err)
+	}
+}
+
+func insertTestExecutionWithEngine(t *testing.T, db *sql.DB, workerID, sessionID, engine string, completedAt int64) {
+	t.Helper()
+	_, err := db.Exec(
+		`INSERT INTO bee_executions (id, worker_id, session_id, engine, status, completed_at)
+		 VALUES (?, ?, ?, ?, 'completed', ?)`,
+		"exec-"+sessionID, workerID, sessionID, engine, completedAt,
+	)
+	if err != nil {
+		t.Fatalf("insert execution with engine: %v", err)
 	}
 }
 
@@ -106,5 +118,67 @@ func TestSyncer_SyncOnce_FullModeWhenTableEmpty(t *testing.T) {
 	}
 	if len(stats) != 1 {
 		t.Errorf("expected 1 stat (full mode on empty table), got %d", len(stats))
+	}
+}
+
+func TestSyncer_SyncOnce_UsesExecutionEngineHint(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-1", "codex")
+	insertTestExecutionWithEngine(t, db, "worker-1", "claude-session", "claude", time.Now().UnixMilli())
+
+	claudeBase := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
+	os.WriteFile(
+		filepath.Join(claudeBase, "projects", "claude-session.jsonl"),
+		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":120,"output_tokens":60}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("claude-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat record, got %d", len(stats))
+	}
+	if stats[0].AgentType != "claude" {
+		t.Fatalf("AgentType: want claude, got %s", stats[0].AgentType)
+	}
+}
+
+func TestSyncer_SyncOnce_LegacyExecutionWithoutEngineFallsBackAcrossParsers(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-1", "kimi")
+	insertTestExecution(t, db, "worker-1", "legacy-claude-session", time.Now().UnixMilli())
+
+	claudeBase := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
+	os.WriteFile(
+		filepath.Join(claudeBase, "projects", "legacy-claude-session.jsonl"),
+		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":90,"output_tokens":45}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("legacy-claude-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat record, got %d", len(stats))
+	}
+	if stats[0].InputTokens != 90 {
+		t.Fatalf("InputTokens: want 90, got %d", stats[0].InputTokens)
 	}
 }

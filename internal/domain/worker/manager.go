@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
@@ -23,6 +22,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "worker"))
@@ -72,20 +72,21 @@ func NewManager(
 	}
 }
 
-// resolveEngine returns the EngineAdapter for w, falling back to the configured default if w.Engine is empty or unknown.
-func (m *Manager) resolveEngine(w model.Worker) (ai.EngineAdapter, error) {
+// resolveEngine returns the engine name and adapter for w, falling back to the
+// configured default if w.Engine is empty or unknown.
+func (m *Manager) resolveEngine(w model.Worker) (string, ai.EngineAdapter, error) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
-			return e, nil
+			return w.Engine, e, nil
 		}
 		log.Error("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	defaultEngine := m.engineCfg.Get()
 	if e, ok := m.engines[defaultEngine]; ok {
-		return e, nil
+		return defaultEngine, e, nil
 	}
-	return nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
+	return "", nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
 }
 
 func (m *Manager) EnabledEngines() []string {
@@ -233,7 +234,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,
 	}
-	engine, err := m.resolveEngine(workerModel)
+	_, engine, err := m.resolveEngine(workerModel)
 	if err != nil {
 		return model.Worker{}, err
 	}
@@ -253,7 +254,12 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID)
+	engineName, engine, err := m.resolveEngine(worker)
+	if err != nil {
+		return model.WorkerExecution{}, err
+	}
+
+	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}
@@ -262,12 +268,6 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	engine, err := m.resolveEngine(worker)
-	if err != nil {
-		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
-		return exec, err
-	}
 	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}

@@ -77,9 +77,12 @@ func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "codex"}
-	got, err := mgr.resolveEngine(w)
+	name, got, err := mgr.resolveEngine(w)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "codex" {
+		t.Fatalf("expected codex engine name, got %q", name)
 	}
 	if got != codex {
 		t.Error("expected codex engine adapter")
@@ -92,9 +95,12 @@ func TestManager_ResolveEngine_EmptyEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: ""}
-	got, err := mgr.resolveEngine(w)
+	name, got, err := mgr.resolveEngine(w)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "claude" {
+		t.Fatalf("expected default claude engine name, got %q", name)
 	}
 	if got != claude {
 		t.Error("expected default claude engine adapter")
@@ -107,15 +113,17 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "unknown-engine"}
-	got, err := mgr.resolveEngine(w)
+	name, got, err := mgr.resolveEngine(w)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "claude" {
+		t.Fatalf("expected fallback engine name claude, got %q", name)
 	}
 	if got != claude {
 		t.Error("expected fallback to default claude engine adapter")
 	}
 }
-
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.

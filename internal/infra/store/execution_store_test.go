@@ -21,7 +21,7 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 
-	exec, err := es.Create(w.ID, "test message", uuid.New().String())
+	exec, err := es.Create(w.ID, "test message", uuid.New().String(), "claude")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -43,6 +43,9 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 		}
 		t.Errorf("expected worker_id %s, got %s", w.ID, gotStr)
 	}
+	if got.Engine != "claude" {
+		t.Errorf("expected engine claude, got %q", got.Engine)
+	}
 }
 
 func TestExecutionStore_UpdateStatus(t *testing.T) {
@@ -56,7 +59,7 @@ func TestExecutionStore_UpdateStatus(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message", uuid.New().String())
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "claude")
 
 	err = es.UpdateStatus(exec.ID, model.ExecStatusRunning)
 	if err != nil {
@@ -79,7 +82,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, err := es.Create(w.ID, "test", uuid.New().String())
+	exec, err := es.Create(w.ID, "test", uuid.New().String(), "claude")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -109,7 +112,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test", uuid.New().String())
+	exec, _ := es.Create(w.ID, "test", uuid.New().String(), "claude")
 
 	if err := es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted); err != nil {
 		t.Fatalf("UpdateResult: %v", err)
@@ -136,7 +139,7 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message", uuid.New().String())
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "claude")
 
 	got, err := es.ListBySessionID(exec.SessionID)
 	if err != nil {
@@ -168,7 +171,7 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 
 	// Create a worker execution (should not appear)
 	db.Exec(`INSERT INTO bee_workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
-	_, err = es.Create("w1", "worker task", "session2")
+	_, err = es.Create("w1", "worker task", "session2", "claude")
 	if err != nil {
 		t.Fatal(err)
 	}

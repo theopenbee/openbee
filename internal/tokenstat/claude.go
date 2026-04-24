@@ -3,6 +3,7 @@ package tokenstat
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,12 +49,25 @@ type claudeJSONLLine struct {
 
 func (p *claudeParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	for _, base := range p.baseDirs {
-		path := filepath.Join(base, "projects", sessionID+".jsonl")
-		if _, err := os.Stat(path); err == nil {
+		path, err := findClaudeSessionFile(base, sessionID)
+		if err == nil {
 			return claudeParse(sessionID, path)
 		}
+		if !errors.Is(err, ErrSessionDataNotFound) {
+			return nil, err
+		}
 	}
-	return nil, fmt.Errorf("claude session file not found for %s", sessionID)
+	return nil, fmt.Errorf("%w: claude session file not found for %s", ErrSessionDataNotFound, sessionID)
+}
+
+func findClaudeSessionFile(base, sessionID string) (string, error) {
+	legacyPath := filepath.Join(base, "projects", sessionID+".jsonl")
+	if _, err := os.Stat(legacyPath); err == nil {
+		return legacyPath, nil
+	}
+	return findSessionFile(filepath.Join(base, "projects"), func(_ string, d os.DirEntry) bool {
+		return d.Name() == sessionID+".jsonl"
+	})
 }
 
 func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {

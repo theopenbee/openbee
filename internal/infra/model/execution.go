@@ -14,6 +14,7 @@ type WorkerExecution struct {
 	WorkerID     *string         `json:"worker_id,omitempty" db:"worker_id"`
 	WorkerName   string          `json:"worker_name,omitempty" db:"-"`
 	SessionID    string          `json:"session_id" db:"session_id"`
+	Engine       string          `json:"engine,omitempty" db:"engine"`
 	TriggerInput string          `json:"trigger_input,omitempty" db:"trigger_input"`
 	Status       ExecutionStatus `json:"status" db:"status"`
 	Result       string          `json:"result,omitempty" db:"result"`

@@ -390,6 +390,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             ON bee_token_stats(session_id);
     `,
 	},
+	{
+		version: 42,
+		name:    "add_engine_to_bee_executions",
+		sql:     `ALTER TABLE bee_executions ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 type whereBuilder struct {

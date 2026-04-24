@@ -13,14 +13,14 @@ func TestCodexParser_Parse_WithLastTokenUsage(t *testing.T) {
 	mappingDir := filepath.Join(base, "mapping")
 	codexBase := filepath.Join(base, "codex")
 	os.MkdirAll(mappingDir, 0755)
-	os.MkdirAll(filepath.Join(codexBase, "sessions"), 0755)
+	os.MkdirAll(filepath.Join(codexBase, "sessions", "2026", "04", "23"), 0755)
 
 	os.WriteFile(filepath.Join(mappingDir, "openbee-sess-1"), []byte("codex-real-sess-1\n"), 0644)
-	writeTempFile(t, filepath.Join(codexBase, "sessions"), "codex-real-sess-1.jsonl", `{"type":"turn_context","payload":{"model":"gpt-4o"}}
-{"type":"event_msg","info":{"last_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":20}}}
-{"type":"event_msg","info":{"last_token_usage":{"input_tokens":200,"output_tokens":80,"cached_input_tokens":10}}}
+	writeTempFile(t, filepath.Join(codexBase, "sessions", "2026", "04", "23"), "rollout-2026-04-23T01-02-03-codex-real-sess-1.jsonl", `{"type":"turn_context","payload":{"model":"gpt-4o"}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":20},"total_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":20}}}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":200,"output_tokens":80,"cached_input_tokens":10},"total_token_usage":{"input_tokens":300,"output_tokens":130,"cached_input_tokens":30}}}}
 {"type":"turn_context","payload":{"model":"o1-mini"}}
-{"type":"event_msg","info":{"last_token_usage":{"input_tokens":300,"output_tokens":100,"cached_input_tokens":0}}}
+{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":300,"output_tokens":100,"cached_input_tokens":0},"total_token_usage":{"input_tokens":600,"output_tokens":230,"cached_input_tokens":30}}}}
 `)
 	t.Setenv("CODEX_HOME", codexBase)
 	parser := tokenstat.NewCodexParser(mappingDir)
@@ -83,6 +83,31 @@ func TestCodexParser_Parse_DeltaFromTotalTokenUsage(t *testing.T) {
 	}
 	if usages[0].OutputTokens != 120 {
 		t.Errorf("OutputTokens: want 120, got %d", usages[0].OutputTokens)
+	}
+}
+
+func TestCodexParser_Parse_LegacyTopLevelInfo(t *testing.T) {
+	base := t.TempDir()
+	mappingDir := filepath.Join(base, "mapping")
+	codexBase := filepath.Join(base, "codex")
+	os.MkdirAll(mappingDir, 0755)
+	os.MkdirAll(filepath.Join(codexBase, "sessions"), 0755)
+
+	os.WriteFile(filepath.Join(mappingDir, "openbee-sess-legacy"), []byte("codex-real-sess-legacy"), 0644)
+	writeTempFile(t, filepath.Join(codexBase, "sessions"), "codex-real-sess-legacy.jsonl", `{"type":"turn_context","payload":{"model":"gpt-4o"}}
+{"type":"event_msg","info":{"last_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":10}}}
+`)
+	t.Setenv("CODEX_HOME", codexBase)
+
+	usages, err := tokenstat.NewCodexParser(mappingDir).Parse("openbee-sess-legacy")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(usages) != 1 {
+		t.Fatalf("expected 1 usage, got %d", len(usages))
+	}
+	if usages[0].InputTokens != 100 || usages[0].OutputTokens != 50 || usages[0].CacheReadTokens != 10 {
+		t.Fatalf("unexpected usage: %+v", usages[0])
 	}
 }
 

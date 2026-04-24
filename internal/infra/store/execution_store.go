@@ -35,20 +35,21 @@ func NewExecutionStore(db *sql.DB, logsDir string) *ExecutionStore {
 	return &ExecutionStore{db: db, logsDir: logsDir}
 }
 
-func (s *ExecutionStore) Create(workerID, triggerInput, sessionID string) (model.WorkerExecution, error) {
+func (s *ExecutionStore) Create(workerID, triggerInput, sessionID, engine string) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
 		WorkerID:     &workerID,
 		SessionID:    sessionID,
+		Engine:       engine,
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, ?, ?, ?, ?, '', 0, ?)`,
-		exec.ID, exec.WorkerID, exec.SessionID, exec.TriggerInput, exec.Status, millis,
+		`INSERT INTO bee_executions (id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, ?, ?, ?, ?, ?, '', 0, ?)`,
+		exec.ID, exec.WorkerID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("insert execution: %w", err)
@@ -62,13 +63,14 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (mod
 		ID:           uuid.New().String(),
 		WorkerID:     nil, // bee execution — no worker
 		SessionID:    sessionID,
+		Engine:       "",
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, NULL, ?, ?, ?, '', 0, ?)`,
+		`INSERT INTO bee_executions (id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, NULL, ?, '', ?, ?, '', 0, ?)`,
 		exec.ID, exec.SessionID, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
@@ -78,14 +80,14 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (mod
 }
 
 const execSelect = `
-SELECT e.id, e.worker_id, e.session_id, e.trigger_input, e.status, e.result, e.log_path,
+SELECT e.id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
        e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
 FROM bee_executions e
 LEFT JOIN bee_workers w ON w.id = e.worker_id`
 
 func scanExecution(scanner interface{ Scan(...any) error }) (model.WorkerExecution, error) {
 	var e model.WorkerExecution
-	err := scanner.Scan(&e.ID, &e.WorkerID, &e.SessionID, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
+	err := scanner.Scan(&e.ID, &e.WorkerID, &e.SessionID, &e.Engine, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
 	return e, err
 }
 

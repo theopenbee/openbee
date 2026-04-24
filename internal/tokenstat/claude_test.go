@@ -21,7 +21,7 @@ func writeTempFile(t *testing.T, dir, name, content string) {
 
 func TestClaudeParser_Parse_AggregatesByModel(t *testing.T) {
 	base := t.TempDir()
-	writeTempFile(t, base, "projects/test-session.jsonl", `{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":20,"cache_read_input_tokens":10}}}
+	writeTempFile(t, base, "projects/project-a/test-session.jsonl", `{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":20,"cache_read_input_tokens":10}}}
 {"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":200,"output_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":5}}}
 {"message":{"model":"claude-3-opus","usage":{"input_tokens":300,"output_tokens":150}}}
 {"timestamp":"2025-01-01T00:00:00Z"}
@@ -64,7 +64,7 @@ func TestClaudeParser_Parse_AggregatesByModel(t *testing.T) {
 
 func TestClaudeParser_Parse_FastSpeedSuffix(t *testing.T) {
 	base := t.TempDir()
-	writeTempFile(t, base, "projects/fast-session.jsonl",
+	writeTempFile(t, base, "projects/project-a/fast-session.jsonl",
 		`{"message":{"model":"claude-3-5-sonnet","speed":"fast","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n")
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
 
