@@ -3,10 +3,10 @@ package tokenstat
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 const kimiModel = "kimi"
@@ -16,8 +16,7 @@ type kimiParser struct {
 }
 
 func NewKimiParser() Parser {
-	home, _ := os.UserHomeDir()
-	return &kimiParser{sessionsDir: filepath.Join(home, ".kimi", "sessions")}
+	return &kimiParser{sessionsDir: config.DefaultKimiSessionsDir()}
 }
 
 type kimiTokenUsage struct {

@@ -82,11 +82,7 @@ const tokenStatsSelect = `SELECT id, session_id, agent_type, model, input_tokens
 	        cache_creation_tokens, cache_read_tokens, total_tokens, synced_at
 	 FROM bee_token_stats`
 
-func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, error) {
-	rows, err := s.db.Query(tokenStatsSelect+` WHERE session_id = ? AND model != ?`, sessionID, TombstoneModel)
-	if err != nil {
-		return nil, fmt.Errorf("query token stats by session: %w", err)
-	}
+func collectTokenStats(rows *sql.Rows) ([]model.TokenStats, error) {
 	defer rows.Close()
 	var stats []model.TokenStats
 	for rows.Next() {
@@ -99,6 +95,14 @@ func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, 
 	return stats, rows.Err()
 }
 
+func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, error) {
+	rows, err := s.db.Query(tokenStatsSelect+` WHERE session_id = ? AND model != ?`, sessionID, TombstoneModel)
+	if err != nil {
+		return nil, fmt.Errorf("query token stats by session: %w", err)
+	}
+	return collectTokenStats(rows)
+}
+
 func (s *TokenStatsStore) GetBySessionIDs(sessionIDs []string) ([]model.TokenStats, error) {
 	if len(sessionIDs) == 0 {
 		return nil, nil
@@ -108,14 +112,5 @@ func (s *TokenStatsStore) GetBySessionIDs(sessionIDs []string) ([]model.TokenSta
 	if err != nil {
 		return nil, fmt.Errorf("get token stats by session ids: %w", err)
 	}
-	defer rows.Close()
-	var stats []model.TokenStats
-	for rows.Next() {
-		st, err := scanTokenStat(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan token stats: %w", err)
-		}
-		stats = append(stats, st)
-	}
-	return stats, rows.Err()
+	return collectTokenStats(rows)
 }

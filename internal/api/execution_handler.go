@@ -5,8 +5,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"go.uber.org/zap"
 )
 
 type modelTokenStats struct {
@@ -85,13 +87,9 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"items":       execs,
-		"total":       total,
-		"page":        page,
-		"page_size":   pageSize,
-		"token_stats": h.buildTokenStatsMap(execs),
-	})
+	resp := paginatedResponse(execs, total, page, pageSize)
+	resp["token_stats"] = h.buildTokenStatsMap(execs)
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ExecutionHandler) Get(c *gin.Context) {
@@ -161,7 +159,11 @@ func toModelTokenStats(row model.TokenStats) modelTokenStats {
 
 func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionTokenStats {
 	rows, err := h.tokenStats.GetBySessionID(sessionID)
-	if err != nil || len(rows) == 0 {
+	if err != nil {
+		logger.Error("get token stats by session", zap.String("session_id", sessionID), zap.Error(err))
+		return nil
+	}
+	if len(rows) == 0 {
 		return nil
 	}
 	result := &sessionTokenStats{}

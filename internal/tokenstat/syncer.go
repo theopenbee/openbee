@@ -18,18 +18,36 @@ import (
 
 const syncInterval = 10 * time.Minute
 
-var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi}
-
 type Syncer struct {
-	db         *sql.DB
-	tokenStore *store.TokenStatsStore
-	parsers    map[string]Parser
+	db          *sql.DB
+	tokenStore  *store.TokenStatsStore
+	parsers     map[string]Parser
+	engines     []string
+	collectSQL  string
+	engineArgs  []any
 }
 
 func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
+	engines := ai.AllEngines()
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(engines)), ",")
+	collectSQL := fmt.Sprintf(`
+		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
+		FROM bee_executions e
+		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
+		WHERE (e.engine = '' OR e.engine IN (%s))
+		GROUP BY e.session_id
+		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
+		LIMIT 500`, placeholders)
+	engineArgs := make([]any, len(engines))
+	for i, e := range engines {
+		engineArgs[i] = e
+	}
 	return &Syncer{
 		db:         db,
 		tokenStore: tokenStore,
+		engines:    engines,
+		collectSQL: collectSQL,
+		engineArgs: engineArgs,
 		parsers: map[string]Parser{
 			ai.EngineClaude: NewClaudeParser(),
 			ai.EngineCodex:  NewCodexParser(config.DefaultCodexSessionsDir()),
@@ -89,19 +107,7 @@ type sessionItem struct {
 }
 
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(defaultParserOrder)), ",")
-	args := make([]any, len(defaultParserOrder))
-	for i, e := range defaultParserOrder {
-		args[i] = e
-	}
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
-		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
-		FROM bee_executions e
-		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
-		WHERE (e.engine = '' OR e.engine IN (%s))
-		GROUP BY e.session_id
-		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
-		LIMIT 500`, placeholders), args...)
+	rows, err := s.db.QueryContext(ctx, s.collectSQL, s.engineArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,10 +170,10 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 
 func (s *Syncer) parserOrder(preferred string) []string {
 	if _, ok := s.parsers[preferred]; preferred == "" || !ok {
-		return defaultParserOrder
+		return s.engines
 	}
 	order := []string{preferred}
-	for _, name := range defaultParserOrder {
+	for _, name := range s.engines {
 		if name != preferred {
 			order = append(order, name)
 		}
