@@ -70,8 +70,8 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (mod
 	}
 	_, err := s.db.Exec(
 		`INSERT INTO bee_executions (id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, NULL, ?, '', ?, ?, '', 0, ?)`,
-		exec.ID, exec.SessionID, exec.TriggerInput, exec.Status, millis,
+		 VALUES (?, NULL, ?, ?, ?, ?, '', 0, ?)`,
+		exec.ID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("insert bee execution: %w", err)

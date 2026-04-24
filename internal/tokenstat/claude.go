@@ -102,19 +102,3 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	return mapValues(agg), nil
 }
 
-func getOrCreate(agg map[string]*SessionTokenUsage, sessionID, agentType, model string) *SessionTokenUsage {
-	if u, ok := agg[model]; ok {
-		return u
-	}
-	u := &SessionTokenUsage{SessionID: sessionID, AgentType: agentType, Model: model}
-	agg[model] = u
-	return u
-}
-
-func mapValues(agg map[string]*SessionTokenUsage) []SessionTokenUsage {
-	result := make([]SessionTokenUsage, 0, len(agg))
-	for _, u := range agg {
-		result = append(result, *u)
-	}
-	return result
-}

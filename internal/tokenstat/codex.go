@@ -138,7 +138,7 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 				addCodexUsage(u, *info.LastTokenUsage)
 				prev.advance(info.LastTokenUsage)
 				if info.TotalTokenUsage != nil {
-					prev.set(info.TotalTokenUsage)
+					prev.set(info.TotalTokenUsage) // authoritative total supersedes incremental running sum
 				}
 			} else if info.TotalTokenUsage != nil {
 				addCodexUsage(u, prev.deltaAndSet(info.TotalTokenUsage))

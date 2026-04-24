@@ -15,6 +15,23 @@ var errStopWalk = errors.New("stop walk")
 // 16 MiB: session files can embed base64-encoded content or long conversation turns.
 const scannerBufSize = 16 * 1024 * 1024
 
+func getOrCreate(agg map[string]*SessionTokenUsage, sessionID, agentType, model string) *SessionTokenUsage {
+	if u, ok := agg[model]; ok {
+		return u
+	}
+	u := &SessionTokenUsage{SessionID: sessionID, AgentType: agentType, Model: model}
+	agg[model] = u
+	return u
+}
+
+func mapValues(agg map[string]*SessionTokenUsage) []SessionTokenUsage {
+	result := make([]SessionTokenUsage, 0, len(agg))
+	for _, u := range agg {
+		result = append(result, *u)
+	}
+	return result
+}
+
 func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (string, error) {
 	var found string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {

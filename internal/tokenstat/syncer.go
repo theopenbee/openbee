@@ -124,9 +124,7 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 	if firstErr != nil {
 		return firstErr
 	}
-	// All parsers returned ErrSessionDataNotFound.
-	// For legacy executions without an engine hint, missing data is expected.
-	if engine == "" {
+	if engine == "" { // legacy execution without engine hint; missing data is expected
 		return nil
 	}
 	return fmt.Errorf("no token session data found for %s", sessionID)

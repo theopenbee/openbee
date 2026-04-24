@@ -49,25 +49,16 @@ func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(p.sessionsDir)
+	found, err := findSessionFile(p.sessionsDir, func(_ string, d os.DirEntry) bool {
+		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
+	})
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%w: %s", ErrSessionDataNotFound, p.sessionsDir)
+		if errors.Is(err, ErrSessionDataNotFound) {
+			return nil, fmt.Errorf("%w: pi session file not found for session %s", ErrSessionDataNotFound, sessionID)
 		}
-		return nil, fmt.Errorf("read pi sessions dir: %w", err)
+		return nil, err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
-			continue
-		}
-		name := strings.TrimSuffix(entry.Name(), ".jsonl")
-		_, suffix, ok := strings.Cut(name, "_")
-		if !ok || suffix != sessionID {
-			continue
-		}
-		return piParse(sessionID, filepath.Join(p.sessionsDir, entry.Name()))
-	}
-	return nil, fmt.Errorf("%w: pi session file not found for session %s", ErrSessionDataNotFound, sessionID)
+	return piParse(sessionID, found)
 }
 
 func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
