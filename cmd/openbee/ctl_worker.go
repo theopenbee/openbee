@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -53,12 +55,13 @@ var ctlWorkerStatusCmd = &cobra.Command{
 }
 
 var (
-	workerCreateName        string
-	workerCreateDescription string
-	workerCreateConstraints string
-	workerCreateWorkDir     string
-	workerCreateEngine      string
-	workerCreateScopes      string
+	workerCreateName            string
+	workerCreateDescription     string
+	workerCreateConstraints     string
+	workerCreateWorkDir         string
+	workerCreateEngine          string
+	workerCreateScopes          string
+	workerCreateEngineExtraArgs []string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -84,16 +87,21 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateScopes != "" {
 			a["permission_scopes"] = workerCreateScopes
 		}
+		if len(workerCreateEngineExtraArgs) > 0 {
+			parsed := parseEngineExtraArgsFlag(workerCreateEngineExtraArgs)
+			a["engine_extra_args"] = parsed
+		}
 		return ctlRun(utils.CreateWorker, a)
 	},
 }
 
 var (
-	workerUpdateName        string
-	workerUpdateDescription string
-	workerUpdateConstraints string
-	workerUpdateEngine      string
-	workerUpdateScopes      string
+	workerUpdateName            string
+	workerUpdateDescription     string
+	workerUpdateConstraints     string
+	workerUpdateEngine          string
+	workerUpdateScopes          string
+	workerUpdateEngineExtraArgs []string
 )
 
 var ctlWorkerUpdateCmd = &cobra.Command{
@@ -119,6 +127,9 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		}
 		if cmd.Flags().Changed("scopes") {
 			a["permission_scopes"] = workerUpdateScopes
+		}
+		if cmd.Flags().Changed("engine-extra-args") {
+			a["engine_extra_args"] = parseEngineExtraArgsFlag(workerUpdateEngineExtraArgs)
 		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
@@ -174,6 +185,8 @@ func init() {
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
+	ctlWorkerCreateCmd.Flags().StringArrayVar(&workerCreateEngineExtraArgs, "engine-extra-args", nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
+	ctlWorkerUpdateCmd.Flags().StringArrayVar(&workerUpdateEngineExtraArgs, "engine-extra-args", nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,
@@ -184,4 +197,18 @@ func init() {
 		ctlWorkerDeleteCmd,
 	)
 	ctlCmd.AddCommand(ctlWorkerCmd)
+}
+
+func parseEngineExtraArgsFlag(entries []string) map[string]string {
+	result := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		idx := strings.Index(entry, "=")
+		if idx < 0 {
+			continue
+		}
+		engine := entry[:idx]
+		args := entry[idx+1:]
+		result[engine] = args
+	}
+	return result
 }
