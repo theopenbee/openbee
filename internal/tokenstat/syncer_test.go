@@ -1,0 +1,110 @@
+package tokenstat_test
+
+import (
+	"context"
+	"database/sql"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/tokenstat"
+)
+
+func newSyncerTestDB(t *testing.T) (*sql.DB, *store.TokenStatsStore, func()) {
+	t.Helper()
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	return db, store.NewTokenStatsStore(db), func() { db.Close() }
+}
+
+func insertTestWorker(t *testing.T, db *sql.DB, id, engine string) {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	_, err := db.Exec(
+		`INSERT INTO bee_workers (id, name, description, constraints, work_dir, engine, status, permission_scopes, created_at, updated_at)
+		 VALUES (?, ?, '', '', '/tmp', ?, 'idle', '', ?, ?)`,
+		id, "worker-"+id, engine, now, now,
+	)
+	if err != nil {
+		t.Fatalf("insert worker: %v", err)
+	}
+}
+
+func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, completedAt int64) {
+	t.Helper()
+	_, err := db.Exec(
+		`INSERT INTO bee_executions (id, worker_id, session_id, status, completed_at)
+		 VALUES (?, ?, ?, 'completed', ?)`,
+		"exec-"+sessionID, workerID, sessionID, completedAt,
+	)
+	if err != nil {
+		t.Fatalf("insert execution: %v", err)
+	}
+}
+
+func TestSyncer_SyncOnce_Claude(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-1", "claude")
+	insertTestExecution(t, db, "worker-1", "test-session", time.Now().UnixMilli())
+
+	claudeBase := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
+	os.WriteFile(
+		filepath.Join(claudeBase, "projects", "test-session.jsonl"),
+		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("test-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat record, got %d", len(stats))
+	}
+	if stats[0].InputTokens != 100 {
+		t.Errorf("InputTokens: want 100, got %d", stats[0].InputTokens)
+	}
+	if stats[0].AgentType != "claude" {
+		t.Errorf("AgentType: want claude, got %s", stats[0].AgentType)
+	}
+}
+
+func TestSyncer_SyncOnce_FullModeWhenTableEmpty(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-old", "claude")
+	oldTime := time.Now().AddDate(0, 0, -60).UnixMilli()
+	insertTestExecution(t, db, "worker-old", "old-session", oldTime)
+
+	claudeBase := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
+	os.WriteFile(
+		filepath.Join(claudeBase, "projects", "old-session.jsonl"),
+		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":50,"output_tokens":25}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("old-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Errorf("expected 1 stat (full mode on empty table), got %d", len(stats))
+	}
+}
