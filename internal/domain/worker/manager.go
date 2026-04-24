@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
@@ -24,6 +23,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"go.uber.org/zap"
 )
 
 type systemConfigReader interface {
@@ -122,7 +122,7 @@ func (m *Manager) loadGlobalExtraArgs(ctx context.Context) ai.EngineExtraArgsMap
 	return parsed
 }
 
-func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) map[string]string {
+func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) []string {
 	globalMap := m.loadGlobalExtraArgs(ctx)
 
 	var workerMap ai.EngineExtraArgsMap
@@ -135,6 +135,28 @@ func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, eng
 
 	merged := ai.MergeEngineExtraArgs(globalMap, workerMap)
 	return merged[engineName]
+}
+
+func (m *Manager) validateEngineExtraArgs(raw map[string]string) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	for engine := range raw {
+		if engine == "" {
+			return fmt.Errorf("engine_extra_args contains an empty engine name: %w", ErrValidation)
+		}
+		if err := m.ValidateEngine(engine); err != nil {
+			return fmt.Errorf("engine_extra_args[%q]: %w", engine, err)
+		}
+	}
+	if _, err := ai.ParseEngineExtraArgs(raw); err != nil {
+		return fmt.Errorf("invalid engine_extra_args: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) ValidateEngineExtraArgs(raw map[string]string) error {
+	return m.validateEngineExtraArgs(raw)
 }
 
 // An empty name is accepted (means "use server default").
@@ -161,12 +183,12 @@ type CreateWorkerParams struct {
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
 type UpdateWorkerParams struct {
-	Name             *string            `json:"name"`
-	Description      *string            `json:"description"`
-	Constraints      *string            `json:"constraints"`
-	PermissionScopes *string            `json:"permission_scopes"`
-	Engine           *string            `json:"engine"`
-	EngineExtraArgs  map[string]string  `json:"engine_extra_args"` // engine -> raw CLI string; nil = no change
+	Name             *string           `json:"name"`
+	Description      *string           `json:"description"`
+	Constraints      *string           `json:"constraints"`
+	PermissionScopes *string           `json:"permission_scopes"`
+	Engine           *string           `json:"engine"`
+	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string; nil = no change
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
@@ -181,7 +203,14 @@ func (p UpdateWorkerParams) Validate(m *Manager) error {
 		}
 	}
 	if p.Engine != nil {
-		return m.ValidateEngine(*p.Engine)
+		if err := m.ValidateEngine(*p.Engine); err != nil {
+			return err
+		}
+	}
+	if p.EngineExtraArgs != nil {
+		if err := m.validateEngineExtraArgs(p.EngineExtraArgs); err != nil {
+			return err
+		}
 	}
 	return nil
 }

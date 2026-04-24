@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,67 @@ type createWorkerRequest struct {
 	WorkDir          string            `json:"work_dir"`
 	PermissionScopes string            `json:"permission_scopes"`
 	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string
+}
+
+type workerResponse struct {
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Description      string             `json:"description"`
+	Constraints      string             `json:"constraints"`
+	WorkDir          string             `json:"work_dir"`
+	Engine           string             `json:"engine"`
+	EngineExtraArgs  map[string]string  `json:"engine_extra_args"`
+	Status           model.WorkerStatus `json:"status"`
+	PermissionScopes string             `json:"permission_scopes"`
+	CreatedAt        int64              `json:"created_at"`
+	UpdatedAt        int64              `json:"updated_at"`
+}
+
+type workerWithDepartmentsResponse struct {
+	workerResponse
+	Departments []model.DepartmentBrief `json:"departments"`
+}
+
+func parseWorkerEngineExtraArgs(raw string) (map[string]string, error) {
+	if raw == "" || raw == "{}" {
+		return map[string]string{}, nil
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return nil, err
+	}
+	if parsed == nil {
+		parsed = map[string]string{}
+	}
+	return parsed, nil
+}
+
+func toWorkerResponse(w model.Worker) (workerResponse, error) {
+	extraArgs, err := parseWorkerEngineExtraArgs(w.EngineExtraArgs)
+	if err != nil {
+		return workerResponse{}, fmt.Errorf("parse worker %s engine_extra_args: %w", w.ID, err)
+	}
+	return workerResponse{
+		ID:               w.ID,
+		Name:             w.Name,
+		Description:      w.Description,
+		Constraints:      w.Constraints,
+		WorkDir:          w.WorkDir,
+		Engine:           w.Engine,
+		EngineExtraArgs:  extraArgs,
+		Status:           w.Status,
+		PermissionScopes: w.PermissionScopes,
+		CreatedAt:        w.CreatedAt,
+		UpdatedAt:        w.UpdatedAt,
+	}, nil
+}
+
+func toWorkerWithDepartmentsResponse(w model.Worker, depts []model.DepartmentBrief) (workerWithDepartmentsResponse, error) {
+	resp, err := toWorkerResponse(w)
+	if err != nil {
+		return workerWithDepartmentsResponse{}, err
+	}
+	return workerWithDepartmentsResponse{workerResponse: resp, Departments: depts}, nil
 }
 
 type WorkerHandler struct {
@@ -52,6 +114,10 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if err := h.manager.ValidateEngineExtraArgs(req.EngineExtraArgs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	var engineExtraArgsJSON string
 	if len(req.EngineExtraArgs) > 0 {
@@ -74,8 +140,12 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		respondWorkerError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusCreated, w)
+	resp, err := toWorkerResponse(w)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 func (h *WorkerHandler) List(c *gin.Context) {
@@ -103,11 +173,16 @@ func (h *WorkerHandler) List(c *gin.Context) {
 		return
 	}
 
-	result := make([]model.WorkerWithDepartments, 0, len(workers))
+	resp := make([]workerWithDepartmentsResponse, 0, len(workers))
 	for _, w := range workers {
-		result = append(result, model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(deptMap[w.ID])})
+		item, convErr := toWorkerWithDepartmentsResponse(w, model.ToDepartmentBriefs(deptMap[w.ID]))
+		if convErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
+			return
+		}
+		resp = append(resp, item)
 	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *WorkerHandler) Get(c *gin.Context) {
@@ -121,7 +196,12 @@ func (h *WorkerHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, model.WorkerWithDepartments{Worker: w, Departments: model.ToDepartmentBriefs(depts)})
+	resp, convErr := toWorkerWithDepartmentsResponse(w, model.ToDepartmentBriefs(depts))
+	if convErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *WorkerHandler) Update(c *gin.Context) {
@@ -135,7 +215,12 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		respondWorkerError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, w)
+	resp, convErr := toWorkerResponse(w)
+	if convErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *WorkerHandler) Delete(c *gin.Context) {

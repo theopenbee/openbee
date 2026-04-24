@@ -46,7 +46,7 @@ type codexItem struct {
 	Status           string `json:"status,omitempty"`
 }
 
-func buildArgs(threadID string, resume bool, prompt string, extraArgs map[string]string) []string {
+func buildArgs(threadID string, resume bool, prompt string, extraArgs []string) []string {
 	var base []string
 	if resume && threadID != "" {
 		base = []string{"exec", "resume", threadID, "--json", "--dangerously-bypass-approvals-and-sandbox"}

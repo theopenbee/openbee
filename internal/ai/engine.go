@@ -28,8 +28,8 @@ type RunOptions struct {
 	SessionID string
 	Resume    bool
 	APIKey    string
-	ExtraEnv  []string          // additional KEY=VALUE env vars to inject
-	ExtraArgs map[string]string // additional CLI flags to pass to the engine
+	ExtraEnv  []string // additional KEY=VALUE env vars to inject
+	ExtraArgs []string // additional CLI args to pass to the engine
 }
 
 // OutputType classifies a lifecycle event from a running process.

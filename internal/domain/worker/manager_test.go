@@ -116,6 +116,21 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestManager_ValidateEngineExtraArgs_RejectsUnknownEngine(t *testing.T) {
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	err := mgr.ValidateEngineExtraArgs(map[string]string{"unknown": "--model foo"})
+	if err == nil {
+		t.Fatal("expected error for unknown engine, got nil")
+	}
+}
+
+func TestManager_ValidateEngineExtraArgs_RejectsInvalidArgs(t *testing.T) {
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	err := mgr.ValidateEngineExtraArgs(map[string]string{"claude": `--model "unterminated`})
+	if err == nil {
+		t.Fatal("expected parse error, got nil")
+	}
+}
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.

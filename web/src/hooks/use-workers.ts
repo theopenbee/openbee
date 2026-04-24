@@ -26,6 +26,7 @@ export function useCreateWorker() {
       constraints?: string
       work_dir?: string
       permission_scopes?: string
+      engine_extra_args?: Record<string, string>
     }) => api.workers.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })

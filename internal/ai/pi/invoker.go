@@ -56,7 +56,7 @@ const (
 	contentTypeText   = "text"
 )
 
-func buildArgs(prompt, sessionPath string, extraArgs map[string]string) []string {
+func buildArgs(prompt, sessionPath string, extraArgs []string) []string {
 	base := []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
 	return append(base, ai.BuildExtraArgSlice(extraArgs)...)
 }

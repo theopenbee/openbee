@@ -25,7 +25,7 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}
 }
 
-func buildArgs(sessionID string, extraArgs map[string]string) []string {
+func buildArgs(sessionID string, extraArgs []string) []string {
 	base := []string{
 		"--session=" + sessionID,
 		"--yolo",

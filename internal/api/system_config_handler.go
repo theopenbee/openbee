@@ -88,6 +88,16 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "value must be a JSON object mapping engine to CLI args string"})
 				return
 			}
+			for engine := range raw {
+				if engine == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "engine_extra_args contains an empty engine name"})
+					return
+				}
+				if err := h.validator.ValidateEngine(engine); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+			}
 			if _, err := ai.ParseEngineExtraArgs(raw); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return

@@ -64,7 +64,7 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
 
-func (p *BeeProcess) resolveExtraArgs(ctx context.Context) map[string]string {
+func (p *BeeProcess) resolveExtraArgs(ctx context.Context) []string {
 	engineName := p.engineCfg.Get()
 	globalMap := p.loadExtraArgs(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
 	beeMap := p.loadExtraArgs(ctx, model.SystemConfigKeyEngineExtraArgsBee)

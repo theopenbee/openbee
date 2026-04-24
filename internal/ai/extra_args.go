@@ -1,68 +1,119 @@
 package ai
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"unicode"
+)
 
-// EngineExtraArgsMap maps engine name -> (arg key -> arg value).
-// Boolean flags use an empty string as value.
-type EngineExtraArgsMap map[string]map[string]string
+// EngineExtraArgsMap maps engine name -> ordered CLI args.
+type EngineExtraArgsMap map[string][]string
 
-// ParseEngineExtraArgs parses raw CLI strings per engine into a structured map.
+// ParseEngineExtraArgs tokenizes raw CLI strings per engine while preserving
+// order, duplicates, and quoted values.
 func ParseEngineExtraArgs(raw map[string]string) (EngineExtraArgsMap, error) {
 	result := make(EngineExtraArgsMap, len(raw))
 	for engine, s := range raw {
-		result[engine] = parseArgString(s)
+		args, err := splitCLIArgs(s)
+		if err != nil {
+			return nil, fmt.Errorf("engine %q: %w", engine, err)
+		}
+		result[engine] = args
 	}
 	return result, nil
 }
 
-func parseArgString(s string) map[string]string {
-	tokens := strings.Fields(s)
-	m := make(map[string]string)
-	for i := 0; i < len(tokens); i++ {
-		tok := tokens[i]
-		if !strings.HasPrefix(tok, "--") {
-			continue
+func splitCLIArgs(s string) ([]string, error) {
+	var (
+		args      []string
+		buf       strings.Builder
+		inSingle  bool
+		inDouble  bool
+		escaped   bool
+		tokenOpen bool
+	)
+
+	flush := func() {
+		if !tokenOpen {
+			return
 		}
-		key := strings.TrimPrefix(tok, "--")
-		if i+1 < len(tokens) && !strings.HasPrefix(tokens[i+1], "--") {
-			m[key] = tokens[i+1]
-			i++
-		} else {
-			m[key] = ""
+		args = append(args, buf.String())
+		buf.Reset()
+		tokenOpen = false
+	}
+
+	for _, r := range s {
+		switch {
+		case escaped:
+			buf.WriteRune(r)
+			escaped = false
+			tokenOpen = true
+
+		case inSingle:
+			if r == '\'' {
+				inSingle = false
+			} else {
+				buf.WriteRune(r)
+			}
+			tokenOpen = true
+
+		case inDouble:
+			switch r {
+			case '"':
+				inDouble = false
+			case '\\':
+				escaped = true
+				tokenOpen = true
+			default:
+				buf.WriteRune(r)
+				tokenOpen = true
+			}
+
+		default:
+			switch {
+			case unicode.IsSpace(r):
+				flush()
+			case r == '\'':
+				inSingle = true
+				tokenOpen = true
+			case r == '"':
+				inDouble = true
+				tokenOpen = true
+			case r == '\\':
+				escaped = true
+				tokenOpen = true
+			default:
+				buf.WriteRune(r)
+				tokenOpen = true
+			}
 		}
 	}
-	return m
+
+	if escaped {
+		return nil, fmt.Errorf("unterminated escape sequence")
+	}
+	if inSingle || inDouble {
+		return nil, fmt.Errorf("unterminated quoted string")
+	}
+	flush()
+	return args, nil
 }
 
-// MergeEngineExtraArgs merges two maps; override wins on conflicting keys.
+// MergeEngineExtraArgs merges base and override by appending override args
+// after base args, so later flags can override earlier ones while preserving
+// the original CLI ordering.
 func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap {
-	result := make(EngineExtraArgsMap, len(base))
+	result := make(EngineExtraArgsMap, len(base)+len(override))
 	for engine, args := range base {
-		cp := make(map[string]string, len(args))
-		for k, v := range args {
-			cp[k] = v
-		}
-		result[engine] = cp
+		result[engine] = append([]string(nil), args...)
 	}
 	for engine, overrideArgs := range override {
-		if result[engine] == nil {
-			result[engine] = make(map[string]string, len(overrideArgs))
-		}
-		for k, v := range overrideArgs {
-			result[engine][k] = v
-		}
+		result[engine] = append(result[engine], overrideArgs...)
 	}
 	return result
 }
 
-// BuildExtraArgSlice converts a single engine's arg map into a CLI arg slice.
-func BuildExtraArgSlice(args map[string]string) []string {
-	out := make([]string, 0, len(args)*2)
-	for k, v := range args {
-		out = append(out, "--"+k)
-		if v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
+// BuildExtraArgSlice returns a defensive copy of a single engine's arg slice.
+func BuildExtraArgSlice(args []string) []string {
+	return append([]string(nil), args...)
 }
