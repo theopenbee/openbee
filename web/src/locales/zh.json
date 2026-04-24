@@ -206,7 +206,8 @@
     "execution": "执行",
     "metadata": "元数据",
     "logsHint": "当前选中执行的完整日志流。即使会话很长，也可以只查看这一轮。",
-    "live": "进行中"
+    "live": "进行中",
+    "tokens": "Token 用量"
   },
   "logViewer": {
     "all": "全部",

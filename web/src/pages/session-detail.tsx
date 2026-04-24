@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
-import { Activity, Bot, Clock3, Logs } from "lucide-react"
-import { useSessionExecutions } from "@/hooks/use-executions"
+import { Activity, Bot, Clock3, Info, Logs, Zap } from "lucide-react"
+import { useSessionDetail } from "@/hooks/use-session-detail"
 import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { LogViewer } from "@/components/log-viewer"
 import { StatusBadge } from "@/components/status-badge"
@@ -11,15 +11,19 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
+import { TokenStatsTooltip } from "@/components/token-stats-tooltip"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
   const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const currentSessionId = searchParams.get("session_id") ?? ""
   const queryClient = useQueryClient()
-  const { data: executions = [], error, isLoading } = useSessionExecutions(currentSessionId)
+  const { data, error, isLoading } = useSessionDetail(currentSessionId)
+  const executions = data?.executions ?? []
+  const tokenStats = data?.token_stats ?? null
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
 
   const firstExecution = executions[0]
@@ -148,7 +152,7 @@ export function SessionDetail() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <DetailOverviewStat
                 icon={Logs}
                 label={t("sessions.columns.turns")}
@@ -187,6 +191,31 @@ export function SessionDetail() {
                   isActiveStatus(latestExecution.status)
                     ? t("sessionDetail.live")
                     : formatCompactTimestamp(latestExecution.completed_at)
+                }
+              />
+              <DetailOverviewStat
+                icon={Zap}
+                label={t("sessionDetail.tokens")}
+                value={
+                  tokenStats ? (
+                    <div className="flex items-center gap-1">
+                      <span>{formatTokenCount(tokenStats.total_tokens)}</span>
+                      <Tooltip>
+                        <TooltipTrigger
+                          type="button"
+                          aria-label="Token breakdown"
+                          className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                        >
+                          <Info className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start">
+                          <TokenStatsTooltip stats={tokenStats} />
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ) : (
+                    "—"
+                  )
                 }
               />
             </div>
@@ -390,7 +419,7 @@ export function SessionDetail() {
                     isActiveStatus(selectedExecution.status)
                       ? () =>
                           queryClient.invalidateQueries({
-                            queryKey: ["sessions", currentSessionId, "executions"],
+                            queryKey: ["sessions", currentSessionId],
                           })
                       : undefined
                   }

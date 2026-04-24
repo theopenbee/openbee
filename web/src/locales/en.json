@@ -206,7 +206,8 @@
     "execution": "Execution",
     "metadata": "Metadata",
     "logsHint": "Full log stream for the selected execution, isolated from the rest of the session.",
-    "live": "Live"
+    "live": "Live",
+    "tokens": "Tokens"
   },
   "logViewer": {
     "all": "All",
