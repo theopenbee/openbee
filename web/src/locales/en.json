@@ -65,6 +65,8 @@
     "tokens": "Tokens",
     "tokensToday": "Tokens Today",
     "tokensYesterday": "Yesterday",
+    "tokensInput": "Input",
+    "tokensOutput": "Output",
     "tokensTodayInput": "Input",
     "tokensTodayOutput": "Output",
     "tokensTrend": "Token Usage Trend",

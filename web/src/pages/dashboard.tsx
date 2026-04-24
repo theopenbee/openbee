@@ -130,7 +130,7 @@ export function Dashboard() {
                   className={[
                     i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
                     i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
-                    i < 4 ? "pb-6 lg:pb-0" : "",
+                    i < 5 ? "pb-6 lg:pb-0" : "",
                   ].join(" ")}
                   aria-label={label}
                 >
@@ -149,14 +149,15 @@ export function Dashboard() {
                   {t("dashboard.totalTokens")}
                 </p>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <p className="text-3xl font-semibold tabular-nums leading-none cursor-default">
-                      {formatTokenCount(ov.tokens_total)}
-                    </p>
+                  <TooltipTrigger
+                    type="button"
+                    className="text-3xl font-semibold tabular-nums leading-none cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  >
+                    {formatTokenCount(ov.tokens_total)}
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{t("dashboard.tokensTodayInput")}: {ov.tokens_total_input.toLocaleString()}</p>
-                    <p>{t("dashboard.tokensTodayOutput")}: {ov.tokens_total_output.toLocaleString()}</p>
+                    <p>{t("dashboard.tokensInput")}: {ov.tokens_total_input.toLocaleString()}</p>
+                    <p>{t("dashboard.tokensOutput")}: {ov.tokens_total_output.toLocaleString()}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -391,14 +392,13 @@ export function Dashboard() {
               ) : (
                 <div>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p
-                        className="text-5xl font-semibold tabular-nums leading-none mb-4 cursor-default"
-                        aria-label={`${t("dashboard.tokensToday")}: ${formatTokenCount(ov.tokens_today_total)}`}
-                        aria-live="polite"
-                      >
-                        {formatTokenCount(ov.tokens_today_total)}
-                      </p>
+                    <TooltipTrigger
+                      type="button"
+                      aria-label={`${t("dashboard.tokensToday")}: ${formatTokenCount(ov.tokens_today_total)}`}
+                      aria-live="polite"
+                      className="text-5xl font-semibold tabular-nums leading-none mb-4 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    >
+                      {formatTokenCount(ov.tokens_today_total)}
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>{t("dashboard.tokensTodayInput")}: {ov.tokens_today_input.toLocaleString()}</p>
@@ -430,14 +430,12 @@ export function Dashboard() {
                       </div>
                     )}
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label={t("dashboard.tokensCrossDayNote")}
-                          className="ml-auto text-muted-foreground/50 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                        >
-                          <Info className="h-3.5 w-3.5" aria-hidden />
-                        </button>
+                      <TooltipTrigger
+                        type="button"
+                        aria-label={t("dashboard.tokensCrossDayNote")}
+                        className="ml-auto text-muted-foreground/50 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      >
+                        <Info className="h-3.5 w-3.5" aria-hidden />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>{t("dashboard.tokensCrossDayNote")}</p>

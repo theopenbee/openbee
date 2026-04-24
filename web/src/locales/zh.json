@@ -65,6 +65,8 @@
     "tokens": "Token 用量",
     "tokensToday": "今日 Token",
     "tokensYesterday": "昨日",
+    "tokensInput": "输入",
+    "tokensOutput": "输出",
     "tokensTodayInput": "输入",
     "tokensTodayOutput": "输出",
     "tokensTrend": "Token 使用趋势",
