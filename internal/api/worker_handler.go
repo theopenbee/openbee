@@ -53,9 +53,6 @@ func parseWorkerEngineExtraArgs(raw string) (map[string]string, error) {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return nil, err
 	}
-	if parsed == nil {
-		parsed = map[string]string{}
-	}
 	return parsed, nil
 }
 

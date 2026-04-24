@@ -65,10 +65,14 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     try {
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
+      const originalExtraArgs = worker.engine_extra_args ?? {}
+      const extraArgsChanged =
+        Object.keys(engineExtraArgs).length !== Object.keys(originalExtraArgs).length ||
+        Object.entries(engineExtraArgs).some(([k, v]) => originalExtraArgs[k] !== v)
       const workerChanged =
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
-        JSON.stringify(engineExtraArgs) !== JSON.stringify(worker.engine_extra_args ?? {})
+        extraArgsChanged
       const deptsChanged = newDeptIds !== originalDeptIds
 
       const ops: Promise<unknown>[] = []

@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode"
@@ -116,4 +117,18 @@ func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap 
 // BuildExtraArgSlice returns a defensive copy of a single engine's arg slice.
 func BuildExtraArgSlice(args []string) []string {
 	return append([]string(nil), args...)
+}
+
+// ParseEngineExtraArgsJSON parses a JSON-encoded map[engine]rawCLIString value
+// (as stored in the DB) into an EngineExtraArgsMap. Returns nil for empty/unset values.
+func ParseEngineExtraArgsJSON(value string) EngineExtraArgsMap {
+	if value == "" || value == "{}" {
+		return nil
+	}
+	var raw map[string]string
+	if json.Unmarshal([]byte(value), &raw) != nil {
+		return nil
+	}
+	parsed, _ := ParseEngineExtraArgs(raw)
+	return parsed
 }

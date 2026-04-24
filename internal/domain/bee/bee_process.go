@@ -2,7 +2,6 @@ package bee
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -77,13 +76,8 @@ func (p *BeeProcess) loadExtraArgs(ctx context.Context, key string) ai.EngineExt
 		return nil
 	}
 	cfg, found, err := p.sysConfigStore.Get(ctx, key)
-	if err != nil || !found || cfg.Value == "" || cfg.Value == "{}" {
+	if err != nil || !found {
 		return nil
 	}
-	var raw map[string]string
-	if json.Unmarshal([]byte(cfg.Value), &raw) != nil {
-		return nil
-	}
-	parsed, _ := ai.ParseEngineExtraArgs(raw)
-	return parsed
+	return ai.ParseEngineExtraArgsJSON(cfg.Value)
 }

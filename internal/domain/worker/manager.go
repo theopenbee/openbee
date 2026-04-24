@@ -118,33 +118,20 @@ func (m *Manager) loadGlobalExtraArgs(ctx context.Context) ai.EngineExtraArgsMap
 		return nil
 	}
 	cfg, found, err := m.sysConfigStore.Get(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
-	if err != nil || !found || cfg.Value == "" || cfg.Value == "{}" {
+	if err != nil || !found {
 		return nil
 	}
-	var raw map[string]string
-	if json.Unmarshal([]byte(cfg.Value), &raw) != nil {
-		return nil
-	}
-	parsed, _ := ai.ParseEngineExtraArgs(raw)
-	return parsed
+	return ai.ParseEngineExtraArgsJSON(cfg.Value)
 }
 
 func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) []string {
 	globalMap := m.loadGlobalExtraArgs(ctx)
-
-	var workerMap ai.EngineExtraArgsMap
-	if worker.EngineExtraArgs != "" && worker.EngineExtraArgs != "{}" {
-		var raw map[string]string
-		if json.Unmarshal([]byte(worker.EngineExtraArgs), &raw) == nil {
-			workerMap, _ = ai.ParseEngineExtraArgs(raw)
-		}
-	}
-
+	workerMap := ai.ParseEngineExtraArgsJSON(worker.EngineExtraArgs)
 	merged := ai.MergeEngineExtraArgs(globalMap, workerMap)
 	return merged[engineName]
 }
 
-func (m *Manager) validateEngineExtraArgs(raw map[string]string) error {
+func (m *Manager) ValidateEngineExtraArgs(raw map[string]string) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -160,10 +147,6 @@ func (m *Manager) validateEngineExtraArgs(raw map[string]string) error {
 		return fmt.Errorf("invalid engine_extra_args: %w", err)
 	}
 	return nil
-}
-
-func (m *Manager) ValidateEngineExtraArgs(raw map[string]string) error {
-	return m.validateEngineExtraArgs(raw)
 }
 
 // An empty name is accepted (means "use server default").
@@ -215,7 +198,7 @@ func (p UpdateWorkerParams) Validate(m *Manager) error {
 		}
 	}
 	if p.EngineExtraArgs != nil {
-		if err := m.validateEngineExtraArgs(p.EngineExtraArgs); err != nil {
+		if err := m.ValidateEngineExtraArgs(p.EngineExtraArgs); err != nil {
 			return err
 		}
 	}

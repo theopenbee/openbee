@@ -202,12 +202,10 @@ func init() {
 func parseEngineExtraArgsFlag(entries []string) map[string]string {
 	result := make(map[string]string, len(entries))
 	for _, entry := range entries {
-		idx := strings.Index(entry, "=")
-		if idx < 0 {
+		engine, args, ok := strings.Cut(entry, "=")
+		if !ok {
 			continue
 		}
-		engine := entry[:idx]
-		args := entry[idx+1:]
 		result[engine] = args
 	}
 	return result
