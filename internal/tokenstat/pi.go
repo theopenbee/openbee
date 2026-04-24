@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 type piParser struct {
@@ -16,8 +18,7 @@ type piParser struct {
 func NewPiParser() Parser {
 	dir := os.Getenv("PI_AGENT_DIR")
 	if dir == "" {
-		home, _ := os.UserHomeDir()
-		dir = filepath.Join(home, ".pi", "agent", "sessions")
+		dir = config.DefaultPiSessionsDir()
 	}
 	return &piParser{sessionsDir: dir}
 }
@@ -39,6 +40,9 @@ type piJSONLLine struct {
 func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	entries, err := os.ReadDir(p.sessionsDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%w: %s", ErrSessionDataNotFound, p.sessionsDir)
+		}
 		return nil, fmt.Errorf("read pi sessions dir: %w", err)
 	}
 	for _, entry := range entries {
@@ -52,7 +56,7 @@ func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 		}
 		return piParse(sessionID, filepath.Join(p.sessionsDir, entry.Name()))
 	}
-	return nil, fmt.Errorf("pi session file not found for session %s", sessionID)
+	return nil, fmt.Errorf("%w: pi session file not found for session %s", ErrSessionDataNotFound, sessionID)
 }
 
 func piParse(sessionID, path string) ([]SessionTokenUsage, error) {

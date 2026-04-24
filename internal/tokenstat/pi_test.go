@@ -1,6 +1,7 @@
 package tokenstat_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/tokenstat"
@@ -76,7 +77,35 @@ func TestPiParser_Parse_SkipsNonAssistantAndWrongType(t *testing.T) {
 func TestPiParser_Parse_FileNotFound(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", t.TempDir())
 	_, err := tokenstat.NewPiParser().Parse("nonexistent-session")
-	if err == nil {
-		t.Error("expected error for missing file, got nil")
+	if !errors.Is(err, tokenstat.ErrSessionDataNotFound) {
+		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
+	}
+}
+
+func TestPiParser_Parse_DirectoryNotFound(t *testing.T) {
+	t.Setenv("PI_AGENT_DIR", t.TempDir()+"/missing")
+	_, err := tokenstat.NewPiParser().Parse("nonexistent-session")
+	if !errors.Is(err, tokenstat.ErrSessionDataNotFound) {
+		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
+	}
+}
+
+func TestPiParser_Parse_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
+	home := t.TempDir()
+	sessionID := "default-dir-session"
+	t.Setenv("HOME", home)
+	t.Setenv("PI_AGENT_DIR", "")
+
+	writeTempFile(t, home, ".openbee/.pi/sessions/20250101_"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
+
+	usages, err := tokenstat.NewPiParser().Parse(sessionID)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(usages) != 1 {
+		t.Fatalf("expected 1 usage, got %d", len(usages))
+	}
+	if usages[0].InputTokens != 100 || usages[0].OutputTokens != 50 {
+		t.Fatalf("unexpected usage: %+v", usages[0])
 	}
 }
