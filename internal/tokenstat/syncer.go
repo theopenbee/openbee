@@ -38,12 +38,14 @@ func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
 }
 
 func (s *Syncer) Run(ctx context.Context) {
+	logger.Info("tokenstat: sync loop started", zap.Duration("interval", syncInterval))
 	s.SyncOnce(ctx)
 	ticker := time.NewTicker(syncInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Info("tokenstat: sync loop stopped")
 			return
 		case <-ticker.C:
 			s.SyncOnce(ctx)
@@ -57,14 +59,26 @@ func (s *Syncer) SyncOnce(ctx context.Context) {
 		logger.Error("tokenstat: collect sessions", zap.Error(err))
 		return
 	}
+	if len(sessions) == 0 {
+		logger.Debug("tokenstat: no sessions pending sync")
+		return
+	}
+	logger.Info("tokenstat: syncing sessions", zap.Int("count", len(sessions)))
+	var synced, failed int
 	for _, item := range sessions {
 		if err := s.syncSession(item.sessionID, item.engine); err != nil {
-			logger.Warn("tokenstat: sync session",
+			failed++
+			logger.Warn("tokenstat: sync session failed",
 				zap.String("session_id", item.sessionID),
 				zap.String("engine", item.engine),
 				zap.Error(err))
+		} else {
+			synced++
 		}
 	}
+	logger.Info("tokenstat: sync round complete",
+		zap.Int("synced", synced),
+		zap.Int("failed", failed))
 }
 
 type sessionItem struct {
@@ -105,8 +119,15 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 		usages, err := parser.Parse(sessionID)
 		if err != nil {
 			if errors.Is(err, ErrSessionDataNotFound) {
+				logger.Debug("tokenstat: session data not found",
+					zap.String("session_id", sessionID),
+					zap.String("parser", parserName))
 				continue
 			}
+			logger.Warn("tokenstat: parser error",
+				zap.String("session_id", sessionID),
+				zap.String("parser", parserName),
+				zap.Error(err))
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s parser: %w", parserName, err)
 			}
@@ -115,6 +136,10 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 		if err := s.storeUsages(usages); err != nil {
 			return fmt.Errorf("store usages: %w", err)
 		}
+		logger.Info("tokenstat: session synced",
+			zap.String("session_id", sessionID),
+			zap.String("parser", parserName),
+			zap.Int("models", len(usages)))
 		return nil
 	}
 	if firstErr != nil {
@@ -165,6 +190,14 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("upsert: %w", err)
 		}
+		logger.Debug("tokenstat: upserted usage",
+			zap.String("session_id", u.SessionID),
+			zap.String("agent_type", u.AgentType),
+			zap.String("model", u.Model),
+			zap.Int64("input_tokens", u.InputTokens),
+			zap.Int64("output_tokens", u.OutputTokens),
+			zap.Int64("cache_creation_tokens", u.CacheCreationTokens),
+			zap.Int64("cache_read_tokens", u.CacheReadTokens))
 	}
 	return tx.Commit()
 }
