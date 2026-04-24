@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -16,10 +17,6 @@ import (
 )
 
 const syncInterval = 10 * time.Minute
-
-// tombstoneModel is stored when all parsers fail for a session so the syncer
-// stops retrying it (synced_at advances past completed_at).
-const tombstoneModel = "unknown"
 
 var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi}
 
@@ -92,15 +89,19 @@ type sessionItem struct {
 }
 
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(defaultParserOrder)), ",")
+	args := make([]any, len(defaultParserOrder))
+	for i, e := range defaultParserOrder {
+		args[i] = e
+	}
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
 		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
-		WHERE (e.engine = '' OR e.engine IN (?, ?, ?, ?))
+		WHERE (e.engine = '' OR e.engine IN (%s))
 		GROUP BY e.session_id
 		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
-		LIMIT 500`,
-		ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi)
+		LIMIT 500`, placeholders), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +159,7 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 			zap.String("session_id", sessionID),
 			zap.String("engine", engine))
 	}
-	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: tombstoneModel}})
+	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: store.TombstoneModel}})
 }
 
 func (s *Syncer) parserOrder(preferred string) []string {
