@@ -57,12 +57,13 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID, engine string
 	return exec, nil
 }
 
-func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput string) (model.WorkerExecution, error) {
+func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput, engine string) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
 		WorkerID:     nil, // bee execution — no worker
 		SessionID:    sessionID,
+		Engine:       engine,
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,

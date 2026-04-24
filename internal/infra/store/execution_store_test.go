@@ -163,7 +163,7 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	// Create a bee execution (worker_id = NULL)
-	bee1, err := es.CreateBeeExecution("session1", "user said hello")
+	bee1, err := es.CreateBeeExecution("session1", "user said hello", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	sessionID := uuid.New().String()
-	exec, err := es.CreateBeeExecution(sessionID, "test prompt")
+	exec, err := es.CreateBeeExecution(sessionID, "test prompt", "claude-sonnet-4-5")
 	if err != nil {
 		t.Fatalf("CreateBeeExecution: %v", err)
 	}
@@ -208,8 +208,11 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	if exec.Status != model.ExecStatusPending {
 		t.Errorf("expected pending, got %s", exec.Status)
 	}
+	if exec.Engine != "claude-sonnet-4-5" {
+		t.Errorf("expected engine claude-sonnet-4-5, got %s", exec.Engine)
+	}
 
-	// GetByID must scan NULL worker_id without error
+	// GetByID must scan NULL worker_id without error and preserve engine
 	got, err := es.GetByID(exec.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
@@ -219,6 +222,9 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	}
 	if got.SessionID != sessionID {
 		t.Errorf("expected session_id %s, got %s", sessionID, got.SessionID)
+	}
+	if got.Engine != "claude-sonnet-4-5" {
+		t.Errorf("expected engine claude-sonnet-4-5 from DB, got %s", got.Engine)
 	}
 }
 
@@ -232,7 +238,7 @@ func TestExecutionStore_ReadLogSince(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.CreateBeeExecution("session1", "test prompt")
+	exec, _ := es.CreateBeeExecution("session1", "test prompt", "")
 
 	// No log path yet → zero slice, no error.
 	slice, err := es.ReadLogSince(exec.ID, 0)
@@ -330,7 +336,7 @@ func TestExecutionStore_PrepareLogPath(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.CreateBeeExecution("session1", "test prompt")
+	exec, _ := es.CreateBeeExecution("session1", "test prompt", "")
 
 	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
