@@ -233,6 +233,83 @@ func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
 
 }
 
+func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
+	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
+	db := ss.db
+
+	todayStart, todayEnd := dayBounds(0)
+	yestStart, _ := dayBounds(-1)
+	todayMid := (todayStart + todayEnd) / 2
+	yestMid := yestStart + 1000
+
+	// Session A: execution completed today
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "w1", "sess-today", "hi", "completed", "", 0, todayMid-100, todayMid); err != nil {
+		t.Fatalf("insert exec: %v", err)
+	}
+	// Session B: execution completed yesterday
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "w1", "sess-yest", "hi", "completed", "", 0, yestMid-100, yestMid); err != nil {
+		t.Fatalf("insert exec: %v", err)
+	}
+
+	// Token stats: sess-today: 100 total (60 input, 40 output)
+	if _, err := db.Exec(`INSERT INTO bee_token_stats
+		(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "sess-today", "bee", "claude-3", 60, 40, 0, 0, 100, todayMid); err != nil {
+		t.Fatalf("insert token stats: %v", err)
+	}
+	// Token stats: sess-yest: 200 total (120 input, 80 output)
+	if _, err := db.Exec(`INSERT INTO bee_token_stats
+		(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "sess-yest", "bee", "claude-3", 120, 80, 0, 0, 200, yestMid); err != nil {
+		t.Fatalf("insert token stats: %v", err)
+	}
+
+	ov, err := ss.GetOverview(ctx)
+	if err != nil {
+		t.Fatalf("GetOverview: %v", err)
+	}
+
+	if ov.TokensTotal != 300 {
+		t.Errorf("TokensTotal: want 300, got %d", ov.TokensTotal)
+	}
+	if ov.TokensTotalInput != 180 {
+		t.Errorf("TokensTotalInput: want 180, got %d", ov.TokensTotalInput)
+	}
+	if ov.TokensTotalOutput != 120 {
+		t.Errorf("TokensTotalOutput: want 120, got %d", ov.TokensTotalOutput)
+	}
+	if ov.TokensTodayTotal != 100 {
+		t.Errorf("TokensTodayTotal: want 100, got %d", ov.TokensTodayTotal)
+	}
+	if ov.TokensTodayInput != 60 {
+		t.Errorf("TokensTodayInput: want 60, got %d", ov.TokensTodayInput)
+	}
+	if ov.TokensTodayOutput != 40 {
+		t.Errorf("TokensTodayOutput: want 40, got %d", ov.TokensTodayOutput)
+	}
+	if ov.TokensYestTotal != 200 {
+		t.Errorf("TokensYestTotal: want 200, got %d", ov.TokensYestTotal)
+	}
+	if ov.TokensYestInput != 120 {
+		t.Errorf("TokensYestInput: want 120, got %d", ov.TokensYestInput)
+	}
+	if ov.TokensYestOutput != 80 {
+		t.Errorf("TokensYestOutput: want 80, got %d", ov.TokensYestOutput)
+	}
+}
+
 func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
 	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
 	defer cleanup()

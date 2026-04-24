@@ -44,6 +44,15 @@ type StatsOverview struct {
 	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
 	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
 	ScheduledTasks          int       `json:"scheduled_tasks"`
+	TokensTotal       int64 `json:"tokens_total"`
+	TokensTotalInput  int64 `json:"tokens_total_input"`
+	TokensTotalOutput int64 `json:"tokens_total_output"`
+	TokensTodayTotal  int64 `json:"tokens_today_total"`
+	TokensTodayInput  int64 `json:"tokens_today_input"`
+	TokensTodayOutput int64 `json:"tokens_today_output"`
+	TokensYestTotal   int64 `json:"tokens_yesterday_total"`
+	TokensYestInput   int64 `json:"tokens_yesterday_input"`
+	TokensYestOutput  int64 `json:"tokens_yesterday_output"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -113,6 +122,11 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	// globalReceived and globalSent are written exclusively inside their own goroutines
 	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
 	var globalReceived, globalSent int
+	var (
+		tokensTotal, tokensTotalInput, tokensTotalOutput      int64
+		tokensTodayTotal, tokensTodayInput, tokensTodayOutput int64
+		tokensYestTotal, tokensYestInput, tokensYestOutput    int64
+	)
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)
 	})
@@ -176,6 +190,46 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.ScheduledTasks)
 	})
 
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COALESCE(SUM(total_tokens),0),
+			        COALESCE(SUM(input_tokens),0),
+			        COALESCE(SUM(output_tokens),0)
+			 FROM bee_token_stats`,
+		).Scan(&tokensTotal, &tokensTotalInput, &tokensTotalOutput)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COALESCE(SUM(ts.total_tokens),0),
+			        COALESCE(SUM(ts.input_tokens),0),
+			        COALESCE(SUM(ts.output_tokens),0)
+			 FROM bee_token_stats ts
+			 WHERE ts.session_id IN (
+			   SELECT DISTINCT session_id FROM bee_executions
+			   WHERE completed_at >= ? AND completed_at < ?
+			     AND session_id IS NOT NULL
+			 )`,
+			todayStart, todayEnd,
+		).Scan(&tokensTodayTotal, &tokensTodayInput, &tokensTodayOutput)
+	})
+
+	eg.Go(func() error {
+		yestStart, yestEnd := dayBounds(-1)
+		return s.db.QueryRowContext(egc,
+			`SELECT COALESCE(SUM(ts.total_tokens),0),
+			        COALESCE(SUM(ts.input_tokens),0),
+			        COALESCE(SUM(ts.output_tokens),0)
+			 FROM bee_token_stats ts
+			 WHERE ts.session_id IN (
+			   SELECT DISTINCT session_id FROM bee_executions
+			   WHERE completed_at >= ? AND completed_at < ?
+			     AND session_id IS NOT NULL
+			 )`,
+			yestStart, yestEnd,
+		).Scan(&tokensYestTotal, &tokensYestInput, &tokensYestOutput)
+	})
+
 	if err := eg.Wait(); err != nil {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
@@ -187,6 +241,16 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)
 		ov.ActiveWorkersChange = &change
 	}
+
+	ov.TokensTotal = tokensTotal
+	ov.TokensTotalInput = tokensTotalInput
+	ov.TokensTotalOutput = tokensTotalOutput
+	ov.TokensTodayTotal = tokensTodayTotal
+	ov.TokensTodayInput = tokensTodayInput
+	ov.TokensTodayOutput = tokensTodayOutput
+	ov.TokensYestTotal = tokensYestTotal
+	ov.TokensYestInput = tokensYestInput
+	ov.TokensYestOutput = tokensYestOutput
 
 	return ov, nil
 }
