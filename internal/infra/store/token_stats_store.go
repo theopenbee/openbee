@@ -8,6 +8,13 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
+// tombstoneModel is written by the token syncer when a session has no parseable
+// token data, advancing synced_at so the session is not retried on the next
+// sync cycle. It is excluded from all API-facing queries.
+const tombstoneModel = "unknown"
+
+// dbExecer is satisfied by both *sql.DB and *sql.Tx, allowing upsertTokenStat
+// to be reused inside transactions.
 type dbExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
@@ -77,7 +84,7 @@ const tokenStatsSelect = `SELECT id, session_id, agent_type, model, input_tokens
 	 FROM bee_token_stats`
 
 func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, error) {
-	rows, err := s.db.Query(tokenStatsSelect+` WHERE session_id = ?`, sessionID)
+	rows, err := s.db.Query(tokenStatsSelect+` WHERE session_id = ? AND model != ?`, sessionID, tombstoneModel)
 	if err != nil {
 		return nil, fmt.Errorf("query token stats by session: %w", err)
 	}
@@ -97,8 +104,8 @@ func (s *TokenStatsStore) GetBySessionIDs(sessionIDs []string) ([]model.TokenSta
 	if len(sessionIDs) == 0 {
 		return nil, nil
 	}
-	query := fmt.Sprintf(tokenStatsSelect+` WHERE session_id IN (%s)`, inPlaceholders(len(sessionIDs)))
-	rows, err := s.db.Query(query, stringsToArgs(sessionIDs)...)
+	query := fmt.Sprintf(tokenStatsSelect+` WHERE model != ? AND session_id IN (%s)`, inPlaceholders(len(sessionIDs)))
+	rows, err := s.db.Query(query, append([]any{tombstoneModel}, stringsToArgs(sessionIDs)...)...)
 	if err != nil {
 		return nil, fmt.Errorf("get token stats by session ids: %w", err)
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+func newTestServer(t *testing.T, register func(*gin.RouterGroup, *ExecutionHandler)) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, err := store.InitDB(t.TempDir() + "/test.db")
@@ -24,8 +24,14 @@ func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionSto
 	h := NewExecutionHandler(es, ts)
 	router := gin.New()
 	api := router.Group("/api")
-	api.GET("/executions", h.List)
+	register(api, h)
 	return router, es, ts, func() { db.Close() }
+}
+
+func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+	return newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
+		api.GET("/executions", h.List)
+	})
 }
 
 func TestExecutionsList_IncludesTokenStats(t *testing.T) {
@@ -98,19 +104,9 @@ func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
 }
 
 func newTestServerWithSessions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	es := store.NewExecutionStore(db, t.TempDir())
-	ts := store.NewTokenStatsStore(db)
-	h := NewExecutionHandler(es, ts)
-	router := gin.New()
-	api := router.Group("/api")
-	api.GET("/sessions/:id", h.GetSession)
-	return router, es, ts, func() { db.Close() }
+	return newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
+		api.GET("/sessions/:id", h.GetSession)
+	})
 }
 
 func TestGetSession_IncludesTokenStats(t *testing.T) {

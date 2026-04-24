@@ -346,12 +346,9 @@ type TokenTrendPoint struct {
 	TotalTokens int64  `json:"total_tokens"`
 }
 
-// GetTokenTrend returns total token usage per day for the last `days` days,
-// attributed by bee_executions.completed_at. Sessions with multiple executions
-// on the same day are counted once per day. A session whose executions span
-// multiple days will have its cumulative token count attributed to each day it
-// was active — this is by design, matching the UI disclosure in tokensCrossDayNote.
-// Zero-fills missing days.
+// GetTokenTrend returns token usage per day for the last `days` days.
+// A session active across midnight is attributed to each day it appears in,
+// matching the cross-day disclosure in the UI (tokensCrossDayNote).
 func (s *StatsStore) GetTokenTrend(ctx context.Context, days int) ([]TokenTrendPoint, error) {
 	startOfRange, startMS, endMS := trendRange(days)
 

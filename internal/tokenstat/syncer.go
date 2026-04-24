@@ -98,7 +98,8 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
 		WHERE (e.engine = '' OR e.engine IN (?, ?, ?, ?))
 		GROUP BY e.session_id
-		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)`,
+		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
+		LIMIT 500`,
 		ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi)
 	if err != nil {
 		return nil, err

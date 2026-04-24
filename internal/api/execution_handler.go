@@ -64,33 +64,26 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		CompletedTo:   parseInt64Query(c, "completed_at_to"),
 	}
 
+	var execs []model.WorkerExecution
+	var total int
+	var err error
+
 	// When no filters are applied, paginate at the session level so that each
 	// page contains a consistent number of sessions (the frontend groups by session).
 	if f == (store.ExecutionFilter{}) {
-		total, err := h.executions.CountSessions()
-		if err != nil {
+		if total, err = h.executions.CountSessions(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		execs, err := h.executions.ListPaginated(pageSize, offset)
-		if err != nil {
+		if execs, err = h.executions.ListPaginated(pageSize, offset); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"items":       execs,
-			"total":       total,
-			"page":        page,
-			"page_size":   pageSize,
-			"token_stats": h.buildTokenStatsMap(execs),
-		})
-		return
-	}
-
-	execs, total, err := h.executions.ListFiltered(c.Request.Context(), f, pageSize, offset)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	} else {
+		if execs, total, err = h.executions.ListFiltered(c.Request.Context(), f, pageSize, offset); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"items":       execs,

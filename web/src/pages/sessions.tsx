@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Info } from "lucide-react"
 import { useExecutions } from "@/hooks/use-executions"
 import type { WorkerExecution } from "@/lib/types"
 import {
@@ -12,14 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
-import { TokenStatsTooltip } from "@/components/token-stats-tooltip"
+import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
 import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
@@ -180,14 +178,7 @@ export function Sessions() {
                         {tokenStats ? (
                           <div className="flex items-center gap-1 text-xs font-mono">
                             <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
-                            <Tooltip>
-                              <TooltipTrigger type="button" aria-label="Token breakdown" className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors">
-                                <Info className="size-3" />
-                              </TooltipTrigger>
-                              <TooltipContent side="left" align="center">
-                                <TokenStatsTooltip stats={tokenStats} />
-                              </TooltipContent>
-                            </Tooltip>
+                            <TokenStatsInfoButton stats={tokenStats} side="left" align="center" />
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground/40">—</span>

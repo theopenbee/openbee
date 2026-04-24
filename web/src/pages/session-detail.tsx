@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
-import { Activity, Bot, Clock3, Info, Logs, Zap } from "lucide-react"
+import { Activity, Bot, Clock3, Logs, Zap } from "lucide-react"
 import { useSessionDetail } from "@/hooks/use-session-detail"
 import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { LogViewer } from "@/components/log-viewer"
@@ -11,8 +11,7 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
-import { TokenStatsTooltip } from "@/components/token-stats-tooltip"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
 
@@ -200,18 +199,7 @@ export function SessionDetail() {
                   tokenStats ? (
                     <div className="flex items-center gap-1">
                       <span>{formatTokenCount(tokenStats.total_tokens)}</span>
-                      <Tooltip>
-                        <TooltipTrigger
-                          type="button"
-                          aria-label="Token breakdown"
-                          className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
-                        >
-                          <Info className="size-3" />
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" align="start">
-                          <TokenStatsTooltip stats={tokenStats} />
-                        </TooltipContent>
-                      </Tooltip>
+                      <TokenStatsInfoButton stats={tokenStats} side="bottom" align="start" />
                     </div>
                   ) : (
                     "—"

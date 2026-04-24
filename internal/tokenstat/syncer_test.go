@@ -35,18 +35,6 @@ func insertTestWorker(t *testing.T, db *sql.DB, id, engine string) {
 	}
 }
 
-func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, completedAt int64) {
-	t.Helper()
-	_, err := db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, engine, status, completed_at)
-		 VALUES (?, ?, ?, '', 'completed', ?)`,
-		"exec-"+sessionID, workerID, sessionID, completedAt,
-	)
-	if err != nil {
-		t.Fatalf("insert execution: %v", err)
-	}
-}
-
 func insertTestExecutionWithEngine(t *testing.T, db *sql.DB, workerID, sessionID, engine string, completedAt int64) {
 	t.Helper()
 	_, err := db.Exec(
@@ -55,8 +43,12 @@ func insertTestExecutionWithEngine(t *testing.T, db *sql.DB, workerID, sessionID
 		"exec-"+sessionID, workerID, sessionID, engine, completedAt,
 	)
 	if err != nil {
-		t.Fatalf("insert execution with engine: %v", err)
+		t.Fatalf("insert execution: %v", err)
 	}
+}
+
+func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, completedAt int64) {
+	insertTestExecutionWithEngine(t, db, workerID, sessionID, "", completedAt)
 }
 
 func TestSyncer_SyncOnce_Claude(t *testing.T) {
@@ -290,28 +282,28 @@ func TestSyncer_SyncOnce_LegacyExecutionNoDataWritesTombstone(t *testing.T) {
 	syncer := tokenstat.NewSyncer(db, tokenStore)
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("legacy-no-data-session")
-	if err != nil {
+	// Tombstones are filtered from the public API but must exist in the DB to
+	// prevent the syncer from re-scanning the session on every tick.
+	var tombstoneCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "legacy-no-data-session").Scan(&tombstoneCount); err != nil {
+		t.Fatalf("query tombstone: %v", err)
+	}
+	if tombstoneCount != 1 {
+		t.Fatalf("expected 1 tombstone record in DB, got %d", tombstoneCount)
+	}
+	if stats, err := tokenStore.GetBySessionID("legacy-no-data-session"); err != nil {
 		t.Fatalf("GetBySessionID: %v", err)
-	}
-	if len(stats) != 1 {
-		t.Fatalf("expected 1 tombstone record, got %d", len(stats))
-	}
-	if stats[0].Model != "unknown" {
-		t.Errorf("Model: want unknown, got %s", stats[0].Model)
-	}
-	if stats[0].TotalTokens != 0 {
-		t.Errorf("TotalTokens: want 0, got %d", stats[0].TotalTokens)
+	} else if len(stats) != 0 {
+		t.Errorf("tombstone must not appear in API-facing query, got %d records", len(stats))
 	}
 
-	// second SyncOnce must not produce a second record (synced_at now > completed_at)
+	// second SyncOnce must not produce a second tombstone (synced_at now > completed_at)
 	syncer.SyncOnce(context.Background())
-	stats2, err := tokenStore.GetBySessionID("legacy-no-data-session")
-	if err != nil {
-		t.Fatalf("GetBySessionID (2nd): %v", err)
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ?`, "legacy-no-data-session").Scan(&tombstoneCount); err != nil {
+		t.Fatalf("query after 2nd sync: %v", err)
 	}
-	if len(stats2) != 1 {
-		t.Errorf("expected still 1 record after second sync, got %d", len(stats2))
+	if tombstoneCount != 1 {
+		t.Errorf("expected still 1 record after second sync, got %d", tombstoneCount)
 	}
 }
 
@@ -330,18 +322,17 @@ func TestSyncer_SyncOnce_KnownEngineNoDataWritesTombstone(t *testing.T) {
 	syncer := tokenstat.NewSyncer(db, tokenStore)
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("claude-no-data-session")
-	if err != nil {
+	var tombstoneCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "claude-no-data-session").Scan(&tombstoneCount); err != nil {
+		t.Fatalf("query tombstone: %v", err)
+	}
+	if tombstoneCount != 1 {
+		t.Fatalf("expected 1 tombstone record in DB, got %d", tombstoneCount)
+	}
+	if stats, err := tokenStore.GetBySessionID("claude-no-data-session"); err != nil {
 		t.Fatalf("GetBySessionID: %v", err)
-	}
-	if len(stats) != 1 {
-		t.Fatalf("expected 1 tombstone record, got %d", len(stats))
-	}
-	if stats[0].Model != "unknown" {
-		t.Errorf("Model: want unknown, got %s", stats[0].Model)
-	}
-	if stats[0].TotalTokens != 0 {
-		t.Errorf("TotalTokens: want 0, got %d", stats[0].TotalTokens)
+	} else if len(stats) != 0 {
+		t.Errorf("tombstone must not appear in API-facing query, got %d records", len(stats))
 	}
 }
 

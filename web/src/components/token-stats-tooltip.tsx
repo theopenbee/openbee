@@ -1,4 +1,31 @@
+import { Info } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SessionTokenStats } from "@/lib/types"
+
+export function TokenStatsInfoButton({
+  stats,
+  side = "bottom",
+  align = "start",
+}: {
+  stats: SessionTokenStats
+  side?: "bottom" | "left" | "right" | "top"
+  align?: "start" | "center" | "end"
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        aria-label="Token breakdown"
+        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+      >
+        <Info className="size-3" />
+      </TooltipTrigger>
+      <TooltipContent side={side} align={align}>
+        <TokenStatsTooltip stats={stats} />
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function TokenStatsTooltip({ stats }: { stats: SessionTokenStats }) {
   const sorted = [...stats.by_model].sort((a, b) => b.total_tokens - a.total_tokens)
