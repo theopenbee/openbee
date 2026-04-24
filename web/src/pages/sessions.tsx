@@ -214,10 +214,8 @@ export function Sessions() {
                           <div className="flex items-center gap-1 text-xs font-mono">
                             <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
                             <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button type="button" aria-label="Token breakdown" className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors">
-                                  <Info className="size-3" />
-                                </button>
+                              <TooltipTrigger type="button" aria-label="Token breakdown" className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors">
+                                <Info className="size-3" />
                               </TooltipTrigger>
                               <TooltipContent side="left" align="center">
                                 <TokenStatsTooltip stats={tokenStats} />
