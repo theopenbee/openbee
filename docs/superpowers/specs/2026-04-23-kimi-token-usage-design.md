@@ -51,11 +51,12 @@ Add token usage tracking for Kimi agent sessions, consistent with existing claud
 - `NewKimiParser() Parser`
 - `Parse(sessionID string)` algorithm:
   1. Glob `~/.kimi/sessions/*/{sessionID}/wire.jsonl`; if no match → `ErrSessionDataNotFound`
-  2. Read all lines of the first match using `scanJSONLFile`
-  3. Collect bytes of every line where `message.type == "StatusUpdate"` into a slice
-  4. Iterate the slice in reverse; unmarshal the first valid `token_usage` entry
-  5. If no `StatusUpdate` found → `ErrSessionDataNotFound`
-  6. Return single-element `[]SessionTokenUsage` with fixed model `"kimi"`
+  2. Forward-scan the file with `scanJSONLFile`; for each line where `message.type == "StatusUpdate"`, overwrite a single `lastLine []byte` variable
+  3. After scan, if `lastLine` is nil → `ErrSessionDataNotFound`
+  4. Unmarshal `lastLine` to extract `token_usage`
+  5. Return single-element `[]SessionTokenUsage` with fixed model `"kimi"`
+
+  Memory: O(1) — only one line held at a time regardless of file size.
 
 ### Modified: `internal/tokenstat/syncer.go`
 

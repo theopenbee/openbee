@@ -33,6 +33,7 @@ func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
 			ai.EngineClaude: NewClaudeParser(),
 			ai.EngineCodex:  NewCodexParser(config.DefaultCodexSessionsDir()),
 			ai.EnginePi:     NewPiParser(),
+			ai.EngineKimi:   NewKimiParser(),
 		},
 	}
 }
@@ -91,10 +92,10 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
 		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
-		WHERE (e.engine = '' OR e.engine IN (?, ?, ?))
+		WHERE (e.engine = '' OR e.engine IN (?, ?, ?, ?))
 		GROUP BY e.session_id
 		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)`,
-		ai.EngineClaude, ai.EngineCodex, ai.EnginePi)
+		ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi)
 	if err != nil {
 		return nil, err
 	}

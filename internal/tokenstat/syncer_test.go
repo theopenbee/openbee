@@ -195,6 +195,49 @@ func TestSyncer_SyncOnce_UsesExecutionEngineHint(t *testing.T) {
 	}
 }
 
+func TestSyncer_SyncOnce_Kimi(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "worker-kimi", "kimi")
+	insertTestExecutionWithEngine(t, db, "worker-kimi", "kimi-sess-001", "kimi", time.Now().UnixMilli())
+
+	home := t.TempDir()
+	kimiDir := filepath.Join(home, ".kimi", "sessions", "bucket-01", "kimi-sess-001")
+	os.MkdirAll(kimiDir, 0755)
+	os.WriteFile(filepath.Join(kimiDir, "wire.jsonl"),
+		[]byte(`{"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":446,"output":70,"input_cache_read":16384,"input_cache_creation":0}}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("HOME", home)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("kimi-sess-001")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 stat record, got %d", len(stats))
+	}
+	if stats[0].AgentType != "kimi" {
+		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
+	}
+	if stats[0].Model != "kimi" {
+		t.Errorf("Model: want kimi, got %s", stats[0].Model)
+	}
+	if stats[0].InputTokens != 446 {
+		t.Errorf("InputTokens: want 446, got %d", stats[0].InputTokens)
+	}
+	if stats[0].OutputTokens != 70 {
+		t.Errorf("OutputTokens: want 70, got %d", stats[0].OutputTokens)
+	}
+	if stats[0].CacheReadTokens != 16384 {
+		t.Errorf("CacheReadTokens: want 16384, got %d", stats[0].CacheReadTokens)
+	}
+}
+
 func TestSyncer_SyncOnce_LegacyExecutionWithoutEngineFallsBackAcrossParsers(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
