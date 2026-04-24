@@ -351,3 +351,53 @@ func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([
 	}
 	return points, nil
 }
+
+// TokenTrendPoint is one day's total token usage.
+type TokenTrendPoint struct {
+	Date        string `json:"date"`
+	TotalTokens int64  `json:"total_tokens"`
+}
+
+// GetTokenTrend returns total token usage per day for the last `days` days,
+// attributed by bee_executions.completed_at. Sessions with multiple executions
+// on the same day are counted once per day. Zero-fills missing days.
+func (s *StatsStore) GetTokenTrend(ctx context.Context, days int) ([]TokenTrendPoint, error) {
+	startOfRange, startMS, endMS := trendRange(days)
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT day, COALESCE(SUM(ts.total_tokens), 0) AS tokens
+		FROM (
+		  SELECT DISTINCT session_id,
+		         DATE(completed_at/1000, 'unixepoch', 'localtime') AS day
+		  FROM bee_executions
+		  WHERE completed_at >= ? AND completed_at < ?
+		    AND session_id IS NOT NULL
+		) sessions
+		JOIN bee_token_stats ts ON ts.session_id = sessions.session_id
+		GROUP BY day
+		ORDER BY day ASC`, startMS, endMS)
+	if err != nil {
+		return nil, fmt.Errorf("token trend query: %w", err)
+	}
+	defer rows.Close()
+
+	dbTotals := make(map[string]int64, days)
+	for rows.Next() {
+		var day string
+		var total int64
+		if err := rows.Scan(&day, &total); err != nil {
+			return nil, err
+		}
+		dbTotals[day] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("token trend rows: %w", err)
+	}
+
+	points := make([]TokenTrendPoint, days)
+	for i := range days {
+		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
+		points[i] = TokenTrendPoint{Date: date, TotalTokens: dbTotals[date]}
+	}
+	return points, nil
+}

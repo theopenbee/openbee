@@ -3,6 +3,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -360,5 +361,102 @@ func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("date %s not found in trend points", target)
+	}
+}
+
+func TestStatsStore_GetTokenTrend_FillsMissingDays(t *testing.T) {
+	ss, _, _, _, _, _, cleanup := newStatsTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+	db := ss.db
+
+	// Insert an execution completed 2 days ago with 2 models in token stats
+	twoDaysAgo := time.Now().AddDate(0, 0, -2).UnixMilli()
+	sessID := "sess-trend-1"
+	if _, err := db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "w1", sessID, "hi", "completed", "", 0, twoDaysAgo-100, twoDaysAgo); err != nil {
+		t.Fatalf("insert exec: %v", err)
+	}
+	// Two model rows for the same session — should count once per day, summed
+	for _, row := range []struct {
+		model  string
+		tokens int64
+	}{
+		{"claude-3", 300},
+		{"claude-3.5", 200},
+	} {
+		if _, err := db.Exec(`INSERT INTO bee_token_stats
+			(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			uuid.New().String(), sessID, "bee", row.model, 0, 0, 0, 0, row.tokens, twoDaysAgo); err != nil {
+			t.Fatalf("insert token stats: %v", err)
+		}
+	}
+
+	points, err := ss.GetTokenTrend(ctx, 7)
+	if err != nil {
+		t.Fatalf("GetTokenTrend: %v", err)
+	}
+
+	if len(points) != 7 {
+		t.Fatalf("want 7 points, got %d", len(points))
+	}
+
+	target := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	found := false
+	for _, p := range points {
+		if p.Date == target {
+			found = true
+			if p.TotalTokens != 500 {
+				t.Errorf("date %s: want TotalTokens=500, got %d", target, p.TotalTokens)
+			}
+		} else {
+			if p.TotalTokens != 0 {
+				t.Errorf("date %s: want 0, got %d", p.Date, p.TotalTokens)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("date %s not found in trend points", target)
+	}
+}
+
+func TestStatsStore_GetTokenTrend_MultipleExecutionsSameDay_NoDuplication(t *testing.T) {
+	ss, _, _, _, _, _, cleanup := newStatsTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+	db := ss.db
+
+	// Session with TWO executions both completed today — tokens should be counted once
+	todayStart, todayEnd := dayBounds(0)
+	todayMid := (todayStart + todayEnd) / 2
+	sessID := "sess-dedup"
+	for i, offset := range []int64{1000, 2000} {
+		if _, err := db.Exec(`INSERT INTO bee_executions
+			(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+			VALUES (?,?,?,?,?,?,?,?,?)`,
+			uuid.New().String()+strconv.Itoa(i), "w1", sessID, "hi", "completed", "", 0,
+			todayMid-100, todayMid+offset); err != nil {
+			t.Fatalf("insert exec: %v", err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO bee_token_stats
+		(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), sessID, "bee", "claude-3", 0, 0, 0, 0, 1000, todayMid); err != nil {
+		t.Fatalf("insert token stats: %v", err)
+	}
+
+	points, err := ss.GetTokenTrend(ctx, 7)
+	if err != nil {
+		t.Fatalf("GetTokenTrend: %v", err)
+	}
+	today := time.Now().Format("2006-01-02")
+	for _, p := range points {
+		if p.Date == today && p.TotalTokens != 1000 {
+			t.Errorf("today: want TotalTokens=1000 (no duplication), got %d", p.TotalTokens)
+		}
 	}
 }
