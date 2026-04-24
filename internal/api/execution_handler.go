@@ -146,15 +146,23 @@ func (h *ExecutionHandler) GetSession(c *gin.Context) {
 	})
 }
 
-func toModelTokenStats(row model.TokenStats) modelTokenStats {
-	return modelTokenStats{
-		Model:               row.Model,
-		TotalTokens:         row.TotalTokens,
-		InputTokens:         row.InputTokens,
-		OutputTokens:        row.OutputTokens,
-		CacheCreationTokens: row.CacheCreationTokens,
-		CacheReadTokens:     row.CacheReadTokens,
+func aggregateTokenStats(rows []model.TokenStats) *sessionTokenStats {
+	if len(rows) == 0 {
+		return nil
 	}
+	result := &sessionTokenStats{}
+	for _, row := range rows {
+		result.TotalTokens += row.TotalTokens
+		result.ByModel = append(result.ByModel, modelTokenStats{
+			Model:               row.Model,
+			TotalTokens:         row.TotalTokens,
+			InputTokens:         row.InputTokens,
+			OutputTokens:        row.OutputTokens,
+			CacheCreationTokens: row.CacheCreationTokens,
+			CacheReadTokens:     row.CacheReadTokens,
+		})
+	}
+	return result
 }
 
 func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionTokenStats {
@@ -163,15 +171,7 @@ func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionToke
 		logger.Error("get token stats by session", zap.String("session_id", sessionID), zap.Error(err))
 		return nil
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	result := &sessionTokenStats{}
-	for _, row := range rows {
-		result.TotalTokens += row.TotalTokens
-		result.ByModel = append(result.ByModel, toModelTokenStats(row))
-	}
-	return result
+	return aggregateTokenStats(rows)
 }
 
 func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map[string]*sessionTokenStats {
@@ -190,15 +190,13 @@ func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map
 	if err != nil {
 		return nil
 	}
-	result := make(map[string]*sessionTokenStats)
+	bySession := make(map[string][]model.TokenStats)
 	for _, row := range rows {
-		entry := result[row.SessionID]
-		if entry == nil {
-			entry = &sessionTokenStats{}
-			result[row.SessionID] = entry
-		}
-		entry.TotalTokens += row.TotalTokens
-		entry.ByModel = append(entry.ByModel, toModelTokenStats(row))
+		bySession[row.SessionID] = append(bySession[row.SessionID], row)
+	}
+	result := make(map[string]*sessionTokenStats)
+	for sid, sessionRows := range bySession {
+		result[sid] = aggregateTokenStats(sessionRows)
 	}
 	return result
 }
