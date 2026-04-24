@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 )
@@ -118,6 +119,48 @@ func TestSyncer_SyncOnce_FullModeWhenTableEmpty(t *testing.T) {
 	}
 	if len(stats) != 1 {
 		t.Errorf("expected 1 stat (full mode on empty table), got %d", len(stats))
+	}
+}
+
+func TestSyncer_SyncOnce_RetriesUnsyncedHistoricalSessionsAfterPartialBackfill(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	if err := tokenStore.Upsert(model.TokenStats{
+		SessionID:   "seed-session",
+		AgentType:   "claude",
+		Model:       "claude-3-5-sonnet",
+		InputTokens: 1,
+		SyncedAt:    time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("seed token stats: %v", err)
+	}
+
+	insertTestWorker(t, db, "worker-old", "claude")
+	oldTime := time.Now().AddDate(0, 0, -60).UnixMilli()
+	insertTestExecution(t, db, "worker-old", "old-unsynced-session", oldTime)
+
+	claudeBase := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
+	os.WriteFile(
+		filepath.Join(claudeBase, "projects", "old-unsynced-session.jsonl"),
+		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":75,"output_tokens":35}}}`+"\n"),
+		0644,
+	)
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
+
+	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer.SyncOnce(context.Background())
+
+	stats, err := tokenStore.GetBySessionID("old-unsynced-session")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected unsynced historical session to be retried, got %d stats", len(stats))
+	}
+	if stats[0].InputTokens != 75 {
+		t.Fatalf("InputTokens: want 75, got %d", stats[0].InputTokens)
 	}
 }
 

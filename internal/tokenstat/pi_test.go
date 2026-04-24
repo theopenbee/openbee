@@ -56,7 +56,7 @@ func TestPiParser_Parse_SkipsNonAssistantAndWrongType(t *testing.T) {
 	sessionsDir := t.TempDir()
 	sessionID := "skip-test"
 
-	writeTempFile(t, sessionsDir, "ts_"+sessionID+".jsonl", `{"type":"message","message":{"role":"user","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
+	writeTempFile(t, sessionsDir, sessionID+".jsonl", `{"type":"message","message":{"role":"user","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 {"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}
 {"type":"other","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 `)
@@ -96,7 +96,7 @@ func TestPiParser_Parse_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("PI_AGENT_DIR", "")
 
-	writeTempFile(t, home, ".openbee/.pi/sessions/20250101_"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
+	writeTempFile(t, home, ".openbee/.pi/sessions/"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
 
 	usages, err := tokenstat.NewPiParser().Parse(sessionID)
 	if err != nil {

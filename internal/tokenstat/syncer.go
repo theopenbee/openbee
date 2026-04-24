@@ -78,36 +78,18 @@ type sessionItem struct {
 }
 
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
-	empty, err := s.tokenStore.IsEmpty()
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		rows  *sql.Rows
-		query string
-		args  []any
-	)
-	if empty {
-		query = `
-			SELECT e.session_id, MAX(e.engine)
-			FROM bee_executions e
-			WHERE e.worker_id IS NOT NULL
-			  AND (e.engine = '' OR e.engine IN ('claude', 'codex', 'pi'))
-			GROUP BY e.session_id`
-	} else {
-		since := time.Now().AddDate(0, 0, -incrementalDays).UnixMilli()
-		query = `
-			SELECT e.session_id, MAX(e.engine)
-			FROM bee_executions e
-			WHERE e.worker_id IS NOT NULL
-			  AND (e.engine = '' OR e.engine IN ('claude', 'codex', 'pi'))
-			  AND e.completed_at > ?`
-		args = []any{since}
-		query += ` GROUP BY e.session_id`
-	}
-
-	rows, err = s.db.QueryContext(ctx, query, args...)
+	since := time.Now().AddDate(0, 0, -incrementalDays).UnixMilli()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.session_id, MAX(e.engine)
+		FROM bee_executions e
+		WHERE e.worker_id IS NOT NULL
+		  AND (e.engine = '' OR e.engine IN ('claude', 'codex', 'pi'))
+		GROUP BY e.session_id
+		HAVING MAX(CASE WHEN e.completed_at > ? THEN 1 ELSE 0 END) = 1
+		    OR NOT EXISTS (
+		        SELECT 1 FROM bee_token_stats ts
+		        WHERE ts.session_id = e.session_id
+		    )`, since)
 	if err != nil {
 		return nil, err
 	}

@@ -38,6 +38,11 @@ type piJSONLLine struct {
 }
 
 func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
+	path := filepath.Join(p.sessionsDir, sessionID+".jsonl")
+	if _, err := os.Stat(path); err == nil {
+		return piParse(sessionID, path)
+	}
+
 	entries, err := os.ReadDir(p.sessionsDir)
 	if err != nil {
 		if os.IsNotExist(err) {

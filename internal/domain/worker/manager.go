@@ -256,7 +256,17 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 
 	engineName, engine, err := m.resolveEngine(worker)
 	if err != nil {
-		return model.WorkerExecution{}, err
+		exec, createErr := m.executionStore.Create(workerID, triggerInput, sessionID, "")
+		if createErr != nil {
+			return model.WorkerExecution{}, fmt.Errorf("create execution: %w", createErr)
+		}
+		if updateErr := m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed); updateErr != nil {
+			log.Error("failed to persist execution failure", zap.Error(updateErr))
+		}
+		if updateErr := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError); updateErr != nil {
+			log.Error("failed to update worker status", zap.Error(updateErr))
+		}
+		return exec, err
 	}
 
 	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
