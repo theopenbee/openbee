@@ -42,6 +42,7 @@ export interface WorkerInitialValues {
   permission_scopes: string
   engine: Engine
   departmentIds: string[]
+  engine_extra_args: Record<string, string>
 }
 
 export function workerToInitialValues(worker: Worker): WorkerInitialValues {
@@ -53,6 +54,7 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     permission_scopes: worker.permission_scopes ?? "",
     engine: worker.engine ?? DEFAULT_ENGINE,
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
+    engine_extra_args: worker.engine_extra_args ?? {},
   }
 }
 
@@ -79,6 +81,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
+  const [engineExtraArgs, setEngineExtraArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
   const [showOptional, setShowOptional] = useState(false)
   const [deptSearch, setDeptSearch] = useState("")
@@ -95,6 +98,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
+      setEngineExtraArgs(iv?.engine_extra_args ?? {})
       setSubmitError("")
       setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
       setDeptSearch("")
@@ -113,6 +117,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         constraints: constraints || undefined,
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
+        engine_extra_args: Object.keys(engineExtraArgs).length > 0 ? engineExtraArgs : undefined,
       })
       if (selectedDeptIds.size > 0) {
         await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
@@ -279,6 +284,29 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                     />
                     <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
                   </div>
+
+                  {enabledEngines.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>{t("workers.form.engineExtraArgs")}</Label>
+                      <div className="space-y-2">
+                        {enabledEngines.map((eng) => (
+                          <div key={eng} className="space-y-1">
+                            <span className="text-xs font-medium text-muted-foreground capitalize">{eng}</span>
+                            <Input
+                              value={engineExtraArgs[eng] ?? ""}
+                              onChange={(e) => setEngineExtraArgs((prev) => ({
+                                ...prev,
+                                [eng]: e.target.value,
+                              }))}
+                              placeholder={t("workers.form.engineExtraArgsPlaceholder")}
+                              className="font-mono text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("workers.form.engineExtraArgsHelper")}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
