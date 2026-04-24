@@ -1,12 +1,14 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Info } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CombinedTrendChart } from "@/components/combined-trend-chart"
+import { TokenTrendChart } from "@/components/token-trend-chart"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useStatsOverview } from "@/hooks/use-stats"
-import { formatChange, formatTotalDuration } from "@/lib/format"
+import { formatChange, formatTotalDuration, formatTokenCount } from "@/lib/format"
 import type { StatsOverview } from "@/lib/types"
 
 const EMPTY: StatsOverview = {
@@ -24,6 +26,15 @@ const EMPTY: StatsOverview = {
   exec_duration_yesterday_ms: 0,
   exec_duration_total_ms: 0,
   scheduled_tasks: 0,
+  tokens_total: 0,
+  tokens_total_input: 0,
+  tokens_total_output: 0,
+  tokens_today_total: 0,
+  tokens_today_input: 0,
+  tokens_today_output: 0,
+  tokens_yesterday_total: 0,
+  tokens_yesterday_input: 0,
+  tokens_yesterday_output: 0,
 }
 
 function SectionRule({ children }: { children: ReactNode }) {
@@ -70,6 +81,17 @@ export function Dashboard() {
   const durationChangeColor =
     durationDiff > 0 ? "text-status-idle" : durationDiff < 0 ? "text-status-error" : "text-muted-foreground"
 
+  const tokenDiff = ov.tokens_today_total - ov.tokens_yesterday_total
+  const tokenRatio =
+    ov.tokens_yesterday_total > 0 ? tokenDiff / ov.tokens_yesterday_total : null
+  const tokenChangeLabel = formatChange(tokenRatio)
+  const tokenChangeColor =
+    tokenDiff > 0
+      ? "text-status-idle"
+      : tokenDiff < 0
+        ? "text-status-error"
+        : "text-muted-foreground"
+
   return (
     <FadeIn>
       <PageHeader title={t("dashboard.title")} />
@@ -77,45 +99,68 @@ export function Dashboard() {
       {/* ── System Status ─────────────────────────────────────────── */}
       <div className="mb-10">
         <SectionRule>{t("dashboard.systemStatus")}</SectionRule>
-        <div className="grid grid-cols-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className={
-                  i % 2 !== 0
-                    ? "pl-6 border-l border-border/70 sm:pl-8"
-                    : i > 0
-                      ? "pl-6 sm:pl-8 sm:border-l sm:border-border/70"
-                      : ""
-                }
-              >
-                <StatSkeleton />
-              </div>
-            ))
-          ) : (
-            [
-              { label: t("dashboard.departments"), value: ov.departments },
-              { label: t("dashboard.workers"), value: ov.workers },
-              { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
-              { label: t("dashboard.totalMessages"), value: ov.messages_total_global },
-              { label: t("dashboard.totalWorkDuration"), value: formatTotalDuration(ov.exec_duration_total_ms) },
-            ].map(({ label, value }, i) => (
+            Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
                 className={[
                   i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
                   i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
-                  i < 4 ? "pb-6 sm:pb-0" : "",
+                  i < 5 ? "pb-6 lg:pb-0" : "",
                 ].join(" ")}
-                aria-label={label}
               >
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
-                  {label}
-                </p>
-                <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
+                <StatSkeleton />
               </div>
             ))
+          ) : (
+            <>
+              {[
+                { label: t("dashboard.departments"), value: ov.departments },
+                { label: t("dashboard.workers"), value: ov.workers },
+                { label: t("dashboard.scheduledTasks"), value: ov.scheduled_tasks },
+                { label: t("dashboard.totalMessages"), value: ov.messages_total_global },
+                {
+                  label: t("dashboard.totalWorkDuration"),
+                  value: formatTotalDuration(ov.exec_duration_total_ms),
+                },
+              ].map(({ label, value }, i) => (
+                <div
+                  key={i}
+                  className={[
+                    i % 2 !== 0 ? "pl-6 border-l border-border/70" : "",
+                    i > 0 ? "sm:pl-8 sm:border-l sm:border-border/70" : "",
+                    i < 4 ? "pb-6 lg:pb-0" : "",
+                  ].join(" ")}
+                  aria-label={label}
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
+                    {label}
+                  </p>
+                  <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
+                </div>
+              ))}
+              {/* Total Tokens — 6th item with hover tooltip */}
+              <div
+                className="pl-6 border-l border-border/70 sm:pl-8 sm:border-l sm:border-border/70"
+                aria-label={t("dashboard.totalTokens")}
+              >
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2.5">
+                  {t("dashboard.totalTokens")}
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="text-3xl font-semibold tabular-nums leading-none cursor-default">
+                      {formatTokenCount(ov.tokens_total)}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t("dashboard.tokensTodayInput")}: {ov.tokens_total_input.toLocaleString()}</p>
+                    <p>{t("dashboard.tokensTodayOutput")}: {ov.tokens_total_output.toLocaleString()}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -128,7 +173,7 @@ export function Dashboard() {
           role="region"
           aria-label={t("dashboard.todayActivity")}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-border">
 
             {/* Active Workers */}
             <div className="p-6">
@@ -330,12 +375,88 @@ export function Dashboard() {
               )}
             </div>
 
+            {/* Tokens */}
+            <div className="p-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-5">
+                {t("dashboard.tokensToday")}
+              </p>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-16" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-12" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p
+                        className="text-5xl font-semibold tabular-nums leading-none mb-4 cursor-default"
+                        aria-label={`${t("dashboard.tokensToday")}: ${formatTokenCount(ov.tokens_today_total)}`}
+                        aria-live="polite"
+                      >
+                        {formatTokenCount(ov.tokens_today_total)}
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{t("dashboard.tokensTodayInput")}: {ov.tokens_today_input.toLocaleString()}</p>
+                      <p>{t("dashboard.tokensTodayOutput")}: {ov.tokens_today_output.toLocaleString()}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        {t("dashboard.tokensYesterday")}
+                      </span>
+                      <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
+                        {formatTokenCount(ov.tokens_yesterday_total)}
+                      </span>
+                    </div>
+                    {tokenChangeLabel !== null && (
+                      <div
+                        className={`flex items-center gap-1 ${tokenChangeColor}`}
+                        aria-label={tokenChangeLabel}
+                      >
+                        {tokenDiff > 0 ? (
+                          <TrendingUp className="h-3 w-3" aria-hidden />
+                        ) : tokenDiff < 0 ? (
+                          <TrendingDown className="h-3 w-3" aria-hidden />
+                        ) : (
+                          <Minus className="h-3 w-3" aria-hidden />
+                        )}
+                        <span className="text-xs font-semibold tabular-nums">{tokenChangeLabel}</span>
+                      </div>
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={t("dashboard.tokensCrossDayNote")}
+                          className="ml-auto text-muted-foreground/50 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        >
+                          <Info className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{t("dashboard.tokensCrossDayNote")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
 
-      {/* ── Activity Trend ─────────────────────────────────────────── */}
-      <CombinedTrendChart />
+      {/* ── Charts ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TokenTrendChart />
+        <CombinedTrendChart />
+      </div>
     </FadeIn>
   )
 }
