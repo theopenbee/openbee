@@ -15,3 +15,4 @@ function useStatsDayTrend<T>(key: string, fetcher: (days: 7 | 15 | 30) => Promis
 
 export const useStatsTrend = (days: 7 | 15 | 30) => useStatsDayTrend("trend", api.stats.trend, days)
 export const useExecutionDurationTrend = (days: 7 | 15 | 30) => useStatsDayTrend("execution-duration-trend", api.stats.executionDurationTrend, days)
+export const useTokenTrend = (days: 7 | 15 | 30) => useStatsDayTrend("token-trend", api.stats.tokenTrend, days)

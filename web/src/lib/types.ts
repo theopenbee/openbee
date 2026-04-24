@@ -125,6 +125,15 @@ export interface StatsOverview {
   exec_duration_yesterday_ms: number
   exec_duration_total_ms: number
   scheduled_tasks: number
+  tokens_total: number
+  tokens_total_input: number
+  tokens_total_output: number
+  tokens_today_total: number
+  tokens_today_input: number
+  tokens_today_output: number
+  tokens_yesterday_total: number
+  tokens_yesterday_input: number
+  tokens_yesterday_output: number
 }
 
 export interface TrendPoint {
@@ -145,6 +154,16 @@ export interface ExecDurationTrendPoint {
 export interface ExecDurationTrend {
   days: number
   data: ExecDurationTrendPoint[]
+}
+
+export interface TokenTrendPoint {
+  date: string
+  total_tokens: number
+}
+
+export interface TokenTrend {
+  days: number
+  data: TokenTrendPoint[]
 }
 
 export type EnvScope = "global" | "bee" | "department" | "worker"

@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, AppConfig, Engine, SessionDetail } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, TokenTrend, AppConfig, Engine, SessionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -173,6 +173,8 @@ export const api = {
     trend: (days: 7 | 15 | 30) => fetchAPI<StatsTrend>(`/stats/trend?days=${days}`),
     executionDurationTrend: (days: 7 | 15 | 30) =>
       fetchAPI<ExecDurationTrend>(`/stats/execution-duration-trend?days=${days}`),
+    tokenTrend: (days: 7 | 15 | 30) =>
+      fetchAPI<TokenTrend>(`/stats/token-trend?days=${days}`),
   },
   envs: {
     list: (scope: string, scopeId?: string) => {
