@@ -149,6 +149,17 @@ func (h *ExecutionHandler) GetSession(c *gin.Context) {
 	})
 }
 
+func toModelTokenStats(row model.TokenStats) modelTokenStats {
+	return modelTokenStats{
+		Model:               row.Model,
+		TotalTokens:         row.TotalTokens,
+		InputTokens:         row.InputTokens,
+		OutputTokens:        row.OutputTokens,
+		CacheCreationTokens: row.CacheCreationTokens,
+		CacheReadTokens:     row.CacheReadTokens,
+	}
+}
+
 func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionTokenStats {
 	rows, err := h.tokenStats.GetBySessionID(sessionID)
 	if err != nil || len(rows) == 0 {
@@ -157,14 +168,7 @@ func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionToke
 	result := &sessionTokenStats{}
 	for _, row := range rows {
 		result.TotalTokens += row.TotalTokens
-		result.ByModel = append(result.ByModel, modelTokenStats{
-			Model:               row.Model,
-			TotalTokens:         row.TotalTokens,
-			InputTokens:         row.InputTokens,
-			OutputTokens:        row.OutputTokens,
-			CacheCreationTokens: row.CacheCreationTokens,
-			CacheReadTokens:     row.CacheReadTokens,
-		})
+		result.ByModel = append(result.ByModel, toModelTokenStats(row))
 	}
 	return result
 }
@@ -193,14 +197,7 @@ func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map
 			result[row.SessionID] = entry
 		}
 		entry.TotalTokens += row.TotalTokens
-		entry.ByModel = append(entry.ByModel, modelTokenStats{
-			Model:               row.Model,
-			TotalTokens:         row.TotalTokens,
-			InputTokens:         row.InputTokens,
-			OutputTokens:        row.OutputTokens,
-			CacheCreationTokens: row.CacheCreationTokens,
-			CacheReadTokens:     row.CacheReadTokens,
-		})
+		entry.ByModel = append(entry.ByModel, toModelTokenStats(row))
 	}
 	return result
 }
