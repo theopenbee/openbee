@@ -20,11 +20,12 @@ const (
 	incrementalDays = 30
 )
 
+var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi}
+
 type Syncer struct {
 	db         *sql.DB
 	tokenStore *store.TokenStatsStore
 	parsers    map[string]Parser
-	parserList []string
 }
 
 func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
@@ -36,7 +37,6 @@ func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
 			ai.EngineCodex:  NewCodexParser(config.DefaultCodexSessionsDir()),
 			ai.EnginePi:     NewPiParser(),
 		},
-		parserList: []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi},
 	}
 }
 
@@ -134,13 +134,13 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 
 func (s *Syncer) parserOrder(preferred string) []string {
 	if preferred == "" {
-		return append([]string(nil), s.parserList...)
+		return append([]string(nil), defaultParserOrder...)
 	}
 	if _, ok := s.parsers[preferred]; !ok {
-		return append([]string(nil), s.parserList...)
+		return append([]string(nil), defaultParserOrder...)
 	}
 	order := []string{preferred}
-	for _, name := range s.parserList {
+	for _, name := range defaultParserOrder {
 		if name != preferred {
 			order = append(order, name)
 		}
@@ -149,6 +149,9 @@ func (s *Syncer) parserOrder(preferred string) []string {
 }
 
 func (s *Syncer) storeUsages(sessionID string, usages []SessionTokenUsage) {
+	if len(usages) == 0 {
+		return
+	}
 	now := time.Now().UnixMilli()
 	tx, err := s.db.Begin()
 	if err != nil {

@@ -12,24 +12,12 @@ var ErrSessionDataNotFound = errors.New("tokenstat session data not found")
 
 var errStopWalk = errors.New("stop walk")
 
-// scannerBufSize is the max JSONL line size for session file parsers.
-// Session files can embed base64-encoded content or long conversation turns.
+// 16 MiB: session files can embed base64-encoded content or long conversation turns.
 const scannerBufSize = 16 * 1024 * 1024
 
 func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (string, error) {
-	info, err := os.Stat(root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("%w: %s", ErrSessionDataNotFound, root)
-		}
-		return "", fmt.Errorf("stat session root %s: %w", root, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%w: %s", ErrSessionDataNotFound, root)
-	}
-
 	var found string
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -43,6 +31,9 @@ func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (
 		return nil
 	})
 	if err != nil && !errors.Is(err, errStopWalk) {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%w: %s", ErrSessionDataNotFound, root)
+		}
 		return "", fmt.Errorf("walk session root %s: %w", root, err)
 	}
 	if found == "" {
