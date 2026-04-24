@@ -64,6 +64,8 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		CompletedTo:   parseInt64Query(c, "completed_at_to"),
 	}
 
+	// When no filters are applied, paginate at the session level so that each
+	// page contains a consistent number of sessions (the frontend groups by session).
 	if f == (store.ExecutionFilter{}) {
 		total, err := h.executions.CountSessions()
 		if err != nil {
