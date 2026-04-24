@@ -170,6 +170,51 @@ func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap
 func BuildExtraArgSlice(args map[string]string) []string
 ```
 
+## Web UI Changes
+
+### Types (`web/src/lib/types.ts`)
+Add `engine_extra_args` to the `Worker` type:
+```ts
+engine_extra_args: Record<string, string> // engine -> raw CLI string
+```
+
+### API Client (`web/src/lib/api.ts`)
+Include `engine_extra_args` in create and update request bodies.
+
+### Create Worker Sheet (`web/src/components/create-worker-sheet.tsx`)
+Add an "Engine Extra Args" subsection inside the existing optional settings collapsible. For each enabled engine, render a labeled text input accepting a raw CLI string:
+```
+Claude:  [--model claude-sonnet-4-5 --effort high        ]
+Codex:   [--model o3                                      ]
+```
+Only show inputs for engines that are enabled server-side (reuse the existing enabled-engines list).
+
+### Edit Worker Info Sheet (`web/src/components/edit-worker-info-sheet.tsx`)
+Add the same "Engine Extra Args" section. Pre-populate inputs from the worker's current `engine_extra_args` value.
+
+## CLI Changes (`cmd/openbee/ctl_worker.go`)
+
+### New flag: `--engine-extra-args`
+
+Added to both `create` and `update` subcommands. The flag is **repeatable** — pass one per engine:
+
+```bash
+# create
+openbee ctl worker create --name myworker \
+  --engine-extra-args "claude=--model claude-sonnet-4-5 --effort high" \
+  --engine-extra-args "codex=--model o3"
+
+# update
+openbee ctl worker update <id> \
+  --engine-extra-args "claude=--model claude-opus-4-7"
+```
+
+**Format**: `<engine>=<raw CLI args string>`
+
+**Behaviour on `update`**: Only the engines explicitly passed are updated; other engines' extra args are left unchanged. To clear a specific engine's args, pass an empty string value: `--engine-extra-args "claude="`.
+
+**Parsing**: Each `--engine-extra-args` value is split on the first `=` to yield `(engine, argsString)`. The CLI sends these as the `engine_extra_args` map to the API (same raw-string format the API already accepts).
+
 ## Files to Change
 
 | File | Change |
@@ -187,10 +232,14 @@ func BuildExtraArgSlice(args map[string]string) []string
 | `internal/domain/bee/bee_process.go` | Load global + bee config, merge, pass in `RunOptions` |
 | `internal/api/system_config_handler.go` | Support GET/PUT for the two new keys |
 | `internal/api/worker_handler.go` | Accept and persist `engine_extra_args` |
+| `cmd/openbee/ctl_worker.go` | Add `--engine-extra-args` flag to `create` and `update` |
+| `web/src/lib/types.ts` | Add `engine_extra_args` to `Worker` type |
+| `web/src/lib/api.ts` | Include `engine_extra_args` in create/update payloads |
+| `web/src/components/create-worker-sheet.tsx` | Add engine extra args inputs in optional settings |
+| `web/src/components/edit-worker-info-sheet.tsx` | Add engine extra args inputs |
 | DB migration | Add `engine_extra_args` column to `bee_workers` |
 
 ## Out of Scope
 
-- Frontend UI changes (follow-up task)
 - Per-department extra args
 - Validating that a given arg is supported by the target engine
