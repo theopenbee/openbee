@@ -82,6 +82,36 @@ func TestTokenStatsStore_Upsert_UpdatesOnConflict(t *testing.T) {
 	}
 }
 
+func TestTokenStatsStore_Upsert_TotalTokensStored(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	if err := s.Upsert(model.TokenStats{
+		SessionID:           "session-total",
+		AgentType:           "claude",
+		Model:               "claude-3-5-sonnet",
+		InputTokens:         100,
+		OutputTokens:        200,
+		CacheCreationTokens: 50,
+		CacheReadTokens:     30,
+		TotalTokens:         380,
+		SyncedAt:            time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	got, err := s.GetBySessionID("session-total")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(got))
+	}
+	if got[0].TotalTokens != 380 {
+		t.Errorf("TotalTokens: want 380, got %d", got[0].TotalTokens)
+	}
+}
+
 func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
 	s, cleanup := newTokenStatsTestDB(t)
 	defer cleanup()

@@ -43,18 +43,20 @@ func upsertTokenStat(db dbExecer, stat model.TokenStats) error {
 	_, err := db.Exec(
 		`INSERT INTO bee_token_stats
 		     (id, session_id, agent_type, model, input_tokens, output_tokens,
-		      cache_creation_tokens, cache_read_tokens, synced_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		      cache_creation_tokens, cache_read_tokens, total_tokens, synced_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(session_id, model) DO UPDATE SET
 		     agent_type            = excluded.agent_type,
 		     input_tokens          = excluded.input_tokens,
 		     output_tokens         = excluded.output_tokens,
 		     cache_creation_tokens = excluded.cache_creation_tokens,
 		     cache_read_tokens     = excluded.cache_read_tokens,
+		     total_tokens          = excluded.total_tokens,
 		     synced_at             = excluded.synced_at`,
 		stat.ID, stat.SessionID, stat.AgentType, stat.Model,
 		stat.InputTokens, stat.OutputTokens,
 		stat.CacheCreationTokens, stat.CacheReadTokens,
+		stat.TotalTokens,
 		stat.SyncedAt,
 	)
 	return err
@@ -63,7 +65,7 @@ func upsertTokenStat(db dbExecer, stat model.TokenStats) error {
 func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, error) {
 	rows, err := s.db.Query(
 		`SELECT id, session_id, agent_type, model, input_tokens, output_tokens,
-		        cache_creation_tokens, cache_read_tokens, synced_at
+		        cache_creation_tokens, cache_read_tokens, total_tokens, synced_at
 		 FROM bee_token_stats WHERE session_id = ?`,
 		sessionID,
 	)
@@ -77,7 +79,8 @@ func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, 
 		if err := rows.Scan(
 			&st.ID, &st.SessionID, &st.AgentType, &st.Model,
 			&st.InputTokens, &st.OutputTokens,
-			&st.CacheCreationTokens, &st.CacheReadTokens, &st.SyncedAt,
+			&st.CacheCreationTokens, &st.CacheReadTokens,
+			&st.TotalTokens, &st.SyncedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan token stats: %w", err)
 		}

@@ -382,6 +382,7 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
             output_tokens         INTEGER NOT NULL DEFAULT 0,
             cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
             cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+            total_tokens          INTEGER NOT NULL DEFAULT 0,
             synced_at             INTEGER NOT NULL
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_bee_token_stats_session_model
