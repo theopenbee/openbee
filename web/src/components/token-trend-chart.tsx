@@ -9,11 +9,6 @@ export function TokenTrendChart() {
   const [days, setDays] = useState<7 | 15 | 30>(7)
   const { data, isLoading } = useTokenTrend(days)
 
-  const chartData = (data?.data ?? []).map((p) => ({
-    date: p.date,
-    total_tokens: p.total_tokens,
-  }))
-
   return (
     <TrendLineCard
       title={t("dashboard.tokensTrend")}
@@ -22,7 +17,7 @@ export function TokenTrendChart() {
       emptyDesc={t("dashboard.noTokenDataDesc")}
       dataKey="total_tokens"
       tooltipLabel={t("dashboard.tokens")}
-      chartData={chartData}
+      chartData={data?.data ?? []}
       isLoading={isLoading}
       days={days}
       onDaysChange={setDays}

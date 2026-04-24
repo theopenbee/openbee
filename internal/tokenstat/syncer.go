@@ -17,6 +17,10 @@ import (
 
 const syncInterval = 10 * time.Minute
 
+// tombstoneModel is stored when all parsers fail for a session so the syncer
+// stops retrying it (synced_at advances past completed_at).
+const tombstoneModel = "unknown"
+
 var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi, ai.EngineKimi}
 
 type Syncer struct {
@@ -153,7 +157,7 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 			zap.String("session_id", sessionID),
 			zap.String("engine", engine))
 	}
-	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: "unknown"}})
+	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: tombstoneModel}})
 }
 
 func (s *Syncer) parserOrder(preferred string) []string {

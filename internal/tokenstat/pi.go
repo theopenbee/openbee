@@ -2,6 +2,7 @@ package tokenstat
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -41,7 +42,10 @@ func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, ErrSessionDataNotFound) {
+			return nil, fmt.Errorf("%w: pi session file not found for %s", ErrSessionDataNotFound, sessionID)
+		}
+		return nil, fmt.Errorf("pi session file lookup for %s: %w", sessionID, err)
 	}
 	return piParse(sessionID, path)
 }

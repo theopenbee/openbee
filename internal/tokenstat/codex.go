@@ -140,7 +140,10 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			if info.LastTokenUsage != nil {
 				addCodexUsage(u, *info.LastTokenUsage)
 				if info.TotalTokenUsage != nil {
-					*prev = *info.TotalTokenUsage // authoritative total supersedes incremental running sum
+					// Codex emits both fields together when a turn is replayed/resumed;
+					// the cumulative total is authoritative, so reset prev instead of
+					// double-counting by advancing it.
+					*prev = *info.TotalTokenUsage
 				} else {
 					prev.advance(*info.LastTokenUsage)
 				}

@@ -92,7 +92,13 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
+	c.JSON(http.StatusOK, gin.H{
+		"items":       execs,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
+		"token_stats": h.buildTokenStatsMap(execs),
+	})
 }
 
 func (h *ExecutionHandler) Get(c *gin.Context) {
