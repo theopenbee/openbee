@@ -183,6 +183,7 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 			OutputTokens:        u.OutputTokens,
 			CacheCreationTokens: u.CacheCreationTokens,
 			CacheReadTokens:     u.CacheReadTokens,
+			TotalTokens:         u.InputTokens + u.OutputTokens + u.CacheCreationTokens + u.CacheReadTokens,
 			SyncedAt:            now,
 		}); err != nil {
 			return fmt.Errorf("upsert: %w", err)
