@@ -85,6 +85,7 @@ export function Dashboard() {
       : tokenDiff < 0
         ? "text-status-error"
         : "text-muted-foreground"
+  const TokenChangeIcon = tokenDiff > 0 ? TrendingUp : tokenDiff < 0 ? TrendingDown : Minus
 
   return (
     <FadeIn>
@@ -395,13 +396,7 @@ export function Dashboard() {
                         className={`flex items-center gap-1 ${tokenChangeColor}`}
                         aria-label={tokenChangeLabel}
                       >
-                        {tokenDiff > 0 ? (
-                          <TrendingUp className="h-3 w-3" aria-hidden />
-                        ) : tokenDiff < 0 ? (
-                          <TrendingDown className="h-3 w-3" aria-hidden />
-                        ) : (
-                          <Minus className="h-3 w-3" aria-hidden />
-                        )}
+                        <TokenChangeIcon className="h-3 w-3" aria-hidden />
                         <span className="text-xs font-semibold tabular-nums">{tokenChangeLabel}</span>
                       </div>
                     )}

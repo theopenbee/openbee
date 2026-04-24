@@ -199,35 +199,23 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&tokensTotal, &tokensTotalInput, &tokensTotalOutput)
 	})
 
-	eg.Go(func() error {
-		return s.db.QueryRowContext(egc,
-			`SELECT COALESCE(SUM(ts.total_tokens),0),
-			        COALESCE(SUM(ts.input_tokens),0),
-			        COALESCE(SUM(ts.output_tokens),0)
-			 FROM bee_token_stats ts
-			 WHERE ts.session_id IN (
-			   SELECT DISTINCT session_id FROM bee_executions
-			   WHERE completed_at >= ? AND completed_at < ?
-			     AND session_id IS NOT NULL
-			 )`,
-			todayStart, todayEnd,
-		).Scan(&tokensTodayTotal, &tokensTodayInput, &tokensTodayOutput)
-	})
-
-	eg.Go(func() error {
-		return s.db.QueryRowContext(egc,
-			`SELECT COALESCE(SUM(ts.total_tokens),0),
-			        COALESCE(SUM(ts.input_tokens),0),
-			        COALESCE(SUM(ts.output_tokens),0)
-			 FROM bee_token_stats ts
-			 WHERE ts.session_id IN (
-			   SELECT DISTINCT session_id FROM bee_executions
-			   WHERE completed_at >= ? AND completed_at < ?
-			     AND session_id IS NOT NULL
-			 )`,
-			yestStart, yestEnd,
-		).Scan(&tokensYestTotal, &tokensYestInput, &tokensYestOutput)
-	})
+	const tokenRangeQuery = `
+		SELECT COALESCE(SUM(ts.total_tokens),0),
+		       COALESCE(SUM(ts.input_tokens),0),
+		       COALESCE(SUM(ts.output_tokens),0)
+		FROM bee_token_stats ts
+		WHERE ts.session_id IN (
+		  SELECT DISTINCT session_id FROM bee_executions
+		  WHERE completed_at >= ? AND completed_at < ?
+		    AND session_id IS NOT NULL
+		)`
+	scanTokenRange := func(startMS, endMS int64, total, inp, out *int64) func() error {
+		return func() error {
+			return s.db.QueryRowContext(egc, tokenRangeQuery, startMS, endMS).Scan(total, inp, out)
+		}
+	}
+	eg.Go(scanTokenRange(todayStart, todayEnd, &tokensTodayTotal, &tokensTodayInput, &tokensTodayOutput))
+	eg.Go(scanTokenRange(yestStart, yestEnd, &tokensYestTotal, &tokensYestInput, &tokensYestOutput))
 
 	if err := eg.Wait(); err != nil {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
