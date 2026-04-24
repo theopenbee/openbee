@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -32,16 +34,26 @@ func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSy
 // Get returns all known system config keys as a JSON object.
 // Missing DB rows are returned as empty strings.
 func (h *SystemConfigHandler) Get(c *gin.Context) {
-	cfg, found, err := h.store.Get(c.Request.Context(), model.SystemConfigKeyDefaultEngine)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	ctx := c.Request.Context()
+	keys := []string{
+		model.SystemConfigKeyDefaultEngine,
+		model.SystemConfigKeyEngineExtraArgsGlobal,
+		model.SystemConfigKeyEngineExtraArgsBee,
 	}
-	value := ""
-	if found {
-		value = cfg.Value
+	result := make(map[string]string, len(keys))
+	for _, key := range keys {
+		cfg, found, err := h.store.Get(ctx, key)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if found {
+			result[key] = cfg.Value
+		} else {
+			result[key] = ""
+		}
 	}
-	c.JSON(http.StatusOK, gin.H{model.SystemConfigKeyDefaultEngine: value})
+	c.JSON(http.StatusOK, result)
 }
 
 type setSystemConfigRequest struct {
@@ -49,26 +61,47 @@ type setSystemConfigRequest struct {
 }
 
 // Set updates a single system config key.
-// Only "default_engine" is accepted; unknown keys return 400.
 func (h *SystemConfigHandler) Set(c *gin.Context) {
 	key := c.Param("key")
-	if key != model.SystemConfigKeyDefaultEngine {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown config key"})
-		return
-	}
 	var req setSystemConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.validator.ValidateEngine(req.Value); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+	switch key {
+	case model.SystemConfigKeyDefaultEngine:
+		if err := h.validator.ValidateEngine(req.Value); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		h.engineCfg.Set(req.Value)
+
+	case model.SystemConfigKeyEngineExtraArgsGlobal, model.SystemConfigKeyEngineExtraArgsBee:
+		if req.Value != "" && req.Value != "{}" {
+			var raw map[string]string
+			if err := json.Unmarshal([]byte(req.Value), &raw); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "value must be a JSON object mapping engine to CLI args string"})
+				return
+			}
+			if _, err := ai.ParseEngineExtraArgs(raw); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+		}
+		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown config key"})
 		return
 	}
-	if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	h.engineCfg.Set(req.Value)
+
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
