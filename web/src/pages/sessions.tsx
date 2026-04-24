@@ -58,7 +58,9 @@ function TokenStatsTooltip({ stats }: { stats: SessionTokenStats }) {
         <span>{stats.total_tokens.toLocaleString()}</span>
       </div>
       <div className="border-t border-background/20 pt-1 flex flex-col gap-2">
-        {sorted.map((m) => (
+        {sorted.length === 0 ? (
+          <span className="opacity-60">No model data</span>
+        ) : sorted.map((m) => (
           <div key={m.model} className="flex flex-col gap-0.5">
             <div className="flex justify-between gap-4">
               <span className="opacity-90">{m.model}</span>
@@ -213,7 +215,7 @@ export function Sessions() {
                             <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button className="flex items-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                                <button type="button" aria-label="Token breakdown" className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors">
                                   <Info className="size-3" />
                                 </button>
                               </TooltipTrigger>
