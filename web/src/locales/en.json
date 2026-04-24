@@ -142,7 +142,8 @@
       "turns": "Turns",
       "latestStatus": "Latest Status",
       "started": "Started",
-      "duration": "Duration"
+      "duration": "Duration",
+      "tokens": "Tokens"
     },
     "pagination": {
       "page": "Page {{page}} of {{totalPages}}",

@@ -142,7 +142,8 @@
       "turns": "轮次",
       "latestStatus": "最新状态",
       "started": "开始时间",
-      "duration": "耗时"
+      "duration": "耗时",
+      "tokens": "Token 用量"
     },
     "pagination": {
       "page": "第 {{page}} / {{totalPages}} 页",
