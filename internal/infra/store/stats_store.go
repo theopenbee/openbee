@@ -44,15 +44,15 @@ type StatsOverview struct {
 	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
 	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
 	ScheduledTasks          int       `json:"scheduled_tasks"`
-	TokensTotal       int64 `json:"tokens_total"`
-	TokensTotalInput  int64 `json:"tokens_total_input"`
-	TokensTotalOutput int64 `json:"tokens_total_output"`
-	TokensTodayTotal  int64 `json:"tokens_today_total"`
-	TokensTodayInput  int64 `json:"tokens_today_input"`
-	TokensTodayOutput int64 `json:"tokens_today_output"`
-	TokensYestTotal   int64 `json:"tokens_yesterday_total"`
-	TokensYestInput   int64 `json:"tokens_yesterday_input"`
-	TokensYestOutput  int64 `json:"tokens_yesterday_output"`
+	TokensTotal             int64     `json:"tokens_total"`
+	TokensTotalInput        int64     `json:"tokens_total_input"`
+	TokensTotalOutput       int64     `json:"tokens_total_output"`
+	TokensTodayTotal        int64     `json:"tokens_today_total"`
+	TokensTodayInput        int64     `json:"tokens_today_input"`
+	TokensTodayOutput       int64     `json:"tokens_today_output"`
+	TokensYestTotal         int64     `json:"tokens_yesterday_total"`
+	TokensYestInput         int64     `json:"tokens_yesterday_input"`
+	TokensYestOutput        int64     `json:"tokens_yesterday_output"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -215,7 +215,6 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	})
 
 	eg.Go(func() error {
-		yestStart, yestEnd := dayBounds(-1)
 		return s.db.QueryRowContext(egc,
 			`SELECT COALESCE(SUM(ts.total_tokens),0),
 			        COALESCE(SUM(ts.input_tokens),0),
