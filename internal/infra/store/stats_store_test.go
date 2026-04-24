@@ -81,26 +81,14 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	if ov.ActiveWorkersToday != 2 {
 		t.Errorf("ActiveWorkersToday: want 2, got %d", ov.ActiveWorkersToday)
 	}
-	if ov.MessagesReceivedToday != 1 {
-		t.Errorf("MessagesReceivedToday: want 1, got %d", ov.MessagesReceivedToday)
-	}
-	if ov.MessagesSentToday != 1 {
-		t.Errorf("MessagesSentToday: want 1, got %d", ov.MessagesSentToday)
-	}
 	if ov.MessagesTotalToday != 2 {
 		t.Errorf("MessagesTotalToday: want 2, got %d", ov.MessagesTotalToday)
 	}
 	if ov.ExecDurationTodayMS != 0 {
 		t.Errorf("ExecDurationTodayMS: want 0 (no completed_at set), got %d", ov.ExecDurationTodayMS)
 	}
-	if ov.ExecutionsToday.Total != 3 {
-		t.Errorf("ExecutionsToday.Total: want 3, got %d", ov.ExecutionsToday.Total)
-	}
-	if ov.ExecutionsToday.Success != 2 {
-		t.Errorf("ExecutionsToday.Success: want 2, got %d", ov.ExecutionsToday.Success)
-	}
-	if ov.ExecutionsToday.Failed != 1 {
-		t.Errorf("ExecutionsToday.Failed: want 1, got %d", ov.ExecutionsToday.Failed)
+	if ov.ExecutionsToday != 3 {
+		t.Errorf("ExecutionsToday: want 3, got %d", ov.ExecutionsToday)
 	}
 	if ov.ScheduledTasks != 1 {
 		t.Errorf("ScheduledTasks: want 1, got %d", ov.ScheduledTasks)

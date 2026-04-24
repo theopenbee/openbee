@@ -17,11 +17,13 @@ const EMPTY: StatsOverview = {
   active_workers_today: 0,
   active_workers_yesterday: 0,
   active_workers_change: null,
-  messages_received_today: 0,
-  messages_sent_today: 0,
   messages_total_today: 0,
+  messages_total_yesterday: 0,
+  messages_change: null,
   messages_total_global: 0,
-  executions_today: { total: 0, success: 0, failed: 0 },
+  executions_today: 0,
+  executions_yesterday: 0,
+  executions_change: null,
   exec_duration_today_ms: 0,
   exec_duration_yesterday_ms: 0,
   exec_duration_total_ms: 0,
@@ -75,6 +77,30 @@ export function Dashboard() {
   const durationChangeColor =
     durationDiff > 0 ? "text-status-idle" : durationDiff < 0 ? "text-status-error" : "text-muted-foreground"
   const DurationChangeIcon = durationDiff > 0 ? TrendingUp : durationDiff < 0 ? TrendingDown : Minus
+
+  const msgChangeLabel = formatChange(ov.messages_change)
+  const MsgChangeIcon =
+    ov.messages_change === null ? null : ov.messages_change > 0 ? TrendingUp : ov.messages_change < 0 ? TrendingDown : Minus
+  const msgChangeColor =
+    ov.messages_change === null
+      ? ""
+      : ov.messages_change > 0
+        ? "text-status-idle"
+        : ov.messages_change < 0
+          ? "text-status-error"
+          : "text-muted-foreground"
+
+  const execChangeLabel = formatChange(ov.executions_change)
+  const ExecChangeIcon =
+    ov.executions_change === null ? null : ov.executions_change > 0 ? TrendingUp : ov.executions_change < 0 ? TrendingDown : Minus
+  const execChangeColor =
+    ov.executions_change === null
+      ? ""
+      : ov.executions_change > 0
+        ? "text-status-idle"
+        : ov.executions_change < 0
+          ? "text-status-error"
+          : "text-muted-foreground"
 
   const tokenDiff = ov.tokens_today_total - ov.tokens_yesterday_total
   const tokenRatio =
@@ -215,9 +241,9 @@ export function Dashboard() {
               {isLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-12 w-16" />
-                  <div className="flex gap-6">
-                    <StatSkeleton />
-                    <StatSkeleton />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-12" />
                   </div>
                 </div>
               ) : (
@@ -229,29 +255,24 @@ export function Dashboard() {
                   >
                     {ov.messages_total_today}
                   </p>
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.messagesReceived")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none"
-                        aria-live="polite"
-                      >
-                        {ov.messages_received_today}
-                      </p>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        {t("dashboard.yesterday")}
+                      </span>
+                      <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
+                        {ov.messages_total_yesterday}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.messagesSent")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none"
-                        aria-live="polite"
+                    {msgChangeLabel !== null && MsgChangeIcon && (
+                      <div
+                        className={`flex items-center gap-1 ${msgChangeColor}`}
+                        aria-label={msgChangeLabel}
                       >
-                        {ov.messages_sent_today}
-                      </p>
-                    </div>
+                        <MsgChangeIcon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{msgChangeLabel}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -265,45 +286,38 @@ export function Dashboard() {
               {isLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-12 w-16" />
-                  <div className="flex gap-6">
-                    <StatSkeleton />
-                    <StatSkeleton />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-12" />
                   </div>
                 </div>
               ) : (
                 <div>
                   <p
                     className="text-5xl font-semibold tabular-nums leading-none mb-4"
-                    aria-label={`${t("dashboard.executionsTotal")}: ${ov.executions_today.total}`}
+                    aria-label={`${t("dashboard.executions")}: ${ov.executions_today}`}
                     aria-live="polite"
                   >
-                    {ov.executions_today.total}
+                    {ov.executions_today}
                   </p>
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.executionsSuccess")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none text-status-idle"
-                        aria-label={`${t("dashboard.executionsSuccess")}: ${ov.executions_today.success}`}
-                        aria-live="polite"
-                      >
-                        {ov.executions_today.success}
-                      </p>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        {t("dashboard.yesterday")}
+                      </span>
+                      <span className="text-lg font-medium tabular-nums text-muted-foreground leading-none">
+                        {ov.executions_yesterday}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                        {t("dashboard.executionsFailed")}
-                      </p>
-                      <p
-                        className="text-xl font-semibold tabular-nums leading-none text-status-error"
-                        aria-label={`${t("dashboard.executionsFailed")}: ${ov.executions_today.failed}`}
-                        aria-live="polite"
+                    {execChangeLabel !== null && ExecChangeIcon && (
+                      <div
+                        className={`flex items-center gap-1 ${execChangeColor}`}
+                        aria-label={execChangeLabel}
                       >
-                        {ov.executions_today.failed}
-                      </p>
-                    </div>
+                        <ExecChangeIcon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{execChangeLabel}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

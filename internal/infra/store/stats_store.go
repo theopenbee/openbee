@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -21,38 +20,33 @@ func NewStatsStore(db *sql.DB) *StatsStore {
 	return &StatsStore{db: db}
 }
 
-// ExecStats holds today's execution counts.
-type ExecStats struct {
-	Total   int `json:"total"`
-	Success int `json:"success"`
-	Failed  int `json:"failed"`
-}
-
 // StatsOverview holds all numeric dashboard card data.
 type StatsOverview struct {
-	Departments             int       `json:"departments"`
-	Workers                 int       `json:"workers"`
-	ActiveWorkersToday      int       `json:"active_workers_today"`
-	ActiveWorkersYesterday  int       `json:"active_workers_yesterday"`
-	ActiveWorkersChange     *float64  `json:"active_workers_change"`
-	MessagesReceivedToday   int       `json:"messages_received_today"`
-	MessagesSentToday       int       `json:"messages_sent_today"`
-	MessagesTotalToday      int       `json:"messages_total_today"`
-	MessagesTotalGlobal     int       `json:"messages_total_global"`
-	ExecutionsToday         ExecStats `json:"executions_today"`
-	ExecDurationTodayMS     int64     `json:"exec_duration_today_ms"`
-	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
-	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
-	ScheduledTasks          int       `json:"scheduled_tasks"`
-	TokensTotal             int64     `json:"tokens_total"`
-	TokensTotalInput        int64     `json:"tokens_total_input"`
-	TokensTotalOutput       int64     `json:"tokens_total_output"`
-	TokensTodayTotal        int64     `json:"tokens_today_total"`
-	TokensTodayInput        int64     `json:"tokens_today_input"`
-	TokensTodayOutput       int64     `json:"tokens_today_output"`
-	TokensYestTotal         int64     `json:"tokens_yesterday_total"`
-	TokensYestInput         int64     `json:"tokens_yesterday_input"`
-	TokensYestOutput        int64     `json:"tokens_yesterday_output"`
+	Departments             int      `json:"departments"`
+	Workers                 int      `json:"workers"`
+	ActiveWorkersToday      int      `json:"active_workers_today"`
+	ActiveWorkersYesterday  int      `json:"active_workers_yesterday"`
+	ActiveWorkersChange     *float64 `json:"active_workers_change"`
+	MessagesTotalToday      int      `json:"messages_total_today"`
+	MessagesTotalYesterday  int      `json:"messages_total_yesterday"`
+	MessagesChange          *float64 `json:"messages_change"`
+	MessagesTotalGlobal     int      `json:"messages_total_global"`
+	ExecutionsToday         int      `json:"executions_today"`
+	ExecutionsYesterday     int      `json:"executions_yesterday"`
+	ExecutionsChange        *float64 `json:"executions_change"`
+	ExecDurationTodayMS     int64    `json:"exec_duration_today_ms"`
+	ExecDurationYesterdayMS int64    `json:"exec_duration_yesterday_ms"`
+	ExecDurationTotalMS     int64    `json:"exec_duration_total_ms"`
+	ScheduledTasks          int      `json:"scheduled_tasks"`
+	TokensTotal             int64    `json:"tokens_total"`
+	TokensTotalInput        int64    `json:"tokens_total_input"`
+	TokensTotalOutput       int64    `json:"tokens_total_output"`
+	TokensTodayTotal        int64    `json:"tokens_today_total"`
+	TokensTodayInput        int64    `json:"tokens_today_input"`
+	TokensTodayOutput       int64    `json:"tokens_today_output"`
+	TokensYestTotal         int64    `json:"tokens_yesterday_total"`
+	TokensYestInput         int64    `json:"tokens_yesterday_input"`
+	TokensYestOutput        int64    `json:"tokens_yesterday_output"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -76,7 +70,6 @@ func dayBounds(offset int) (startMS, endMS int64) {
 func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	var (
 		ov      StatsOverview
-		mu      sync.Mutex
 		eg, egc = errgroup.WithContext(ctx)
 	)
 
@@ -105,28 +98,42 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		return s.db.QueryRowContext(egc, activeWorkerQuery, yestStart, yestEnd).Scan(&ov.ActiveWorkersYesterday)
 	})
 
+	// All local vars below are written exclusively inside their own goroutines
+	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
+	var (
+		msgRecToday, msgSentToday int
+		msgRecYest, msgSentYest   int
+		globalReceived, globalSent int
+	)
+
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
 			`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
 			todayStart, todayEnd,
-		).Scan(&ov.MessagesReceivedToday)
+		).Scan(&msgRecToday)
 	})
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
 			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
 			todayStart, todayEnd,
-		).Scan(&ov.MessagesSentToday)
+		).Scan(&msgSentToday)
 	})
 
-	// globalReceived and globalSent are written exclusively inside their own goroutines
-	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
-	var globalReceived, globalSent int
-	var (
-		tokensTotal, tokensTotalInput, tokensTotalOutput      int64
-		tokensTodayTotal, tokensTodayInput, tokensTodayOutput int64
-		tokensYestTotal, tokensYestInput, tokensYestOutput    int64
-	)
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&msgRecYest)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&msgSentYest)
+	})
+
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)
 	})
@@ -148,36 +155,18 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	})
 
 	eg.Go(func() error {
-		rows, err := s.db.QueryContext(egc, `
-			SELECT status, COUNT(*) FROM bee_executions
-			WHERE started_at >= ? AND started_at < ?
-			GROUP BY status`, todayStart, todayEnd)
-		if err != nil {
-			return fmt.Errorf("executions today: %w", err)
-		}
-		defer rows.Close()
-		var stats ExecStats
-		for rows.Next() {
-			var status string
-			var cnt int
-			if err := rows.Scan(&status, &cnt); err != nil {
-				return err
-			}
-			stats.Total += cnt
-			switch status {
-			case model.TaskStatusCompleted:
-				stats.Success += cnt
-			case model.TaskStatusFailed:
-				stats.Failed += cnt
-			}
-		}
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("executions today rows: %w", err)
-		}
-		mu.Lock()
-		ov.ExecutionsToday = stats
-		mu.Unlock()
-		return nil
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
+			todayStart, todayEnd,
+		).Scan(&ov.ExecutionsToday)
+	})
+
+	var execYestTotal int
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&execYestTotal)
 	})
 
 	eg.Go(func() error {
@@ -189,6 +178,12 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 			model.TaskStatusCompleted, model.TaskStatusCancelled, model.TaskStatusFailed,
 		).Scan(&ov.ScheduledTasks)
 	})
+
+	var (
+		tokensTotal, tokensTotalInput, tokensTotalOutput      int64
+		tokensTodayTotal, tokensTodayInput, tokensTodayOutput int64
+		tokensYestTotal, tokensYestInput, tokensYestOutput    int64
+	)
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
@@ -221,12 +216,24 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
 
-	ov.MessagesTotalToday = ov.MessagesReceivedToday + ov.MessagesSentToday
+	ov.MessagesTotalToday = msgRecToday + msgSentToday
+	ov.MessagesTotalYesterday = msgRecYest + msgSentYest
 	ov.MessagesTotalGlobal = globalReceived + globalSent
 
 	if ov.ActiveWorkersYesterday > 0 {
 		change := float64(ov.ActiveWorkersToday-ov.ActiveWorkersYesterday) / float64(ov.ActiveWorkersYesterday)
 		ov.ActiveWorkersChange = &change
+	}
+
+	if ov.MessagesTotalYesterday > 0 {
+		change := float64(ov.MessagesTotalToday-ov.MessagesTotalYesterday) / float64(ov.MessagesTotalYesterday)
+		ov.MessagesChange = &change
+	}
+
+	ov.ExecutionsYesterday = execYestTotal
+	if execYestTotal > 0 {
+		change := float64(ov.ExecutionsToday-execYestTotal) / float64(execYestTotal)
+		ov.ExecutionsChange = &change
 	}
 
 	ov.TokensTotal = tokensTotal
