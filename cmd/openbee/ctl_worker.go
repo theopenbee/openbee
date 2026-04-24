@@ -7,6 +7,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
+const engineExtraArgsFlagName = "engine-extra-args"
+
 var ctlWorkerCmd = &cobra.Command{Use: "worker", Short: ""}
 
 var ctlWorkerListCmd = &cobra.Command{
@@ -128,7 +130,7 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("scopes") {
 			a["permission_scopes"] = workerUpdateScopes
 		}
-		if cmd.Flags().Changed("engine-extra-args") {
+		if cmd.Flags().Changed(engineExtraArgsFlagName) {
 			a["engine_extra_args"] = parseEngineExtraArgsFlag(workerUpdateEngineExtraArgs)
 		}
 		return ctlRun(utils.UpdateWorker, a)
@@ -185,8 +187,8 @@ func init() {
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
-	ctlWorkerCreateCmd.Flags().StringArrayVar(&workerCreateEngineExtraArgs, "engine-extra-args", nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
-	ctlWorkerUpdateCmd.Flags().StringArrayVar(&workerUpdateEngineExtraArgs, "engine-extra-args", nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
+	ctlWorkerCreateCmd.Flags().StringArrayVar(&workerCreateEngineExtraArgs, engineExtraArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
+	ctlWorkerUpdateCmd.Flags().StringArrayVar(&workerUpdateEngineExtraArgs, engineExtraArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,

@@ -59,10 +59,6 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
   }
 }
 
-function hasConfiguredEngineExtraArgs(engineExtraArgs?: Record<string, string>) {
-  return Object.values(engineExtraArgs ?? {}).some((value) => value.trim() !== "")
-}
-
 function buildCreateEngineExtraArgsPayload(engineExtraArgs: Record<string, string>) {
   const entries = Object.entries(engineExtraArgs).filter(([, value]) => value.trim() !== "")
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
@@ -114,7 +110,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         iv?.description ||
         iv?.constraints ||
         iv?.work_dir ||
-        hasConfiguredEngineExtraArgs(iv?.engine_extra_args)
+        !!buildCreateEngineExtraArgsPayload(iv?.engine_extra_args ?? {})
       ))
       setDeptSearch("")
       randomName.reset()
