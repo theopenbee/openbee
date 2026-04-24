@@ -155,3 +155,45 @@ func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
 		t.Errorf("expected 2 records (one per model), got %d", len(got))
 	}
 }
+
+func TestTokenStatsStore_GetBySessionIDs_ReturnsMatchingRows(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	for _, stat := range []model.TokenStats{
+		{SessionID: "session-1", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 100, OutputTokens: 200, TotalTokens: 300, SyncedAt: now},
+		{SessionID: "session-1", AgentType: "claude", Model: "claude-opus-4-7", InputTokens: 50, OutputTokens: 100, TotalTokens: 150, SyncedAt: now},
+		{SessionID: "session-2", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 10, OutputTokens: 20, TotalTokens: 30, SyncedAt: now},
+	} {
+		if err := s.Upsert(stat); err != nil {
+			t.Fatalf("Upsert: %v", err)
+		}
+	}
+
+	rows, err := s.GetBySessionIDs([]string{"session-1", "session-99"})
+	if err != nil {
+		t.Fatalf("GetBySessionIDs: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Errorf("expected 2 rows for session-1, got %d", len(rows))
+	}
+	for _, r := range rows {
+		if r.SessionID != "session-1" {
+			t.Errorf("unexpected session_id %q", r.SessionID)
+		}
+	}
+}
+
+func TestTokenStatsStore_GetBySessionIDs_NilSlice(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	rows, err := s.GetBySessionIDs(nil)
+	if err != nil {
+		t.Fatalf("GetBySessionIDs: %v", err)
+	}
+	if rows != nil {
+		t.Errorf("expected nil result for empty input, got %v", rows)
+	}
+}

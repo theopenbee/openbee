@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -70,6 +71,43 @@ func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, 
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query token stats by session: %w", err)
+	}
+	defer rows.Close()
+	var stats []model.TokenStats
+	for rows.Next() {
+		var st model.TokenStats
+		if err := rows.Scan(
+			&st.ID, &st.SessionID, &st.AgentType, &st.Model,
+			&st.InputTokens, &st.OutputTokens,
+			&st.CacheCreationTokens, &st.CacheReadTokens,
+			&st.TotalTokens, &st.SyncedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan token stats: %w", err)
+		}
+		stats = append(stats, st)
+	}
+	return stats, rows.Err()
+}
+
+func (s *TokenStatsStore) GetBySessionIDs(sessionIDs []string) ([]model.TokenStats, error) {
+	if len(sessionIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(sessionIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := fmt.Sprintf(
+		`SELECT id, session_id, agent_type, model, input_tokens, output_tokens,
+		        cache_creation_tokens, cache_read_tokens, total_tokens, synced_at
+		 FROM bee_token_stats WHERE session_id IN (%s)`,
+		placeholders,
+	)
+	args := make([]any, len(sessionIDs))
+	for i, id := range sessionIDs {
+		args[i] = id
+	}
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get token stats by session ids: %w", err)
 	}
 	defer rows.Close()
 	var stats []model.TokenStats
