@@ -58,7 +58,7 @@ const (
 
 func buildArgs(prompt, sessionPath string, extraArgs []string) []string {
 	base := []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
-	return append(base, ai.BuildExtraArgSlice(extraArgs)...)
+	return append(base, extraArgs...)
 }
 
 func scanLastAssistantMessage(logPath string) *piMessage {

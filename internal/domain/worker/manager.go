@@ -205,7 +205,7 @@ func (p UpdateWorkerParams) Validate(m *Manager) error {
 	return nil
 }
 
-func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
+func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 	if p.Name != nil {
 		w.Name = *p.Name
 	}
@@ -227,7 +227,9 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 		} else {
 			existing := make(map[string]string)
 			if w.EngineExtraArgs != "" && w.EngineExtraArgs != "{}" {
-				json.Unmarshal([]byte(w.EngineExtraArgs), &existing) //nolint:errcheck
+				if err := json.Unmarshal([]byte(w.EngineExtraArgs), &existing); err != nil {
+					return fmt.Errorf("parse existing engine_extra_args: %w", err)
+				}
 			}
 			for engine, args := range p.EngineExtraArgs {
 				if args == "" {
@@ -240,6 +242,7 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 			w.EngineExtraArgs = string(b)
 		}
 	}
+	return nil
 }
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
@@ -285,7 +288,9 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 	if !p.HasChanges() {
 		return w, nil
 	}
-	p.ApplyTo(&w)
+	if err := p.ApplyTo(&w); err != nil {
+		return model.Worker{}, err
+	}
 	return m.workerStore.Update(w)
 }
 

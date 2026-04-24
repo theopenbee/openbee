@@ -56,7 +56,7 @@ func buildArgs(threadID string, resume bool, prompt string, extraArgs []string) 
 	} else {
 		base = []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	}
-	return append(base, ai.BuildExtraArgSlice(extraArgs)...)
+	return append(base, extraArgs...)
 }
 
 // extractSessionID reads a Codex JSON stream and returns the thread_id from

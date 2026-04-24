@@ -78,17 +78,3 @@ func TestMergeEngineExtraArgs_AppendsOverrideArgs(t *testing.T) {
 		t.Fatalf("codex args = %v, want %v", got["codex"], want)
 	}
 }
-
-func TestBuildExtraArgSlice(t *testing.T) {
-	args := []string{"--model", "claude-sonnet-4-5", "--verbose"}
-	slice := ai.BuildExtraArgSlice(args)
-	if !slices.Equal(slice, args) {
-		t.Fatalf("got %v, want %v", slice, args)
-	}
-	if len(slice) > 0 {
-		slice[0] = "--changed"
-	}
-	if args[0] != "--model" {
-		t.Fatalf("BuildExtraArgSlice should return a copy, args mutated to %v", args)
-	}
-}

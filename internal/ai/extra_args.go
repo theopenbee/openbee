@@ -115,13 +115,7 @@ func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap 
 	return result
 }
 
-// BuildExtraArgSlice returns a defensive copy of a single engine's arg slice.
-func BuildExtraArgSlice(args []string) []string {
-	return slices.Clone(args)
-}
-
-// ParseEngineExtraArgsJSON parses a JSON-encoded map[engine]rawCLIString value
-// (as stored in the DB) into an EngineExtraArgsMap. Returns nil for empty/unset values.
+// ParseEngineExtraArgsJSON returns nil for empty/unset values.
 func ParseEngineExtraArgsJSON(value string) EngineExtraArgsMap {
 	if value == "" || value == "{}" {
 		return nil

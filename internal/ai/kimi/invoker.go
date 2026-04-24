@@ -32,7 +32,7 @@ func buildArgs(sessionID string, extraArgs []string) []string {
 		"--output-format=stream-json",
 		"--print",
 	}
-	return append(base, ai.BuildExtraArgSlice(extraArgs)...)
+	return append(base, extraArgs...)
 }
 
 type kimiToolCall struct {

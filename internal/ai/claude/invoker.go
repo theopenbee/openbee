@@ -95,7 +95,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 			args = append(args, "--session-id", opts.SessionID)
 		}
 	}
-	args = append(args, ai.BuildExtraArgSlice(opts.ExtraArgs)...)
+	args = append(args, opts.ExtraArgs...)
 	args = append(args, "--print")
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
