@@ -153,7 +153,7 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 
 func (s *Syncer) parserOrder(preferred string) []string {
 	if _, ok := s.parsers[preferred]; preferred == "" || !ok {
-		return append([]string(nil), defaultParserOrder...)
+		return defaultParserOrder
 	}
 	order := []string{preferred}
 	for _, name := range defaultParserOrder {
