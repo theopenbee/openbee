@@ -104,15 +104,6 @@ func (h *ExecutionHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, exec)
 }
 
-func (h *ExecutionHandler) ListBySession(c *gin.Context) {
-	sessionID := c.Query("session_id")
-	execs, err := h.executions.ListBySessionID(sessionID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, execs)
-}
 
 func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 	id := c.Param("id")
@@ -140,6 +131,42 @@ func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 		"size":      slice.Size,
 		"truncated": slice.Truncated,
 	})
+}
+
+func (h *ExecutionHandler) GetSession(c *gin.Context) {
+	sessionID := c.Param("id")
+	execs, err := h.executions.ListBySessionID(sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if execs == nil {
+		execs = []model.WorkerExecution{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"executions":  execs,
+		"token_stats": h.buildSessionTokenStats(sessionID),
+	})
+}
+
+func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionTokenStats {
+	rows, err := h.tokenStats.GetBySessionID(sessionID)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	result := &sessionTokenStats{}
+	for _, row := range rows {
+		result.TotalTokens += row.TotalTokens
+		result.ByModel = append(result.ByModel, modelTokenStats{
+			Model:               row.Model,
+			TotalTokens:         row.TotalTokens,
+			InputTokens:         row.InputTokens,
+			OutputTokens:        row.OutputTokens,
+			CacheCreationTokens: row.CacheCreationTokens,
+			CacheReadTokens:     row.CacheReadTokens,
+		})
+	}
+	return result
 }
 
 func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map[string]*sessionTokenStats {

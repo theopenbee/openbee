@@ -96,3 +96,83 @@ func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
 		}
 	}
 }
+
+func newTestServerWithSessions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	es := store.NewExecutionStore(db, t.TempDir())
+	ts := store.NewTokenStatsStore(db)
+	h := NewExecutionHandler(es, ts)
+	router := gin.New()
+	api := router.Group("/api")
+	api.GET("/sessions/:id", h.GetSession)
+	return router, es, ts, func() { db.Close() }
+}
+
+func TestGetSession_IncludesTokenStats(t *testing.T) {
+	router, es, ts, cleanup := newTestServerWithSessions(t)
+	defer cleanup()
+
+	if _, err := es.Create("worker-1", "hello", "session-abc", "claude"); err != nil {
+		t.Fatalf("Create execution: %v", err)
+	}
+	if err := ts.Upsert(model.TokenStats{
+		SessionID:    "session-abc",
+		AgentType:    "claude",
+		Model:        "claude-sonnet-4-6",
+		InputTokens:  100,
+		OutputTokens: 200,
+		TotalTokens:  300,
+		SyncedAt:     time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("Upsert token stats: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/session-abc", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp["executions"]; !ok {
+		t.Fatal("expected executions field")
+	}
+	stats, ok := resp["token_stats"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected token_stats as object, got %T", resp["token_stats"])
+	}
+	if _, found := stats["total_tokens"]; !found {
+		t.Error("expected total_tokens in token_stats")
+	}
+}
+
+func TestGetSession_NullTokenStats_WhenNoneExist(t *testing.T) {
+	router, es, _, cleanup := newTestServerWithSessions(t)
+	defer cleanup()
+
+	if _, err := es.Create("worker-1", "hello", "session-xyz", "claude"); err != nil {
+		t.Fatalf("Create execution: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/session-xyz", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["token_stats"] != nil {
+		t.Error("token_stats must be null when no stats exist")
+	}
+}
