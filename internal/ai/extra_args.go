@@ -8,7 +8,6 @@ import (
 	"unicode"
 )
 
-// EngineExtraArgsMap maps engine name -> ordered CLI args.
 type EngineExtraArgsMap map[string][]string
 
 // ParseEngineExtraArgs tokenizes raw CLI strings per engine while preserving

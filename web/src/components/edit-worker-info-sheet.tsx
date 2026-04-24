@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineExtraArgsSection } from "@/components/engine-extra-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
@@ -143,28 +144,11 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
             </div>
 
-            {enabledEngines.length > 0 && (
-              <div className="space-y-2">
-                <Label>{t("workers.form.engineExtraArgs")}</Label>
-                <div className="space-y-2">
-                  {enabledEngines.map((eng) => (
-                    <div key={eng} className="space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground capitalize">{eng}</span>
-                      <Input
-                        value={engineExtraArgs[eng] ?? ""}
-                        onChange={(e) => setEngineExtraArgs((prev) => ({
-                          ...prev,
-                          [eng]: e.target.value,
-                        }))}
-                        placeholder={t("workers.form.engineExtraArgsPlaceholder")}
-                        className="font-mono text-xs"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">{t("workers.form.engineExtraArgsHelper")}</p>
-              </div>
-            )}
+            <EngineExtraArgsSection
+              engines={enabledEngines}
+              value={engineExtraArgs}
+              onChange={setEngineExtraArgs}
+            />
           </div>
 
           {flatDepts.length > 0 && (

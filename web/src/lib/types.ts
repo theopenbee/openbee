@@ -164,5 +164,3 @@ export interface AppConfig {
   enabled_engines: Engine[]
 }
 
-export const SYSTEM_CONFIG_KEY_ENGINE_EXTRA_ARGS_GLOBAL = "engine_extra_args_global"
-export const SYSTEM_CONFIG_KEY_ENGINE_EXTRA_ARGS_BEE    = "engine_extra_args_bee"
