@@ -14,14 +14,3 @@ export function useExecutions(page: number = 1, pageSize: number = 20) {
   })
 }
 
-export function useSessionExecutions(sessionId: string) {
-  return useQuery({
-    queryKey: ["sessions", sessionId, "executions"],
-    queryFn: () => api.sessions.executions(sessionId),
-    enabled: !!sessionId,
-    refetchInterval: (query) => {
-      const executions = query.state.data ?? []
-      return executions.some((e) => isActiveStatus(e.status)) ? 500 : false
-    },
-  })
-}
