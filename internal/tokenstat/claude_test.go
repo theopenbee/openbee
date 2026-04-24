@@ -80,6 +80,25 @@ func TestClaudeParser_Parse_FastSpeedSuffix(t *testing.T) {
 	}
 }
 
+func TestClaudeParser_Parse_SkipsSyntheticModel(t *testing.T) {
+	base := t.TempDir()
+	writeTempFile(t, base, "projects/project-a/syn-session.jsonl",
+		`{"message":{"model":"<synthetic>","usage":{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`+"\n"+
+			`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n")
+	t.Setenv("CLAUDE_CONFIG_DIR", base)
+
+	usages, err := tokenstat.NewClaudeParser().Parse("syn-session")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(usages) != 1 {
+		t.Fatalf("expected 1 usage, got %d", len(usages))
+	}
+	if usages[0].Model != "claude-3-5-sonnet" {
+		t.Errorf("Model: want claude-3-5-sonnet, got %s", usages[0].Model)
+	}
+}
+
 func TestClaudeParser_Parse_FileNotFound(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	_, err := tokenstat.NewClaudeParser().Parse("nonexistent-session")

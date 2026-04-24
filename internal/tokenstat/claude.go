@@ -11,6 +11,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
+const syntheticModel = "<synthetic>"
+
 type claudeParser struct {
 	baseDirs []string
 }
@@ -68,10 +70,10 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		if err := json.Unmarshal(data, &line); err != nil {
 			return
 		}
-		if line.Message.Model == "" || line.Message.Usage == nil {
+		m := line.Message.Model
+		if m == "" || m == syntheticModel || line.Message.Usage == nil {
 			return
 		}
-		m := line.Message.Model
 		if line.Message.Speed == "fast" {
 			m += "-fast"
 		}
