@@ -113,11 +113,11 @@ func (m *Manager) EnabledEngines() []string {
 	return enabled
 }
 
-func (m *Manager) loadGlobalExtraArgs(ctx context.Context) ai.EngineExtraArgsMap {
+func (m *Manager) loadExtraArgs(ctx context.Context, key string) ai.EngineExtraArgsMap {
 	if m.sysConfigStore == nil {
 		return nil
 	}
-	cfg, found, err := m.sysConfigStore.Get(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
+	cfg, found, err := m.sysConfigStore.Get(ctx, key)
 	if err != nil || !found {
 		return nil
 	}
@@ -125,7 +125,7 @@ func (m *Manager) loadGlobalExtraArgs(ctx context.Context) ai.EngineExtraArgsMap
 }
 
 func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) []string {
-	globalMap := m.loadGlobalExtraArgs(ctx)
+	globalMap := m.loadExtraArgs(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
 	workerMap := ai.ParseEngineExtraArgsJSON(worker.EngineExtraArgs)
 	merged := ai.MergeEngineExtraArgs(globalMap, workerMap)
 	return merged[engineName]
@@ -224,21 +224,21 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 	if p.EngineExtraArgs != nil {
 		if len(p.EngineExtraArgs) == 0 {
 			w.EngineExtraArgs = "{}"
-			return
-		}
-		existing := make(map[string]string)
-		if w.EngineExtraArgs != "" && w.EngineExtraArgs != "{}" {
-			json.Unmarshal([]byte(w.EngineExtraArgs), &existing) //nolint:errcheck
-		}
-		for engine, args := range p.EngineExtraArgs {
-			if args == "" {
-				delete(existing, engine)
-			} else {
-				existing[engine] = args
+		} else {
+			existing := make(map[string]string)
+			if w.EngineExtraArgs != "" && w.EngineExtraArgs != "{}" {
+				json.Unmarshal([]byte(w.EngineExtraArgs), &existing) //nolint:errcheck
 			}
+			for engine, args := range p.EngineExtraArgs {
+				if args == "" {
+					delete(existing, engine)
+				} else {
+					existing[engine] = args
+				}
+			}
+			b, _ := json.Marshal(existing)
+			w.EngineExtraArgs = string(b)
 		}
-		b, _ := json.Marshal(existing)
-		w.EngineExtraArgs = string(b)
 	}
 }
 

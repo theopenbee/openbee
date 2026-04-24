@@ -3,6 +3,7 @@ package ai
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -106,7 +107,7 @@ func splitCLIArgs(s string) ([]string, error) {
 func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap {
 	result := make(EngineExtraArgsMap, len(base)+len(override))
 	for engine, args := range base {
-		result[engine] = append([]string(nil), args...)
+		result[engine] = slices.Clone(args)
 	}
 	for engine, overrideArgs := range override {
 		result[engine] = append(result[engine], overrideArgs...)
@@ -116,7 +117,7 @@ func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap 
 
 // BuildExtraArgSlice returns a defensive copy of a single engine's arg slice.
 func BuildExtraArgSlice(args []string) []string {
-	return append([]string(nil), args...)
+	return slices.Clone(args)
 }
 
 // ParseEngineExtraArgsJSON parses a JSON-encoded map[engine]rawCLIString value

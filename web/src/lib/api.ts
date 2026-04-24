@@ -5,31 +5,6 @@ import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from
 
 const API_BASE = config.apiUrl
 
-type WorkerWire = Omit<Worker, "engine_extra_args"> & {
-  engine_extra_args?: Record<string, string> | string
-}
-
-function normalizeWorkerEngineExtraArgs(
-  value: WorkerWire["engine_extra_args"]
-): Record<string, string> | undefined {
-  if (value == null) return undefined
-  if (typeof value !== "string") return value
-  if (!value || value === "{}") return {}
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === "object" ? parsed as Record<string, string> : {}
-  } catch {
-    return {}
-  }
-}
-
-function normalizeWorker<T extends WorkerWire>(worker: T): Worker {
-  return {
-    ...worker,
-    engine_extra_args: normalizeWorkerEngineExtraArgs(worker.engine_extra_args),
-  }
-}
-
 function redirectToLogin() {
   clearTokens()
   window.location.hash = "#/login"
@@ -83,13 +58,10 @@ export const api = {
   workers: {
     list: async (departmentId?: string) => {
       const qs = departmentId ? `?department_id=${departmentId}` : ""
-      const workers = await fetchAPI<WorkerWire[] | null>(`/workers${qs}`)
-      return Array.isArray(workers) ? workers.map(normalizeWorker) : []
+      const workers = await fetchAPI<Worker[] | null>(`/workers${qs}`)
+      return Array.isArray(workers) ? workers : []
     },
-    get: async (id: string) => {
-      const worker = await fetchAPI<WorkerWire>(`/workers/${id}`)
-      return normalizeWorker(worker)
-    },
+    get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
     create: (data: {
       name: string
       engine: Engine
@@ -98,10 +70,9 @@ export const api = {
       work_dir?: string
       permission_scopes?: string
       engine_extra_args?: Record<string, string>
-    }) =>
-      fetchAPI<WorkerWire>("/workers", { method: "POST", body: JSON.stringify(data) }).then(normalizeWorker),
+    }) => fetchAPI<Worker>("/workers", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Worker>) =>
-      fetchAPI<WorkerWire>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }).then(normalizeWorker),
+      fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
     getDepartments: (id: string) => fetchAPI<Department[]>(`/workers/${id}/departments`),
