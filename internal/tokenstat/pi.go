@@ -3,11 +3,13 @@ package tokenstat
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
@@ -39,8 +41,12 @@ type piJSONLLine struct {
 
 func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	path := filepath.Join(p.sessionsDir, sessionID+".jsonl")
-	if _, err := os.Stat(path); err == nil {
-		return piParse(sessionID, path)
+	usages, err := piParse(sessionID, path)
+	if err == nil {
+		return usages, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
 	}
 
 	entries, err := os.ReadDir(p.sessionsDir)
@@ -55,8 +61,8 @@ func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 			continue
 		}
 		name := strings.TrimSuffix(entry.Name(), ".jsonl")
-		idx := strings.Index(name, "_")
-		if idx == -1 || name[idx+1:] != sessionID {
+		_, suffix, ok := strings.Cut(name, "_")
+		if !ok || suffix != sessionID {
 			continue
 		}
 		return piParse(sessionID, filepath.Join(p.sessionsDir, entry.Name()))
@@ -73,7 +79,7 @@ func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
 
 	agg := map[string]*SessionTokenUsage{}
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024)
+	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
 
 	for scanner.Scan() {
 		var line piJSONLLine
@@ -84,7 +90,7 @@ func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			continue
 		}
 		m := "[pi]" + line.Message.Model
-		u := getOrCreate(agg, sessionID, "pi", m)
+		u := getOrCreate(agg, sessionID, ai.EnginePi, m)
 		u.InputTokens += line.Message.Usage.Input
 		u.OutputTokens += line.Message.Usage.Output
 		u.CacheCreationTokens += line.Message.Usage.CacheWrite

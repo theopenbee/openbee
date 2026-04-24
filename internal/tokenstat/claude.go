@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 type claudeParser struct {
@@ -20,12 +22,7 @@ func NewClaudeParser() Parser {
 
 func claudeBaseDirs() []string {
 	if env := os.Getenv("CLAUDE_CONFIG_DIR"); env != "" {
-		parts := strings.Split(env, ",")
-		dirs := make([]string, 0, len(parts))
-		for _, p := range parts {
-			dirs = append(dirs, strings.TrimSpace(p))
-		}
-		return dirs
+		return utils.SplitAndTrim(env)
 	}
 	home, _ := os.UserHomeDir()
 	return []string{
@@ -79,7 +76,7 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 
 	agg := map[string]*SessionTokenUsage{}
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 16*1024*1024), 16*1024*1024)
+	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
 
 	for scanner.Scan() {
 		var line claudeJSONLLine
@@ -93,7 +90,7 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		if line.Message.Speed == "fast" {
 			m += "-fast"
 		}
-		u := getOrCreate(agg, sessionID, "claude", m)
+		u := getOrCreate(agg, sessionID, ai.EngineClaude, m)
 		u.InputTokens += line.Message.Usage.InputTokens
 		u.OutputTokens += line.Message.Usage.OutputTokens
 		u.CacheCreationTokens += line.Message.Usage.CacheCreationInputTokens

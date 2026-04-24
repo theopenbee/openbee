@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -28,17 +28,15 @@ type Syncer struct {
 }
 
 func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
-	home, _ := os.UserHomeDir()
-	mappingDir := filepath.Join(home, ".openbee", ".codex", "sessions")
 	return &Syncer{
 		db:         db,
 		tokenStore: tokenStore,
 		parsers: map[string]Parser{
-			"claude": NewClaudeParser(),
-			"codex":  NewCodexParser(mappingDir),
-			"pi":     NewPiParser(),
+			ai.EngineClaude: NewClaudeParser(),
+			ai.EngineCodex:  NewCodexParser(config.DefaultCodexSessionsDir()),
+			ai.EnginePi:     NewPiParser(),
 		},
-		parserList: []string{"claude", "codex", "pi"},
+		parserList: []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi},
 	}
 }
 
@@ -83,13 +81,13 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 		SELECT e.session_id, MAX(e.engine)
 		FROM bee_executions e
 		WHERE e.worker_id IS NOT NULL
-		  AND (e.engine = '' OR e.engine IN ('claude', 'codex', 'pi'))
+		  AND (e.engine = '' OR e.engine IN (?, ?, ?))
 		GROUP BY e.session_id
 		HAVING MAX(CASE WHEN e.completed_at > ? THEN 1 ELSE 0 END) = 1
 		    OR NOT EXISTS (
 		        SELECT 1 FROM bee_token_stats ts
 		        WHERE ts.session_id = e.session_id
-		    )`, since)
+		    )`, ai.EngineClaude, ai.EngineCodex, ai.EnginePi, since)
 	if err != nil {
 		return nil, err
 	}
@@ -107,16 +105,12 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 }
 
 func (s *Syncer) syncSession(sessionID, engine string) error {
-	var (
-		firstErr error
-		notFound bool
-	)
+	var firstErr error
 	for _, parserName := range s.parserOrder(engine) {
 		parser := s.parsers[parserName]
 		usages, err := parser.Parse(sessionID)
 		if err != nil {
 			if errors.Is(err, ErrSessionDataNotFound) {
-				notFound = true
 				continue
 			}
 			if firstErr == nil {
@@ -130,13 +124,12 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 	if firstErr != nil {
 		return firstErr
 	}
-	if engine == "" && notFound {
+	// All parsers returned ErrSessionDataNotFound.
+	// For legacy executions without an engine hint, missing data is expected.
+	if engine == "" {
 		return nil
 	}
-	if notFound {
-		return fmt.Errorf("no token session data found for %s", sessionID)
-	}
-	return nil
+	return fmt.Errorf("no token session data found for %s", sessionID)
 }
 
 func (s *Syncer) parserOrder(preferred string) []string {
@@ -157,8 +150,13 @@ func (s *Syncer) parserOrder(preferred string) []string {
 
 func (s *Syncer) storeUsages(sessionID string, usages []SessionTokenUsage) {
 	now := time.Now().UnixMilli()
+	tx, err := s.db.Begin()
+	if err != nil {
+		logger.Error("tokenstat: begin transaction", zap.String("session_id", sessionID), zap.Error(err))
+		return
+	}
 	for _, u := range usages {
-		if err := s.tokenStore.Upsert(model.TokenStats{
+		if err := s.tokenStore.UpsertTx(tx, model.TokenStats{
 			SessionID:           u.SessionID,
 			AgentType:           u.AgentType,
 			Model:               u.Model,
@@ -171,6 +169,11 @@ func (s *Syncer) storeUsages(sessionID string, usages []SessionTokenUsage) {
 			logger.Error("tokenstat: upsert",
 				zap.String("session_id", sessionID),
 				zap.Error(err))
+			_ = tx.Rollback()
+			return
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		logger.Error("tokenstat: commit transaction", zap.String("session_id", sessionID), zap.Error(err))
 	}
 }

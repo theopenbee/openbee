@@ -12,6 +12,10 @@ var ErrSessionDataNotFound = errors.New("tokenstat session data not found")
 
 var errStopWalk = errors.New("stop walk")
 
+// scannerBufSize is the max JSONL line size for session file parsers.
+// Session files can embed base64-encoded content or long conversation turns.
+const scannerBufSize = 16 * 1024 * 1024
+
 func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (string, error) {
 	info, err := os.Stat(root)
 	if err != nil {

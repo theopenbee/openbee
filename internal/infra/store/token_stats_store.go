@@ -9,6 +9,10 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
+type dbExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 type TokenStatsStore struct {
 	db *sql.DB
 }
@@ -26,13 +30,21 @@ func (s *TokenStatsStore) IsEmpty() (bool, error) {
 }
 
 func (s *TokenStatsStore) Upsert(stat model.TokenStats) error {
+	return upsertTokenStat(s.db, stat)
+}
+
+func (s *TokenStatsStore) UpsertTx(tx *sql.Tx, stat model.TokenStats) error {
+	return upsertTokenStat(tx, stat)
+}
+
+func upsertTokenStat(db dbExecer, stat model.TokenStats) error {
 	if stat.ID == "" {
 		stat.ID = uuid.New().String()
 	}
 	if stat.SyncedAt == 0 {
 		stat.SyncedAt = time.Now().UnixMilli()
 	}
-	_, err := s.db.Exec(
+	_, err := db.Exec(
 		`INSERT INTO bee_token_stats
 		     (id, session_id, agent_type, model, input_tokens, output_tokens,
 		      cache_creation_tokens, cache_read_tokens, synced_at)

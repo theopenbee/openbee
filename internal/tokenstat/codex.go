@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 type codexParser struct {
@@ -107,7 +109,7 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	var prev codexTotals
 
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 16*1024*1024), 16*1024*1024)
+	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
 
 	for scanner.Scan() {
 		var line codexJSONLLine
@@ -131,7 +133,7 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			if m == "" {
 				continue
 			}
-			u := getOrCreate(agg, sessionID, "codex", m)
+			u := getOrCreate(agg, sessionID, ai.EngineCodex, m)
 			if info.LastTokenUsage != nil {
 				addCodexUsage(u, *info.LastTokenUsage)
 				prev.advance(info.LastTokenUsage)

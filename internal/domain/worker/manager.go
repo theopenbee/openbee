@@ -292,8 +292,6 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
-// launchRuntime applies timeout, prepares the log path, starts the invoker,
-// registers the process, updates PID, and launches monitoring.
 func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
