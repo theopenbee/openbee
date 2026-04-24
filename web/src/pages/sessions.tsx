@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { Info } from "lucide-react"
 import { useExecutions } from "@/hooks/use-executions"
-import type { WorkerExecution } from "@/lib/types"
+import type { WorkerExecution, SessionTokenStats } from "@/lib/types"
 import {
   Table,
   TableBody,
@@ -11,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
@@ -18,7 +20,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { cn } from "@/lib/utils"
-import { formatDuration, formatRelative, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -43,6 +45,38 @@ function TurnPips({ executions }: { executions: WorkerExecution[] }) {
           )}
         />
       ))}
+    </div>
+  )
+}
+
+function TokenStatsTooltip({ stats }: { stats: SessionTokenStats }) {
+  const sorted = [...stats.by_model].sort((a, b) => b.total_tokens - a.total_tokens)
+  return (
+    <div className="flex flex-col gap-1.5 font-mono text-xs min-w-[160px]">
+      <div className="flex justify-between gap-4 font-semibold">
+        <span>Total</span>
+        <span>{stats.total_tokens.toLocaleString()}</span>
+      </div>
+      <div className="border-t border-background/20 pt-1 flex flex-col gap-2">
+        {sorted.map((m) => (
+          <div key={m.model} className="flex flex-col gap-0.5">
+            <div className="flex justify-between gap-4">
+              <span className="opacity-90">{m.model}</span>
+              <span>{m.total_tokens.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-3 opacity-60 pl-1">
+              <span>In {m.input_tokens.toLocaleString()}</span>
+              <span>Out {m.output_tokens.toLocaleString()}</span>
+            </div>
+            {(m.cache_creation_tokens > 0 || m.cache_read_tokens > 0) && (
+              <div className="flex gap-3 opacity-60 pl-1">
+                <span>Cache↑ {m.cache_creation_tokens.toLocaleString()}</span>
+                <span>Cache↓ {m.cache_read_tokens.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -96,6 +130,7 @@ export function Sessions() {
                   <TableHead className="w-28">{t("sessions.columns.latestStatus")}</TableHead>
                   <TableHead className="w-24">{t("sessions.columns.started")}</TableHead>
                   <TableHead className="w-20">{t("sessions.columns.duration")}</TableHead>
+                  <TableHead className="w-24">{t("sessions.columns.tokens")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,6 +140,7 @@ export function Sessions() {
                   const lastCompleted = group.find((e) => e.completed_at)
                   const isActive = latest.status === "running" || latest.status === "pending"
                   const duration = formatDuration(oldest.started_at, lastCompleted?.completed_at ?? null)
+                  const tokenStats = data?.token_stats?.[latest.session_id] ?? null
 
                   return (
                     <TableRow
@@ -168,6 +204,26 @@ export function Sessions() {
                           <span className="text-status-working animate-pulse-amber">live</span>
                         ) : (
                           <span className="text-muted-foreground">{duration}</span>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {tokenStats ? (
+                          <div className="flex items-center gap-1 text-xs font-mono">
+                            <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button className="flex items-center text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                                  <Info className="size-3" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" align="center">
+                                <TokenStatsTooltip stats={tokenStats} />
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
                         )}
                       </TableCell>
                     </TableRow>
