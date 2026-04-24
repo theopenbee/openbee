@@ -1,6 +1,7 @@
 package tokenstat
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -30,6 +31,27 @@ func mapValues(agg map[string]*SessionTokenUsage) []SessionTokenUsage {
 		result = append(result, *u)
 	}
 	return result
+}
+
+func scanJSONLFile(path string, fn func([]byte)) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
+	for scanner.Scan() {
+		fn(scanner.Bytes())
+	}
+	return scanner.Err()
+}
+
+func findWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
+	if _, err := os.Stat(filepath.Join(dir, legacyName)); err == nil {
+		return filepath.Join(dir, legacyName), nil
+	}
+	return findSessionFile(dir, match)
 }
 
 func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (string, error) {

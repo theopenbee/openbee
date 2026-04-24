@@ -1,7 +1,6 @@
 package tokenstat
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,8 +44,13 @@ type claudeJSONLLine struct {
 }
 
 func (p *claudeParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
+	name := sessionID + ".jsonl"
 	for _, base := range p.baseDirs {
-		path, err := findClaudeSessionFile(base, sessionID)
+		path, err := findWithLegacyFast(
+			filepath.Join(base, "projects"),
+			name,
+			func(_ string, d os.DirEntry) bool { return d.Name() == name },
+		)
 		if err == nil {
 			return claudeParse(sessionID, path)
 		}
@@ -57,34 +61,15 @@ func (p *claudeParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	return nil, fmt.Errorf("%w: claude session file not found for %s", ErrSessionDataNotFound, sessionID)
 }
 
-func findClaudeSessionFile(base, sessionID string) (string, error) {
-	legacyPath := filepath.Join(base, "projects", sessionID+".jsonl")
-	if _, err := os.Stat(legacyPath); err == nil {
-		return legacyPath, nil
-	}
-	return findSessionFile(filepath.Join(base, "projects"), func(_ string, d os.DirEntry) bool {
-		return d.Name() == sessionID+".jsonl"
-	})
-}
-
 func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open claude session file: %w", err)
-	}
-	defer f.Close()
-
 	agg := map[string]*SessionTokenUsage{}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
-
-	for scanner.Scan() {
+	err := scanJSONLFile(path, func(data []byte) {
 		var line claudeJSONLLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
+		if err := json.Unmarshal(data, &line); err != nil {
+			return
 		}
 		if line.Message.Model == "" || line.Message.Usage == nil {
-			continue
+			return
 		}
 		m := line.Message.Model
 		if line.Message.Speed == "fast" {
@@ -95,10 +80,9 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		u.OutputTokens += line.Message.Usage.OutputTokens
 		u.CacheCreationTokens += line.Message.Usage.CacheCreationInputTokens
 		u.CacheReadTokens += line.Message.Usage.CacheReadInputTokens
-	}
-	if err := scanner.Err(); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("scan claude session file: %w", err)
 	}
 	return mapValues(agg), nil
 }
-

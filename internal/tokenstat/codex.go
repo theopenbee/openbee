@@ -1,7 +1,6 @@
 package tokenstat
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,10 +51,20 @@ type codexTokenUsage struct {
 	CachedInputTokens int64 `json:"cached_input_tokens"`
 }
 
-type codexTotals struct {
-	input  int64
-	output int64
-	cached int64
+func (t *codexTokenUsage) advance(usage codexTokenUsage) {
+	t.InputTokens += usage.InputTokens
+	t.OutputTokens += usage.OutputTokens
+	t.CachedInputTokens += usage.CachedInputTokens
+}
+
+func (t *codexTokenUsage) deltaAndSet(total codexTokenUsage) codexTokenUsage {
+	delta := codexTokenUsage{
+		InputTokens:       total.InputTokens - t.InputTokens,
+		OutputTokens:      total.OutputTokens - t.OutputTokens,
+		CachedInputTokens: total.CachedInputTokens - t.CachedInputTokens,
+	}
+	*t = total
+	return delta
 }
 
 func (l codexJSONLLine) tokenInfo() *codexTokenInfo {
@@ -88,33 +97,23 @@ func (p *codexParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 }
 
 func findCodexSessionFile(codexBase, sessionID string) (string, error) {
-	legacyPath := filepath.Join(codexBase, "sessions", sessionID+".jsonl")
-	if _, err := os.Stat(legacyPath); err == nil {
-		return legacyPath, nil
-	}
-	return findSessionFile(filepath.Join(codexBase, "sessions"), func(_ string, d os.DirEntry) bool {
-		return strings.HasSuffix(d.Name(), ".jsonl") && strings.Contains(d.Name(), sessionID)
-	})
+	return findWithLegacyFast(
+		filepath.Join(codexBase, "sessions"),
+		sessionID+".jsonl",
+		func(_ string, d os.DirEntry) bool {
+			return strings.HasSuffix(d.Name(), ".jsonl") && strings.Contains(d.Name(), sessionID)
+		},
+	)
 }
 
 func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open codex session file: %w", err)
-	}
-	defer f.Close()
-
 	agg := map[string]*SessionTokenUsage{}
 	currentModel := ""
-	var prev codexTotals
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
-
-	for scanner.Scan() {
+	var prev codexTokenUsage
+	err := scanJSONLFile(path, func(data []byte) {
 		var line codexJSONLLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
+		if err := json.Unmarshal(data, &line); err != nil {
+			return
 		}
 		switch line.Type {
 		case "turn_context":
@@ -123,29 +122,29 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			}
 		case "event_msg":
 			if line.Payload.Type != "" && line.Payload.Type != "token_count" {
-				continue
+				return
 			}
 			info := line.tokenInfo()
 			if info == nil {
-				continue
+				return
 			}
 			m := codexResolveModel(info, currentModel)
 			if m == "" {
-				continue
+				return
 			}
 			u := getOrCreate(agg, sessionID, ai.EngineCodex, m)
 			if info.LastTokenUsage != nil {
 				addCodexUsage(u, *info.LastTokenUsage)
-				prev.advance(info.LastTokenUsage)
+				prev.advance(*info.LastTokenUsage)
 				if info.TotalTokenUsage != nil {
-					prev.set(info.TotalTokenUsage) // authoritative total supersedes incremental running sum
+					prev = *info.TotalTokenUsage // authoritative total supersedes incremental running sum
 				}
 			} else if info.TotalTokenUsage != nil {
-				addCodexUsage(u, prev.deltaAndSet(info.TotalTokenUsage))
+				addCodexUsage(u, prev.deltaAndSet(*info.TotalTokenUsage))
 			}
 		}
-	}
-	if err := scanner.Err(); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("scan codex session file: %w", err)
 	}
 	return mapValues(agg), nil
@@ -155,28 +154,6 @@ func addCodexUsage(dst *SessionTokenUsage, usage codexTokenUsage) {
 	dst.InputTokens += usage.InputTokens
 	dst.OutputTokens += usage.OutputTokens
 	dst.CacheReadTokens += usage.CachedInputTokens
-}
-
-func (t *codexTotals) advance(usage *codexTokenUsage) {
-	t.input += usage.InputTokens
-	t.output += usage.OutputTokens
-	t.cached += usage.CachedInputTokens
-}
-
-func (t *codexTotals) set(usage *codexTokenUsage) {
-	t.input = usage.InputTokens
-	t.output = usage.OutputTokens
-	t.cached = usage.CachedInputTokens
-}
-
-func (t *codexTotals) deltaAndSet(total *codexTokenUsage) codexTokenUsage {
-	delta := codexTokenUsage{
-		InputTokens:       total.InputTokens - t.input,
-		OutputTokens:      total.OutputTokens - t.output,
-		CachedInputTokens: total.CachedInputTokens - t.cached,
-	}
-	t.set(total)
-	return delta
 }
 
 func codexResolveModel(info *codexTokenInfo, currentModel string) string {

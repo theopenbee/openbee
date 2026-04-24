@@ -1,7 +1,6 @@
 package tokenstat
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
+
+const piModelPrefix = "[pi]"
 
 type piParser struct {
 	sessionsDir string
@@ -42,52 +43,36 @@ type piJSONLLine struct {
 func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	path := filepath.Join(p.sessionsDir, sessionID+".jsonl")
 	usages, err := piParse(sessionID, path)
-	if err == nil {
-		return usages, nil
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		return usages, err
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-
 	found, err := findSessionFile(p.sessionsDir, func(_ string, d os.DirEntry) bool {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
-		if errors.Is(err, ErrSessionDataNotFound) {
-			return nil, fmt.Errorf("%w: pi session file not found for session %s", ErrSessionDataNotFound, sessionID)
-		}
 		return nil, err
 	}
 	return piParse(sessionID, found)
 }
 
 func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open pi session file: %w", err)
-	}
-	defer f.Close()
-
 	agg := map[string]*SessionTokenUsage{}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, scannerBufSize), scannerBufSize)
-
-	for scanner.Scan() {
+	err := scanJSONLFile(path, func(data []byte) {
 		var line piJSONLLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
+		if err := json.Unmarshal(data, &line); err != nil {
+			return
 		}
 		if line.Type != "message" || line.Message.Role != "assistant" || line.Message.Usage == nil {
-			continue
+			return
 		}
-		m := "[pi]" + line.Message.Model
+		m := piModelPrefix + line.Message.Model
 		u := getOrCreate(agg, sessionID, ai.EnginePi, m)
 		u.InputTokens += line.Message.Usage.Input
 		u.OutputTokens += line.Message.Usage.Output
 		u.CacheCreationTokens += line.Message.Usage.CacheWrite
 		u.CacheReadTokens += line.Message.Usage.CacheRead
-	}
-	if err := scanner.Err(); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("scan pi session file: %w", err)
 	}
 	return mapValues(agg), nil

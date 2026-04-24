@@ -15,10 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	syncInterval    = 10 * time.Minute
-	incrementalDays = 30
-)
+const syncInterval = 10 * time.Minute
 
 var defaultParserOrder = []string{ai.EngineClaude, ai.EngineCodex, ai.EnginePi}
 
@@ -76,18 +73,15 @@ type sessionItem struct {
 }
 
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
-	since := time.Now().AddDate(0, 0, -incrementalDays).UnixMilli()
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
+		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
 		WHERE e.worker_id IS NOT NULL
 		  AND (e.engine = '' OR e.engine IN (?, ?, ?))
 		GROUP BY e.session_id
-		HAVING MAX(CASE WHEN e.completed_at > ? THEN 1 ELSE 0 END) = 1
-		    OR NOT EXISTS (
-		        SELECT 1 FROM bee_token_stats ts
-		        WHERE ts.session_id = e.session_id
-		    )`, ai.EngineClaude, ai.EngineCodex, ai.EnginePi, since)
+		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)`,
+		ai.EngineClaude, ai.EngineCodex, ai.EnginePi)
 	if err != nil {
 		return nil, err
 	}
