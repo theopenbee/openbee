@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -40,9 +39,6 @@ func (s *TokenStatsStore) UpsertTx(tx *sql.Tx, stat model.TokenStats) error {
 func upsertTokenStat(db dbExecer, stat model.TokenStats) error {
 	if stat.ID == "" {
 		stat.ID = uuid.New().String()
-	}
-	if stat.SyncedAt == 0 {
-		stat.SyncedAt = time.Now().UnixMilli()
 	}
 	_, err := db.Exec(
 		`INSERT INTO bee_token_stats

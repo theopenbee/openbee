@@ -2,10 +2,8 @@ package tokenstat
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -39,18 +37,13 @@ type piJSONLLine struct {
 }
 
 func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
-	path := filepath.Join(p.sessionsDir, sessionID+".jsonl")
-	usages, err := piParse(sessionID, path)
-	if err == nil || !errors.Is(err, os.ErrNotExist) {
-		return usages, err
-	}
-	found, err := findSessionFile(p.sessionsDir, func(_ string, d os.DirEntry) bool {
+	path, err := findWithLegacyFast(p.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
 		return nil, err
 	}
-	return piParse(sessionID, found)
+	return piParse(sessionID, path)
 }
 
 func piParse(sessionID, path string) ([]SessionTokenUsage, error) {

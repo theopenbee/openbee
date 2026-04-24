@@ -152,10 +152,7 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 }
 
 func (s *Syncer) parserOrder(preferred string) []string {
-	if preferred == "" {
-		return append([]string(nil), defaultParserOrder...)
-	}
-	if _, ok := s.parsers[preferred]; !ok {
+	if _, ok := s.parsers[preferred]; preferred == "" || !ok {
 		return append([]string(nil), defaultParserOrder...)
 	}
 	order := []string{preferred}
@@ -190,14 +187,6 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("upsert: %w", err)
 		}
-		logger.Debug("tokenstat: upserted usage",
-			zap.String("session_id", u.SessionID),
-			zap.String("agent_type", u.AgentType),
-			zap.String("model", u.Model),
-			zap.Int64("input_tokens", u.InputTokens),
-			zap.Int64("output_tokens", u.OutputTokens),
-			zap.Int64("cache_creation_tokens", u.CacheCreationTokens),
-			zap.Int64("cache_read_tokens", u.CacheReadTokens))
 	}
 	return tx.Commit()
 }

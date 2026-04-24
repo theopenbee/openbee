@@ -108,8 +108,8 @@ func findCodexSessionFile(codexBase, sessionID string) (string, error) {
 
 func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	agg := map[string]*SessionTokenUsage{}
+	prevByModel := map[string]*codexTokenUsage{}
 	currentModel := ""
-	var prev codexTokenUsage
 	err := scanJSONLFile(path, func(data []byte) {
 		var line codexJSONLLine
 		if err := json.Unmarshal(data, &line); err != nil {
@@ -133,11 +133,16 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 				return
 			}
 			u := getOrCreate(agg, sessionID, ai.EngineCodex, m)
+			if prevByModel[m] == nil {
+				prevByModel[m] = &codexTokenUsage{}
+			}
+			prev := prevByModel[m]
 			if info.LastTokenUsage != nil {
 				addCodexUsage(u, *info.LastTokenUsage)
-				prev.advance(*info.LastTokenUsage)
 				if info.TotalTokenUsage != nil {
-					prev = *info.TotalTokenUsage // authoritative total supersedes incremental running sum
+					*prev = *info.TotalTokenUsage // authoritative total supersedes incremental running sum
+				} else {
+					prev.advance(*info.LastTokenUsage)
 				}
 			} else if info.TotalTokenUsage != nil {
 				addCodexUsage(u, prev.deltaAndSet(*info.TotalTokenUsage))
