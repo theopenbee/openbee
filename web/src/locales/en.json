@@ -60,7 +60,18 @@
     "totalMessages": "Total Messages",
     "totalWorkDuration": "Total Work Duration",
     "combinedTrendTitle": "Worker Activity & Work Duration",
-    "combinedTrendAriaLabel": "Worker activity and work duration trend for the last {{days}} days"
+    "combinedTrendAriaLabel": "Worker activity and work duration trend for the last {{days}} days",
+    "totalTokens": "Total Tokens",
+    "tokens": "Tokens",
+    "tokensToday": "Tokens Today",
+    "tokensYesterday": "Yesterday",
+    "tokensTodayInput": "Input",
+    "tokensTodayOutput": "Output",
+    "tokensTrend": "Token Usage Trend",
+    "tokensTrendAriaLabel": "Token usage trend for the last {{days}} days",
+    "tokensCrossDayNote": "Sessions active across midnight are counted in each day",
+    "noTokenData": "No token data",
+    "noTokenDataDesc": "Token usage trend will appear here once sessions have completed."
   },
   "workers": {
     "title": "Workers",

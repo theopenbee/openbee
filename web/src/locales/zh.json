@@ -60,7 +60,18 @@
     "totalMessages": "消息总数",
     "totalWorkDuration": "工作时长",
     "combinedTrendTitle": "员工活跃与工作时长",
-    "combinedTrendAriaLabel": "最近 {{days}} 天员工活跃与工作时长趋势图"
+    "combinedTrendAriaLabel": "最近 {{days}} 天员工活跃与工作时长趋势图",
+    "totalTokens": "总 Token 用量",
+    "tokens": "Token 用量",
+    "tokensToday": "今日 Token",
+    "tokensYesterday": "昨日",
+    "tokensTodayInput": "输入",
+    "tokensTodayOutput": "输出",
+    "tokensTrend": "Token 使用趋势",
+    "tokensTrendAriaLabel": "最近 {{days}} 天 Token 使用趋势",
+    "tokensCrossDayNote": "跨天活跃的会话会在每天中分别记录",
+    "noTokenData": "暂无 Token 数据",
+    "noTokenDataDesc": "有会话完成执行后，Token 趋势将显示在此处。"
   },
   "workers": {
     "title": "员工",
