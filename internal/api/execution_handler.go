@@ -9,12 +9,27 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-type ExecutionHandler struct {
-	executions *store.ExecutionStore
+type modelTokenStats struct {
+	Model               string `json:"model"`
+	TotalTokens         int64  `json:"total_tokens"`
+	InputTokens         int64  `json:"input_tokens"`
+	OutputTokens        int64  `json:"output_tokens"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens"`
+	CacheReadTokens     int64  `json:"cache_read_tokens"`
 }
 
-func NewExecutionHandler(es *store.ExecutionStore) *ExecutionHandler {
-	return &ExecutionHandler{executions: es}
+type sessionTokenStats struct {
+	TotalTokens int64             `json:"total_tokens"`
+	ByModel     []modelTokenStats `json:"by_model"`
+}
+
+type ExecutionHandler struct {
+	executions *store.ExecutionStore
+	tokenStats *store.TokenStatsStore
+}
+
+func NewExecutionHandler(es *store.ExecutionStore, ts *store.TokenStatsStore) *ExecutionHandler {
+	return &ExecutionHandler{executions: es, tokenStats: ts}
 }
 
 func (h *ExecutionHandler) ListByWorker(c *gin.Context) {
@@ -49,8 +64,6 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 		CompletedTo:   parseInt64Query(c, "completed_at_to"),
 	}
 
-	// When no filters are applied, paginate at the session level so that each
-	// page contains a consistent number of sessions (the frontend groups by session).
 	if f == (store.ExecutionFilter{}) {
 		total, err := h.executions.CountSessions()
 		if err != nil {
@@ -62,7 +75,13 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, paginatedResponse(execs, total, page, pageSize))
+		c.JSON(http.StatusOK, gin.H{
+			"items":       execs,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"token_stats": h.buildTokenStatsMap(execs),
+		})
 		return
 	}
 
@@ -119,4 +138,40 @@ func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 		"size":      slice.Size,
 		"truncated": slice.Truncated,
 	})
+}
+
+func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map[string]*sessionTokenStats {
+	seen := make(map[string]struct{})
+	var sessionIDs []string
+	for _, e := range execs {
+		if _, ok := seen[e.SessionID]; !ok {
+			seen[e.SessionID] = struct{}{}
+			sessionIDs = append(sessionIDs, e.SessionID)
+		}
+	}
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	rows, err := h.tokenStats.GetBySessionIDs(sessionIDs)
+	if err != nil {
+		return nil
+	}
+	result := make(map[string]*sessionTokenStats)
+	for _, row := range rows {
+		entry := result[row.SessionID]
+		if entry == nil {
+			entry = &sessionTokenStats{}
+			result[row.SessionID] = entry
+		}
+		entry.TotalTokens += row.TotalTokens
+		entry.ByModel = append(entry.ByModel, modelTokenStats{
+			Model:               row.Model,
+			TotalTokens:         row.TotalTokens,
+			InputTokens:         row.InputTokens,
+			OutputTokens:        row.OutputTokens,
+			CacheCreationTokens: row.CacheCreationTokens,
+			CacheReadTokens:     row.CacheReadTokens,
+		})
+	}
+	return result
 }
