@@ -23,7 +23,7 @@ type createWorkerRequest struct {
 	Constraints      string            `json:"constraints"`
 	WorkDir          string            `json:"work_dir"`
 	PermissionScopes string            `json:"permission_scopes"`
-	EngineExtraArgs  map[string]string `json:"engine_extra_args"` // engine -> raw CLI string
+	EngineArgs  map[string]string `json:"engine_args"` // engine -> raw CLI string
 }
 
 type workerResponse struct {
@@ -33,7 +33,7 @@ type workerResponse struct {
 	Constraints      string             `json:"constraints"`
 	WorkDir          string             `json:"work_dir"`
 	Engine           string             `json:"engine"`
-	EngineExtraArgs  map[string]string  `json:"engine_extra_args"`
+	EngineArgs  map[string]string  `json:"engine_args"`
 	Status           model.WorkerStatus `json:"status"`
 	PermissionScopes string             `json:"permission_scopes"`
 	CreatedAt        int64              `json:"created_at"`
@@ -45,7 +45,7 @@ type workerWithDepartmentsResponse struct {
 	Departments []model.DepartmentBrief `json:"departments"`
 }
 
-func parseWorkerEngineExtraArgs(raw string) (map[string]string, error) {
+func parseWorkerEngineArgs(raw string) (map[string]string, error) {
 	if raw == "" || raw == "{}" {
 		return map[string]string{}, nil
 	}
@@ -57,9 +57,9 @@ func parseWorkerEngineExtraArgs(raw string) (map[string]string, error) {
 }
 
 func toWorkerResponse(w model.Worker) (workerResponse, error) {
-	extraArgs, err := parseWorkerEngineExtraArgs(w.EngineExtraArgs)
+	engineArgs, err := parseWorkerEngineArgs(w.EngineArgs)
 	if err != nil {
-		return workerResponse{}, fmt.Errorf("parse worker %s engine_extra_args: %w", w.ID, err)
+		return workerResponse{}, fmt.Errorf("parse worker %s engine_args: %w", w.ID, err)
 	}
 	return workerResponse{
 		ID:               w.ID,
@@ -68,7 +68,7 @@ func toWorkerResponse(w model.Worker) (workerResponse, error) {
 		Constraints:      w.Constraints,
 		WorkDir:          w.WorkDir,
 		Engine:           w.Engine,
-		EngineExtraArgs:  extraArgs,
+		EngineArgs:  engineArgs,
 		Status:           w.Status,
 		PermissionScopes: w.PermissionScopes,
 		CreatedAt:        w.CreatedAt,
@@ -111,17 +111,17 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.manager.ValidateEngineExtraArgs(req.EngineExtraArgs); err != nil {
+	if err := h.manager.ValidateEngineArgs(req.EngineArgs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var engineExtraArgsJSON string
-	if len(req.EngineExtraArgs) > 0 {
-		b, _ := json.Marshal(req.EngineExtraArgs)
-		engineExtraArgsJSON = string(b)
+	var engineArgsJSON string
+	if len(req.EngineArgs) > 0 {
+		b, _ := json.Marshal(req.EngineArgs)
+		engineArgsJSON = string(b)
 	} else {
-		engineExtraArgsJSON = "{}"
+		engineArgsJSON = "{}"
 	}
 
 	w, err := h.manager.CreateWorker(worker.CreateWorkerParams{
@@ -131,7 +131,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		Constraints:      req.Constraints,
 		WorkDir:          req.WorkDir,
 		PermissionScopes: req.PermissionScopes,
-		EngineExtraArgs:  engineExtraArgsJSON,
+		EngineArgs:  engineArgsJSON,
 	})
 	if err != nil {
 		respondWorkerError(c, err)

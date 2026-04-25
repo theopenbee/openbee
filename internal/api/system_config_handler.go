@@ -17,7 +17,7 @@ type sysConfigStore interface {
 
 type engineValidatorForSys interface {
 	ValidateEngine(name string) error
-	ValidateEngineExtraArgs(raw map[string]string) error
+	ValidateEngineArgs(raw map[string]string) error
 }
 
 // SystemConfigHandler serves GET /system-configs and PUT /system-configs/:key.
@@ -37,8 +37,8 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	keys := []string{
 		model.SystemConfigKeyDefaultEngine,
-		model.SystemConfigKeyEngineExtraArgsGlobal,
-		model.SystemConfigKeyEngineExtraArgsBee,
+		model.SystemConfigKeyEngineArgsGlobal,
+		model.SystemConfigKeyEngineArgsBee,
 	}
 	result := make(map[string]string, len(keys))
 	for _, key := range keys {
@@ -81,14 +81,14 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		}
 		h.engineCfg.Set(req.Value)
 
-	case model.SystemConfigKeyEngineExtraArgsGlobal, model.SystemConfigKeyEngineExtraArgsBee:
+	case model.SystemConfigKeyEngineArgsGlobal, model.SystemConfigKeyEngineArgsBee:
 		if req.Value != "" && req.Value != "{}" {
 			var raw map[string]string
 			if err := json.Unmarshal([]byte(req.Value), &raw); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "value must be a JSON object mapping engine to CLI args string"})
 				return
 			}
-			if err := h.validator.ValidateEngineExtraArgs(raw); err != nil {
+			if err := h.validator.ValidateEngineArgs(raw); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
