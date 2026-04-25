@@ -17,7 +17,6 @@ import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import {
-  ENGINES,
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
@@ -53,6 +52,7 @@ function EngineArgsConfigSection({
 }: EngineArgsConfigSectionProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const enabledEngines = useEnabledEngines()
   const [pendingValue, setPendingValue] = useState<Record<string, string> | null>(null)
   const value = pendingValue ?? savedValue
 
@@ -79,7 +79,7 @@ function EngineArgsConfigSection({
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
       </div>
       <EngineArgsSection
-        engines={ENGINES}
+        engines={enabledEngines}
         value={value}
         onChange={setPendingValue}
       />
