@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { TrendLineCard } from "@/components/trend-line-card"
 import { useTokenTrend } from "@/hooks/use-stats"
-import { formatTokenCount } from "@/lib/format"
+import { formatTokenCount, formatTokenCountAxis } from "@/lib/format"
 
 export function TokenTrendChart() {
   const { t } = useTranslation()
@@ -21,7 +21,7 @@ export function TokenTrendChart() {
       isLoading={isLoading}
       days={days}
       onDaysChange={setDays}
-      yAxisFormatter={(v) => formatTokenCount(v)}
+      yAxisFormatter={(v) => formatTokenCountAxis(v)}
       tooltipFormatter={(v) => formatTokenCount(v)}
     />
   )
