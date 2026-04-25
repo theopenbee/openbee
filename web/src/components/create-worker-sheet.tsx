@@ -31,6 +31,7 @@ import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
+import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { cn, getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
@@ -60,8 +61,8 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
 }
 
 function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
-  const entries = Object.entries(engineArgs).filter(([, value]) => value.trim() !== "")
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+  const stripped = stripEmptyEngineArgs(engineArgs)
+  return Object.keys(stripped).length > 0 ? stripped : undefined
 }
 
 interface CreateWorkerSheetProps {

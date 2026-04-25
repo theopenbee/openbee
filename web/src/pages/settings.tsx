@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -16,23 +16,22 @@ import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
+import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
 } from "@/lib/types"
 
-function recordsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
-  const keysA = Object.keys(a)
-  return keysA.length === Object.keys(b).length && keysA.every((k) => a[k] === b[k])
-}
-
-function stripEmptyArgs(v: Record<string, string>): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const [k, val] of Object.entries(v)) {
-    if (val.trim() !== "") result[k] = val
+function parseEngineArgs(raw: string | undefined): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
+    return parsed as Record<string, string>
+  } catch {
+    return {}
   }
-  return result
 }
 
 interface EngineArgsConfigSectionProps {
@@ -58,7 +57,7 @@ function EngineArgsConfigSection({
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: (v: Record<string, string>) =>
-      api.systemConfigs.set(configKey, JSON.stringify(stripEmptyArgs(v))),
+      api.systemConfigs.set(configKey, JSON.stringify(stripEmptyEngineArgs(v))),
     onError: () => setPendingValue(null),
     onSuccess: () => {
       setPendingValue(null)
@@ -68,7 +67,7 @@ function EngineArgsConfigSection({
   })
 
   const isDirty =
-    pendingValue !== null && !recordsEqual(stripEmptyArgs(pendingValue), savedValue)
+    pendingValue !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingValue), savedValue)
 
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
@@ -83,11 +82,9 @@ function EngineArgsConfigSection({
         value={value}
         onChange={setPendingValue}
       />
-      <div>
-        <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
-          {t("common.save")}
-        </Button>
-      </div>
+      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
+        {t("common.save")}
+      </Button>
     </DetailSection>
   )
 }
@@ -117,28 +114,8 @@ export function SystemSettings() {
     },
   })
 
-  function parseEngineArgs(key: string): Record<string, string> {
-    const raw = sysConfigs?.[key]
-    if (!raw) return {}
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
-      return parsed as Record<string, string>
-    } catch {
-      return {}
-    }
-  }
-
-  const savedGlobalArgs = useMemo(
-    () => parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sysConfigs],
-  )
-  const savedBeeArgs = useMemo(
-    () => parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sysConfigs],
-  )
+  const savedGlobalArgs = parseEngineArgs(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL])
+  const savedBeeArgs = parseEngineArgs(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE])
 
   return (
     <FadeIn>

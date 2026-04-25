@@ -24,17 +24,18 @@ type CreateWorkerParams struct {
 	WorkDir          string
 	PermissionScopes string
 	Engine           string
-	EngineArgs  string // JSON: map[engine]rawCLIString
+	EngineArgs       string // JSON: map[engine]rawCLIString
 }
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
 type UpdateWorkerParams struct {
-	Name             *string           `json:"name"`
-	Description      *string           `json:"description"`
-	Constraints      *string           `json:"constraints"`
-	PermissionScopes *string           `json:"permission_scopes"`
-	Engine           *string           `json:"engine"`
-	EngineArgs  map[string]string `json:"engine_args"` // engine -> raw CLI string; nil = no change; empty map clears all
+	Name             *string `json:"name"`
+	Description      *string `json:"description"`
+	Constraints      *string `json:"constraints"`
+	PermissionScopes *string `json:"permission_scopes"`
+	Engine           *string `json:"engine"`
+	// nil = no change; empty map clears all; per-engine empty string deletes that entry.
+	EngineArgs map[string]string `json:"engine_args"`
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
@@ -77,27 +78,28 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 	if p.Engine != nil {
 		w.Engine = *p.Engine
 	}
-	if p.EngineArgs != nil {
-		if len(p.EngineArgs) == 0 {
-			w.EngineArgs = "{}"
-		} else {
-			existing := make(map[string]string)
-			if w.EngineArgs != "" && w.EngineArgs != "{}" {
-				if err := json.Unmarshal([]byte(w.EngineArgs), &existing); err != nil {
-					return fmt.Errorf("parse existing engine_args: %w", err)
-				}
-			}
-			for engine, args := range p.EngineArgs {
-				if args == "" {
-					delete(existing, engine)
-				} else {
-					existing[engine] = args
-				}
-			}
-			b, _ := json.Marshal(existing)
-			w.EngineArgs = string(b)
+	if p.EngineArgs == nil {
+		return nil
+	}
+	if len(p.EngineArgs) == 0 {
+		w.EngineArgs = "{}"
+		return nil
+	}
+	existing := make(map[string]string)
+	if w.EngineArgs != "" && w.EngineArgs != "{}" {
+		if err := json.Unmarshal([]byte(w.EngineArgs), &existing); err != nil {
+			return fmt.Errorf("parse existing engine_args: %w", err)
 		}
 	}
+	for engine, args := range p.EngineArgs {
+		if args == "" {
+			delete(existing, engine)
+		} else {
+			existing[engine] = args
+		}
+	}
+	b, _ := json.Marshal(existing)
+	w.EngineArgs = string(b)
 	return nil
 }
 

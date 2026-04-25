@@ -26,6 +26,7 @@ import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { getErrorMessage } from "@/lib/utils"
+import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
@@ -66,10 +67,10 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     try {
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
-      const originalEngineArgs = worker.engine_args ?? {}
-      const engineArgsChanged =
-        Object.keys(engineArgs).length !== Object.keys(originalEngineArgs).length ||
-        Object.entries(engineArgs).some(([k, v]) => originalEngineArgs[k] !== v)
+      const engineArgsChanged = !engineArgsEqual(
+        stripEmptyEngineArgs(engineArgs),
+        worker.engine_args ?? {},
+      )
       const workerChanged =
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||

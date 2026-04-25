@@ -58,13 +58,13 @@ var ctlWorkerStatusCmd = &cobra.Command{
 }
 
 var (
-	workerCreateName            string
-	workerCreateDescription     string
-	workerCreateConstraints     string
-	workerCreateWorkDir         string
-	workerCreateEngine          string
-	workerCreateScopes          string
-	workerCreateEngineArgs []string
+	workerCreateName        string
+	workerCreateDescription string
+	workerCreateConstraints string
+	workerCreateWorkDir     string
+	workerCreateEngine      string
+	workerCreateScopes      string
+	workerCreateEngineArgs  []string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -102,12 +102,12 @@ var ctlWorkerCreateCmd = &cobra.Command{
 }
 
 var (
-	workerUpdateName            string
-	workerUpdateDescription     string
-	workerUpdateConstraints     string
-	workerUpdateEngine          string
-	workerUpdateScopes          string
-	workerUpdateEngineArgs []string
+	workerUpdateName        string
+	workerUpdateDescription string
+	workerUpdateConstraints string
+	workerUpdateEngine      string
+	workerUpdateScopes      string
+	workerUpdateEngineArgs  []string
 )
 
 var ctlWorkerUpdateCmd = &cobra.Command{

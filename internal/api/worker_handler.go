@@ -23,7 +23,7 @@ type createWorkerRequest struct {
 	Constraints      string            `json:"constraints"`
 	WorkDir          string            `json:"work_dir"`
 	PermissionScopes string            `json:"permission_scopes"`
-	EngineArgs  map[string]string `json:"engine_args"` // engine -> raw CLI string
+	EngineArgs       map[string]string `json:"engine_args"`
 }
 
 type workerResponse struct {
@@ -33,7 +33,7 @@ type workerResponse struct {
 	Constraints      string             `json:"constraints"`
 	WorkDir          string             `json:"work_dir"`
 	Engine           string             `json:"engine"`
-	EngineArgs  map[string]string  `json:"engine_args"`
+	EngineArgs       map[string]string  `json:"engine_args"`
 	Status           model.WorkerStatus `json:"status"`
 	PermissionScopes string             `json:"permission_scopes"`
 	CreatedAt        int64              `json:"created_at"`
@@ -68,7 +68,7 @@ func toWorkerResponse(w model.Worker) (workerResponse, error) {
 		Constraints:      w.Constraints,
 		WorkDir:          w.WorkDir,
 		Engine:           w.Engine,
-		EngineArgs:  engineArgs,
+		EngineArgs:       engineArgs,
 		Status:           w.Status,
 		PermissionScopes: w.PermissionScopes,
 		CreatedAt:        w.CreatedAt,
@@ -131,7 +131,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		Constraints:      req.Constraints,
 		WorkDir:          req.WorkDir,
 		PermissionScopes: req.PermissionScopes,
-		EngineArgs:  engineArgsJSON,
+		EngineArgs:       engineArgsJSON,
 	})
 	if err != nil {
 		respondWorkerError(c, err)
