@@ -105,7 +105,7 @@
       "constraintsPlaceholder": "The work constraints for this worker...",
       "constraintsHelper": "Work constraints injected into the worker at the start of every session.",
       "engineArgs": "Engine Args",
-      "engineArgsPlaceholder": "--model claude-sonnet-4-5 --effort high",
+      "engineArgsPlaceholder": "--effort high",
       "engineArgsHelper": "CLI flags passed to the engine for this worker.",
       "sectionDepartment": "Department",
       "departmentHelper": "Assign the worker to departments (optional)",

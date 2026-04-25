@@ -105,7 +105,7 @@
       "constraintsPlaceholder": "这个员工的工作约束...",
       "constraintsHelper": "每次会话开始时注入到员工中的工作约束。",
       "engineArgs": "引擎参数",
-      "engineArgsPlaceholder": "--model claude-sonnet-4-5 --effort high",
+      "engineArgsPlaceholder": "--effort high",
       "engineArgsHelper": "传递给该 Worker 引擎的 CLI 参数。",
       "sectionDepartment": "部门",
       "departmentHelper": "将员工分配到所属部门（可选）",
