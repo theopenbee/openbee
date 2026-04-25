@@ -59,7 +59,7 @@ export function useUpdateWorker() {
 export function useWorkerExecutions(workerId: string, page: number = 1, pageSize: number = 20) {
   return useQuery({
     queryKey: ["workers", workerId, "executions", page, pageSize],
-    queryFn: () => api.workers.executions(workerId, page, pageSize),
+    queryFn: () => api.sessions.list(page, pageSize, workerId),
     placeholderData: keepPreviousData,
   })
 }

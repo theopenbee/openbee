@@ -80,22 +80,12 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ department_ids: departmentIds }),
       }),
-    executions: async (id: string, page: number = 1, pageSize: number = 20) => {
-      return fetchAPI<PaginatedResponse<WorkerExecution>>(
-        `/workers/${id}/executions?page=${page}&page_size=${pageSize}`
-      )
-    },
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
   },
   executions: {
-    list: async (page: number = 1, pageSize: number = 20) => {
-      return fetchAPI<PaginatedResponse<WorkerExecution>>(
-        `/executions?page=${page}&page_size=${pageSize}`
-      )
-    },
     logs: async (id: string, since: number = 0): Promise<{ content: string; size: number; truncated: boolean }> => {
       const qs = since > 0 ? `?since=${since}` : ""
-      const res = await fetchWithAuth(`${API_BASE}/executions/${id}/logs${qs}`, {
+      const res = await fetchWithAuth(`${API_BASE}/sessions/${id}/logs${qs}`, {
         headers: { "Accept-Language": i18n.language || "en" },
       })
       if (!res.ok) {
@@ -106,6 +96,11 @@ export const api = {
     },
   },
   sessions: {
+    list: async (page: number = 1, pageSize: number = 20, workerID?: string) => {
+      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+      if (workerID) qs.set("worker_id", workerID)
+      return fetchAPI<PaginatedResponse<WorkerExecution>>(`/sessions?${qs}`)
+    },
     get: async (sessionId: string) => {
       const detail = await fetchAPI<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`)
       return {

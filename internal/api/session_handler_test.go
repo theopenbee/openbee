@@ -30,7 +30,7 @@ func newTestServer(t *testing.T, register func(*gin.RouterGroup, *ExecutionHandl
 
 func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
 	return newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
-		api.GET("/executions", h.List)
+		api.GET("/sessions", h.List)
 	})
 }
 
@@ -54,7 +54,7 @@ func TestExecutionsList_IncludesTokenStats(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/executions", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -87,7 +87,7 @@ func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/executions", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
