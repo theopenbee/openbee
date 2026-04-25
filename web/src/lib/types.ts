@@ -164,6 +164,10 @@ export const DEFAULT_BEE_ID = "default"
 
 // Mirrors model.SystemConfigKeyDefaultEngine in Go — keep in sync.
 export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
+// Mirrors model.SystemConfigKeyEngineArgsGlobal in Go — keep in sync.
+export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
+// Mirrors model.SystemConfigKeyEngineArgsBee in Go — keep in sync.
+export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
 
 // Mirrors ai.AllEngines in Go — keep in sync.
 export const ENGINES = ["claude", "codex", "pi", "kimi"] as const
