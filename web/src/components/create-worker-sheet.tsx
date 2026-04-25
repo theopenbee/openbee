@@ -110,6 +110,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         iv?.description ||
         iv?.constraints ||
         iv?.work_dir ||
+        (iv?.permission_scopes && parseScopes(iv.permission_scopes).length > 0) ||
         !!buildCreateEngineArgsPayload(iv?.engine_args ?? {})
       ))
       setDeptSearch("")
@@ -238,6 +239,57 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             </div>
           </div>
 
+          {flatDepts.length > 0 && (
+            <div className="border-t border-border/60 px-6 py-5 space-y-3">
+              <SectionHeading
+                text={t("workers.form.sectionDepartment")}
+                badge={selectedDeptIds.size}
+              />
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={deptSearch}
+                  onChange={(e) => setDeptSearch(e.target.value)}
+                  placeholder={t("workers.form.searchDepartments")}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
+                {filteredDepts.length === 0 ? (
+                  <p className="py-3 text-xs text-muted-foreground text-center">
+                    {t("workers.form.noMatchingDepartments")}
+                  </p>
+                ) : (
+                  filteredDepts.map(({ dept, depth }) => (
+                    <label
+                      key={dept.id}
+                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ paddingLeft: `${12 + depth * 12}px` }}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`cws-dept-${dept.id}`}
+                        checked={selectedDeptIds.has(dept.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedDeptIds)
+                          if (e.target.checked) next.add(dept.id)
+                          else next.delete(dept.id)
+                          setSelectedDeptIds(next)
+                        }}
+                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                      />
+                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+            </div>
+          )}
+
           <div className="border-t border-border/60">
             <button
               type="button"
@@ -297,94 +349,43 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   </div>
 
                   <EngineArgsSection
-                    engines={enabledEngines}
+                    engine={engine}
                     value={engineArgs}
                     onChange={setEngineArgs}
                   />
+
+                  <div className="space-y-2">
+                    <SectionHeading
+                      text={t("workers.form.sectionPermissions")}
+                      badge={selectedScopes.length}
+                    />
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                      {KNOWN_SCOPES.map((scope) => (
+                        <label
+                          key={scope.id}
+                          className="flex items-center gap-2 cursor-pointer group"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes(scope.id)}
+                            onChange={(e) =>
+                              setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
+                            }
+                            disabled={isPending}
+                            className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                          />
+                          <span className="text-sm text-foreground/75 group-hover:text-foreground transition-colors leading-snug">
+                            {t(scope.titleKey)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="border-t border-border/60 px-6 py-5 space-y-3">
-            <SectionHeading
-              text={t("workers.form.sectionPermissions")}
-              badge={selectedScopes.length}
-            />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-              {KNOWN_SCOPES.map((scope) => (
-                <label
-                  key={scope.id}
-                  className="flex items-center gap-2 cursor-pointer group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedScopes.includes(scope.id)}
-                    onChange={(e) =>
-                      setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
-                    }
-                    disabled={isPending}
-                    className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
-                  />
-                  <span className="text-sm text-foreground/75 group-hover:text-foreground transition-colors leading-snug">
-                    {t(scope.titleKey)}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
-          </div>
-
-          {flatDepts.length > 0 && (
-            <div className="border-t border-border/60 px-6 py-5 space-y-3">
-              <SectionHeading
-                text={t("workers.form.sectionDepartment")}
-                badge={selectedDeptIds.size}
-              />
-
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  className="pl-8 h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-xs text-muted-foreground text-center">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        id={`cws-dept-${dept.id}`}
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
-                      />
-                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
-            </div>
-          )}
         </form>
 
         <Separator />

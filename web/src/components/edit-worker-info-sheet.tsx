@@ -145,7 +145,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
             </div>
 
             <EngineArgsSection
-              engines={enabledEngines}
+              engine={engine}
               value={engineArgs}
               onChange={setEngineArgs}
             />
