@@ -133,17 +133,17 @@ func TestManager_ResolveEngineSelection_UnknownEngineUsesFallbackName(t *testing
 	}
 }
 
-func TestManager_ValidateEngineExtraArgs_RejectsUnknownEngine(t *testing.T) {
+func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
-	err := mgr.ValidateEngineExtraArgs(map[string]string{"unknown": "--model foo"})
+	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})
 	if err == nil {
 		t.Fatal("expected error for unknown engine, got nil")
 	}
 }
 
-func TestManager_ValidateEngineExtraArgs_RejectsInvalidArgs(t *testing.T) {
+func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
-	err := mgr.ValidateEngineExtraArgs(map[string]string{"claude": `--model "unterminated`})
+	err := mgr.ValidateEngineArgs(map[string]string{"claude": `--model "unterminated`})
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
 	}
@@ -276,26 +276,26 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 	}
 }
 
-func TestManager_UpdateWorker_EmptyEngineExtraArgsClearsAll(t *testing.T) {
+func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}, ai.EngineCodex: &mockEngine{}}
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{
-		Name:            "alice",
-		EngineExtraArgs: `{"claude":"--model sonnet","codex":"--model o3"}`,
+		Name:       "alice",
+		EngineArgs: `{"claude":"--model sonnet","codex":"--model o3"}`,
 	})
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
 
 	updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
-		EngineExtraArgs: map[string]string{},
+		EngineArgs: map[string]string{},
 	})
 	if err != nil {
 		t.Fatalf("update failed: %v", err)
 	}
-	if updated.EngineExtraArgs != "{}" {
-		t.Fatalf("got %s, want {}", updated.EngineExtraArgs)
+	if updated.EngineArgs != "{}" {
+		t.Fatalf("got %s, want {}", updated.EngineArgs)
 	}
 }
 

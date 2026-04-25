@@ -71,7 +71,7 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
-	extraArgs := m.resolveExtraArgs(ctx, worker, engineName)
+	extraArgs := m.resolveEngineArgs(ctx, worker, engineName)
 
 	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,

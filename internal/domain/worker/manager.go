@@ -103,7 +103,7 @@ func (m *Manager) EnabledEngines() []string {
 	return enabled
 }
 
-func (m *Manager) loadExtraArgs(ctx context.Context, key string) ai.EngineExtraArgsMap {
+func (m *Manager) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
 	if m.sysConfigStore == nil {
 		return nil
 	}
@@ -111,30 +111,30 @@ func (m *Manager) loadExtraArgs(ctx context.Context, key string) ai.EngineExtraA
 	if err != nil || !found {
 		return nil
 	}
-	return ai.ParseEngineExtraArgsJSON(cfg.Value)
+	return ai.ParseEngineArgsJSON(cfg.Value)
 }
 
-func (m *Manager) resolveExtraArgs(ctx context.Context, worker model.Worker, engineName string) []string {
-	globalMap := m.loadExtraArgs(ctx, model.SystemConfigKeyEngineExtraArgsGlobal)
-	workerMap := ai.ParseEngineExtraArgsJSON(worker.EngineExtraArgs)
-	merged := ai.MergeEngineExtraArgs(globalMap, workerMap)
+func (m *Manager) resolveEngineArgs(ctx context.Context, worker model.Worker, engineName string) []string {
+	globalMap := m.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsGlobal)
+	workerMap := ai.ParseEngineArgsJSON(worker.EngineArgs)
+	merged := ai.MergeEngineArgs(globalMap, workerMap)
 	return merged[engineName]
 }
 
-func (m *Manager) ValidateEngineExtraArgs(raw map[string]string) error {
+func (m *Manager) ValidateEngineArgs(raw map[string]string) error {
 	if len(raw) == 0 {
 		return nil
 	}
 	for engine := range raw {
 		if engine == "" {
-			return fmt.Errorf("engine_extra_args contains an empty engine name: %w", ErrValidation)
+			return fmt.Errorf("engine_args contains an empty engine name: %w", ErrValidation)
 		}
 		if err := m.ValidateEngine(engine); err != nil {
-			return fmt.Errorf("engine_extra_args[%q]: %w", engine, err)
+			return fmt.Errorf("engine_args[%q]: %w", engine, err)
 		}
 	}
-	if _, err := ai.ParseEngineExtraArgs(raw); err != nil {
-		return fmt.Errorf("invalid engine_extra_args: %w", err)
+	if _, err := ai.ParseEngineArgs(raw); err != nil {
+		return fmt.Errorf("invalid engine_args: %w", err)
 	}
 	return nil
 }
