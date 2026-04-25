@@ -7,6 +7,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -117,9 +118,11 @@ export function TrendLineCard({
                     ]}
                     contentStyle={CHART_TOOLTIP_STYLE}
                   />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <Line
                     type="monotone"
                     dataKey={dataKey}
+                    name={tooltipLabel}
                     strokeWidth={2}
                     dot={false}
                     stroke="var(--primary)"
