@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -90,7 +91,10 @@ var ctlWorkerCreateCmd = &cobra.Command{
 			a["permission_scopes"] = workerCreateScopes
 		}
 		if len(workerCreateEngineArgs) > 0 {
-			parsed := parseEngineArgsFlag(workerCreateEngineArgs)
+			parsed, err := parseEngineArgsFlag(workerCreateEngineArgs)
+			if err != nil {
+				return err
+			}
 			a["engine_args"] = parsed
 		}
 		return ctlRun(utils.CreateWorker, a)
@@ -131,7 +135,11 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 			a["permission_scopes"] = workerUpdateScopes
 		}
 		if cmd.Flags().Changed(engineArgsFlagName) {
-			a["engine_args"] = parseEngineArgsFlag(workerUpdateEngineArgs)
+			parsed, err := parseEngineArgsFlag(workerUpdateEngineArgs)
+			if err != nil {
+				return err
+			}
+			a["engine_args"] = parsed
 		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
@@ -201,14 +209,14 @@ func init() {
 	ctlCmd.AddCommand(ctlWorkerCmd)
 }
 
-func parseEngineArgsFlag(entries []string) map[string]string {
+func parseEngineArgsFlag(entries []string) (map[string]string, error) {
 	result := make(map[string]string, len(entries))
 	for _, entry := range entries {
 		engine, args, ok := strings.Cut(entry, "=")
 		if !ok {
-			continue
+			return nil, fmt.Errorf("invalid --engine-args entry %q: expected format \"engine=flags\"", entry)
 		}
 		result[engine] = args
 	}
-	return result
+	return result, nil
 }
