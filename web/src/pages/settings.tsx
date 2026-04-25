@@ -17,6 +17,7 @@ import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import {
+  ENGINES,
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
@@ -25,6 +26,14 @@ import {
 function recordsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
   const keysA = Object.keys(a)
   return keysA.length === Object.keys(b).length && keysA.every((k) => a[k] === b[k])
+}
+
+function stripEmptyArgs(v: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [k, val] of Object.entries(v)) {
+    if (val.trim() !== "") result[k] = val
+  }
+  return result
 }
 
 interface EngineArgsConfigSectionProps {
@@ -44,13 +53,12 @@ function EngineArgsConfigSection({
 }: EngineArgsConfigSectionProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const enabledEngines = useEnabledEngines()
   const [pendingValue, setPendingValue] = useState<Record<string, string> | null>(null)
   const value = pendingValue ?? savedValue
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: (v: Record<string, string>) =>
-      api.systemConfigs.set(configKey, JSON.stringify(v)),
+      api.systemConfigs.set(configKey, JSON.stringify(stripEmptyArgs(v))),
     onError: () => setPendingValue(null),
     onSuccess: () => {
       setPendingValue(null)
@@ -59,7 +67,8 @@ function EngineArgsConfigSection({
     },
   })
 
-  const isDirty = pendingValue !== null && !recordsEqual(pendingValue, savedValue)
+  const isDirty =
+    pendingValue !== null && !recordsEqual(stripEmptyArgs(pendingValue), savedValue)
 
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
@@ -70,7 +79,7 @@ function EngineArgsConfigSection({
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
       </div>
       <EngineArgsSection
-        engines={enabledEngines}
+        engines={ENGINES}
         value={value}
         onChange={setPendingValue}
       />

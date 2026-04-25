@@ -4,31 +4,35 @@ import { Label } from "@/components/ui/label"
 import type { Engine } from "@/lib/types"
 
 interface EngineArgsSectionProps {
-  engine: Engine
+  engines: readonly Engine[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
 }
 
-export function EngineArgsSection({ engine, value, onChange }: EngineArgsSectionProps) {
+export function EngineArgsSection({ engines, value, onChange }: EngineArgsSectionProps) {
   const { t } = useTranslation()
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={`engine-args-${engine}`}>
-        {t("workers.form.engineArgs")}
-        <span className="ml-1 text-xs font-normal text-muted-foreground capitalize">
-          ({engine})
-        </span>
-      </Label>
-      <Input
-        id={`engine-args-${engine}`}
-        value={value[engine] ?? ""}
-        onChange={(e) =>
-          onChange({ ...value, [engine]: e.target.value })
-        }
-        placeholder={t("workers.form.engineArgsPlaceholder")}
-        className="font-mono text-xs"
-      />
+    <div className="space-y-2">
+      <Label>{t("workers.form.engineArgs")}</Label>
+      <div className="space-y-2">
+        {engines.map((engine) => (
+          <div key={engine} className="flex items-center gap-3">
+            <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground capitalize">
+              {engine}
+            </span>
+            <Input
+              id={`engine-args-${engine}`}
+              value={value[engine] ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, [engine]: e.target.value })
+              }
+              placeholder={t("workers.form.engineArgsPlaceholder")}
+              className="flex-1 font-mono text-xs"
+            />
+          </div>
+        ))}
+      </div>
       <p className="text-xs text-muted-foreground">{t("workers.form.engineArgsHelper")}</p>
     </div>
   )

@@ -349,7 +349,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                   </div>
 
                   <EngineArgsSection
-                    engine={engine}
+                    engines={[engine]}
                     value={engineArgs}
                     onChange={setEngineArgs}
                   />
