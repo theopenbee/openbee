@@ -8,8 +8,8 @@
 openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
 openbee ctl worker get <id>
 openbee ctl worker status <id>
-openbee ctl worker create --name <name> [--description <description>] [--constraints <constraints content>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-extra-args <engine=args>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-extra-args <engine=args>]
+openbee ctl worker create --name <name> [--description <description>] [--constraints <constraints content>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
 openbee ctl worker delete <id> [--delete-work-dir]
 ```
 
@@ -19,7 +19,7 @@ openbee ctl worker delete <id> [--delete-work-dir]
 - `--id` (only for `worker list`): filter by exact worker ID
 - `--page` / `--page-size` (only for `worker list`): pagination; default page 1, default 50 per page, max 200
 - `--scopes` (create/update): comma-separated permission scope list granted to this worker; pass empty string to clear all scopes
-- `--engine-extra-args` (create/update): extra CLI flags for a specific engine, in `engine=<flags>` format (repeatable); e.g. `--engine-extra-args "claude=--model claude-sonnet-4-6 --effort high"`; for update, pass `engine=` (empty value) to clear args for that engine
+- `--engine-args` (create/update): extra CLI flags for a specific engine, in `engine=<flags>` format (repeatable); e.g. `--engine-args "claude=--model claude-sonnet-4-6 --effort high"`; for update, pass `engine=` (empty value) to clear args for that engine
 
 ### Worker Permission Scopes
 
