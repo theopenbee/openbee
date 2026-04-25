@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { EngineExtraArgsSection } from "@/components/engine-extra-args-section"
+import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { cn, getErrorMessage } from "@/lib/utils"
@@ -43,7 +43,7 @@ export interface WorkerInitialValues {
   permission_scopes: string
   engine: Engine
   departmentIds: string[]
-  engine_extra_args: Record<string, string>
+  engine_args: Record<string, string>
 }
 
 export function workerToInitialValues(worker: Worker): WorkerInitialValues {
@@ -55,12 +55,12 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     permission_scopes: worker.permission_scopes ?? "",
     engine: worker.engine ?? DEFAULT_ENGINE,
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
-    engine_extra_args: worker.engine_extra_args ?? {},
+    engine_args: worker.engine_args ?? {},
   }
 }
 
-function buildCreateEngineExtraArgsPayload(engineExtraArgs: Record<string, string>) {
-  const entries = Object.entries(engineExtraArgs).filter(([, value]) => value.trim() !== "")
+function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
+  const entries = Object.entries(engineArgs).filter(([, value]) => value.trim() !== "")
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
@@ -87,7 +87,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
-  const [engineExtraArgs, setEngineExtraArgs] = useState<Record<string, string>>({})
+  const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
   const [showOptional, setShowOptional] = useState(false)
   const [deptSearch, setDeptSearch] = useState("")
@@ -104,13 +104,13 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
-      setEngineExtraArgs(iv?.engine_extra_args ?? {})
+      setEngineArgs(iv?.engine_args ?? {})
       setSubmitError("")
       setShowOptional(isCopy && !!(
         iv?.description ||
         iv?.constraints ||
         iv?.work_dir ||
-        !!buildCreateEngineExtraArgsPayload(iv?.engine_extra_args ?? {})
+        !!buildCreateEngineArgsPayload(iv?.engine_args ?? {})
       ))
       setDeptSearch("")
       randomName.reset()
@@ -128,7 +128,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         constraints: constraints || undefined,
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
-        engine_extra_args: buildCreateEngineExtraArgsPayload(engineExtraArgs),
+        engine_args: buildCreateEngineArgsPayload(engineArgs),
       })
       if (selectedDeptIds.size > 0) {
         await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
@@ -296,10 +296,10 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                     <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
                   </div>
 
-                  <EngineExtraArgsSection
+                  <EngineArgsSection
                     engines={enabledEngines}
-                    value={engineExtraArgs}
-                    onChange={setEngineExtraArgs}
+                    value={engineArgs}
+                    onChange={setEngineArgs}
                   />
                 </div>
               </div>

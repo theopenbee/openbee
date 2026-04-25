@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label"
 import type { Engine } from "@/lib/types"
 
 interface EngineArgsSectionProps {
-  engines: Engine[]
+  engines: readonly Engine[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
 }
