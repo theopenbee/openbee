@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -21,6 +21,11 @@ import {
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
 } from "@/lib/types"
+
+function recordsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keysA = Object.keys(a)
+  return keysA.length === Object.keys(b).length && keysA.every((k) => a[k] === b[k])
+}
 
 interface EngineArgsConfigSectionProps {
   configKey: string
@@ -54,9 +59,7 @@ function EngineArgsConfigSection({
     },
   })
 
-  const isDirty =
-    pendingValue !== null &&
-    JSON.stringify(pendingValue) !== JSON.stringify(savedValue)
+  const isDirty = pendingValue !== null && !recordsEqual(pendingValue, savedValue)
 
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
@@ -109,11 +112,24 @@ export function SystemSettings() {
     const raw = sysConfigs?.[key]
     if (!raw) return {}
     try {
-      return JSON.parse(raw) as Record<string, string>
+      const parsed: unknown = JSON.parse(raw)
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
+      return parsed as Record<string, string>
     } catch {
       return {}
     }
   }
+
+  const savedGlobalArgs = useMemo(
+    () => parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sysConfigs],
+  )
+  const savedBeeArgs = useMemo(
+    () => parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sysConfigs],
+  )
 
   return (
     <FadeIn>
@@ -157,7 +173,7 @@ export function SystemSettings() {
 
         <EngineArgsConfigSection
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
-          savedValue={parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL)}
+          savedValue={savedGlobalArgs}
           title={t("systemSettings.globalArgsSection.title")}
           hint={t("systemSettings.globalArgsSection.hint")}
           successMessage={t("systemSettings.globalArgsSection.updated")}
@@ -165,7 +181,7 @@ export function SystemSettings() {
 
         <EngineArgsConfigSection
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
-          savedValue={parseEngineArgs(SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE)}
+          savedValue={savedBeeArgs}
           title={t("systemSettings.beeArgsSection.title")}
           hint={t("systemSettings.beeArgsSection.hint")}
           successMessage={t("systemSettings.beeArgsSection.updated")}
