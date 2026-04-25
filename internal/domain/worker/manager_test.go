@@ -77,10 +77,7 @@ func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "codex"}
-	name, got, err := mgr.resolveEngine(w)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	name, got := mgr.resolveEngine(w)
 	if name != "codex" {
 		t.Fatalf("expected codex engine name, got %q", name)
 	}
@@ -95,10 +92,7 @@ func TestManager_ResolveEngine_EmptyEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: ""}
-	name, got, err := mgr.resolveEngine(w)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	name, got := mgr.resolveEngine(w)
 	if name != "claude" {
 		t.Fatalf("expected default claude engine name, got %q", name)
 	}
@@ -113,54 +107,12 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	mgr := newTestManager(t, engines, "claude")
 
 	w := model.Worker{Engine: "unknown-engine"}
-	name, got, err := mgr.resolveEngine(w)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	name, got := mgr.resolveEngine(w)
 	if name != "claude" {
 		t.Fatalf("expected fallback engine name claude, got %q", name)
 	}
 	if got != claude {
 		t.Error("expected fallback to default claude engine adapter")
-	}
-}
-
-func TestManager_ExecuteWorker_ResolveEngineFailureStillPersistsExecution(t *testing.T) {
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{}, "missing-engine")
-
-	workerModel, err := mgr.workerStore.Create(model.Worker{Name: "broken", WorkDir: "/tmp/broken"})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-
-	exec, err := mgr.ExecuteWorker(context.Background(), workerModel.ID, "test input", "session-1", false)
-	if err == nil {
-		t.Fatal("expected resolveEngine failure, got nil")
-	}
-	if exec.ID == "" {
-		t.Fatal("expected failed execution record to be created")
-	}
-
-	got, err := mgr.executionStore.GetByID(exec.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Status != model.ExecStatusFailed {
-		t.Fatalf("expected failed execution status, got %s", got.Status)
-	}
-	if got.Engine != "" {
-		t.Fatalf("expected unresolved engine to remain empty, got %q", got.Engine)
-	}
-	if got.Result == "" {
-		t.Fatal("expected failure result to be persisted")
-	}
-
-	updatedWorker, err := mgr.workerStore.GetByID(workerModel.ID)
-	if err != nil {
-		t.Fatalf("GetByID worker: %v", err)
-	}
-	if updatedWorker.Status != model.WorkerStatusError {
-		t.Fatalf("expected worker status error, got %s", updatedWorker.Status)
 	}
 }
 

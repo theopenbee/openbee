@@ -72,19 +72,16 @@ func NewManager(
 	}
 }
 
-func (m *Manager) resolveEngine(w model.Worker) (string, ai.EngineAdapter, error) {
+func (m *Manager) resolveEngine(w model.Worker) (string, ai.EngineAdapter) {
 	if w.Engine != "" {
 		if e, ok := m.engines[w.Engine]; ok {
-			return w.Engine, e, nil
+			return w.Engine, e
 		}
 		log.Error("unknown engine on worker, falling back to default",
 			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
 	}
 	defaultEngine := m.engineCfg.Get()
-	if e, ok := m.engines[defaultEngine]; ok {
-		return defaultEngine, e, nil
-	}
-	return "", nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
+	return defaultEngine, m.engines[defaultEngine]
 }
 
 func (m *Manager) EnabledEngines() []string {
@@ -232,10 +229,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		Engine:           p.Engine,
 		PermissionScopes: p.PermissionScopes,
 	}
-	_, engine, err := m.resolveEngine(workerModel)
-	if err != nil {
-		return model.Worker{}, err
-	}
+	_, engine := m.resolveEngine(workerModel)
 	if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}
@@ -252,20 +246,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	engineName, engine, err := m.resolveEngine(worker)
-	if err != nil {
-		exec, createErr := m.executionStore.Create(workerID, triggerInput, sessionID, "")
-		if createErr != nil {
-			return model.WorkerExecution{}, fmt.Errorf("create execution: %w", createErr)
-		}
-		if updateErr := m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed); updateErr != nil {
-			log.Error("failed to persist execution failure", zap.Error(updateErr))
-		}
-		if updateErr := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError); updateErr != nil {
-			log.Error("failed to update worker status", zap.Error(updateErr))
-		}
-		return exec, err
-	}
+	engineName, engine := m.resolveEngine(worker)
 
 	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
 	if err != nil {
