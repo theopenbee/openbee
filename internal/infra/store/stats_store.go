@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -21,29 +20,27 @@ func NewStatsStore(db *sql.DB) *StatsStore {
 	return &StatsStore{db: db}
 }
 
-// ExecStats holds today's execution counts.
-type ExecStats struct {
-	Total   int `json:"total"`
-	Success int `json:"success"`
-	Failed  int `json:"failed"`
-}
-
 // StatsOverview holds all numeric dashboard card data.
 type StatsOverview struct {
-	Departments             int       `json:"departments"`
-	Workers                 int       `json:"workers"`
-	ActiveWorkersToday      int       `json:"active_workers_today"`
-	ActiveWorkersYesterday  int       `json:"active_workers_yesterday"`
-	ActiveWorkersChange     *float64  `json:"active_workers_change"`
-	MessagesReceivedToday   int       `json:"messages_received_today"`
-	MessagesSentToday       int       `json:"messages_sent_today"`
-	MessagesTotalToday      int       `json:"messages_total_today"`
-	MessagesTotalGlobal     int       `json:"messages_total_global"`
-	ExecutionsToday         ExecStats `json:"executions_today"`
-	ExecDurationTodayMS     int64     `json:"exec_duration_today_ms"`
-	ExecDurationYesterdayMS int64     `json:"exec_duration_yesterday_ms"`
-	ExecDurationTotalMS     int64     `json:"exec_duration_total_ms"`
-	ScheduledTasks          int       `json:"scheduled_tasks"`
+	Departments             int      `json:"departments"`
+	Workers                 int      `json:"workers"`
+	ActiveWorkersToday      int      `json:"active_workers_today"`
+	ActiveWorkersYesterday  int      `json:"active_workers_yesterday"`
+	ActiveWorkersChange     *float64 `json:"active_workers_change"`
+	MessagesTotalToday      int      `json:"messages_total_today"`
+	MessagesTotalYesterday  int      `json:"messages_total_yesterday"`
+	MessagesChange          *float64 `json:"messages_change"`
+	MessagesTotalGlobal     int      `json:"messages_total_global"`
+	ExecutionsToday         int      `json:"executions_today"`
+	ExecutionsYesterday     int      `json:"executions_yesterday"`
+	ExecutionsChange        *float64 `json:"executions_change"`
+	ExecDurationTodayMS     int64    `json:"exec_duration_today_ms"`
+	ExecDurationYesterdayMS int64    `json:"exec_duration_yesterday_ms"`
+	ExecDurationTotalMS     int64    `json:"exec_duration_total_ms"`
+	ScheduledTasks          int      `json:"scheduled_tasks"`
+	TokensTotal      int64 `json:"tokens_total"`
+	TokensTodayTotal int64 `json:"tokens_today_total"`
+	TokensYestTotal  int64 `json:"tokens_yesterday_total"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -67,7 +64,6 @@ func dayBounds(offset int) (startMS, endMS int64) {
 func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	var (
 		ov      StatsOverview
-		mu      sync.Mutex
 		eg, egc = errgroup.WithContext(ctx)
 	)
 
@@ -96,23 +92,42 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		return s.db.QueryRowContext(egc, activeWorkerQuery, yestStart, yestEnd).Scan(&ov.ActiveWorkersYesterday)
 	})
 
+	// All local vars below are written exclusively inside their own goroutines
+	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
+	var (
+		msgRecToday, msgSentToday int
+		msgRecYest, msgSentYest   int
+		globalReceived, globalSent int
+	)
+
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
 			`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
 			todayStart, todayEnd,
-		).Scan(&ov.MessagesReceivedToday)
+		).Scan(&msgRecToday)
 	})
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
 			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
 			todayStart, todayEnd,
-		).Scan(&ov.MessagesSentToday)
+		).Scan(&msgSentToday)
 	})
 
-	// globalReceived and globalSent are written exclusively inside their own goroutines
-	// and read only after eg.Wait(), which provides the necessary happens-before guarantee.
-	var globalReceived, globalSent int
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_platform_messages WHERE received_at >= ? AND received_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&msgRecYest)
+	})
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_outbound_messages WHERE sent_at >= ? AND sent_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&msgSentYest)
+	})
+
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc, `SELECT COUNT(*) FROM bee_platform_messages`).Scan(&globalReceived)
 	})
@@ -134,36 +149,18 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	})
 
 	eg.Go(func() error {
-		rows, err := s.db.QueryContext(egc, `
-			SELECT status, COUNT(*) FROM bee_executions
-			WHERE started_at >= ? AND started_at < ?
-			GROUP BY status`, todayStart, todayEnd)
-		if err != nil {
-			return fmt.Errorf("executions today: %w", err)
-		}
-		defer rows.Close()
-		var stats ExecStats
-		for rows.Next() {
-			var status string
-			var cnt int
-			if err := rows.Scan(&status, &cnt); err != nil {
-				return err
-			}
-			stats.Total += cnt
-			switch status {
-			case model.TaskStatusCompleted:
-				stats.Success += cnt
-			case model.TaskStatusFailed:
-				stats.Failed += cnt
-			}
-		}
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("executions today rows: %w", err)
-		}
-		mu.Lock()
-		ov.ExecutionsToday = stats
-		mu.Unlock()
-		return nil
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
+			todayStart, todayEnd,
+		).Scan(&ov.ExecutionsToday)
+	})
+
+	var execYestTotal int
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COUNT(*) FROM bee_executions WHERE started_at >= ? AND started_at < ?`,
+			yestStart, yestEnd,
+		).Scan(&execYestTotal)
 	})
 
 	eg.Go(func() error {
@@ -176,11 +173,36 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.ScheduledTasks)
 	})
 
+	var tokensTotal, tokensTodayTotal, tokensYestTotal int64
+
+	eg.Go(func() error {
+		return s.db.QueryRowContext(egc,
+			`SELECT COALESCE(SUM(total_tokens),0) FROM bee_token_stats`,
+		).Scan(&tokensTotal)
+	})
+
+	const tokenRangeQuery = `
+		SELECT COALESCE(SUM(ts.total_tokens),0)
+		FROM bee_token_stats ts
+		WHERE ts.session_id IN (
+		  SELECT DISTINCT session_id FROM bee_executions
+		  WHERE completed_at >= ? AND completed_at < ?
+		    AND session_id IS NOT NULL
+		)`
+	scanTokenRange := func(startMS, endMS int64, total *int64) func() error {
+		return func() error {
+			return s.db.QueryRowContext(egc, tokenRangeQuery, startMS, endMS).Scan(total)
+		}
+	}
+	eg.Go(scanTokenRange(todayStart, todayEnd, &tokensTodayTotal))
+	eg.Go(scanTokenRange(yestStart, yestEnd, &tokensYestTotal))
+
 	if err := eg.Wait(); err != nil {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
 	}
 
-	ov.MessagesTotalToday = ov.MessagesReceivedToday + ov.MessagesSentToday
+	ov.MessagesTotalToday = msgRecToday + msgSentToday
+	ov.MessagesTotalYesterday = msgRecYest + msgSentYest
 	ov.MessagesTotalGlobal = globalReceived + globalSent
 
 	if ov.ActiveWorkersYesterday > 0 {
@@ -188,7 +210,33 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		ov.ActiveWorkersChange = &change
 	}
 
+	if ov.MessagesTotalYesterday > 0 {
+		change := float64(ov.MessagesTotalToday-ov.MessagesTotalYesterday) / float64(ov.MessagesTotalYesterday)
+		ov.MessagesChange = &change
+	}
+
+	ov.ExecutionsYesterday = execYestTotal
+	if execYestTotal > 0 {
+		change := float64(ov.ExecutionsToday-execYestTotal) / float64(execYestTotal)
+		ov.ExecutionsChange = &change
+	}
+
+	ov.TokensTotal = tokensTotal
+	ov.TokensTodayTotal = tokensTodayTotal
+	ov.TokensYestTotal = tokensYestTotal
+
 	return ov, nil
+}
+
+// buildDailySlice creates a slice of P with one entry per day in the window,
+// calling fn(date) for each day where date is formatted as "2006-01-02".
+func buildDailySlice[P any](startOfRange time.Time, days int, fn func(date string) P) []P {
+	points := make([]P, days)
+	for i := range days {
+		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
+		points[i] = fn(date)
+	}
+	return points
 }
 
 // trendRange returns the millisecond epoch bounds and start-of-range time for a
@@ -235,11 +283,9 @@ func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, erro
 		return nil, fmt.Errorf("trend rows: %w", err)
 	}
 
-	points := make([]TrendPoint, days)
-	for i := range days {
-		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
-		points[i] = TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
-	}
+	points := buildDailySlice(startOfRange, days, func(date string) TrendPoint {
+		return TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
+	})
 	return points, nil
 }
 
@@ -281,10 +327,56 @@ func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([
 		return nil, fmt.Errorf("execution duration trend rows: %w", err)
 	}
 
-	points := make([]ExecDurationTrendPoint, days)
-	for i := range days {
-		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
-		points[i] = ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
+	points := buildDailySlice(startOfRange, days, func(date string) ExecDurationTrendPoint {
+		return ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
+	})
+	return points, nil
+}
+
+// TokenTrendPoint is one day's total token usage.
+type TokenTrendPoint struct {
+	Date        string `json:"date"`
+	TotalTokens int64  `json:"total_tokens"`
+}
+
+// GetTokenTrend returns token usage per day for the last `days` days.
+// A session active across midnight is attributed to each day it appears in,
+// matching the cross-day disclosure in the UI (tokensCrossDayNote).
+func (s *StatsStore) GetTokenTrend(ctx context.Context, days int) ([]TokenTrendPoint, error) {
+	startOfRange, startMS, endMS := trendRange(days)
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT day, COALESCE(SUM(ts.total_tokens), 0) AS tokens
+		FROM (
+		  SELECT DISTINCT session_id,
+		         DATE(completed_at/1000, 'unixepoch', 'localtime') AS day
+		  FROM bee_executions
+		  WHERE completed_at >= ? AND completed_at < ?
+		    AND session_id IS NOT NULL
+		) sessions
+		JOIN bee_token_stats ts ON ts.session_id = sessions.session_id
+		GROUP BY day
+		ORDER BY day ASC`, startMS, endMS)
+	if err != nil {
+		return nil, fmt.Errorf("token trend query: %w", err)
 	}
+	defer rows.Close()
+
+	dbTotals := make(map[string]int64, days)
+	for rows.Next() {
+		var day string
+		var total int64
+		if err := rows.Scan(&day, &total); err != nil {
+			return nil, err
+		}
+		dbTotals[day] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("token trend rows: %w", err)
+	}
+
+	points := buildDailySlice(startOfRange, days, func(date string) TokenTrendPoint {
+		return TokenTrendPoint{Date: date, TotalTokens: dbTotals[date]}
+	})
 	return points, nil
 }

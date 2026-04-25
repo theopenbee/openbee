@@ -123,3 +123,26 @@ export function formatTotalDuration(ms: number): string {
   if (minutes > 0) return `${minutes}m ${seconds}s`
   return `${seconds}s`
 }
+
+export function formatTokenCount(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+// Compact variant for y-axis tick labels: drops the decimal for 3-digit values
+// to prevent label clipping caused by the chart's negative left margin.
+export function formatTokenCountAxis(n: number): string {
+  if (n >= 100_000_000_000) return `${Math.round(n / 1_000_000_000)}B`
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (n >= 100_000_000) return `${Math.round(n / 1_000_000)}M`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 100_000) return `${Math.round(n / 1_000)}K`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+export function formatNumber(n: number): string {
+  return n.toLocaleString()
+}

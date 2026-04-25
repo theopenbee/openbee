@@ -51,6 +51,12 @@ func DefaultPiSessionsDir() string {
 	return filepath.Join(home, ".openbee", ".pi", "sessions")
 }
 
+// DefaultKimiSessionsDir returns the kimi sessions directory: ~/.kimi/sessions
+func DefaultKimiSessionsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".kimi", "sessions")
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`

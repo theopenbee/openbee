@@ -369,6 +369,38 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
         DROP TABLE bee_memories;
     `,
 	},
+	{
+		version: 41,
+		name:    "create_bee_token_stats",
+		sql: `
+        CREATE TABLE IF NOT EXISTS bee_token_stats (
+            id                    TEXT    PRIMARY KEY,
+            session_id            TEXT    NOT NULL,
+            agent_type            TEXT    NOT NULL,
+            model                 TEXT    NOT NULL,
+            input_tokens          INTEGER NOT NULL DEFAULT 0,
+            output_tokens         INTEGER NOT NULL DEFAULT 0,
+            cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+            total_tokens          INTEGER NOT NULL DEFAULT 0,
+            synced_at             INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bee_token_stats_session_model
+            ON bee_token_stats(session_id, model);
+        CREATE INDEX IF NOT EXISTS idx_bee_token_stats_session_id
+            ON bee_token_stats(session_id);
+    `,
+	},
+	{
+		version: 42,
+		name:    "add_engine_to_bee_executions",
+		sql:     `ALTER TABLE bee_executions ADD COLUMN engine TEXT NOT NULL DEFAULT ''`,
+	},
+	{
+		version: 43,
+		name:    "idx_executions_completed_at",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_completed_at ON bee_executions(completed_at)`,
+	},
 }
 
 type whereBuilder struct {

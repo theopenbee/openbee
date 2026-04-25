@@ -30,16 +30,11 @@
     "workers": "Workers",
     "scheduledTasks": "Scheduled Tasks",
     "sessionsToday": "Sessions Today",
-    "activeWorkers": "Active Today",
+    "activeWorkers": "Workers",
     "today": "Today",
     "yesterday": "Yesterday",
-    "messages": "Messages Today",
-    "messagesReceived": "Received",
-    "messagesSent": "Sent",
-    "executions": "Executions Today",
-    "executionsTotal": "Total",
-    "executionsSuccess": "Success",
-    "executionsFailed": "Failed",
+    "messages": "Messages",
+    "executions": "Executions",
     "systemStatus": "System",
     "todayActivity": "Today",
     "activityTrend": "Worker Activity Trend",
@@ -60,7 +55,16 @@
     "totalMessages": "Total Messages",
     "totalWorkDuration": "Total Work Duration",
     "combinedTrendTitle": "Worker Activity & Work Duration",
-    "combinedTrendAriaLabel": "Worker activity and work duration trend for the last {{days}} days"
+    "combinedTrendAriaLabel": "Worker activity and work duration trend for the last {{days}} days",
+    "totalTokens": "Total Tokens",
+    "tokens": "Tokens",
+    "tokensToday": "Tokens",
+    "tokensYesterday": "Yesterday",
+    "tokensTrend": "Token Usage Trend",
+    "tokensTrendAriaLabel": "Token usage trend for the last {{days}} days",
+    "tokensCrossDayNote": "Sessions active across midnight are counted in each day",
+    "noTokenData": "No token data",
+    "noTokenDataDesc": "Token usage trend will appear here once sessions have completed."
   },
   "workers": {
     "title": "Workers",
@@ -142,7 +146,8 @@
       "turns": "Turns",
       "latestStatus": "Latest Status",
       "started": "Started",
-      "duration": "Duration"
+      "duration": "Duration",
+      "tokens": "Tokens"
     },
     "pagination": {
       "page": "Page {{page}} of {{totalPages}}",
@@ -205,7 +210,8 @@
     "execution": "Execution",
     "metadata": "Metadata",
     "logsHint": "Full log stream for the selected execution, isolated from the rest of the session.",
-    "live": "Live"
+    "live": "Live",
+    "tokens": "Tokens"
   },
   "logViewer": {
     "all": "All",

@@ -30,16 +30,11 @@
     "workers": "员工数",
     "scheduledTasks": "定时任务",
     "sessionsToday": "今日会话",
-    "activeWorkers": "今日活跃",
+    "activeWorkers": "员工",
     "today": "今日",
     "yesterday": "昨日",
-    "messages": "今日消息",
-    "messagesReceived": "收到",
-    "messagesSent": "发送",
-    "executions": "今日执行",
-    "executionsTotal": "总计",
-    "executionsSuccess": "成功",
-    "executionsFailed": "失败",
+    "messages": "消息",
+    "executions": "执行",
     "systemStatus": "系统",
     "todayActivity": "今日",
     "activityTrend": "员工活跃趋势",
@@ -60,7 +55,16 @@
     "totalMessages": "消息总数",
     "totalWorkDuration": "工作时长",
     "combinedTrendTitle": "员工活跃与工作时长",
-    "combinedTrendAriaLabel": "最近 {{days}} 天员工活跃与工作时长趋势图"
+    "combinedTrendAriaLabel": "最近 {{days}} 天员工活跃与工作时长趋势图",
+    "totalTokens": "总 Token 用量",
+    "tokens": "Token 用量",
+    "tokensToday": "Token",
+    "tokensYesterday": "昨日",
+    "tokensTrend": "Token 使用趋势",
+    "tokensTrendAriaLabel": "最近 {{days}} 天 Token 使用趋势",
+    "tokensCrossDayNote": "跨天活跃的会话会在每天中分别记录",
+    "noTokenData": "暂无 Token 数据",
+    "noTokenDataDesc": "有会话完成执行后，Token 趋势将显示在此处。"
   },
   "workers": {
     "title": "员工",
@@ -142,7 +146,8 @@
       "turns": "轮次",
       "latestStatus": "最新状态",
       "started": "开始时间",
-      "duration": "耗时"
+      "duration": "耗时",
+      "tokens": "Token 用量"
     },
     "pagination": {
       "page": "第 {{page}} / {{totalPages}} 页",
@@ -205,7 +210,8 @@
     "execution": "执行",
     "metadata": "元数据",
     "logsHint": "当前选中执行的完整日志流。即使会话很长，也可以只查看这一轮。",
-    "live": "进行中"
+    "live": "进行中",
+    "tokens": "Token 用量"
   },
   "logViewer": {
     "all": "全部",

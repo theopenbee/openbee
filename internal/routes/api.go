@@ -16,11 +16,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.PUT("/workers/:id", s.Workers.Update)
 	r.DELETE("/workers/:id", s.Workers.Delete)
 
-	r.GET("/workers/:id/executions", s.Executions.ListByWorker)
-	r.GET("/sessions/executions", s.Executions.ListBySession)
-	r.GET("/executions", s.Executions.List)
-	r.GET("/executions/:id", s.Executions.Get)
-	r.GET("/executions/:id/logs", s.Executions.GetLogs)
+	r.GET("/sessions", s.Executions.List)
+	r.GET("/sessions/:id", s.Executions.GetSession)
+	r.GET("/sessions/:id/logs", s.Executions.GetLogs)
 
 	r.GET("/tasks", s.Tasks.List)
 	r.DELETE("/tasks/:id", s.Tasks.Cancel)
@@ -46,6 +44,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/stats/overview", s.Stats.GetOverview)
 	r.GET("/stats/trend", s.Stats.GetTrend)
 	r.GET("/stats/execution-duration-trend", s.Stats.GetExecutionDurationTrend)
+	r.GET("/stats/token-trend", s.Stats.GetTokenTrend)
 
 	r.GET("/envs", s.Envs.List)
 	r.POST("/envs", s.Envs.Create)

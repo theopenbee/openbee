@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add agent token usage statistics
+
 ### Fixed
 - Fix a bug where cancelled tasks were still being executed
 
