@@ -38,15 +38,9 @@ type StatsOverview struct {
 	ExecDurationYesterdayMS int64    `json:"exec_duration_yesterday_ms"`
 	ExecDurationTotalMS     int64    `json:"exec_duration_total_ms"`
 	ScheduledTasks          int      `json:"scheduled_tasks"`
-	TokensTotal             int64    `json:"tokens_total"`
-	TokensTotalInput        int64    `json:"tokens_total_input"`
-	TokensTotalOutput       int64    `json:"tokens_total_output"`
-	TokensTodayTotal        int64    `json:"tokens_today_total"`
-	TokensTodayInput        int64    `json:"tokens_today_input"`
-	TokensTodayOutput       int64    `json:"tokens_today_output"`
-	TokensYestTotal         int64    `json:"tokens_yesterday_total"`
-	TokensYestInput         int64    `json:"tokens_yesterday_input"`
-	TokensYestOutput        int64    `json:"tokens_yesterday_output"`
+	TokensTotal      int64 `json:"tokens_total"`
+	TokensTodayTotal int64 `json:"tokens_today_total"`
+	TokensYestTotal  int64 `json:"tokens_yesterday_total"`
 }
 
 // TrendPoint is one day's data point in the activity trend.
@@ -179,38 +173,29 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 		).Scan(&ov.ScheduledTasks)
 	})
 
-	var (
-		tokensTotal, tokensTotalInput, tokensTotalOutput      int64
-		tokensTodayTotal, tokensTodayInput, tokensTodayOutput int64
-		tokensYestTotal, tokensYestInput, tokensYestOutput    int64
-	)
+	var tokensTotal, tokensTodayTotal, tokensYestTotal int64
 
 	eg.Go(func() error {
 		return s.db.QueryRowContext(egc,
-			`SELECT COALESCE(SUM(total_tokens),0),
-			        COALESCE(SUM(input_tokens),0),
-			        COALESCE(SUM(output_tokens),0)
-			 FROM bee_token_stats`,
-		).Scan(&tokensTotal, &tokensTotalInput, &tokensTotalOutput)
+			`SELECT COALESCE(SUM(total_tokens),0) FROM bee_token_stats`,
+		).Scan(&tokensTotal)
 	})
 
 	const tokenRangeQuery = `
-		SELECT COALESCE(SUM(ts.total_tokens),0),
-		       COALESCE(SUM(ts.input_tokens),0),
-		       COALESCE(SUM(ts.output_tokens),0)
+		SELECT COALESCE(SUM(ts.total_tokens),0)
 		FROM bee_token_stats ts
 		WHERE ts.session_id IN (
 		  SELECT DISTINCT session_id FROM bee_executions
 		  WHERE completed_at >= ? AND completed_at < ?
 		    AND session_id IS NOT NULL
 		)`
-	scanTokenRange := func(startMS, endMS int64, total, inp, out *int64) func() error {
+	scanTokenRange := func(startMS, endMS int64, total *int64) func() error {
 		return func() error {
-			return s.db.QueryRowContext(egc, tokenRangeQuery, startMS, endMS).Scan(total, inp, out)
+			return s.db.QueryRowContext(egc, tokenRangeQuery, startMS, endMS).Scan(total)
 		}
 	}
-	eg.Go(scanTokenRange(todayStart, todayEnd, &tokensTodayTotal, &tokensTodayInput, &tokensTodayOutput))
-	eg.Go(scanTokenRange(yestStart, yestEnd, &tokensYestTotal, &tokensYestInput, &tokensYestOutput))
+	eg.Go(scanTokenRange(todayStart, todayEnd, &tokensTodayTotal))
+	eg.Go(scanTokenRange(yestStart, yestEnd, &tokensYestTotal))
 
 	if err := eg.Wait(); err != nil {
 		return StatsOverview{}, fmt.Errorf("get overview: %w", err)
@@ -237,14 +222,8 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	}
 
 	ov.TokensTotal = tokensTotal
-	ov.TokensTotalInput = tokensTotalInput
-	ov.TokensTotalOutput = tokensTotalOutput
 	ov.TokensTodayTotal = tokensTodayTotal
-	ov.TokensTodayInput = tokensTodayInput
-	ov.TokensTodayOutput = tokensTodayOutput
 	ov.TokensYestTotal = tokensYestTotal
-	ov.TokensYestInput = tokensYestInput
-	ov.TokensYestOutput = tokensYestOutput
 
 	return ov, nil
 }

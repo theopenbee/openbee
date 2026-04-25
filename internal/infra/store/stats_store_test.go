@@ -273,29 +273,11 @@ func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
 	if ov.TokensTotal != 300 {
 		t.Errorf("TokensTotal: want 300, got %d", ov.TokensTotal)
 	}
-	if ov.TokensTotalInput != 180 {
-		t.Errorf("TokensTotalInput: want 180, got %d", ov.TokensTotalInput)
-	}
-	if ov.TokensTotalOutput != 120 {
-		t.Errorf("TokensTotalOutput: want 120, got %d", ov.TokensTotalOutput)
-	}
 	if ov.TokensTodayTotal != 100 {
 		t.Errorf("TokensTodayTotal: want 100, got %d", ov.TokensTodayTotal)
 	}
-	if ov.TokensTodayInput != 60 {
-		t.Errorf("TokensTodayInput: want 60, got %d", ov.TokensTodayInput)
-	}
-	if ov.TokensTodayOutput != 40 {
-		t.Errorf("TokensTodayOutput: want 40, got %d", ov.TokensTodayOutput)
-	}
 	if ov.TokensYestTotal != 200 {
 		t.Errorf("TokensYestTotal: want 200, got %d", ov.TokensYestTotal)
-	}
-	if ov.TokensYestInput != 120 {
-		t.Errorf("TokensYestInput: want 120, got %d", ov.TokensYestInput)
-	}
-	if ov.TokensYestOutput != 80 {
-		t.Errorf("TokensYestOutput: want 80, got %d", ov.TokensYestOutput)
 	}
 }
 
