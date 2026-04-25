@@ -162,11 +162,9 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
-// Mirrors model.SystemConfigKeyDefaultEngine in Go — keep in sync.
+// Mirror model.SystemConfigKey* in Go — keep in sync.
 export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
-// Mirrors model.SystemConfigKeyEngineArgsGlobal in Go — keep in sync.
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
-// Mirrors model.SystemConfigKeyEngineArgsBee in Go — keep in sync.
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
 
 // Mirrors ai.AllEngines in Go — keep in sync.
@@ -196,4 +194,3 @@ export interface AppConfig {
   language: string
   enabled_engines: Engine[]
 }
-

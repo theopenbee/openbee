@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -16,23 +16,12 @@ import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
-import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
+import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
 } from "@/lib/types"
-
-function parseEngineArgs(raw: string | undefined): Record<string, string> {
-  if (!raw) return {}
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
-    return parsed as Record<string, string>
-  } catch {
-    return {}
-  }
-}
 
 interface EngineArgsConfigSectionProps {
   configKey: string
@@ -114,8 +103,10 @@ export function SystemSettings() {
     },
   })
 
-  const savedGlobalArgs = parseEngineArgs(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL])
-  const savedBeeArgs = parseEngineArgs(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE])
+  const globalArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL]
+  const beeArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE]
+  const savedGlobalArgs = useMemo(() => parseEngineArgs(globalArgsRaw), [globalArgsRaw])
+  const savedBeeArgs = useMemo(() => parseEngineArgs(beeArgsRaw), [beeArgsRaw])
 
   return (
     <FadeIn>

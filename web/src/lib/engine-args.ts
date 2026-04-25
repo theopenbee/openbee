@@ -1,3 +1,14 @@
+export function parseEngineArgs(raw: string | undefined): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
+    return parsed as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
 export function stripEmptyEngineArgs(
   v: Record<string, string>,
 ): Record<string, string> {
