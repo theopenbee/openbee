@@ -26,14 +26,14 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	w.CreatedAt = time.Now().UnixMilli()
 	w.UpdatedAt = w.CreatedAt
 
-	if w.EngineExtraArgs == "" {
-		w.EngineExtraArgs = "{}"
+	if w.EngineArgs == "" {
+		w.EngineArgs = "{}"
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_workers (id, name, description, constraints, work_dir, engine, engine_extra_args, status, permission_scopes, created_at, updated_at)
+		`INSERT INTO bee_workers (id, name, description, constraints, work_dir, engine, engine_args, status, permission_scopes, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		w.ID, w.Name, w.Description, w.Constraints, w.WorkDir, w.Engine,
-		w.EngineExtraArgs, w.Status, w.PermissionScopes, w.CreatedAt, w.UpdatedAt,
+		w.EngineArgs, w.Status, w.PermissionScopes, w.CreatedAt, w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("insert worker: %w", err)
@@ -42,15 +42,15 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 }
 
 const (
-	workerColumns        = `id, name, description, constraints, work_dir, engine, engine_extra_args, status, permission_scopes, created_at, updated_at`
-	workerColumnsAliased = `w.id, w.name, w.description, w.constraints, w.work_dir, w.engine, w.engine_extra_args, w.status, w.permission_scopes, w.created_at, w.updated_at`
+	workerColumns        = `id, name, description, constraints, work_dir, engine, engine_args, status, permission_scopes, created_at, updated_at`
+	workerColumnsAliased = `w.id, w.name, w.description, w.constraints, w.work_dir, w.engine, w.engine_args, w.status, w.permission_scopes, w.created_at, w.updated_at`
 )
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
 	err := scanner.Scan(
 		&w.ID, &w.Name, &w.Description, &w.Constraints,
-		&w.WorkDir, &w.Engine, &w.EngineExtraArgs, &w.Status, &w.PermissionScopes, &w.CreatedAt, &w.UpdatedAt,
+		&w.WorkDir, &w.Engine, &w.EngineArgs, &w.Status, &w.PermissionScopes, &w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, err
@@ -220,10 +220,10 @@ func (s *WorkerStore) ListFiltered(ctx context.Context, filter WorkerFilter, lim
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
 	_, err := s.db.Exec(
-		`UPDATE bee_workers SET name=?, description=?, constraints=?, work_dir=?, engine=?, engine_extra_args=?, status=?, permission_scopes=?, updated_at=?
+		`UPDATE bee_workers SET name=?, description=?, constraints=?, work_dir=?, engine=?, engine_args=?, status=?, permission_scopes=?, updated_at=?
 		 WHERE id=?`,
 		w.Name, w.Description, w.Constraints, w.WorkDir, w.Engine,
-		w.EngineExtraArgs, w.Status, w.PermissionScopes, w.UpdatedAt, w.ID,
+		w.EngineArgs, w.Status, w.PermissionScopes, w.UpdatedAt, w.ID,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("update worker: %w", err)
