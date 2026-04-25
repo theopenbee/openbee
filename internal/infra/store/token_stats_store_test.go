@@ -1,0 +1,199 @@
+package store
+
+import (
+	"testing"
+	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/model"
+)
+
+func newTokenStatsTestDB(t *testing.T) (*TokenStatsStore, func()) {
+	t.Helper()
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	return NewTokenStatsStore(db), func() { db.Close() }
+}
+
+func TestTokenStatsStore_IsEmpty_WhenEmpty(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	empty, err := s.IsEmpty()
+	if err != nil {
+		t.Fatalf("IsEmpty: %v", err)
+	}
+	if !empty {
+		t.Error("expected empty store to return true")
+	}
+}
+
+func TestTokenStatsStore_Upsert_InsertsRecord(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	if err := s.Upsert(model.TokenStats{
+		SessionID:           "session-1",
+		AgentType:           "claude",
+		Model:               "claude-3-5-sonnet",
+		InputTokens:         100,
+		OutputTokens:        200,
+		CacheCreationTokens: 50,
+		CacheReadTokens:     30,
+		SyncedAt:            time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	empty, _ := s.IsEmpty()
+	if empty {
+		t.Error("expected non-empty store after insert")
+	}
+}
+
+func TestTokenStatsStore_Upsert_UpdatesOnConflict(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	base := model.TokenStats{
+		SessionID: "session-1", AgentType: "claude", Model: "claude-3-5-sonnet",
+		InputTokens: 100, OutputTokens: 200, SyncedAt: time.Now().UnixMilli(),
+	}
+	s.Upsert(base)
+
+	updated := model.TokenStats{
+		SessionID: "session-1", AgentType: "claude", Model: "claude-3-5-sonnet",
+		InputTokens: 500, OutputTokens: 600, SyncedAt: time.Now().UnixMilli(),
+	}
+	if err := s.Upsert(updated); err != nil {
+		t.Fatalf("second Upsert: %v", err)
+	}
+
+	got, err := s.GetBySessionID("session-1")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(got))
+	}
+	if got[0].InputTokens != 500 {
+		t.Errorf("InputTokens: want 500, got %d", got[0].InputTokens)
+	}
+}
+
+func TestTokenStatsStore_Upsert_TotalTokensStored(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	if err := s.Upsert(model.TokenStats{
+		SessionID:           "session-total",
+		AgentType:           "claude",
+		Model:               "claude-3-5-sonnet",
+		InputTokens:         100,
+		OutputTokens:        200,
+		CacheCreationTokens: 50,
+		CacheReadTokens:     30,
+		TotalTokens:         380,
+		SyncedAt:            time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	got, err := s.GetBySessionID("session-total")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(got))
+	}
+	if got[0].TotalTokens != 380 {
+		t.Errorf("TotalTokens: want 380, got %d", got[0].TotalTokens)
+	}
+
+	// verify TotalTokens is updated on conflict
+	if err := s.Upsert(model.TokenStats{
+		SessionID:           "session-total",
+		AgentType:           "claude",
+		Model:               "claude-3-5-sonnet",
+		InputTokens:         200,
+		OutputTokens:        300,
+		CacheCreationTokens: 10,
+		CacheReadTokens:     5,
+		TotalTokens:         515,
+		SyncedAt:            time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("second Upsert: %v", err)
+	}
+	got, err = s.GetBySessionID("session-total")
+	if err != nil {
+		t.Fatalf("GetBySessionID after update: %v", err)
+	}
+	if got[0].TotalTokens != 515 {
+		t.Errorf("TotalTokens after update: want 515, got %d", got[0].TotalTokens)
+	}
+}
+
+func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	for _, m := range []string{"claude-3-5-sonnet", "claude-3-opus"} {
+		if err := s.Upsert(model.TokenStats{
+			SessionID: "session-1", AgentType: "claude", Model: m,
+			InputTokens: 100, SyncedAt: time.Now().UnixMilli(),
+		}); err != nil {
+			t.Fatalf("Upsert %s: %v", m, err)
+		}
+	}
+
+	got, err := s.GetBySessionID("session-1")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 records (one per model), got %d", len(got))
+	}
+}
+
+func TestTokenStatsStore_GetBySessionIDs_ReturnsMatchingRows(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	for _, stat := range []model.TokenStats{
+		{SessionID: "session-1", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 100, OutputTokens: 200, TotalTokens: 300, SyncedAt: now},
+		{SessionID: "session-1", AgentType: "claude", Model: "claude-opus-4-7", InputTokens: 50, OutputTokens: 100, TotalTokens: 150, SyncedAt: now},
+		{SessionID: "session-2", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 10, OutputTokens: 20, TotalTokens: 30, SyncedAt: now},
+	} {
+		if err := s.Upsert(stat); err != nil {
+			t.Fatalf("Upsert: %v", err)
+		}
+	}
+
+	rows, err := s.GetBySessionIDs([]string{"session-1", "session-99"})
+	if err != nil {
+		t.Fatalf("GetBySessionIDs: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Errorf("expected 2 rows for session-1, got %d", len(rows))
+	}
+	for _, r := range rows {
+		if r.SessionID != "session-1" {
+			t.Errorf("unexpected session_id %q", r.SessionID)
+		}
+	}
+}
+
+func TestTokenStatsStore_GetBySessionIDs_NilSlice(t *testing.T) {
+	s, cleanup := newTokenStatsTestDB(t)
+	defer cleanup()
+
+	rows, err := s.GetBySessionIDs(nil)
+	if err != nil {
+		t.Fatalf("GetBySessionIDs: %v", err)
+	}
+	if rows != nil {
+		t.Errorf("expected nil result for empty input, got %v", rows)
+	}
+}

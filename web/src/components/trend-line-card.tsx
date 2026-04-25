@@ -7,6 +7,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -25,21 +26,22 @@ export const CHART_TOOLTIP_STYLE = {
   fontSize: 12,
 } as const
 
-interface TrendLineCardProps {
+type TrendLineCardBase = {
   title: string
   ariaLabel: string
   emptyTitle: string
   emptyDesc: string
-  chartData: Record<string, unknown>[]
+  chartData: object[]
   isLoading: boolean
   days: DayOption
   onDaysChange: (d: DayOption) => void
-  dataKey?: string
-  tooltipLabel?: string
   yAxisFormatter?: (v: number) => string
   tooltipFormatter?: (value: number) => string | number
-  children?: ReactNode
 }
+
+type TrendLineCardProps =
+  | (TrendLineCardBase & { children: ReactNode; dataKey?: never; tooltipLabel?: never })
+  | (TrendLineCardBase & { children?: never; dataKey: string; tooltipLabel: string })
 
 export function TrendLineCard({
   title,
@@ -117,9 +119,11 @@ export function TrendLineCard({
                     ]}
                     contentStyle={CHART_TOOLTIP_STYLE}
                   />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <Line
                     type="monotone"
                     dataKey={dataKey}
+                    name={tooltipLabel}
                     strokeWidth={2}
                     dot={false}
                     stroke="var(--primary)"

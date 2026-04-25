@@ -1,0 +1,188 @@
+package api
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"go.uber.org/zap"
+)
+
+type modelTokenStats struct {
+	Model               string `json:"model"`
+	TotalTokens         int64  `json:"total_tokens"`
+	InputTokens         int64  `json:"input_tokens"`
+	OutputTokens        int64  `json:"output_tokens"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens"`
+	CacheReadTokens     int64  `json:"cache_read_tokens"`
+}
+
+type sessionTokenStats struct {
+	TotalTokens int64             `json:"total_tokens"`
+	ByModel     []modelTokenStats `json:"by_model"`
+}
+
+type ExecutionHandler struct {
+	executions *store.ExecutionStore
+	tokenStats *store.TokenStatsStore
+}
+
+func NewExecutionHandler(es *store.ExecutionStore, ts *store.TokenStatsStore) *ExecutionHandler {
+	return &ExecutionHandler{executions: es, tokenStats: ts}
+}
+
+func (h *ExecutionHandler) List(c *gin.Context) {
+	page, pageSize, offset := parsePagination(c)
+
+	workerID := c.Query("worker_id")
+	f := store.ExecutionFilter{
+		WorkerID:      workerID,
+		SessionID:     c.Query("session_id"),
+		Status:        c.Query("status"),
+		StartedFrom:   parseInt64Query(c, "started_at_from"),
+		StartedTo:     parseInt64Query(c, "started_at_to"),
+		CompletedFrom: parseInt64Query(c, "completed_at_from"),
+		CompletedTo:   parseInt64Query(c, "completed_at_to"),
+	}
+
+	var execs []model.WorkerExecution
+	var total int
+	var err error
+
+	hasOtherFilters := f.SessionID != "" || f.Status != "" || f.StartedFrom > 0 || f.StartedTo > 0 || f.CompletedFrom > 0 || f.CompletedTo > 0
+
+	switch {
+	case f == (store.ExecutionFilter{}):
+		// No filters: paginate at session level for consistent page counts.
+		if total, err = h.executions.CountSessions(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if execs, err = h.executions.ListPaginated(pageSize, offset); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	case workerID != "" && !hasOtherFilters:
+		// worker_id only: paginate at session level within the worker.
+		if total, err = h.executions.CountSessionsByWorkerID(workerID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if execs, err = h.executions.ListPaginatedByWorkerID(workerID, pageSize, offset); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	default:
+		if execs, total, err = h.executions.ListFiltered(c.Request.Context(), f, pageSize, offset); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	resp := paginatedResponse(execs, total, page, pageSize)
+	resp["token_stats"] = h.buildTokenStatsMap(execs)
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ExecutionHandler) GetLogs(c *gin.Context) {
+	id := c.Param("id")
+
+	var since int64
+	if raw := c.Query("since"); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid since parameter"})
+			return
+		}
+		since = n
+	}
+
+	slice, err := h.executions.ReadLogSince(id, since)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if slice.Status == model.ExecStatusCompleted || slice.Status == model.ExecStatusFailed {
+		c.Header("Cache-Control", "public, max-age=3600")
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"content":   slice.Content,
+		"size":      slice.Size,
+		"truncated": slice.Truncated,
+	})
+}
+
+func (h *ExecutionHandler) GetSession(c *gin.Context) {
+	sessionID := c.Param("id")
+	execs, err := h.executions.ListBySessionID(sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if execs == nil {
+		execs = []model.WorkerExecution{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"executions":  execs,
+		"token_stats": h.buildSessionTokenStats(sessionID),
+	})
+}
+
+func aggregateTokenStats(rows []model.TokenStats) *sessionTokenStats {
+	if len(rows) == 0 {
+		return nil
+	}
+	result := &sessionTokenStats{}
+	for _, row := range rows {
+		result.TotalTokens += row.TotalTokens
+		result.ByModel = append(result.ByModel, modelTokenStats{
+			Model:               row.Model,
+			TotalTokens:         row.TotalTokens,
+			InputTokens:         row.InputTokens,
+			OutputTokens:        row.OutputTokens,
+			CacheCreationTokens: row.CacheCreationTokens,
+			CacheReadTokens:     row.CacheReadTokens,
+		})
+	}
+	return result
+}
+
+func (h *ExecutionHandler) buildSessionTokenStats(sessionID string) *sessionTokenStats {
+	rows, err := h.tokenStats.GetBySessionID(sessionID)
+	if err != nil {
+		logger.Error("get token stats by session", zap.String("session_id", sessionID), zap.Error(err))
+		return nil
+	}
+	return aggregateTokenStats(rows)
+}
+
+func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map[string]*sessionTokenStats {
+	seen := make(map[string]struct{})
+	var sessionIDs []string
+	for _, e := range execs {
+		if _, ok := seen[e.SessionID]; !ok {
+			seen[e.SessionID] = struct{}{}
+			sessionIDs = append(sessionIDs, e.SessionID)
+		}
+	}
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	rows, err := h.tokenStats.GetBySessionIDs(sessionIDs)
+	if err != nil {
+		logger.Error("get token stats by session ids", zap.Error(err))
+		return nil
+	}
+	bySession := make(map[string][]model.TokenStats)
+	for _, row := range rows {
+		bySession[row.SessionID] = append(bySession[row.SessionID], row)
+	}
+	result := make(map[string]*sessionTokenStats)
+	for sid, sessionRows := range bySession {
+		result[sid] = aggregateTokenStats(sessionRows)
+	}
+	return result
+}

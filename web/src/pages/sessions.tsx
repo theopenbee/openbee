@@ -17,8 +17,9 @@ import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
+import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
-import { formatDuration, formatRelative, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -96,6 +97,7 @@ export function Sessions() {
                   <TableHead className="w-28">{t("sessions.columns.latestStatus")}</TableHead>
                   <TableHead className="w-24">{t("sessions.columns.started")}</TableHead>
                   <TableHead className="w-20">{t("sessions.columns.duration")}</TableHead>
+                  <TableHead className="w-24">{t("sessions.columns.tokens")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,6 +107,7 @@ export function Sessions() {
                   const lastCompleted = group.find((e) => e.completed_at)
                   const isActive = latest.status === "running" || latest.status === "pending"
                   const duration = formatDuration(oldest.started_at, lastCompleted?.completed_at ?? null)
+                  const tokenStats = data?.token_stats?.[latest.session_id] ?? null
 
                   return (
                     <TableRow
@@ -168,6 +171,17 @@ export function Sessions() {
                           <span className="text-status-working animate-pulse-amber">live</span>
                         ) : (
                           <span className="text-muted-foreground">{duration}</span>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {tokenStats ? (
+                          <div className="flex items-center gap-1 text-xs font-mono">
+                            <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
+                            <TokenStatsInfoButton stats={tokenStats} side="left" align="center" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
                         )}
                       </TableCell>
                     </TableRow>
