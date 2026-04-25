@@ -3,20 +3,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Engine } from "@/lib/types"
 
-interface EngineExtraArgsSectionProps {
+interface EngineArgsSectionProps {
   engines: Engine[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
 }
 
-export function EngineExtraArgsSection({ engines, value, onChange }: EngineExtraArgsSectionProps) {
+export function EngineArgsSection({ engines, value, onChange }: EngineArgsSectionProps) {
   const { t } = useTranslation()
 
   if (engines.length === 0) return null
 
   return (
     <div className="space-y-2">
-      <Label>{t("workers.form.engineExtraArgs")}</Label>
+      <Label>{t("workers.form.engineArgs")}</Label>
       <div className="space-y-2">
         {engines.map((eng) => (
           <div key={eng} className="space-y-1">
@@ -26,13 +26,13 @@ export function EngineExtraArgsSection({ engines, value, onChange }: EngineExtra
               onChange={(e) =>
                 onChange({ ...value, [eng]: e.target.value })
               }
-              placeholder={t("workers.form.engineExtraArgsPlaceholder")}
+              placeholder={t("workers.form.engineArgsPlaceholder")}
               className="font-mono text-xs"
             />
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">{t("workers.form.engineExtraArgsHelper")}</p>
+      <p className="text-xs text-muted-foreground">{t("workers.form.engineArgsHelper")}</p>
     </div>
   )
 }

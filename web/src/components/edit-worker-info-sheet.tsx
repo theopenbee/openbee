@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
-import { EngineExtraArgsSection } from "@/components/engine-extra-args-section"
+import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
@@ -45,7 +45,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
-  const [engineExtraArgs, setEngineExtraArgs] = useState<Record<string, string>>({})
+  const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
 
@@ -54,7 +54,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setDescription(worker.description ?? "")
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
-      setEngineExtraArgs(worker.engine_extra_args ?? {})
+      setEngineArgs(worker.engine_args ?? {})
       setDeptSearch("")
       setSubmitError("")
     }
@@ -66,19 +66,19 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     try {
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
-      const originalExtraArgs = worker.engine_extra_args ?? {}
-      const extraArgsChanged =
-        Object.keys(engineExtraArgs).length !== Object.keys(originalExtraArgs).length ||
-        Object.entries(engineExtraArgs).some(([k, v]) => originalExtraArgs[k] !== v)
+      const originalEngineArgs = worker.engine_args ?? {}
+      const engineArgsChanged =
+        Object.keys(engineArgs).length !== Object.keys(originalEngineArgs).length ||
+        Object.entries(engineArgs).some(([k, v]) => originalEngineArgs[k] !== v)
       const workerChanged =
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
-        extraArgsChanged
+        engineArgsChanged
       const deptsChanged = newDeptIds !== originalDeptIds
 
       const ops: Promise<unknown>[] = []
       if (workerChanged) {
-        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine, engine_extra_args: engineExtraArgs } }))
+        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine, engine_args: engineArgs } }))
       }
       if (deptsChanged) {
         ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
@@ -144,10 +144,10 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
             </div>
 
-            <EngineExtraArgsSection
+            <EngineArgsSection
               engines={enabledEngines}
-              value={engineExtraArgs}
-              onChange={setEngineExtraArgs}
+              value={engineArgs}
+              onChange={setEngineArgs}
             />
           </div>
 
