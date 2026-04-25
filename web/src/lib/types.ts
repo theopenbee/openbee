@@ -8,7 +8,7 @@ export interface Worker {
   constraints: string
   work_dir: string
   engine: Engine
-  engine_extra_args?: Record<string, string>
+  engine_args?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
