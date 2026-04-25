@@ -70,8 +70,8 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 	var total int
 	var err error
 
-	// When no filters are applied, paginate at the session level so that each
-	// page contains a consistent number of sessions (the frontend groups by session).
+	// Without filters the frontend groups rows by session, so paginate at session level
+	// to keep each page's session count consistent.
 	if f == (store.ExecutionFilter{}) {
 		if total, err = h.executions.CountSessions(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -100,7 +100,6 @@ func (h *ExecutionHandler) Get(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, exec)
 }
-
 
 func (h *ExecutionHandler) GetLogs(c *gin.Context) {
 	id := c.Param("id")
@@ -188,6 +187,7 @@ func (h *ExecutionHandler) buildTokenStatsMap(execs []model.WorkerExecution) map
 	}
 	rows, err := h.tokenStats.GetBySessionIDs(sessionIDs)
 	if err != nil {
+		logger.Error("get token stats by session ids", zap.Error(err))
 		return nil
 	}
 	bySession := make(map[string][]model.TokenStats)

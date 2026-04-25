@@ -33,6 +33,20 @@ const EMPTY: StatsOverview = {
   tokens_yesterday_total: 0,
 }
 
+function changeIndicator(ratio: number | null) {
+  const label = formatChange(ratio)
+  const Icon = ratio === null ? null : ratio > 0 ? TrendingUp : ratio < 0 ? TrendingDown : Minus
+  const color =
+    ratio === null
+      ? ""
+      : ratio > 0
+        ? "text-status-idle"
+        : ratio < 0
+          ? "text-status-error"
+          : "text-muted-foreground"
+  return { label, Icon, color }
+}
+
 function SectionRule({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 mb-5">
@@ -58,61 +72,17 @@ export function Dashboard() {
   const { data, isLoading } = useStatsOverview()
   const ov = data ?? EMPTY
 
-  const change = ov.active_workers_change
-  const changeLabel = formatChange(change)
-  const ChangeIcon =
-    change === null ? null : change > 0 ? TrendingUp : change < 0 ? TrendingDown : Minus
-  const changeColor =
-    change === null
-      ? ""
-      : change > 0
-        ? "text-status-idle"
-        : change < 0
-          ? "text-status-error"
-          : "text-muted-foreground"
+  const activeWorkers = changeIndicator(ov.active_workers_change)
+  const messages = changeIndicator(ov.messages_change)
+  const executions = changeIndicator(ov.executions_change)
 
   const durationDiff = ov.exec_duration_today_ms - ov.exec_duration_yesterday_ms
   const durationRatio = ov.exec_duration_yesterday_ms > 0 ? durationDiff / ov.exec_duration_yesterday_ms : null
-  const durationChangeLabel = formatChange(durationRatio)
-  const durationChangeColor =
-    durationDiff > 0 ? "text-status-idle" : durationDiff < 0 ? "text-status-error" : "text-muted-foreground"
-  const DurationChangeIcon = durationDiff > 0 ? TrendingUp : durationDiff < 0 ? TrendingDown : Minus
-
-  const msgChangeLabel = formatChange(ov.messages_change)
-  const MsgChangeIcon =
-    ov.messages_change === null ? null : ov.messages_change > 0 ? TrendingUp : ov.messages_change < 0 ? TrendingDown : Minus
-  const msgChangeColor =
-    ov.messages_change === null
-      ? ""
-      : ov.messages_change > 0
-        ? "text-status-idle"
-        : ov.messages_change < 0
-          ? "text-status-error"
-          : "text-muted-foreground"
-
-  const execChangeLabel = formatChange(ov.executions_change)
-  const ExecChangeIcon =
-    ov.executions_change === null ? null : ov.executions_change > 0 ? TrendingUp : ov.executions_change < 0 ? TrendingDown : Minus
-  const execChangeColor =
-    ov.executions_change === null
-      ? ""
-      : ov.executions_change > 0
-        ? "text-status-idle"
-        : ov.executions_change < 0
-          ? "text-status-error"
-          : "text-muted-foreground"
+  const duration = changeIndicator(durationRatio)
 
   const tokenDiff = ov.tokens_today_total - ov.tokens_yesterday_total
-  const tokenRatio =
-    ov.tokens_yesterday_total > 0 ? tokenDiff / ov.tokens_yesterday_total : null
-  const tokenChangeLabel = formatChange(tokenRatio)
-  const tokenChangeColor =
-    tokenDiff > 0
-      ? "text-status-idle"
-      : tokenDiff < 0
-        ? "text-status-error"
-        : "text-muted-foreground"
-  const TokenChangeIcon = tokenDiff > 0 ? TrendingUp : tokenDiff < 0 ? TrendingDown : Minus
+  const tokenRatio = ov.tokens_yesterday_total > 0 ? tokenDiff / ov.tokens_yesterday_total : null
+  const tokens = changeIndicator(tokenRatio)
 
   return (
     <FadeIn>
@@ -219,13 +189,13 @@ export function Dashboard() {
                         {ov.active_workers_yesterday}
                       </span>
                     </div>
-                    {changeLabel !== null && ChangeIcon && (
+                    {activeWorkers.label !== null && activeWorkers.Icon && (
                       <div
-                        className={`flex items-center gap-1 ${changeColor}`}
-                        aria-label={changeLabel}
+                        className={`flex items-center gap-1 ${activeWorkers.color}`}
+                        aria-label={activeWorkers.label}
                       >
-                        <ChangeIcon className="h-3 w-3" aria-hidden />
-                        <span className="text-xs font-semibold tabular-nums">{changeLabel}</span>
+                        <activeWorkers.Icon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{activeWorkers.label}</span>
                       </div>
                     )}
                   </div>
@@ -264,13 +234,13 @@ export function Dashboard() {
                         {ov.messages_total_yesterday}
                       </span>
                     </div>
-                    {msgChangeLabel !== null && MsgChangeIcon && (
+                    {messages.label !== null && messages.Icon && (
                       <div
-                        className={`flex items-center gap-1 ${msgChangeColor}`}
-                        aria-label={msgChangeLabel}
+                        className={`flex items-center gap-1 ${messages.color}`}
+                        aria-label={messages.label}
                       >
-                        <MsgChangeIcon className="h-3 w-3" aria-hidden />
-                        <span className="text-xs font-semibold tabular-nums">{msgChangeLabel}</span>
+                        <messages.Icon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{messages.label}</span>
                       </div>
                     )}
                   </div>
@@ -309,13 +279,13 @@ export function Dashboard() {
                         {ov.executions_yesterday}
                       </span>
                     </div>
-                    {execChangeLabel !== null && ExecChangeIcon && (
+                    {executions.label !== null && executions.Icon && (
                       <div
-                        className={`flex items-center gap-1 ${execChangeColor}`}
-                        aria-label={execChangeLabel}
+                        className={`flex items-center gap-1 ${executions.color}`}
+                        aria-label={executions.label}
                       >
-                        <ExecChangeIcon className="h-3 w-3" aria-hidden />
-                        <span className="text-xs font-semibold tabular-nums">{execChangeLabel}</span>
+                        <executions.Icon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{executions.label}</span>
                       </div>
                     )}
                   </div>
@@ -354,13 +324,13 @@ export function Dashboard() {
                         {formatTotalDuration(ov.exec_duration_yesterday_ms)}
                       </span>
                     </div>
-                    {durationChangeLabel !== null && (
+                    {duration.label !== null && duration.Icon && (
                       <div
-                        className={`flex items-center gap-1 ${durationChangeColor}`}
-                        aria-label={durationChangeLabel}
+                        className={`flex items-center gap-1 ${duration.color}`}
+                        aria-label={duration.label}
                       >
-                        <DurationChangeIcon className="h-3 w-3" aria-hidden />
-                        <span className="text-xs font-semibold tabular-nums">{durationChangeLabel}</span>
+                        <duration.Icon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{duration.label}</span>
                       </div>
                     )}
                   </div>
@@ -398,13 +368,13 @@ export function Dashboard() {
                         {formatTokenCount(ov.tokens_yesterday_total)}
                       </span>
                     </div>
-                    {tokenChangeLabel !== null && (
+                    {tokens.label !== null && tokens.Icon && (
                       <div
-                        className={`flex items-center gap-1 ${tokenChangeColor}`}
-                        aria-label={tokenChangeLabel}
+                        className={`flex items-center gap-1 ${tokens.color}`}
+                        aria-label={tokens.label}
                       >
-                        <TokenChangeIcon className="h-3 w-3" aria-hidden />
-                        <span className="text-xs font-semibold tabular-nums">{tokenChangeLabel}</span>
+                        <tokens.Icon className="h-3 w-3" aria-hidden />
+                        <span className="text-xs font-semibold tabular-nums">{tokens.label}</span>
                       </div>
                     )}
                     <Tooltip>

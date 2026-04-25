@@ -249,6 +249,17 @@ func (s *StatsStore) GetOverview(ctx context.Context) (StatsOverview, error) {
 	return ov, nil
 }
 
+// buildDailySlice creates a slice of P with one entry per day in the window,
+// calling fn(date) for each day where date is formatted as "2006-01-02".
+func buildDailySlice[P any](startOfRange time.Time, days int, fn func(date string) P) []P {
+	points := make([]P, days)
+	for i := range days {
+		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
+		points[i] = fn(date)
+	}
+	return points
+}
+
 // trendRange returns the millisecond epoch bounds and start-of-range time for a
 // days-wide window ending at end-of-today (local time).
 func trendRange(days int) (startOfRange time.Time, startMS, endMS int64) {
@@ -293,11 +304,9 @@ func (s *StatsStore) GetTrend(ctx context.Context, days int) ([]TrendPoint, erro
 		return nil, fmt.Errorf("trend rows: %w", err)
 	}
 
-	points := make([]TrendPoint, days)
-	for i := range days {
-		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
-		points[i] = TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
-	}
+	points := buildDailySlice(startOfRange, days, func(date string) TrendPoint {
+		return TrendPoint{Date: date, ActiveWorkers: dbCounts[date]}
+	})
 	return points, nil
 }
 
@@ -339,11 +348,9 @@ func (s *StatsStore) GetExecutionDurationTrend(ctx context.Context, days int) ([
 		return nil, fmt.Errorf("execution duration trend rows: %w", err)
 	}
 
-	points := make([]ExecDurationTrendPoint, days)
-	for i := range days {
-		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
-		points[i] = ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
-	}
+	points := buildDailySlice(startOfRange, days, func(date string) ExecDurationTrendPoint {
+		return ExecDurationTrendPoint{Date: date, TotalDurationMS: dbTotals[date]}
+	})
 	return points, nil
 }
 
@@ -389,10 +396,8 @@ func (s *StatsStore) GetTokenTrend(ctx context.Context, days int) ([]TokenTrendP
 		return nil, fmt.Errorf("token trend rows: %w", err)
 	}
 
-	points := make([]TokenTrendPoint, days)
-	for i := range days {
-		date := startOfRange.AddDate(0, 0, i).Format("2006-01-02")
-		points[i] = TokenTrendPoint{Date: date, TotalTokens: dbTotals[date]}
-	}
+	points := buildDailySlice(startOfRange, days, func(date string) TokenTrendPoint {
+		return TokenTrendPoint{Date: date, TotalTokens: dbTotals[date]}
+	})
 	return points, nil
 }

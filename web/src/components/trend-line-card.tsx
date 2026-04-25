@@ -26,7 +26,7 @@ export const CHART_TOOLTIP_STYLE = {
   fontSize: 12,
 } as const
 
-interface TrendLineCardProps {
+type TrendLineCardBase = {
   title: string
   ariaLabel: string
   emptyTitle: string
@@ -35,12 +35,13 @@ interface TrendLineCardProps {
   isLoading: boolean
   days: DayOption
   onDaysChange: (d: DayOption) => void
-  dataKey?: string
-  tooltipLabel?: string
   yAxisFormatter?: (v: number) => string
   tooltipFormatter?: (value: number) => string | number
-  children?: ReactNode
 }
+
+type TrendLineCardProps =
+  | (TrendLineCardBase & { children: ReactNode; dataKey?: never; tooltipLabel?: never })
+  | (TrendLineCardBase & { children?: never; dataKey: string; tooltipLabel: string })
 
 export function TrendLineCard({
   title,

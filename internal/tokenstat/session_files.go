@@ -42,7 +42,7 @@ func scanJSONLFile(path string, fn func([]byte)) error {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(nil, scannerBufSize)
 	for scanner.Scan() {
-		fn(scanner.Bytes())
+		fn(append([]byte(nil), scanner.Bytes()...))
 	}
 	return scanner.Err()
 }
