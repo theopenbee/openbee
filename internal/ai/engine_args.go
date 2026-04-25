@@ -8,12 +8,12 @@ import (
 	"unicode"
 )
 
-type EngineExtraArgsMap map[string][]string
+type EngineArgsMap map[string][]string
 
-// ParseEngineExtraArgs tokenizes raw CLI strings per engine while preserving
+// ParseEngineArgs tokenizes raw CLI strings per engine while preserving
 // order, duplicates, and quoted values.
-func ParseEngineExtraArgs(raw map[string]string) (EngineExtraArgsMap, error) {
-	result := make(EngineExtraArgsMap, len(raw))
+func ParseEngineArgs(raw map[string]string) (EngineArgsMap, error) {
+	result := make(EngineArgsMap, len(raw))
 	for engine, s := range raw {
 		args, err := splitCLIArgs(s)
 		if err != nil {
@@ -100,11 +100,11 @@ func splitCLIArgs(s string) ([]string, error) {
 	return args, nil
 }
 
-// MergeEngineExtraArgs merges base and override by appending override args
+// MergeEngineArgs merges base and override by appending override args
 // after base args, so later flags can override earlier ones while preserving
 // the original CLI ordering.
-func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap {
-	result := make(EngineExtraArgsMap, len(base)+len(override))
+func MergeEngineArgs(base, override EngineArgsMap) EngineArgsMap {
+	result := make(EngineArgsMap, len(base)+len(override))
 	for engine, args := range base {
 		result[engine] = slices.Clone(args)
 	}
@@ -114,8 +114,8 @@ func MergeEngineExtraArgs(base, override EngineExtraArgsMap) EngineExtraArgsMap 
 	return result
 }
 
-// ParseEngineExtraArgsJSON returns nil for empty/unset values.
-func ParseEngineExtraArgsJSON(value string) EngineExtraArgsMap {
+// ParseEngineArgsJSON returns nil for empty/unset values.
+func ParseEngineArgsJSON(value string) EngineArgsMap {
 	if value == "" || value == "{}" {
 		return nil
 	}
@@ -123,6 +123,6 @@ func ParseEngineExtraArgsJSON(value string) EngineExtraArgsMap {
 	if json.Unmarshal([]byte(value), &raw) != nil {
 		return nil
 	}
-	parsed, _ := ParseEngineExtraArgs(raw)
+	parsed, _ := ParseEngineArgs(raw)
 	return parsed
 }
