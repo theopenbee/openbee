@@ -145,6 +145,12 @@ func (s *Syncer) syncSession(sessionID, engine string) error {
 			}
 			continue
 		}
+		if len(usages) == 0 {
+			logger.Debug("tokenstat: session data not found",
+				zap.String("session_id", sessionID),
+				zap.String("parser", parserName))
+			continue
+		}
 		if err := s.storeUsages(usages); err != nil {
 			return fmt.Errorf("store usages: %w", err)
 		}
