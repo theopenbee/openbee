@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.32] - 2026-04-27
 
 ### Added
 - Add worker name editing support
