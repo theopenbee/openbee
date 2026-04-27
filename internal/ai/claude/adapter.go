@@ -18,11 +18,15 @@ func init() {
 }
 
 type claudeAdapter struct {
-	invoker *Invoker
+	invoker   *Invoker
+	collector *Collector
 }
 
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
-	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
+	return &claudeAdapter{
+		invoker:   NewInvoker(binaryPath, openbeeURL, extraEnv),
+		collector: NewCollector(),
+	}
 }
 
 func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
@@ -39,6 +43,6 @@ func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
-func (a *claudeAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (a *claudeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return a.collector.Collect(ctx, sessionID)
 }
