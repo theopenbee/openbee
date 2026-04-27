@@ -69,6 +69,7 @@ export const api = {
       constraints?: string
       work_dir?: string
       permission_scopes?: string
+      engine_args?: Record<string, string>
     }) => fetchAPI<Worker>("/workers", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Worker>) =>
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),

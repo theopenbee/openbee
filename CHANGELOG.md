@@ -4,6 +4,7 @@
 
 ### Added
 - Add agent token usage statistics
+- Add engine args support at both global and worker levels, allowing different workers to be configured with different models, thinking depth, and other engine-specific options
 
 ### Fixed
 - Fix a bug where cancelled tasks were still being executed

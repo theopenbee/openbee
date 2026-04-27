@@ -15,6 +15,7 @@ type Worker struct {
 	Constraints         string       `json:"constraints" db:"constraints"`
 	WorkDir             string       `json:"work_dir" db:"work_dir"`
 	Engine              string       `json:"engine" db:"engine"`
+	EngineArgs          string       `json:"engine_args" db:"engine_args"`
 	Status              WorkerStatus `json:"status" db:"status"`
 	PermissionScopes    string       `json:"permission_scopes" db:"permission_scopes"`
 	CreatedAt           int64        `json:"created_at" db:"created_at"`

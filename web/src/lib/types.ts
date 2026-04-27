@@ -8,6 +8,7 @@ export interface Worker {
   constraints: string
   work_dir: string
   engine: Engine
+  engine_args?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
   departments?: DepartmentBrief[]
@@ -161,8 +162,10 @@ export type EnvScope = "global" | "bee" | "department" | "worker"
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
 
-// Mirrors model.SystemConfigKeyDefaultEngine in Go — keep in sync.
+// Mirror model.SystemConfigKey* in Go — keep in sync.
 export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
+export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
+export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
 
 // Mirrors ai.AllEngines in Go — keep in sync.
 export const ENGINES = ["claude", "codex", "pi", "kimi"] as const

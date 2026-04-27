@@ -21,7 +21,7 @@ func writeTemp(t *testing.T, content string) string {
 }
 
 func TestBuildArgs(t *testing.T) {
-	args := buildArgs("550e8400-e29b-41d4-a716-446655440000")
+	args := buildArgs("550e8400-e29b-41d4-a716-446655440000", nil)
 	want := []string{
 		"--session=550e8400-e29b-41d4-a716-446655440000",
 		"--yolo",

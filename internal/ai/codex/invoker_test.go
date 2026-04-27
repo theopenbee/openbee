@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildArgs_NewSession(t *testing.T) {
-	args := buildArgs("", false, "")
+	args := buildArgs("", false, "", nil)
 	want := []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -16,7 +16,7 @@ func TestBuildArgs_NewSession(t *testing.T) {
 }
 
 func TestBuildArgs_ResumeWithID(t *testing.T) {
-	args := buildArgs("sess-123", true, "")
+	args := buildArgs("sess-123", true, "", nil)
 	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -24,7 +24,7 @@ func TestBuildArgs_ResumeWithID(t *testing.T) {
 }
 
 func TestBuildArgs_ResumeWithIDAndPrompt(t *testing.T) {
-	args := buildArgs("sess-123", true, "do something")
+	args := buildArgs("sess-123", true, "do something", nil)
 	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox", "do something"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -43,7 +43,7 @@ func TestExtractSessionID(t *testing.T) {
 }
 
 func TestBuildArgs_ResumeUsesThreadID(t *testing.T) {
-	args := buildArgs("thread-xyz-from-store", true, "follow up")
+	args := buildArgs("thread-xyz-from-store", true, "follow up", nil)
 	want := []string{"exec", "resume", "thread-xyz-from-store", "--json", "--dangerously-bypass-approvals-and-sandbox", "follow up"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)

@@ -2,6 +2,7 @@ package worker
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +24,7 @@ type CreateWorkerParams struct {
 	WorkDir          string
 	PermissionScopes string
 	Engine           string
+	EngineArgs       string // JSON: map[engine]rawCLIString
 }
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
@@ -32,11 +34,13 @@ type UpdateWorkerParams struct {
 	Constraints      *string `json:"constraints"`
 	PermissionScopes *string `json:"permission_scopes"`
 	Engine           *string `json:"engine"`
+	// nil = no change; empty map clears all; per-engine empty string deletes that entry.
+	EngineArgs map[string]string `json:"engine_args"`
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
 	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
-		p.PermissionScopes != nil || p.Engine != nil
+		p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil
 }
 
 func (p UpdateWorkerParams) Validate(m *Manager) error {
@@ -46,12 +50,19 @@ func (p UpdateWorkerParams) Validate(m *Manager) error {
 		}
 	}
 	if p.Engine != nil {
-		return m.ValidateEngine(*p.Engine)
+		if err := m.ValidateEngine(*p.Engine); err != nil {
+			return err
+		}
+	}
+	if p.EngineArgs != nil {
+		if err := m.ValidateEngineArgs(p.EngineArgs); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
+func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 	if p.Name != nil {
 		w.Name = *p.Name
 	}
@@ -67,6 +78,29 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) {
 	if p.Engine != nil {
 		w.Engine = *p.Engine
 	}
+	if p.EngineArgs == nil {
+		return nil
+	}
+	if len(p.EngineArgs) == 0 {
+		w.EngineArgs = "{}"
+		return nil
+	}
+	existing := make(map[string]string)
+	if w.EngineArgs != "" && w.EngineArgs != "{}" {
+		if err := json.Unmarshal([]byte(w.EngineArgs), &existing); err != nil {
+			return fmt.Errorf("parse existing engine_args: %w", err)
+		}
+	}
+	for engine, args := range p.EngineArgs {
+		if args == "" {
+			delete(existing, engine)
+		} else {
+			existing[engine] = args
+		}
+	}
+	b, _ := json.Marshal(existing)
+	w.EngineArgs = string(b)
+	return nil
 }
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
@@ -112,7 +146,9 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 	if !p.HasChanges() {
 		return w, nil
 	}
-	p.ApplyTo(&w)
+	if err := p.ApplyTo(&w); err != nil {
+		return model.Worker{}, err
+	}
 	return m.workerStore.Update(w)
 }
 
@@ -130,6 +166,10 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
+	engineArgs := p.EngineArgs
+	if engineArgs == "" {
+		engineArgs = "{}"
+	}
 	workerModel := model.Worker{
 		ID:               id,
 		Name:             p.Name,
@@ -137,9 +177,13 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		Constraints:      p.Constraints,
 		WorkDir:          p.WorkDir,
 		Engine:           p.Engine,
+		EngineArgs:       engineArgs,
 		PermissionScopes: p.PermissionScopes,
 	}
-	_, engine := m.resolveEngine(workerModel)
+	_, engine, err := m.resolveEngineSelection(workerModel)
+	if err != nil {
+		return model.Worker{}, err
+	}
 	if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
 	}

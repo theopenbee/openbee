@@ -45,7 +45,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
@@ -244,7 +244,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
@@ -492,7 +492,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
@@ -1569,7 +1569,7 @@ func TestCallTool_ListOutboundMessages(t *testing.T) {
 		ID: "out-2", SessionKey: "sk2", Platform: "local",
 		Content: "hi", Status: store.OutboundStatusFailed,
 		SourceType: store.SourceTypeBee,
-		SentAt: 2000,
+		SentAt:     2000,
 	}); err != nil {
 		t.Fatalf("seed outbound: %v", err)
 	}

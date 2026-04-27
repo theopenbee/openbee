@@ -55,6 +55,15 @@ func (f *fakeEngineValidatorForSys) ValidateEngine(name string) error {
 	return fmt.Errorf("engine %q not enabled", name)
 }
 
+func (f *fakeEngineValidatorForSys) ValidateEngineArgs(raw map[string]string) error {
+	for engine := range raw {
+		if err := f.ValidateEngine(engine); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store) {
 	gin.SetMode(gin.TestMode)
 	cfg := enginecfg.NewStore("")

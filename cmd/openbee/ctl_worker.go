@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
+
+const engineArgsFlagName = "engine-args"
 
 var ctlWorkerCmd = &cobra.Command{Use: "worker", Short: ""}
 
@@ -59,6 +64,7 @@ var (
 	workerCreateWorkDir     string
 	workerCreateEngine      string
 	workerCreateScopes      string
+	workerCreateEngineArgs  []string
 )
 
 var ctlWorkerCreateCmd = &cobra.Command{
@@ -84,6 +90,13 @@ var ctlWorkerCreateCmd = &cobra.Command{
 		if workerCreateScopes != "" {
 			a["permission_scopes"] = workerCreateScopes
 		}
+		if len(workerCreateEngineArgs) > 0 {
+			parsed, err := parseEngineArgsFlag(workerCreateEngineArgs)
+			if err != nil {
+				return err
+			}
+			a["engine_args"] = parsed
+		}
 		return ctlRun(utils.CreateWorker, a)
 	},
 }
@@ -94,6 +107,7 @@ var (
 	workerUpdateConstraints string
 	workerUpdateEngine      string
 	workerUpdateScopes      string
+	workerUpdateEngineArgs  []string
 )
 
 var ctlWorkerUpdateCmd = &cobra.Command{
@@ -119,6 +133,13 @@ var ctlWorkerUpdateCmd = &cobra.Command{
 		}
 		if cmd.Flags().Changed("scopes") {
 			a["permission_scopes"] = workerUpdateScopes
+		}
+		if cmd.Flags().Changed(engineArgsFlagName) {
+			parsed, err := parseEngineArgsFlag(workerUpdateEngineArgs)
+			if err != nil {
+				return err
+			}
+			a["engine_args"] = parsed
 		}
 		return ctlRun(utils.UpdateWorker, a)
 	},
@@ -174,6 +195,8 @@ func init() {
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
+	ctlWorkerCreateCmd.Flags().StringArrayVar(&workerCreateEngineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
+	ctlWorkerUpdateCmd.Flags().StringArrayVar(&workerUpdateEngineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
 
 	ctlWorkerCmd.AddCommand(
 		ctlWorkerListCmd,
@@ -184,4 +207,16 @@ func init() {
 		ctlWorkerDeleteCmd,
 	)
 	ctlCmd.AddCommand(ctlWorkerCmd)
+}
+
+func parseEngineArgsFlag(entries []string) (map[string]string, error) {
+	result := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		engine, args, ok := strings.Cut(entry, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid --engine-args entry %q: expected format \"engine=flags\"", entry)
+		}
+		result[engine] = args
+	}
+	return result, nil
 }

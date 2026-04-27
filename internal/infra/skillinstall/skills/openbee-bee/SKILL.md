@@ -161,8 +161,8 @@ message content
 EOF
 
 # Create/update/delete a worker
-openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--department <id|name>]
-openbee ctl worker update <id> [--name <name>] [--description <desc>] [--engine <engine>]
+openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--department <id|name>] [--engine-args <engine=args>]
+openbee ctl worker update <id> [--name <name>] [--description <desc>] [--engine <engine>] [--engine-args <engine=args>]
 openbee ctl worker delete <id>
 ```
 

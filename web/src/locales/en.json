@@ -104,6 +104,9 @@
       "constraints": "Work Constraints",
       "constraintsPlaceholder": "The work constraints for this worker...",
       "constraintsHelper": "Work constraints injected into the worker at the start of every session.",
+      "engineArgs": "Engine Args",
+      "engineArgsPlaceholder": "--effort high",
+      "engineArgsHelper": "CLI flags passed to the engine for this worker.",
       "sectionDepartment": "Department",
       "departmentHelper": "Assign the worker to departments (optional)",
       "searchDepartments": "Filter departments",
@@ -463,6 +466,16 @@
       "title": "Default Engine",
       "hint": "The default AI engine Bee uses for scheduling"
     },
-    "updated": "Default engine updated"
+    "updated": "Default engine updated",
+    "globalArgsSection": {
+      "title": "Global Worker Args",
+      "hint": "CLI flags appended to every worker's engine invocation. Applied before per-worker args.",
+      "updated": "Global worker args updated"
+    },
+    "beeArgsSection": {
+      "title": "Bee Engine Args",
+      "hint": "CLI flags appended to the Bee orchestrator's own engine invocation. Merged on top of global args.",
+      "updated": "Bee engine args updated"
+    }
   }
 }

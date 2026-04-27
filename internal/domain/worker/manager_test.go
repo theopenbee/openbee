@@ -116,6 +116,39 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestManager_ResolveEngineSelection_UnknownEngineUsesFallbackName(t *testing.T) {
+	claude := &mockEngine{}
+	engines := map[string]ai.EngineAdapter{"claude": claude}
+	mgr := newTestManager(t, engines, "claude")
+
+	name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "claude" {
+		t.Fatalf("got engine name %q, want %q", name, "claude")
+	}
+	if got != claude {
+		t.Error("expected fallback to default claude engine adapter")
+	}
+}
+
+func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})
+	if err == nil {
+		t.Fatal("expected error for unknown engine, got nil")
+	}
+}
+
+func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	err := mgr.ValidateEngineArgs(map[string]string{"claude": `--model "unterminated`})
+	if err == nil {
+		t.Fatal("expected parse error, got nil")
+	}
+}
+
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
@@ -240,6 +273,29 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &sameName})
 	if err != nil {
 		t.Errorf("renaming to same name should succeed, got: %v", err)
+	}
+}
+
+func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}, ai.EngineCodex: &mockEngine{}}
+	mgr := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{
+		Name:       "alice",
+		EngineArgs: `{"claude":"--model sonnet","codex":"--model o3"}`,
+	})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+		EngineArgs: map[string]string{},
+	})
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if updated.EngineArgs != "{}" {
+		t.Fatalf("got %s, want {}", updated.EngineArgs)
 	}
 }
 

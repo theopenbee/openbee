@@ -23,8 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { getErrorMessage } from "@/lib/utils"
+import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
@@ -44,6 +46,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
+  const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
 
@@ -52,6 +55,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setDescription(worker.description ?? "")
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
+      setEngineArgs(worker.engine_args ?? {})
       setDeptSearch("")
       setSubmitError("")
     }
@@ -63,13 +67,19 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     try {
       const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
       const newDeptIds = [...selectedDeptIds].sort().join(",")
+      const engineArgsChanged = !engineArgsEqual(
+        stripEmptyEngineArgs(engineArgs),
+        worker.engine_args ?? {},
+      )
       const workerChanged =
-        description !== (worker.description ?? "") || engine !== pickDefaultEngine(worker.engine, enabledEngines)
+        description !== (worker.description ?? "") ||
+        engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
+        engineArgsChanged
       const deptsChanged = newDeptIds !== originalDeptIds
 
       const ops: Promise<unknown>[] = []
       if (workerChanged) {
-        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine } }))
+        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine, engine_args: engineArgs } }))
       }
       if (deptsChanged) {
         ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
@@ -134,6 +144,12 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
               </Select>
               <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
             </div>
+
+            <EngineArgsSection
+              engines={[engine]}
+              value={engineArgs}
+              onChange={setEngineArgs}
+            />
           </div>
 
           {flatDepts.length > 0 && (

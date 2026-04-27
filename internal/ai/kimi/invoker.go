@@ -25,13 +25,14 @@ func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) *Invoker 
 	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}
 }
 
-func buildArgs(sessionID string) []string {
-	return []string{
+func buildArgs(sessionID string, extraArgs []string) []string {
+	base := []string{
 		"--session=" + sessionID,
 		"--yolo",
 		"--output-format=stream-json",
 		"--print",
 	}
+	return append(base, extraArgs...)
 }
 
 type kimiToolCall struct {
@@ -134,7 +135,7 @@ func ExtractResultFromLog(logPath string) string {
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	args := buildArgs(opts.SessionID)
+	args := buildArgs(opts.SessionID, opts.ExtraArgs)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

@@ -104,6 +104,9 @@
       "constraints": "工作约束",
       "constraintsPlaceholder": "这个员工的工作约束...",
       "constraintsHelper": "每次会话开始时注入到员工中的工作约束。",
+      "engineArgs": "引擎参数",
+      "engineArgsPlaceholder": "--effort high",
+      "engineArgsHelper": "传递给该 Worker 引擎的 CLI 参数。",
       "sectionDepartment": "部门",
       "departmentHelper": "将员工分配到所属部门（可选）",
       "searchDepartments": "搜索部门",
@@ -462,6 +465,16 @@
       "title": "默认引擎",
       "hint": "Bee 调度时使用的默认 AI 引擎"
     },
-    "updated": "默认引擎已更新"
+    "updated": "默认引擎已更新",
+    "globalArgsSection": {
+      "title": "全局 Worker 参数",
+      "hint": "追加到所有 Worker 引擎调用的 CLI 参数，优先级低于各 Worker 自身参数。",
+      "updated": "全局 Worker 参数已更新"
+    },
+    "beeArgsSection": {
+      "title": "Bee 引擎参数",
+      "hint": "追加到 Bee 编排进程自身引擎调用的 CLI 参数，覆盖全局参数中对应项。",
+      "updated": "Bee 引擎参数已更新"
+    }
   }
 }

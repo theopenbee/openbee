@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -13,9 +13,70 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
-import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE } from "@/lib/types"
+import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
+import {
+  SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
+  SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
+  SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
+} from "@/lib/types"
+
+interface EngineArgsConfigSectionProps {
+  configKey: string
+  savedValue: Record<string, string>
+  title: string
+  hint: string
+  successMessage: string
+}
+
+function EngineArgsConfigSection({
+  configKey,
+  savedValue,
+  title,
+  hint,
+  successMessage,
+}: EngineArgsConfigSectionProps) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const enabledEngines = useEnabledEngines()
+  const [pendingValue, setPendingValue] = useState<Record<string, string> | null>(null)
+  const value = pendingValue ?? savedValue
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: (v: Record<string, string>) =>
+      api.systemConfigs.set(configKey, JSON.stringify(stripEmptyEngineArgs(v))),
+    onError: () => setPendingValue(null),
+    onSuccess: () => {
+      setPendingValue(null)
+      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
+      toast.success(successMessage)
+    },
+  })
+
+  const isDirty =
+    pendingValue !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingValue), savedValue)
+
+  return (
+    <DetailSection className="p-5 sm:p-6 space-y-4">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
+      </div>
+      <EngineArgsSection
+        engines={enabledEngines}
+        value={value}
+        onChange={setPendingValue}
+      />
+      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
+        {t("common.save")}
+      </Button>
+    </DetailSection>
+  )
+}
 
 export function SystemSettings() {
   const { t } = useTranslation()
@@ -32,7 +93,8 @@ export function SystemSettings() {
   const engine = pendingEngine ?? savedEngine
 
   const { mutate: saveEngine, isPending } = useMutation({
-    mutationFn: (value: string) => api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
+    mutationFn: (value: string) =>
+      api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
     onError: () => setPendingEngine(null),
     onSuccess: () => {
       setPendingEngine(null)
@@ -40,6 +102,11 @@ export function SystemSettings() {
       toast.success(t("systemSettings.updated"))
     },
   })
+
+  const globalArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL]
+  const beeArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE]
+  const savedGlobalArgs = useMemo(() => parseEngineArgs(globalArgsRaw), [globalArgsRaw])
+  const savedBeeArgs = useMemo(() => parseEngineArgs(beeArgsRaw), [beeArgsRaw])
 
   return (
     <FadeIn>
@@ -70,12 +137,32 @@ export function SystemSettings() {
             </Select>
             <Button
               onClick={() => saveEngine(engine)}
-              disabled={isPending || pendingEngine === null || pendingEngine === savedEngine}
+              disabled={
+                isPending ||
+                pendingEngine === null ||
+                pendingEngine === savedEngine
+              }
             >
               {t("common.save")}
             </Button>
           </div>
         </DetailSection>
+
+        <EngineArgsConfigSection
+          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
+          savedValue={savedGlobalArgs}
+          title={t("systemSettings.globalArgsSection.title")}
+          hint={t("systemSettings.globalArgsSection.hint")}
+          successMessage={t("systemSettings.globalArgsSection.updated")}
+        />
+
+        <EngineArgsConfigSection
+          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
+          savedValue={savedBeeArgs}
+          title={t("systemSettings.beeArgsSection.title")}
+          hint={t("systemSettings.beeArgsSection.hint")}
+          successMessage={t("systemSettings.beeArgsSection.updated")}
+        />
       </div>
     </FadeIn>
   )

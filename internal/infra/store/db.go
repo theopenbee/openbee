@@ -401,6 +401,11 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "idx_executions_completed_at",
 		sql:     `CREATE INDEX IF NOT EXISTS idx_executions_completed_at ON bee_executions(completed_at)`,
 	},
+	{
+		version: 44,
+		name:    "add_engine_args_to_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_args TEXT NOT NULL DEFAULT '{}'`,
+	},
 }
 
 type whereBuilder struct {

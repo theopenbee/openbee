@@ -28,8 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
+import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { cn, getErrorMessage } from "@/lib/utils"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
@@ -42,6 +44,7 @@ export interface WorkerInitialValues {
   permission_scopes: string
   engine: Engine
   departmentIds: string[]
+  engine_args: Record<string, string>
 }
 
 export function workerToInitialValues(worker: Worker): WorkerInitialValues {
@@ -53,7 +56,13 @@ export function workerToInitialValues(worker: Worker): WorkerInitialValues {
     permission_scopes: worker.permission_scopes ?? "",
     engine: worker.engine ?? DEFAULT_ENGINE,
     departmentIds: worker.departments?.map((d) => d.id) ?? [],
+    engine_args: worker.engine_args ?? {},
   }
+}
+
+function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
+  const stripped = stripEmptyEngineArgs(engineArgs)
+  return Object.keys(stripped).length > 0 ? stripped : undefined
 }
 
 interface CreateWorkerSheetProps {
@@ -79,6 +88,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
+  const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
   const [showOptional, setShowOptional] = useState(false)
   const [deptSearch, setDeptSearch] = useState("")
@@ -95,8 +105,15 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
       setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
       setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
       setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
+      setEngineArgs(iv?.engine_args ?? {})
       setSubmitError("")
-      setShowOptional(isCopy && !!(iv?.description || iv?.constraints || iv?.work_dir))
+      setShowOptional(isCopy && !!(
+        iv?.description ||
+        iv?.constraints ||
+        iv?.work_dir ||
+        (iv?.permission_scopes && parseScopes(iv.permission_scopes).length > 0) ||
+        !!buildCreateEngineArgsPayload(iv?.engine_args ?? {})
+      ))
       setDeptSearch("")
       randomName.reset()
     }
@@ -113,6 +130,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         constraints: constraints || undefined,
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
+        engine_args: buildCreateEngineArgsPayload(engineArgs),
       })
       if (selectedDeptIds.size > 0) {
         await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
@@ -222,6 +240,57 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
             </div>
           </div>
 
+          {flatDepts.length > 0 && (
+            <div className="border-t border-border/60 px-6 py-5 space-y-3">
+              <SectionHeading
+                text={t("workers.form.sectionDepartment")}
+                badge={selectedDeptIds.size}
+              />
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={deptSearch}
+                  onChange={(e) => setDeptSearch(e.target.value)}
+                  placeholder={t("workers.form.searchDepartments")}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
+                {filteredDepts.length === 0 ? (
+                  <p className="py-3 text-xs text-muted-foreground text-center">
+                    {t("workers.form.noMatchingDepartments")}
+                  </p>
+                ) : (
+                  filteredDepts.map(({ dept, depth }) => (
+                    <label
+                      key={dept.id}
+                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      style={{ paddingLeft: `${12 + depth * 12}px` }}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`cws-dept-${dept.id}`}
+                        checked={selectedDeptIds.has(dept.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedDeptIds)
+                          if (e.target.checked) next.add(dept.id)
+                          else next.delete(dept.id)
+                          setSelectedDeptIds(next)
+                        }}
+                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                      />
+                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
+            </div>
+          )}
+
           <div className="border-t border-border/60">
             <button
               type="button"
@@ -279,90 +348,45 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
                     />
                     <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
                   </div>
+
+                  <EngineArgsSection
+                    engines={[engine]}
+                    value={engineArgs}
+                    onChange={setEngineArgs}
+                  />
+
+                  <div className="space-y-2">
+                    <SectionHeading
+                      text={t("workers.form.sectionPermissions")}
+                      badge={selectedScopes.length}
+                    />
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                      {KNOWN_SCOPES.map((scope) => (
+                        <label
+                          key={scope.id}
+                          className="flex items-center gap-2 cursor-pointer group"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes(scope.id)}
+                            onChange={(e) =>
+                              setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
+                            }
+                            disabled={isPending}
+                            className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                          />
+                          <span className="text-sm text-foreground/75 group-hover:text-foreground transition-colors leading-snug">
+                            {t(scope.titleKey)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="border-t border-border/60 px-6 py-5 space-y-3">
-            <SectionHeading
-              text={t("workers.form.sectionPermissions")}
-              badge={selectedScopes.length}
-            />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-              {KNOWN_SCOPES.map((scope) => (
-                <label
-                  key={scope.id}
-                  className="flex items-center gap-2 cursor-pointer group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedScopes.includes(scope.id)}
-                    onChange={(e) =>
-                      setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
-                    }
-                    disabled={isPending}
-                    className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
-                  />
-                  <span className="text-sm text-foreground/75 group-hover:text-foreground transition-colors leading-snug">
-                    {t(scope.titleKey)}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
-          </div>
-
-          {flatDepts.length > 0 && (
-            <div className="border-t border-border/60 px-6 py-5 space-y-3">
-              <SectionHeading
-                text={t("workers.form.sectionDepartment")}
-                badge={selectedDeptIds.size}
-              />
-
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  className="pl-8 h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-xs text-muted-foreground text-center">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        id={`cws-dept-${dept.id}`}
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
-                      />
-                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
-            </div>
-          )}
         </form>
 
         <Separator />

@@ -9,3 +9,9 @@ type SystemConfig struct {
 
 // SystemConfigKeyDefaultEngine is the key for the default bee engine.
 const SystemConfigKeyDefaultEngine = "default_engine"
+
+// SystemConfigKeyEngineArgsGlobal is the key for global engine args (applied to all workers).
+const SystemConfigKeyEngineArgsGlobal = "engine_args_global"
+
+// SystemConfigKeyEngineArgsBee is the key for bee-level engine args.
+const SystemConfigKeyEngineArgsBee = "engine_args_bee"

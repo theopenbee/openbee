@@ -46,15 +46,17 @@ type codexItem struct {
 	Status           string `json:"status,omitempty"`
 }
 
-func buildArgs(threadID string, resume bool, prompt string) []string {
+func buildArgs(threadID string, resume bool, prompt string, extraArgs []string) []string {
+	var base []string
 	if resume && threadID != "" {
-		args := []string{"exec", "resume", threadID, "--json", "--dangerously-bypass-approvals-and-sandbox"}
+		base = []string{"exec", "resume", threadID, "--json", "--dangerously-bypass-approvals-and-sandbox"}
 		if prompt != "" {
-			args = append(args, prompt)
+			base = append(base, prompt)
 		}
-		return args
+	} else {
+		base = []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
 	}
-	return []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
+	return append(base, extraArgs...)
 }
 
 // extractSessionID reads a Codex JSON stream and returns the thread_id from
@@ -103,7 +105,7 @@ func ExtractResultFromLog(logPath string) string {
 // For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	threadID, resume := inv.resolveThread(opts.SessionID, opts.Resume)
-	args := buildArgs(threadID, resume, prompt)
+	args := buildArgs(threadID, resume, prompt, opts.ExtraArgs)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

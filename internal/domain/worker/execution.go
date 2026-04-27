@@ -37,7 +37,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(exec, worker, engine, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -46,7 +46,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -71,11 +71,14 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 		return fmt.Errorf("resolve worker env: %w", err)
 	}
 
+	extraArgs := m.resolveEngineArgs(ctx, worker, engineName)
+
 	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
 		APIKey:    token,
 		ExtraEnv:  extraEnv,
+		ExtraArgs: extraArgs,
 	}, logPath)
 	if err != nil {
 		cancel()
