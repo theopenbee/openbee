@@ -14,7 +14,8 @@ func init() {
 }
 
 type codexAdapter struct {
-	invoker *Invoker
+	invoker   *Invoker
+	collector *Collector
 }
 
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.EngineAdapter, error) {
@@ -22,7 +23,10 @@ func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.E
 	if err != nil {
 		return nil, fmt.Errorf("init codex session store: %w", err)
 	}
-	return &codexAdapter{invoker: NewInvoker(binaryPath, openbeeURL, store, extraEnv)}, nil
+	return &codexAdapter{
+		invoker:   NewInvoker(binaryPath, openbeeURL, store, extraEnv),
+		collector: NewCollector(),
+	}, nil
 }
 
 func (a *codexAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
@@ -35,8 +39,8 @@ func (a *codexAdapter) Run(ctx context.Context, workDir, prompt string,
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
-func (a *codexAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (a *codexAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return a.collector.Collect(ctx, sessionID)
 }
 
 var _ ai.EngineAdapter = (*codexAdapter)(nil)
