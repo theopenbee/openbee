@@ -7,8 +7,6 @@ var ErrUnknownEngine = fmt.Errorf("unknown engine")
 
 // EngineConfig holds the configuration passed to a Factory when constructing an engine.
 type EngineConfig struct {
-	// OpenbeeURL is the openbee server base URL injected for MCP connectivity.
-	OpenbeeURL string
 	// Raw holds engine-specific configuration (parsed from config.yaml).
 	Raw map[string]any
 }

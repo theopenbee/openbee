@@ -28,6 +28,10 @@ func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ stri
 	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
+func (m *mockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
 type mockProcess struct{}
 
 func (p *mockProcess) PID() int    { return 0 }

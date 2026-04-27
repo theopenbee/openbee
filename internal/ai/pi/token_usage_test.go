@@ -1,30 +1,44 @@
-package tokenstat_test
+package pi_test
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/tokenstat"
+	"github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/pi"
 )
 
-func TestPiParser_Parse_AggregatesByModel(t *testing.T) {
+func writePiTempFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+}
+
+func TestPiCollector_Collect_AggregatesByModel(t *testing.T) {
 	sessionsDir := t.TempDir()
 	sessionID := "pi-sess-abc123"
 
-	writeTempFile(t, sessionsDir, "20250101_"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50,"cacheWrite":10,"cacheRead":5}}}
+	writePiTempFile(t, sessionsDir, "20250101_"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50,"cacheWrite":10,"cacheRead":5}}}
 {"type":"message","message":{"role":"user","content":"hello"}}
 {"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":200,"output":80,"cacheWrite":0,"cacheRead":15}}}
 {"type":"message","message":{"role":"assistant","model":"claude-3-opus","usage":{"input":300,"output":100,"cacheWrite":5,"cacheRead":0}}}
 {"type":"other","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 `)
 	t.Setenv("PI_AGENT_DIR", sessionsDir)
-	parser := tokenstat.NewPiParser()
+	collector := pi.NewCollector()
 
-	usages, err := parser.Parse(sessionID)
+	usages, err := collector.Collect(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("Parse: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
-	byModel := map[string]tokenstat.SessionTokenUsage{}
+	byModel := map[string]ai.TokenUsage{}
 	for _, u := range usages {
 		byModel[u.Model] = u
 	}
@@ -42,9 +56,6 @@ func TestPiParser_Parse_AggregatesByModel(t *testing.T) {
 	if sonnet.CacheReadTokens != 20 {
 		t.Errorf("sonnet CacheReadTokens: want 20, got %d", sonnet.CacheReadTokens)
 	}
-	if sonnet.AgentType != "pi" {
-		t.Errorf("sonnet AgentType: want pi, got %s", sonnet.AgentType)
-	}
 
 	opus := byModel["claude-3-opus"]
 	if opus.InputTokens != 300 {
@@ -52,19 +63,19 @@ func TestPiParser_Parse_AggregatesByModel(t *testing.T) {
 	}
 }
 
-func TestPiParser_Parse_SkipsNonAssistantAndWrongType(t *testing.T) {
+func TestPiCollector_Collect_SkipsNonAssistantAndWrongType(t *testing.T) {
 	sessionsDir := t.TempDir()
 	sessionID := "skip-test"
 
-	writeTempFile(t, sessionsDir, sessionID+".jsonl", `{"type":"message","message":{"role":"user","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
+	writePiTempFile(t, sessionsDir, sessionID+".jsonl", `{"type":"message","message":{"role":"user","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 {"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}
 {"type":"other","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 `)
 	t.Setenv("PI_AGENT_DIR", sessionsDir)
 
-	usages, err := tokenstat.NewPiParser().Parse(sessionID)
+	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("Parse: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
 	if len(usages) != 1 {
 		t.Fatalf("expected 1 usage (only assistant+message), got %d", len(usages))
@@ -74,33 +85,33 @@ func TestPiParser_Parse_SkipsNonAssistantAndWrongType(t *testing.T) {
 	}
 }
 
-func TestPiParser_Parse_FileNotFound(t *testing.T) {
+func TestPiCollector_Collect_FileNotFound(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", t.TempDir())
-	_, err := tokenstat.NewPiParser().Parse("nonexistent-session")
-	if !errors.Is(err, tokenstat.ErrSessionDataNotFound) {
+	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
+	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
 	}
 }
 
-func TestPiParser_Parse_DirectoryNotFound(t *testing.T) {
+func TestPiCollector_Collect_DirectoryNotFound(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", t.TempDir()+"/missing")
-	_, err := tokenstat.NewPiParser().Parse("nonexistent-session")
-	if !errors.Is(err, tokenstat.ErrSessionDataNotFound) {
+	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
+	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
 	}
 }
 
-func TestPiParser_Parse_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
+func TestPiCollector_Collect_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
 	home := t.TempDir()
 	sessionID := "default-dir-session"
 	t.Setenv("HOME", home)
 	t.Setenv("PI_AGENT_DIR", "")
 
-	writeTempFile(t, home, ".openbee/.pi/sessions/"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
+	writePiTempFile(t, home, ".openbee/.pi/sessions/"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
 
-	usages, err := tokenstat.NewPiParser().Parse(sessionID)
+	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("Parse: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
 	if len(usages) != 1 {
 		t.Fatalf("expected 1 usage, got %d", len(usages))

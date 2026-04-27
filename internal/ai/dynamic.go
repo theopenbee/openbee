@@ -41,3 +41,7 @@ func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts R
 	}
 	return e.Run(ctx, workDir, prompt, opts, logPath)
 }
+
+func (d *DynamicAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]TokenUsage, error) {
+	return nil, ErrSessionDataNotFound
+}

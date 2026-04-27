@@ -11,7 +11,7 @@ import (
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
-	a, err := codex.NewAdapter("echo", "http://localhost:9999", nil)
+	a, err := codex.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestAdapter_Prepare_NoOp(t *testing.T) {
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
-	a, err := codex.NewAdapter("echo", "http://localhost:9999", nil)
+	a, err := codex.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestAdapter_Prepare_BothRoles(t *testing.T) {
 }
 
 func TestAdapter_ExtraEnvInBaseEnv(t *testing.T) {
-	a, err := codex.NewAdapter("echo", "http://localhost:9999", map[string]string{
+	a, err := codex.NewAdapter("echo", map[string]string{
 		"CODEX_CUSTOM": "value",
 	})
 	if err != nil {

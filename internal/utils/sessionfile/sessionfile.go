@@ -1,4 +1,5 @@
-package tokenstat
+// Package sessionfile provides file discovery and JSONL scanning helpers.
+package sessionfile
 
 import (
 	"bufio"
@@ -9,31 +10,14 @@ import (
 	"path/filepath"
 )
 
-var ErrSessionDataNotFound = errors.New("tokenstat session data not found")
-
-var errStopWalk = errors.New("stop walk")
-
 // 16 MiB: session files can embed base64-encoded content or long conversation turns.
 const scannerBufSize = 16 * 1024 * 1024
 
-func getOrCreate(agg map[string]*SessionTokenUsage, sessionID, agentType, model string) *SessionTokenUsage {
-	if u, ok := agg[model]; ok {
-		return u
-	}
-	u := &SessionTokenUsage{SessionID: sessionID, AgentType: agentType, Model: model}
-	agg[model] = u
-	return u
-}
+var errStopWalk = errors.New("stop walk")
 
-func mapValues(agg map[string]*SessionTokenUsage) []SessionTokenUsage {
-	result := make([]SessionTokenUsage, 0, len(agg))
-	for _, u := range agg {
-		result = append(result, *u)
-	}
-	return result
-}
-
-func scanJSONLFile(path string, fn func([]byte)) error {
+// ScanJSONLFile streams `path` line by line, invoking `fn` with a copy of each
+// line's bytes. Empty lines are still passed through.
+func ScanJSONLFile(path string, fn func([]byte)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -47,7 +31,13 @@ func scanJSONLFile(path string, fn func([]byte)) error {
 	return scanner.Err()
 }
 
-func findWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
+// FindWithLegacyFast first checks for a flat-layout file at dir/legacyName
+// (the old session layout). If absent, it walks dir recursively and returns
+// the first file for which match returns true.
+//
+// Returns fs.ErrNotExist (wrapped) when nothing matches or when the directory
+// does not exist.
+func FindWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
 	legacyPath := filepath.Join(dir, legacyName)
 	if _, err := os.Stat(legacyPath); err == nil {
 		return legacyPath, nil
@@ -72,12 +62,12 @@ func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (
 	})
 	if err != nil && !errors.Is(err, errStopWalk) {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("%w: %s", ErrSessionDataNotFound, root)
+			return "", fmt.Errorf("%w: %s", fs.ErrNotExist, root)
 		}
 		return "", fmt.Errorf("walk session root %s: %w", root, err)
 	}
 	if found == "" {
-		return "", fmt.Errorf("%w: %s", ErrSessionDataNotFound, root)
+		return "", fmt.Errorf("%w: %s", fs.ErrNotExist, root)
 	}
 	return found, nil
 }

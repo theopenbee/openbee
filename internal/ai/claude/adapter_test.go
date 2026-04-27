@@ -12,11 +12,11 @@ import (
 
 func newTestAdapter(t *testing.T) ai.EngineAdapter {
 	t.Helper()
-	return claude.NewAdapter("echo", "http://localhost:9999", nil)
+	return claude.NewAdapter("echo", nil)
 }
 
 func TestClaudeAdapter_ExtraEnvInBaseEnv(t *testing.T) {
-	a := claude.NewAdapter("echo", "http://localhost:9999", map[string]string{
+	a := claude.NewAdapter("echo", map[string]string{
 		"MY_CUSTOM_VAR": "hello",
 		"ANOTHER_KEY":   "world",
 	})

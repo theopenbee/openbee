@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,16 +14,20 @@ import (
 
 func init() {
 	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.OpenbeeURL, cfg.ExtraEnv()), nil
+		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.ExtraEnv()), nil
 	})
 }
 
 type claudeAdapter struct {
-	invoker *Invoker
+	invoker   *Invoker
+	collector *Collector
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
-	return &claudeAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
+func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
+	return &claudeAdapter{
+		invoker:   NewInvoker(binaryPath, extraEnv),
+		collector: NewCollector(),
+	}
 }
 
 func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
@@ -37,4 +42,33 @@ func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
+}
+
+func (a *claudeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return a.collector.Collect(ctx, sessionID)
+}
+
+func removeImportLine(workDir string) error {
+	claudePath := filepath.Join(workDir, "CLAUDE.md")
+	data, err := os.ReadFile(claudePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read CLAUDE.md: %w", err)
+	}
+
+	target := []byte(ai.ImportLine)
+	lines := bytes.Split(data, []byte("\n"))
+	out := lines[:0]
+	for _, line := range lines {
+		if !bytes.Equal(bytes.TrimRight(line, "\r"), target) {
+			out = append(out, line)
+		}
+	}
+	cleaned := bytes.Join(out, []byte("\n"))
+	if bytes.Equal(cleaned, data) {
+		return nil
+	}
+	return os.WriteFile(claudePath, cleaned, 0o644)
 }

@@ -25,6 +25,9 @@ func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ stri
 		ExtractResult: func(string) string { return name + "-result" },
 	}, errors.New(s.name + " run called")
 }
+func (s *stubEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
 
 func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
 	a := &stubEngine{name: "a"}

@@ -3,15 +3,27 @@ package tokenstat_test
 import (
 	"context"
 	"database/sql"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 )
+
+// fakeAdapter is a test double for ai.EngineAdapter.
+type fakeAdapter struct {
+	collect func(ctx context.Context, sessionID string) ([]ai.TokenUsage, error)
+}
+
+func (f *fakeAdapter) Prepare(string, ai.PrepareOptions) error { return nil }
+func (f *fakeAdapter) Run(context.Context, string, string, ai.RunOptions, string) (ai.RunResult, error) {
+	return ai.RunResult{}, nil
+}
+func (f *fakeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return f.collect(ctx, sessionID)
+}
 
 func newSyncerTestDB(t *testing.T) (*sql.DB, *store.TokenStatsStore, func()) {
 	t.Helper()
@@ -51,31 +63,31 @@ func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, c
 	insertTestExecutionWithEngine(t, db, workerID, sessionID, "", completedAt)
 }
 
-func TestSyncer_SyncOnce_Claude(t *testing.T) {
+// TestSyncer_Direct_KnownEngine: known engine adapter returns usages → row written with correct AgentType.
+func TestSyncer_Direct_KnownEngine(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-1", "claude")
-	insertTestExecution(t, db, "worker-1", "test-session", time.Now().UnixMilli())
+	insertTestWorker(t, db, "w1", "claude")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-1", "claude", time.Now().UnixMilli())
 
-	claudeBase := t.TempDir()
-	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
-	os.WriteFile(
-		filepath.Join(claudeBase, "projects", "test-session.jsonl"),
-		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+			return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 100, OutputTokens: 50}}, nil
+		}},
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("test-session")
+	stats, err := tokenStore.GetBySessionID("sess-1")
 	if err != nil {
 		t.Fatalf("GetBySessionID: %v", err)
 	}
 	if len(stats) != 1 {
-		t.Fatalf("expected 1 stat record, got %d", len(stats))
+		t.Fatalf("expected 1 stat, got %d", len(stats))
+	}
+	if stats[0].Model != "sonnet-4" {
+		t.Errorf("Model: want sonnet-4, got %s", stats[0].Model)
 	}
 	if stats[0].InputTokens != 100 {
 		t.Errorf("InputTokens: want 100, got %d", stats[0].InputTokens)
@@ -85,284 +97,256 @@ func TestSyncer_SyncOnce_Claude(t *testing.T) {
 	}
 }
 
-func TestSyncer_SyncOnce_FullModeWhenTableEmpty(t *testing.T) {
+// TestSyncer_Direct_KnownEngine_NotFound_Tombstones: known engine returns ErrSessionDataNotFound → tombstone.
+func TestSyncer_Direct_KnownEngine_NotFound_Tombstones(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-old", "claude")
-	oldTime := time.Now().AddDate(0, 0, -60).UnixMilli()
-	insertTestExecution(t, db, "worker-old", "old-session", oldTime)
+	insertTestWorker(t, db, "w1", "claude")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-nf", "claude", time.Now().UnixMilli())
 
-	claudeBase := t.TempDir()
-	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
-	os.WriteFile(
-		filepath.Join(claudeBase, "projects", "old-session.jsonl"),
-		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":50,"output_tokens":25}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+			return nil, ai.ErrSessionDataNotFound
+		}},
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("old-session")
-	if err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "sess-nf").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
 	}
-	if len(stats) != 1 {
-		t.Errorf("expected 1 stat (full mode on empty table), got %d", len(stats))
+	if count != 1 {
+		t.Fatalf("expected 1 tombstone, got %d", count)
+	}
+	// Tombstone must not appear in the public API.
+	if stats, err := tokenStore.GetBySessionID("sess-nf"); err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	} else if len(stats) != 0 {
+		t.Errorf("tombstone must not appear in API query, got %d records", len(stats))
 	}
 }
 
-func TestSyncer_SyncOnce_RetriesUnsyncedHistoricalSessionsAfterPartialBackfill(t *testing.T) {
+// TestSyncer_Direct_KnownEngine_Empty_Tombstones: known engine returns ([], nil) → tombstone.
+func TestSyncer_Direct_KnownEngine_Empty_Tombstones(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	if err := tokenStore.Upsert(model.TokenStats{
-		SessionID:   "seed-session",
-		AgentType:   "claude",
-		Model:       "claude-3-5-sonnet",
-		InputTokens: 1,
-		SyncedAt:    time.Now().UnixMilli(),
-	}); err != nil {
-		t.Fatalf("seed token stats: %v", err)
+	insertTestWorker(t, db, "w1", "claude")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-empty", "claude", time.Now().UnixMilli())
+
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+			return []ai.TokenUsage{}, nil
+		}},
 	}
-
-	insertTestWorker(t, db, "worker-old", "claude")
-	oldTime := time.Now().AddDate(0, 0, -60).UnixMilli()
-	insertTestExecution(t, db, "worker-old", "old-unsynced-session", oldTime)
-
-	claudeBase := t.TempDir()
-	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
-	os.WriteFile(
-		filepath.Join(claudeBase, "projects", "old-unsynced-session.jsonl"),
-		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":75,"output_tokens":35}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("old-unsynced-session")
-	if err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "sess-empty").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
 	}
-	if len(stats) != 1 {
-		t.Fatalf("expected unsynced historical session to be retried, got %d stats", len(stats))
-	}
-	if stats[0].InputTokens != 75 {
-		t.Fatalf("InputTokens: want 75, got %d", stats[0].InputTokens)
+	if count != 1 {
+		t.Fatalf("expected 1 tombstone for empty usages, got %d", count)
 	}
 }
 
-func TestSyncer_SyncOnce_UsesExecutionEngineHint(t *testing.T) {
+// TestSyncer_Direct_KnownEngine_HardError_NoTombstone: non-NotFound error → no row written, session left pending.
+func TestSyncer_Direct_KnownEngine_HardError_NoTombstone(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-1", "codex")
-	insertTestExecutionWithEngine(t, db, "worker-1", "claude-session", "claude", time.Now().UnixMilli())
+	insertTestWorker(t, db, "w1", "claude")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-err", "claude", time.Now().UnixMilli())
 
-	claudeBase := t.TempDir()
-	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
-	os.WriteFile(
-		filepath.Join(claudeBase, "projects", "claude-session.jsonl"),
-		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":120,"output_tokens":60}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+			return nil, context.DeadlineExceeded
+		}},
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("claude-session")
-	if err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ?`, "sess-err").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
 	}
-	if len(stats) != 1 {
-		t.Fatalf("expected 1 stat record, got %d", len(stats))
-	}
-	if stats[0].AgentType != "claude" {
-		t.Fatalf("AgentType: want claude, got %s", stats[0].AgentType)
+	if count != 0 {
+		t.Errorf("expected 0 rows on hard error, got %d", count)
 	}
 }
 
-func TestSyncer_SyncOnce_Kimi(t *testing.T) {
+// TestSyncer_Legacy_FallbackHits: engine empty, third adapter in chain succeeds.
+func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-kimi", "kimi")
-	insertTestExecutionWithEngine(t, db, "worker-kimi", "kimi-sess-001", "kimi", time.Now().UnixMilli())
+	insertTestWorker(t, db, "w1", "")
+	insertTestExecution(t, db, "w1", "sess-legacy", time.Now().UnixMilli())
 
-	home := t.TempDir()
-	kimiDir := filepath.Join(home, ".kimi", "sessions", "bucket-01", "kimi-sess-001")
-	os.MkdirAll(kimiDir, 0755)
-	os.WriteFile(filepath.Join(kimiDir, "wire.jsonl"),
-		[]byte(`{"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":446,"output":70,"input_cache_read":16384,"input_cache_creation":0}}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("HOME", home)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return nil, ai.ErrSessionDataNotFound
+	}}
+	kimiHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return []ai.TokenUsage{{Model: "kimi", InputTokens: 200}}, nil
+	}}
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: notFound,
+		ai.EngineCodex:  notFound,
+		ai.EnginePi:     notFound,
+		ai.EngineKimi:   kimiHit,
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	stats, err := tokenStore.GetBySessionID("kimi-sess-001")
+	stats, err := tokenStore.GetBySessionID("sess-legacy")
 	if err != nil {
 		t.Fatalf("GetBySessionID: %v", err)
 	}
 	if len(stats) != 1 {
-		t.Fatalf("expected 1 stat record, got %d", len(stats))
-	}
-	if stats[0].AgentType != "kimi" {
-		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
-	}
-	if stats[0].Model != "kimi" {
-		t.Errorf("Model: want kimi, got %s", stats[0].Model)
-	}
-	if stats[0].InputTokens != 446 {
-		t.Errorf("InputTokens: want 446, got %d", stats[0].InputTokens)
-	}
-	if stats[0].OutputTokens != 70 {
-		t.Errorf("OutputTokens: want 70, got %d", stats[0].OutputTokens)
-	}
-	if stats[0].CacheReadTokens != 16384 {
-		t.Errorf("CacheReadTokens: want 16384, got %d", stats[0].CacheReadTokens)
-	}
-}
-
-func TestSyncer_SyncOnce_LegacyExecutionFallsBackToKimi(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
-
-	insertTestWorker(t, db, "worker-1", "kimi")
-	insertTestExecution(t, db, "worker-1", "legacy-kimi-session", time.Now().UnixMilli())
-
-	home := t.TempDir()
-	kimiDir := filepath.Join(home, ".kimi", "sessions", "bucket-01", "legacy-kimi-session")
-	os.MkdirAll(kimiDir, 0755)
-	os.WriteFile(filepath.Join(kimiDir, "wire.jsonl"),
-		[]byte(`{"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":200,"output":80,"input_cache_read":0,"input_cache_creation":0}}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("HOME", home)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
-	syncer.SyncOnce(context.Background())
-
-	stats, err := tokenStore.GetBySessionID("legacy-kimi-session")
-	if err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
-	}
-	if len(stats) != 1 {
-		t.Fatalf("expected 1 stat record, got %d", len(stats))
-	}
-	if stats[0].AgentType != "kimi" {
-		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
+		t.Fatalf("expected 1 stat, got %d", len(stats))
 	}
 	if stats[0].InputTokens != 200 {
 		t.Errorf("InputTokens: want 200, got %d", stats[0].InputTokens)
 	}
-	if stats[0].OutputTokens != 80 {
-		t.Errorf("OutputTokens: want 80, got %d", stats[0].OutputTokens)
+	if stats[0].AgentType != "kimi" {
+		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
 	}
 }
 
-func TestSyncer_SyncOnce_LegacyExecutionNoDataWritesTombstone(t *testing.T) {
+// TestSyncer_Legacy_AllNotFound_Tombstones: engine empty, all adapters return NotFound → tombstone.
+func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-legacy", "")
-	insertTestExecution(t, db, "worker-legacy", "legacy-no-data-session", time.Now().UnixMilli())
+	insertTestWorker(t, db, "w1", "")
+	insertTestExecution(t, db, "w1", "sess-all-nf", time.Now().UnixMilli())
 
-	// point all parsers at empty dirs so every parser returns ErrSessionDataNotFound
-	emptyDir := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", emptyDir)
-	t.Setenv("HOME", emptyDir)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return nil, ai.ErrSessionDataNotFound
+	}}
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: notFound,
+		ai.EngineCodex:  notFound,
+		ai.EnginePi:     notFound,
+		ai.EngineKimi:   notFound,
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
 
-	// Tombstones are filtered from the public API but must exist in the DB to
-	// prevent the syncer from re-scanning the session on every tick.
-	var tombstoneCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "legacy-no-data-session").Scan(&tombstoneCount); err != nil {
-		t.Fatalf("query tombstone: %v", err)
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "sess-all-nf").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
 	}
-	if tombstoneCount != 1 {
-		t.Fatalf("expected 1 tombstone record in DB, got %d", tombstoneCount)
+	if count != 1 {
+		t.Fatalf("expected 1 tombstone, got %d", count)
 	}
-	if stats, err := tokenStore.GetBySessionID("legacy-no-data-session"); err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
-	} else if len(stats) != 0 {
-		t.Errorf("tombstone must not appear in API-facing query, got %d records", len(stats))
-	}
-
-	// second SyncOnce must not produce a second tombstone (synced_at now > completed_at)
+	// Second SyncOnce must not produce a second tombstone.
 	syncer.SyncOnce(context.Background())
-	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ?`, "legacy-no-data-session").Scan(&tombstoneCount); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ?`, "sess-all-nf").Scan(&count); err != nil {
 		t.Fatalf("query after 2nd sync: %v", err)
 	}
-	if tombstoneCount != 1 {
-		t.Errorf("expected still 1 record after second sync, got %d", tombstoneCount)
+	if count != 1 {
+		t.Errorf("expected still 1 record after second sync, got %d", count)
 	}
 }
 
-func TestSyncer_SyncOnce_KnownEngineNoDataWritesTombstone(t *testing.T) {
+// TestSyncer_UnknownEngine_FallsBack: engine set but not in adapter map → walks fallback chain.
+func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
 
-	insertTestWorker(t, db, "worker-claude", "claude")
-	insertTestExecutionWithEngine(t, db, "worker-claude", "claude-no-data-session", "claude", time.Now().UnixMilli())
+	insertTestWorker(t, db, "w1", "")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-unknown", "obsolete-engine", time.Now().UnixMilli())
 
-	// point all parsers at empty dirs so every parser returns ErrSessionDataNotFound
-	emptyDir := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", emptyDir)
-	t.Setenv("HOME", emptyDir)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
+	claudeHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 77}}, nil
+	}}
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: claudeHit,
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, []string{ai.EngineClaude})
 	syncer.SyncOnce(context.Background())
 
-	var tombstoneCount int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "claude-no-data-session").Scan(&tombstoneCount); err != nil {
-		t.Fatalf("query tombstone: %v", err)
-	}
-	if tombstoneCount != 1 {
-		t.Fatalf("expected 1 tombstone record in DB, got %d", tombstoneCount)
-	}
-	if stats, err := tokenStore.GetBySessionID("claude-no-data-session"); err != nil {
-		t.Fatalf("GetBySessionID: %v", err)
-	} else if len(stats) != 0 {
-		t.Errorf("tombstone must not appear in API-facing query, got %d records", len(stats))
-	}
-}
-
-func TestSyncer_SyncOnce_LegacyExecutionWithoutEngineFallsBackAcrossParsers(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
-
-	insertTestWorker(t, db, "worker-1", "kimi")
-	insertTestExecution(t, db, "worker-1", "legacy-claude-session", time.Now().UnixMilli())
-
-	claudeBase := t.TempDir()
-	os.MkdirAll(filepath.Join(claudeBase, "projects"), 0755)
-	os.WriteFile(
-		filepath.Join(claudeBase, "projects", "legacy-claude-session.jsonl"),
-		[]byte(`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":90,"output_tokens":45}}}`+"\n"),
-		0644,
-	)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeBase)
-
-	syncer := tokenstat.NewSyncer(db, tokenStore)
-	syncer.SyncOnce(context.Background())
-
-	stats, err := tokenStore.GetBySessionID("legacy-claude-session")
+	stats, err := tokenStore.GetBySessionID("sess-unknown")
 	if err != nil {
 		t.Fatalf("GetBySessionID: %v", err)
 	}
 	if len(stats) != 1 {
-		t.Fatalf("expected 1 stat record, got %d", len(stats))
+		t.Fatalf("expected 1 stat, got %d", len(stats))
 	}
-	if stats[0].InputTokens != 90 {
-		t.Fatalf("InputTokens: want 90, got %d", stats[0].InputTokens)
+	if stats[0].InputTokens != 77 {
+		t.Errorf("InputTokens: want 77, got %d", stats[0].InputTokens)
+	}
+}
+
+// TestSyncer_UnknownEngine_AllNotFound_Tombstones: unknown engine, all fallbacks also NotFound → tombstone.
+func TestSyncer_UnknownEngine_AllNotFound_Tombstones(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "w1", "")
+	insertTestExecutionWithEngine(t, db, "w1", "sess-unk-nf", "obsolete-engine", time.Now().UnixMilli())
+
+	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return nil, ai.ErrSessionDataNotFound
+	}}
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: notFound,
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, []string{ai.EngineClaude})
+	syncer.SyncOnce(context.Background())
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_token_stats WHERE session_id = ? AND model = 'unknown'`, "sess-unk-nf").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 tombstone, got %d", count)
+	}
+}
+
+// TestSyncer_DoesNotResyncCompleted: session with synced_at > completed_at is skipped.
+func TestSyncer_DoesNotResyncCompleted(t *testing.T) {
+	db, tokenStore, cleanup := newSyncerTestDB(t)
+	defer cleanup()
+
+	insertTestWorker(t, db, "w1", "claude")
+	completedAt := time.Now().Add(-1 * time.Hour).UnixMilli()
+	insertTestExecutionWithEngine(t, db, "w1", "sess-done", "claude", completedAt)
+
+	// Seed a token stat with synced_at > completed_at so the SQL HAVING clause skips it.
+	if err := tokenStore.Upsert(model.TokenStats{
+		SessionID:   "sess-done",
+		AgentType:   "claude",
+		Model:       "sonnet-4",
+		InputTokens: 42,
+		SyncedAt:    time.Now().UnixMilli(), // > completedAt
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	callCount := 0
+	adapters := map[string]ai.EngineAdapter{
+		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+			callCount++
+			return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 999}}, nil
+		}},
+	}
+	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	syncer.SyncOnce(context.Background())
+
+	if callCount != 0 {
+		t.Errorf("adapter should not be called for already-synced session, got %d calls", callCount)
+	}
+	// Original value must be unchanged.
+	stats, err := tokenStore.GetBySessionID("sess-done")
+	if err != nil {
+		t.Fatalf("GetBySessionID: %v", err)
+	}
+	if len(stats) != 1 || stats[0].InputTokens != 42 {
+		t.Errorf("expected unchanged InputTokens=42, got %+v", stats)
 	}
 }

@@ -1,22 +1,30 @@
-package tokenstat
+package kimi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 const kimiModel = "kimi"
 
-type kimiParser struct {
+type Collector struct {
 	sessionsDir string
 }
 
-func NewKimiParser() Parser {
-	return &kimiParser{sessionsDir: config.DefaultKimiSessionsDir()}
+// NewCollector builds a Collector at the default sessions root.
+func NewCollector() *Collector {
+	return NewCollectorAt(config.DefaultKimiSessionsDir())
+}
+
+// NewCollectorAt is a test seam allowing arbitrary roots.
+func NewCollectorAt(dir string) *Collector {
+	return &Collector{sessionsDir: dir}
 }
 
 type kimiTokenUsage struct {
@@ -35,20 +43,20 @@ type kimiJSONLLine struct {
 	} `json:"message"`
 }
 
-func (p *kimiParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
-	matches, err := filepath.Glob(filepath.Join(p.sessionsDir, "*", sessionID, "wire.jsonl"))
+func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	matches, err := filepath.Glob(filepath.Join(c.sessionsDir, "*", sessionID, "wire.jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("glob kimi session: %w", err)
 	}
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("%w: kimi session file not found for %s", ErrSessionDataNotFound, sessionID)
+		return nil, fmt.Errorf("%w: kimi session file not found for %s", ai.ErrSessionDataNotFound, sessionID)
 	}
-	return kimiParse(sessionID, matches[0])
+	return parseKimiFile(matches[0])
 }
 
-func kimiParse(sessionID, path string) ([]SessionTokenUsage, error) {
+func parseKimiFile(path string) ([]ai.TokenUsage, error) {
 	var last *kimiTokenUsage
-	err := scanJSONLFile(path, func(data []byte) {
+	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
 		var line kimiJSONLLine
 		if err := json.Unmarshal(data, &line); err != nil {
 			return
@@ -62,11 +70,9 @@ func kimiParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		return nil, fmt.Errorf("scan kimi session file: %w", err)
 	}
 	if last == nil {
-		return nil, fmt.Errorf("%w: no StatusUpdate found in %s", ErrSessionDataNotFound, path)
+		return nil, fmt.Errorf("%w: no StatusUpdate found in %s", ai.ErrSessionDataNotFound, path)
 	}
-	return []SessionTokenUsage{{
-		SessionID:           sessionID,
-		AgentType:           ai.EngineKimi,
+	return []ai.TokenUsage{{
 		Model:               kimiModel,
 		InputTokens:         last.InputOther,
 		OutputTokens:        last.Output,

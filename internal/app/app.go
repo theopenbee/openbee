@@ -35,7 +35,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/mcp"
-	"github.com/theopenbee/openbee/internal/tokenstat"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
@@ -43,6 +42,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
+	"github.com/theopenbee/openbee/internal/tokenstat"
 	webui "github.com/theopenbee/openbee/web"
 )
 
@@ -175,7 +175,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore)
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -253,14 +253,15 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 
 // buildAllEngines initializes engine adapters shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
+	os.Setenv("OPENBEE_URL", cfg.MCPBaseURL) //nolint:errcheck
+
 	result := make(map[string]ai.EngineAdapter)
 	for _, name := range ai.AllEngines() {
 		if !cfg.Engines.IsEnabled(name) {
 			continue
 		}
 		adapter, err := ai.New(name, ai.EngineConfig{
-			OpenbeeURL: cfg.MCPBaseURL,
-			Raw:        cfg.EngineConfigRawFor(name),
+			Raw: cfg.EngineConfigRawFor(name),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("init engine %q: %w", name, err)

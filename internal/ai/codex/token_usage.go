@@ -1,28 +1,41 @@
-package tokenstat
+package codex
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
-type codexParser struct {
+// Collector reads the openbee-UUID → codex-thread-ID mapping written by
+// SessionStore, then locates the session JSONL under codexBase/sessions/.
+type Collector struct {
 	mappingDir string
 	codexBase  string
 }
 
-func NewCodexParser(mappingDir string) Parser {
+// NewCollector builds a Collector using the default mapping directory and
+// CODEX_HOME (or ~/.codex if unset).
+func NewCollector() *Collector {
 	codexBase := os.Getenv("CODEX_HOME")
 	if codexBase == "" {
 		home, _ := os.UserHomeDir()
 		codexBase = filepath.Join(home, ".codex")
 	}
-	return &codexParser{mappingDir: mappingDir, codexBase: codexBase}
+	return NewCollectorAt(config.DefaultCodexSessionsDir(), codexBase)
+}
+
+// NewCollectorAt is a test seam allowing arbitrary mapping/codex roots.
+func NewCollectorAt(mappingDir, codexBase string) *Collector {
+	return &Collector{mappingDir: mappingDir, codexBase: codexBase}
 }
 
 type codexJSONLLine struct {
@@ -74,11 +87,11 @@ func (l codexJSONLLine) tokenInfo() *codexTokenInfo {
 	return l.Info
 }
 
-func (p *codexParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
-	data, err := os.ReadFile(filepath.Join(p.mappingDir, sessionID))
+func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	data, err := os.ReadFile(filepath.Join(c.mappingDir, sessionID))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%w: read codex mapping for session %s", ErrSessionDataNotFound, sessionID)
+			return nil, fmt.Errorf("%w: read codex mapping for session %s", ai.ErrSessionDataNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("read codex mapping for session %s: %w", sessionID, err)
 	}
@@ -86,18 +99,18 @@ func (p *codexParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
 	if codexSessionID == "" {
 		return nil, fmt.Errorf("empty codex session id in mapping for %s", sessionID)
 	}
-	path, err := findCodexSessionFile(p.codexBase, codexSessionID)
+	path, err := findCodexSessionFile(c.codexBase, codexSessionID)
 	if err != nil {
-		if errors.Is(err, ErrSessionDataNotFound) {
-			return nil, fmt.Errorf("%w: codex session file not found for %s", ErrSessionDataNotFound, codexSessionID)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%w: codex session file not found for %s", ai.ErrSessionDataNotFound, codexSessionID)
 		}
 		return nil, err
 	}
-	return codexParse(sessionID, path)
+	return parseCodexFile(path)
 }
 
 func findCodexSessionFile(codexBase, sessionID string) (string, error) {
-	return findWithLegacyFast(
+	return sessionfile.FindWithLegacyFast(
 		filepath.Join(codexBase, "sessions"),
 		sessionID+".jsonl",
 		func(_ string, d os.DirEntry) bool {
@@ -106,11 +119,11 @@ func findCodexSessionFile(codexBase, sessionID string) (string, error) {
 	)
 }
 
-func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	agg := map[string]*SessionTokenUsage{}
+func parseCodexFile(path string) ([]ai.TokenUsage, error) {
+	agg := map[string]*ai.TokenUsage{}
 	prevByModel := map[string]*codexTokenUsage{}
 	currentModel := ""
-	err := scanJSONLFile(path, func(data []byte) {
+	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
 		var line codexJSONLLine
 		if err := json.Unmarshal(data, &line); err != nil {
 			return
@@ -132,7 +145,11 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			if m == "" {
 				return
 			}
-			u := getOrCreate(agg, sessionID, ai.EngineCodex, m)
+			u, ok := agg[m]
+			if !ok {
+				u = &ai.TokenUsage{Model: m}
+				agg[m] = u
+			}
 			if prevByModel[m] == nil {
 				prevByModel[m] = &codexTokenUsage{}
 			}
@@ -155,10 +172,10 @@ func codexParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan codex session file: %w", err)
 	}
-	return mapValues(agg), nil
+	return ai.DrainUsageMap(agg), nil
 }
 
-func addCodexUsage(dst *SessionTokenUsage, usage codexTokenUsage) {
+func addCodexUsage(dst *ai.TokenUsage, usage codexTokenUsage) {
 	dst.InputTokens += usage.InputTokens
 	dst.OutputTokens += usage.OutputTokens
 	dst.CacheReadTokens += usage.CachedInputTokens

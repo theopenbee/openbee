@@ -10,7 +10,7 @@ import (
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
-	a, err := pi.NewAdapter("echo", "http://localhost:9999", nil)
+	a, err := pi.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestAdapter_Prepare_NoOp(t *testing.T) {
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
-	a, err := pi.NewAdapter("echo", "http://localhost:9999", nil)
+	a, err := pi.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}

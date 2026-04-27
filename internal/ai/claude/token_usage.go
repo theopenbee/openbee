@@ -1,24 +1,29 @@
-package tokenstat
+package claude
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
 const syntheticModel = "<synthetic>"
 
-type claudeParser struct {
+type Collector struct {
 	baseDirs []string
 }
 
-func NewClaudeParser() Parser {
-	return &claudeParser{baseDirs: claudeBaseDirs()}
+// NewCollector builds a Collector using CLAUDE_CONFIG_DIR (colon-separated)
+// or the standard ~/.claude and ~/.config/claude locations.
+func NewCollector() *Collector {
+	return &Collector{baseDirs: claudeBaseDirs()}
 }
 
 func claudeBaseDirs() []string {
@@ -45,27 +50,27 @@ type claudeJSONLLine struct {
 	} `json:"message"`
 }
 
-func (p *claudeParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
+func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	name := sessionID + ".jsonl"
-	for _, base := range p.baseDirs {
-		path, err := findWithLegacyFast(
+	for _, base := range c.baseDirs {
+		path, err := sessionfile.FindWithLegacyFast(
 			filepath.Join(base, "projects"),
 			name,
 			func(_ string, d os.DirEntry) bool { return d.Name() == name },
 		)
 		if err == nil {
-			return claudeParse(sessionID, path)
+			return parseClaudeFile(path)
 		}
-		if !errors.Is(err, ErrSessionDataNotFound) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
 	}
-	return nil, fmt.Errorf("%w: claude session file not found for %s", ErrSessionDataNotFound, sessionID)
+	return nil, fmt.Errorf("%w: claude session file not found for %s", ai.ErrSessionDataNotFound, sessionID)
 }
 
-func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	agg := map[string]*SessionTokenUsage{}
-	err := scanJSONLFile(path, func(data []byte) {
+func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
+	agg := map[string]*ai.TokenUsage{}
+	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
 		var line claudeJSONLLine
 		if err := json.Unmarshal(data, &line); err != nil {
 			return
@@ -77,7 +82,11 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 		if line.Message.Speed == "fast" {
 			m += "-fast"
 		}
-		u := getOrCreate(agg, sessionID, ai.EngineClaude, m)
+		u, ok := agg[m]
+		if !ok {
+			u = &ai.TokenUsage{Model: m}
+			agg[m] = u
+		}
 		u.InputTokens += line.Message.Usage.InputTokens
 		u.OutputTokens += line.Message.Usage.OutputTokens
 		u.CacheCreationTokens += line.Message.Usage.CacheCreationInputTokens
@@ -86,5 +95,5 @@ func claudeParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan claude session file: %w", err)
 	}
-	return mapValues(agg), nil
+	return ai.DrainUsageMap(agg), nil
 }

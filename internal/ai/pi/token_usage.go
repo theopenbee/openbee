@@ -1,26 +1,35 @@
-package tokenstat
+package pi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
-type piParser struct {
+type Collector struct {
 	sessionsDir string
 }
 
-func NewPiParser() Parser {
+// NewCollector builds a Collector using PI_AGENT_DIR or the config default.
+func NewCollector() *Collector {
 	dir := os.Getenv("PI_AGENT_DIR")
 	if dir == "" {
 		dir = config.DefaultPiSessionsDir()
 	}
-	return &piParser{sessionsDir: dir}
+	return NewCollectorAt(dir)
+}
+
+// NewCollectorAt is a test seam allowing an arbitrary sessions root.
+func NewCollectorAt(dir string) *Collector {
+	return &Collector{sessionsDir: dir}
 }
 
 type piJSONLLine struct {
@@ -37,22 +46,22 @@ type piJSONLLine struct {
 	} `json:"message"`
 }
 
-func (p *piParser) Parse(sessionID string) ([]SessionTokenUsage, error) {
-	path, err := findWithLegacyFast(p.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
+func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	path, err := sessionfile.FindWithLegacyFast(c.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
-		if errors.Is(err, ErrSessionDataNotFound) {
-			return nil, fmt.Errorf("%w: pi session file not found for %s", ErrSessionDataNotFound, sessionID)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%w: pi session file not found for %s", ai.ErrSessionDataNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("pi session file lookup for %s: %w", sessionID, err)
 	}
-	return piParse(sessionID, path)
+	return parsePiFile(path)
 }
 
-func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
-	agg := map[string]*SessionTokenUsage{}
-	err := scanJSONLFile(path, func(data []byte) {
+func parsePiFile(path string) ([]ai.TokenUsage, error) {
+	agg := map[string]*ai.TokenUsage{}
+	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
 		var line piJSONLLine
 		if err := json.Unmarshal(data, &line); err != nil {
 			return
@@ -61,7 +70,11 @@ func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
 			return
 		}
 		m := line.Message.Model
-		u := getOrCreate(agg, sessionID, ai.EnginePi, m)
+		u, ok := agg[m]
+		if !ok {
+			u = &ai.TokenUsage{Model: m}
+			agg[m] = u
+		}
 		u.InputTokens += line.Message.Usage.Input
 		u.OutputTokens += line.Message.Usage.Output
 		u.CacheCreationTokens += line.Message.Usage.CacheWrite
@@ -70,5 +83,5 @@ func piParse(sessionID, path string) ([]SessionTokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan pi session file: %w", err)
 	}
-	return mapValues(agg), nil
+	return ai.DrainUsageMap(agg), nil
 }
