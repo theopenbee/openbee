@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { Search, Shuffle, Loader2 } from "lucide-react"
-import { useUpdateWorker, useRandomWorkerName } from "@/hooks/use-workers"
+import { Search } from "lucide-react"
+import { useUpdateWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { Button } from "@/components/ui/button"
@@ -9,11 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   Sheet,
   SheetContent,
@@ -30,6 +25,7 @@ import {
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
+import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
@@ -55,8 +51,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
-  const randomName = useRandomWorkerName()
-  const nameExhausted = randomName.data?.exhausted ?? false
 
   useEffect(() => {
     if (open) {
@@ -67,19 +61,8 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setEngineArgs(worker.engine_args ?? {})
       setDeptSearch("")
       setSubmitError("")
-      randomName.reset()
     }
   }, [open, worker, enabledEngines])
-
-  const handleRandomName = async () => {
-    try {
-      const result = await randomName.mutateAsync()
-      if (!result.exhausted && result.name) {
-        setName(result.name)
-      }
-    } catch {
-    }
-  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -91,8 +74,9 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         stripEmptyEngineArgs(engineArgs),
         worker.engine_args ?? {},
       )
+      const nameChanged = name !== worker.name
       const workerChanged =
-        name !== worker.name ||
+        nameChanged ||
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
         engineArgsChanged
@@ -101,7 +85,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       const ops: Promise<unknown>[] = []
       if (workerChanged) {
         const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
-        if (name !== worker.name) data.name = name
+        if (nameChanged) data.name = name
         ops.push(updateWorker.mutateAsync({ id: worker.id, data }))
       }
       if (deptsChanged) {
@@ -143,45 +127,13 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ewis-name">
-                {t("workers.form.name")}
-                <span className="ml-1 text-destructive" aria-hidden>*</span>
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="ewis-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t("workers.form.namePlaceholder")}
-                  required
-                  className="flex-1"
-                />
-                <Tooltip open={nameExhausted || undefined}>
-                  <TooltipTrigger render={<span className="inline-flex" />}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      disabled={nameExhausted || randomName.isPending}
-                      onClick={handleRandomName}
-                      aria-label={t("workers.form.randomName")}
-                    >
-                      {randomName.isPending
-                        ? <Loader2 className="size-4 animate-spin" />
-                        : <Shuffle className="size-4" />
-                      }
-                    </Button>
-                  </TooltipTrigger>
-                  {nameExhausted && (
-                    <TooltipContent>
-                      <p>{t("workers.form.randomNameExhausted")}</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </div>
-              <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
-            </div>
+            <WorkerNameField
+              id="ewis-name"
+              open={open}
+              value={name}
+              onChange={setName}
+              onError={setSubmitError}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="ewis-desc">{t("workers.form.description")}</Label>
