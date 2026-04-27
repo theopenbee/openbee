@@ -9,7 +9,6 @@ import (
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -18,16 +17,32 @@ import (
 
 const syncInterval = 10 * time.Minute
 
+// Syncer periodically reads completed sessions from bee_executions and asks
+// the matching engine adapter to produce per-model token usage, then upserts
+// into bee_token_stats. Engines whose bee_executions.engine field is empty
+// (legacy data) are dispatched through a fixed fallback chain.
 type Syncer struct {
-	db          *sql.DB
-	tokenStore  *store.TokenStatsStore
-	parsers     map[string]Parser
-	engines     []string
-	collectSQL  string
-	engineArgs  []any
+	db         *sql.DB
+	tokenStore *store.TokenStatsStore
+
+	// adapters maps engine name → adapter. Always non-empty for non-legacy rows.
+	adapters map[string]ai.EngineAdapter
+
+	// fallbackOrder is the deterministic engine name order used when
+	// dispatching a session whose engine field is empty. Each name must
+	// appear in adapters; absent names are silently skipped.
+	fallbackOrder []string
+
+	// engines, collectSQL, engineArgs are precomputed for collectSessions.
+	engines    []string
+	collectSQL string
+	engineArgs []any
 }
 
-func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
+// NewSyncer builds a Syncer that dispatches to the supplied adapters.
+// fallbackOrder controls the legacy fallback chain — pass ai.AllEngines()
+// to preserve the historical chain order.
+func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore, adapters map[string]ai.EngineAdapter, fallbackOrder []string) *Syncer {
 	engines := ai.AllEngines()
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(engines)), ",")
 	collectSQL := fmt.Sprintf(`
@@ -43,17 +58,13 @@ func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore) *Syncer {
 		engineArgs[i] = e
 	}
 	return &Syncer{
-		db:         db,
-		tokenStore: tokenStore,
-		engines:    engines,
-		collectSQL: collectSQL,
-		engineArgs: engineArgs,
-		parsers: map[string]Parser{
-			ai.EngineClaude: NewClaudeParser(),
-			ai.EngineCodex:  NewCodexParser(config.DefaultCodexSessionsDir()),
-			ai.EnginePi:     NewPiParser(),
-			ai.EngineKimi:   NewKimiParser(),
-		},
+		db:            db,
+		tokenStore:    tokenStore,
+		adapters:      adapters,
+		fallbackOrder: fallbackOrder,
+		engines:       engines,
+		collectSQL:    collectSQL,
+		engineArgs:    engineArgs,
 	}
 }
 
@@ -86,7 +97,7 @@ func (s *Syncer) SyncOnce(ctx context.Context) {
 	logger.Info("tokenstat: syncing sessions", zap.Int("count", len(sessions)))
 	var synced, failed int
 	for _, item := range sessions {
-		if err := s.syncSession(item.sessionID, item.engine); err != nil {
+		if err := s.syncSession(ctx, item.sessionID, item.engine); err != nil {
 			failed++
 			logger.Warn("tokenstat: sync session failed",
 				zap.String("session_id", item.sessionID),
@@ -124,70 +135,81 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 	return items, rows.Err()
 }
 
-func (s *Syncer) syncSession(sessionID, engine string) error {
-	var firstErr error
-	for _, parserName := range s.parserOrder(engine) {
-		parser := s.parsers[parserName]
-		usages, err := parser.Parse(sessionID)
-		if err != nil {
-			if errors.Is(err, ErrSessionDataNotFound) {
-				logger.Debug("tokenstat: session data not found",
-					zap.String("session_id", sessionID),
-					zap.String("parser", parserName))
-				continue
-			}
-			logger.Warn("tokenstat: parser error",
-				zap.String("session_id", sessionID),
-				zap.String("parser", parserName),
-				zap.Error(err))
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s parser: %w", parserName, err)
-			}
+// syncSession dispatches one session to the appropriate adapter.
+//   - If item.engine is non-empty and registered: call that adapter once.
+//   - If item.engine is empty OR not registered (legacy data, or an engine
+//     that's no longer compiled in): walk fallbackOrder, advancing only
+//     when the adapter reports ErrSessionDataNotFound.
+func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) error {
+	if engine != "" {
+		if adapter, ok := s.adapters[engine]; ok {
+			return s.tryAdapter(ctx, sessionID, engine, adapter)
+		}
+	}
+
+	// Empty or unknown engine → fallback chain.
+	var sawNotFound bool
+	for _, name := range s.fallbackOrder {
+		adapter, ok := s.adapters[name]
+		if !ok {
 			continue
 		}
-		if len(usages) == 0 {
+		err := s.tryAdapter(ctx, sessionID, name, adapter)
+		if err == nil || !errors.Is(err, ai.ErrSessionDataNotFound) {
+			return err
+		}
+		sawNotFound = true
+	}
+	if sawNotFound {
+		return s.tombstone(sessionID, "no adapter found data (legacy fallback)")
+	}
+	return s.tombstone(sessionID, "no adapters available")
+}
+
+// tryAdapter calls the adapter's CollectTokenUsage and persists the result.
+//   - usages non-empty → upsert and return nil
+//   - usages empty + err == nil → tombstone and return nil
+//   - err == ErrSessionDataNotFound → propagate so the caller can fall through
+//   - other err → propagate (the caller logs and counts as failed)
+func (s *Syncer) tryAdapter(ctx context.Context, sessionID, engine string, adapter ai.EngineAdapter) error {
+	usages, err := adapter.CollectTokenUsage(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, ai.ErrSessionDataNotFound) {
 			logger.Debug("tokenstat: session data not found",
 				zap.String("session_id", sessionID),
-				zap.String("parser", parserName))
-			continue
+				zap.String("engine", engine))
+			return err
 		}
-		if err := s.storeUsages(usages); err != nil {
-			return fmt.Errorf("store usages: %w", err)
-		}
-		logger.Info("tokenstat: session synced",
-			zap.String("session_id", sessionID),
-			zap.String("parser", parserName),
-			zap.Int("models", len(usages)))
-		return nil
+		return fmt.Errorf("%s collector: %w", engine, err)
 	}
-	if firstErr != nil {
-		return firstErr
-	}
-	if engine == "" {
-		logger.Debug("tokenstat: legacy session has no data, writing tombstone",
-			zap.String("session_id", sessionID))
-	} else {
-		logger.Warn("tokenstat: no token data found for session, writing tombstone",
+	if len(usages) == 0 {
+		logger.Debug("tokenstat: session located but empty, writing tombstone",
 			zap.String("session_id", sessionID),
 			zap.String("engine", engine))
+		return s.tombstone(sessionID, "empty usages")
 	}
-	return s.storeUsages([]SessionTokenUsage{{SessionID: sessionID, Model: store.TombstoneModel}})
+	if err := s.storeUsages(sessionID, engine, usages); err != nil {
+		return fmt.Errorf("store usages: %w", err)
+	}
+	logger.Info("tokenstat: session synced",
+		zap.String("session_id", sessionID),
+		zap.String("engine", engine),
+		zap.Int("models", len(usages)))
+	return nil
 }
 
-func (s *Syncer) parserOrder(preferred string) []string {
-	if _, ok := s.parsers[preferred]; preferred == "" || !ok {
-		return s.engines
-	}
-	order := []string{preferred}
-	for _, name := range s.engines {
-		if name != preferred {
-			order = append(order, name)
-		}
-	}
-	return order
+func (s *Syncer) tombstone(sessionID, reason string) error {
+	logger.Debug("tokenstat: tombstoning session",
+		zap.String("session_id", sessionID),
+		zap.String("reason", reason))
+	return s.upsertRows(sessionID, "", []ai.TokenUsage{{Model: store.TombstoneModel}})
 }
 
-func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
+func (s *Syncer) storeUsages(sessionID, engine string, usages []ai.TokenUsage) error {
+	return s.upsertRows(sessionID, engine, usages)
+}
+
+func (s *Syncer) upsertRows(sessionID, agentType string, usages []ai.TokenUsage) error {
 	if len(usages) == 0 {
 		return nil
 	}
@@ -199,8 +221,8 @@ func (s *Syncer) storeUsages(usages []SessionTokenUsage) error {
 	defer tx.Rollback() //nolint:errcheck
 	for _, u := range usages {
 		if err := s.tokenStore.UpsertTx(tx, model.TokenStats{
-			SessionID:           u.SessionID,
-			AgentType:           u.AgentType,
+			SessionID:           sessionID,
+			AgentType:           agentType,
 			Model:               u.Model,
 			InputTokens:         u.InputTokens,
 			OutputTokens:        u.OutputTokens,

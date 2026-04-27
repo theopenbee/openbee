@@ -175,7 +175,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore)
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
