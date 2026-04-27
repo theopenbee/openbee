@@ -64,10 +64,11 @@ func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
 }
 
 // BuildBaseEnv constructs the base environment for engine subprocesses.
-// It prepends the current executable's directory to PATH and appends OPENBEE_URL.
-func BuildBaseEnv(openbeeURL string) []string {
+// It prepends the current executable's directory to PATH.
+// OPENBEE_URL is inherited from the server process environment (set via os.Setenv at startup).
+func BuildBaseEnv() []string {
 	sysEnv := os.Environ()
-	env := make([]string, 0, len(sysEnv)+2)
+	env := make([]string, 0, len(sysEnv)+1)
 	if exePath, err := os.Executable(); err == nil {
 		oldPath := os.Getenv("PATH")
 		for _, e := range sysEnv {
@@ -79,7 +80,6 @@ func BuildBaseEnv(openbeeURL string) []string {
 	} else {
 		env = append(env, sysEnv...)
 	}
-	env = append(env, "OPENBEE_URL="+openbeeURL)
 	// Clip to length so concurrent append calls in Run() cannot share the backing array.
 	return env[:len(env):len(env)]
 }

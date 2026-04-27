@@ -23,12 +23,12 @@ type Invoker struct {
 	sessionDir string   // ~/.openbee/.pi/sessions, created once at startup
 }
 
-func NewInvoker(binary, openbeeURL string, extraEnv map[string]string) (*Invoker, error) {
+func NewInvoker(binary string, extraEnv map[string]string) (*Invoker, error) {
 	sessionDir := config.DefaultPiSessionsDir()
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
-	base := ai.BuildBaseEnv(openbeeURL)
+	base := ai.BuildBaseEnv()
 	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), sessionDir: sessionDir}, nil
 }
 

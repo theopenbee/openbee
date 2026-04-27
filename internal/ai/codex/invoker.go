@@ -23,10 +23,10 @@ type Invoker struct {
 	store   *SessionStore
 }
 
-// NewInvoker creates an Invoker. openbeeURL is injected as OPENBEE_URL into subprocesses.
-// extraEnv entries are merged into the base environment at lowest priority.
-func NewInvoker(binary, openbeeURL string, store *SessionStore, extraEnv map[string]string) *Invoker {
-	base := ai.BuildBaseEnv(openbeeURL)
+// NewInvoker creates an Invoker. extraEnv entries are merged into the base environment at lowest priority.
+// OPENBEE_URL is inherited from the server process environment.
+func NewInvoker(binary string, store *SessionStore, extraEnv map[string]string) *Invoker {
+	base := ai.BuildBaseEnv()
 	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), store: store}
 }
 

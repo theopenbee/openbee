@@ -8,7 +8,7 @@ import (
 
 func init() {
 	ai.Register(ai.EngineKimi, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		return NewAdapter(cfg.PathOrDefault(ai.EngineKimi), cfg.OpenbeeURL, cfg.ExtraEnv()), nil
+		return NewAdapter(cfg.PathOrDefault(ai.EngineKimi), cfg.ExtraEnv()), nil
 	})
 }
 
@@ -17,9 +17,9 @@ type kimiAdapter struct {
 	collector *Collector
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
+func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &kimiAdapter{
-		invoker:   NewInvoker(binaryPath, openbeeURL, extraEnv),
+		invoker:   NewInvoker(binaryPath, extraEnv),
 		collector: NewCollector(),
 	}
 }

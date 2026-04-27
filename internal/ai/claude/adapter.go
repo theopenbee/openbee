@@ -14,7 +14,7 @@ import (
 
 func init() {
 	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.OpenbeeURL, cfg.ExtraEnv()), nil
+		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.ExtraEnv()), nil
 	})
 }
 
@@ -23,9 +23,9 @@ type claudeAdapter struct {
 	collector *Collector
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
+func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &claudeAdapter{
-		invoker:   NewInvoker(binaryPath, openbeeURL, extraEnv),
+		invoker:   NewInvoker(binaryPath, extraEnv),
 		collector: NewCollector(),
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 func init() {
 	ai.Register(ai.EngineCodex, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		return NewAdapter(cfg.PathOrDefault(ai.EngineCodex), cfg.OpenbeeURL, cfg.ExtraEnv())
+		return NewAdapter(cfg.PathOrDefault(ai.EngineCodex), cfg.ExtraEnv())
 	})
 }
 
@@ -18,13 +18,13 @@ type codexAdapter struct {
 	collector *Collector
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.EngineAdapter, error) {
+func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter, error) {
 	store, err := NewSessionStore()
 	if err != nil {
 		return nil, fmt.Errorf("init codex session store: %w", err)
 	}
 	return &codexAdapter{
-		invoker:   NewInvoker(binaryPath, openbeeURL, store, extraEnv),
+		invoker:   NewInvoker(binaryPath, store, extraEnv),
 		collector: NewCollector(),
 	}, nil
 }

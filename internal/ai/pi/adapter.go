@@ -8,7 +8,7 @@ import (
 
 func init() {
 	ai.Register(ai.EnginePi, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
-		return NewAdapter(cfg.PathOrDefault(ai.EnginePi), cfg.OpenbeeURL, cfg.ExtraEnv())
+		return NewAdapter(cfg.PathOrDefault(ai.EnginePi), cfg.ExtraEnv())
 	})
 }
 
@@ -17,8 +17,8 @@ type piAdapter struct {
 	collector *Collector
 }
 
-func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.EngineAdapter, error) {
-	inv, err := NewInvoker(binaryPath, openbeeURL, extraEnv)
+func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter, error) {
+	inv, err := NewInvoker(binaryPath, extraEnv)
 	if err != nil {
 		return nil, err
 	}
