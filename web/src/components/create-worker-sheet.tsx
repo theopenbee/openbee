@@ -134,16 +134,6 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
     }
   }
 
-  const handleRandomName = async () => {
-    try {
-      const result = await randomName.mutateAsync()
-      if (!result.exhausted && result.name) {
-        setName(result.name)
-      }
-    } catch {
-    }
-  }
-
   const isPending = createWorker.isPending || setWorkerDepts.isPending
 
   const filteredDepts = deptSearch.trim()
