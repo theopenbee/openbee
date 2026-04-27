@@ -13,7 +13,8 @@ func init() {
 }
 
 type piAdapter struct {
-	invoker *Invoker
+	invoker   *Invoker
+	collector *Collector
 }
 
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.EngineAdapter, error) {
@@ -21,7 +22,7 @@ func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) (ai.E
 	if err != nil {
 		return nil, err
 	}
-	return &piAdapter{invoker: inv}, nil
+	return &piAdapter{invoker: inv, collector: NewCollector()}, nil
 }
 
 func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
@@ -34,8 +35,8 @@ func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
-func (a *piAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (a *piAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return a.collector.Collect(ctx, sessionID)
 }
 
 var _ ai.EngineAdapter = (*piAdapter)(nil)
