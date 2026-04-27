@@ -16,6 +16,8 @@ import (
 
 const syncInterval = 10 * time.Minute
 
+var tombstoneUsages = []ai.TokenUsage{{Model: store.TombstoneModel}}
+
 // Syncer periodically reads completed sessions from bee_executions and asks
 // the matching engine adapter to produce per-model token usage, then upserts
 // into bee_token_stats. Engines whose bee_executions.engine field is empty
@@ -32,7 +34,6 @@ type Syncer struct {
 	// appear in adapters; absent names are silently skipped.
 	fallbackOrder []string
 
-	// collectSQL is precomputed for collectSessions.
 	collectSQL string
 }
 
@@ -123,11 +124,8 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 	return items, rows.Err()
 }
 
-// syncSession dispatches one session to the appropriate adapter.
-//   - If item.engine is non-empty and registered: call that adapter once.
-//   - If item.engine is empty OR not registered (legacy data, or an engine
-//     that's no longer compiled in): walk fallbackOrder, advancing only
-//     when the adapter reports ErrSessionDataNotFound.
+// syncSession dispatches one session to the appropriate adapter. A known engine
+// is tried once; an empty/unregistered engine walks the fallback chain.
 func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) error {
 	if engine != "" {
 		if adapter, ok := s.adapters[engine]; ok {
@@ -158,11 +156,6 @@ func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) erro
 	return s.tombstone(sessionID, "no adapters available")
 }
 
-// tryAdapter calls the adapter's CollectTokenUsage and persists the result.
-//   - usages non-empty → upsert and return nil
-//   - usages empty + err == nil → tombstone and return nil
-//   - err == ErrSessionDataNotFound → propagate so the caller can fall through
-//   - other err → propagate (the caller logs and counts as failed)
 func (s *Syncer) tryAdapter(ctx context.Context, sessionID, engine string, adapter ai.EngineAdapter) error {
 	usages, err := adapter.CollectTokenUsage(ctx, sessionID)
 	if err != nil {
@@ -180,7 +173,7 @@ func (s *Syncer) tryAdapter(ctx context.Context, sessionID, engine string, adapt
 			zap.String("engine", engine))
 		return s.tombstone(sessionID, "empty usages")
 	}
-	if err := s.storeUsages(sessionID, engine, usages); err != nil {
+	if err := s.upsertRows(sessionID, engine, usages); err != nil {
 		return fmt.Errorf("store usages: %w", err)
 	}
 	logger.Info("tokenstat: session synced",
@@ -194,11 +187,7 @@ func (s *Syncer) tombstone(sessionID, reason string) error {
 	logger.Debug("tokenstat: tombstoning session",
 		zap.String("session_id", sessionID),
 		zap.String("reason", reason))
-	return s.upsertRows(sessionID, "", []ai.TokenUsage{{Model: store.TombstoneModel}})
-}
-
-func (s *Syncer) storeUsages(sessionID, engine string, usages []ai.TokenUsage) error {
-	return s.upsertRows(sessionID, engine, usages)
+	return s.upsertRows(sessionID, "", tombstoneUsages)
 }
 
 func (s *Syncer) upsertRows(sessionID, agentType string, usages []ai.TokenUsage) error {

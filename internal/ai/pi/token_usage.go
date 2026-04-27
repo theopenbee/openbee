@@ -24,6 +24,11 @@ func NewCollector() *Collector {
 	if dir == "" {
 		dir = config.DefaultPiSessionsDir()
 	}
+	return NewCollectorAt(dir)
+}
+
+// NewCollectorAt is a test seam allowing an arbitrary sessions root.
+func NewCollectorAt(dir string) *Collector {
 	return &Collector{sessionsDir: dir}
 }
 
