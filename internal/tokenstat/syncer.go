@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -33,38 +32,27 @@ type Syncer struct {
 	// appear in adapters; absent names are silently skipped.
 	fallbackOrder []string
 
-	// engines, collectSQL, engineArgs are precomputed for collectSessions.
-	engines    []string
+	// collectSQL is precomputed for collectSessions.
 	collectSQL string
-	engineArgs []any
 }
 
 // NewSyncer builds a Syncer that dispatches to the supplied adapters.
 // fallbackOrder controls the legacy fallback chain — pass ai.AllEngines()
 // to preserve the historical chain order.
 func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore, adapters map[string]ai.EngineAdapter, fallbackOrder []string) *Syncer {
-	engines := ai.AllEngines()
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(engines)), ",")
-	collectSQL := fmt.Sprintf(`
+	collectSQL := `
 		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
 		LEFT JOIN bee_token_stats ts ON ts.session_id = e.session_id
-		WHERE (e.engine = '' OR e.engine IN (%s))
 		GROUP BY e.session_id
 		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
-		LIMIT 500`, placeholders)
-	engineArgs := make([]any, len(engines))
-	for i, e := range engines {
-		engineArgs[i] = e
-	}
+		LIMIT 500`
 	return &Syncer{
 		db:            db,
 		tokenStore:    tokenStore,
 		adapters:      adapters,
 		fallbackOrder: fallbackOrder,
-		engines:       engines,
 		collectSQL:    collectSQL,
-		engineArgs:    engineArgs,
 	}
 }
 
@@ -118,7 +106,7 @@ type sessionItem struct {
 }
 
 func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
-	rows, err := s.db.QueryContext(ctx, s.collectSQL, s.engineArgs...)
+	rows, err := s.db.QueryContext(ctx, s.collectSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +131,11 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) error {
 	if engine != "" {
 		if adapter, ok := s.adapters[engine]; ok {
-			return s.tryAdapter(ctx, sessionID, engine, adapter)
+			err := s.tryAdapter(ctx, sessionID, engine, adapter)
+			if errors.Is(err, ai.ErrSessionDataNotFound) {
+				return s.tombstone(sessionID, "known engine: session data not found")
+			}
+			return err
 		}
 	}
 
