@@ -18,6 +18,9 @@ func (s *stubAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 func (s *stubAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
 }
+func (s *stubAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
 
 func TestRegistry_NewReturnsRegisteredEngine(t *testing.T) {
 	r := ai.NewRegistry()

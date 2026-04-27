@@ -100,4 +100,9 @@ type EngineAdapter interface {
 	// is closed after the process exits.
 	Run(ctx context.Context, workDir, prompt string,
 		opts RunOptions, logPath string) (RunResult, error)
+
+	// CollectTokenUsage reads per-turn token usage for the given session from
+	// engine-specific storage. Returns ErrSessionDataNotFound when no data is
+	// available for the session.
+	CollectTokenUsage(ctx context.Context, sessionID string) ([]TokenUsage, error)
 }

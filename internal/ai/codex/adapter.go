@@ -35,4 +35,8 @@ func (a *codexAdapter) Run(ctx context.Context, workDir, prompt string,
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
+func (a *codexAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
 var _ ai.EngineAdapter = (*codexAdapter)(nil)
