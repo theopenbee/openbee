@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Add worker name editing support
 - Add agent token usage statistics
 - Add engine args support at both global and worker levels, allowing different workers to be configured with different models, thinking depth, and other engine-specific options
 

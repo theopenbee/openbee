@@ -25,6 +25,7 @@ import {
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
+import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
@@ -43,6 +44,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
 
+  const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
@@ -52,6 +54,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
   useEffect(() => {
     if (open) {
+      setName(worker.name ?? "")
       setDescription(worker.description ?? "")
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
@@ -71,7 +74,9 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         stripEmptyEngineArgs(engineArgs),
         worker.engine_args ?? {},
       )
+      const nameChanged = name !== worker.name
       const workerChanged =
+        nameChanged ||
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
         engineArgsChanged
@@ -79,7 +84,9 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
       const ops: Promise<unknown>[] = []
       if (workerChanged) {
-        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine, engine_args: engineArgs } }))
+        const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
+        if (nameChanged) data.name = name
+        ops.push(updateWorker.mutateAsync({ id: worker.id, data }))
       }
       if (deptsChanged) {
         ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
@@ -119,6 +126,14 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 {submitError}
               </div>
             )}
+
+            <WorkerNameField
+              id="ewis-name"
+              open={open}
+              value={name}
+              onChange={setName}
+              onError={setSubmitError}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="ewis-desc">{t("workers.form.description")}</Label>
@@ -217,7 +232,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           <Button
             type="submit"
             form="edit-worker-info-form"
-            disabled={isPending}
+            disabled={isPending || !name.trim()}
             className="flex-1"
           >
             {t("common.save")}
