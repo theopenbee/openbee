@@ -2,12 +2,12 @@ package sessionfile_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/sessionfile"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
 func TestScanJSONLFile(t *testing.T) {
@@ -74,7 +74,7 @@ func TestFindWithLegacyFast_NestedHit(t *testing.T) {
 func TestFindWithLegacyFast_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	_, err := sessionfile.FindWithLegacyFast(dir, "missing.jsonl", func(_ string, _ os.DirEntry) bool { return false })
-	if !errors.Is(err, ai.ErrSessionDataNotFound) {
-		t.Errorf("got err %v, want wraps ErrSessionDataNotFound", err)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("got err %v, want wraps fs.ErrNotExist", err)
 	}
 }

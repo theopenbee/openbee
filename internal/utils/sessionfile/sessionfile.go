@@ -1,5 +1,4 @@
-// Package sessionfile contains shared file discovery and JSONL scanning
-// helpers used by per-engine token-usage collectors.
+// Package sessionfile provides file discovery and JSONL scanning helpers.
 package sessionfile
 
 import (
@@ -9,8 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-
-	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 // 16 MiB: session files can embed base64-encoded content or long conversation turns.
@@ -38,8 +35,8 @@ func ScanJSONLFile(path string, fn func([]byte)) error {
 // (the old session layout). If absent, it walks dir recursively and returns
 // the first file for which match returns true.
 //
-// Returns ai.ErrSessionDataNotFound (wrapped) when nothing matches or when
-// the directory does not exist.
+// Returns fs.ErrNotExist (wrapped) when nothing matches or when the directory
+// does not exist.
 func FindWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
 	legacyPath := filepath.Join(dir, legacyName)
 	if _, err := os.Stat(legacyPath); err == nil {
@@ -65,12 +62,12 @@ func findSessionFile(root string, match func(path string, d fs.DirEntry) bool) (
 	})
 	if err != nil && !errors.Is(err, errStopWalk) {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("%w: %s", ai.ErrSessionDataNotFound, root)
+			return "", fmt.Errorf("%w: %s", fs.ErrNotExist, root)
 		}
 		return "", fmt.Errorf("walk session root %s: %w", root, err)
 	}
 	if found == "" {
-		return "", fmt.Errorf("%w: %s", ai.ErrSessionDataNotFound, root)
+		return "", fmt.Errorf("%w: %s", fs.ErrNotExist, root)
 	}
 	return found, nil
 }

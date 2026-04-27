@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/sessionfile"
 	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
 // Collector reads the openbee-UUID → codex-thread-ID mapping written by
@@ -100,7 +101,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 	}
 	path, err := findCodexSessionFile(c.codexBase, codexSessionID)
 	if err != nil {
-		if errors.Is(err, ai.ErrSessionDataNotFound) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("%w: codex session file not found for %s", ai.ErrSessionDataNotFound, codexSessionID)
 		}
 		return nil, err

@@ -12,7 +12,6 @@ type TokenUsage struct {
 
 var ErrSessionDataNotFound = errors.New("ai: session data not found")
 
-// DrainUsageMap converts a map of usage accumulators to a slice, dereferencing each pointer.
 func DrainUsageMap(agg map[string]*TokenUsage) []TokenUsage {
 	out := make([]TokenUsage, 0, len(agg))
 	for _, u := range agg {

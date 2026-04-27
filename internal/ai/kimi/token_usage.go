@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/sessionfile"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 

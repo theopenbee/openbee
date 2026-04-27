@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/sessionfile"
 	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
 type Collector struct {
@@ -50,7 +51,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
-		if errors.Is(err, ai.ErrSessionDataNotFound) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("%w: pi session file not found for %s", ai.ErrSessionDataNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("pi session file lookup for %s: %w", sessionID, err)

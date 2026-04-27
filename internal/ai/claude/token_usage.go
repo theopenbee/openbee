@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/sessionfile"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
 const syntheticModel = "<synthetic>"
@@ -60,7 +61,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 		if err == nil {
 			return parseClaudeFile(path)
 		}
-		if !errors.Is(err, ai.ErrSessionDataNotFound) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
 	}
