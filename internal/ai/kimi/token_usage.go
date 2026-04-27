@@ -13,7 +13,6 @@ import (
 
 const kimiModel = "kimi"
 
-// Collector extracts token usage from kimi wire.jsonl files.
 type Collector struct {
 	sessionsDir string
 }
@@ -44,7 +43,6 @@ type kimiJSONLLine struct {
 	} `json:"message"`
 }
 
-// Collect implements the per-engine collection contract.
 func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	matches, err := filepath.Glob(filepath.Join(c.sessionsDir, "*", sessionID, "wire.jsonl"))
 	if err != nil {

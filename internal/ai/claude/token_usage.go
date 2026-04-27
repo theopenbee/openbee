@@ -15,7 +15,6 @@ import (
 
 const syntheticModel = "<synthetic>"
 
-// Collector extracts token usage from Claude JSONL session files.
 type Collector struct {
 	baseDirs []string
 }
@@ -50,7 +49,6 @@ type claudeJSONLLine struct {
 	} `json:"message"`
 }
 
-// Collect implements the per-engine collection contract.
 func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	name := sessionID + ".jsonl"
 	for _, base := range c.baseDirs {
@@ -96,9 +94,5 @@ func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan claude session file: %w", err)
 	}
-	out := make([]ai.TokenUsage, 0, len(agg))
-	for _, u := range agg {
-		out = append(out, *u)
-	}
-	return out, nil
+	return ai.DrainUsageMap(agg), nil
 }

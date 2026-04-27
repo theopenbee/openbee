@@ -13,7 +13,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
-// Collector extracts token usage from pi JSONL session files.
 type Collector struct {
 	sessionsDir string
 }
@@ -46,7 +45,6 @@ type piJSONLLine struct {
 	} `json:"message"`
 }
 
-// Collect implements the per-engine collection contract.
 func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	path, err := sessionfile.FindWithLegacyFast(c.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
@@ -84,9 +82,5 @@ func parsePiFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan pi session file: %w", err)
 	}
-	out := make([]ai.TokenUsage, 0, len(agg))
-	for _, u := range agg {
-		out = append(out, *u)
-	}
-	return out, nil
+	return ai.DrainUsageMap(agg), nil
 }

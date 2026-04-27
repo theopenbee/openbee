@@ -16,8 +16,6 @@ import (
 
 const syncInterval = 10 * time.Minute
 
-var tombstoneUsages = []ai.TokenUsage{{Model: store.TombstoneModel}}
-
 // Syncer periodically reads completed sessions from bee_executions and asks
 // the matching engine adapter to produce per-model token usage, then upserts
 // into bee_token_stats. Engines whose bee_executions.engine field is empty
@@ -187,7 +185,7 @@ func (s *Syncer) tombstone(sessionID, reason string) error {
 	logger.Debug("tokenstat: tombstoning session",
 		zap.String("session_id", sessionID),
 		zap.String("reason", reason))
-	return s.upsertRows(sessionID, "", tombstoneUsages)
+	return s.upsertRows(sessionID, "", []ai.TokenUsage{{Model: store.TombstoneModel}})
 }
 
 func (s *Syncer) upsertRows(sessionID, agentType string, usages []ai.TokenUsage) error {

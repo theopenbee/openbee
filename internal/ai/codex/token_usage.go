@@ -14,9 +14,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
-// Collector extracts token usage from codex JSONL session files. It reads the
-// openbee-UUID → codex-thread-ID mapping written by SessionStore (same dir),
-// then locates the codex session JSONL under codexBase/sessions/.
+// Collector reads the openbee-UUID → codex-thread-ID mapping written by
+// SessionStore, then locates the session JSONL under codexBase/sessions/.
 type Collector struct {
 	mappingDir string
 	codexBase  string
@@ -87,7 +86,6 @@ func (l codexJSONLLine) tokenInfo() *codexTokenInfo {
 	return l.Info
 }
 
-// Collect implements the per-engine collection contract.
 func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	data, err := os.ReadFile(filepath.Join(c.mappingDir, sessionID))
 	if err != nil {
@@ -173,11 +171,7 @@ func parseCodexFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan codex session file: %w", err)
 	}
-	out := make([]ai.TokenUsage, 0, len(agg))
-	for _, u := range agg {
-		out = append(out, *u)
-	}
-	return out, nil
+	return ai.DrainUsageMap(agg), nil
 }
 
 func addCodexUsage(dst *ai.TokenUsage, usage codexTokenUsage) {
