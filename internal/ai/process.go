@@ -1,6 +1,8 @@
 package ai
 
 import (
+	"bufio"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,4 +82,17 @@ func BuildBaseEnv(openbeeURL string) []string {
 	env = append(env, "OPENBEE_URL="+openbeeURL)
 	// Clip to length so concurrent append calls in Run() cannot share the backing array.
 	return env[:len(env):len(env)]
+}
+
+// ScanJSONLines reads r line by line and calls fn for each line that starts
+// with '{'. fn returns true to keep scanning or false to stop early.
+func ScanJSONLines(r io.Reader, fn func(line string) bool) {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(nil, 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "{") && !fn(line) {
+			return
+		}
+	}
 }
