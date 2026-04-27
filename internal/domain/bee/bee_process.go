@@ -63,6 +63,10 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
 
+func (b *BeeProcess) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return b.engine.CollectTokenUsage(ctx, sessionID)
+}
+
 func (p *BeeProcess) resolveEngineArgs(ctx context.Context) []string {
 	engineName := p.engineCfg.Get()
 	globalMap := p.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsGlobal)

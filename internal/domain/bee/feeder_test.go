@@ -86,6 +86,10 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
+func (m *mockBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
 func (m *mockBeeRunner) getCalls() []beeCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -580,6 +584,10 @@ type callbackBeeRunner struct {
 
 func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
 	return nil
+}
+
+func (r *callbackBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
 }
 
 func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {

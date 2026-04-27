@@ -28,6 +28,9 @@ func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
 }
+func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
 
 func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 	t.Helper()
