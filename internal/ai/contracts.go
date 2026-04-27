@@ -1,6 +1,9 @@
 package ai
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 const (
 	// SystemRulesFile is the legacy rules file that Claude's Prepare hook cleans up.
@@ -105,4 +108,25 @@ type EngineAdapter interface {
 	// engine-specific storage. Returns ErrSessionDataNotFound when no data is
 	// available for the session.
 	CollectTokenUsage(ctx context.Context, sessionID string) ([]TokenUsage, error)
+}
+
+// TokenUsage holds per-model token consumption for a single session turn.
+type TokenUsage struct {
+	Model               string
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+}
+
+// ErrSessionDataNotFound is returned by CollectTokenUsage when no session data exists.
+var ErrSessionDataNotFound = errors.New("ai: session data not found")
+
+// DrainUsageMap converts a model→*TokenUsage aggregation map into a flat slice.
+func DrainUsageMap(agg map[string]*TokenUsage) []TokenUsage {
+	out := make([]TokenUsage, 0, len(agg))
+	for _, u := range agg {
+		out = append(out, *u)
+	}
+	return out
 }
