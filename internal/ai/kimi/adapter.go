@@ -13,11 +13,15 @@ func init() {
 }
 
 type kimiAdapter struct {
-	invoker *Invoker
+	invoker   *Invoker
+	collector *Collector
 }
 
 func NewAdapter(binaryPath, openbeeURL string, extraEnv map[string]string) ai.EngineAdapter {
-	return &kimiAdapter{invoker: NewInvoker(binaryPath, openbeeURL, extraEnv)}
+	return &kimiAdapter{
+		invoker:   NewInvoker(binaryPath, openbeeURL, extraEnv),
+		collector: NewCollector(),
+	}
 }
 
 func (a *kimiAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
@@ -30,8 +34,8 @@ func (a *kimiAdapter) Run(ctx context.Context, workDir, prompt string,
 	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
 }
 
-func (a *kimiAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (a *kimiAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	return a.collector.Collect(ctx, sessionID)
 }
 
 var _ ai.EngineAdapter = (*kimiAdapter)(nil)
