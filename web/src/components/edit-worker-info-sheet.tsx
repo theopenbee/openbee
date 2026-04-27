@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { Search } from "lucide-react"
-import { useUpdateWorker } from "@/hooks/use-workers"
+import { Search, Shuffle, Loader2 } from "lucide-react"
+import { useUpdateWorker, useRandomWorkerName } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   Sheet,
   SheetContent,
@@ -43,23 +48,38 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
 
+  const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
+  const randomName = useRandomWorkerName()
+  const nameExhausted = randomName.data?.exhausted ?? false
 
   useEffect(() => {
     if (open) {
+      setName(worker.name ?? "")
       setDescription(worker.description ?? "")
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
       setEngineArgs(worker.engine_args ?? {})
       setDeptSearch("")
       setSubmitError("")
+      randomName.reset()
     }
   }, [open, worker, enabledEngines])
+
+  const handleRandomName = async () => {
+    try {
+      const result = await randomName.mutateAsync()
+      if (!result.exhausted && result.name) {
+        setName(result.name)
+      }
+    } catch {
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -72,6 +92,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         worker.engine_args ?? {},
       )
       const workerChanged =
+        name !== worker.name ||
         description !== (worker.description ?? "") ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
         engineArgsChanged
@@ -79,7 +100,9 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
       const ops: Promise<unknown>[] = []
       if (workerChanged) {
-        ops.push(updateWorker.mutateAsync({ id: worker.id, data: { description, engine, engine_args: engineArgs } }))
+        const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
+        if (name !== worker.name) data.name = name
+        ops.push(updateWorker.mutateAsync({ id: worker.id, data }))
       }
       if (deptsChanged) {
         ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
@@ -119,6 +142,46 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 {submitError}
               </div>
             )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ewis-name">
+                {t("workers.form.name")}
+                <span className="ml-1 text-destructive" aria-hidden>*</span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="ewis-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("workers.form.namePlaceholder")}
+                  required
+                  className="flex-1"
+                />
+                <Tooltip open={nameExhausted || undefined}>
+                  <TooltipTrigger render={<span className="inline-flex" />}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={nameExhausted || randomName.isPending}
+                      onClick={handleRandomName}
+                      aria-label={t("workers.form.randomName")}
+                    >
+                      {randomName.isPending
+                        ? <Loader2 className="size-4 animate-spin" />
+                        : <Shuffle className="size-4" />
+                      }
+                    </Button>
+                  </TooltipTrigger>
+                  {nameExhausted && (
+                    <TooltipContent>
+                      <p>{t("workers.form.randomNameExhausted")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("workers.form.nameHelper")}</p>
+            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="ewis-desc">{t("workers.form.description")}</Label>
@@ -217,7 +280,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           <Button
             type="submit"
             form="edit-worker-info-form"
-            disabled={isPending}
+            disabled={isPending || !name.trim()}
             className="flex-1"
           >
             {t("common.save")}
