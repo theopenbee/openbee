@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.33] - 2026-04-28
 
 ### Added
 - Add Xiaomi Mimo provider support
