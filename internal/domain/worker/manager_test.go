@@ -32,6 +32,26 @@ func (m *mockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenU
 	return nil, ai.ErrSessionDataNotFound
 }
 
+type controlledEngine struct {
+	output chan ai.Output
+	runErr error
+}
+
+func (e *controlledEngine) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
+}
+
+func (e *controlledEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	if e.runErr != nil {
+		return ai.RunResult{}, e.runErr
+	}
+	return ai.RunResult{Process: &mockProcess{}, Output: e.output, ExtractResult: func(string) string { return "" }}, nil
+}
+
+func (e *controlledEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
 type mockProcess struct{}
 
 func (p *mockProcess) PID() int    { return 0 }
@@ -72,6 +92,54 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		activeProcesses: make(map[string]ai.Process),
 	}
 	return m
+}
+
+func newTestAgentManager(t *testing.T, engine ai.EngineAdapter) (*Manager, *store.GroupStore) {
+	t.Helper()
+	dir := t.TempDir()
+	db, err := store.InitDB(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := store.NewGroupStore(db)
+	m := &Manager{
+		workerBaseDir:   dir,
+		tokenSecret:     "test-secret",
+		tokenTTL:        time.Minute,
+		workerTimeout:   30 * time.Minute,
+		workerStore:     store.NewWorkerStore(db),
+		groupStatus:     gs,
+		executionStore:  store.NewExecutionStore(db, dir),
+		engines:         map[string]ai.EngineAdapter{ai.EngineClaude: engine},
+		engineCfg:       enginecfg.NewStore(ai.EngineClaude),
+		envService:      envSvc,
+		activeProcesses: make(map[string]ai.Process),
+	}
+	return m, gs
+}
+
+func waitForGroupStatus(t *testing.T, gs *store.GroupStore, groupID string, want model.WorkerStatus) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		got, err := gs.GetByID(groupID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.Status == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	got, _ := gs.GetByID(groupID)
+	t.Fatalf("group status: got %q, want %q", got.Status, want)
 }
 
 func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
@@ -162,6 +230,51 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for unknown executionID, got nil")
 	}
+}
+
+func TestManager_ExecuteAgent_UpdatesGroupStatus(t *testing.T) {
+	output := make(chan ai.Output, 1)
+	mgr, gs := newTestAgentManager(t, &controlledEngine{output: output})
+	g, err := gs.Create(model.Group{Name: "group", WorkDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Create group: %v", err)
+	}
+
+	if _, err := mgr.ExecuteAgent(context.Background(), model.Worker{
+		ID: g.ID, Name: g.Name, WorkDir: g.WorkDir,
+	}, "input", "session-id", false); err != nil {
+		t.Fatalf("ExecuteAgent: %v", err)
+	}
+	got, err := gs.GetByID(g.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.Status != model.WorkerStatusWorking {
+		t.Fatalf("status after start: got %q, want working", got.Status)
+	}
+
+	output <- ai.Output{Type: ai.OutputDone}
+	close(output)
+	waitForGroupStatus(t, gs, g.ID, model.WorkerStatusIdle)
+}
+
+func TestManager_ExecuteAgent_UpdatesGroupStatusOnError(t *testing.T) {
+	output := make(chan ai.Output, 1)
+	mgr, gs := newTestAgentManager(t, &controlledEngine{output: output})
+	g, err := gs.Create(model.Group{Name: "group", WorkDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Create group: %v", err)
+	}
+
+	if _, err := mgr.ExecuteAgent(context.Background(), model.Worker{
+		ID: g.ID, Name: g.Name, WorkDir: g.WorkDir,
+	}, "input", "session-id", false); err != nil {
+		t.Fatalf("ExecuteAgent: %v", err)
+	}
+
+	output <- ai.Output{Type: ai.OutputError, Content: "failed"}
+	close(output)
+	waitForGroupStatus(t, gs, g.ID, model.WorkerStatusError)
 }
 
 func TestManager_ValidateWorkerName_DuplicateName(t *testing.T) {

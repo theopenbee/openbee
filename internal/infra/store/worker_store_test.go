@@ -17,6 +17,16 @@ func setupTestDB(t *testing.T) *WorkerStore {
 	return NewWorkerStore(db)
 }
 
+func setupWorkerRelationsTestDB(t *testing.T) (*WorkerStore, *GroupStore, *DepartmentStore) {
+	t.Helper()
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return NewWorkerStore(db), NewGroupStore(db), NewDepartmentStore(db)
+}
+
 func TestWorkerStore_Create(t *testing.T) {
 	s := setupTestDB(t)
 	w := model.Worker{
@@ -85,6 +95,37 @@ func TestWorkerStore_Delete(t *testing.T) {
 	_, err := s.GetByID(w.ID)
 	if err == nil {
 		t.Error("expected error after delete")
+	}
+}
+
+func TestWorkerStore_Delete_ClearsWorkerRelations(t *testing.T) {
+	ws, gs, ds := setupWorkerRelationsTestDB(t)
+	w, _ := ws.Create(model.Worker{Name: "Del", WorkDir: "/tmp/del"})
+	g, _ := gs.Create(model.Group{Name: "Group", WorkDir: "/tmp/group"})
+	d, _ := ds.Create(model.Department{Name: "Department"})
+	if err := gs.AddMember(g.ID, w.ID, "member"); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	if err := ds.SetWorkerDepartments(w.ID, []string{d.ID}); err != nil {
+		t.Fatalf("SetWorkerDepartments: %v", err)
+	}
+
+	if err := ws.Delete(w.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	groups, err := gs.ListGroupsForWorker(w.ID)
+	if err != nil {
+		t.Fatalf("ListGroupsForWorker: %v", err)
+	}
+	if len(groups) != 0 {
+		t.Fatalf("expected group memberships cleared, got %d", len(groups))
+	}
+	depts, err := ds.GetWorkerDepartments(w.ID)
+	if err != nil {
+		t.Fatalf("GetWorkerDepartments: %v", err)
+	}
+	if len(depts) != 0 {
+		t.Fatalf("expected department memberships cleared, got %d", len(depts))
 	}
 }
 

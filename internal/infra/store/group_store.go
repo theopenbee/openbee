@@ -121,6 +121,11 @@ func (s *GroupStore) Update(g model.Group) (model.Group, error) {
 	return g, nil
 }
 
+func (s *GroupStore) UpdateStatus(id string, status model.WorkerStatus) error {
+	_, err := s.db.Exec(`UPDATE bee_groups SET status=?, updated_at=? WHERE id=?`, status, time.Now().UnixMilli(), id)
+	return err
+}
+
 func (s *GroupStore) Delete(id string) error {
 	tx, err := s.db.Begin()
 	if err != nil {

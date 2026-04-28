@@ -97,6 +97,22 @@ func TestGroupStore_Update(t *testing.T) {
 	}
 }
 
+func TestGroupStore_UpdateStatus(t *testing.T) {
+	gs, _ := setupGroupTestDB(t)
+	g, _ := gs.Create(model.Group{Name: "status", WorkDir: "/tmp/g-status"})
+
+	if err := gs.UpdateStatus(g.ID, model.WorkerStatusWorking); err != nil {
+		t.Fatalf("UpdateStatus: %v", err)
+	}
+	got, err := gs.GetByID(g.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.Status != model.WorkerStatusWorking {
+		t.Fatalf("status: got %q, want working", got.Status)
+	}
+}
+
 func TestGroupStore_Delete(t *testing.T) {
 	gs, _ := setupGroupTestDB(t)
 	g, _ := gs.Create(model.Group{Name: "tmp", WorkDir: "/tmp/g1"})

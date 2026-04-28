@@ -245,8 +245,22 @@ func (s *WorkerStore) UpdateEngine(id, engine string) error {
 }
 
 func (s *WorkerStore) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM bee_workers WHERE id=?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin delete worker tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec(`DELETE FROM bee_worker_groups WHERE worker_id=?`, id); err != nil {
+		return fmt.Errorf("delete worker group memberships: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM bee_worker_departments WHERE worker_id=?`, id); err != nil {
+		return fmt.Errorf("delete worker department memberships: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM bee_workers WHERE id=?`, id); err != nil {
+		return fmt.Errorf("delete worker: %w", err)
+	}
+	return tx.Commit()
 }
 
 func (s *WorkerStore) CountByStatus() (map[string]int, error) {

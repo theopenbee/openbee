@@ -289,7 +289,9 @@ func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) 
 }
 
 func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, engineCfg, envSvc, s.systemConfigStore)
+	mgr := worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, engineCfg, envSvc, s.systemConfigStore)
+	mgr.SetGroupStatusStore(s.groupStore)
+	return mgr
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,

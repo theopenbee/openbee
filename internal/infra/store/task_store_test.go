@@ -553,6 +553,41 @@ func TestTaskStore_ResetRunningToPending(t *testing.T) {
 	}
 }
 
+func TestTaskStore_ResetRunningToPending_PreservesGroupRoots(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+	normalID, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "worker",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	groupID, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "g1", Instruction: "group",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		AgentKind: model.AgentKindGroup,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	n, err := ts.ResetRunningToPending(ctx)
+	if err != nil {
+		t.Fatalf("ResetRunningToPending: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 reset, got %d", n)
+	}
+	normal, _ := ts.GetByID(ctx, normalID)
+	if normal.Status != model.TaskStatusPending {
+		t.Fatalf("normal task status: got %q, want pending", normal.Status)
+	}
+	group, _ := ts.GetByID(ctx, groupID)
+	if group.Status != model.TaskStatusRunning {
+		t.Fatalf("group root status: got %q, want running", group.Status)
+	}
+}
+
 func TestTaskStore_FailTask_RegularTask_MarksAsFailed(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()

@@ -21,6 +21,10 @@ type systemConfigReader interface {
 	Get(ctx context.Context, key string) (model.SystemConfig, bool, error)
 }
 
+type statusUpdater interface {
+	UpdateStatus(id string, status model.WorkerStatus) error
+}
+
 var log = logger.With(zap.String("component", "worker"))
 
 type Manager struct {
@@ -29,6 +33,7 @@ type Manager struct {
 	tokenTTL       time.Duration
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
+	groupStatus    statusUpdater
 	executionStore *store.ExecutionStore
 	engines        map[string]ai.EngineAdapter
 	engineCfg      *enginecfg.Store
@@ -69,6 +74,10 @@ func NewManager(
 		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
+}
+
+func (m *Manager) SetGroupStatusStore(groupStatus statusUpdater) {
+	m.groupStatus = groupStatus
 }
 
 // resolveEngineSelection returns the engine name/adapter pair for w, falling

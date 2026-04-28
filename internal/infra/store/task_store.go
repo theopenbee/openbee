@@ -357,20 +357,24 @@ func (s *TaskStore) DeletePendingByMessageIDs(ctx context.Context, messageIDs []
 	return err
 }
 
-// ResetRunningToPending resets all running tasks back to pending.
+// ResetRunningToPending resets running non-group-root tasks back to pending.
+// Running group roots are preserved for group crash recovery, which resumes
+// them with a snapshot instead of re-dispatching the original instruction.
 func (s *TaskStore) ResetRunningToPending(ctx context.Context) (int64, error) {
 	now := time.Now().UnixMilli()
 	// Scheduled tasks: clear next_run_at so scheduler recomputes via cron
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE bee_tasks SET status = 'pending', next_run_at = NULL, updated_at = ?
-         WHERE status = 'running' AND type = 'scheduled'`, now)
+         WHERE status = 'running' AND type = 'scheduled'
+           AND NOT (agent_kind = 'group' AND parent_task_id = '')`, now)
 	if err != nil {
 		return 0, err
 	}
 	// Immediate / countdown tasks: just reset status
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE bee_tasks SET status = 'pending', updated_at = ?
-         WHERE status = 'running' AND type IN ('immediate','countdown')`, now)
+         WHERE status = 'running' AND type IN ('immediate','countdown')
+           AND NOT (agent_kind = 'group' AND parent_task_id = '')`, now)
 	if err != nil {
 		return 0, err
 	}

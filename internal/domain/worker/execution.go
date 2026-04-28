@@ -37,7 +37,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume, m.workerStore, "worker"); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -55,27 +55,32 @@ func (m *Manager) ExecuteAgent(ctx context.Context, agent model.Worker, triggerI
 	}
 	engineName, engine, err := m.resolveEngineSelection(agent)
 	if err != nil {
+		m.updateStatus(m.groupStatus, agent.ID, model.WorkerStatusError, "group")
 		return model.WorkerExecution{}, err
 	}
 
 	exec, err := m.executionStore.Create(agent.ID, triggerInput, sessionID, engineName)
 	if err != nil {
+		m.updateStatus(m.groupStatus, agent.ID, model.WorkerStatusError, "group")
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}
+
+	m.updateStatus(m.groupStatus, agent.ID, model.WorkerStatusWorking, "group")
 
 	if err := engine.Prepare(agent.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare agent workspace", zap.String("op", "execute_agent"), zap.String("agentID", agent.ID), zap.Error(err))
 	}
 
-	if err := m.launchRuntime(ctx, exec, agent, engine, engineName, m.workerTimeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, agent, engine, engineName, m.workerTimeout, triggerInput, resume, m.groupStatus, "group"); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		m.updateStatus(m.groupStatus, agent.ID, model.WorkerStatusError, "group")
 		return exec, fmt.Errorf("start runtime: %w", err)
 	}
 
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool, statusStore statusUpdater, statusLabel string) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -119,11 +124,11 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, runRes.Process.PID())
-	go m.monitorExecution(exec, worker, runRes, cancel, logPath)
+	go m.monitorExecution(exec, worker, runRes, cancel, logPath, statusStore, statusLabel)
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string, statusStore statusUpdater, statusLabel string) {
 	defer cancel()
 
 	for out := range runRes.Output {
@@ -131,20 +136,33 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		case ai.OutputDone:
 			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
+			m.updateStatus(statusStore, worker.ID, model.WorkerStatusIdle, statusLabel)
 		case ai.OutputError:
 			result := runRes.ExtractResult(logPath)
 			if result == "" {
 				result = out.Content
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+			m.updateStatus(statusStore, worker.ID, model.WorkerStatusError, statusLabel)
 		}
 	}
 
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
 	m.mu.Unlock()
+}
+
+func (m *Manager) updateStatus(statusStore statusUpdater, id string, status model.WorkerStatus, label string) {
+	if statusStore == nil {
+		return
+	}
+	if err := statusStore.UpdateStatus(id, status); err != nil {
+		log.Error("failed to update agent status",
+			zap.String("agent_id", id),
+			zap.String("agent_type", label),
+			zap.String("status", string(status)),
+			zap.Error(err))
+	}
 }
 
 func (m *Manager) StopExecution(executionID string) error {
