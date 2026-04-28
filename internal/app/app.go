@@ -313,6 +313,8 @@ func buildDispatcher(
 	return task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, engineCfg,
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
+		task.WithGroupLookup(s.groupStore),
+		task.WithTaskQuerier(s.taskStore),
 	)
 }
 
