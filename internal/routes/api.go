@@ -33,6 +33,23 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/workers/:id/departments", s.Departments.GetWorkerDepartments)
 	r.GET("/departments/:id/workers", s.Departments.GetDepartmentWorkers)
 
+	// Group routes
+	r.POST("/groups", s.Groups.Create)
+	r.GET("/groups", s.Groups.List)
+	r.GET("/groups/:id", s.Groups.Get)
+	r.PUT("/groups/:id", s.Groups.Update)
+	r.DELETE("/groups/:id", s.Groups.Delete)
+	r.GET("/groups/:id/members", s.Groups.ListMembers)
+	r.POST("/groups/:id/members", s.Groups.AddMember)
+	r.DELETE("/groups/:id/members/:worker_id", s.Groups.RemoveMember)
+
+	// Subtask routes (used by Group agent CLI calls)
+	r.POST("/tasks/dispatch-subtask", s.Subtasks.Dispatch)
+	r.GET("/tasks/subtasks", s.Subtasks.ListSubtasks)
+	r.POST("/tasks/suspend", s.Subtasks.Suspend)
+	r.POST("/tasks/mark-success", s.Subtasks.MarkSuccess)
+	r.POST("/tasks/mark-failed", s.Subtasks.MarkFailed)
+
 	r.POST("/local/messages", s.LocalChat.SendMessage)
 	r.GET("/local/messages", s.LocalChat.GetMessages)
 	r.POST("/local/media", s.LocalChat.UploadMedia)

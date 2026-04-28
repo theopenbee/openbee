@@ -33,6 +33,12 @@ func DefaultWorkerBaseDir() string {
 	return filepath.Join(home, ".openbee", "worker")
 }
 
+// DefaultGroupBaseDir returns the hardcoded group base directory: ~/.openbee/group
+func DefaultGroupBaseDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".openbee", "group")
+}
+
 // DefaultLogsDir returns the execution log directory: ~/.openbee/logs
 func DefaultLogsDir() string {
 	home, _ := os.UserHomeDir()
