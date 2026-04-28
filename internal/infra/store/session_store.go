@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -222,6 +223,24 @@ func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey
 	}
 	defer rows.Close()
 	return scanSessionAgents(rows)
+}
+
+// SessionKeyForAgent performs a reverse lookup: given an agentID and engine,
+// returns the session_key and session_id. Returns (_, _, false, nil) if not found.
+// Used by crash recovery to re-enqueue waiting group tasks.
+func (s *SessionStore) SessionKeyForAgent(ctx context.Context, agentID, engine string) (string, string, bool, error) {
+	engine = normalizeSessionEngine(engine)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT session_key, session_id FROM bee_session_contexts WHERE agent_id = ? AND engine = ? LIMIT 1`,
+		agentID, engine)
+	var key, sid string
+	if err := row.Scan(&key, &sid); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", "", false, nil
+		}
+		return "", "", false, err
+	}
+	return key, sid, true, nil
 }
 
 // DeleteWorkerSessionContext removes all session context rows for one worker

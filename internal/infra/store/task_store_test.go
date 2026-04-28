@@ -1023,3 +1023,76 @@ func TestTaskStore_CompleteTask_Scheduled_Cancelled_NoChange(t *testing.T) {
 		t.Errorf("want status %q got %q", model.TaskStatusCancelled, got.Status)
 	}
 }
+
+func TestTaskStore_CreateSubtask(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	rootID, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "g1", Instruction: "root",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		AgentKind: model.AgentKindGroup,
+	})
+	subID, err := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "sub",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		ParentTaskID: rootID, RootTaskID: rootID,
+		AgentKind: model.AgentKindWorker,
+	})
+	if err != nil {
+		t.Fatalf("Create sub: %v", err)
+	}
+	sub, _ := ts.GetByID(ctx, subID)
+	if sub.ParentTaskID != rootID || sub.RootTaskID != rootID {
+		t.Errorf("parent/root not persisted: %+v", sub)
+	}
+	if sub.AgentKind != model.AgentKindWorker {
+		t.Errorf("agent_kind not persisted: %s", sub.AgentKind)
+	}
+}
+
+func TestTaskStore_ListByRoot(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	rootID, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "g1", Instruction: "root",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		AgentKind: model.AgentKindGroup,
+	})
+	for i := 0; i < 3; i++ {
+		_, _ = ts.Create(ctx, model.Task{
+			MessageID: "m1", WorkerID: "w1", Instruction: "sub",
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+			ParentTaskID: rootID, RootTaskID: rootID,
+		})
+	}
+	tasks, err := ts.ListByRoot(ctx, rootID)
+	if err != nil {
+		t.Fatalf("ListByRoot: %v", err)
+	}
+	if len(tasks) != 4 { // root + 3 subs
+		t.Errorf("expected 4 tasks (root+3), got %d", len(tasks))
+	}
+}
+
+func TestTaskStore_MarkWaitingSubtasks(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	rootID, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "g1", Instruction: "root",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		AgentKind: model.AgentKindGroup,
+	})
+	if err := ts.MarkWaitingSubtasks(ctx, rootID); err != nil {
+		t.Fatalf("MarkWaitingSubtasks: %v", err)
+	}
+	got, _ := ts.GetByID(ctx, rootID)
+	if got.Status != model.TaskStatusWaitingSubtasks {
+		t.Errorf("expected waiting_subtasks, got %s", got.Status)
+	}
+}

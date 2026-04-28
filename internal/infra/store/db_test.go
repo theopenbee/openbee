@@ -220,6 +220,23 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create stub bee_memories: %v", err)
 	}
+	// bee_tasks is required by migration 49 (add task tree columns).
+	if _, err := db.Exec(`CREATE TABLE bee_tasks (
+		id           TEXT PRIMARY KEY,
+		message_id   TEXT NOT NULL,
+		worker_id    TEXT NOT NULL,
+		instruction  TEXT NOT NULL,
+		type         TEXT NOT NULL,
+		status       TEXT NOT NULL DEFAULT 'pending',
+		scheduled_at INTEGER,
+		cron_expr    TEXT NOT NULL DEFAULT '',
+		next_run_at  INTEGER,
+		execution_id TEXT NOT NULL DEFAULT '',
+		created_at   INTEGER NOT NULL,
+		updated_at   INTEGER NOT NULL
+	)`); err != nil {
+		t.Fatalf("create stub bee_tasks: %v", err)
+	}
 	if _, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
 		VALUES ('sk', 'bee', 'legacy-sid', 1)`); err != nil {
 		t.Fatalf("seed legacy session row: %v", err)

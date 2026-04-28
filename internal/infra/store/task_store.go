@@ -26,14 +26,22 @@ func NewTaskStore(db *sql.DB) *TaskStore {
 func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 	id := uuid.New().String()
 	now := time.Now().UnixMilli()
+	if t.AgentKind == "" {
+		t.AgentKind = model.AgentKindWorker
+	}
+	if t.RootTaskID == "" {
+		t.RootTaskID = id // root tasks self-reference
+	}
 	_, err := s.db.ExecContext(ctx, `
         INSERT INTO bee_tasks
             (id, message_id, worker_id, instruction, type, status,
              scheduled_at, cron_expr, next_run_at, execution_id,
+             parent_task_id, root_task_id, agent_kind,
              created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		id, t.MessageID, t.WorkerID, t.Instruction, t.Type, t.Status,
 		t.ScheduledAt, t.CronExpr, t.NextRunAt, "",
+		t.ParentTaskID, t.RootTaskID, t.AgentKind,
 		now, now,
 	)
 	if err != nil {
@@ -47,6 +55,7 @@ func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) 
 	row := s.db.QueryRowContext(ctx, `
         SELECT id, message_id, worker_id, instruction, type, status,
                scheduled_at, cron_expr, next_run_at, execution_id,
+               parent_task_id, root_task_id, agent_kind,
                created_at, updated_at
         FROM bee_tasks WHERE id = ?`, id)
 	return scanTask(row)
@@ -125,6 +134,7 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
 	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.parent_task_id, t.root_task_id, t.agent_kind,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t`, f)
 	q += ` ORDER BY t.created_at DESC`
@@ -157,6 +167,7 @@ func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
 func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.parent_task_id, t.root_task_id, t.agent_kind,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t
 	      JOIN bee_platform_messages pm ON t.message_id = pm.id
@@ -187,7 +198,8 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 	rows, err := tx.QueryContext(ctx, `
         SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
                t.scheduled_at, t.cron_expr, t.next_run_at,
-               t.execution_id, t.created_at, t.updated_at,
+               t.execution_id, t.parent_task_id, t.root_task_id, t.agent_kind,
+               t.created_at, t.updated_at,
                pm.session_key, pm.platform
         FROM bee_tasks t
         JOIN bee_platform_messages pm ON pm.id = t.message_id
@@ -209,6 +221,7 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 			&ct.ID, &ct.MessageID, &ct.WorkerID, &ct.Instruction,
 			&ct.Type, &ct.Status, &scheduledAt, &ct.CronExpr,
 			&nextRunAt, &ct.ExecutionID,
+			&ct.ParentTaskID, &ct.RootTaskID, &ct.AgentKind,
 			&ct.CreatedAt, &ct.UpdatedAt,
 			&ct.MessageSessionKey, &ct.MessagePlatform,
 		)
@@ -260,6 +273,7 @@ func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]m
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, message_id, worker_id, instruction, type, status,
 		       scheduled_at, cron_expr, next_run_at, execution_id,
+		       parent_task_id, root_task_id, agent_kind,
 		       created_at, updated_at
 		FROM bee_tasks
 		WHERE type = 'scheduled'
@@ -455,7 +469,9 @@ func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, message_id, worker_id, instruction, type, status,
-		        scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
+		        scheduled_at, cron_expr, next_run_at, execution_id,
+		        parent_task_id, root_task_id, agent_kind,
+		        created_at, updated_at
 		 FROM bee_tasks WHERE execution_id = ?`,
 		executionID,
 	)
@@ -486,6 +502,7 @@ func scanTask(row *sql.Row) (model.Task, error) {
 		&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
 		&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
 		&nextRunAt, &t.ExecutionID,
+		&t.ParentTaskID, &t.RootTaskID, &t.AgentKind,
 		&t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -505,6 +522,7 @@ func scanTasks(rows *sql.Rows) ([]model.Task, error) {
 			&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
 			&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
 			&nextRunAt, &t.ExecutionID,
+			&t.ParentTaskID, &t.RootTaskID, &t.AgentKind,
 			&t.CreatedAt, &t.UpdatedAt,
 		)
 		if err != nil {
@@ -515,4 +533,70 @@ func scanTasks(rows *sql.Rows) ([]model.Task, error) {
 		result = append(result, t)
 	}
 	return result, rows.Err()
+}
+
+// ListByRoot returns the entire task tree (root + subtasks) for a given root_task_id.
+// Order: root first (created_at ASC).
+func (s *TaskStore) ListByRoot(ctx context.Context, rootID string) ([]model.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+        SELECT id, message_id, worker_id, instruction, type, status,
+               scheduled_at, cron_expr, next_run_at, execution_id,
+               parent_task_id, root_task_id, agent_kind,
+               created_at, updated_at
+        FROM bee_tasks
+        WHERE root_task_id = ?
+        ORDER BY created_at ASC`, rootID)
+	if err != nil {
+		return nil, fmt.Errorf("list by root: %w", err)
+	}
+	defer rows.Close()
+	return scanTasks(rows)
+}
+
+// MarkWaitingSubtasks transitions a group root task to waiting_subtasks.
+// Returns sql.ErrNoRows if the task does not exist.
+func (s *TaskStore) MarkWaitingSubtasks(ctx context.Context, taskID string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ?`,
+		model.TaskStatusWaitingSubtasks, time.Now().UnixMilli(), taskID,
+	)
+	if err != nil {
+		return fmt.Errorf("mark waiting subtasks: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// GetParent returns the parent task, or sql.ErrNoRows if the task is a root.
+func (s *TaskStore) GetParent(ctx context.Context, taskID string) (model.Task, error) {
+	t, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return model.Task{}, err
+	}
+	if t.ParentTaskID == "" {
+		return model.Task{}, sql.ErrNoRows
+	}
+	return s.GetByID(ctx, t.ParentTaskID)
+}
+
+// ListWaitingGroupRoots returns tasks where agent_kind='group' and status IN
+// ('waiting_subtasks','running'). Used at startup to recover ongoing group tasks.
+func (s *TaskStore) ListWaitingGroupRoots(ctx context.Context) ([]model.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+        SELECT id, message_id, worker_id, instruction, type, status,
+               scheduled_at, cron_expr, next_run_at, execution_id,
+               parent_task_id, root_task_id, agent_kind,
+               created_at, updated_at
+        FROM bee_tasks
+        WHERE agent_kind = 'group'
+          AND status IN ('running','waiting_subtasks')
+          AND parent_task_id = ''`)
+	if err != nil {
+		return nil, fmt.Errorf("list waiting group roots: %w", err)
+	}
+	defer rows.Close()
+	return scanTasks(rows)
 }
