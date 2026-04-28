@@ -359,7 +359,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		Messages:          api.NewMessageHandler(s.msgStore),
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
-		Groups:            api.NewGroupHandler(groupMgr, s.groupStore, s.workerStore),
+		Groups:            api.NewGroupHandler(groupMgr, s.groupStore),
 		Stats:             api.NewStatsHandler(s.statsStore),
 		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
 		LocalChat:         localChat,

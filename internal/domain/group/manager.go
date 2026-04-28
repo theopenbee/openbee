@@ -99,12 +99,13 @@ func (m *Manager) CreateGroup(p CreateGroupParams) (model.Group, error) {
 		EngineArgs:       engineArgs,
 		PermissionScopes: p.PermissionScopes,
 	}
-	// Optional engine prepare (skipped in tests where engines == nil).
 	if m.engines != nil && m.engineCfg != nil {
-		if _, engine, err := m.resolveEngine(g); err == nil {
-			if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-				return model.Group{}, fmt.Errorf("prepare group workspace: %w", err)
-			}
+		_, engine, err := m.resolveEngine(g)
+		if err != nil {
+			return model.Group{}, fmt.Errorf("resolve engine: %w", err)
+		}
+		if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+			return model.Group{}, fmt.Errorf("prepare group workspace: %w", err)
 		}
 	}
 	return m.groupStore.Create(g)
@@ -211,7 +212,6 @@ func (m *Manager) validateName(name, excludeID string) error {
 	if slices.Contains(m.botNamesLower, lower) {
 		return fmt.Errorf("group name %q conflicts with bot name: %w", name, ErrValidation)
 	}
-	// Check both group and worker namespaces.
 	if exists, err := m.groupStore.ExistsByName(name, excludeID); err != nil {
 		return err
 	} else if exists {
@@ -228,7 +228,7 @@ func (m *Manager) validateName(name, excludeID string) error {
 func (m *Manager) hasActiveRootTask(groupID string) (bool, error) {
 	tasks, err := m.taskStore.List(context.Background(), store.TaskFilter{
 		WorkerID: groupID,
-		Status:   "pending,running,waiting_subtasks",
+		Status:   model.TaskStatusActive,
 		Limit:    1,
 	})
 	if err != nil {

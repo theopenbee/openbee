@@ -390,7 +390,6 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		return false
 	}
 
-	// Try worker lookup first.
 	if f.workerLookup != nil {
 		worker, err := f.workerLookup.GetByName(agentName)
 		if err == nil {
@@ -414,7 +413,6 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		}
 	}
 
-	// Fall through to group lookup if worker not found.
 	if f.groupLookup != nil {
 		g, err := f.groupLookup.GetByName(agentName)
 		if err == nil {

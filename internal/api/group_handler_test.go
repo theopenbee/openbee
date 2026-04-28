@@ -13,7 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestGroupHandler(t *testing.T) (*GroupHandler, *gin.Engine) {
+func newTestGroupHandler(t *testing.T) (*GroupHandler, *store.WorkerStore, *gin.Engine) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, err := store.InitDB(t.TempDir() + "/test.db")
@@ -26,7 +26,7 @@ func newTestGroupHandler(t *testing.T) (*GroupHandler, *gin.Engine) {
 	ws := store.NewWorkerStore(db)
 	ts := store.NewTaskStore(db)
 	mgr := group.NewManager(t.TempDir(), gs, ws, ts, nil, nil, nil)
-	h := NewGroupHandler(mgr, gs, ws)
+	h := NewGroupHandler(mgr, gs)
 
 	router := gin.New()
 	g := router.Group("/api/groups")
@@ -39,11 +39,11 @@ func newTestGroupHandler(t *testing.T) (*GroupHandler, *gin.Engine) {
 	g.POST("/:id/members", h.AddMember)
 	g.DELETE("/:id/members/:worker_id", h.RemoveMember)
 
-	return h, router
+	return h, ws, router
 }
 
 func TestGroupHandler_CreateAndGet(t *testing.T) {
-	_, router := newTestGroupHandler(t)
+	_, _, router := newTestGroupHandler(t)
 
 	body, _ := json.Marshal(map[string]any{"name": "g1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/groups", bytes.NewReader(body))
@@ -66,9 +66,9 @@ func TestGroupHandler_CreateAndGet(t *testing.T) {
 }
 
 func TestGroupHandler_AddRemoveMember(t *testing.T) {
-	h, router := newTestGroupHandler(t)
+	h, ws, router := newTestGroupHandler(t)
 	g, _ := h.manager.CreateGroup(group.CreateGroupParams{Name: "g"})
-	w, _ := h.workerStore.Create(model.Worker{Name: "w", WorkDir: "/tmp/w"})
+	w, _ := ws.Create(model.Worker{Name: "w", WorkDir: "/tmp/w"})
 
 	body, _ := json.Marshal(map[string]any{"worker_id": w.ID})
 	req := httptest.NewRequest(http.MethodPost, "/api/groups/"+g.ID+"/members", bytes.NewReader(body))
@@ -88,7 +88,7 @@ func TestGroupHandler_AddRemoveMember(t *testing.T) {
 }
 
 func TestGroupHandler_List(t *testing.T) {
-	_, router := newTestGroupHandler(t)
+	_, _, router := newTestGroupHandler(t)
 
 	// Create two groups
 	for _, name := range []string{"gA", "gB"} {

@@ -18,17 +18,29 @@ const (
 	AgentKindGroup  = "group"
 )
 
+func IsTaskStatusActive(status string) bool {
+	return status == TaskStatusPending ||
+		status == TaskStatusRunning ||
+		status == TaskStatusWaitingSubtasks
+}
+
+func IsTaskStatusTerminal(status string) bool {
+	return status == TaskStatusCompleted ||
+		status == TaskStatusFailed ||
+		status == TaskStatusCancelled
+}
+
 // Task represents a unit of work created by bee and dispatched to a worker.
 type Task struct {
-	ID          string
-	MessageID   string
-	WorkerID    string
-	Instruction string
-	Type        string // TaskTypeImmediate | TaskTypeCountdown | TaskTypeScheduled
-	Status      string // TaskStatus*
-	ScheduledAt *int64 // ms; countdown: absolute trigger time
-	CronExpr    string
-	NextRunAt   *int64 // ms; scheduled tasks only
+	ID           string
+	MessageID    string
+	WorkerID     string
+	Instruction  string
+	Type         string // TaskTypeImmediate | TaskTypeCountdown | TaskTypeScheduled
+	Status       string // TaskStatus*
+	ScheduledAt  *int64 // ms; countdown: absolute trigger time
+	CronExpr     string
+	NextRunAt    *int64 // ms; scheduled tasks only
 	ExecutionID  string
 	ParentTaskID string
 	RootTaskID   string

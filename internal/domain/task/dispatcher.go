@@ -247,9 +247,7 @@ func (d *TaskDispatcher) handleCancel(taskID string) {
 				if ch.ID == taskID {
 					continue
 				}
-				if ch.Status == model.TaskStatusPending ||
-					ch.Status == model.TaskStatusRunning ||
-					ch.Status == model.TaskStatusWaitingSubtasks {
+				if model.IsTaskStatusActive(ch.Status) {
 					_ = d.taskStore.CancelTask(context.Background(), ch.ID)
 					if cancel, ok := d.cancelFuncs[ch.ID]; ok {
 						cancel()
@@ -625,7 +623,7 @@ func (d *TaskDispatcher) taskIsTerminal(taskID string) bool {
 	if err != nil {
 		return false
 	}
-	return isTerminalTaskStatus(t.Status)
+	return model.IsTaskStatusTerminal(t.Status)
 }
 
 func (d *TaskDispatcher) taskIsWaitingGroupRoot(taskID string) bool {
@@ -639,12 +637,6 @@ func (d *TaskDispatcher) taskIsWaitingGroupRoot(taskID string) bool {
 	return t.AgentKind == model.AgentKindGroup &&
 		t.ParentTaskID == "" &&
 		t.Status == model.TaskStatusWaitingSubtasks
-}
-
-func isTerminalTaskStatus(status string) bool {
-	return status == model.TaskStatusCompleted ||
-		status == model.TaskStatusFailed ||
-		status == model.TaskStatusCancelled
 }
 
 // notifyParentOnSubtaskTerminal: when a sub-task reaches a terminal state, build

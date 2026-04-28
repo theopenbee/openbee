@@ -345,7 +345,7 @@ func (s *MCPServer) allSubtasksTerminal(ctx context.Context, rootID string) (boo
 		if t.ID == rootID {
 			continue
 		}
-		if isActiveTaskStatus(t.Status) {
+		if model.IsTaskStatusActive(t.Status) {
 			return false, nil
 		}
 	}
@@ -358,7 +358,7 @@ func (s *MCPServer) hasActiveSubtasks(ctx context.Context, rootID string) (bool,
 		return false, err
 	}
 	for _, t := range tasks {
-		if t.ID != rootID && isActiveTaskStatus(t.Status) {
+		if t.ID != rootID && model.IsTaskStatusActive(t.Status) {
 			return true, nil
 		}
 	}
@@ -371,7 +371,7 @@ func (s *MCPServer) cancelActiveSubtasks(ctx context.Context, rootID string) err
 		return err
 	}
 	for _, t := range tasks {
-		if t.ID == rootID || !isActiveTaskStatus(t.Status) {
+		if t.ID == rootID || !model.IsTaskStatusActive(t.Status) {
 			continue
 		}
 		if s.taskCanceller != nil {
@@ -385,10 +385,4 @@ func (s *MCPServer) cancelActiveSubtasks(ctx context.Context, rootID string) err
 		}
 	}
 	return nil
-}
-
-func isActiveTaskStatus(status string) bool {
-	return status == model.TaskStatusPending ||
-		status == model.TaskStatusRunning ||
-		status == model.TaskStatusWaitingSubtasks
 }

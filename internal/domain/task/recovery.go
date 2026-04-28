@@ -33,6 +33,7 @@ func RecoverGroupTasks(ctx context.Context, ts recoveryStore, ss recoverySession
 	for _, root := range roots {
 		sessionKey, err := ts.SessionKeyForTask(ctx, root.ID)
 		if err != nil {
+			log.Warn("recovery: resolve session key", zap.String("rootTaskID", root.ID), zap.Error(err))
 			continue
 		}
 		sessionID, _, err := ss.GetSessionContext(ctx, sessionKey, root.WorkerID)
@@ -61,13 +62,13 @@ func buildRecoveryEventXML(ctx context.Context, ts recoveryStore, root model.Tas
 	list, _ := ts.ListByRoot(ctx, root.ID)
 	var sb strings.Builder
 	sb.WriteString("<recovery_event>\n")
-	fmt.Fprintf(&sb, "<root_task id=\"%s\" status=\"%s\"/>\n", root.ID, root.Status)
+	fmt.Fprintf(&sb, "<root_task id=\"%s\" status=\"%s\"/>\n", xmlText(root.ID), xmlText(root.Status))
 	sb.WriteString("<subtasks>\n")
 	for _, t := range list {
 		if t.ID == root.ID {
 			continue
 		}
-		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", t.ID, t.WorkerID, t.Status)
+		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", xmlText(t.ID), xmlText(t.WorkerID), xmlText(t.Status))
 	}
 	sb.WriteString("</subtasks>\n</recovery_event>\n")
 	return sb.String()
