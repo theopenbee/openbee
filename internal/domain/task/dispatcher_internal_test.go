@@ -210,6 +210,59 @@ func (s *spyTaskStore) wasCancelled(id string) bool {
 	return s.cancelled[id]
 }
 
+type completionSpyTaskStore struct {
+	mu        sync.Mutex
+	completed []string
+}
+
+func (s *completionSpyTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
+func (s *completionSpyTaskStore) CompleteTask(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completed = append(s.completed, id)
+	return nil
+}
+func (s *completionSpyTaskStore) FailTask(_ context.Context, _ string) error   { return nil }
+func (s *completionSpyTaskStore) CancelTask(_ context.Context, _ string) error { return nil }
+
+func (s *completionSpyTaskStore) completedCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.completed)
+}
+
+func TestDispatcher_DoesNotCompleteWaitingGroupRootAfterSuspend(t *testing.T) {
+	rootID := "root-suspended"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		rootID: {
+			ID:         rootID,
+			WorkerID:   "group-1",
+			AgentKind:  model.AgentKindGroup,
+			Status:     model.TaskStatusWaitingSubtasks,
+			MessageID:  "m1",
+			RootTaskID: rootID,
+		},
+	})
+	ts := &completionSpyTaskStore{}
+	d := New(newFakeExecMgr(), ts, fakeSessStore{}, &fakeExecQuerier{result: model.WorkerExecution{
+		ID:        "exec-suspended",
+		SessionID: "session-1",
+		Status:    model.ExecStatusCompleted,
+	}}, make(chan DispatchTask, 4), enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+
+	d.waitForResult(context.Background(), "exec-suspended", DispatchTask{
+		TaskID:   rootID,
+		WorkerID: "group-1",
+		TaskType: model.TaskTypeImmediate,
+	}, "claude")
+
+	if got := ts.completedCount(); got != 0 {
+		t.Fatalf("suspended group root should remain waiting_subtasks, completed count=%d", got)
+	}
+}
+
 // TestCancelRootTask_CascadesToSubtasks verifies that cancelling a group root task
 // also cancels all pending/running child tasks.
 func TestCancelRootTask_CascadesToSubtasks(t *testing.T) {

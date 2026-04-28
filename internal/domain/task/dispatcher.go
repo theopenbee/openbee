@@ -500,6 +500,14 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			if d.taskIsTerminal(task.TaskID) {
 				return
 			}
+			// A group coordinator can intentionally park the root task by calling
+			// suspend. The coordinator process then exits successfully, but the task
+			// must stay waiting until subtasks report back or the group explicitly
+			// marks the root as successful/failed.
+			if d.taskIsWaitingGroupRoot(task.TaskID) {
+				d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+				return
+			}
 			if task.TaskID != "" {
 				if err := d.taskStore.CompleteTask(ctx, task.TaskID); err != nil {
 					log.Error("complete task", zap.String("taskID", task.TaskID), zap.Error(err))
@@ -618,6 +626,19 @@ func (d *TaskDispatcher) taskIsTerminal(taskID string) bool {
 		return false
 	}
 	return isTerminalTaskStatus(t.Status)
+}
+
+func (d *TaskDispatcher) taskIsWaitingGroupRoot(taskID string) bool {
+	if taskID == "" || d.taskQuerier == nil {
+		return false
+	}
+	t, err := d.taskQuerier.GetByID(context.Background(), taskID)
+	if err != nil {
+		return false
+	}
+	return t.AgentKind == model.AgentKindGroup &&
+		t.ParentTaskID == "" &&
+		t.Status == model.TaskStatusWaitingSubtasks
 }
 
 func isTerminalTaskStatus(status string) bool {

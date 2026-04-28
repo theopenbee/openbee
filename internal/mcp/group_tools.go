@@ -228,6 +228,16 @@ func (s *MCPServer) toolDispatchSubtask(ctx context.Context, args json.RawMessag
 	if parent.AgentKind != model.AgentKindGroup {
 		return nil, fmt.Errorf("parent task is not a group task")
 	}
+	if s.groupStore == nil {
+		return nil, fmt.Errorf("group tools are not configured")
+	}
+	isMember, err := s.groupStore.IsMember(parent.WorkerID, params.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("check group membership: %w", err)
+	}
+	if !isMember {
+		return nil, fmt.Errorf("worker is not a member of the group")
+	}
 	subID, err := s.taskStore.Create(ctx, model.Task{
 		MessageID:    parent.MessageID,
 		WorkerID:     params.WorkerID,

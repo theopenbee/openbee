@@ -535,6 +535,12 @@ func TestCallTool_SubtaskToolsRegistered(t *testing.T) {
 		t.Fatalf("create_group: %v", err)
 	}
 	g := dbGroup.(model.Group)
+	if _, err := s.CallTool(ctx, utils.AddGroupMember, mustMarshal(t, map[string]any{
+		"group_id":  g.ID,
+		"worker_id": w.ID,
+	})); err != nil {
+		t.Fatalf("add_group_member: %v", err)
+	}
 
 	ms := store.NewMessageStore(db)
 	if _, err := ms.Create(ctx, "msg-subtools", "session-1", "feishu", "hi", `{}`, "", 0); err != nil {

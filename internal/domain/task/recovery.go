@@ -19,13 +19,13 @@ type recoveryStore interface {
 
 // recoverySessionStore is the subset of SessionStore needed for crash recovery.
 type recoverySessionStore interface {
-	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (string, error)
+	GetSessionContext(ctx context.Context, sessionKey, agentID string) (sessionID, engine string, err error)
 }
 
 // RecoverGroupTasks scans the task store for any group tasks that were in
 // `waiting_subtasks` or `running` state at the time of the last shutdown,
 // and re-enqueues them so the dispatcher can resume them.
-func RecoverGroupTasks(ctx context.Context, ts recoveryStore, ss recoverySessionStore, out chan<- DispatchTask, engineName string) error {
+func RecoverGroupTasks(ctx context.Context, ts recoveryStore, ss recoverySessionStore, out chan<- DispatchTask) error {
 	roots, err := ts.ListWaitingGroupRoots(ctx)
 	if err != nil {
 		return fmt.Errorf("list waiting roots: %w", err)
@@ -35,7 +35,7 @@ func RecoverGroupTasks(ctx context.Context, ts recoveryStore, ss recoverySession
 		if err != nil {
 			continue
 		}
-		sessionID, err := ss.GetSessionContextForEngine(ctx, sessionKey, root.WorkerID, engineName)
+		sessionID, _, err := ss.GetSessionContext(ctx, sessionKey, root.WorkerID)
 		if err != nil || sessionID == "" {
 			// Session lost; skip this root (could be failed separately in a future enhancement).
 			continue

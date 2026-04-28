@@ -50,6 +50,15 @@ func (h *SubtaskHandler) Dispatch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "parent task is not a group task"})
 		return
 	}
+	isMember, err := h.groupStore.IsMember(parent.WorkerID, req.WorkerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !isMember {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "worker is not a member of the group"})
+		return
+	}
 	subID, err := h.taskStore.Create(c.Request.Context(), model.Task{
 		MessageID:    parent.MessageID,
 		WorkerID:     req.WorkerID,

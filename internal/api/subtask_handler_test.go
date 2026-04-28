@@ -80,6 +80,12 @@ func newTestSubtaskHandler(t *testing.T) (*subtaskTestHarness, *gin.Engine) {
 func (h *subtaskTestHarness) seedGroupRootTask(t *testing.T) string {
 	t.Helper()
 	ctx := context.Background()
+	if _, err := h.groupStore.Create(model.Group{ID: "g1", Name: "Group1", WorkDir: "/"}); err != nil {
+		t.Fatalf("seed group: %v", err)
+	}
+	if err := h.groupStore.AddMember("g1", "w1", "member"); err != nil {
+		t.Fatalf("seed group member: %v", err)
+	}
 	id, err := h.taskStore.Create(ctx, model.Task{
 		MessageID:   h.msgID,
 		WorkerID:    "g1",
