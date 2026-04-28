@@ -28,4 +28,19 @@ const (
 	ListMessages         = "list_messages"
 	ListOutboundMessages = "list_outbound_messages"
 	ListExecutions       = "list_executions"
+
+	CreateGroup       = "create_group"
+	ListGroups        = "list_groups"
+	GetGroup          = "get_group"
+	UpdateGroup       = "update_group"
+	DeleteGroup       = "delete_group"
+	AddGroupMember    = "add_group_member"
+	RemoveGroupMember = "remove_group_member"
+	ListGroupMembers  = "list_group_members"
+
+	DispatchSubtask = "dispatch_subtask"
+	ListSubtasks    = "list_subtasks"
+	SuspendTask     = "suspend_task"
+	MarkTaskSuccess = "mark_task_success"
+	MarkTaskFailed  = "mark_task_failed"
 )
