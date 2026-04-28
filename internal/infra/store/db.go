@@ -406,6 +406,100 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "add_engine_args_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_args TEXT NOT NULL DEFAULT '{}'`,
 	},
+	{
+		version: 45,
+		name:    "create_table_bee_groups",
+		sql: `CREATE TABLE IF NOT EXISTS bee_groups (
+    id                TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    description       TEXT NOT NULL DEFAULT '',
+    constraints       TEXT NOT NULL DEFAULT '',
+    work_dir          TEXT NOT NULL,
+    engine            TEXT NOT NULL DEFAULT '',
+    engine_args       TEXT NOT NULL DEFAULT '{}',
+    status            TEXT NOT NULL DEFAULT 'idle'
+                          CHECK(status IN ('idle','working','error')),
+    permission_scopes TEXT NOT NULL DEFAULT '',
+    created_at        INTEGER NOT NULL,
+    updated_at        INTEGER NOT NULL
+)`,
+	},
+	{
+		version: 46,
+		name:    "create_index_groups_name_lower",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_groups_name_lower ON bee_groups (LOWER(name))`,
+	},
+	{
+		version: 47,
+		name:    "create_table_bee_worker_groups",
+		sql: `CREATE TABLE IF NOT EXISTS bee_worker_groups (
+    worker_id  TEXT NOT NULL REFERENCES bee_workers(id),
+    group_id   TEXT NOT NULL REFERENCES bee_groups(id),
+    role       TEXT NOT NULL DEFAULT 'member',
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (worker_id, group_id)
+)`,
+	},
+	{
+		version: 48,
+		name:    "create_indexes_worker_groups",
+		sql: `CREATE INDEX IF NOT EXISTS idx_worker_groups_worker ON bee_worker_groups(worker_id);
+CREATE INDEX IF NOT EXISTS idx_worker_groups_group  ON bee_worker_groups(group_id);`,
+	},
+	{
+		version: 49,
+		name:    "add_parent_root_agent_kind_to_tasks",
+		sql: `ALTER TABLE bee_tasks ADD COLUMN parent_task_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE bee_tasks ADD COLUMN root_task_id   TEXT NOT NULL DEFAULT '';
+ALTER TABLE bee_tasks ADD COLUMN agent_kind     TEXT NOT NULL DEFAULT 'worker';`,
+	},
+	{
+		version: 50,
+		name:    "backfill_root_task_id_self_reference",
+		sql:     `UPDATE bee_tasks SET root_task_id = id WHERE root_task_id = ''`,
+	},
+	{
+		version: 51,
+		name:    "create_index_tasks_parent_root",
+		sql: `CREATE INDEX IF NOT EXISTS idx_tasks_parent ON bee_tasks(parent_task_id) WHERE parent_task_id != '';
+CREATE INDEX IF NOT EXISTS idx_tasks_root ON bee_tasks(root_task_id);`,
+	},
+	{
+		version: 52,
+		name:    "extend_tasks_status_to_include_waiting_subtasks",
+		sql: `-- SQLite cannot ALTER CHECK; recreate table.
+CREATE TABLE bee_tasks_new (
+    id           TEXT PRIMARY KEY,
+    message_id   TEXT NOT NULL REFERENCES bee_platform_messages(id),
+    worker_id    TEXT NOT NULL,
+    instruction  TEXT NOT NULL,
+    type         TEXT NOT NULL CHECK(type IN ('immediate','countdown','scheduled')),
+    status       TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','running','completed','failed','cancelled','waiting_subtasks')),
+    scheduled_at INTEGER,
+    cron_expr    TEXT NOT NULL DEFAULT '',
+    next_run_at  INTEGER,
+    execution_id TEXT NOT NULL DEFAULT '',
+    parent_task_id TEXT NOT NULL DEFAULT '',
+    root_task_id   TEXT NOT NULL DEFAULT '',
+    agent_kind     TEXT NOT NULL DEFAULT 'worker',
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+INSERT INTO bee_tasks_new SELECT * FROM bee_tasks;
+DROP TABLE bee_tasks;
+ALTER TABLE bee_tasks_new RENAME TO bee_tasks;
+CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON bee_tasks(status, type);
+CREATE INDEX IF NOT EXISTS idx_tasks_message_id ON bee_tasks(message_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON bee_tasks(worker_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON bee_tasks(parent_task_id) WHERE parent_task_id != '';
+CREATE INDEX IF NOT EXISTS idx_tasks_root ON bee_tasks(root_task_id);`,
+	},
+	{
+		version: 53,
+		name:    "create_index_session_contexts_agent_engine",
+		sql:     `CREATE INDEX IF NOT EXISTS idx_session_contexts_agent_engine ON bee_session_contexts(agent_id, engine)`,
+	},
 }
 
 type whereBuilder struct {
