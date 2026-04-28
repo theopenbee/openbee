@@ -11,6 +11,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/group"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -67,6 +68,18 @@ type WorkerLookup interface {
 	GetByID(id string) (model.Worker, error)
 }
 
+// GroupLookup fetches group metadata for persona injection.
+type GroupLookup interface {
+	GetByID(id string) (model.Group, error)
+	ListMembers(groupID string) ([]model.MemberBrief, error)
+}
+
+// TaskQuerier fetches individual tasks and task trees from the store.
+type TaskQuerier interface {
+	GetByID(ctx context.Context, id string) (model.Task, error)
+	ListByRoot(ctx context.Context, rootID string) ([]model.Task, error)
+}
+
 type queueState struct {
 	executing    bool
 	pendingTasks []DispatchTask
@@ -87,6 +100,9 @@ type TaskDispatcher struct {
 	engineCfg       *enginecfg.Store              // resolves the current default engine
 	failureNotifier FailureNotifier               // sends failure notifications (optional)
 	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
+	groupLookup     GroupLookup                   // optional; enables group persona injection
+	taskQuerier     TaskQuerier                   // optional; enables agent_kind branching and subtask events
+	subtaskEventCh  chan DispatchTask              // subtask terminal events → parent resume
 	inCh            <-chan DispatchTask           // inbound task channel
 	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
 	queues          map[string]*queueState        // per-workerID serial queues
@@ -98,17 +114,18 @@ type TaskDispatcher struct {
 // New constructs a TaskDispatcher.
 func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, engineCfg *enginecfg.Store, opts ...Option) *TaskDispatcher {
 	d := &TaskDispatcher{
-		manager:      manager,
-		taskStore:    taskStore,
-		sessionStore: sessionStore,
-		execStore:    execStore,
-		engineCfg:    engineCfg,
-		inCh:         in,
-		resultsCh:    make(chan internalResult, 64),
-		queues:       make(map[string]*queueState),
-		clearCh:      make(chan string, 8),
-		cancelFuncs:  make(map[string]context.CancelFunc),
-		cancelCh:     make(chan string, 16),
+		manager:        manager,
+		taskStore:      taskStore,
+		sessionStore:   sessionStore,
+		execStore:      execStore,
+		engineCfg:      engineCfg,
+		inCh:           in,
+		resultsCh:      make(chan internalResult, 64),
+		queues:         make(map[string]*queueState),
+		clearCh:        make(chan string, 8),
+		cancelFuncs:    make(map[string]context.CancelFunc),
+		cancelCh:       make(chan string, 16),
+		subtaskEventCh: make(chan DispatchTask, 256),
 	}
 	for _, o := range opts {
 		o(d)
@@ -129,6 +146,16 @@ func WithWorkerLookup(lookup WorkerLookup) Option {
 	return func(d *TaskDispatcher) { d.workerLookup = lookup }
 }
 
+// WithGroupLookup wires Group persona injection.
+func WithGroupLookup(lookup GroupLookup) Option {
+	return func(d *TaskDispatcher) { d.groupLookup = lookup }
+}
+
+// WithTaskQuerier wires the task querier for agent_kind branching and subtask events.
+func WithTaskQuerier(q TaskQuerier) Option {
+	return func(d *TaskDispatcher) { d.taskQuerier = q }
+}
+
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
 func (d *TaskDispatcher) Run(ctx context.Context) {
 	d.ctx = ctx
@@ -139,6 +166,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 				return
 			}
 			d.handleInbound(task)
+		case ev := <-d.subtaskEventCh:
+			d.handleInbound(ev)
 		case res := <-d.resultsCh:
 			d.handleResult(res)
 		case sessionKey := <-d.clearCh:
@@ -334,8 +363,27 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 // worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
 // configured but worker is nil, the lookup failed and the task is aborted.
 func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+	// Detect group task by checking the persisted task row's agent_kind.
+	isGroup := false
+	var groupID string
+	if d.taskQuerier != nil {
+		if t, err := d.taskQuerier.GetByID(ctx, task.TaskID); err == nil {
+			if t.AgentKind == model.AgentKindGroup {
+				isGroup = true
+				groupID = t.WorkerID
+			}
+		}
+	}
+
 	hint := ai.SkillHintPrefix(ai.RoleWorker)
-	if d.workerLookup != nil {
+	if isGroup && d.groupLookup != nil {
+		g, err := d.groupLookup.GetByID(groupID)
+		if err != nil {
+			return model.WorkerExecution{}, fmt.Errorf("group lookup: %w", err)
+		}
+		members, _ := d.groupLookup.ListMembers(groupID)
+		hint += "\n<group_persona>\n" + group.BuildPersona(g, members) + "</group_persona>"
+	} else if d.workerLookup != nil {
 		if worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
@@ -344,7 +392,7 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 	}
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
+	log.Info("executing agent", zap.String("agentID", task.WorkerID), zap.String("taskID", task.TaskID), zap.Bool("group", isGroup))
 	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
 }
 
