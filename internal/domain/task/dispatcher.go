@@ -228,6 +228,24 @@ func (d *TaskDispatcher) ClearSession(sessionKey string) {
 }
 
 func (d *TaskDispatcher) handleCancel(taskID string) {
+	// If this is a group root task, cascade cancel to all non-terminal subtasks.
+	if d.taskQuerier != nil {
+		if t, err := d.taskQuerier.GetByID(context.Background(), taskID); err == nil && t.AgentKind == model.AgentKindGroup {
+			children, _ := d.taskQuerier.ListByRoot(context.Background(), taskID)
+			for _, ch := range children {
+				if ch.ID == taskID {
+					continue
+				}
+				if ch.Status == model.TaskStatusPending || ch.Status == model.TaskStatusRunning {
+					_ = d.taskStore.CancelTask(context.Background(), ch.ID)
+					if cancel, ok := d.cancelFuncs[ch.ID]; ok {
+						cancel()
+						delete(d.cancelFuncs, ch.ID)
+					}
+				}
+			}
+		}
+	}
 	// Remove from any pending queue
 	for key, state := range d.queues {
 		var remaining []DispatchTask

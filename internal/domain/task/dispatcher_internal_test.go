@@ -144,6 +144,61 @@ func (fakeSessStore) DeleteSessionContextForEngine(_ context.Context, _, _, _ st
 }
 func (fakeSessStore) ClearSessionContexts(_ context.Context, _, _ string) error { return nil }
 
+// spyTaskStore records CancelTask calls for test assertions.
+type spyTaskStore struct {
+	mu        sync.Mutex
+	cancelled map[string]bool
+}
+
+func newSpyTaskStore() *spyTaskStore {
+	return &spyTaskStore{cancelled: make(map[string]bool)}
+}
+
+func (s *spyTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
+func (s *spyTaskStore) CompleteTask(_ context.Context, _ string) error        { return nil }
+func (s *spyTaskStore) FailTask(_ context.Context, _ string) error            { return nil }
+func (s *spyTaskStore) CancelTask(_ context.Context, id string) error {
+	s.mu.Lock()
+	s.cancelled[id] = true
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *spyTaskStore) wasCancelled(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cancelled[id]
+}
+
+// TestCancelRootTask_CascadesToSubtasks verifies that cancelling a group root task
+// also cancels all pending/running child tasks.
+func TestCancelRootTask_CascadesToSubtasks(t *testing.T) {
+	rootID := "r1"
+	sub1, sub2 := "s1", "s2"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		rootID: {ID: rootID, WorkerID: "g", AgentKind: model.AgentKindGroup, Status: model.TaskStatusWaitingSubtasks, RootTaskID: rootID},
+		sub1:   {ID: sub1, ParentTaskID: rootID, RootTaskID: rootID, Status: model.TaskStatusRunning},
+		sub2:   {ID: sub2, ParentTaskID: rootID, RootTaskID: rootID, Status: model.TaskStatusPending},
+	})
+	spy := newSpyTaskStore()
+	in := make(chan DispatchTask, 4)
+	d := New(newFakeExecMgr(), spy, fakeSessStore{}, &fakeExecQuerier{}, in, enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	if err := d.CancelTask(context.Background(), rootID); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+	// Give the Run loop a moment to process the cancelCh signal.
+	time.Sleep(50 * time.Millisecond)
+	if !spy.wasCancelled(sub1) || !spy.wasCancelled(sub2) {
+		t.Errorf("expected sub1=%v and sub2=%v to be cancelled, cancelled=%v", spy.wasCancelled(sub1), spy.wasCancelled(sub2), spy.cancelled)
+	}
+}
+
 // TestSubtaskCompletionResumesParent verifies that when a subtask is terminal, the parent group is resumed.
 func TestSubtaskCompletionResumesParent(t *testing.T) {
 	rootID := "root1"
