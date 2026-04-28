@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -446,6 +447,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			// Persist session_id for future resume (only on success).
 			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+			if d.taskHasParent(task.TaskID) {
+				d.notifyParentOnSubtaskTerminal(ctx, task)
+			}
 			return
 		case model.ExecStatusFailed:
 			// Persist session context even on failure so the next dispatch can attempt
@@ -456,6 +460,10 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
 					log.Error("fail task", zap.String("taskID", task.TaskID), zap.Error(err))
 				}
+			}
+			if d.taskHasParent(task.TaskID) {
+				d.notifyParentOnSubtaskTerminal(ctx, task)
+				return
 			}
 			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
 				Reason:     exec.Result,
@@ -523,5 +531,132 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)
+	}
+}
+
+// taskHasParent returns true if the task has a non-empty parent_task_id.
+func (d *TaskDispatcher) taskHasParent(taskID string) bool {
+	if d.taskQuerier == nil {
+		return false
+	}
+	t, err := d.taskQuerier.GetByID(context.Background(), taskID)
+	if err != nil {
+		return false
+	}
+	return t.ParentTaskID != ""
+}
+
+// notifyParentOnSubtaskTerminal: when a sub-task reaches a terminal state, build
+// a snapshot of the entire root task tree and re-enqueue a DispatchTask
+// targeting the parent (Group) session so it can be resumed.
+func (d *TaskDispatcher) notifyParentOnSubtaskTerminal(ctx context.Context, finishedTask DispatchTask) {
+	if d.taskQuerier == nil {
+		return
+	}
+	sub, err := d.taskQuerier.GetByID(ctx, finishedTask.TaskID)
+	if err != nil || sub.ParentTaskID == "" {
+		return
+	}
+	parent, err := d.taskQuerier.GetByID(ctx, sub.ParentTaskID)
+	if err != nil {
+		log.Error("get parent task", zap.Error(err))
+		return
+	}
+	if parent.Status != model.TaskStatusWaitingSubtasks &&
+		parent.Status != model.TaskStatusRunning {
+		return
+	}
+	// Build the snapshot.
+	snapshot := d.buildSubtaskEventXML(ctx, parent.RootTaskID, sub)
+	// Synthesise a DispatchTask that re-enters the dispatcher's queue, keyed by
+	// the Group's worker_id so the existing per-agent serialization wins.
+	select {
+	case d.subtaskEventCh <- DispatchTask{
+		TaskID:      parent.ID,
+		WorkerID:    parent.WorkerID,
+		SessionKey:  finishedTask.SessionKey,
+		Instruction: snapshot,
+		TaskType:    model.TaskTypeImmediate,
+		MessageID:   parent.MessageID,
+	}:
+	default:
+		log.Warn("subtaskEventCh full, dropping resume signal", zap.String("parentTaskID", parent.ID))
+	}
+}
+
+func (d *TaskDispatcher) buildSubtaskEventXML(ctx context.Context, rootID string, recent model.Task) string {
+	list, _ := d.taskQuerier.ListByRoot(ctx, rootID)
+	var sb strings.Builder
+	sb.WriteString("<subtask_event>\n")
+	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", rootID)
+	sb.WriteString("<subtasks>\n")
+	for _, t := range list {
+		if t.ID == rootID {
+			continue
+		}
+		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", t.ID, t.WorkerID, t.Status)
+	}
+	sb.WriteString("</subtasks>\n")
+	fmt.Fprintf(&sb, "<recent id=\"%s\" status=\"%s\"/>\n", recent.ID, recent.Status)
+	sb.WriteString("</subtask_event>\n")
+	return sb.String()
+}
+
+// NotifySubtaskProgress is called when a worker sends a message while inside a sub-task.
+// It pushes a progress event into the subtask channel so the parent group session can be informed.
+func (d *TaskDispatcher) NotifySubtaskProgress(_ context.Context, task model.Task, content string) {
+	if task.ParentTaskID == "" {
+		return
+	}
+	event := fmt.Sprintf("<subtask_event source=\"worker_message\">\n<subtask id=\"%s\" worker=\"%s\"/>\n<content>%s</content>\n</subtask_event>\n",
+		task.ID, task.WorkerID, content)
+	select {
+	case d.subtaskEventCh <- DispatchTask{
+		TaskID:      task.ParentTaskID,
+		WorkerID:    task.WorkerID,
+		Instruction: event,
+		TaskType:    model.TaskTypeImmediate,
+		MessageID:   task.MessageID,
+	}:
+	default:
+		log.Warn("subtaskEventCh full, dropping progress signal", zap.String("subtaskID", task.ID))
+	}
+}
+
+// NotifyAllSubtasksTerminal is called by the SubtaskHandler when all subtasks are already
+// terminal at the time Suspend is called (phantom suspend). It synthesises a completion
+// event and re-enqueues the parent group task for immediate execution.
+func (d *TaskDispatcher) NotifyAllSubtasksTerminal(ctx context.Context, rootTaskID string) {
+	if d.taskQuerier == nil {
+		return
+	}
+	root, err := d.taskQuerier.GetByID(ctx, rootTaskID)
+	if err != nil {
+		log.Error("NotifyAllSubtasksTerminal: get root task", zap.Error(err))
+		return
+	}
+	list, _ := d.taskQuerier.ListByRoot(ctx, rootTaskID)
+	var sb strings.Builder
+	sb.WriteString("<subtask_event status=\"all_done\">\n")
+	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", rootTaskID)
+	sb.WriteString("<subtasks>\n")
+	for _, t := range list {
+		if t.ID == rootTaskID {
+			continue
+		}
+		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", t.ID, t.WorkerID, t.Status)
+	}
+	sb.WriteString("</subtasks>\n</subtask_event>\n")
+
+	select {
+	case d.subtaskEventCh <- DispatchTask{
+		TaskID:      rootTaskID,
+		WorkerID:    root.WorkerID,
+		Instruction: sb.String(),
+		TaskType:    model.TaskTypeImmediate,
+		MessageID:   root.MessageID,
+	}:
+	default:
+		log.Warn("subtaskEventCh full, dropping all_done signal", zap.String("rootTaskID", rootTaskID))
 	}
 }

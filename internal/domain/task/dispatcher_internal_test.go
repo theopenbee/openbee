@@ -144,6 +144,36 @@ func (fakeSessStore) DeleteSessionContextForEngine(_ context.Context, _, _, _ st
 }
 func (fakeSessStore) ClearSessionContexts(_ context.Context, _, _ string) error { return nil }
 
+// TestSubtaskCompletionResumesParent verifies that when a subtask is terminal, the parent group is resumed.
+func TestSubtaskCompletionResumesParent(t *testing.T) {
+	rootID := "root1"
+	subID := "sub1"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		rootID: {ID: rootID, WorkerID: "g1", AgentKind: model.AgentKindGroup, Status: model.TaskStatusWaitingSubtasks, MessageID: "m1", RootTaskID: rootID},
+		subID:  {ID: subID, WorkerID: "w1", AgentKind: model.AgentKindWorker, Status: model.TaskStatusCompleted, ParentTaskID: rootID, RootTaskID: rootID},
+	})
+
+	in := make(chan DispatchTask, 4)
+	d := New(newFakeExecMgr(), fakeTaskStore{}, fakeSessStore{}, &fakeExecQuerier{}, in, enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+
+	// Call notifyParentOnSubtaskTerminal directly.
+	d.notifyParentOnSubtaskTerminal(context.Background(), DispatchTask{TaskID: subID, SessionKey: "session-x"})
+
+	select {
+	case ev := <-d.subtaskEventCh:
+		if ev.TaskID != rootID {
+			t.Errorf("expected resume targeting root %s, got %s", rootID, ev.TaskID)
+		}
+		if !strings.Contains(ev.Instruction, "<subtask_event>") {
+			t.Errorf("expected subtask_event in instruction, got %q", ev.Instruction)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no resume event observed")
+	}
+}
+
 // TestGroupPersonaInjection verifies that a group task causes group persona to be injected.
 func TestGroupPersonaInjection(t *testing.T) {
 	groupID := "g1"
