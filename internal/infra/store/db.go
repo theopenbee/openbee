@@ -486,7 +486,18 @@ CREATE TABLE bee_tasks_new (
     created_at   INTEGER NOT NULL,
     updated_at   INTEGER NOT NULL
 );
-INSERT INTO bee_tasks_new SELECT * FROM bee_tasks;
+INSERT INTO bee_tasks_new (
+    id, message_id, worker_id, instruction, type, status,
+    scheduled_at, cron_expr, next_run_at, execution_id,
+    parent_task_id, root_task_id, agent_kind,
+    created_at, updated_at
+)
+SELECT
+    id, message_id, worker_id, instruction, type, status,
+    scheduled_at, cron_expr, next_run_at, execution_id,
+    parent_task_id, root_task_id, agent_kind,
+    created_at, updated_at
+FROM bee_tasks;
 DROP TABLE bee_tasks;
 ALTER TABLE bee_tasks_new RENAME TO bee_tasks;
 CREATE INDEX IF NOT EXISTS idx_tasks_status_type ON bee_tasks(status, type);

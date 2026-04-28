@@ -316,20 +316,20 @@ func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) err
 	return err
 }
 
-// CancelByWorkerID cancels all pending/running tasks for a given worker.
+// CancelByWorkerID cancels all active tasks for a given worker.
 func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
-         WHERE worker_id = ? AND status IN ('pending','running')`,
+         WHERE worker_id = ? AND status IN ('pending','running','waiting_subtasks')`,
 		time.Now().UnixMilli(), workerID)
 	return err
 }
 
-// CancelBySessionKey cancels pending/running tasks for a session; empty taskType matches all types.
+// CancelBySessionKey cancels active tasks for a session; empty taskType matches all types.
 func (s *TaskStore) CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error) {
 	q := `UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
 	      WHERE message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)
-	        AND status IN ('pending', 'running')`
+	        AND status IN ('pending', 'running', 'waiting_subtasks')`
 	args := []any{time.Now().UnixMilli(), sessionKey}
 	if taskType != "" {
 		q += " AND type = ?"
@@ -451,12 +451,12 @@ func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error
 	return counts, rows.Err()
 }
 
-// HasActiveImmediateTasks reports whether any immediate tasks with status pending or running exist.
+// HasActiveImmediateTasks reports whether any immediate tasks with an active status exist.
 func (s *TaskStore) HasActiveImmediateTasks(ctx context.Context) (bool, error) {
 	var exists int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM bee_tasks WHERE type = ? AND status IN (?, ?))`,
-		model.TaskTypeImmediate, model.TaskStatusPending, model.TaskStatusRunning,
+		`SELECT EXISTS(SELECT 1 FROM bee_tasks WHERE type = ? AND status IN (?, ?, ?))`,
+		model.TaskTypeImmediate, model.TaskStatusPending, model.TaskStatusRunning, model.TaskStatusWaitingSubtasks,
 	).Scan(&exists)
 	return exists == 1, err
 }

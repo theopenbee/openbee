@@ -364,6 +364,12 @@ func (s *MCPServer) cancelActiveSubtasks(ctx context.Context, rootID string) err
 		if t.ID == rootID || !isActiveTaskStatus(t.Status) {
 			continue
 		}
+		if s.taskCanceller != nil {
+			if err := s.taskCanceller.CancelTask(ctx, t.ID); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := s.taskStore.CancelTask(ctx, t.ID); err != nil {
 			return err
 		}

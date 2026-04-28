@@ -428,7 +428,7 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UnixMilli()
 
-	// Create tasks in session-A: pending + running + completed
+	// Create tasks in session-A: pending + running + waiting_subtasks + completed
 	ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "a",
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
@@ -437,6 +437,11 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 	ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: "w1", Instruction: "b",
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "waiting",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusWaitingSubtasks,
 		CreatedAt: now, UpdatedAt: now,
 	})
 	ts.Create(ctx, model.Task{
@@ -455,8 +460,8 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CancelBySessionKey: %v", err)
 	}
-	if n != 2 {
-		t.Errorf("expected 2 cancelled (pending+running), got %d", n)
+	if n != 3 {
+		t.Errorf("expected 3 cancelled (pending+running+waiting_subtasks), got %d", n)
 	}
 
 	// Verify: session-A completed task untouched
@@ -467,8 +472,8 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 
 	// Verify: session-A cancelled tasks
 	cancelledA, _ := ts.ListBySessionKey(ctx, "session-A", "cancelled", "")
-	if len(cancelledA) != 2 {
-		t.Errorf("expected 2 cancelled tasks, got %d", len(cancelledA))
+	if len(cancelledA) != 3 {
+		t.Errorf("expected 3 cancelled tasks, got %d", len(cancelledA))
 	}
 
 	// Verify: session-B unaffected

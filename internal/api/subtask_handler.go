@@ -193,6 +193,12 @@ func (h *SubtaskHandler) cancelActiveSubtasks(ctx context.Context, rootID string
 		if t.ID == rootID || !isActiveSubtaskStatus(t.Status) {
 			continue
 		}
+		if canceller, ok := h.dispatcher.(TaskCanceller); ok {
+			if err := canceller.CancelTask(ctx, t.ID); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := h.taskStore.CancelTask(ctx, t.ID); err != nil {
 			return err
 		}

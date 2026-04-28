@@ -55,7 +55,8 @@ func TestBuildInstruction_NoPlatformContext(t *testing.T) {
 // --- fakes for dispatcher internal tests ---
 
 type fakeTaskQuerier struct {
-	tasks map[string]model.Task
+	tasks       map[string]model.Task
+	sessionKeys map[string]string
 }
 
 func newFakeTaskQuerier(tasks map[string]model.Task) *fakeTaskQuerier {
@@ -94,6 +95,11 @@ func (f *fakeTaskQuerier) ListWaitingGroupRoots(_ context.Context) ([]model.Task
 func (f *fakeTaskQuerier) SessionKeyForTask(_ context.Context, taskID string) (string, error) {
 	if _, ok := f.tasks[taskID]; !ok {
 		return "", fmt.Errorf("task %s not found", taskID)
+	}
+	if f.sessionKeys != nil {
+		if sessionKey, ok := f.sessionKeys[taskID]; ok {
+			return sessionKey, nil
+		}
 	}
 	return "session-x", nil
 }
@@ -260,6 +266,44 @@ func TestSubtaskCompletionResumesParent(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no resume event observed")
+	}
+}
+
+func TestSubtaskCompletionDoesNotResumeRunningParent(t *testing.T) {
+	rootID := "root-running"
+	subID := "sub-done"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		rootID: {ID: rootID, WorkerID: "g1", AgentKind: model.AgentKindGroup, Status: model.TaskStatusRunning, MessageID: "m1", RootTaskID: rootID},
+		subID:  {ID: subID, WorkerID: "w1", AgentKind: model.AgentKindWorker, Status: model.TaskStatusCompleted, ParentTaskID: rootID, RootTaskID: rootID},
+	})
+
+	d := New(newFakeExecMgr(), fakeTaskStore{}, fakeSessStore{}, &fakeExecQuerier{}, make(chan DispatchTask, 4), enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+	d.notifyParentOnSubtaskTerminal(context.Background(), DispatchTask{TaskID: subID, SessionKey: "session-x"})
+
+	select {
+	case ev := <-d.subtaskEventCh:
+		t.Fatalf("unexpected resume event for running parent: %+v", ev)
+	default:
+	}
+}
+
+func TestDispatcherSkipsTerminalQueuedTask(t *testing.T) {
+	taskID := "terminal-root"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		taskID: {ID: taskID, WorkerID: "g1", AgentKind: model.AgentKindGroup, Status: model.TaskStatusCompleted, MessageID: "m1", RootTaskID: taskID},
+	})
+	execMgr := newFakeExecMgr()
+	execMgr.result = model.WorkerExecution{ID: "exec-terminal", Status: model.ExecStatusCompleted}
+	d := New(execMgr, fakeTaskStore{}, fakeSessStore{}, &fakeExecQuerier{result: model.WorkerExecution{ID: "exec-terminal", Status: model.ExecStatusCompleted}}, make(chan DispatchTask, 1), enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+	d.ctx = context.Background()
+
+	d.executeAsync(context.Background(), func() {}, "g1", DispatchTask{TaskID: taskID, WorkerID: "g1", MessageID: "m1", TaskType: model.TaskTypeImmediate})
+	if got := execMgr.lastInstruction(); got != "" {
+		t.Fatalf("terminal task should not execute, got instruction %q", got)
 	}
 }
 

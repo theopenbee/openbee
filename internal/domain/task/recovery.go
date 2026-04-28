@@ -14,11 +14,12 @@ import (
 type recoveryStore interface {
 	ListWaitingGroupRoots(ctx context.Context) ([]model.Task, error)
 	ListByRoot(ctx context.Context, rootID string) ([]model.Task, error)
+	SessionKeyForTask(ctx context.Context, taskID string) (string, error)
 }
 
 // recoverySessionStore is the subset of SessionStore needed for crash recovery.
 type recoverySessionStore interface {
-	SessionKeyForAgent(ctx context.Context, agentID, engine string) (string, string, bool, error)
+	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (string, error)
 }
 
 // RecoverGroupTasks scans the task store for any group tasks that were in
@@ -30,8 +31,12 @@ func RecoverGroupTasks(ctx context.Context, ts recoveryStore, ss recoverySession
 		return fmt.Errorf("list waiting roots: %w", err)
 	}
 	for _, root := range roots {
-		sessionKey, _, ok, err := ss.SessionKeyForAgent(ctx, root.WorkerID, engineName)
-		if err != nil || !ok {
+		sessionKey, err := ts.SessionKeyForTask(ctx, root.ID)
+		if err != nil {
+			continue
+		}
+		sessionID, err := ss.GetSessionContextForEngine(ctx, sessionKey, root.WorkerID, engineName)
+		if err != nil || sessionID == "" {
 			// Session lost; skip this root (could be failed separately in a future enhancement).
 			continue
 		}

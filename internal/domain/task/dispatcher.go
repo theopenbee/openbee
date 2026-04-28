@@ -335,6 +335,11 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 		}
 	}()
 
+	if d.taskIsTerminal(task.TaskID) {
+		log.Info("skip terminal task dispatch", zap.String("taskID", task.TaskID))
+		return
+	}
+
 	agent := d.resolveAgent(taskCtx, task)
 	instruction := buildInstruction(task)
 	exec, err := d.resolveExecution(taskCtx, task, instruction, agent)
@@ -492,6 +497,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		}
 		switch exec.Status {
 		case model.ExecStatusCompleted:
+			if d.taskIsTerminal(task.TaskID) {
+				return
+			}
 			if task.TaskID != "" {
 				if err := d.taskStore.CompleteTask(ctx, task.TaskID); err != nil {
 					log.Error("complete task", zap.String("taskID", task.TaskID), zap.Error(err))
@@ -504,6 +512,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			return
 		case model.ExecStatusFailed:
+			if d.taskIsTerminal(task.TaskID) {
+				return
+			}
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
 			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
@@ -598,6 +609,23 @@ func (d *TaskDispatcher) taskHasParent(taskID string) bool {
 	return t.ParentTaskID != ""
 }
 
+func (d *TaskDispatcher) taskIsTerminal(taskID string) bool {
+	if taskID == "" || d.taskQuerier == nil {
+		return false
+	}
+	t, err := d.taskQuerier.GetByID(context.Background(), taskID)
+	if err != nil {
+		return false
+	}
+	return isTerminalTaskStatus(t.Status)
+}
+
+func isTerminalTaskStatus(status string) bool {
+	return status == model.TaskStatusCompleted ||
+		status == model.TaskStatusFailed ||
+		status == model.TaskStatusCancelled
+}
+
 // notifyParentOnSubtaskTerminal: when a sub-task reaches a terminal state, build
 // a snapshot of the entire root task tree and re-enqueue a DispatchTask
 // targeting the parent (Group) session so it can be resumed.
@@ -614,8 +642,7 @@ func (d *TaskDispatcher) notifyParentOnSubtaskTerminal(ctx context.Context, fini
 		log.Error("get parent task", zap.Error(err))
 		return
 	}
-	if parent.Status != model.TaskStatusWaitingSubtasks &&
-		parent.Status != model.TaskStatusRunning {
+	if parent.Status != model.TaskStatusWaitingSubtasks {
 		return
 	}
 	// Build the snapshot.

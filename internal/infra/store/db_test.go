@@ -241,6 +241,11 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 		VALUES ('sk', 'bee', 'legacy-sid', 1)`); err != nil {
 		t.Fatalf("seed legacy session row: %v", err)
 	}
+	if _, err := db.Exec(`INSERT INTO bee_tasks
+		(id, message_id, worker_id, instruction, type, status, scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at)
+		VALUES ('task-1', 'msg-1', 'worker-1', 'do it', 'immediate', 'pending', NULL, '', NULL, '', 111, 222)`); err != nil {
+		t.Fatalf("seed legacy task row: %v", err)
+	}
 	for _, m := range migrations {
 		if m.version >= 29 {
 			break
@@ -275,5 +280,16 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("expected 2 per-engine rows after migration, got %d", count)
+	}
+
+	var parentTaskID, rootTaskID, agentKind string
+	var createdAt, updatedAt int64
+	if err := db.QueryRow(`SELECT parent_task_id, root_task_id, agent_kind, created_at, updated_at
+		FROM bee_tasks WHERE id = 'task-1'`).Scan(&parentTaskID, &rootTaskID, &agentKind, &createdAt, &updatedAt); err != nil {
+		t.Fatalf("query migrated task row: %v", err)
+	}
+	if parentTaskID != "" || rootTaskID != "task-1" || agentKind != "worker" || createdAt != 111 || updatedAt != 222 {
+		t.Fatalf("unexpected migrated task row: parent=%q root=%q agent=%q created=%d updated=%d",
+			parentTaskID, rootTaskID, agentKind, createdAt, updatedAt)
 	}
 }
