@@ -82,7 +82,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		cfg:          cfg,
 		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
-		running: make(map[string]context.CancelFunc),
+		running:      make(map[string]context.CancelFunc),
 	}
 	for _, o := range opts {
 		o(f)

@@ -107,9 +107,9 @@ func (f *fakeGroupLookup) ListMembers(_ string) ([]model.MemberBrief, error) {
 type fakeTaskStore struct{}
 
 func (fakeTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
-func (fakeTaskStore) CompleteTask(_ context.Context, _ string) error        { return nil }
-func (fakeTaskStore) FailTask(_ context.Context, _ string) error            { return nil }
-func (fakeTaskStore) CancelTask(_ context.Context, _ string) error          { return nil }
+func (fakeTaskStore) CompleteTask(_ context.Context, _ string) error       { return nil }
+func (fakeTaskStore) FailTask(_ context.Context, _ string) error           { return nil }
+func (fakeTaskStore) CancelTask(_ context.Context, _ string) error         { return nil }
 
 type fakeExecQuerier struct {
 	result model.WorkerExecution
@@ -167,8 +167,8 @@ func newSpyTaskStore() *spyTaskStore {
 }
 
 func (s *spyTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
-func (s *spyTaskStore) CompleteTask(_ context.Context, _ string) error        { return nil }
-func (s *spyTaskStore) FailTask(_ context.Context, _ string) error            { return nil }
+func (s *spyTaskStore) CompleteTask(_ context.Context, _ string) error       { return nil }
+func (s *spyTaskStore) FailTask(_ context.Context, _ string) error           { return nil }
 func (s *spyTaskStore) CancelTask(_ context.Context, id string) error {
 	s.mu.Lock()
 	s.cancelled[id] = true

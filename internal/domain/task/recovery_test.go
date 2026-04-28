@@ -29,11 +29,11 @@ func TestRecoverGroupTasks_ResumeWaitingRoots(t *testing.T) {
 	rootID := "r1"
 	fq := newFakeTaskQuerier(map[string]model.Task{
 		rootID: {
-			ID:        rootID,
-			WorkerID:  "g1",
-			AgentKind: model.AgentKindGroup,
-			Status:    model.TaskStatusWaitingSubtasks,
-			MessageID: "m1",
+			ID:         rootID,
+			WorkerID:   "g1",
+			AgentKind:  model.AgentKindGroup,
+			Status:     model.TaskStatusWaitingSubtasks,
+			MessageID:  "m1",
 			RootTaskID: rootID,
 		},
 	})
@@ -62,11 +62,11 @@ func TestRecoverGroupTasks_NoSessionLost(t *testing.T) {
 	rootID := "r2"
 	fq := newFakeTaskQuerier(map[string]model.Task{
 		rootID: {
-			ID:        rootID,
-			WorkerID:  "g2",
-			AgentKind: model.AgentKindGroup,
-			Status:    model.TaskStatusWaitingSubtasks,
-			MessageID: "m2",
+			ID:         rootID,
+			WorkerID:   "g2",
+			AgentKind:  model.AgentKindGroup,
+			Status:     model.TaskStatusWaitingSubtasks,
+			MessageID:  "m2",
 			RootTaskID: rootID,
 		},
 	})

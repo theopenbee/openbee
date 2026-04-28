@@ -18,6 +18,8 @@ type ServerParams struct {
 	Messages          *api.MessageHandler
 	Tasks             *api.TaskHandler
 	Departments       *api.DepartmentHandler
+	Groups            *api.GroupHandler
+	Subtasks          *api.SubtaskHandler
 	Stats             *api.StatsHandler
 	Config            *api.ConfigHandler
 	LocalChat         *api.LocalChatHandler

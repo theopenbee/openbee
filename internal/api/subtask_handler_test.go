@@ -32,7 +32,9 @@ type subtaskTestHarness struct {
 	groupStore *store.GroupStore
 	dispatcher *fakeSubtaskDispatcher
 	msgID      string
-	db         interface{ Exec(string, ...any) (interface{}, error) }
+	db         interface {
+		Exec(string, ...any) (interface{}, error)
+	}
 }
 
 func newTestSubtaskHandler(t *testing.T) (*subtaskTestHarness, *gin.Engine) {

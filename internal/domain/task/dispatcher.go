@@ -103,7 +103,7 @@ type TaskDispatcher struct {
 	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
 	groupLookup     GroupLookup                   // optional; enables group persona injection
 	taskQuerier     TaskQuerier                   // optional; enables agent_kind branching and subtask events
-	subtaskEventCh  chan DispatchTask              // subtask terminal events → parent resume
+	subtaskEventCh  chan DispatchTask             // subtask terminal events → parent resume
 	inCh            <-chan DispatchTask           // inbound task channel
 	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
 	queues          map[string]*queueState        // per-workerID serial queues

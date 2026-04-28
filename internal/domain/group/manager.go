@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/google/uuid"
 )
 
 var (

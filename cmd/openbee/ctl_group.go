@@ -120,7 +120,7 @@ func init() {
 		c.MarkFlagRequired("group") //nolint:errcheck
 	}
 	ctlGroupMemberAddCmd.Flags().StringVar(&groupMemberWorkerID, "worker", "", "Worker ID (required)")
-	ctlGroupMemberAddCmd.MarkFlagRequired("worker")    //nolint:errcheck
+	ctlGroupMemberAddCmd.MarkFlagRequired("worker") //nolint:errcheck
 	ctlGroupMemberRemoveCmd.Flags().StringVar(&groupMemberWorkerID, "worker", "", "Worker ID (required)")
 	ctlGroupMemberRemoveCmd.MarkFlagRequired("worker") //nolint:errcheck
 
