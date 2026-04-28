@@ -684,6 +684,53 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	}
 }
 
+func TestFeeder_DirectDispatch_GroupName_SkipsBeeAndCreatesGroupTask(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", "sk1", "@data-team please fetch X")
+
+	runner := &mockBeeRunner{}
+	ws := store.NewWorkerStore(db)
+	gs := store.NewGroupStore(db)
+
+	// Create a group named "data-team"
+	g, err := gs.Create(model.Group{Name: "data-team", WorkDir: "/tmp/dt"})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+		bee.WithWorkerDispatch(ws),
+		bee.WithGroupDispatch(gs))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go f.Run(ctx)
+	time.Sleep(700 * time.Millisecond)
+
+	// Bee should NOT have been called
+	if len(runner.getCalls()) != 0 {
+		t.Errorf("expected bee runner NOT to be called for group direct dispatch, got %d calls", len(runner.getCalls()))
+	}
+
+	// A task should have been created with the group's ID and agent_kind=group
+	tasks, err := ts.List(context.Background(), store.TaskFilter{MessageID: "m1"})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].WorkerID != g.ID {
+		t.Errorf("expected WorkerID=%s, got %s", g.ID, tasks[0].WorkerID)
+	}
+	if tasks[0].AgentKind != model.AgentKindGroup {
+		t.Errorf("expected AgentKind=group, got %s", tasks[0].AgentKind)
+	}
+}
+
 func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 	for _, tc := range []struct {
 		name string

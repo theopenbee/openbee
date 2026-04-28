@@ -47,6 +47,11 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
+// WithGroupDispatch enables direct dispatch via "@groupName" when no matching worker is found.
+func WithGroupDispatch(lookup *store.GroupStore) Option {
+	return func(f *Feeder) { f.groupLookup = lookup }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -60,6 +65,7 @@ type Feeder struct {
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
+	groupLookup     *store.GroupStore
 	runningMu       sync.Mutex
 	running         map[string]context.CancelFunc
 }
@@ -371,7 +377,7 @@ func parseDirectMention(content string) (workerName, instruction string, ok bool
 }
 
 func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMessage) bool {
-	if f.workerLookup == nil {
+	if f.workerLookup == nil && f.groupLookup == nil {
 		return false
 	}
 	if len(msgs) == 0 {
@@ -379,35 +385,60 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 	}
 
 	primary := msgs[len(msgs)-1]
-	workerName, instruction, ok := parseDirectMention(primary.Content)
+	agentName, instruction, ok := parseDirectMention(primary.Content)
 	if !ok {
 		return false
 	}
 
-	worker, err := f.workerLookup.GetByName(workerName)
-	if err != nil {
-		log.Warn("direct: worker not found, falling back to bee",
-			zap.String("name", workerName))
-		return false
+	// Try worker lookup first.
+	if f.workerLookup != nil {
+		worker, err := f.workerLookup.GetByName(agentName)
+		if err == nil {
+			_, err = f.taskStore.Create(ctx, model.Task{
+				MessageID:   primary.ID,
+				WorkerID:    worker.ID,
+				Instruction: instruction,
+				Type:        model.TaskTypeImmediate,
+				Status:      model.TaskStatusPending,
+			})
+			if err != nil {
+				log.Error("direct: create worker task record", zap.Error(err))
+				return false
+			}
+			log.Info("direct: dispatched task to worker via scheduler",
+				zap.String("name", agentName), zap.String("workerID", worker.ID))
+			if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
+				log.Error("direct: mark bee_processed", zap.Error(err))
+			}
+			return true
+		}
 	}
 
-	_, err = f.taskStore.Create(ctx, model.Task{
-		MessageID:   primary.ID,
-		WorkerID:    worker.ID,
-		Instruction: instruction,
-		Type:        model.TaskTypeImmediate,
-		Status:      model.TaskStatusPending,
-	})
-	if err != nil {
-		log.Error("direct: create task record", zap.Error(err))
-		return false
+	// Fall through to group lookup if worker not found.
+	if f.groupLookup != nil {
+		g, err := f.groupLookup.GetByName(agentName)
+		if err == nil {
+			_, err = f.taskStore.Create(ctx, model.Task{
+				MessageID:   primary.ID,
+				WorkerID:    g.ID,
+				Instruction: instruction,
+				Type:        model.TaskTypeImmediate,
+				Status:      model.TaskStatusPending,
+				AgentKind:   model.AgentKindGroup,
+			})
+			if err != nil {
+				log.Error("direct: create group task", zap.Error(err))
+				return false
+			}
+			log.Info("direct: dispatched task to group via scheduler",
+				zap.String("name", agentName), zap.String("groupID", g.ID))
+			if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
+				log.Error("direct: mark bee_processed", zap.Error(err))
+			}
+			return true
+		}
 	}
 
-	log.Info("direct: dispatched task to worker via scheduler",
-		zap.String("name", workerName), zap.String("workerID", worker.ID))
-
-	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
-		log.Error("direct: mark bee_processed", zap.Error(err))
-	}
-	return true
+	log.Warn("direct: agent not found, falling back to bee", zap.String("name", agentName))
+	return false
 }

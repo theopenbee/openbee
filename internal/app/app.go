@@ -297,7 +297,8 @@ func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTa
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
-		bee.WithWorkerDispatch(s.workerStore))
+		bee.WithWorkerDispatch(s.workerStore),
+		bee.WithGroupDispatch(s.groupStore))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
