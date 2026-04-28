@@ -216,3 +216,4 @@ func TestScanResultLog_NoResultEvent(t *testing.T) {
 		t.Errorf("want empty result, got %q", result)
 	}
 }
+

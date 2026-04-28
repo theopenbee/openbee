@@ -109,6 +109,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
+	ai.ConfigureCmd(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

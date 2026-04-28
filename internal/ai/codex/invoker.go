@@ -124,6 +124,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	if !resume {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
+	ai.ConfigureCmd(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
