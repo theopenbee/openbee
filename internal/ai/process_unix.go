@@ -7,7 +7,6 @@ import (
 	"syscall"
 )
 
-// Stop kills the process group, terminating child processes spawned by the engine.
 // Requires that ConfigureCmd was called on the underlying cmd before Start.
 func (p *CmdProcess) Stop() error {
 	p.mu.Lock()

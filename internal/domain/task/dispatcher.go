@@ -421,7 +421,6 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
 			return

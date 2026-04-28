@@ -26,7 +26,6 @@ func TestConfigureCmd_SetsPgid(t *testing.T) {
 }
 
 func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
-	// Write child PID to temp file so we can check it after Stop().
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	script := fmt.Sprintf("sleep 10000 & echo $! > %s; wait", pidFile)
 
@@ -39,7 +38,6 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 
 	proc := NewCmdProcess(cmd)
 
-	// Wait for the child PID file to appear.
 	var childPID int
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -61,7 +59,6 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 	}
 	cmd.Wait() //nolint:errcheck
 
-	// Allow brief time for OS to reap the child.
 	time.Sleep(50 * time.Millisecond)
 
 	// kill -0 returns nil if the process still exists.
