@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 // CmdProcess implements Process for an os/exec.Cmd.
@@ -30,13 +31,26 @@ func (p *CmdProcess) PID() int {
 	return 0
 }
 
+// Stop kills the process and all child processes in its process group.
+// Requires that ConfigureCmd was called on the underlying cmd before Start.
 func (p *CmdProcess) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
+	if p.cmd == nil || p.cmd.Process == nil {
+		return nil
+	}
+	// Kill the entire process group (negative PID = process group ID).
+	// This terminates child processes spawned by the engine (e.g. bash tool subprocesses).
+	if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL); err != nil {
 		return p.cmd.Process.Kill()
 	}
 	return nil
+}
+
+// ConfigureCmd sets process attributes required for clean shutdown.
+// Call this on every engine cmd before cmd.Start() so Stop() can kill the full process group.
+func ConfigureCmd(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
 // BuildRunEnv assembles the final env slice for a subprocess run.
