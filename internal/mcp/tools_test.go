@@ -407,6 +407,88 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	}
 }
 
+// --- send_message subtask rerouting ---
+
+type mockSubtaskNotifier struct {
+	mu       sync.Mutex
+	notified []model.Task
+}
+
+func (m *mockSubtaskNotifier) NotifySubtaskProgress(_ context.Context, task model.Task, _ string) {
+	m.mu.Lock()
+	m.notified = append(m.notified, task)
+	m.mu.Unlock()
+}
+
+func (m *mockSubtaskNotifier) lastTask() (model.Task, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.notified) == 0 {
+		return model.Task{}, false
+	}
+	return m.notified[len(m.notified)-1], true
+}
+
+func TestCallTool_SendMessage_SubtaskReroutesToParent(t *testing.T) {
+	mock := &mockSender{}
+	s, db := setupMCPServerWithSender(t, "feishu", mock)
+	ctx := context.Background()
+
+	// Seed a platform message
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-sub", "feishu:chat1:userA", "feishu", "hello", //nolint
+		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+
+	// Create a worker and tasks: root (group) + sub-task with parent
+	ws := store.NewWorkerStore(db)
+	w, _ := ws.Create(model.Worker{Name: "alice", WorkDir: "/tmp"})
+	ts := store.NewTaskStore(db)
+	rootID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-sub", WorkerID: "g1", AgentKind: model.AgentKindGroup,
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+	})
+	subID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-sub", WorkerID: w.ID, AgentKind: model.AgentKindWorker,
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		ParentTaskID: rootID, RootTaskID: rootID,
+	})
+	_ = subID
+
+	// Wire a subtask notifier
+	notifier := &mockSubtaskNotifier{}
+	s.SetSubtaskNotifier(notifier)
+
+	// Call send_message as the worker (sub-task context)
+	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, w.ID)
+	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-sub",
+		"content":    "sub progress",
+	}))
+	if err != nil {
+		t.Fatalf("send_message: %v", err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "rerouted_to_parent" {
+		t.Errorf("expected rerouted_to_parent, got %q", m["status"])
+	}
+
+	// The notifier should have been called with the sub-task
+	task, ok := notifier.lastTask()
+	if !ok {
+		t.Fatal("expected subtask notifier to be called")
+	}
+	if task.ParentTaskID != rootID {
+		t.Errorf("expected ParentTaskID=%s, got %s", rootID, task.ParentTaskID)
+	}
+
+	// The IM platform sender should NOT have been called
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if len(mock.sent) != 0 {
+		t.Errorf("expected no IM send for sub-task, got %d sends", len(mock.sent))
+	}
+}
+
 // --- list_tasks session_key tests ---
 
 func TestCallTool_ListTasks_BySessionKey(t *testing.T) {

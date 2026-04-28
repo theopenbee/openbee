@@ -482,11 +482,22 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 
 	sourceType := store.SourceTypeBee
 	sourceID := ""
-	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
+	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
+	if workerID != "" {
 		sourceType = store.SourceTypeWorker
 		sourceID = workerID
 		if params.Content != "" {
 			params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
+		}
+	}
+
+	// Detect sub-task context: if the originating task for this worker has a
+	// parent_task_id, reroute the message to the parent group session instead of IM.
+	if s.subtaskNotifier != nil && workerID != "" && params.Content != "" {
+		tasks, _ := s.taskStore.List(ctx, store.TaskFilter{MessageID: params.MessageID, WorkerID: workerID, Limit: 1})
+		if len(tasks) == 1 && tasks[0].ParentTaskID != "" {
+			s.subtaskNotifier.NotifySubtaskProgress(ctx, tasks[0], params.Content)
+			return map[string]string{"status": "rerouted_to_parent"}, nil
 		}
 	}
 

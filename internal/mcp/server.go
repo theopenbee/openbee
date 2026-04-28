@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -29,6 +30,12 @@ const CtxScopesKey ctxKey = CtxKeyScopes
 // ExecutionStopper can kill a running worker process by execution ID.
 type ExecutionStopper interface {
 	StopExecution(executionID string) error
+}
+
+// SubtaskProgressNotifier is implemented by TaskDispatcher to forward worker messages
+// to the parent group session instead of sending them to the IM platform.
+type SubtaskProgressNotifier interface {
+	NotifySubtaskProgress(ctx context.Context, task model.Task, content string)
 }
 
 // SessionClearer clears dispatcher queues and session contexts for a session.
@@ -55,6 +62,7 @@ type MCPServer struct {
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
+	subtaskNotifier      SubtaskProgressNotifier // optional; reroutes worker messages to parent group
 
 	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
@@ -90,6 +98,11 @@ func NewBeeServer(
 		sessionStore:         sessionStore,
 		departmentStore:      ds,
 	}
+}
+
+// SetSubtaskNotifier wires the subtask progress notifier after construction.
+func (s *MCPServer) SetSubtaskNotifier(n SubtaskProgressNotifier) {
+	s.subtaskNotifier = n
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
