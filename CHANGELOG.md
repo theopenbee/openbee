@@ -7,6 +7,7 @@
 
 ### Fixed
 - Fix orphan processes left behind when a task is cancelled
+- Fix bee working directory not being created on fresh installs, causing tasks to fail with a "chdir" error (especially on Windows)
 
 ## [0.0.32] - 2026-04-27
 
