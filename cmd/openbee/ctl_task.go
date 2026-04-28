@@ -1,6 +1,9 @@
 package main
 
 import (
+	"io"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -77,6 +80,89 @@ var ctlTaskCancelCmd = &cobra.Command{
 	},
 }
 
+var (
+	taskDispatchSubParent    string
+	taskDispatchSubWorker    string
+	taskDispatchSubFromStdin bool
+)
+
+var ctlTaskDispatchSubtaskCmd = &cobra.Command{
+	Use:   "dispatch-subtask",
+	Short: "Group coordinator: create and dispatch a sub-task to a member worker",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		instruction := ""
+		if taskDispatchSubFromStdin {
+			b, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
+			instruction = string(b)
+		}
+		return ctlRun(utils.DispatchSubtask, map[string]any{
+			"parent_task_id": taskDispatchSubParent,
+			"worker_id":      taskDispatchSubWorker,
+			"instruction":    instruction,
+		})
+	},
+}
+
+var taskSubtasksTaskID string
+
+var ctlTaskSubtasksCmd = &cobra.Command{
+	Use:   "subtasks",
+	Short: "List all subtasks under a root task",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ctlRun(utils.ListSubtasks, map[string]any{"task_id": taskSubtasksTaskID})
+	},
+}
+
+var taskSuspendTaskID string
+
+var ctlTaskSuspendCmd = &cobra.Command{
+	Use:   "suspend",
+	Short: "Group coordinator: mark the root task waiting_subtasks and exit",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ctlRun(utils.SuspendTask, map[string]any{"task_id": taskSuspendTaskID})
+	},
+}
+
+var (
+	taskMarkSuccessTaskID string
+	taskMarkSuccessStdin  bool
+	taskMarkFailedTaskID  string
+	taskMarkFailedStdin   bool
+)
+
+func readOptionalStdin(flag bool) string {
+	if !flag {
+		return ""
+	}
+	b, _ := io.ReadAll(os.Stdin)
+	return string(b)
+}
+
+var ctlTaskMarkSuccessCmd = &cobra.Command{
+	Use:   "mark-success",
+	Short: "Group coordinator: declare the root task complete",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ctlRun(utils.MarkTaskSuccess, map[string]any{
+			"task_id": taskMarkSuccessTaskID,
+			"result":  readOptionalStdin(taskMarkSuccessStdin),
+		})
+	},
+}
+
+var ctlTaskMarkFailedCmd = &cobra.Command{
+	Use:   "mark-failed",
+	Short: "Group coordinator: declare the root task failed",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ctlRun(utils.MarkTaskFailed, map[string]any{
+			"task_id": taskMarkFailedTaskID,
+			"reason":  readOptionalStdin(taskMarkFailedStdin),
+		})
+	},
+}
+
 func init() {
 	ctlTaskListCmd.Flags().StringVar(&taskListSessionKey, "session-key", "", "Filter by session key")
 	ctlTaskListCmd.Flags().StringVar(&taskListMessageID, "message-id", "", "Filter by message ID")
@@ -95,6 +181,35 @@ func init() {
 	ctlTaskCreateCmd.MarkFlagRequired("instruction")
 	ctlTaskCreateCmd.MarkFlagRequired("type")
 
-	ctlTaskCmd.AddCommand(ctlTaskListCmd, ctlTaskCreateCmd, ctlTaskCancelCmd)
+	ctlTaskDispatchSubtaskCmd.Flags().StringVar(&taskDispatchSubParent, "parent-task-id", "", "Root task ID (required)")
+	ctlTaskDispatchSubtaskCmd.Flags().StringVar(&taskDispatchSubWorker, "worker-id", "", "Member worker ID (required)")
+	ctlTaskDispatchSubtaskCmd.Flags().BoolVar(&taskDispatchSubFromStdin, "stdin", false, "Read instruction from stdin")
+	ctlTaskDispatchSubtaskCmd.MarkFlagRequired("parent-task-id")
+	ctlTaskDispatchSubtaskCmd.MarkFlagRequired("worker-id")
+
+	ctlTaskSubtasksCmd.Flags().StringVar(&taskSubtasksTaskID, "task-id", "", "Root task ID (required)")
+	ctlTaskSubtasksCmd.MarkFlagRequired("task-id")
+
+	ctlTaskSuspendCmd.Flags().StringVar(&taskSuspendTaskID, "task-id", "", "Root task ID (required)")
+	ctlTaskSuspendCmd.MarkFlagRequired("task-id")
+
+	ctlTaskMarkSuccessCmd.Flags().StringVar(&taskMarkSuccessTaskID, "task-id", "", "Root task ID (required)")
+	ctlTaskMarkSuccessCmd.Flags().BoolVar(&taskMarkSuccessStdin, "stdin", false, "Read result from stdin")
+	ctlTaskMarkSuccessCmd.MarkFlagRequired("task-id")
+
+	ctlTaskMarkFailedCmd.Flags().StringVar(&taskMarkFailedTaskID, "task-id", "", "Root task ID (required)")
+	ctlTaskMarkFailedCmd.Flags().BoolVar(&taskMarkFailedStdin, "stdin", false, "Read failure reason from stdin")
+	ctlTaskMarkFailedCmd.MarkFlagRequired("task-id")
+
+	ctlTaskCmd.AddCommand(
+		ctlTaskListCmd,
+		ctlTaskCreateCmd,
+		ctlTaskCancelCmd,
+		ctlTaskDispatchSubtaskCmd,
+		ctlTaskSubtasksCmd,
+		ctlTaskSuspendCmd,
+		ctlTaskMarkSuccessCmd,
+		ctlTaskMarkFailedCmd,
+	)
 	ctlCmd.AddCommand(ctlTaskCmd)
 }
