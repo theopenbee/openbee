@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add Xiaomi Mimo provider support
+
 ### Fixed
 - Fix orphan processes left behind when a task is cancelled
 
