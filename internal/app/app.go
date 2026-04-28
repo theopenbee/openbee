@@ -182,6 +182,13 @@ func BuildApp(cfg config.Config) (*App, error) {
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
 
+	// Async recovery for group tasks that were waiting for subtasks at shutdown.
+	go func() {
+		if err := task.RecoverGroupTasks(context.Background(), s.taskStore, s.sessionStore, dispatchCh, engineCfg.Get()); err != nil {
+			logger.Error("recover group tasks", zap.Error(err))
+		}
+	}()
+
 	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },

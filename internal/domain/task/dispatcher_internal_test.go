@@ -79,6 +79,18 @@ func (f *fakeTaskQuerier) ListByRoot(_ context.Context, rootID string) ([]model.
 	return out, nil
 }
 
+func (f *fakeTaskQuerier) ListWaitingGroupRoots(_ context.Context) ([]model.Task, error) {
+	var out []model.Task
+	for _, t := range f.tasks {
+		if t.AgentKind == model.AgentKindGroup &&
+			(t.Status == model.TaskStatusWaitingSubtasks || t.Status == model.TaskStatusRunning) &&
+			t.ParentTaskID == "" {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 type fakeGroupLookup struct {
 	group   model.Group
 	members []model.MemberBrief
