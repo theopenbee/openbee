@@ -25,6 +25,7 @@ const (
 	ProviderAliyun     = "Alibaba Cloud (Qwen)"
 	ProviderVolcengine = "Volcengine (Doubao)"
 	ProviderTencent    = "Tencent Cloud"
+	ProviderMimo       = "Xiaomi Mimo"
 	ProviderCustom     = "Custom provider"
 )
 
@@ -133,6 +134,19 @@ func tencentEnv(apiKey, model string) map[string]string {
 	return standardProviderEnv("https://api.lkeap.cloud.tencent.com/coding/anthropic", apiKey, model)
 }
 
+func mimoEnv(baseURL, apiKey string) map[string]string {
+	return map[string]string{
+		"ANTHROPIC_BASE_URL":                      baseURL,
+		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
+		"ANTHROPIC_MODEL":                         "mimo-v2.5-pro",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL":          "mimo-v2.5-pro",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL":            "mimo-v2.5-pro",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL":           "mimo-v2.5-pro",
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"API_TIMEOUT_MS":                          "3000000",
+	}
+}
+
 func customEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   baseURL,
@@ -239,6 +253,7 @@ func ConfigureProvider() error {
 		ProviderAliyun,
 		ProviderVolcengine,
 		ProviderTencent,
+		ProviderMimo,
 		ProviderCustom,
 	}
 	var provider string
@@ -353,6 +368,18 @@ func ConfigureProvider() error {
 			return HandleSurveyErr(err)
 		}
 		env = tencentEnv(apiKey, model)
+		needClaudeJSON = true
+
+	case ProviderMimo:
+		baseURL, err := promptAPIKey(i18n.M.Provider.KeyMimoURL)
+		if err != nil {
+			return err
+		}
+		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMimoToken)
+		if err != nil {
+			return err
+		}
+		env = mimoEnv(baseURL, apiKey)
 		needClaudeJSON = true
 
 	case ProviderCustom:

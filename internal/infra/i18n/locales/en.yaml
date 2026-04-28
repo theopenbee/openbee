@@ -198,6 +198,8 @@ provider:
   key_aliyun: "Alibaba Cloud API Key:"
   key_volcengine: "Volcengine API Key:"
   key_tencent: "Tencent Cloud API Key:"
+  key_mimo_url: "Mimo Base URL (Anthropic-compatible):"
+  key_mimo_token: "Mimo API Key:"
   key_custom_url: "ANTHROPIC_BASE_URL:"
   key_custom_token: "ANTHROPIC_AUTH_TOKEN:"
   written_settings: "Written ~/.claude/settings.json"

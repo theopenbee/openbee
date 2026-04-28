@@ -141,6 +141,8 @@ type ProviderMessages struct {
 	KeyAliyun       string `yaml:"key_aliyun"`
 	KeyVolcengine   string `yaml:"key_volcengine"`
 	KeyTencent      string `yaml:"key_tencent"`
+	KeyMimoURL      string `yaml:"key_mimo_url"`
+	KeyMimoToken    string `yaml:"key_mimo_token"`
 	KeyCustomURL    string `yaml:"key_custom_url"`
 	KeyCustomToken  string `yaml:"key_custom_token"`
 	WrittenSettings string `yaml:"written_settings"`
