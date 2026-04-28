@@ -22,6 +22,11 @@ func NewTaskStore(db *sql.DB) *TaskStore {
 	return &TaskStore{db: db}
 }
 
+// DB returns the underlying *sql.DB. Used in tests for seeding prerequisite data.
+func (s *TaskStore) DB() *sql.DB {
+	return s.db
+}
+
 // Create inserts a new task and returns its generated ID.
 func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 	id := uuid.New().String()
