@@ -383,10 +383,8 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
-			default:
 			}
 			return
 		}
