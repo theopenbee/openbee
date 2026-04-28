@@ -35,6 +35,10 @@ func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessi
 	return m.execResult, nil
 }
 
+func (m *mockExecManager) ExecuteAgent(_ context.Context, _ model.Worker, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(context.Background(), "", instruction, sessionID, resume)
+}
+
 func (m *mockExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
 
 type mockExecutionQuerier struct {
@@ -235,6 +239,10 @@ func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID st
 	m.mu.Unlock()
 	m.executed.Add(1)
 	return m.execResult, nil
+}
+
+func (m *orderedMockManager) ExecuteAgent(_ context.Context, _ model.Worker, _ string, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(context.Background(), "", "", sessionID, resume)
 }
 
 func (m *orderedMockManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -706,6 +714,10 @@ func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _
 	return model.WorkerExecution{ID: "exec-x"}, nil
 }
 
+func (m *blockingExecManager) ExecuteAgent(ctx context.Context, _ model.Worker, input, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, "", input, sessionID, resume)
+}
+
 func (m *blockingExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
 
 type alwaysFailExecManager struct {
@@ -715,6 +727,10 @@ type alwaysFailExecManager struct {
 func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
+}
+
+func (m *alwaysFailExecManager) ExecuteAgent(ctx context.Context, _ model.Worker, input, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, "", input, sessionID, resume)
 }
 
 func (m *alwaysFailExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -730,6 +746,10 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, r
 	}
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
+}
+
+func (m *fallbackExecManager) ExecuteAgent(ctx context.Context, _ model.Worker, input, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, "", input, sessionID, resume)
 }
 
 func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -856,6 +876,10 @@ type cancelTrackingExecManager struct {
 func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
+}
+
+func (m *cancelTrackingExecManager) ExecuteAgent(ctx context.Context, _ model.Worker, input, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, "", input, sessionID, resume)
 }
 
 func (m *cancelTrackingExecManager) CancelExecution(_ context.Context, _ string) error {

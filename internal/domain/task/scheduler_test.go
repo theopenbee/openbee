@@ -53,6 +53,54 @@ func TestScheduler_ImmediateTask_Dispatched(t *testing.T) {
 	}
 }
 
+func TestScheduler_SubtaskUsesIsolatedSessionKey(t *testing.T) {
+	db, ts := setupDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	rootID, err := ts.Create(ctx, model.Task{
+		MessageID:   "m1",
+		WorkerID:    "group-1",
+		Instruction: "root",
+		Type:        model.TaskTypeImmediate,
+		Status:      model.TaskStatusRunning,
+		AgentKind:   model.AgentKindGroup,
+	})
+	if err != nil {
+		t.Fatalf("create root: %v", err)
+	}
+	_, err = ts.Create(ctx, model.Task{
+		MessageID:    "m1",
+		WorkerID:     "w1",
+		Instruction:  "sub",
+		Type:         model.TaskTypeImmediate,
+		Status:       model.TaskStatusPending,
+		ParentTaskID: rootID,
+		RootTaskID:   rootID,
+		AgentKind:    model.AgentKindWorker,
+	})
+	if err != nil {
+		t.Fatalf("create subtask: %v", err)
+	}
+
+	dispCh := make(chan task.DispatchTask, 10)
+	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
+
+	ctxRun, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go sched.Run(ctxRun)
+
+	select {
+	case dt := <-dispCh:
+		want := "subtask:" + rootID + ":w1"
+		if dt.SessionKey != want {
+			t.Fatalf("SessionKey = %q, want %q", dt.SessionKey, want)
+		}
+	case <-ctxRun.Done():
+		t.Fatal("timeout: no subtask dispatched")
+	}
+}
+
 func TestScheduler_ScheduledTask_NextRunAtSetCorrectly(t *testing.T) {
 	db, ts := setupDB(t)
 	defer db.Close()

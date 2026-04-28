@@ -302,7 +302,7 @@ func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, statu
 // CancelTask sets a task status to cancelled.
 func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'running')`,
+		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'running', 'waiting_subtasks')`,
 		time.Now().UnixMilli(), taskID)
 	return err
 }
@@ -585,6 +585,20 @@ func (s *TaskStore) GetParent(ctx context.Context, taskID string) (model.Task, e
 		return model.Task{}, sql.ErrNoRows
 	}
 	return s.GetByID(ctx, t.ParentTaskID)
+}
+
+// SessionKeyForTask returns the originating platform session key for a task.
+func (s *TaskStore) SessionKeyForTask(ctx context.Context, taskID string) (string, error) {
+	var sessionKey string
+	err := s.db.QueryRowContext(ctx, `
+        SELECT pm.session_key
+        FROM bee_tasks t
+        JOIN bee_platform_messages pm ON pm.id = t.message_id
+        WHERE t.id = ?`, taskID).Scan(&sessionKey)
+	if err != nil {
+		return "", fmt.Errorf("session key for task: %w", err)
+	}
+	return sessionKey, nil
 }
 
 // ListWaitingGroupRoots returns tasks where agent_kind='group' and status IN

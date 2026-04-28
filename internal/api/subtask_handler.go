@@ -126,6 +126,13 @@ func (h *SubtaskHandler) MarkSuccess(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if active, err := h.hasActiveSubtasks(c.Request.Context(), req.TaskID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	} else if active {
+		c.JSON(http.StatusConflict, gin.H{"error": "cannot mark success while subtasks are active"})
+		return
+	}
 	if err := h.taskStore.CompleteTask(c.Request.Context(), req.TaskID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -151,6 +158,10 @@ func (h *SubtaskHandler) MarkFailed(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if err := h.cancelActiveSubtasks(c.Request.Context(), req.TaskID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	if h.notifier != nil && t.MessageID != "" {
 		_ = h.notifier.NotifyTaskFailure(c.Request.Context(), t.MessageID, model.FailureInfo{
 			Reason:     req.Reason,
@@ -158,4 +169,39 @@ func (h *SubtaskHandler) MarkFailed(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "failed"})
+}
+
+func (h *SubtaskHandler) hasActiveSubtasks(ctx context.Context, rootID string) (bool, error) {
+	list, err := h.taskStore.ListByRoot(ctx, rootID)
+	if err != nil {
+		return false, err
+	}
+	for _, t := range list {
+		if t.ID != rootID && isActiveSubtaskStatus(t.Status) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (h *SubtaskHandler) cancelActiveSubtasks(ctx context.Context, rootID string) error {
+	list, err := h.taskStore.ListByRoot(ctx, rootID)
+	if err != nil {
+		return err
+	}
+	for _, t := range list {
+		if t.ID == rootID || !isActiveSubtaskStatus(t.Status) {
+			continue
+		}
+		if err := h.taskStore.CancelTask(ctx, t.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isActiveSubtaskStatus(status string) bool {
+	return status == model.TaskStatusPending ||
+		status == model.TaskStatusRunning ||
+		status == model.TaskStatusWaitingSubtasks
 }

@@ -91,6 +91,13 @@ func (f *fakeTaskQuerier) ListWaitingGroupRoots(_ context.Context) ([]model.Task
 	return out, nil
 }
 
+func (f *fakeTaskQuerier) SessionKeyForTask(_ context.Context, taskID string) (string, error) {
+	if _, ok := f.tasks[taskID]; !ok {
+		return "", fmt.Errorf("task %s not found", taskID)
+	}
+	return "session-x", nil
+}
+
 type fakeGroupLookup struct {
 	group   model.Group
 	members []model.MemberBrief
@@ -123,12 +130,21 @@ type fakeExecMgr struct {
 	mu           sync.Mutex
 	instructions []string
 	result       model.WorkerExecution
+	agentCalls   int
 }
 
 func newFakeExecMgr() *fakeExecMgr { return &fakeExecMgr{} }
 
 func (f *fakeExecMgr) ExecuteWorker(_ context.Context, _, instruction, _ string, _ bool) (model.WorkerExecution, error) {
 	f.mu.Lock()
+	f.instructions = append(f.instructions, instruction)
+	f.mu.Unlock()
+	return f.result, nil
+}
+
+func (f *fakeExecMgr) ExecuteAgent(_ context.Context, _ model.Worker, instruction, _ string, _ bool) (model.WorkerExecution, error) {
+	f.mu.Lock()
+	f.agentCalls++
 	f.instructions = append(f.instructions, instruction)
 	f.mu.Unlock()
 	return f.result, nil
@@ -143,6 +159,12 @@ func (f *fakeExecMgr) lastInstruction() string {
 		return ""
 	}
 	return f.instructions[len(f.instructions)-1]
+}
+
+func (f *fakeExecMgr) agentCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.agentCalls
 }
 
 type fakeSessStore struct{}
@@ -241,6 +263,38 @@ func TestSubtaskCompletionResumesParent(t *testing.T) {
 	}
 }
 
+func TestSubtaskProgressTargetsParentGroup(t *testing.T) {
+	rootID := "root-progress"
+	subID := "sub-progress"
+	fq := newFakeTaskQuerier(map[string]model.Task{
+		rootID: {ID: rootID, WorkerID: "group-1", AgentKind: model.AgentKindGroup, Status: model.TaskStatusWaitingSubtasks, MessageID: "m1", RootTaskID: rootID},
+		subID:  {ID: subID, WorkerID: "worker-1", AgentKind: model.AgentKindWorker, Status: model.TaskStatusRunning, ParentTaskID: rootID, RootTaskID: rootID, MessageID: "m1"},
+	})
+	d := New(newFakeExecMgr(), fakeTaskStore{}, fakeSessStore{}, &fakeExecQuerier{}, make(chan DispatchTask, 4), enginecfg.NewStore("claude"),
+		WithTaskQuerier(fq),
+	)
+
+	d.NotifySubtaskProgress(context.Background(), fq.tasks[subID], "hello <group>")
+
+	select {
+	case ev := <-d.subtaskEventCh:
+		if ev.TaskID != rootID {
+			t.Fatalf("TaskID = %s, want %s", ev.TaskID, rootID)
+		}
+		if ev.WorkerID != "group-1" {
+			t.Fatalf("WorkerID = %s, want group-1", ev.WorkerID)
+		}
+		if ev.SessionKey != "session-x" {
+			t.Fatalf("SessionKey = %s, want session-x", ev.SessionKey)
+		}
+		if !strings.Contains(ev.Instruction, "hello &lt;group&gt;") {
+			t.Fatalf("expected escaped content in instruction, got %q", ev.Instruction)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no progress event observed")
+	}
+}
+
 // TestGroupPersonaInjection verifies that a group task causes group persona to be injected.
 func TestGroupPersonaInjection(t *testing.T) {
 	groupID := "g1"
@@ -300,6 +354,9 @@ func TestGroupPersonaInjection(t *testing.T) {
 			}
 			if !strings.Contains(inst, "alice") {
 				t.Errorf("expected member 'alice' in prompt, got:\n%s", inst)
+			}
+			if execMgr.agentCallCount() != 1 {
+				t.Errorf("expected group to execute through ExecuteAgent, got %d agent calls", execMgr.agentCallCount())
 			}
 			return
 		}

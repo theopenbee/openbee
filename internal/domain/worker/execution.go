@@ -46,6 +46,35 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
+// ExecuteAgent runs an agent backed by worker-compatible execution settings.
+// It is used for non-worker agents, such as Groups, that have their own
+// persisted metadata but still run through the worker engine runtime.
+func (m *Manager) ExecuteAgent(ctx context.Context, agent model.Worker, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
+	if agent.ID == "" {
+		return model.WorkerExecution{}, fmt.Errorf("agent id is required")
+	}
+	engineName, engine, err := m.resolveEngineSelection(agent)
+	if err != nil {
+		return model.WorkerExecution{}, err
+	}
+
+	exec, err := m.executionStore.Create(agent.ID, triggerInput, sessionID, engineName)
+	if err != nil {
+		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
+	}
+
+	if err := engine.Prepare(agent.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+		log.Error("prepare agent workspace", zap.String("op", "execute_agent"), zap.String("agentID", agent.ID), zap.Error(err))
+	}
+
+	if err := m.launchRuntime(ctx, exec, agent, engine, engineName, m.workerTimeout, triggerInput, resume); err != nil {
+		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+		return exec, fmt.Errorf("start runtime: %w", err)
+	}
+
+	return exec, nil
+}
+
 func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {

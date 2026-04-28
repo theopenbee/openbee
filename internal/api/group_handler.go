@@ -113,9 +113,13 @@ func (h *GroupHandler) Update(c *gin.Context) {
 	if req.PermissionScopes != nil {
 		g.PermissionScopes = *req.PermissionScopes
 	}
-	out, err := h.groupStore.Update(g)
+	out, err := h.manager.UpdateGroup(g)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		status := http.StatusInternalServerError
+		if errors.Is(err, group.ErrValidation) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, out)

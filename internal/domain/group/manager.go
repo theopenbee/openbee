@@ -2,6 +2,7 @@ package group
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
@@ -67,6 +69,12 @@ func (m *Manager) CreateGroup(p CreateGroupParams) (model.Group, error) {
 	if err := m.validateName(p.Name, ""); err != nil {
 		return model.Group{}, err
 	}
+	if err := m.ValidateEngine(p.Engine); err != nil {
+		return model.Group{}, err
+	}
+	if err := auth.ValidatePermissionScopes(p.PermissionScopes); err != nil {
+		return model.Group{}, fmt.Errorf("%w: %v", ErrValidation, err)
+	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
 		p.WorkDir = filepath.Join(m.groupBaseDir, id)
@@ -77,6 +85,9 @@ func (m *Manager) CreateGroup(p CreateGroupParams) (model.Group, error) {
 	engineArgs := p.EngineArgs
 	if engineArgs == "" {
 		engineArgs = "{}"
+	}
+	if err := m.ValidateEngineArgsJSON(engineArgs); err != nil {
+		return model.Group{}, err
 	}
 	g := model.Group{
 		ID:               id,
@@ -111,7 +122,48 @@ func (m *Manager) UpdateGroup(g model.Group) (model.Group, error) {
 	if err := m.validateName(g.Name, g.ID); err != nil {
 		return model.Group{}, err
 	}
+	if err := m.ValidateEngine(g.Engine); err != nil {
+		return model.Group{}, err
+	}
+	if err := auth.ValidatePermissionScopes(g.PermissionScopes); err != nil {
+		return model.Group{}, fmt.Errorf("%w: %v", ErrValidation, err)
+	}
+	if err := m.ValidateEngineArgsJSON(g.EngineArgs); err != nil {
+		return model.Group{}, err
+	}
 	return m.groupStore.Update(g)
+}
+
+func (m *Manager) ValidateEngine(name string) error {
+	if name == "" || m.engines == nil {
+		return nil
+	}
+	if _, ok := m.engines[name]; !ok {
+		return fmt.Errorf("engine %q is not enabled: %w", name, ErrValidation)
+	}
+	return nil
+}
+
+func (m *Manager) ValidateEngineArgsJSON(raw string) error {
+	if raw == "" || raw == "{}" {
+		return nil
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return fmt.Errorf("invalid engine_args JSON: %w: %v", ErrValidation, err)
+	}
+	for engine := range parsed {
+		if engine == "" {
+			return fmt.Errorf("engine_args contains an empty engine name: %w", ErrValidation)
+		}
+		if err := m.ValidateEngine(engine); err != nil {
+			return fmt.Errorf("engine_args[%q]: %w", engine, err)
+		}
+	}
+	if _, err := ai.ParseEngineArgs(parsed); err != nil {
+		return fmt.Errorf("invalid engine_args: %w: %v", ErrValidation, err)
+	}
+	return nil
 }
 
 func (m *Manager) DeleteGroup(id string, deleteWorkDir bool) error {

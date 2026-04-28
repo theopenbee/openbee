@@ -7,12 +7,13 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/theopenbee/openbee/internal/domain/group"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/platform"
+	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "mcp"))
@@ -36,6 +37,10 @@ type ExecutionStopper interface {
 // to the parent group session instead of sending them to the IM platform.
 type SubtaskProgressNotifier interface {
 	NotifySubtaskProgress(ctx context.Context, task model.Task, content string)
+}
+
+type SubtaskAllTerminalNotifier interface {
+	NotifyAllSubtasksTerminal(ctx context.Context, rootTaskID string)
 }
 
 // SessionClearer clears dispatcher queues and session contexts for a session.
@@ -62,7 +67,10 @@ type MCPServer struct {
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
+	groupManager         *group.Manager
+	groupStore           *store.GroupStore
 	subtaskNotifier      SubtaskProgressNotifier // optional; reroutes worker messages to parent group
+	subtaskAllNotifier   SubtaskAllTerminalNotifier
 
 	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
@@ -103,6 +111,14 @@ func NewBeeServer(
 // SetSubtaskNotifier wires the subtask progress notifier after construction.
 func (s *MCPServer) SetSubtaskNotifier(n SubtaskProgressNotifier) {
 	s.subtaskNotifier = n
+	if all, ok := n.(SubtaskAllTerminalNotifier); ok {
+		s.subtaskAllNotifier = all
+	}
+}
+
+func (s *MCPServer) SetGroupTools(mgr *group.Manager, gs *store.GroupStore) {
+	s.groupManager = mgr
+	s.groupStore = gs
 }
 
 func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {

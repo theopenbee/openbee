@@ -34,6 +34,12 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 	name := workerID
 	if w, err := s.workerStore.GetByID(workerID); err == nil {
 		name = w.Name
+	} else if s.groupStore != nil {
+		if g, groupErr := s.groupStore.GetByID(workerID); groupErr == nil {
+			name = g.Name
+		} else {
+			log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
+		}
 	} else {
 		log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
 	}
@@ -116,6 +122,32 @@ func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawM
 		return s.toolListOutboundMessages(ctx, args)
 	case utils.ListExecutions:
 		return s.toolListExecutions(ctx, args)
+	case utils.CreateGroup:
+		return s.toolCreateGroup(args)
+	case utils.ListGroups:
+		return s.toolListGroups(args)
+	case utils.GetGroup:
+		return s.toolGetGroup(args)
+	case utils.UpdateGroup:
+		return s.toolUpdateGroup(args)
+	case utils.DeleteGroup:
+		return s.toolDeleteGroup(args)
+	case utils.AddGroupMember:
+		return s.toolAddGroupMember(args)
+	case utils.RemoveGroupMember:
+		return s.toolRemoveGroupMember(args)
+	case utils.ListGroupMembers:
+		return s.toolListGroupMembers(args)
+	case utils.DispatchSubtask:
+		return s.toolDispatchSubtask(ctx, args)
+	case utils.ListSubtasks:
+		return s.toolListSubtasks(ctx, args)
+	case utils.SuspendTask:
+		return s.toolSuspendTask(ctx, args)
+	case utils.MarkTaskSuccess:
+		return s.toolMarkTaskSuccess(ctx, args)
+	case utils.MarkTaskFailed:
+		return s.toolMarkTaskFailed(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}

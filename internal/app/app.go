@@ -177,6 +177,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	beeMCPSrv := mcp.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 	beeMCPSrv.SetSubtaskNotifier(disp)
+	beeMCPSrv.SetGroupTools(groupMgr, s.groupStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())

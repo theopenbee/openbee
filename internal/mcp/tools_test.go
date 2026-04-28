@@ -9,6 +9,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/group"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -51,7 +52,9 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	srv := mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	srv.SetGroupTools(group.NewManager(t.TempDir(), store.NewGroupStore(db), ws, ts, nil, nil, nil), store.NewGroupStore(db))
+	return srv
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -250,7 +253,9 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	srv := mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	srv.SetGroupTools(group.NewManager(t.TempDir(), store.NewGroupStore(db), ws, ts, nil, nil, nil), store.NewGroupStore(db))
+	return srv, db
 }
 
 // --- send_message ---
@@ -486,6 +491,98 @@ func TestCallTool_SendMessage_SubtaskReroutesToParent(t *testing.T) {
 	defer mock.mu.Unlock()
 	if len(mock.sent) != 0 {
 		t.Errorf("expected no IM send for sub-task, got %d sends", len(mock.sent))
+	}
+}
+
+func TestCallTool_GroupToolsRegistered(t *testing.T) {
+	s := setupMCPServerWithMessaging(t)
+
+	created, err := s.CallTool(context.Background(), utils.CreateGroup, mustMarshal(t, map[string]any{
+		"name": "data-team",
+	}))
+	if err != nil {
+		t.Fatalf("create_group: %v", err)
+	}
+	g := created.(model.Group)
+	if g.ID == "" {
+		t.Fatal("expected group id")
+	}
+
+	got, err := s.CallTool(context.Background(), utils.GetGroup, mustMarshal(t, map[string]any{
+		"group_id": g.ID,
+	}))
+	if err != nil {
+		t.Fatalf("get_group: %v", err)
+	}
+	withMembers := got.(model.GroupWithMembers)
+	if withMembers.ID != g.ID {
+		t.Fatalf("get_group id = %s, want %s", withMembers.ID, g.ID)
+	}
+}
+
+func TestCallTool_SubtaskToolsRegistered(t *testing.T) {
+	s, db := setupMCPServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	created, err := s.CallTool(ctx, utils.CreateWorker, mustMarshal(t, map[string]any{"name": "alice"}))
+	if err != nil {
+		t.Fatalf("create_worker: %v", err)
+	}
+	w := created.(model.Worker)
+
+	dbGroup, err := s.CallTool(ctx, utils.CreateGroup, mustMarshal(t, map[string]any{"name": "team"}))
+	if err != nil {
+		t.Fatalf("create_group: %v", err)
+	}
+	g := dbGroup.(model.Group)
+
+	ms := store.NewMessageStore(db)
+	if _, err := ms.Create(ctx, "msg-subtools", "session-1", "feishu", "hi", `{}`, "", 0); err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	ts := store.NewTaskStore(db)
+	rootID, err := ts.Create(ctx, model.Task{
+		MessageID:   "msg-subtools",
+		WorkerID:    g.ID,
+		Instruction: "root",
+		Type:        model.TaskTypeImmediate,
+		Status:      model.TaskStatusRunning,
+		AgentKind:   model.AgentKindGroup,
+	})
+	if err != nil {
+		t.Fatalf("create root task: %v", err)
+	}
+
+	result, err := s.CallTool(ctx, utils.DispatchSubtask, mustMarshal(t, map[string]any{
+		"parent_task_id": rootID,
+		"worker_id":      w.ID,
+		"instruction":    "do child work",
+	}))
+	if err != nil {
+		t.Fatalf("dispatch_subtask: %v", err)
+	}
+	subID := result.(map[string]string)["subtask_id"]
+	if subID == "" {
+		t.Fatal("expected subtask_id")
+	}
+
+	listResult, err := s.CallTool(ctx, utils.ListSubtasks, mustMarshal(t, map[string]any{"task_id": rootID}))
+	if err != nil {
+		t.Fatalf("list_subtasks: %v", err)
+	}
+	tasks := listResult.([]model.Task)
+	if len(tasks) != 2 {
+		t.Fatalf("expected root + subtask, got %d", len(tasks))
+	}
+
+	if _, err := s.CallTool(ctx, utils.MarkTaskSuccess, mustMarshal(t, map[string]any{"task_id": rootID})); err == nil {
+		t.Fatal("expected mark_success to reject active subtasks")
+	}
+	if err := ts.UpdateStatus(ctx, subID, model.TaskStatusCompleted); err != nil {
+		t.Fatalf("complete subtask: %v", err)
+	}
+	if _, err := s.CallTool(ctx, utils.MarkTaskSuccess, mustMarshal(t, map[string]any{"task_id": rootID})); err != nil {
+		t.Fatalf("mark_task_success: %v", err)
 	}
 }
 

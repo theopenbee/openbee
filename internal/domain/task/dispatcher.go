@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ const (
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
 	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteAgent(ctx context.Context, agent model.Worker, input, sessionID string, resume bool) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -79,6 +81,15 @@ type GroupLookup interface {
 type TaskQuerier interface {
 	GetByID(ctx context.Context, id string) (model.Task, error)
 	ListByRoot(ctx context.Context, rootID string) ([]model.Task, error)
+	SessionKeyForTask(ctx context.Context, taskID string) (string, error)
+}
+
+type resolvedAgent struct {
+	engineName string
+	worker     *model.Worker
+	group      *model.Group
+	members    []model.MemberBrief
+	isGroup    bool
 }
 
 type queueState struct {
@@ -236,7 +247,9 @@ func (d *TaskDispatcher) handleCancel(taskID string) {
 				if ch.ID == taskID {
 					continue
 				}
-				if ch.Status == model.TaskStatusPending || ch.Status == model.TaskStatusRunning {
+				if ch.Status == model.TaskStatusPending ||
+					ch.Status == model.TaskStatusRunning ||
+					ch.Status == model.TaskStatusWaitingSubtasks {
 					_ = d.taskStore.CancelTask(context.Background(), ch.ID)
 					if cancel, ok := d.cancelFuncs[ch.ID]; ok {
 						cancel()
@@ -322,9 +335,9 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 		}
 	}()
 
-	engineName, worker := d.resolveWorkerEngine(task.WorkerID)
+	agent := d.resolveAgent(taskCtx, task)
 	instruction := buildInstruction(task)
-	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName, worker)
+	exec, err := d.resolveExecution(taskCtx, task, instruction, agent)
 	if err != nil {
 		log.Error("execute error",
 			zap.String("workerID", task.WorkerID),
@@ -359,7 +372,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
-	d.waitForResult(taskCtx, exec.ID, task, engineName)
+	d.waitForResult(taskCtx, exec.ID, task, agent.engineName)
 }
 
 // resolveWorkerEngine returns the engine name and the fetched worker (nil if
@@ -378,67 +391,88 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 	return d.engineCfg.Get(), nil
 }
 
-// executeWithHint builds the skill hint + persona and starts a fresh execution.
-// worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
-// configured but worker is nil, the lookup failed and the task is aborted.
-func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	// Detect group task by checking the persisted task row's agent_kind.
-	isGroup := false
-	var groupID string
+func (d *TaskDispatcher) resolveAgent(ctx context.Context, task DispatchTask) resolvedAgent {
 	if d.taskQuerier != nil {
 		if t, err := d.taskQuerier.GetByID(ctx, task.TaskID); err == nil {
-			if t.AgentKind == model.AgentKindGroup {
-				isGroup = true
-				groupID = t.WorkerID
+			if t.AgentKind == model.AgentKindGroup && d.groupLookup != nil {
+				g, groupErr := d.groupLookup.GetByID(t.WorkerID)
+				if groupErr == nil {
+					members, _ := d.groupLookup.ListMembers(t.WorkerID)
+					return resolvedAgent{
+						engineName: d.engineCfg.Resolve(g.Engine),
+						group:      &g,
+						members:    members,
+						isGroup:    true,
+					}
+				}
 			}
 		}
 	}
+	engineName, worker := d.resolveWorkerEngine(task.WorkerID)
+	return resolvedAgent{engineName: engineName, worker: worker}
+}
 
+// executeWithHint builds the skill hint + persona and starts a fresh execution.
+// worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
+// configured but worker is nil, the lookup failed and the task is aborted.
+func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction string, agent resolvedAgent) (model.WorkerExecution, error) {
 	hint := ai.SkillHintPrefix(ai.RoleWorker)
-	if isGroup && d.groupLookup != nil {
-		g, err := d.groupLookup.GetByID(groupID)
-		if err != nil {
-			return model.WorkerExecution{}, fmt.Errorf("group lookup: %w", err)
-		}
-		members, _ := d.groupLookup.ListMembers(groupID)
-		hint += "\n<group_persona>\n" + group.BuildPersona(g, members) + "</group_persona>"
+	if agent.isGroup {
+		hint += "\n<group_persona>\n" + group.BuildPersona(*agent.group, agent.members) + "</group_persona>"
 	} else if d.workerLookup != nil {
-		if worker == nil {
+		if agent.worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
+		persona := ai.WorkerPersona(agent.worker.Name, agent.worker.Description, agent.worker.Constraints)
 		hint += "\n<worker_persona>\n" + persona + "</worker_persona>"
 	}
 	sessionID := uuid.New().String()
-	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	log.Info("executing agent", zap.String("agentID", task.WorkerID), zap.String("taskID", task.TaskID), zap.Bool("group", isGroup))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
+	d.upsertSessionContext(ctx, task, sessionID, agent.engineName)
+	log.Info("executing agent", zap.String("agentID", task.WorkerID), zap.String("taskID", task.TaskID), zap.Bool("group", agent.isGroup))
+	return d.executeResolved(ctx, task, agent, hint+"\n"+instruction, sessionID, false)
 }
 
-func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	if task.TaskType != model.TaskTypeImmediate {
-		return d.executeWithHint(ctx, task, instruction, engineName, worker)
+func (d *TaskDispatcher) executeResolved(ctx context.Context, task DispatchTask, agent resolvedAgent, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+	if agent.isGroup {
+		g := agent.group
+		return d.manager.ExecuteAgent(ctx, model.Worker{
+			ID:               g.ID,
+			Name:             g.Name,
+			Description:      g.Description,
+			Constraints:      g.Constraints,
+			WorkDir:          g.WorkDir,
+			Engine:           g.Engine,
+			EngineArgs:       g.EngineArgs,
+			PermissionScopes: g.PermissionScopes,
+		}, instruction, sessionID, resume)
 	}
-	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, resume)
+}
+
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction string, agent resolvedAgent) (model.WorkerExecution, error) {
+	if task.TaskType != model.TaskTypeImmediate {
+		return d.executeWithHint(ctx, task, instruction, agent)
+	}
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, agent.engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		return d.executeWithHint(ctx, task, instruction, engineName, worker)
+		return d.executeWithHint(ctx, task, instruction, agent)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
-	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	d.upsertSessionContext(ctx, task, sessionID, agent.engineName)
+	exec, err := d.executeResolved(ctx, task, agent, instruction, sessionID, true)
 	if err == nil {
 		return exec, nil
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if task.SessionKey != "" && task.WorkerID != "" {
-		if _, clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); clearErr != nil {
-			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
+		if _, clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, agent.engineName); clearErr != nil {
+			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", agent.engineName), zap.Error(clearErr))
 		}
 	}
-	return d.executeWithHint(ctx, task, instruction, engineName, worker)
+	return d.executeWithHint(ctx, task, instruction, agent)
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {
@@ -592,7 +626,7 @@ func (d *TaskDispatcher) notifyParentOnSubtaskTerminal(ctx context.Context, fini
 	case d.subtaskEventCh <- DispatchTask{
 		TaskID:      parent.ID,
 		WorkerID:    parent.WorkerID,
-		SessionKey:  finishedTask.SessionKey,
+		SessionKey:  d.sessionKeyForTask(ctx, parent.ID, finishedTask.SessionKey),
 		Instruction: snapshot,
 		TaskType:    model.TaskTypeImmediate,
 		MessageID:   parent.MessageID,
@@ -606,16 +640,16 @@ func (d *TaskDispatcher) buildSubtaskEventXML(ctx context.Context, rootID string
 	list, _ := d.taskQuerier.ListByRoot(ctx, rootID)
 	var sb strings.Builder
 	sb.WriteString("<subtask_event>\n")
-	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", rootID)
+	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", xmlText(rootID))
 	sb.WriteString("<subtasks>\n")
 	for _, t := range list {
 		if t.ID == rootID {
 			continue
 		}
-		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", t.ID, t.WorkerID, t.Status)
+		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", xmlText(t.ID), xmlText(t.WorkerID), xmlText(t.Status))
 	}
 	sb.WriteString("</subtasks>\n")
-	fmt.Fprintf(&sb, "<recent id=\"%s\" status=\"%s\"/>\n", recent.ID, recent.Status)
+	fmt.Fprintf(&sb, "<recent id=\"%s\" status=\"%s\"/>\n", xmlText(recent.ID), xmlText(recent.Status))
 	sb.WriteString("</subtask_event>\n")
 	return sb.String()
 }
@@ -623,18 +657,25 @@ func (d *TaskDispatcher) buildSubtaskEventXML(ctx context.Context, rootID string
 // NotifySubtaskProgress is called when a worker sends a message while inside a sub-task.
 // It pushes a progress event into the subtask channel so the parent group session can be informed.
 func (d *TaskDispatcher) NotifySubtaskProgress(_ context.Context, task model.Task, content string) {
-	if task.ParentTaskID == "" {
+	if task.ParentTaskID == "" || d.taskQuerier == nil {
 		return
 	}
+	parent, err := d.taskQuerier.GetByID(context.Background(), task.ParentTaskID)
+	if err != nil {
+		log.Error("NotifySubtaskProgress: get parent task", zap.String("parentTaskID", task.ParentTaskID), zap.Error(err))
+		return
+	}
+	sessionKey := d.sessionKeyForTask(context.Background(), parent.ID, "")
 	event := fmt.Sprintf("<subtask_event source=\"worker_message\">\n<subtask id=\"%s\" worker=\"%s\"/>\n<content>%s</content>\n</subtask_event>\n",
-		task.ID, task.WorkerID, content)
+		xmlText(task.ID), xmlText(task.WorkerID), xmlText(content))
 	select {
 	case d.subtaskEventCh <- DispatchTask{
 		TaskID:      task.ParentTaskID,
-		WorkerID:    task.WorkerID,
+		WorkerID:    parent.WorkerID,
+		SessionKey:  sessionKey,
 		Instruction: event,
 		TaskType:    model.TaskTypeImmediate,
-		MessageID:   task.MessageID,
+		MessageID:   parent.MessageID,
 	}:
 	default:
 		log.Warn("subtaskEventCh full, dropping progress signal", zap.String("subtaskID", task.ID))
@@ -656,13 +697,13 @@ func (d *TaskDispatcher) NotifyAllSubtasksTerminal(ctx context.Context, rootTask
 	list, _ := d.taskQuerier.ListByRoot(ctx, rootTaskID)
 	var sb strings.Builder
 	sb.WriteString("<subtask_event status=\"all_done\">\n")
-	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", rootTaskID)
+	fmt.Fprintf(&sb, "<root_task id=\"%s\"/>\n", xmlText(rootTaskID))
 	sb.WriteString("<subtasks>\n")
 	for _, t := range list {
 		if t.ID == rootTaskID {
 			continue
 		}
-		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", t.ID, t.WorkerID, t.Status)
+		fmt.Fprintf(&sb, "  <subtask id=\"%s\" worker=\"%s\" status=\"%s\"/>\n", xmlText(t.ID), xmlText(t.WorkerID), xmlText(t.Status))
 	}
 	sb.WriteString("</subtasks>\n</subtask_event>\n")
 
@@ -670,6 +711,7 @@ func (d *TaskDispatcher) NotifyAllSubtasksTerminal(ctx context.Context, rootTask
 	case d.subtaskEventCh <- DispatchTask{
 		TaskID:      rootTaskID,
 		WorkerID:    root.WorkerID,
+		SessionKey:  d.sessionKeyForTask(ctx, rootTaskID, ""),
 		Instruction: sb.String(),
 		TaskType:    model.TaskTypeImmediate,
 		MessageID:   root.MessageID,
@@ -677,4 +719,22 @@ func (d *TaskDispatcher) NotifyAllSubtasksTerminal(ctx context.Context, rootTask
 	default:
 		log.Warn("subtaskEventCh full, dropping all_done signal", zap.String("rootTaskID", rootTaskID))
 	}
+}
+
+func (d *TaskDispatcher) sessionKeyForTask(ctx context.Context, taskID, fallback string) string {
+	if d.taskQuerier == nil {
+		return fallback
+	}
+	sessionKey, err := d.taskQuerier.SessionKeyForTask(ctx, taskID)
+	if err != nil {
+		log.Warn("resolve task session key", zap.String("taskID", taskID), zap.Error(err))
+		return fallback
+	}
+	return sessionKey
+}
+
+func xmlText(v any) string {
+	var sb strings.Builder
+	_ = xml.EscapeText(&sb, []byte(fmt.Sprint(v)))
+	return sb.String()
 }

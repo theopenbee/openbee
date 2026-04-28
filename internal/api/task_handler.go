@@ -126,7 +126,9 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
-	if task.Status != model.TaskStatusPending && task.Status != model.TaskStatusRunning {
+	if task.Status != model.TaskStatusPending &&
+		task.Status != model.TaskStatusRunning &&
+		task.Status != model.TaskStatusWaitingSubtasks {
 		c.JSON(http.StatusConflict, gin.H{"error": "task cannot be cancelled"})
 		return
 	}

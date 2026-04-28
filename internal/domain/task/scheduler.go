@@ -102,7 +102,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 			}
 		}
 
-		sessionKey := ct.MessageSessionKey
+		sessionKey := dispatchSessionKey(ct)
 		dt := DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
@@ -118,4 +118,11 @@ func (s *Scheduler) poll(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func dispatchSessionKey(ct model.ClaimedTask) string {
+	if ct.ParentTaskID != "" && ct.RootTaskID != "" {
+		return "subtask:" + ct.RootTaskID + ":" + ct.WorkerID
+	}
+	return ct.MessageSessionKey
 }
