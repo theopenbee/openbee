@@ -730,7 +730,7 @@ func (d *TaskDispatcher) NotifySubtaskProgress(_ context.Context, task model.Tas
 	}
 }
 
-// NotifyAllSubtasksTerminal is called by the SubtaskHandler when all subtasks are already
+// NotifyAllSubtasksTerminal is called by group coordination tools when all subtasks are already
 // terminal at the time Suspend is called (phantom suspend). It synthesises a completion
 // event and re-enqueues the parent group task for immediate execution.
 func (d *TaskDispatcher) NotifyAllSubtasksTerminal(ctx context.Context, rootTaskID string) {
