@@ -145,3 +145,67 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusCommand_EmptyBeesAndTasks(t *testing.T) {
+	h, sender := makeStatusHandler(nil, nil, nil)
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
+	}
+	out := sender.sent[0]
+	for _, want := range []string{
+		"已激活 bee（0）：",
+		"进行中任务（0）：",
+		"  (无)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	// "(无)" must appear at least twice (one per empty section).
+	if strings.Count(out, "  (无)") != 2 {
+		t.Errorf("expected exactly two empty markers, got:\n%s", out)
+	}
+}
+
+func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
+	now := time.Now().Unix()
+	agents := []store.SessionAgent{
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: now - 30},
+	}
+	h, sender := makeStatusHandler(agents, nil, map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}})
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	out := sender.sent[0]
+	if !strings.Contains(out, "已激活 bee（1）：") {
+		t.Errorf("missing bees header\n%s", out)
+	}
+	if !strings.Contains(out, "进行中任务（0）：") {
+		t.Errorf("missing tasks header\n%s", out)
+	}
+	if strings.Count(out, "  (无)") != 1 {
+		t.Errorf("expected exactly one empty marker, got:\n%s", out)
+	}
+}
+
+func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
+	nowMs := time.Now().UnixMilli()
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "w1", Instruction: "do thing", ExecutionID: "deadbeef0000", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}
+	h, sender := makeStatusHandler(nil, tasks, workers)
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	out := sender.sent[0]
+	if !strings.Contains(out, "已激活 bee（0）：") {
+		t.Errorf("missing bees header\n%s", out)
+	}
+	if !strings.Contains(out, "进行中任务（1）：") {
+		t.Errorf("missing tasks header\n%s", out)
+	}
+	if !strings.Contains(out, "[貂蝉] do thing") {
+		t.Errorf("missing task line\n%s", out)
+	}
+	if strings.Count(out, "  (无)") != 1 {
+		t.Errorf("expected exactly one empty marker, got:\n%s", out)
+	}
+}
