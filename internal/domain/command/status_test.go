@@ -2,6 +2,7 @@ package command_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -207,5 +208,41 @@ func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
 	}
 	if strings.Count(out, "  (无)") != 1 {
 		t.Errorf("expected exactly one empty marker, got:\n%s", out)
+	}
+}
+
+func TestStatusCommand_SessionListErr(t *testing.T) {
+	sender := &fakeSender{}
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	sessions := &fakeStatusSessionLister{err: errors.New("boom")}
+	taskList := &fakeStatusTaskLister{}
+	wl := &fakeStatusWorkerLookup{}
+	engineCfg := enginecfg.NewStore("claude")
+	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
+
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
+	}
+	if !strings.Contains(sender.sent[0], "查询会话状态失败") {
+		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
+	}
+}
+
+func TestStatusCommand_TaskListErr(t *testing.T) {
+	sender := &fakeSender{}
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	sessions := &fakeStatusSessionLister{agents: nil}
+	taskList := &fakeStatusTaskLister{err: errors.New("boom")}
+	wl := &fakeStatusWorkerLookup{}
+	engineCfg := enginecfg.NewStore("claude")
+	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
+
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
+	}
+	if !strings.Contains(sender.sent[0], "查询会话状态失败") {
+		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
 	}
 }
