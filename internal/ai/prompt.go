@@ -25,7 +25,7 @@ func WorkerPersona(name, description, constraints string) string {
 func SkillHintPrefix(role Role) string {
 	switch role {
 	case RoleBee:
-		return "[MANDATORY] You MUST invoke the openbee-bee skill immediately using the Skill tool. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step."
+		return "[MANDATORY] You MUST invoke the openbee-bee skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step."
 	case RoleWorker:
 		return "[MANDATORY] You MUST invoke the openbee-worker skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step."
 	default:
