@@ -31,30 +31,6 @@ func TestFormatRelative_NegativeOrZero(t *testing.T) {
 	}
 }
 
-func TestTruncateInstruction(t *testing.T) {
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{"hello", "hello"},
-		{"line1\nline2", "line1 line2"},
-		{"line1\r\nline2", "line1 line2"},
-		{"a\tb", "a b"},
-		// Exactly 40 runes — kept verbatim.
-		{"0123456789012345678901234567890123456789", "0123456789012345678901234567890123456789"},
-		// 41 runes — truncated to 40 + ellipsis.
-		{"01234567890123456789012345678901234567890", "0123456789012345678901234567890123456789…"},
-		// CJK runes counted by rune, not byte.
-		{"中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文",
-			"中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文…"},
-	}
-	for _, c := range cases {
-		if got := truncateInstruction(c.in); got != c.want {
-			t.Errorf("truncateInstruction(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
-
 func TestShortExecID(t *testing.T) {
 	cases := []struct {
 		in   string

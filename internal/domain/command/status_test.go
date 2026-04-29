@@ -9,6 +9,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -39,30 +40,66 @@ type fakeStatusWorkerLookup struct {
 	err  error
 }
 
-func (f *fakeStatusWorkerLookup) GetByID(id string) (model.Worker, error) {
+func (f *fakeStatusWorkerLookup) GetByIDs(ids []string) ([]model.Worker, error) {
 	if f.err != nil {
-		return model.Worker{}, f.err
+		return nil, f.err
 	}
-	w, ok := f.byID[id]
-	if !ok {
-		return model.Worker{Name: ""}, nil
+	out := make([]model.Worker, 0, len(ids))
+	for _, id := range ids {
+		if w, ok := f.byID[id]; ok {
+			out = append(out, w)
+		}
 	}
-	return w, nil
+	return out, nil
+}
+
+type statusFixtureOpts struct {
+	sessionsErr error
+	tasksErr    error
+	now         func() time.Time
+}
+
+type statusFixtureOpt func(*statusFixtureOpts)
+
+func withSessionsErr(e error) statusFixtureOpt {
+	return func(o *statusFixtureOpts) { o.sessionsErr = e }
+}
+
+func withTasksErr(e error) statusFixtureOpt {
+	return func(o *statusFixtureOpts) { o.tasksErr = e }
+}
+
+func withClock(now func() time.Time) statusFixtureOpt {
+	return func(o *statusFixtureOpts) { o.now = now }
 }
 
 func makeStatusHandler(
 	agents []store.SessionAgent,
 	tasks []model.Task,
 	workers map[string]model.Worker,
+	opts ...statusFixtureOpt,
 ) (*command.StatusCommandHandler, *fakeSender) {
+	cfg := &statusFixtureOpts{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	sender := &fakeSender{}
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	sessions := &fakeStatusSessionLister{agents: agents}
-	taskList := &fakeStatusTaskLister{tasks: tasks}
+	sessions := &fakeStatusSessionLister{agents: agents, err: cfg.sessionsErr}
+	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
 	wl := &fakeStatusWorkerLookup{byID: workers}
 	engineCfg := enginecfg.NewStore("claude")
 	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
+	if cfg.now != nil {
+		h.SetClockForTest(cfg.now)
+	}
 	return h, sender
+}
+
+// fixedClock pins the handler's notion of "now" so relative-time assertions
+// are deterministic regardless of test-execution latency.
+func fixedClock(t time.Time) func() time.Time {
+	return func() time.Time { return t }
 }
 
 func TestStatusCommand_IsCommand(t *testing.T) {
@@ -87,18 +124,19 @@ func TestStatusCommand_UsageOnExtraArgs(t *testing.T) {
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	if len(sender.sent) != 1 || sender.sent[0] != "用法：/status" {
+	if len(sender.sent) != 1 || sender.sent[0] != i18n.M.Runtime.StatusCommand.Usage {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
 }
 
 func TestStatusCommand_HappyPath(t *testing.T) {
-	now := time.Now().Unix()
+	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	nowSec := clock.Unix()
+	nowMs := clock.UnixMilli()
 	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: now - 120},   // 2m
-		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: now - 18000}, // 5h
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: nowSec - 120},   // 2m
+		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: nowSec - 18000}, // 5h
 	}
-	nowMs := time.Now().UnixMilli()
 	tasks := []model.Task{
 		{ID: "t1", WorkerID: "w1", Instruction: "新增 /status 指令的实现", ExecutionID: "a1b2c3d4e5f6", CreatedAt: nowMs - 83000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 		{ID: "t2", WorkerID: "w2", Instruction: "修复登录 bug", ExecutionID: "e5f6a7b89999", CreatedAt: nowMs - 12000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
@@ -107,7 +145,7 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 		"w1": {ID: "w1", Name: "貂蝉"},
 		"w2": {ID: "w2", Name: "吕布"},
 	}
-	h, sender := makeStatusHandler(agents, tasks, workers)
+	h, sender := makeStatusHandler(agents, tasks, workers, withClock(fixedClock(clock)))
 	handled := h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -117,33 +155,32 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 	}
 	out := sender.sent[0]
 
-	// Header + section headers
 	for _, want := range []string{
 		"当前会话状态：",
 		"已激活 bee（2）：",
 		"进行中任务（2）：",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
-	}
-	// Bee lines
-	for _, want := range []string{
 		"- 貂蝉   引擎: claude   最近活跃: 2m 前",
 		"- 吕布   引擎: codex   最近活跃: 5h 前",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
-	}
-	// Task lines
-	for _, want := range []string{
 		"- [貂蝉] 新增 /status 指令的实现   已运行 1m   exec: a1b2c3d4",
 		"- [吕布] 修复登录 bug   已运行 12s   exec: e5f6a7b8",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
 		}
+	}
+}
+
+func TestStatusCommand_FallsBackToWorkerIDOnLookupFailure(t *testing.T) {
+	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "missing", Instruction: "do thing", ExecutionID: "abc12345xx", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	h, sender := makeStatusHandler(nil, tasks, nil, withClock(fixedClock(clock)))
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	out := sender.sent[0]
+	if !strings.Contains(out, "[missing] do thing") {
+		t.Errorf("expected raw worker id fallback, got:\n%s", out)
 	}
 }
 
@@ -163,18 +200,17 @@ func TestStatusCommand_EmptyBeesAndTasks(t *testing.T) {
 			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
 		}
 	}
-	// "(无)" must appear at least twice (one per empty section).
 	if strings.Count(out, "  (无)") != 2 {
 		t.Errorf("expected exactly two empty markers, got:\n%s", out)
 	}
 }
 
 func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
-	now := time.Now().Unix()
+	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: now - 30},
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: clock.Unix() - 30},
 	}
-	h, sender := makeStatusHandler(agents, nil, map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}})
+	h, sender := makeStatusHandler(agents, nil, map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}, withClock(fixedClock(clock)))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
 	if !strings.Contains(out, "已激活 bee（1）：") {
@@ -189,12 +225,12 @@ func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
 }
 
 func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
-	nowMs := time.Now().UnixMilli()
+	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do thing", ExecutionID: "deadbeef0000", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "do thing", ExecutionID: "deadbeef0000", CreatedAt: clock.UnixMilli() - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}
-	h, sender := makeStatusHandler(nil, tasks, workers)
+	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
 	if !strings.Contains(out, "已激活 bee（0）：") {
@@ -212,37 +248,23 @@ func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
 }
 
 func TestStatusCommand_SessionListErr(t *testing.T) {
-	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	sessions := &fakeStatusSessionLister{err: errors.New("boom")}
-	taskList := &fakeStatusTaskLister{}
-	wl := &fakeStatusWorkerLookup{}
-	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
-
+	h, sender := makeStatusHandler(nil, nil, nil, withSessionsErr(errors.New("boom")))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	if len(sender.sent) != 1 {
 		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
 	}
-	if !strings.Contains(sender.sent[0], "查询会话状态失败") {
+	if sender.sent[0] != i18n.M.Runtime.StatusCommand.LookupFailed {
 		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
 	}
 }
 
 func TestStatusCommand_TaskListErr(t *testing.T) {
-	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	sessions := &fakeStatusSessionLister{agents: nil}
-	taskList := &fakeStatusTaskLister{err: errors.New("boom")}
-	wl := &fakeStatusWorkerLookup{}
-	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
-
+	h, sender := makeStatusHandler(nil, nil, nil, withTasksErr(errors.New("boom")))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	if len(sender.sent) != 1 {
 		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
 	}
-	if !strings.Contains(sender.sent[0], "查询会话状态失败") {
+	if sender.sent[0] != i18n.M.Runtime.StatusCommand.LookupFailed {
 		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
 	}
 }

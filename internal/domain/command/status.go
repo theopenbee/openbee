@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -21,29 +21,36 @@ const (
 	shortExecIDLen      = 8
 )
 
-type StatusSessionLister interface {
+// SessionContextLister exposes the read used by both /status and /clear to
+// enumerate the session's currently active per-engine bee contexts.
+type SessionContextLister interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 }
 
-type StatusTaskLister interface {
+// TaskBySessionLister exposes the read used by both /status and /clear to
+// enumerate tasks scoped to a session, filtered by status and type.
+type TaskBySessionLister interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 }
 
+// StatusWorkerLookup resolves worker IDs to worker rows in a single batch.
 type StatusWorkerLookup interface {
-	GetByID(id string) (model.Worker, error)
+	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
+// StatusCommandHandler implements the /status slash command.
 type StatusCommandHandler struct {
-	sessions  StatusSessionLister
-	tasks     StatusTaskLister
+	sessions  SessionContextLister
+	tasks     TaskBySessionLister
 	workers   StatusWorkerLookup
 	senders   map[string]platform.PlatformSenderAdapter
 	engineCfg *enginecfg.Store
+	now       func() time.Time
 }
 
 func NewStatusCommandHandler(
-	sessions StatusSessionLister,
-	tasks StatusTaskLister,
+	sessions SessionContextLister,
+	tasks TaskBySessionLister,
 	workers StatusWorkerLookup,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
@@ -54,7 +61,14 @@ func NewStatusCommandHandler(
 		workers:   workers,
 		senders:   senders,
 		engineCfg: engineCfg,
+		now:       time.Now,
 	}
+}
+
+// SetClockForTest overrides the time source used to compute relative durations.
+// Test-only; production code should leave the default time.Now in place.
+func (h *StatusCommandHandler) SetClockForTest(now func() time.Time) {
+	h.now = now
 }
 
 func (h *StatusCommandHandler) IsCommand(content string) bool {
@@ -94,64 +108,86 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 
 func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
-	now := time.Now()
+	now := h.now()
 	nowSec := now.Unix()
 	nowMs := now.UnixMilli()
 
-	var b strings.Builder
-	b.WriteString(m.Header)
-	b.WriteByte('\n')
+	workerNames := h.resolveWorkerNames(tasks)
 
-	fmt.Fprintf(&b, m.SectionBees, len(agents))
-	b.WriteByte('\n')
+	var lines []string
+	lines = append(lines, m.Header)
+	lines = append(lines, fmt.Sprintf(m.SectionBees, len(agents)))
 	if len(agents) == 0 {
-		b.WriteString(m.EmptyMarker)
-		b.WriteByte('\n')
+		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, a := range agents {
-			fmt.Fprintf(&b, m.BeeLine, a.Name, a.Engine, formatRelative(nowSec-a.UpdatedAt))
-			b.WriteByte('\n')
+			lines = append(lines, fmt.Sprintf(m.BeeLine, a.Name, a.Engine, formatRelative(nowSec-a.UpdatedAt)))
 		}
 	}
-
-	fmt.Fprintf(&b, m.SectionTasks, len(tasks))
-	b.WriteByte('\n')
+	lines = append(lines, fmt.Sprintf(m.SectionTasks, len(tasks)))
 	if len(tasks) == 0 {
-		b.WriteString(m.EmptyMarker)
+		lines = append(lines, m.EmptyMarker)
 	} else {
-		nameCache := make(map[string]string, len(tasks))
-		for i, t := range tasks {
-			workerName, ok := nameCache[t.WorkerID]
-			if !ok {
-				workerName = h.lookupWorkerName(t.WorkerID)
-				nameCache[t.WorkerID] = workerName
-			}
+		for _, t := range tasks {
 			runtimeSec := (nowMs - t.CreatedAt) / 1000
-			fmt.Fprintf(&b, m.TaskLine,
-				workerName,
-				truncateInstruction(t.Instruction),
+			lines = append(lines, fmt.Sprintf(m.TaskLine,
+				workerNameOrFallback(workerNames, t.WorkerID),
+				utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
 				formatRelative(runtimeSec),
 				shortExecID(t.ExecutionID),
-			)
-			if i < len(tasks)-1 {
-				b.WriteByte('\n')
-			}
+			))
 		}
 	}
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
-// lookupWorkerName falls back to the raw id on failure so the user can still
-// correlate the line with logs.
-func (h *StatusCommandHandler) lookupWorkerName(id string) string {
+// resolveWorkerNames batches a single GetByIDs call for every distinct
+// WorkerID across the running tasks. On failure it returns nil so the caller
+// can fall back to raw IDs and still surface useful output to the user.
+func (h *StatusCommandHandler) resolveWorkerNames(tasks []model.Task) map[string]string {
+	if len(tasks) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(tasks))
+	ids := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		if t.WorkerID == "" {
+			continue
+		}
+		if _, ok := seen[t.WorkerID]; ok {
+			continue
+		}
+		seen[t.WorkerID] = struct{}{}
+		ids = append(ids, t.WorkerID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	workers, err := h.workers.GetByIDs(ids)
+	if err != nil {
+		log.Error("batch lookup workers for /status", zap.Error(err))
+		return nil
+	}
+	out := make(map[string]string, len(workers))
+	for _, w := range workers {
+		if w.Name != "" {
+			out[w.ID] = w.Name
+		}
+	}
+	return out
+}
+
+// workerNameOrFallback returns the looked-up name when present, "?" for an
+// empty id (so callers can still correlate the line with logs), and the raw
+// id otherwise.
+func workerNameOrFallback(names map[string]string, id string) string {
 	if id == "" {
 		return "?"
 	}
-	w, err := h.workers.GetByID(id)
-	if err != nil || w.Name == "" {
-		return id
+	if name, ok := names[id]; ok {
+		return name
 	}
-	return w.Name
+	return id
 }
 
 func (h *StatusCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
@@ -173,15 +209,6 @@ func formatRelative(seconds int64) string {
 	default:
 		return fmt.Sprintf("%dd", seconds/86400)
 	}
-}
-
-func truncateInstruction(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if utf8.RuneCountInString(s) <= maxInstructionRunes {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:maxInstructionRunes]) + "…"
 }
 
 func shortExecID(id string) string {
