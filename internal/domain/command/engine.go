@@ -72,7 +72,6 @@ type BeeBusyChecker interface {
 }
 
 // WorkerBusyChecker gates worker-level engine switches.
-// All checks are scoped to a single worker by ID.
 type WorkerBusyChecker interface {
 	HasActiveExecutionsByWorkerID(ctx context.Context, workerID string) (bool, error)
 	HasActiveImmediateTasksByWorkerID(ctx context.Context, workerID string) (bool, error)
@@ -88,12 +87,10 @@ type compositeWorkerBusyChecker struct {
 	WorkerTaskActivityChecker
 }
 
-// NewBeeBusyChecker composes a BeeBusyChecker from its two activity checkers.
 func NewBeeBusyChecker(msg MessageActivityChecker, exec BeeExecutionActivityChecker) BeeBusyChecker {
 	return compositeBeeBusyChecker{msg, exec}
 }
 
-// NewWorkerBusyChecker composes a WorkerBusyChecker from its two activity checkers.
 func NewWorkerBusyChecker(exec WorkerExecutionActivityChecker, task WorkerTaskActivityChecker) WorkerBusyChecker {
 	return compositeWorkerBusyChecker{exec, task}
 }
@@ -206,17 +203,23 @@ func (h *EngineCommandHandler) checkBeeBusy(ctx context.Context) (string, bool) 
 
 func (h *EngineCommandHandler) checkWorkerBusy(ctx context.Context, workerID string) (string, bool) {
 	m := i18n.M.Runtime.EngineCommand
-	execActive, err := h.workerBusy.HasActiveExecutionsByWorkerID(ctx, workerID)
-	if err != nil {
-		log.Warn("engine command: failed to check active worker executions", zap.Error(err))
-	} else if execActive {
-		return m.BusyExecutions, true
+	checks := []struct {
+		fn   func(context.Context) (bool, error)
+		busy string
+		warn string
+	}{
+		{func(c context.Context) (bool, error) { return h.workerBusy.HasActiveExecutionsByWorkerID(c, workerID) }, m.BusyExecutions, "engine command: failed to check active worker executions"},
+		{func(c context.Context) (bool, error) { return h.workerBusy.HasActiveImmediateTasksByWorkerID(c, workerID) }, m.BusyTasks, "engine command: failed to check active worker tasks"},
 	}
-	taskActive, err := h.workerBusy.HasActiveImmediateTasksByWorkerID(ctx, workerID)
-	if err != nil {
-		log.Warn("engine command: failed to check active worker tasks", zap.Error(err))
-	} else if taskActive {
-		return m.BusyTasks, true
+	for _, c := range checks {
+		active, err := c.fn(ctx)
+		if err != nil {
+			log.Warn(c.warn, zap.Error(err))
+			continue
+		}
+		if active {
+			return c.busy, true
+		}
 	}
 	return "", false
 }
