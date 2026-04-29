@@ -17,6 +17,7 @@ const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks }
 const Departments = lazy(() => import("@/pages/departments").then(m => ({ default: m.Departments })))
 const Env = lazy(() => import("@/pages/env").then(m => ({ default: m.Settings })))
 const SystemSettings = lazy(() => import("@/pages/settings").then(m => ({ default: m.SystemSettings })))
+const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +49,7 @@ export function App() {
                 <Route path="/env" element={<Env />} />
                 <Route path="/settings" element={<SystemSettings />} />
               </Route>
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </HashRouter>
