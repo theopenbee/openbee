@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Add 404 Not Found page
+
 ## [0.0.33] - 2026-04-28
 
 ### Added
