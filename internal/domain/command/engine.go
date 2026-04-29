@@ -50,46 +50,60 @@ type MessageActivityChecker interface {
 	HasActiveMessages(ctx context.Context) (bool, error)
 }
 
-// ExecutionActivityChecker reports whether active executions exist.
-type ExecutionActivityChecker interface {
-	HasActiveExecutions(ctx context.Context) (bool, error)
+// BeeExecutionActivityChecker reports whether active bee-owned executions exist.
+type BeeExecutionActivityChecker interface {
+	HasActiveBeeExecutions(ctx context.Context) (bool, error)
 }
 
-// TaskActivityChecker reports whether active immediate tasks exist.
-type TaskActivityChecker interface {
-	HasActiveImmediateTasks(ctx context.Context) (bool, error)
+// WorkerExecutionActivityChecker reports whether active executions exist for a specific worker.
+type WorkerExecutionActivityChecker interface {
+	HasActiveExecutionsByWorkerID(ctx context.Context, workerID string) (bool, error)
 }
 
-// SystemBusyChecker composes the activity checks that block engine switching
-// while the system has in-flight work.
-type SystemBusyChecker interface {
+// WorkerTaskActivityChecker reports whether active immediate tasks exist for a specific worker.
+type WorkerTaskActivityChecker interface {
+	HasActiveImmediateTasksByWorkerID(ctx context.Context, workerID string) (bool, error)
+}
+
+// BeeBusyChecker gates bee-level engine switches.
+type BeeBusyChecker interface {
 	MessageActivityChecker
-	ExecutionActivityChecker
-	TaskActivityChecker
+	BeeExecutionActivityChecker
 }
 
-func NewSystemBusyChecker(
-	msg MessageActivityChecker,
-	exec ExecutionActivityChecker,
-	task TaskActivityChecker,
-) SystemBusyChecker {
-	return compositeBusyChecker{msg, exec, task}
+// WorkerBusyChecker gates worker-level engine switches.
+type WorkerBusyChecker interface {
+	WorkerExecutionActivityChecker
+	WorkerTaskActivityChecker
 }
 
-type compositeBusyChecker struct {
+type compositeBeeBusyChecker struct {
 	MessageActivityChecker
-	ExecutionActivityChecker
-	TaskActivityChecker
+	BeeExecutionActivityChecker
+}
+
+type compositeWorkerBusyChecker struct {
+	WorkerExecutionActivityChecker
+	WorkerTaskActivityChecker
+}
+
+func NewBeeBusyChecker(msg MessageActivityChecker, exec BeeExecutionActivityChecker) BeeBusyChecker {
+	return compositeBeeBusyChecker{msg, exec}
+}
+
+func NewWorkerBusyChecker(exec WorkerExecutionActivityChecker, task WorkerTaskActivityChecker) WorkerBusyChecker {
+	return compositeWorkerBusyChecker{exec, task}
 }
 
 // EngineCommandHandler handles the /engine slash command.
 type EngineCommandHandler struct {
-	workers   WorkerRepository
-	sysCfg    SystemConfigWriter
-	validator EngineValidator
-	senders   map[string]platform.PlatformSenderAdapter
-	busy      SystemBusyChecker
-	engineCfg *enginecfg.Store
+	workers    WorkerRepository
+	sysCfg     SystemConfigWriter
+	validator  EngineValidator
+	senders    map[string]platform.PlatformSenderAdapter
+	beeBusy    BeeBusyChecker
+	workerBusy WorkerBusyChecker
+	engineCfg  *enginecfg.Store
 }
 
 func isExactOrPrefixed(content, cmd string) bool {
@@ -101,16 +115,18 @@ func NewEngineCommandHandler(
 	sysCfg SystemConfigWriter,
 	senders map[string]platform.PlatformSenderAdapter,
 	validator EngineValidator,
-	busy SystemBusyChecker,
+	beeBusy BeeBusyChecker,
+	workerBusy WorkerBusyChecker,
 	engineCfg *enginecfg.Store,
 ) *EngineCommandHandler {
 	return &EngineCommandHandler{
-		workers:   workers,
-		sysCfg:    sysCfg,
-		validator: validator,
-		senders:   senders,
-		busy:      busy,
-		engineCfg: engineCfg,
+		workers:    workers,
+		sysCfg:     sysCfg,
+		validator:  validator,
+		senders:    senders,
+		beeBusy:    beeBusy,
+		workerBusy: workerBusy,
+		engineCfg:  engineCfg,
 	}
 }
 
@@ -133,42 +149,61 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 	if !h.isValidEngine(ctx, replyTo, engineName) {
 		return true
 	}
-	if busyMsg, busy := h.checkBusy(ctx); busy {
-		h.reply(ctx, replyTo, busyMsg)
-		return true
-	}
 
 	if len(fields) == 2 {
+		if busyMsg, busy := h.checkBeeBusy(ctx); busy {
+			h.reply(ctx, replyTo, busyMsg)
+			return true
+		}
 		h.handleBeeEngine(ctx, replyTo, engineName)
 	} else {
-		h.handleWorkerEngine(ctx, replyTo, engineName, fields[2])
+		workerName := fields[2]
+		m := i18n.M.Runtime.EngineCommand
+		w, err := h.workers.GetByName(workerName)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
+			} else {
+				log.Error("get worker by name for /engine", zap.String("name", workerName), zap.Error(err))
+				h.reply(ctx, replyTo, m.SwitchFailed)
+			}
+			return true
+		}
+		if busyMsg, busy := h.checkWorkerBusy(ctx, w.ID); busy {
+			h.reply(ctx, replyTo, busyMsg)
+			return true
+		}
+		h.handleWorkerEngine(ctx, replyTo, engineName, w)
 	}
 	return true
 }
 
-// checkBusy returns a non-empty message and true on the first activity condition that
-// blocks engine switching. Checks run sequentially and short-circuit; SQLite serialises
-// reads anyway, so concurrent checks would not improve latency.
-func (h *EngineCommandHandler) checkBusy(ctx context.Context) (string, bool) {
+func (h *EngineCommandHandler) checkBeeBusy(ctx context.Context) (string, bool) {
 	m := i18n.M.Runtime.EngineCommand
-	checks := []struct {
-		fn   func(context.Context) (bool, error)
-		busy string
-		warn string
-	}{
-		{h.busy.HasActiveMessages, m.BusyMessages, "engine command: failed to check active messages"},
-		{h.busy.HasActiveExecutions, m.BusyExecutions, "engine command: failed to check active executions"},
-		{h.busy.HasActiveImmediateTasks, m.BusyTasks, "engine command: failed to check active immediate tasks"},
+	if active, err := h.beeBusy.HasActiveMessages(ctx); err != nil {
+		log.Warn("engine command: failed to check active messages", zap.Error(err))
+	} else if active {
+		return m.BusyMessages, true
 	}
-	for _, c := range checks {
-		active, err := c.fn(ctx)
-		if err != nil {
-			log.Warn(c.warn, zap.Error(err))
-			continue
-		}
-		if active {
-			return c.busy, true
-		}
+	if active, err := h.beeBusy.HasActiveBeeExecutions(ctx); err != nil {
+		log.Warn("engine command: failed to check active bee executions", zap.Error(err))
+	} else if active {
+		return m.BusyExecutions, true
+	}
+	return "", false
+}
+
+func (h *EngineCommandHandler) checkWorkerBusy(ctx context.Context, workerID string) (string, bool) {
+	m := i18n.M.Runtime.EngineCommand
+	if active, err := h.workerBusy.HasActiveExecutionsByWorkerID(ctx, workerID); err != nil {
+		log.Warn("engine command: failed to check active worker executions", zap.Error(err))
+	} else if active {
+		return m.BusyExecutions, true
+	}
+	if active, err := h.workerBusy.HasActiveImmediateTasksByWorkerID(ctx, workerID); err != nil {
+		log.Warn("engine command: failed to check active worker tasks", zap.Error(err))
+	} else if active {
+		return m.BusyTasks, true
 	}
 	return "", false
 }
@@ -183,23 +218,13 @@ func (h *EngineCommandHandler) handleBeeEngine(ctx context.Context, replyTo plat
 	h.reply(ctx, replyTo, fmt.Sprintf(m.DefaultSwitched, engineName))
 }
 
-func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName, workerName string) {
+func (h *EngineCommandHandler) handleWorkerEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string, w model.Worker) {
 	m := i18n.M.Runtime.EngineCommand
-	w, err := h.workers.GetByName(workerName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
-		} else {
-			log.Error("get worker by name for /engine", zap.String("name", workerName), zap.Error(err))
-			h.reply(ctx, replyTo, m.SwitchFailed)
-		}
-		return
-	}
 	if err := h.workers.UpdateEngine(w.ID, engineName); err != nil {
 		h.reply(ctx, replyTo, m.SwitchFailed)
 		return
 	}
-	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerSwitched, workerName, engineName))
+	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerSwitched, w.Name, engineName))
 }
 
 func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platform.InboundMessage, engineName string) bool {

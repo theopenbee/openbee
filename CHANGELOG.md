@@ -5,6 +5,9 @@
 ### Added
 - Add 404 Not Found page
 
+### Changed
+- Optimize `/engine` command: separate busy-check conditions for the scheduler (bee) and worker independently, so each can be evaluated and switched on its own criteria
+
 ## [0.0.33] - 2026-04-28
 
 ### Added

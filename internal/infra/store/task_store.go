@@ -432,12 +432,13 @@ func (s *TaskStore) CountAllByStatus(ctx context.Context) (map[string]int, error
 	return counts, rows.Err()
 }
 
-// HasActiveImmediateTasks reports whether any immediate tasks with status pending or running exist.
-func (s *TaskStore) HasActiveImmediateTasks(ctx context.Context) (bool, error) {
+// HasActiveImmediateTasksByWorkerID reports whether the given worker has any
+// pending or running immediate tasks.
+func (s *TaskStore) HasActiveImmediateTasksByWorkerID(ctx context.Context, workerID string) (bool, error) {
 	var exists int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM bee_tasks WHERE type = ? AND status IN (?, ?))`,
-		model.TaskTypeImmediate, model.TaskStatusPending, model.TaskStatusRunning,
+		`SELECT EXISTS(SELECT 1 FROM bee_tasks WHERE worker_id = ? AND type = ? AND status IN (?, ?))`,
+		workerID, model.TaskTypeImmediate, model.TaskStatusPending, model.TaskStatusRunning,
 	).Scan(&exists)
 	return exists == 1, err
 }
