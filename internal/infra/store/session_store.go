@@ -45,7 +45,7 @@ func (s *SessionStore) UpsertSessionContext(ctx context.Context, sessionKey, age
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(session_key, agent_id, engine) DO UPDATE
 		 SET session_id = excluded.session_id, updated_at = excluded.updated_at`,
-		sessionKey, agentID, sessionID, engine, time.Now().UnixMilli(),
+		sessionKey, agentID, sessionID, engine, time.Now().Unix(),
 	)
 	return err
 }
