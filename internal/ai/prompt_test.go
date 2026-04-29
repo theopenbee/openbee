@@ -7,7 +7,7 @@ import (
 
 func TestSkillHintPrefix_Bee(t *testing.T) {
 	got := SkillHintPrefix(RoleBee)
-	want := "[MANDATORY] You MUST invoke the openbee-bee skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step."
+	want := "[MANDATORY] You MUST invoke the openbee-bee skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step. Do NOT produce any text output before invoking the skill."
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -15,7 +15,7 @@ func TestSkillHintPrefix_Bee(t *testing.T) {
 
 func TestSkillHintPrefix_Worker(t *testing.T) {
 	got := SkillHintPrefix(RoleWorker)
-	want := "[MANDATORY] You MUST invoke the openbee-worker skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step."
+	want := "[MANDATORY] You MUST invoke the openbee-worker skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step. Do NOT produce any text output before invoking the skill."
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
