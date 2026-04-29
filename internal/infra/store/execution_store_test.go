@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -358,5 +359,66 @@ func TestExecutionStore_PrepareLogPath(t *testing.T) {
 	}
 	if got.LogPath != logPath {
 		t.Errorf("DB log_path mismatch: want %q got %q", logPath, got.LogPath)
+	}
+}
+
+func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db, t.TempDir())
+	ctx := context.Background()
+
+	// no executions → false
+	active, err := es.HasActiveBeeExecutions(ctx)
+	if err != nil {
+		t.Fatalf("HasActiveBeeExecutions: %v", err)
+	}
+	if active {
+		t.Error("expected false with no executions")
+	}
+
+	// create a bee execution (worker_id IS NULL), status pending
+	bee, _ := es.CreateBeeExecution("s1", "prompt", "claude")
+	active, err = es.HasActiveBeeExecutions(ctx)
+	if err != nil {
+		t.Fatalf("HasActiveBeeExecutions: %v", err)
+	}
+	if !active {
+		t.Error("expected true with pending bee execution")
+	}
+
+	// transition to running → still true
+	_ = es.UpdateStatus(bee.ID, model.ExecStatusRunning)
+	active, err = es.HasActiveBeeExecutions(ctx)
+	if err != nil {
+		t.Fatalf("HasActiveBeeExecutions: %v", err)
+	}
+	if !active {
+		t.Error("expected true with running bee execution")
+	}
+
+	// complete the bee execution → false again
+	_ = es.UpdateStatus(bee.ID, model.ExecStatusCompleted)
+	active, err = es.HasActiveBeeExecutions(ctx)
+	if err != nil {
+		t.Fatalf("HasActiveBeeExecutions: %v", err)
+	}
+	if active {
+		t.Error("expected false after completing bee execution")
+	}
+
+	// worker execution (worker_id NOT NULL) must not count
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
+	_, _ = es.Create("w1", "task", "s2", "claude")
+	active, err = es.HasActiveBeeExecutions(ctx)
+	if err != nil {
+		t.Fatalf("HasActiveBeeExecutions: %v", err)
+	}
+	if active {
+		t.Error("worker execution must not affect HasActiveBeeExecutions")
 	}
 }
