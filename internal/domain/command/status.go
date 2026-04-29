@@ -21,23 +21,18 @@ const (
 	shortExecIDLen      = 8
 )
 
-// StatusSessionLister is the subset of SessionStore needed by StatusCommandHandler.
 type StatusSessionLister interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 }
 
-// StatusTaskLister is the subset of TaskStore needed by StatusCommandHandler.
 type StatusTaskLister interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 }
 
-// StatusWorkerLookup is the subset of WorkerStore needed by StatusCommandHandler
-// to render task lines with the worker's display name.
 type StatusWorkerLookup interface {
 	GetByID(id string) (model.Worker, error)
 }
 
-// StatusCommandHandler handles the /status slash command.
 type StatusCommandHandler struct {
 	sessions  StatusSessionLister
 	tasks     StatusTaskLister
@@ -86,29 +81,27 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		return true
 	}
 
-	tasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
 	if err != nil {
 		log.Error("list tasks for /status", zap.String("sessionKey", sessionKey), zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
 		return true
 	}
 
-	h.reply(ctx, replyTo, h.formatStatus(agents, tasks))
+	h.reply(ctx, replyTo, h.formatStatus(agents, runningTasks))
 	return true
 }
 
-// formatStatus renders the full /status reply text. Both sections always appear,
-// using i18n.empty_marker when the corresponding slice is empty.
 func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
-	nowSec := time.Now().Unix()
-	nowMs := time.Now().UnixMilli()
+	now := time.Now()
+	nowSec := now.Unix()
+	nowMs := now.UnixMilli()
 
 	var b strings.Builder
 	b.WriteString(m.Header)
 	b.WriteByte('\n')
 
-	// Bees section.
 	fmt.Fprintf(&b, m.SectionBees, len(agents))
 	b.WriteByte('\n')
 	if len(agents) == 0 {
@@ -121,14 +114,18 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		}
 	}
 
-	// Tasks section.
 	fmt.Fprintf(&b, m.SectionTasks, len(tasks))
 	b.WriteByte('\n')
 	if len(tasks) == 0 {
 		b.WriteString(m.EmptyMarker)
 	} else {
+		nameCache := make(map[string]string, len(tasks))
 		for i, t := range tasks {
-			workerName := h.lookupWorkerName(t.WorkerID)
+			workerName, ok := nameCache[t.WorkerID]
+			if !ok {
+				workerName = h.lookupWorkerName(t.WorkerID)
+				nameCache[t.WorkerID] = workerName
+			}
 			runtimeSec := (nowMs - t.CreatedAt) / 1000
 			fmt.Fprintf(&b, m.TaskLine,
 				workerName,
@@ -144,8 +141,8 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 	return b.String()
 }
 
-// lookupWorkerName resolves a worker id to its display name. On lookup failure
-// or empty result it returns the id, so the user can still correlate the line.
+// lookupWorkerName falls back to the raw id on failure so the user can still
+// correlate the line with logs.
 func (h *StatusCommandHandler) lookupWorkerName(id string) string {
 	if id == "" {
 		return "?"
@@ -161,9 +158,7 @@ func (h *StatusCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 	sendReply(ctx, h.senders, replyTo, text)
 }
 
-// formatRelative renders a duration in seconds as a coarse human string:
-// "Ns" (<60s), "Nm" (<60m), "Nh" (<24h), or "Nd" (≥24h).
-// Negative values are clamped to "0s" to handle clock skew.
+// formatRelative clamps negative inputs to "0s" to tolerate clock skew.
 func formatRelative(seconds int64) string {
 	if seconds < 0 {
 		seconds = 0
@@ -180,10 +175,7 @@ func formatRelative(seconds int64) string {
 	}
 }
 
-// truncateInstruction collapses any whitespace runs to a single space and
-// shortens the result to maxInstructionRunes runes, appending "…" if cut.
 func truncateInstruction(s string) string {
-	// Collapse all whitespace (incl. \n, \r, \t) into single spaces.
 	s = strings.Join(strings.Fields(s), " ")
 	if utf8.RuneCountInString(s) <= maxInstructionRunes {
 		return s
@@ -192,8 +184,6 @@ func truncateInstruction(s string) string {
 	return string(runes[:maxInstructionRunes]) + "…"
 }
 
-// shortExecID returns the first shortExecIDLen characters of an execution id,
-// or the whole string if shorter. Empty input returns empty.
 func shortExecID(id string) string {
 	if len(id) <= shortExecIDLen {
 		return id

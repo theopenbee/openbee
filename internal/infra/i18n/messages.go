@@ -329,11 +329,11 @@ type StatusCommandMessages struct {
 	Usage        string `yaml:"usage"`
 	LookupFailed string `yaml:"lookup_failed"`
 	Header       string `yaml:"header"`
-	SectionBees  string `yaml:"section_bees"`  // contains %d
-	SectionTasks string `yaml:"section_tasks"` // contains %d
+	SectionBees  string `yaml:"section_bees"`
+	SectionTasks string `yaml:"section_tasks"`
 	EmptyMarker  string `yaml:"empty_marker"`
-	BeeLine      string `yaml:"bee_line"`  // contains %s, %s, %s (name, engine, last-active)
-	TaskLine     string `yaml:"task_line"` // contains %s, %s, %s, %s (worker, content, runtime, exec-id)
+	BeeLine      string `yaml:"bee_line"`
+	TaskLine     string `yaml:"task_line"`
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.
