@@ -24,6 +24,8 @@ const (
 	CmdClear = "/clear"
 	// CmdStop is the slash command that stops the running bee and cancels pending messages.
 	CmdStop = "/stop"
+	// CmdStatus is the slash command that prints the current session status.
+	CmdStatus = "/status"
 )
 
 var log = logger.With(zap.String("component", "command"))
