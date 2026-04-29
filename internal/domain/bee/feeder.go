@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -119,6 +120,9 @@ func (f *Feeder) RecoverFeeding(ctx context.Context) {
 
 // Run polls for unprocessed messages on each tick. Call in a goroutine.
 func (f *Feeder) Run(ctx context.Context) {
+	if err := os.MkdirAll(f.workDir, 0o755); err != nil {
+		log.Error("create bee workspace", zap.Error(err))
+	}
 	if err := f.runner.Prepare(f.workDir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
 		log.Error("setup bee workspace", zap.Error(err))
 	}

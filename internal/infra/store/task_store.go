@@ -465,6 +465,17 @@ func (s *TaskStore) HasActiveImmediateTasks(ctx context.Context) (bool, error) {
 	return exists == 1, err
 }
 
+// HasActiveImmediateTasksByWorkerID reports whether the given worker has any
+// pending or running immediate tasks.
+func (s *TaskStore) HasActiveImmediateTasksByWorkerID(ctx context.Context, workerID string) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM bee_tasks WHERE worker_id = ? AND type = ? AND status IN (?, ?))`,
+		workerID, model.TaskTypeImmediate, model.TaskStatusPending, model.TaskStatusRunning,
+	).Scan(&exists)
+	return exists == 1, err
+}
+
 // CountScheduledActive returns the number of pending scheduled tasks.
 func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 	var count int

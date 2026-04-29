@@ -30,15 +30,6 @@ func (p *CmdProcess) PID() int {
 	return 0
 }
 
-func (p *CmdProcess) Stop() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cmd != nil && p.cmd.Process != nil {
-		return p.cmd.Process.Kill()
-	}
-	return nil
-}
-
 // BuildRunEnv assembles the final env slice for a subprocess run.
 // Entries are ordered baseEnv → extraEnv → apiKey; for duplicate keys the
 // last value wins (standard subprocess env resolution on Linux/macOS), so

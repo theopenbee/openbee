@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Add `/status` command
+- Add 404 Not Found page
+
+### Changed
+- Optimize `/engine` command: separate busy-check conditions for the scheduler (bee) and worker independently, so each can be evaluated and switched on its own criteria
+
+## [0.0.33] - 2026-04-28
+
+### Added
+- Add Xiaomi Mimo provider support
+
+### Fixed
+- Fix orphan processes left behind when a task is cancelled
+- Fix bee working directory not being created on fresh installs, causing tasks to fail with a "chdir" error (especially on Windows)
+
 ## [0.0.32] - 2026-04-27
 
 ### Added

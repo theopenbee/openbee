@@ -487,6 +487,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
+			if ctx.Err() != nil {
+				d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+			}
 			return
 		}
 		if string(exec.Status) != lastStatus {
@@ -543,7 +546,6 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			// Task was cancelled — kill the worker process.
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
 			return

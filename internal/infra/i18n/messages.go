@@ -141,6 +141,8 @@ type ProviderMessages struct {
 	KeyAliyun       string `yaml:"key_aliyun"`
 	KeyVolcengine   string `yaml:"key_volcengine"`
 	KeyTencent      string `yaml:"key_tencent"`
+	KeyMimoURL      string `yaml:"key_mimo_url"`
+	KeyMimoToken    string `yaml:"key_mimo_token"`
 	KeyCustomURL    string `yaml:"key_custom_url"`
 	KeyCustomToken  string `yaml:"key_custom_token"`
 	WrittenSettings string `yaml:"written_settings"`
@@ -285,6 +287,7 @@ type RuntimeMessages struct {
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
 	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
 	StopCommand     StopCommandMessages       `yaml:"stop_command"`
+	StatusCommand   StatusCommandMessages     `yaml:"status_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -319,6 +322,18 @@ type StopCommandMessages struct {
 	StoppedWithMessages string `yaml:"stopped_with_messages"`
 	CancelledMessages   string `yaml:"cancelled_messages"`
 	NothingToStop       string `yaml:"nothing_to_stop"`
+}
+
+// StatusCommandMessages holds text sent to IM users by the /status command handler.
+type StatusCommandMessages struct {
+	Usage        string `yaml:"usage"`
+	LookupFailed string `yaml:"lookup_failed"`
+	Header       string `yaml:"header"`
+	SectionBees  string `yaml:"section_bees"`
+	SectionTasks string `yaml:"section_tasks"`
+	EmptyMarker  string `yaml:"empty_marker"`
+	BeeLine      string `yaml:"bee_line"`
+	TaskLine     string `yaml:"task_line"`
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

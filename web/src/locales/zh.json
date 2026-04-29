@@ -476,5 +476,12 @@
       "hint": "追加到 Bee 编排进程自身引擎调用的 CLI 参数，覆盖全局参数中对应项。",
       "updated": "Bee 引擎参数已更新"
     }
+  },
+  "notFound": {
+    "code": "404",
+    "title": "页面不存在",
+    "description": "你访问的路径不存在或已被移除",
+    "backToHome": "返回首页",
+    "goToLogin": "去登录"
   }
 }

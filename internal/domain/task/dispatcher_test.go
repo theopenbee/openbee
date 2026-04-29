@@ -2,6 +2,7 @@ package task_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -47,6 +48,44 @@ type mockExecutionQuerier struct {
 
 func (m *mockExecutionQuerier) GetByID(_ string) (model.WorkerExecution, error) {
 	return m.result, nil
+}
+
+// cancelGateQuerier blocks GetByID until its gate channel is closed, then returns a DB error.
+// This lets tests trigger the cancel-during-poll-error path in waitForResult.
+type cancelGateQuerier struct {
+	gate chan struct{}
+}
+
+func (q *cancelGateQuerier) GetByID(_ string) (model.WorkerExecution, error) {
+	<-q.gate
+	return model.WorkerExecution{}, errors.New("db poll error")
+}
+
+// quickCancelExecManager returns immediately from ExecuteWorker and tracks CancelExecution calls.
+type quickCancelExecManager struct {
+	execCalled  chan struct{}
+	cancelCount *int64
+}
+
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+	select {
+	case m.execCalled <- struct{}{}:
+	default:
+	}
+	return model.WorkerExecution{}, nil
+}
+
+func (m *quickCancelExecManager) ExecuteAgent(_ context.Context, _ model.Worker, _, _ string, _ bool) (model.WorkerExecution, error) {
+	select {
+	case m.execCalled <- struct{}{}:
+	default:
+	}
+	return model.WorkerExecution{}, nil
+}
+
+func (m *quickCancelExecManager) CancelExecution(_ context.Context, _ string) error {
+	atomic.AddInt64(m.cancelCount, 1)
+	return nil
 }
 
 type mockTaskStore struct {
@@ -1522,5 +1561,57 @@ func TestTaskDispatcher_CancelDuringResolve_NotifiesCancel(t *testing.T) {
 	got := fn.cancelCalls[0]
 	if got.messageID != "msg-resolve-cancel" {
 		t.Errorf("expected messageID=msg-resolve-cancel, got %q", got.messageID)
+	}
+}
+
+func TestTaskDispatcher_PollError_WithCancel_KillsProcess(t *testing.T) {
+	execCalled := make(chan struct{}, 1)
+	var cancelCount int64
+	mgr := &quickCancelExecManager{
+		execCalled:  execCalled,
+		cancelCount: &cancelCount,
+	}
+
+	gate := make(chan struct{})
+	eq := &cancelGateQuerier{gate: gate}
+
+	d, in, _ := newTaskDispatcher(mgr, eq, newMockSessionStore())
+
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go d.Run(ctx)
+
+	t1 := immediateTask("s1", "w1", "some task")
+	t1.TaskID = "task-poll-err"
+	in <- t1
+
+	// Wait until ExecuteWorker is called, meaning waitForResult has started and is now
+	// blocked on the first GetByID call inside cancelGateQuerier.
+	select {
+	case <-execCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ExecuteWorker was not called within timeout")
+	}
+
+	// Cancel the task — sends to cancelCh.
+	if err := d.CancelTask(context.Background(), "task-poll-err"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	// Give the Run loop time to process the cancel (handleCancel → cancel() → taskCtx done).
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock the querier: waitForResult now gets a DB error with ctx already done.
+	close(gate)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt64(&cancelCount) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt64(&cancelCount) == 0 {
+		t.Error("expected CancelExecution to be called when poll error occurs after cancel, but it was not")
 	}
 }
