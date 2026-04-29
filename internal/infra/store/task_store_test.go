@@ -1023,3 +1023,78 @@ func TestTaskStore_CompleteTask_Scheduled_Cancelled_NoChange(t *testing.T) {
 		t.Errorf("want status %q got %q", model.TaskStatusCancelled, got.Status)
 	}
 }
+
+func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	defer db.Close()
+
+	// Two workers, two messages
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','alice','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','bob','/','idle',1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m1','s','feishu','hi','','',1,1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m2','s2','feishu','hi','','',1,1,1)`)
+
+	ts := NewTaskStore(db)
+	ctx := context.Background()
+
+	// no tasks → false
+	active, err := ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
+	}
+	if active {
+		t.Error("expected false with no tasks")
+	}
+
+	// create pending immediate task for w1
+	now := time.Now().UnixMilli()
+	id1, _ := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "go",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+
+	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
+	}
+	if !active {
+		t.Error("expected true for w1 with pending immediate task")
+	}
+
+	// w2 must not be affected by w1's task
+	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w2")
+	if err != nil {
+		t.Fatalf("HasActiveImmediateTasksByWorkerID w2: %v", err)
+	}
+	if active {
+		t.Error("w2 should not be affected by w1's task")
+	}
+
+	// complete w1's task → false
+	_ = ts.UpdateStatus(ctx, id1, model.TaskStatusCompleted)
+	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
+	}
+	if active {
+		t.Error("expected false after completing w1 task")
+	}
+
+	// scheduled task for w1 must NOT count
+	_, _ = ts.Create(ctx, model.Task{
+		MessageID: "m2", WorkerID: "w1", Instruction: "cron",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
+	}
+	if active {
+		t.Error("scheduled task must not affect HasActiveImmediateTasksByWorkerID")
+	}
+}
