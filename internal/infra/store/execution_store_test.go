@@ -422,3 +422,65 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 		t.Error("worker execution must not affect HasActiveBeeExecutions")
 	}
 }
+
+func TestExecutionStore_HasActiveExecutionsByWorkerID(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db, t.TempDir())
+	ctx := context.Background()
+
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','alice','/','idle',0,0)`)
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','bob','/','idle',0,0)`)
+
+	// no executions → false for both workers
+	active, err := es.HasActiveExecutionsByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
+	}
+	if active {
+		t.Error("expected false with no executions")
+	}
+
+	// create pending execution for w1
+	exec1, _ := es.Create("w1", "task", "s1", "claude")
+	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
+	}
+	if !active {
+		t.Error("expected true for w1 with pending execution")
+	}
+
+	// w2 must not be affected by w1's execution
+	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w2")
+	if err != nil {
+		t.Fatalf("HasActiveExecutionsByWorkerID w2: %v", err)
+	}
+	if active {
+		t.Error("w2 should not be affected by w1's execution")
+	}
+
+	// transition to running → still true
+	_ = es.UpdateStatus(exec1.ID, model.ExecStatusRunning)
+	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveExecutionsByWorkerID (running): %v", err)
+	}
+	if !active {
+		t.Error("expected true for w1 with running execution")
+	}
+
+	// complete w1's execution → false
+	_ = es.UpdateStatus(exec1.ID, model.ExecStatusCompleted)
+	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
+	if err != nil {
+		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
+	}
+	if active {
+		t.Error("expected false after completing w1 execution")
+	}
+}
