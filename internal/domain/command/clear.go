@@ -23,12 +23,12 @@ type WorkerNameLookup interface {
 }
 
 type ClearSessionStore interface {
-	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
+	SessionContextLister
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
 }
 
 type ClearTaskStore interface {
-	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
+	TaskBySessionLister
 	CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error)
 }
 

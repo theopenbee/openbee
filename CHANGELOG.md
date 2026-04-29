@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Add `/status` command
 - Add 404 Not Found page
 
 ### Changed

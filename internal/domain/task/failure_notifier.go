@@ -3,14 +3,14 @@ package task
 import (
 	"context"
 	"fmt"
-	"unicode/utf8"
 
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // PlatformFailureNotifier implements FailureNotifier by looking up the originating
@@ -57,12 +57,9 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageI
 		return fmt.Errorf("no sender for platform %q", stored.Platform)
 	}
 
-	// Truncate to avoid exceeding platform limits; use rune slice to avoid splitting multi-byte UTF-8 characters.
-	const maxRunes = 500
-	if utf8.RuneCountInString(content) > maxRunes {
-		runes := []rune(content)
-		content = string(runes[:maxRunes-1]) + "…"
-	}
+	// 499 content runes + ellipsis = 500 visible runes, the platform ceiling.
+	const maxContentRunes = 499
+	content = utils.TruncateRunes(content, maxContentRunes)
 
 	outbound := platform.OutboundMessage{
 		Content: content,
