@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -72,9 +75,86 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		h.reply(ctx, replyTo, i18n.M.Runtime.StatusCommand.Usage)
 		return true
 	}
-	// Full implementation follows in later tasks.
-	h.reply(ctx, replyTo, i18n.M.Runtime.StatusCommand.Usage)
+
+	m := i18n.M.Runtime.StatusCommand
+	sessionKey := replyTo.SessionKey
+
+	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
+	if err != nil {
+		log.Error("list session contexts for /status", zap.String("sessionKey", sessionKey), zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
+		return true
+	}
+
+	tasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	if err != nil {
+		log.Error("list tasks for /status", zap.String("sessionKey", sessionKey), zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
+		return true
+	}
+
+	h.reply(ctx, replyTo, h.formatStatus(agents, tasks))
 	return true
+}
+
+// formatStatus renders the full /status reply text. Both sections always appear,
+// using i18n.empty_marker when the corresponding slice is empty.
+func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
+	m := i18n.M.Runtime.StatusCommand
+	nowSec := time.Now().Unix()
+	nowMs := time.Now().UnixMilli()
+
+	var b strings.Builder
+	b.WriteString(m.Header)
+	b.WriteByte('\n')
+
+	// Bees section.
+	fmt.Fprintf(&b, m.SectionBees, len(agents))
+	b.WriteByte('\n')
+	if len(agents) == 0 {
+		b.WriteString(m.EmptyMarker)
+		b.WriteByte('\n')
+	} else {
+		for _, a := range agents {
+			fmt.Fprintf(&b, m.BeeLine, a.Name, a.Engine, formatRelative(nowSec-a.UpdatedAt))
+			b.WriteByte('\n')
+		}
+	}
+
+	// Tasks section.
+	fmt.Fprintf(&b, m.SectionTasks, len(tasks))
+	b.WriteByte('\n')
+	if len(tasks) == 0 {
+		b.WriteString(m.EmptyMarker)
+	} else {
+		for i, t := range tasks {
+			workerName := h.lookupWorkerName(t.WorkerID)
+			runtimeSec := (nowMs - t.CreatedAt) / 1000
+			fmt.Fprintf(&b, m.TaskLine,
+				workerName,
+				truncateInstruction(t.Instruction),
+				formatRelative(runtimeSec),
+				shortExecID(t.ExecutionID),
+			)
+			if i < len(tasks)-1 {
+				b.WriteByte('\n')
+			}
+		}
+	}
+	return b.String()
+}
+
+// lookupWorkerName resolves a worker id to its display name. On lookup failure
+// or empty result it returns the id, so the user can still correlate the line.
+func (h *StatusCommandHandler) lookupWorkerName(id string) string {
+	if id == "" {
+		return "?"
+	}
+	w, err := h.workers.GetByID(id)
+	if err != nil || w.Name == "" {
+		return id
+	}
+	return w.Name
 }
 
 func (h *StatusCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
