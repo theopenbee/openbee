@@ -287,6 +287,7 @@ type RuntimeMessages struct {
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
 	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
 	StopCommand     StopCommandMessages       `yaml:"stop_command"`
+	StatusCommand   StatusCommandMessages     `yaml:"status_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -321,6 +322,18 @@ type StopCommandMessages struct {
 	StoppedWithMessages string `yaml:"stopped_with_messages"`
 	CancelledMessages   string `yaml:"cancelled_messages"`
 	NothingToStop       string `yaml:"nothing_to_stop"`
+}
+
+// StatusCommandMessages holds text sent to IM users by the /status command handler.
+type StatusCommandMessages struct {
+	Usage        string `yaml:"usage"`
+	LookupFailed string `yaml:"lookup_failed"`
+	Header       string `yaml:"header"`
+	SectionBees  string `yaml:"section_bees"`  // contains %d
+	SectionTasks string `yaml:"section_tasks"` // contains %d
+	EmptyMarker  string `yaml:"empty_marker"`
+	BeeLine      string `yaml:"bee_line"`  // contains %s, %s, %s (name, engine, last-active)
+	TaskLine     string `yaml:"task_line"` // contains %s, %s, %s, %s (worker, content, runtime, exec-id)
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

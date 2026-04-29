@@ -254,3 +254,12 @@ runtime:
     stopped_with_messages: "✅ Stopped bee execution and cancelled %d pending message(s)"
     cancelled_messages: "✅ Cancelled %d pending message(s)"
     nothing_to_stop: "Nothing to stop in this session"
+  status_command:
+    usage: "Usage: /status"
+    lookup_failed: "⚠️ Failed to look up session status. Please retry; if this persists, check server logs."
+    header: "Current session status:"
+    section_bees: "Active bees (%d):"
+    section_tasks: "Running tasks (%d):"
+    empty_marker: "  (none)"
+    bee_line: "  - %s   engine: %s   last active: %s ago"
+    task_line: "  - [%s] %s   running for %s   exec: %s"

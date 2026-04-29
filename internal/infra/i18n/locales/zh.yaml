@@ -254,3 +254,12 @@ runtime:
     stopped_with_messages: "✅ 已停止 bee 执行，取消了 %d 条待处理消息"
     cancelled_messages: "✅ 已取消 %d 条待处理消息"
     nothing_to_stop: "当前会话没有需要停止的内容"
+  status_command:
+    usage: "用法：/status"
+    lookup_failed: "⚠️ 查询会话状态失败，请稍后重试；若持续出现请检查服务端日志。"
+    header: "当前会话状态："
+    section_bees: "已激活 bee（%d）："
+    section_tasks: "进行中任务（%d）："
+    empty_marker: "  (无)"
+    bee_line: "  - %s   引擎: %s   最近活跃: %s 前"
+    task_line: "  - [%s] %s   已运行 %s   exec: %s"
