@@ -477,5 +477,12 @@
       "hint": "CLI flags appended to the Bee orchestrator's own engine invocation. Merged on top of global args.",
       "updated": "Bee engine args updated"
     }
+  },
+  "notFound": {
+    "code": "404",
+    "title": "Page Not Found",
+    "description": "The page you visited doesn't exist or has been removed.",
+    "backToHome": "Back to Home",
+    "goToLogin": "Go to Login"
   }
 }
