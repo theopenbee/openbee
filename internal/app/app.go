@@ -158,7 +158,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, busyChecker, engineCfg)
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform, engineCfg)
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
-	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler)
+	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg)
+	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
 		msgingest.WithPlatformBotNames(map[string]string{
 			feishu.PlatformID:   cfg.Bee.Platforms.Feishu.BotName,
