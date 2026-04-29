@@ -91,13 +91,11 @@ func makeStatusHandler(
 	engineCfg := enginecfg.NewStore("claude")
 	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
 	if cfg.now != nil {
-		h.SetClockForTest(cfg.now)
+		command.SetStatusClockForTest(h, cfg.now)
 	}
 	return h, sender
 }
 
-// fixedClock pins the handler's notion of "now" so relative-time assertions
-// are deterministic regardless of test-execution latency.
 func fixedClock(t time.Time) func() time.Time {
 	return func() time.Time { return t }
 }

@@ -20,8 +20,10 @@ func SplitAndTrim(s string) []string {
 }
 
 // TruncateRunes returns s unchanged when it is at most maxContentRunes runes;
-// otherwise it returns the first maxContentRunes runes followed by "…". Slices
-// by rune so multi-byte UTF-8 characters are not split.
+// otherwise it returns the first maxContentRunes runes followed by "…". The
+// ellipsis is appended on top, so a truncated result is one rune longer than
+// maxContentRunes — callers with a hard ceiling should size accordingly.
+// Slices by rune so multi-byte UTF-8 characters are not split.
 func TruncateRunes(s string, maxContentRunes int) string {
 	if utf8.RuneCountInString(s) <= maxContentRunes {
 		return s

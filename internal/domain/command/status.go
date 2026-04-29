@@ -21,24 +21,20 @@ const (
 	shortExecIDLen      = 8
 )
 
-// SessionContextLister exposes the read used by both /status and /clear to
-// enumerate the session's currently active per-engine bee contexts.
+// SessionContextLister is shared by /status and /clear.
 type SessionContextLister interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 }
 
-// TaskBySessionLister exposes the read used by both /status and /clear to
-// enumerate tasks scoped to a session, filtered by status and type.
+// TaskBySessionLister is shared by /status and /clear.
 type TaskBySessionLister interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 }
 
-// StatusWorkerLookup resolves worker IDs to worker rows in a single batch.
 type StatusWorkerLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
-// StatusCommandHandler implements the /status slash command.
 type StatusCommandHandler struct {
 	sessions  SessionContextLister
 	tasks     TaskBySessionLister
@@ -63,12 +59,6 @@ func NewStatusCommandHandler(
 		engineCfg: engineCfg,
 		now:       time.Now,
 	}
-}
-
-// SetClockForTest overrides the time source used to compute relative durations.
-// Test-only; production code should leave the default time.Now in place.
-func (h *StatusCommandHandler) SetClockForTest(now func() time.Time) {
-	h.now = now
 }
 
 func (h *StatusCommandHandler) IsCommand(content string) bool {
@@ -109,12 +99,21 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
 	now := h.now()
+	// SessionAgent.UpdatedAt is in seconds; Task.CreatedAt is in milliseconds.
 	nowSec := now.Unix()
 	nowMs := now.UnixMilli()
 
 	workerNames := h.resolveWorkerNames(tasks)
 
-	var lines []string
+	beeBody := len(agents)
+	if beeBody == 0 {
+		beeBody = 1
+	}
+	taskBody := len(tasks)
+	if taskBody == 0 {
+		taskBody = 1
+	}
+	lines := make([]string, 0, 2+beeBody+taskBody)
 	lines = append(lines, m.Header)
 	lines = append(lines, fmt.Sprintf(m.SectionBees, len(agents)))
 	if len(agents) == 0 {
@@ -141,9 +140,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 	return strings.Join(lines, "\n")
 }
 
-// resolveWorkerNames batches a single GetByIDs call for every distinct
-// WorkerID across the running tasks. On failure it returns nil so the caller
-// can fall back to raw IDs and still surface useful output to the user.
+// On error returns nil so the caller falls back to raw IDs.
 func (h *StatusCommandHandler) resolveWorkerNames(tasks []model.Task) map[string]string {
 	if len(tasks) == 0 {
 		return nil
@@ -177,9 +174,6 @@ func (h *StatusCommandHandler) resolveWorkerNames(tasks []model.Task) map[string
 	return out
 }
 
-// workerNameOrFallback returns the looked-up name when present, "?" for an
-// empty id (so callers can still correlate the line with logs), and the raw
-// id otherwise.
 func workerNameOrFallback(names map[string]string, id string) string {
 	if id == "" {
 		return "?"

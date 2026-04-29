@@ -57,7 +57,9 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageI
 		return fmt.Errorf("no sender for platform %q", stored.Platform)
 	}
 
-	content = utils.TruncateRunes(content, 499)
+	// 499 content runes + ellipsis = 500 visible runes, the platform ceiling.
+	const maxContentRunes = 499
+	content = utils.TruncateRunes(content, maxContentRunes)
 
 	outbound := platform.OutboundMessage{
 		Content: content,
