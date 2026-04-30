@@ -223,9 +223,7 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 // MarkAbandoned finalizes an execution that exited without a terminal signal
 // (killed, crashed, cancelled). Only updates if the row is still in pending
 // or running state — terminal states (completed/failed) are left untouched.
-// Returns whether a row was updated. Used by:
-//   - monitorExecution fallback when the output channel closes silently
-//   - task cancel path when the worker process is no longer tracked locally
+// Returns whether a row was updated.
 func (s *ExecutionStore) MarkAbandoned(ctx context.Context, id, result string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE bee_executions SET status=?, result=?, completed_at=?

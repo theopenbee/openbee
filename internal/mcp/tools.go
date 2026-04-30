@@ -436,6 +436,12 @@ func (s *MCPServer) toolListTasks(ctx context.Context, args json.RawMessage) (an
 	return tasks, nil
 }
 
+func (s *MCPServer) finalizeCancelledExecution(ctx context.Context, executionID string) {
+	if _, err := s.executionStore.MarkAbandoned(ctx, executionID, "cancelled by user"); err != nil {
+		log.Error("finalize cancelled execution", zap.String("executionID", executionID), zap.Error(err))
+	}
+}
+
 func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		TaskID string `json:"task_id"`
@@ -453,7 +459,7 @@ func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (a
 		return nil, fmt.Errorf("get task: %w", err)
 	}
 	if task.ExecutionID != "" {
-		stopErr := error(nil)
+		var stopErr error
 		if s.execStopper != nil {
 			stopErr = s.execStopper.StopExecution(task.ExecutionID)
 		}
@@ -465,9 +471,7 @@ func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (a
 				zap.String("op", "cancel_task"),
 				zap.String("executionID", task.ExecutionID),
 				zap.Error(stopErr))
-			if _, err := s.executionStore.MarkAbandoned(ctx, task.ExecutionID, "cancelled by user"); err != nil {
-				log.Error("finalize cancelled execution", zap.String("executionID", task.ExecutionID), zap.Error(err))
-			}
+			s.finalizeCancelledExecution(ctx, task.ExecutionID)
 		}
 		// On stopErr == nil the process was alive; monitorExecution will
 		// finalize the row when its output channel closes.
@@ -625,9 +629,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				zap.String("op", "clear_session"),
 				zap.String("executionID", t.ExecutionID),
 				zap.Error(err))
-			if _, err := s.executionStore.MarkAbandoned(ctx, t.ExecutionID, "cancelled by user"); err != nil {
-				log.Error("finalize cancelled execution", zap.String("executionID", t.ExecutionID), zap.Error(err))
-			}
+			s.finalizeCancelledExecution(ctx, t.ExecutionID)
 		}
 	}
 
