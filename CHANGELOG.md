@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.34] - 2026-04-29
 
 ### Added
 - Add `/status` command
