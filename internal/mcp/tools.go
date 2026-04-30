@@ -452,10 +452,25 @@ func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (a
 	if err != nil {
 		return nil, fmt.Errorf("get task: %w", err)
 	}
-	if task.ExecutionID != "" && s.execStopper != nil {
-		if err := s.execStopper.StopExecution(task.ExecutionID); err != nil {
-			log.Error("stop execution", zap.String("op", "cancel_task"), zap.String("executionID", task.ExecutionID), zap.Error(err))
+	if task.ExecutionID != "" {
+		stopErr := error(nil)
+		if s.execStopper != nil {
+			stopErr = s.execStopper.StopExecution(task.ExecutionID)
 		}
+		if stopErr != nil {
+			// Process not active in this server (already exited, never started,
+			// or different instance). The execution row may be a stuck running
+			// orphan — force-finalize so future busy checks don't trip on it.
+			log.Debug("stop execution: process not active",
+				zap.String("op", "cancel_task"),
+				zap.String("executionID", task.ExecutionID),
+				zap.Error(stopErr))
+			if _, err := s.executionStore.MarkAbandoned(ctx, task.ExecutionID, "cancelled by user"); err != nil {
+				log.Error("finalize cancelled execution", zap.String("executionID", task.ExecutionID), zap.Error(err))
+			}
+		}
+		// On stopErr == nil the process was alive; monitorExecution will
+		// finalize the row when its output channel closes.
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
@@ -602,9 +617,16 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
 	for _, t := range tasksToStop {
-		if t.ExecutionID != "" {
-			if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
-				log.Error("stop execution", zap.String("op", "clear_session"), zap.String("executionID", t.ExecutionID), zap.Error(err))
+		if t.ExecutionID == "" {
+			continue
+		}
+		if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
+			log.Debug("stop execution: process not active",
+				zap.String("op", "clear_session"),
+				zap.String("executionID", t.ExecutionID),
+				zap.Error(err))
+			if _, err := s.executionStore.MarkAbandoned(ctx, t.ExecutionID, "cancelled by user"); err != nil {
+				log.Error("finalize cancelled execution", zap.String("executionID", t.ExecutionID), zap.Error(err))
 			}
 		}
 	}

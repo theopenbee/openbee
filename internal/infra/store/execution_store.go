@@ -220,6 +220,43 @@ func (s *ExecutionStore) UpdatePID(id string, pid int) error {
 	return err
 }
 
+// MarkAbandoned finalizes an execution that exited without a terminal signal
+// (killed, crashed, cancelled). Only updates if the row is still in pending
+// or running state — terminal states (completed/failed) are left untouched.
+// Returns whether a row was updated. Used by:
+//   - monitorExecution fallback when the output channel closes silently
+//   - task cancel path when the worker process is no longer tracked locally
+func (s *ExecutionStore) MarkAbandoned(ctx context.Context, id, result string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_executions SET status=?, result=?, completed_at=?
+		 WHERE id=? AND status IN (?, ?)`,
+		model.ExecStatusFailed, result, time.Now().UnixMilli(),
+		id, model.ExecStatusPending, model.ExecStatusRunning,
+	)
+	if err != nil {
+		return false, fmt.Errorf("mark abandoned: %w", err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// ResetRunningExecutions finalizes all executions stuck in pending/running at
+// startup. Any process they tracked is gone (we just rebooted), so the rows
+// are orphans — mark them failed with a "server restarted" reason. Must be
+// called synchronously during startup, before new work is dispatched.
+func (s *ExecutionStore) ResetRunningExecutions(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_executions SET status=?, result=?, completed_at=?
+		 WHERE status IN (?, ?)`,
+		model.ExecStatusFailed, "abandoned: server restarted", time.Now().UnixMilli(),
+		model.ExecStatusPending, model.ExecStatusRunning,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("reset running executions: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // ReadLogSince returns the log bytes at or after the given offset, along with
 // the execution's current status (so callers can avoid a separate GetByID).
 //   - since <= 0: returns full file

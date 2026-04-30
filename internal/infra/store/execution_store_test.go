@@ -423,6 +423,115 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 	}
 }
 
+func TestExecutionStore_MarkAbandoned_OnlyUpdatesActive(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db, t.TempDir())
+	ctx := context.Background()
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
+
+	pending, _ := es.Create("w1", "p", uuid.New().String(), "claude")
+	running, _ := es.Create("w1", "r", uuid.New().String(), "claude")
+	_ = es.UpdateStatus(running.ID, model.ExecStatusRunning)
+	completed, _ := es.Create("w1", "c", uuid.New().String(), "claude")
+	_ = es.UpdateResult(completed.ID, "done", model.ExecStatusCompleted)
+	failed, _ := es.Create("w1", "f", uuid.New().String(), "claude")
+	_ = es.UpdateResult(failed.ID, "boom", model.ExecStatusFailed)
+
+	ok, err := es.MarkAbandoned(ctx, pending.ID, "cancelled by user")
+	if err != nil || !ok {
+		t.Fatalf("pending: ok=%v err=%v", ok, err)
+	}
+	got, _ := es.GetByID(pending.ID)
+	if got.Status != model.ExecStatusFailed {
+		t.Errorf("pending → expected failed, got %s", got.Status)
+	}
+	if got.Result != "cancelled by user" {
+		t.Errorf("pending result: got %q", got.Result)
+	}
+	if got.CompletedAt == nil || *got.CompletedAt <= 0 {
+		t.Error("pending completed_at should be set")
+	}
+
+	ok, _ = es.MarkAbandoned(ctx, running.ID, "process exited")
+	if !ok {
+		t.Error("running should be updated")
+	}
+
+	// Terminal states must be left untouched and the call must report no update.
+	ok, _ = es.MarkAbandoned(ctx, completed.ID, "should not change")
+	if ok {
+		t.Error("completed row must not be updated")
+	}
+	got, _ = es.GetByID(completed.ID)
+	if got.Result != "done" {
+		t.Errorf("completed result clobbered: got %q", got.Result)
+	}
+
+	ok, _ = es.MarkAbandoned(ctx, failed.ID, "should not change")
+	if ok {
+		t.Error("failed row must not be updated")
+	}
+	got, _ = es.GetByID(failed.ID)
+	if got.Result != "boom" {
+		t.Errorf("failed result clobbered: got %q", got.Result)
+	}
+}
+
+func TestExecutionStore_ResetRunningExecutions(t *testing.T) {
+	db, err := InitDB(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	es := NewExecutionStore(db, t.TempDir())
+	ctx := context.Background()
+	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
+
+	p, _ := es.Create("w1", "p", uuid.New().String(), "claude")
+	r, _ := es.Create("w1", "r", uuid.New().String(), "claude")
+	_ = es.UpdateStatus(r.ID, model.ExecStatusRunning)
+	c, _ := es.Create("w1", "c", uuid.New().String(), "claude")
+	_ = es.UpdateResult(c.ID, "done", model.ExecStatusCompleted)
+
+	n, err := es.ResetRunningExecutions(ctx)
+	if err != nil {
+		t.Fatalf("ResetRunningExecutions: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("expected 2 rows updated (pending+running), got %d", n)
+	}
+
+	pg, _ := es.GetByID(p.ID)
+	if pg.Status != model.ExecStatusFailed {
+		t.Errorf("pending → failed: got %s", pg.Status)
+	}
+	if pg.Result != "abandoned: server restarted" {
+		t.Errorf("pending result: got %q", pg.Result)
+	}
+	if pg.CompletedAt == nil {
+		t.Error("pending completed_at must be set")
+	}
+
+	rg, _ := es.GetByID(r.ID)
+	if rg.Status != model.ExecStatusFailed {
+		t.Errorf("running → failed: got %s", rg.Status)
+	}
+
+	cg, _ := es.GetByID(c.ID)
+	if cg.Status != model.ExecStatusCompleted {
+		t.Errorf("completed must be untouched: got %s", cg.Status)
+	}
+	if cg.Result != "done" {
+		t.Errorf("completed result clobbered: got %q", cg.Result)
+	}
+}
+
 func TestExecutionStore_HasActiveExecutionsByWorkerID(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {

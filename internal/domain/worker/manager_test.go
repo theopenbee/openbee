@@ -37,6 +37,22 @@ type mockProcess struct{}
 func (p *mockProcess) PID() int    { return 0 }
 func (p *mockProcess) Stop() error { return nil }
 
+// silentMockEngine simulates a process whose output channel closes without
+// emitting a terminal Done/Error signal — the abandoned-process scenario.
+type silentMockEngine struct{}
+
+func (e *silentMockEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
+
+func (e *silentMockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	ch := make(chan ai.Output)
+	close(ch)
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+}
+
+func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
 func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
 	return newTestManagerWithBotNames(t, engines, defaultEngine, nil)
 }
@@ -162,6 +178,38 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for unknown executionID, got nil")
 	}
+}
+
+// Regression: when a worker process exits without emitting Done/Error (killed,
+// crashed, signal-terminated), monitorExecution must finalize the execution
+// row instead of leaving it stuck in `running` forever.
+func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &silentMockEngine{}}
+	mgr := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
+	if err != nil {
+		t.Fatalf("CreateWorker: %v", err)
+	}
+
+	exec, err := mgr.ExecuteWorker(context.Background(), w.ID, "test", "session-1", false)
+	if err != nil {
+		t.Fatalf("ExecuteWorker: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := mgr.executionStore.GetByID(exec.ID)
+		if err == nil && got.Status == model.ExecStatusFailed && got.CompletedAt != nil {
+			if got.Result == "" {
+				t.Fatal("expected non-empty result on abandoned execution")
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	got, _ := mgr.executionStore.GetByID(exec.ID)
+	t.Fatalf("execution not finalized after 2s; status=%s completedAt=%v", got.Status, got.CompletedAt)
 }
 
 func TestManager_ValidateWorkerName_DuplicateName(t *testing.T) {
