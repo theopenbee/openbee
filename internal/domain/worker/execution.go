@@ -97,12 +97,14 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
 	defer cancel()
 
+	finalized := false
 	for out := range runRes.Output {
 		switch out.Type {
 		case ai.OutputDone:
 			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
+			finalized = true
 		case ai.OutputError:
 			result := runRes.ExtractResult(logPath)
 			if result == "" {
@@ -110,7 +112,22 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+			finalized = true
 		}
+	}
+
+	if !finalized {
+		// Output channel closed without a terminal Done/Error signal —
+		// process was killed, crashed, or signal-terminated. Without this
+		// fallback the execution would stay in `running` forever.
+		result := runRes.ExtractResult(logPath)
+		if result == "" {
+			result = "process exited without completion signal"
+		}
+		if _, err := m.executionStore.MarkAbandoned(context.Background(), exec.ID, result); err != nil {
+			log.Error("finalize abandoned execution", zap.String("executionID", exec.ID), zap.Error(err))
+		}
+		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 	}
 
 	m.mu.Lock()
