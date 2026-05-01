@@ -1,4 +1,4 @@
-package mcp
+package rpc
 
 import (
 	"net/http"

@@ -1,4 +1,4 @@
-package mcp_test
+package rpc_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/platform"
 	_ "modernc.org/sqlite"
 )
@@ -32,7 +32,7 @@ func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai
 	return nil, ai.ErrSessionDataNotFound
 }
 
-func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
+func setupMCPServerWithMessaging(t *testing.T) *rpc.MCPServer {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -51,7 +51,7 @@ func setupMCPServerWithMessaging(t *testing.T) *mcp.MCPServer {
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -231,7 +231,7 @@ func (s *mockSender) Send(_ context.Context, msg platform.OutboundMessage) error
 	return nil
 }
 
-func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.PlatformSenderAdapter) (*mcp.MCPServer, *sql.DB) {
+func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.PlatformSenderAdapter) (*rpc.MCPServer, *sql.DB) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -250,7 +250,7 @@ func setupMCPServerWithSender(t *testing.T, senderID string, sender platform.Pla
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -349,7 +349,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 
 	// Call with a context that carries the worker's ID
-	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, w.ID)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
 	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-worker-prefix",
 		"content":    "task done",
@@ -383,7 +383,7 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 
 	// Use a worker ID that does not exist in the store
-	workerCtx := context.WithValue(ctx, mcp.CtxWorkerIDKey, "worker-deleted-xyz")
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-deleted-xyz")
 	result, err := s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-deleted-worker",
 		"content":    "task done",
@@ -479,7 +479,7 @@ func (m *mockSessionClearer) ClearSession(sessionKey string) {
 	m.cleared = append(m.cleared, sessionKey)
 }
 
-func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecStopper, *mockSessionClearer) {
+func setupMCPServerWithClear(t *testing.T) (*rpc.MCPServer, *sql.DB, *mockExecStopper, *mockSessionClearer) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -500,7 +500,7 @@ func setupMCPServerWithClear(t *testing.T) (*mcp.MCPServer, *sql.DB, *mockExecSt
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}
-	return mcp.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
@@ -867,7 +867,7 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	if workerCount != 2 {
 		t.Errorf("expected worker_count=2, got %v", m["worker_count"])
 	}
-	linkedWorkers, _ := m["linked_workers"].([]mcp.LinkedWorkerSummary)
+	linkedWorkers, _ := m["linked_workers"].([]rpc.LinkedWorkerSummary)
 	if len(linkedWorkers) != 2 {
 		t.Errorf("expected 2 linked_workers, got %v", m["linked_workers"])
 	}
@@ -1011,10 +1011,10 @@ func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
 	if m["requires_confirmation"] != true {
 		t.Errorf("expected requires_confirmation=true, got %v", m)
 	}
-	if m["reason"] != mcp.ClearReasonActiveTasks {
+	if m["reason"] != rpc.ClearReasonActiveTasks {
 		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
 	}
-	tasks, ok := m["running_tasks"].([]mcp.ActiveTaskSummary)
+	tasks, ok := m["running_tasks"].([]rpc.ActiveTaskSummary)
 	if !ok || len(tasks) != 1 {
 		t.Errorf("expected running_tasks with 1 entry, got %v", m["running_tasks"])
 	} else {
@@ -1061,7 +1061,7 @@ func TestCallTool_ClearSession_PendingTaskRequiresConfirmation(t *testing.T) {
 	if m["requires_confirmation"] != true {
 		t.Errorf("expected requires_confirmation=true for pending task, got %v", m)
 	}
-	if m["reason"] != mcp.ClearReasonActiveTasks {
+	if m["reason"] != rpc.ClearReasonActiveTasks {
 		t.Errorf("expected reason=running_tasks, got %v", m["reason"])
 	}
 
@@ -1500,8 +1500,8 @@ func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
 }
 
 func workerCtx(workerID string, scopes []string) context.Context {
-	ctx := context.WithValue(context.Background(), mcp.CtxWorkerIDKey, workerID)
-	return context.WithValue(ctx, mcp.CtxScopesKey, scopes)
+	ctx := context.WithValue(context.Background(), rpc.CtxWorkerIDKey, workerID)
+	return context.WithValue(ctx, rpc.CtxScopesKey, scopes)
 }
 
 func TestCheckWorkerScope_WorkerWithScope_CanCallScopedTool(t *testing.T) {

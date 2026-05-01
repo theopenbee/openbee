@@ -1,4 +1,4 @@
-package mcp_test
+package rpc_test
 
 import (
 	"encoding/json"

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/rpc"
 )
 
 type ServerParams struct {
@@ -24,7 +24,7 @@ type ServerParams struct {
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
-	BeeMCP            *mcp.MCPServer
+	BeeMCP            *rpc.MCPServer
 	MCPAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
 	JWTMiddleware     gin.HandlerFunc
