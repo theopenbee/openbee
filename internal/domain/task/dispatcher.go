@@ -249,7 +249,7 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
-// can call mark_task_success and send_message via MCP.
+// can call mark_task_success and send_message via RPC.
 func buildInstruction(t DispatchTask) string {
 	if t.TaskID != "" || t.MessageID != "" {
 		meta := taskMeta{
