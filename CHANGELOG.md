@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.34] - 2026-04-29
 
 ### Added
 - Add `/status` command
@@ -8,6 +8,10 @@
 
 ### Changed
 - Optimize `/engine` command: separate busy-check conditions for the scheduler (bee) and worker independently, so each can be evaluated and switched on its own criteria
+
+### Fixed
+- Fix execution records stuck in `running` state when the underlying process exits without a terminal signal (killed, crashed, or cancelled), which previously caused busy-checks to misreport workers as occupied
+- Reset orphaned executions to `failed` at server startup so a crash or restart no longer leaves zombie `running` records behind
 
 ## [0.0.33] - 2026-04-28
 

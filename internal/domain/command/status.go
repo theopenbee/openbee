@@ -99,8 +99,7 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
 	now := h.now()
-	// SessionAgent.UpdatedAt is in seconds; Task.CreatedAt is in milliseconds.
-	nowSec := now.Unix()
+	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
 	workerNames := h.resolveWorkerNames(tasks)
@@ -120,7 +119,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, a := range agents {
-			lines = append(lines, fmt.Sprintf(m.BeeLine, a.Name, a.Engine, formatRelative(nowSec-a.UpdatedAt)))
+			lines = append(lines, fmt.Sprintf(m.BeeLine, a.Name, a.Engine, formatRelative((nowMs-a.UpdatedAt)/1000)))
 		}
 	}
 	lines = append(lines, fmt.Sprintf(m.SectionTasks, len(tasks)))

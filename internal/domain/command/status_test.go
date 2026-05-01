@@ -129,11 +129,10 @@ func TestStatusCommand_UsageOnExtraArgs(t *testing.T) {
 
 func TestStatusCommand_HappyPath(t *testing.T) {
 	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-	nowSec := clock.Unix()
 	nowMs := clock.UnixMilli()
 	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: nowSec - 120},   // 2m
-		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: nowSec - 18000}, // 5h
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: nowMs - 120*1000},   // 2m
+		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: nowMs - 18000*1000}, // 5h
 	}
 	tasks := []model.Task{
 		{ID: "t1", WorkerID: "w1", Instruction: "新增 /status 指令的实现", ExecutionID: "a1b2c3d4e5f6", CreatedAt: nowMs - 83000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
@@ -206,7 +205,7 @@ func TestStatusCommand_EmptyBeesAndTasks(t *testing.T) {
 func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
 	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: clock.Unix() - 30},
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: clock.UnixMilli() - 30*1000},
 	}
 	h, sender := makeStatusHandler(agents, nil, map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}, withClock(fixedClock(clock)))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())

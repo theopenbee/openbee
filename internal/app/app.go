@@ -184,6 +184,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
+	if n, err := s.execStore.ResetRunningExecutions(context.Background()); err != nil {
+		logger.Error("recover running executions", zap.Error(err))
+	} else if n > 0 {
+		logger.Info("reset orphaned executions", zap.Int64("count", n))
+	}
 
 	// Async recovery for group tasks that were waiting for subtasks at shutdown.
 	go func() {
