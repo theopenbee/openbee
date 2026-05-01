@@ -7,8 +7,8 @@ import (
 
 func (s *Server) registerRPCRoutes() {
 	s.router.POST(config.RPCBeeBasePath+"/call",
-		s.MCPAuthMiddleware,
+		s.RPCAuthMiddleware,
 		rpc.RequireBeeOrWorker(),
-		s.BeeMCP.HandleCall,
+		s.BeeRPC.HandleCall,
 	)
 }

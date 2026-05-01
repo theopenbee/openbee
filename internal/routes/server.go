@@ -24,8 +24,8 @@ type ServerParams struct {
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
-	BeeMCP            *rpc.MCPServer
-	MCPAuthMiddleware gin.HandlerFunc
+	BeeRPC            *rpc.RPCServer
+	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
 	JWTMiddleware     gin.HandlerFunc
 }
