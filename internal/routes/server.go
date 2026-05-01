@@ -60,7 +60,7 @@ func (s *Server) setupRoutes() error {
 	apiGroup.Use(s.JWTMiddleware)
 	s.registerAPIRoutes(apiGroup)
 
-	s.registerMCPRoutes()
+	s.registerRPCRoutes()
 
 	return s.registerStaticRoutes()
 }

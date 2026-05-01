@@ -13,9 +13,9 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// MCP endpoint path prefixes.
+// RPC endpoint path prefixes.
 const (
-	MCPBeeBasePath = "/mcp/bee"
+	RPCBeeBasePath = "/rpc/bee"
 )
 
 //go:embed config.yaml.tmpl

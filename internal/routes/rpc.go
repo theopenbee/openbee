@@ -5,8 +5,8 @@ import (
 	"github.com/theopenbee/openbee/internal/rpc"
 )
 
-func (s *Server) registerMCPRoutes() {
-	s.router.POST(config.MCPBeeBasePath+"/call",
+func (s *Server) registerRPCRoutes() {
+	s.router.POST(config.RPCBeeBasePath+"/call",
 		s.MCPAuthMiddleware,
 		rpc.RequireBeeOrWorker(),
 		s.BeeMCP.HandleCall,

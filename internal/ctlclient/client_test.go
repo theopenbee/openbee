@@ -15,7 +15,7 @@ import (
 func TestCall_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "/mcp/bee/call", r.URL.Path)
+		assert.Equal(t, "/rpc/bee/call", r.URL.Path)
 		assert.Equal(t, "testkey", r.Header.Get("X-API-Key"))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"result": []any{}})

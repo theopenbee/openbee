@@ -78,7 +78,7 @@ func (c *Client) Call(toolName string, args any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseURL+config.MCPBeeBasePath+"/call", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+config.RPCBeeBasePath+"/call", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
