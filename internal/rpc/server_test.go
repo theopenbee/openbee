@@ -15,7 +15,7 @@ import (
 
 func TestHandleCall_ListWorkers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupRPCServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
 	r.POST("/rpc/bee/call", s.HandleCall)
 
@@ -34,7 +34,7 @@ func TestHandleCall_ListWorkers(t *testing.T) {
 
 func TestHandleCall_UnknownTool(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupRPCServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
 	r.POST("/rpc/bee/call", s.HandleCall)
 
@@ -54,7 +54,7 @@ func TestHandleCall_UnknownTool(t *testing.T) {
 
 func TestHandleCall_BadJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupRPCServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
 	r.POST("/rpc/bee/call", s.HandleCall)
 
