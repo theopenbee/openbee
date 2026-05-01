@@ -583,7 +583,7 @@ func (s *RPCServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				"requires_confirmation": true,
 				"reason":                ClearReasonActiveTasks,
 				"running_tasks":         summaries,
-				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(activeTasks)),
 			}, nil
 		}
 
@@ -608,7 +608,7 @@ func (s *RPCServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				"reason":                ClearReasonMultipleWorkers,
 				"worker_count":          len(workers),
 				"linked_workers":        workers,
-				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
 	} else {
