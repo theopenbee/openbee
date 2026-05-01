@@ -24,8 +24,8 @@ bee:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.MCPBaseURL != "http://localhost:8080" {
-		t.Errorf("MCPBaseURL: want http://localhost:8080 got %q", cfg.Bee.MCPBaseURL)
+	if cfg.Bee.RPCBaseURL != "http://localhost:8080" {
+		t.Errorf("RPCBaseURL: want http://localhost:8080 got %q", cfg.Bee.RPCBaseURL)
 	}
 	if cfg.Bee.Engines.Claude.Path != "claude-custom" {
 		t.Errorf("Claude.Path: want claude-custom got %q", cfg.Bee.Engines.Claude.Path)
@@ -172,7 +172,7 @@ server:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Bee.MCP.TokenSecret == "" {
+	if cfg.Bee.RPC.TokenSecret == "" {
 		t.Error("TokenSecret should be auto-generated when not set")
 	}
 }
@@ -188,8 +188,8 @@ func TestBeeConfig_TokenTTLDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Bee.MCP.TokenTTL != 2*time.Hour {
-		t.Errorf("TokenTTL default: want 2h got %v", cfg.Bee.MCP.TokenTTL)
+	if cfg.Bee.RPC.TokenTTL != 2*time.Hour {
+		t.Errorf("TokenTTL default: want 2h got %v", cfg.Bee.RPC.TokenTTL)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestBeeConfig_TokenSecretAndTTLExplicit(t *testing.T) {
 server:
   port: 8080
 bee:
-  mcp:
+  rpc:
     token_secret: "my-secret"
     token_ttl: 4h
 `)
@@ -210,11 +210,11 @@ bee:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Bee.MCP.TokenSecret != "my-secret" {
-		t.Errorf("TokenSecret: want my-secret got %q", cfg.Bee.MCP.TokenSecret)
+	if cfg.Bee.RPC.TokenSecret != "my-secret" {
+		t.Errorf("TokenSecret: want my-secret got %q", cfg.Bee.RPC.TokenSecret)
 	}
-	if cfg.Bee.MCP.TokenTTL != 4*time.Hour {
-		t.Errorf("TokenTTL explicit: want 4h got %v", cfg.Bee.MCP.TokenTTL)
+	if cfg.Bee.RPC.TokenTTL != 4*time.Hour {
+		t.Errorf("TokenTTL explicit: want 4h got %v", cfg.Bee.RPC.TokenTTL)
 	}
 }
 

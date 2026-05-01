@@ -57,8 +57,8 @@ func NewManager(
 	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
-		tokenSecret:     bc.MCP.TokenSecret,
-		tokenTTL:        bc.MCP.TokenTTL,
+		tokenSecret:     bc.RPC.TokenSecret,
+		tokenTTL:        bc.RPC.TokenTTL,
 		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,

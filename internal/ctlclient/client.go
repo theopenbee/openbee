@@ -1,4 +1,4 @@
-// Package ctlclient provides an HTTP client for the openbee /mcp/bee/call endpoint,
+// Package ctlclient provides an HTTP client for the openbee /rpc/bee/call endpoint,
 // used by the openbee ctl CLI subcommands.
 package ctlclient
 
@@ -18,7 +18,7 @@ import (
 
 const defaultURL = "http://localhost:8080"
 
-// Client calls the openbee /mcp/bee/call endpoint.
+// Client calls the openbee /rpc/bee/call endpoint.
 // Construct via NewClient or directly (useful in tests).
 type Client struct {
 	BaseURL    string
@@ -38,10 +38,10 @@ func NewClient(cfgPath string) (*Client, error) {
 		cfg, err := config.Load(cfgPath)
 		if err == nil {
 			if baseURL == "" {
-				baseURL = cfg.Bee.MCPBaseURL
+				baseURL = cfg.Bee.RPCBaseURL
 			}
-			if apiKey == "" && cfg.Bee.MCP.TokenSecret != "" {
-				token, err := auth.GenerateBeeToken(cfg.Bee.MCP.TokenSecret, cfg.Bee.MCP.TokenTTL)
+			if apiKey == "" && cfg.Bee.RPC.TokenSecret != "" {
+				token, err := auth.GenerateBeeToken(cfg.Bee.RPC.TokenSecret, cfg.Bee.RPC.TokenTTL)
 				if err == nil {
 					apiKey = token
 				}
@@ -70,7 +70,7 @@ type callResponse struct {
 	Error  string          `json:"error,omitempty"`
 }
 
-// Call invokes a named MCP tool and returns the raw JSON result.
+// Call invokes a named RPC tool and returns the raw JSON result.
 // Returns an error for connection failures, auth errors, and tool execution errors.
 func (c *Client) Call(toolName string, args any) (json.RawMessage, error) {
 	body, err := json.Marshal(callRequest{Name: toolName, Arguments: args})

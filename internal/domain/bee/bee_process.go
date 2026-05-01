@@ -34,8 +34,8 @@ type BeeProcess struct {
 func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Service, sysStore sysConfigReader, engineCfg *enginecfg.Store) *BeeProcess {
 	return &BeeProcess{
 		engine:         engine,
-		tokenSecret:    cfg.MCP.TokenSecret,
-		tokenTTL:       cfg.MCP.TokenTTL,
+		tokenSecret:    cfg.RPC.TokenSecret,
+		tokenTTL:       cfg.RPC.TokenTTL,
 		envService:     envSvc,
 		sysConfigStore: sysStore,
 		engineCfg:      engineCfg,

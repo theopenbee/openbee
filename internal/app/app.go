@@ -211,7 +211,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.MCP, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -260,7 +260,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 
 // buildAllEngines initializes engine adapters shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	os.Setenv("OPENBEE_URL", cfg.MCPBaseURL) //nolint:errcheck
+	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
 
 	result := make(map[string]ai.EngineAdapter)
 	for _, name := range ai.AllEngines() {
@@ -330,13 +330,13 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	return result
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.RPCServer, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.RPCServer, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
 	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, serverCfg.Auth.Password, jwtSvc, rateLimiter)
 	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
-	mcpAuthMiddleware := rpc.JWTAuthMiddleware(mcpCfg.TokenSecret)
+	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
@@ -351,7 +351,7 @@ func buildAPIServer(serverCfg config.ServerConfig, mcpCfg config.MCPConfig, s ap
 		Envs:              api.NewEnvHandler(envSvc),
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
 		BeeRPC:            beeRPCSrv,
-		RPCAuthMiddleware: mcpAuthMiddleware,
+		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
 		JWTMiddleware:     jwtMiddleware,
 	})
