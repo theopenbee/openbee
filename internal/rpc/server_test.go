@@ -1,4 +1,4 @@
-package mcp_test
+package rpc_test
 
 import (
 	"encoding/json"
@@ -15,13 +15,13 @@ import (
 
 func TestHandleCall_ListWorkers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupMCPServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
-	r.POST("/mcp/bee/call", s.HandleCall)
+	r.POST("/rpc/bee/call", s.HandleCall)
 
 	body := `{"name":"` + utils.ListWorkers + `","arguments":{}}`
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/mcp/bee/call", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "/rpc/bee/call", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
@@ -34,13 +34,13 @@ func TestHandleCall_ListWorkers(t *testing.T) {
 
 func TestHandleCall_UnknownTool(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupMCPServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
-	r.POST("/mcp/bee/call", s.HandleCall)
+	r.POST("/rpc/bee/call", s.HandleCall)
 
 	body := `{"name":"no_such_tool","arguments":{}}`
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/mcp/bee/call", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, "/rpc/bee/call", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
@@ -54,12 +54,12 @@ func TestHandleCall_UnknownTool(t *testing.T) {
 
 func TestHandleCall_BadJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	s := setupMCPServerWithMessaging(t)
+	s := setupServerWithMessaging(t)
 	r := gin.New()
-	r.POST("/mcp/bee/call", s.HandleCall)
+	r.POST("/rpc/bee/call", s.HandleCall)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/mcp/bee/call", strings.NewReader("not-json"))
+	req, _ := http.NewRequest(http.MethodPost, "/rpc/bee/call", strings.NewReader("not-json"))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 

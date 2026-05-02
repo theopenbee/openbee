@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/mcp"
+	"github.com/theopenbee/openbee/internal/rpc"
 )
 
 type ServerParams struct {
@@ -24,8 +24,8 @@ type ServerParams struct {
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
-	BeeMCP            *mcp.MCPServer
-	MCPAuthMiddleware gin.HandlerFunc
+	BeeRPC            *rpc.Server
+	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
 	JWTMiddleware     gin.HandlerFunc
 }
@@ -60,7 +60,7 @@ func (s *Server) setupRoutes() error {
 	apiGroup.Use(s.JWTMiddleware)
 	s.registerAPIRoutes(apiGroup)
 
-	s.registerMCPRoutes()
+	s.registerRPCRoutes()
 
 	return s.registerStaticRoutes()
 }

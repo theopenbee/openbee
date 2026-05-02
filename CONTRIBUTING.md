@@ -99,7 +99,7 @@ openbee/
 │   ├── bee/           # Core bot logic
 │   ├── claude/        # Claude integration
 │   ├── config/        # Configuration loading
-│   ├── mcp/           # Model Context Protocol
+│   ├── rpc/           # internal RPC for ctl/bee/worker callbacks
 │   ├── platform/      # Platform adapters (Feishu, DingTalk, WeCom)
 │   ├── store/         # Data persistence (SQLite)
 │   ├── task_dispatcher/ # Background task dispatch

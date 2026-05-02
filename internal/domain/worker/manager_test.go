@@ -73,11 +73,11 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		t.Fatal(err)
 	}
 	bc := config.BeeConfig{}
-	bc.MCP.TokenTTL = time.Minute
+	bc.RPC.TokenTTL = time.Minute
 	m := &Manager{
 		workerBaseDir:   dir,
-		tokenSecret:     bc.MCP.TokenSecret,
-		tokenTTL:        bc.MCP.TokenTTL,
+		tokenSecret:     bc.RPC.TokenSecret,
+		tokenTTL:        bc.RPC.TokenTTL,
 		workerTimeout:   30 * time.Minute,
 		workerStore:     ws,
 		executionStore:  es,

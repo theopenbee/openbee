@@ -13,9 +13,9 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
-// MCP endpoint path prefixes.
+// RPC endpoint path prefixes.
 const (
-	MCPBeeBasePath = "/mcp/bee"
+	RPCBeeBasePath = "/rpc/bee"
 )
 
 //go:embed config.yaml.tmpl
@@ -119,11 +119,11 @@ type BeeConfig struct {
 	Engines         EnginesConfig      `yaml:"engines"`
 	Feeder          FeederConfig       `yaml:"feeder"`
 	Platforms       PlatformsConfig    `yaml:"platforms"`
-	MCP             MCPConfig          `yaml:"mcp"`
+	RPC             RPCConfig          `yaml:"rpc"`
 	Media           MediaConfig        `yaml:"media"`
 
 	// Derived fields — not in YAML, computed by Load()
-	MCPBaseURL string `yaml:"-"` // http://host:port (no path suffix)
+	RPCBaseURL string `yaml:"-"` // http://host:port (no path suffix)
 }
 
 // WorkerTimeout returns the worker engine execution timeout.
@@ -226,7 +226,7 @@ type WeixinConfig struct {
 	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
 }
 
-type MCPConfig struct {
+type RPCConfig struct {
 	TokenSecret string        `yaml:"token_secret"` // HMAC-SHA256 secret; empty = auto-generated on startup
 	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
 }
@@ -274,7 +274,7 @@ func Load(path string) (Config, error) {
 	if host == "" {
 		host = "localhost"
 	}
-	cfg.Bee.MCPBaseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
+	cfg.Bee.RPCBaseURL = fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 	return cfg, nil
 }
 
@@ -338,14 +338,14 @@ func applyDefaults(cfg *Config) error {
 			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 		}
 	}
-	if cfg.Bee.MCP.TokenSecret == "" {
-		cfg.Bee.MCP.TokenSecret = GenerateRandomSecret()
+	if cfg.Bee.RPC.TokenSecret == "" {
+		cfg.Bee.RPC.TokenSecret = GenerateRandomSecret()
 	}
 	if cfg.Server.EnvSecret == "" {
 		cfg.Server.EnvSecret = GenerateRandomSecret()
 	}
-	if cfg.Bee.MCP.TokenTTL == 0 {
-		cfg.Bee.MCP.TokenTTL = 2 * time.Hour
+	if cfg.Bee.RPC.TokenTTL == 0 {
+		cfg.Bee.RPC.TokenTTL = 2 * time.Hour
 	}
 	return nil
 }

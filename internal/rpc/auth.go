@@ -1,4 +1,4 @@
-package mcp
+package rpc
 
 import (
 	"net/http"
@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	CtxKeyTokenType = "mcp.token.type"
-	CtxKeyWorkerID  = "mcp.token.worker_id"
-	CtxKeyScopes    = "mcp.token.scopes"
+	CtxKeyTokenType = "rpc.token.type"
+	CtxKeyWorkerID  = "rpc.token.worker_id"
+	CtxKeyScopes    = "rpc.token.scopes"
 )
 
-// JWTAuthMiddleware validates the MCP JWT and writes claims to gin.Context.
+// JWTAuthMiddleware validates the RPC JWT and writes claims to gin.Context.
 // Reads the token from X-API-Key header or api_key query param.
 // Returns 401 on missing, invalid, or expired token.
 func JWTAuthMiddleware(secret string) gin.HandlerFunc {
