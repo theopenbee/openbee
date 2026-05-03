@@ -38,6 +38,7 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
+	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
@@ -148,7 +149,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
+	platforms := buildPlatforms(
+		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
+		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
+		cfg.Bee.Media, s.systemConfigStore,
+	)
 	for _, p := range platforms {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
@@ -168,6 +173,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
 			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
 			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
+			linear.PlatformID:   cfg.Bee.Platforms.Linear.BotName,
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
@@ -306,7 +312,16 @@ func buildDispatcher(
 	)
 }
 
-func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, wxc config.WeixinConfig, mc config.MediaConfig) []platform.Platform {
+func buildPlatforms(
+	fc config.FeishuConfig,
+	dc config.DingTalkConfig,
+	wc config.WeComConfig,
+	tc config.TelegramConfig,
+	wxc config.WeixinConfig,
+	lc config.LinearConfig,
+	mc config.MediaConfig,
+	sysCfg *store.SystemConfigStore,
+) []platform.Platform {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
@@ -326,6 +341,9 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	}
 	if wxc.Enabled {
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
+	}
+	if lc.Enabled {
+		result = append(result, linear.NewPlatform(lc, sysCfg))
 	}
 	return result
 }
