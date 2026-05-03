@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -111,7 +112,7 @@ func (c *httpClient) do(ctx context.Context, op string, query string, vars map[s
 		return fmt.Errorf("linear: decode %s: %w", op, err)
 	}
 	if len(envelope.Errors) > 0 {
-		return fmt.Errorf("linear: %s graphql error: %s", op, envelope.Errors[0].Message)
+		return fmt.Errorf("linear: %s graphql error: %w", op, errors.New(envelope.Errors[0].Message))
 	}
 	if out != nil {
 		if err := json.Unmarshal(envelope.Data, out); err != nil {
