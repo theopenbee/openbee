@@ -47,8 +47,8 @@ type configValues struct {
 	ServerHost string
 	Debug      bool
 	DBPath     string
-	MCPTokenSecret   string
-	MCPTokenTTL      string
+	RPCTokenSecret   string
+	RPCTokenTTL      string
 	ServerEnvSecret string
 
 	FeishuEnabled   bool
@@ -141,8 +141,8 @@ func loadExistingConfig(path string) *configValues {
 		ServerHost:           cfg.Server.Host,
 		Debug:                cfg.Server.Debug,
 		DBPath:               cfg.Database.Path,
-		MCPTokenSecret:        cfg.Bee.MCP.TokenSecret,
-		MCPTokenTTL:           cfg.Bee.MCP.TokenTTL.String(),
+		RPCTokenSecret:        cfg.Bee.RPC.TokenSecret,
+		RPCTokenTTL:           cfg.Bee.RPC.TokenTTL.String(),
 		ServerEnvSecret:       cfg.Server.EnvSecret,
 		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
 		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
@@ -207,7 +207,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		CodexPath:              "codex",
 		PiPath:                 "pi",
 		KimiPath:               "kimi",
-		MCPTokenTTL:            "2h",
+		RPCTokenTTL:            "2h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		FFprobePath:            "ffprobe",
@@ -687,21 +687,21 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			fmt.Println(i18n.M.Output.Config.JWTGenerated)
 		}
 
-		if vals.MCPTokenSecret != "" {
+		if vals.RPCTokenSecret != "" {
 			var regenerate bool
 			if err := survey.AskOne(&survey.Confirm{
-				Message: i18n.M.Prompt.MCPTokenRegenConfirm,
+				Message: i18n.M.Prompt.RPCTokenRegenConfirm,
 				Default: false,
 			}, &regenerate); err != nil {
 				return handleSurveyErr(err)
 			}
 			if regenerate {
-				vals.MCPTokenSecret = config.GenerateRandomSecret()
-				fmt.Println(i18n.M.Output.Config.MCPTokenSecretRegenerated)
+				vals.RPCTokenSecret = config.GenerateRandomSecret()
+				fmt.Println(i18n.M.Output.Config.RPCTokenSecretRegenerated)
 			}
 		} else {
-			vals.MCPTokenSecret = config.GenerateRandomSecret()
-			fmt.Printf(i18n.M.Output.Config.MCPTokenSecretGenerated+"\n", vals.MCPTokenSecret)
+			vals.RPCTokenSecret = config.GenerateRandomSecret()
+			fmt.Printf(i18n.M.Output.Config.RPCTokenSecretGenerated+"\n", vals.RPCTokenSecret)
 		}
 	}
 
@@ -709,8 +709,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		if vals.AuthJWTSecret == "" {
 			vals.AuthJWTSecret = config.GenerateRandomSecret()
 		}
-		if vals.MCPTokenSecret == "" {
-			vals.MCPTokenSecret = config.GenerateRandomSecret()
+		if vals.RPCTokenSecret == "" {
+			vals.RPCTokenSecret = config.GenerateRandomSecret()
 		}
 		if vals.ServerEnvSecret == "" {
 			vals.ServerEnvSecret = config.GenerateRandomSecret()

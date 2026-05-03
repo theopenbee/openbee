@@ -91,7 +91,7 @@ type PromptMessages struct {
 	PasswordSetup         string `yaml:"password_setup"`
 	Password              string `yaml:"password"`
 	JWTRegenConfirm          string `yaml:"jwt_regen_confirm"`
-	MCPTokenRegenConfirm     string `yaml:"mcp_token_regen_confirm"`
+	RPCTokenRegenConfirm     string `yaml:"rpc_token_regen_confirm"`
 	// Advanced
 	AdvancedConfirm     string `yaml:"advanced_confirm"`
 	ServerPort          string `yaml:"server_port"`
@@ -231,8 +231,8 @@ type ConfigOutput struct {
 	Written                 string `yaml:"written"`                  // contains %s
 	JWTRegenerated          string `yaml:"jwt_regenerated"`
 	JWTGenerated            string `yaml:"jwt_generated"`
-	MCPTokenSecretGenerated    string `yaml:"mcp_token_secret_generated"`    // contains %s
-	MCPTokenSecretRegenerated  string `yaml:"mcp_token_secret_regenerated"`
+	RPCTokenSecretGenerated    string `yaml:"rpc_token_secret_generated"`    // contains %s
+	RPCTokenSecretRegenerated  string `yaml:"rpc_token_secret_regenerated"`
 	PasswordGenerated       string `yaml:"password_generated"`       // contains %s
 	WeixinQRLogin           string `yaml:"weixin_qr_login"`
 	FetchingQR              string `yaml:"fetching_qr"`
@@ -286,7 +286,7 @@ type RuntimeMessages struct {
 	FailureNotifier FailureNotifierMessages   `yaml:"failure_notifier"`
 	Feishu          FeishuRuntimeMessages     `yaml:"feishu"`
 	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
-	MCP             MCPRuntimeMessages        `yaml:"mcp"`
+	RPC             RPCRuntimeMessages        `yaml:"rpc"`
 	Department      DepartmentRuntimeMessages `yaml:"department"`
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
 	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
@@ -367,8 +367,8 @@ type WeComRuntimeMessages struct {
 	FileSent string `yaml:"file_sent"` // notification after a file is sent to WeCom
 }
 
-// MCPRuntimeMessages holds MCP tool runtime text sent back to the bee agent.
-type MCPRuntimeMessages struct {
+// RPCRuntimeMessages holds RPC tool runtime text sent back to the bee agent.
+type RPCRuntimeMessages struct {
 	ClearSessionConfirm      string `yaml:"clear_session_confirm"`       // confirmation prompt; contains %d (worker count)
 	ClearSessionTasksConfirm string `yaml:"clear_session_tasks_confirm"` // task confirmation prompt; contains %d (task count)
 }

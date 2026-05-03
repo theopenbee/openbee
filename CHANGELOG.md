@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+- Renamed the internal `mcp` concept to `rpc`. Config users must rename `bee.mcp:` to `bee.rpc:` in their `config.yaml`, or re-run `openbee config init`. The HTTP endpoint moved from `/mcp/bee/call` to `/rpc/bee/call`. Any reverse proxy or external script hardcoding `/mcp` must be updated.
+
 ### Added
 - Add Linear platform integration: issues with the `openbee` label (and their comments) flow into the existing message pipeline; bee/worker replies are posted back as Linear comments. Polling-based receiver; configuration under `bee.platforms.linear`.
 

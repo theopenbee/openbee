@@ -1,4 +1,4 @@
-package mcp
+package rpc
 
 import (
 	"context"
@@ -21,13 +21,13 @@ import (
 )
 
 // CallTool is exported for testing only.
-func (s *MCPServer) CallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
+func (s *Server) CallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	return s.beeCallTool(ctx, name, args)
 }
 
 // workerDisplayName returns the worker's configured name, falling back to the raw ID.
 // Results are cached for the server's lifetime to avoid a DB round-trip on every send_message call.
-func (s *MCPServer) workerDisplayName(workerID string) string {
+func (s *Server) workerDisplayName(workerID string) string {
 	if v, ok := s.workerNameCache.Load(workerID); ok {
 		return v.(string)
 	}
@@ -43,7 +43,7 @@ func (s *MCPServer) workerDisplayName(workerID string) string {
 
 // checkWorkerScope enforces per-tool scope restrictions for worker tokens.
 // Bee tokens carry no workerID and are always fully trusted — only worker tokens are scope-restricted.
-func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error {
+func (s *Server) checkWorkerScope(ctx context.Context, toolName string) error {
 	workerID, _ := ctx.Value(CtxWorkerIDKey).(string)
 	if workerID == "" {
 		return nil
@@ -59,7 +59,7 @@ func (s *MCPServer) checkWorkerScope(ctx context.Context, toolName string) error
 	return fmt.Errorf("permission denied: scope %s required", requiredScope)
 }
 
-func (s *MCPServer) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
+func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMessage) (any, error) {
 	if err := s.checkWorkerScope(ctx, name); err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ type LinkedWorkerSummary struct {
 	Name     string `json:"name"`
 }
 
-func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListWorkers(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		DepartmentID string `json:"department_id"`
 		Recursive    *bool  `json:"recursive"`
@@ -196,7 +196,7 @@ func (s *MCPServer) toolListWorkers(ctx context.Context, args json.RawMessage) (
 	return pagedResult(briefs, total, page, pageSize), nil
 }
 
-func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
+func (s *Server) toolGetWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID string `json:"worker_id"`
 	}
@@ -234,7 +234,7 @@ func (s *MCPServer) toolGetWorker(args json.RawMessage) (any, error) {
 	return model.WorkerWithDepartments{Worker: wr.w, Departments: model.ToDepartmentBriefs(dr.depts)}, nil
 }
 
-func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
+func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		Name             string `json:"name"`
 		Description      string `json:"description"`
@@ -275,7 +275,7 @@ func (s *MCPServer) toolCreateWorker(args json.RawMessage) (any, error) {
 	return w, nil
 }
 
-func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
+func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string  `json:"worker_id"`
 		DepartmentIDs *string `json:"department_ids"`
@@ -299,7 +299,7 @@ func (s *MCPServer) toolUpdateWorker(args json.RawMessage) (any, error) {
 	return w, nil
 }
 
-func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
+func (s *Server) toolDeleteWorker(args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string `json:"worker_id"`
 		DeleteWorkDir bool   `json:"delete_work_dir"`
@@ -316,7 +316,7 @@ func (s *MCPServer) toolDeleteWorker(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "deleted"}, nil
 }
 
-func (s *MCPServer) toolCreateTask(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID   string `json:"message_id"`
 		WorkerID    string `json:"worker_id"`
@@ -403,7 +403,7 @@ func (s *MCPServer) toolCreateTask(ctx context.Context, args json.RawMessage) (a
 	return map[string]string{"task_id": id, "status": "pending"}, nil
 }
 
-func (s *MCPServer) toolListTasks(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID  string `json:"message_id"`
 		SessionKey string `json:"session_key"`
@@ -436,13 +436,13 @@ func (s *MCPServer) toolListTasks(ctx context.Context, args json.RawMessage) (an
 	return tasks, nil
 }
 
-func (s *MCPServer) finalizeCancelledExecution(ctx context.Context, executionID string) {
+func (s *Server) finalizeCancelledExecution(ctx context.Context, executionID string) {
 	if _, err := s.executionStore.MarkAbandoned(ctx, executionID, "cancelled by user"); err != nil {
 		log.Error("finalize cancelled execution", zap.String("executionID", executionID), zap.Error(err))
 	}
 }
 
-func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		TaskID string `json:"task_id"`
 	}
@@ -483,7 +483,7 @@ func (s *MCPServer) toolCancelTask(ctx context.Context, args json.RawMessage) (a
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
 }
 
-func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID string `json:"message_id"`
 		Content   string `json:"content"`
@@ -551,7 +551,7 @@ func (s *MCPServer) toolSendMessage(ctx context.Context, args json.RawMessage) (
 	return map[string]string{"status": "sent"}, nil
 }
 
-func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 		Force      bool   `json:"force"`
@@ -583,7 +583,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				"requires_confirmation": true,
 				"reason":                ClearReasonActiveTasks,
 				"running_tasks":         summaries,
-				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionTasksConfirm, len(activeTasks)),
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(activeTasks)),
 			}, nil
 		}
 
@@ -608,7 +608,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 				"reason":                ClearReasonMultipleWorkers,
 				"worker_count":          len(workers),
 				"linked_workers":        workers,
-				"message":               fmt.Sprintf(i18n.M.Runtime.MCP.ClearSessionConfirm, len(workers)),
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(workers)),
 			}, nil
 		}
 	} else {
@@ -648,7 +648,7 @@ func (s *MCPServer) toolClearSession(ctx context.Context, args json.RawMessage) 
 	}, nil
 }
 
-func (s *MCPServer) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) (any, error) {
 	var p struct {
 		WorkerID string `json:"worker_id"`
 	}
@@ -717,7 +717,7 @@ func (s *MCPServer) toolGetWorkerStatus(ctx context.Context, args json.RawMessag
 	return result, nil
 }
 
-func (s *MCPServer) toolGetSystemOverview(ctx context.Context) (any, error) {
+func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 	// Worker counts
 	workerCounts, err := s.workerStore.CountByStatus()
 	if err != nil {
@@ -768,7 +768,7 @@ func (s *MCPServer) toolGetSystemOverview(ctx context.Context) (any, error) {
 	}, nil
 }
 
-func (s *MCPServer) toolListBeeExecutions(args json.RawMessage) (any, error) {
+func (s *Server) toolListBeeExecutions(args json.RawMessage) (any, error) {
 	var p struct {
 		Limit int `json:"limit"`
 	}
@@ -807,7 +807,7 @@ func (s *MCPServer) toolListBeeExecutions(args json.RawMessage) (any, error) {
 	return results, nil
 }
 
-func (s *MCPServer) toolSaveConstraint(args json.RawMessage) (any, error) {
+func (s *Server) toolSaveConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -825,7 +825,7 @@ func (s *MCPServer) toolSaveConstraint(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "saved"}, nil
 }
 
-func (s *MCPServer) toolGetConstraint(args json.RawMessage) (any, error) {
+func (s *Server) toolGetConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -853,7 +853,7 @@ func (s *MCPServer) toolGetConstraint(args json.RawMessage) (any, error) {
 	return constraints, nil
 }
 
-func (s *MCPServer) toolDeleteConstraint(args json.RawMessage) (any, error) {
+func (s *Server) toolDeleteConstraint(args json.RawMessage) (any, error) {
 	var p struct {
 		Scope string `json:"scope"`
 		Key   string `json:"key"`
@@ -870,7 +870,7 @@ func (s *MCPServer) toolDeleteConstraint(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "deleted"}, nil
 }
 
-func (s *MCPServer) toolListSessionContexts(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListSessionContexts(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 	}
@@ -887,7 +887,7 @@ func (s *MCPServer) toolListSessionContexts(ctx context.Context, args json.RawMe
 	return agents, nil
 }
 
-func (s *MCPServer) toolClearWorkerSession(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 		WorkerID   string `json:"worker_id"`
@@ -938,7 +938,7 @@ func toDeptTreeBriefs(nodes []model.DepartmentTree) []deptTreeBrief {
 	return result
 }
 
-func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
+func (s *Server) toolListDepartments(_ json.RawMessage) (any, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
@@ -947,7 +947,7 @@ func (s *MCPServer) toolListDepartments(_ json.RawMessage) (any, error) {
 	return toDeptTreeBriefs(tree), nil
 }
 
-func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
+func (s *Server) toolGetDepartment(args json.RawMessage) (any, error) {
 	var params struct {
 		ID string `json:"id"`
 	}
@@ -964,7 +964,7 @@ func (s *MCPServer) toolGetDepartment(args json.RawMessage) (any, error) {
 	return s.departmentStore.GetByID(deptID)
 }
 
-func (s *MCPServer) toolCreateDepartment(args json.RawMessage) (any, error) {
+func (s *Server) toolCreateDepartment(args json.RawMessage) (any, error) {
 	var params struct {
 		Name      string `json:"name"`
 		ParentID  string `json:"parent_id"`
@@ -990,7 +990,7 @@ func (s *MCPServer) toolCreateDepartment(args json.RawMessage) (any, error) {
 	return s.departmentStore.Create(d)
 }
 
-func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
+func (s *Server) toolUpdateDepartment(args json.RawMessage) (any, error) {
 	var params struct {
 		ID        string  `json:"id"`
 		Name      *string `json:"name"`
@@ -1036,7 +1036,7 @@ func (s *MCPServer) toolUpdateDepartment(args json.RawMessage) (any, error) {
 	return s.departmentStore.Update(d)
 }
 
-func (s *MCPServer) toolDeleteDepartment(args json.RawMessage) (any, error) {
+func (s *Server) toolDeleteDepartment(args json.RawMessage) (any, error) {
 	var params struct {
 		ID string `json:"id"`
 	}
@@ -1056,7 +1056,7 @@ func (s *MCPServer) toolDeleteDepartment(args json.RawMessage) (any, error) {
 	return map[string]string{"status": "deleted"}, nil
 }
 
-func (s *MCPServer) resolveDepartmentID(idOrName string) (string, error) {
+func (s *Server) resolveDepartmentID(idOrName string) (string, error) {
 	ids, err := s.resolveDepartmentIDs([]string{idOrName})
 	if err != nil {
 		return "", err
@@ -1066,7 +1066,7 @@ func (s *MCPServer) resolveDepartmentID(idOrName string) (string, error) {
 
 // resolveDepartmentIDs resolves a slice of ID-or-name strings to department IDs with a single
 // ListAll call to avoid per-element DB queries.
-func (s *MCPServer) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
+func (s *Server) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
 	if len(idOrNames) == 0 {
 		return nil, nil
 	}
@@ -1113,7 +1113,7 @@ func resolveDeptIDsFromList(all []model.Department, idOrNames []string) ([]strin
 
 // applyWorkerDepartments resolves a comma-separated list of department IDs or names and
 // replaces all department associations for the worker. An empty string clears all associations.
-func (s *MCPServer) applyWorkerDepartments(workerID, deptIDsParam string) error {
+func (s *Server) applyWorkerDepartments(workerID, deptIDsParam string) error {
 	var deptIDs []string
 	if deptIDsParam != "" {
 		var err error
@@ -1166,7 +1166,7 @@ func collectDescendantIDs(all []model.Department, rootID string) []string {
 	return ids
 }
 
-func (s *MCPServer) listWorkersRecursive(idOrName string) ([]string, error) {
+func (s *Server) listWorkersRecursive(idOrName string) ([]string, error) {
 	all, err := s.departmentStore.ListAll()
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
@@ -1206,7 +1206,7 @@ func normalizePage(page, pageSize, maxPageSize int) (int, int, int) {
 	return page, pageSize, (page - 1) * pageSize
 }
 
-func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListMessages(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey     string `json:"session_key"`
 		Platform       string `json:"platform"`
@@ -1234,7 +1234,7 @@ func (s *MCPServer) toolListMessages(ctx context.Context, args json.RawMessage) 
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
 
-func (s *MCPServer) toolListOutboundMessages(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListOutboundMessages(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		SessionKey string `json:"session_key"`
 		Platform   string `json:"platform"`
@@ -1266,7 +1266,7 @@ func (s *MCPServer) toolListOutboundMessages(ctx context.Context, args json.RawM
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
 
-func (s *MCPServer) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
+func (s *Server) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string `json:"worker_id"`
 		SessionID     string `json:"session_id"`

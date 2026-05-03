@@ -1,4 +1,4 @@
-// Package toolnames defines MCP tool name constants as the single source of truth.
+// Package toolnames defines RPC tool name constants as the single source of truth.
 package utils
 
 const (

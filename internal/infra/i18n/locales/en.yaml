@@ -80,7 +80,7 @@ prompt:
   password_setup: "Password setup:"
   password: "Password:"
   jwt_regen_confirm: "JWT secret already exists. Regenerate?"
-  mcp_token_regen_confirm: "MCP Token Secret already exists. Regenerate?"
+  rpc_token_regen_confirm: "RPC Token Secret already exists. Regenerate?"
   advanced_confirm: "Customize advanced settings?"
   server_port: "Server port:"
   server_host: "Server Host:"
@@ -152,8 +152,8 @@ output:
     written: "Config file written to: %s"
     jwt_regenerated: "JWT secret regenerated."
     jwt_generated: "JWT secret generated."
-    mcp_token_secret_generated: "Generated MCP Token Secret: %s"
-    mcp_token_secret_regenerated: "MCP Token Secret regenerated."
+    rpc_token_secret_generated: "Generated RPC Token Secret: %s"
+    rpc_token_secret_regenerated: "RPC Token Secret regenerated."
     password_generated: "Generated password: %s"
     weixin_qr_login: "\n--- Weixin QR Code Login ---"
     fetching_qr: "Fetching QR code..."
@@ -225,7 +225,7 @@ runtime:
     rich_text_fallback: "[Rich text message]"
   wecom:
     file_sent: "📎 File sent, please check."
-  mcp:
+  rpc:
     clear_session_confirm: "This session has %d workers linked. Clearing will reset all worker and bee conversation contexts. Confirm by re-calling with force=true."
     clear_session_tasks_confirm: "There are %d active tasks in this session. Clearing will terminate them. Confirm by re-calling with force=true."
   department:

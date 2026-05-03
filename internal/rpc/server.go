@@ -1,4 +1,4 @@
-package mcp
+package rpc
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/worker"
 )
 
-var log = logger.With(zap.String("component", "mcp"))
+var log = logger.With(zap.String("component", "rpc"))
 
 type ctxKey string
 
@@ -40,8 +40,8 @@ type TaskCanceller interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
 
-// MCPServer dispatches tool calls.
-type MCPServer struct {
+// Server dispatches tool calls.
+type Server struct {
 	workerStore          *store.WorkerStore
 	manager              *worker.Manager
 	taskStore            *store.TaskStore
@@ -59,7 +59,6 @@ type MCPServer struct {
 	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
 
-// NewBeeServer creates a Bee MCP Server with all tools.
 func NewBeeServer(
 	ws *store.WorkerStore,
 	mgr *worker.Manager,
@@ -74,8 +73,8 @@ func NewBeeServer(
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
 	ds *store.DepartmentStore,
-) *MCPServer {
-	return &MCPServer{
+) *Server {
+	return &Server{
 		workerStore:          ws,
 		manager:              mgr,
 		taskStore:            ts,
@@ -92,14 +91,14 @@ func NewBeeServer(
 	}
 }
 
-func (s *MCPServer) workerIDContext(c *gin.Context) context.Context {
+func (s *Server) workerIDContext(c *gin.Context) context.Context {
 	ctx := context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
 	scopes, _ := c.Get(CtxKeyScopes)
 	return context.WithValue(ctx, CtxScopesKey, scopes)
 }
 
 // Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.
-func (s *MCPServer) HandleCall(c *gin.Context) {
+func (s *Server) HandleCall(c *gin.Context) {
 	var req struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
