@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -61,7 +59,7 @@ type Issue struct {
 // Tests substitute a fake.
 type Client interface {
 	Viewer(ctx context.Context) (User, error)
-	IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error)
+	IssuesUpdatedSince(ctx context.Context, since time.Time, label string) (issues []Issue, truncated bool, err error)
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
 }
 
@@ -121,7 +119,7 @@ func (c *httpClient) do(ctx context.Context, op string, query string, vars map[s
 		return fmt.Errorf("linear: decode %s: %w", op, err)
 	}
 	if len(envelope.Errors) > 0 {
-		return fmt.Errorf("linear: %s graphql error: %w", op, errors.New(envelope.Errors[0].Message))
+		return fmt.Errorf("linear: %s graphql error: %s", op, envelope.Errors[0].Message)
 	}
 	if out != nil {
 		if err := json.Unmarshal(envelope.Data, out); err != nil {
@@ -163,11 +161,6 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return data.CommentCreate.Comment, nil
 }
 
-// issuesQuery fetches up to issuesPageSize issues per call. Pagination is not
-// implemented; if a polling tick produces more than issuesPageSize matching
-// issues, IssuesUpdatedSince logs a warning and the cursor still advances —
-// missed updates will be re-emitted on a subsequent tick once their
-// updatedAt drifts back into range, but operators should expect lag.
 const issuesPageSize = 50
 
 const issuesQuery = `
@@ -185,14 +178,17 @@ query Issues($since: DateTime!, $label: String!, $first: Int!) {
       labels(filter: { name: { eq: $label } }) {
         nodes { name createdAt }
       }
-      comments {
+      comments(filter: { createdAt: { gt: $since } }, orderBy: createdAt) {
         nodes { id body createdAt user { id name email } parentId }
       }
     }
   }
 }`
 
-func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error) {
+// IssuesUpdatedSince returns matching issues. If hasNextPage is true the
+// returned bool is true, signaling the caller that the result is truncated and
+// the cursor must not be advanced.
+func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) (issues []Issue, truncated bool, err error) {
 	vars := map[string]any{
 		"since": since.UTC().Format(time.RFC3339),
 		"label": label,
@@ -204,31 +200,49 @@ func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, la
 				HasNextPage bool `json:"hasNextPage"`
 			} `json:"pageInfo"`
 			Nodes []struct {
-				Issue
-				Labels   struct{ Nodes []IssueLabel `json:"nodes"` } `json:"labels"`
-				Comments struct{ Nodes []Comment    `json:"nodes"` } `json:"comments"`
+				ID          string    `json:"id"`
+				Identifier  string    `json:"identifier"`
+				Title       string    `json:"title"`
+				Description string    `json:"description"`
+				CreatedAt   time.Time `json:"createdAt"`
+				UpdatedAt   time.Time `json:"updatedAt"`
+				Team        Team      `json:"team"`
+				Creator     User      `json:"creator"`
+				Labels      struct {
+					Nodes []IssueLabel `json:"nodes"`
+				} `json:"labels"`
+				Comments struct {
+					Nodes []Comment `json:"nodes"`
+				} `json:"comments"`
 			} `json:"nodes"`
 		} `json:"issues"`
 	}
 	if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if data.Issues.PageInfo.HasNextPage {
-		log.Warn("linear: issues page truncated; v0 does not paginate, some updates may be delayed",
+	truncated = data.Issues.PageInfo.HasNextPage
+	if truncated {
+		log.Warn("linear: issues page truncated; cursor will not advance until next tick clears it",
 			zap.Int("page_size", issuesPageSize))
 	}
 	out := make([]Issue, 0, len(data.Issues.Nodes))
 	for _, n := range data.Issues.Nodes {
-		issue := n.Issue
-		issue.Labels = n.Labels.Nodes
-		issue.Comments = n.Comments.Nodes
-		sort.Slice(issue.Comments, func(i, j int) bool {
-			return issue.Comments[i].CreatedAt.Before(issue.Comments[j].CreatedAt)
-		})
+		issue := Issue{
+			ID:          n.ID,
+			Identifier:  n.Identifier,
+			Title:       n.Title,
+			Description: n.Description,
+			CreatedAt:   n.CreatedAt,
+			UpdatedAt:   n.UpdatedAt,
+			Team:        n.Team,
+			Creator:     n.Creator,
+			Labels:      n.Labels.Nodes,
+			Comments:    n.Comments.Nodes,
+		}
 		for i := range issue.Comments {
 			issue.Comments[i].IssueID = issue.ID
 		}
 		out = append(out, issue)
 	}
-	return out, nil
+	return out, truncated, nil
 }

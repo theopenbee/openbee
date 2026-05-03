@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/utils"
 )
 
 // PlatformID is the platform identifier used in SessionKey and ingest routing.
@@ -80,15 +81,13 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	}
 }
 
-// tickOnce performs one polling cycle. Errors are logged; the cursor only
-// advances on success.
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
 	since, err := r.cursor.Load(ctx)
 	if err != nil {
 		log.Error("cursor load", zap.Error(err))
 		return
 	}
-	issues, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName)
+	issues, truncated, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
@@ -114,6 +113,11 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			highWater = issue.UpdatedAt
 		}
 	}
+	// Don't advance the cursor when the page is truncated: we don't know what
+	// lies past the page boundary, and advancing would skip it permanently.
+	if truncated {
+		return
+	}
 	if highWater.After(since) {
 		if err := r.cursor.Save(ctx, highWater); err != nil {
 			log.Error("cursor save", zap.Error(err))
@@ -134,8 +138,8 @@ func buildSessionKey(teamKey, identifier string) string {
 	return fmt.Sprintf("%s:%s:%s", PlatformID, teamKey, identifier)
 }
 
-// replyTarget is what we serialize into InboundMessage.Raw so the sender can
-// resolve the comment target without re-querying Linear.
+// replyTarget is serialized into InboundMessage.Raw so the sender can resolve
+// the comment target without re-querying Linear.
 type replyTarget struct {
 	IssueID         string  `json:"issue_id"`
 	ParentCommentID *string `json:"parent_comment_id,omitempty"`
@@ -160,9 +164,10 @@ func buildIssueInbound(issue Issue) platform.InboundMessage {
 }
 
 func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
+	// Top-level comments have no parent; reply under the comment itself so the
+	// thread stays attached to the original conversation.
 	parent := c.ParentID
 	if parent == nil {
-		// Top-level comment: replies should thread under the comment itself.
 		id := c.ID
 		parent = &id
 	}
@@ -184,7 +189,6 @@ type LinearSender struct {
 	client Client
 }
 
-// Send posts msg.Content as a comment on the issue identified by msg.ReplyTo.Raw.
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	if msg.MediaPath != "" {
 		return errors.New("linear: media attachments not supported in v0")
@@ -196,11 +200,12 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	if target.IssueID == "" {
 		return errors.New("linear: reply target missing issue_id")
 	}
-	_, err := s.client.CreateComment(ctx, target.IssueID, msg.Content, target.ParentCommentID)
-	return err
+	return utils.RetryWithBackoff(ctx, func() error {
+		_, err := s.client.CreateComment(ctx, target.IssueID, msg.Content, target.ParentCommentID)
+		return err
+	}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
 }
 
-// Interface compliance guards.
-var _ platform.Platform                = (*LinearPlatform)(nil)
+var _ platform.Platform = (*LinearPlatform)(nil)
 var _ platform.PlatformReceiverAdapter = (*LinearReceiver)(nil)
-var _ platform.PlatformSenderAdapter   = (*LinearSender)(nil)
+var _ platform.PlatformSenderAdapter = (*LinearSender)(nil)

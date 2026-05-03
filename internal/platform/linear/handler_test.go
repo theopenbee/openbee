@@ -14,11 +14,11 @@ import (
 
 // fakeClient is a Client that returns canned data per call.
 type fakeClient struct {
-	mu       sync.Mutex
-	viewer   User
-	calls    int
-	issues   func(since time.Time) ([]Issue, error)
-	created  []struct {
+	mu      sync.Mutex
+	viewer  User
+	calls   int
+	issues  func(since time.Time) ([]Issue, bool, error)
+	created []struct {
 		IssueID, Body string
 		ParentID      *string
 	}
@@ -26,7 +26,7 @@ type fakeClient struct {
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
 
-func (f *fakeClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error) {
+func (f *fakeClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, bool, error) {
 	f.mu.Lock()
 	f.calls++
 	f.mu.Unlock()
@@ -83,7 +83,7 @@ func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
 	}
 	fc := &fakeClient{
 		viewer: bot,
-		issues: func(_ time.Time) ([]Issue, error) { return []Issue{issue}, nil },
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
 
@@ -122,13 +122,34 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
 	fc := &fakeClient{
 		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, error) { return nil, errors.New("boom") },
+		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
 	}
 	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", botUserID: "BOT"}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
 		t.Errorf("cursor advanced on error: %v", cur.saved)
+	}
+}
+
+func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
+	since := mustParse(t, "2026-05-02T09:00:00Z")
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-1", Title: "T", Team: Team{Key: "ENG"},
+		Creator:   User{ID: "U2"},
+		CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"),
+		UpdatedAt: mustParse(t, "2026-05-02T11:00:00Z"),
+	}
+	cur := &fakeCursor{last: since}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
+	}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", botUserID: "BOT"}
+
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+	if !cur.saved.IsZero() {
+		t.Errorf("cursor advanced under truncated page: %v", cur.saved)
 	}
 }
 

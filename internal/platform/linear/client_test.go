@@ -46,7 +46,6 @@ func TestClient_Viewer(t *testing.T) {
 	if u.ID != "U1" || u.Name != "bot" {
 		t.Errorf("got %+v", u)
 	}
-	_ = time.Now() // keep the time import live for later tests
 }
 
 func TestClient_CreateComment(t *testing.T) {
@@ -123,9 +122,12 @@ func TestClient_IssuesUpdatedSince(t *testing.T) {
 	})
 
 	since := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
-	out, err := c.IssuesUpdatedSince(context.Background(), since, "openbee")
+	out, truncated, err := c.IssuesUpdatedSince(context.Background(), since, "openbee")
 	if err != nil {
 		t.Fatalf("IssuesUpdatedSince: %v", err)
+	}
+	if truncated {
+		t.Errorf("expected truncated=false")
 	}
 	if len(out) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(out))
