@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -27,6 +28,49 @@ type cursorAPI interface {
 	Save(ctx context.Context, t time.Time) error
 }
 
+// selfCommentsCap bounds the in-memory set of bot-posted comment IDs so a
+// long-running poller can't grow without limit.
+const selfCommentsCap = 1024
+
+// selfComments tracks comment IDs the bot has posted so the receiver can skip
+// them on the next poll. Linear users frequently configure the bot with their
+// own personal API key, so filtering by viewer.ID would also drop the user's
+// real comments — we must filter by comment ID instead.
+type selfComments struct {
+	mu    sync.Mutex
+	set   map[string]struct{}
+	order []string
+}
+
+func newSelfComments() *selfComments {
+	return &selfComments{set: make(map[string]struct{})}
+}
+
+func (s *selfComments) Add(id string) {
+	if id == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.set[id]; ok {
+		return
+	}
+	s.set[id] = struct{}{}
+	s.order = append(s.order, id)
+	if len(s.order) > selfCommentsCap {
+		evict := s.order[0]
+		s.order = s.order[1:]
+		delete(s.set, evict)
+	}
+}
+
+func (s *selfComments) Has(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.set[id]
+	return ok
+}
+
 // LinearPlatform implements platform.Platform.
 type LinearPlatform struct {
 	receiver *LinearReceiver
@@ -36,14 +80,16 @@ type LinearPlatform struct {
 // NewPlatform constructs a Linear platform from configuration.
 func NewPlatform(cfg config.LinearConfig, sysCfg *store.SystemConfigStore) platform.Platform {
 	client := NewClient(cfg.APIKey)
+	self := newSelfComments()
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
 			cursor:       NewCursor(sysCfg),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
+			self:         self,
 		},
-		sender: &LinearSender{client: client},
+		sender: &LinearSender{client: client, self: self},
 	}
 }
 
@@ -57,7 +103,7 @@ type LinearReceiver struct {
 	cursor       cursorAPI
 	labelName    string
 	pollInterval time.Duration
-	botUserID    string
+	self         *selfComments
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -66,8 +112,7 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	if err != nil {
 		return fmt.Errorf("linear receiver: viewer: %w", err)
 	}
-	r.botUserID = viewer.ID
-	log.Info("linear receiver started", zap.String("bot_user_id", r.botUserID), zap.String("label", r.labelName))
+	log.Info("linear receiver started", zap.String("viewer_id", viewer.ID), zap.String("label", r.labelName))
 
 	ticker := time.NewTicker(r.pollInterval)
 	defer ticker.Stop()
@@ -101,7 +146,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if !c.CreatedAt.After(since) {
 				continue
 			}
-			if c.User.ID == r.botUserID {
+			if r.self.Has(c.ID) {
 				continue
 			}
 			dispatch(buildCommentInbound(issue, c))
@@ -187,6 +232,7 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 // LinearSender posts replies as Linear comments.
 type LinearSender struct {
 	client Client
+	self   *selfComments
 }
 
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
@@ -201,8 +247,14 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return errors.New("linear: reply target missing issue_id")
 	}
 	return utils.RetryWithBackoff(ctx, func() error {
-		_, err := s.client.CreateComment(ctx, target.IssueID, msg.Content, target.ParentCommentID)
-		return err
+		c, err := s.client.CreateComment(ctx, target.IssueID, msg.Content, target.ParentCommentID)
+		if err != nil {
+			return err
+		}
+		if s.self != nil {
+			s.self.Add(c.ID)
+		}
+		return nil
 	}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
 }
 

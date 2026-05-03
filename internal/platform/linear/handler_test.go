@@ -87,17 +87,19 @@ func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
 	}
 	cur := &fakeCursor{last: since}
 
+	self := newSelfComments()
+	self.Add("C-bot")
 	r := &LinearReceiver{
 		client:    fc,
 		cursor:    cur,
 		labelName: "openbee",
-		botUserID: bot.ID,
+		self:      self,
 	}
 
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 
-	// Expect 3 dispatches: issue body, C1, C2 (C-bot filtered).
+	// Expect 3 dispatches: issue body, C1, C2 (C-bot filtered via self set).
 	if len(got) != 3 {
 		t.Fatalf("dispatched %d messages, want 3: %+v", len(got), got)
 	}
@@ -124,7 +126,7 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", botUserID: "BOT"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: newSelfComments()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -145,7 +147,7 @@ func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", botUserID: "BOT"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: newSelfComments()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -158,7 +160,8 @@ func TestSender_PostsCommentWithParentID(t *testing.T) {
 	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1", ParentCommentID: &parent})
 
 	fc := &fakeClient{viewer: User{ID: "BOT"}}
-	s := &LinearSender{client: fc}
+	self := newSelfComments()
+	s := &LinearSender{client: fc, self: self}
 	err := s.Send(context.Background(), platform.OutboundMessage{
 		Content: "hello",
 		ReplyTo: platform.InboundMessage{Raw: string(rawBytes)},
@@ -173,7 +176,62 @@ func TestSender_PostsCommentWithParentID(t *testing.T) {
 	if c.IssueID != "I1" || c.Body != "hello" || c.ParentID == nil || *c.ParentID != "C0" {
 		t.Errorf("unexpected call: %+v", c)
 	}
+	// Sender must register the returned comment ID so the receiver skips it.
+	if !self.Has("C-new") {
+		t.Error("sender did not record outbound comment ID in self set")
+	}
 }
+
+// When the bot uses the user's own personal API key (a common configuration),
+// human comments share the bot's user ID. They must still be dispatched —
+// only IDs the sender recorded as outbound should be skipped.
+func TestReceiver_TickOnce_DispatchesHumanCommentSharingBotUserID(t *testing.T) {
+	bot := User{ID: "U1"}
+	since := mustParse(t, "2026-05-02T10:30:00Z")
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "T",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U1"},
+		// Issue and label predate `since` so the issue itself isn't re-dispatched.
+		CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"),
+		UpdatedAt: mustParse(t, "2026-05-02T11:30:00Z"),
+		Labels: []IssueLabel{
+			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z")},
+		},
+		Comments: []Comment{
+			// Bot's own outbound comment — registered in the self set.
+			{ID: "C-bot", Body: "bot reply", CreatedAt: mustParse(t, "2026-05-02T11:00:00Z"), User: bot},
+			// Human comment posted via the same Linear account.
+			{ID: "C-human", Body: "现在有哪些员工?", CreatedAt: mustParse(t, "2026-05-02T11:15:00Z"), User: bot},
+			// Human reply nested under bot's comment.
+			{ID: "C-reply", Body: "你好呀", CreatedAt: mustParse(t, "2026-05-02T11:30:00Z"), User: bot, ParentID: strPtr("C-bot")},
+		},
+	}
+	fc := &fakeClient{
+		viewer: bot,
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+	}
+	cur := &fakeCursor{last: since}
+	self := newSelfComments()
+	self.Add("C-bot")
+
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 2 {
+		t.Fatalf("dispatched %d, want 2 (C-human, C-reply): %+v", len(got), got)
+	}
+	sort.Slice(got, func(i, j int) bool { return got[i].MessageTime < got[j].MessageTime })
+	if got[0].PlatformMessageID != "comment:C-human" || got[1].PlatformMessageID != "comment:C-reply" {
+		t.Errorf("unexpected dispatch IDs: %+v", got)
+	}
+}
+
+func strPtr(s string) *string { return &s }
 
 func TestSender_RejectsMediaPath(t *testing.T) {
 	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1"})

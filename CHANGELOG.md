@@ -8,6 +8,9 @@
 ### Added
 - Add Linear platform integration: issues with the `openbee` label (and their comments) flow into the existing message pipeline; bee/worker replies are posted back as Linear comments. Polling-based receiver; configuration under `bee.platforms.linear`.
 
+### Fixed
+- Fix Linear receiver dropping new comments and replies when the bot is configured with the user's own personal API key. The bot's own comments are now identified by the IDs returned from `commentCreate` instead of the viewer user ID, so human-authored comments sharing the bot's user account are dispatched correctly.
+
 ## [0.0.34] - 2026-04-29
 
 ### Added
