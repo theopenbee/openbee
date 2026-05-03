@@ -67,6 +67,7 @@ type PromptMessages struct {
 	PlatformWeCom    string `yaml:"platform_wecom"`
 	PlatformTelegram string `yaml:"platform_telegram"`
 	PlatformWeixin   string `yaml:"platform_weixin"`
+	PlatformLinear   string `yaml:"platform_linear"`
 	// Survey hint text
 	MultiSelectHint      string `yaml:"multiselect_hint"`
 	FeishuAppID          string `yaml:"feishu_app_id"`
@@ -80,6 +81,9 @@ type PromptMessages struct {
 	WeixinReacquire      string `yaml:"weixin_reacquire"` // contains %s placeholder
 	WeixinBotToken       string `yaml:"weixin_bot_token"`
 	WeixinUserID         string `yaml:"weixin_user_id"`
+	LinearAPIKey         string `yaml:"linear_api_key"`
+	LinearAPIKeyHelp     string `yaml:"linear_api_key_help"`
+	LinearLabelName      string `yaml:"linear_label_name"`
 	BotName              string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`

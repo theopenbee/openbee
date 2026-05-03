@@ -78,6 +78,12 @@ type configValues struct {
 	WeixinUserID     string
 	WeixinBotName    string
 
+	LinearEnabled      bool
+	LinearAPIKey       string
+	LinearLabelName    string
+	LinearPollInterval string
+	LinearBotName      string
+
 	EngineDefault       string
 	EngineTimeoutBee    string
 	EngineTimeoutWorker string
@@ -160,6 +166,11 @@ func loadExistingConfig(path string) *configValues {
 		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
 		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
 		WeixinBotName:        cfg.Bee.Platforms.Weixin.BotName,
+		LinearEnabled:      cfg.Bee.Platforms.Linear.Enabled,
+		LinearAPIKey:       cfg.Bee.Platforms.Linear.APIKey,
+		LinearLabelName:    cfg.Bee.Platforms.Linear.LabelName,
+		LinearPollInterval: cfg.Bee.Platforms.Linear.PollInterval.String(),
+		LinearBotName:      cfg.Bee.Platforms.Linear.BotName,
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -360,6 +371,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.WeixinEnabled {
 		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeixin)
 	}
+	if vals.LinearEnabled {
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformLinear)
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
@@ -370,6 +384,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			i18n.M.Prompt.PlatformWeCom,
 			i18n.M.Prompt.PlatformTelegram,
 			i18n.M.Prompt.PlatformWeixin,
+			i18n.M.Prompt.PlatformLinear,
 		},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
@@ -382,6 +397,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.WecomEnabled = false
 	vals.TelegramEnabled = false
 	vals.WeixinEnabled = false
+	vals.LinearEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -512,6 +528,31 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}
 			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 			if err := promptBotName(&vals.WeixinBotName); err != nil {
+				return err
+			}
+		case i18n.M.Prompt.PlatformLinear:
+			vals.LinearEnabled = true
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearAPIKey,
+				Help:    i18n.M.Prompt.LinearAPIKeyHelp,
+				Default: vals.LinearAPIKey,
+			}, &vals.LinearAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+			labelDefault := vals.LinearLabelName
+			if labelDefault == "" {
+				labelDefault = "openbee"
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearLabelName,
+				Default: labelDefault,
+			}, &vals.LinearLabelName); err != nil {
+				return handleSurveyErr(err)
+			}
+			if vals.LinearPollInterval == "" {
+				vals.LinearPollInterval = "10s"
+			}
+			if err := promptBotName(&vals.LinearBotName); err != nil {
 				return err
 			}
 		}
