@@ -95,7 +95,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	}
 	highWater := since
 	for _, issue := range issues {
-		if isNewlyOwned(issue, since) {
+		if isNewlyOwned(issue, since, r.labelName) {
 			dispatch(buildIssueInbound(issue))
 		}
 		for _, c := range issue.Comments {
@@ -121,9 +121,9 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	}
 }
 
-func isNewlyOwned(issue Issue, since time.Time) bool {
+func isNewlyOwned(issue Issue, since time.Time, labelName string) bool {
 	for _, l := range issue.Labels {
-		if l.CreatedAt.After(since) {
+		if l.Name == labelName && l.CreatedAt.After(since) {
 			return true
 		}
 	}

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // User is the subset of Linear's User type we care about.
@@ -108,6 +111,11 @@ func (c *httpClient) do(ctx context.Context, op string, query string, vars map[s
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("linear: %s http %d: %s", op, resp.StatusCode, string(body))
+	}
+
 	var envelope gqlResponse
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		return fmt.Errorf("linear: decode %s: %w", op, err)
@@ -155,12 +163,21 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return data.CommentCreate.Comment, nil
 }
 
+// issuesQuery fetches up to issuesPageSize issues per call. Pagination is not
+// implemented; if a polling tick produces more than issuesPageSize matching
+// issues, IssuesUpdatedSince logs a warning and the cursor still advances —
+// missed updates will be re-emitted on a subsequent tick once their
+// updatedAt drifts back into range, but operators should expect lag.
+const issuesPageSize = 50
+
 const issuesQuery = `
-query Issues($since: DateTime!, $label: String!) {
+query Issues($since: DateTime!, $label: String!, $first: Int!) {
   issues(
     filter: { updatedAt: { gt: $since }, labels: { name: { eq: $label } } }
     orderBy: updatedAt
+    first: $first
   ) {
+    pageInfo { hasNextPage }
     nodes {
       id identifier title description createdAt updatedAt
       team { key }
@@ -176,9 +193,16 @@ query Issues($since: DateTime!, $label: String!) {
 }`
 
 func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error) {
-	vars := map[string]any{"since": since.UTC().Format(time.RFC3339), "label": label}
+	vars := map[string]any{
+		"since": since.UTC().Format(time.RFC3339),
+		"label": label,
+		"first": issuesPageSize,
+	}
 	var data struct {
 		Issues struct {
+			PageInfo struct {
+				HasNextPage bool `json:"hasNextPage"`
+			} `json:"pageInfo"`
 			Nodes []struct {
 				Issue
 				Labels   struct{ Nodes []IssueLabel `json:"nodes"` } `json:"labels"`
@@ -188,6 +212,10 @@ func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, la
 	}
 	if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
 		return nil, err
+	}
+	if data.Issues.PageInfo.HasNextPage {
+		log.Warn("linear: issues page truncated; v0 does not paginate, some updates may be delayed",
+			zap.Int("page_size", issuesPageSize))
 	}
 	out := make([]Issue, 0, len(data.Issues.Nodes))
 	for _, n := range data.Issues.Nodes {
