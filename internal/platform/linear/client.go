@@ -164,7 +164,7 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 const issuesPageSize = 50
 
 const issuesQuery = `
-query Issues($since: DateTime!, $label: String!, $first: Int!) {
+query Issues($since: DateTimeOrDuration!, $label: String!, $first: Int!) {
   issues(
     filter: { updatedAt: { gt: $since }, labels: { name: { eq: $label } } }
     orderBy: updatedAt
