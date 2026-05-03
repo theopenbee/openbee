@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -193,6 +194,9 @@ func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, la
 		issue := n.Issue
 		issue.Labels = n.Labels.Nodes
 		issue.Comments = n.Comments.Nodes
+		sort.Slice(issue.Comments, func(i, j int) bool {
+			return issue.Comments[i].CreatedAt.Before(issue.Comments[j].CreatedAt)
+		})
 		for i := range issue.Comments {
 			issue.Comments[i].IssueID = issue.ID
 		}
