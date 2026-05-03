@@ -1,7 +1,11 @@
 package linear
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -54,4 +58,144 @@ type Client interface {
 	Viewer(ctx context.Context) (User, error)
 	IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error)
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
+}
+
+const defaultEndpoint = "https://api.linear.app/graphql"
+
+type httpClient struct {
+	apiKey   string
+	endpoint string
+	http     *http.Client
+}
+
+// NewClient returns a Client backed by Linear's GraphQL endpoint.
+func NewClient(apiKey string) Client {
+	return newHTTPClient(apiKey)
+}
+
+func newHTTPClient(apiKey string) *httpClient {
+	return &httpClient{
+		apiKey:   apiKey,
+		endpoint: defaultEndpoint,
+		http:     &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+type gqlResponse struct {
+	Data   json.RawMessage `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors,omitempty"`
+}
+
+func (c *httpClient) do(ctx context.Context, op string, query string, vars map[string]any, out any) error {
+	body, err := json.Marshal(map[string]any{"query": query, "variables": vars})
+	if err != nil {
+		return fmt.Errorf("linear: marshal %s: %w", op, err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("linear: build request %s: %w", op, err)
+	}
+	req.Header.Set("Authorization", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("linear: do %s: %w", op, err)
+	}
+	defer resp.Body.Close()
+
+	var envelope gqlResponse
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return fmt.Errorf("linear: decode %s: %w", op, err)
+	}
+	if len(envelope.Errors) > 0 {
+		return fmt.Errorf("linear: %s graphql error: %s", op, envelope.Errors[0].Message)
+	}
+	if out != nil {
+		if err := json.Unmarshal(envelope.Data, out); err != nil {
+			return fmt.Errorf("linear: decode %s data: %w", op, err)
+		}
+	}
+	return nil
+}
+
+const viewerQuery = `query { viewer { id name email } }`
+
+func (c *httpClient) Viewer(ctx context.Context) (User, error) {
+	var data struct {
+		Viewer User `json:"viewer"`
+	}
+	if err := c.do(ctx, "viewer", viewerQuery, nil, &data); err != nil {
+		return User{}, err
+	}
+	return data.Viewer, nil
+}
+
+const createCommentMutation = `
+mutation CreateComment($issueId: String!, $body: String!, $parentId: String) {
+  commentCreate(input: { issueId: $issueId, body: $body, parentId: $parentId }) {
+    comment { id body createdAt user { id } parentId }
+  }
+}`
+
+func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error) {
+	vars := map[string]any{"issueId": issueID, "body": body, "parentId": parentID}
+	var data struct {
+		CommentCreate struct {
+			Comment Comment `json:"comment"`
+		} `json:"commentCreate"`
+	}
+	if err := c.do(ctx, "commentCreate", createCommentMutation, vars, &data); err != nil {
+		return Comment{}, err
+	}
+	return data.CommentCreate.Comment, nil
+}
+
+const issuesQuery = `
+query Issues($since: DateTime!, $label: String!) {
+  issues(
+    filter: { updatedAt: { gt: $since }, labels: { name: { eq: $label } } }
+    orderBy: updatedAt
+  ) {
+    nodes {
+      id identifier title description createdAt updatedAt
+      team { key }
+      creator { id name email }
+      labels(filter: { name: { eq: $label } }) {
+        nodes { name createdAt }
+      }
+      comments {
+        nodes { id body createdAt user { id name email } parentId }
+      }
+    }
+  }
+}`
+
+func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, error) {
+	vars := map[string]any{"since": since.UTC().Format(time.RFC3339), "label": label}
+	var data struct {
+		Issues struct {
+			Nodes []struct {
+				Issue
+				Labels   struct{ Nodes []IssueLabel `json:"nodes"` } `json:"labels"`
+				Comments struct{ Nodes []Comment    `json:"nodes"` } `json:"comments"`
+			} `json:"nodes"`
+		} `json:"issues"`
+	}
+	if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
+		return nil, err
+	}
+	out := make([]Issue, 0, len(data.Issues.Nodes))
+	for _, n := range data.Issues.Nodes {
+		issue := n.Issue
+		issue.Labels = n.Labels.Nodes
+		issue.Comments = n.Comments.Nodes
+		for i := range issue.Comments {
+			issue.Comments[i].IssueID = issue.ID
+		}
+		out = append(out, issue)
+	}
+	return out, nil
 }
