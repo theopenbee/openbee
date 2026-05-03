@@ -162,6 +162,7 @@ type PlatformsConfig struct {
 	WeCom    WeComConfig    `yaml:"wecom"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	Weixin   WeixinConfig   `yaml:"weixin"`
+	Linear   LinearConfig   `yaml:"linear"`
 }
 
 func (p PlatformsConfig) BotNames() []string {
@@ -172,6 +173,7 @@ func (p PlatformsConfig) BotNames() []string {
 		p.WeCom.BotName,
 		p.Telegram.BotName,
 		p.Weixin.BotName,
+		p.Linear.BotName,
 	} {
 		if n != "" {
 			names = append(names, n)
@@ -224,6 +226,14 @@ type WeixinConfig struct {
 	UserID       string `yaml:"user_id"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 100MB
 	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
+}
+
+type LinearConfig struct {
+	Enabled      bool          `yaml:"enabled"`
+	APIKey       string        `yaml:"api_key"`        // Linear personal API key (required when enabled)
+	LabelName    string        `yaml:"label_name"`     // gating label; default "openbee"
+	PollInterval time.Duration `yaml:"poll_interval"`  // default 10s
+	BotName      string        `yaml:"bot_name"`       // for ingest @-mention strip; default "openbee"
 }
 
 type MCPConfig struct {
@@ -346,6 +356,15 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.MCP.TokenTTL == 0 {
 		cfg.Bee.MCP.TokenTTL = 2 * time.Hour
+	}
+	if cfg.Bee.Platforms.Linear.LabelName == "" {
+		cfg.Bee.Platforms.Linear.LabelName = "openbee"
+	}
+	if cfg.Bee.Platforms.Linear.PollInterval == 0 {
+		cfg.Bee.Platforms.Linear.PollInterval = 10 * time.Second
+	}
+	if cfg.Bee.Platforms.Linear.BotName == "" {
+		cfg.Bee.Platforms.Linear.BotName = "openbee"
 	}
 	return nil
 }

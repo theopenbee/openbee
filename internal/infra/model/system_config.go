@@ -15,3 +15,6 @@ const SystemConfigKeyEngineArgsGlobal = "engine_args_global"
 
 // SystemConfigKeyEngineArgsBee is the key for bee-level engine args.
 const SystemConfigKeyEngineArgsBee = "engine_args_bee"
+
+// SystemConfigKeyLinearLastSync is the key for the Linear poller's high-water cursor (RFC3339 timestamp).
+const SystemConfigKeyLinearLastSync = "linear.last_sync_at"
