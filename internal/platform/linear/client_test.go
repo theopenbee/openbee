@@ -95,6 +95,9 @@ func TestClient_IssuesUpdatedSince(t *testing.T) {
 		if !strings.Contains(s, `"since":"`) {
 			t.Errorf("missing since var: %s", s)
 		}
+		if !strings.Contains(s, `"projects":["alpha","beta"]`) {
+			t.Errorf("missing projects var: %s", s)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"issues": map[string]any{
@@ -122,7 +125,7 @@ func TestClient_IssuesUpdatedSince(t *testing.T) {
 	})
 
 	since := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
-	out, truncated, err := c.IssuesUpdatedSince(context.Background(), since, "openbee")
+	out, truncated, err := c.IssuesUpdatedSince(context.Background(), since, "openbee", []string{"alpha", "beta"})
 	if err != nil {
 		t.Fatalf("IssuesUpdatedSince: %v", err)
 	}

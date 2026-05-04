@@ -70,7 +70,7 @@ bee:
       api_key: "{{.LinearAPIKey}}"
       label_name: "{{.LinearLabelName}}"
       poll_interval: {{.LinearPollInterval}}
-      bot_name: "{{.LinearBotName}}"
+      projects: [{{.LinearProjectsYAML}}]
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:

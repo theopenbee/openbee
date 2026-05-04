@@ -59,7 +59,11 @@ type Issue struct {
 // Tests substitute a fake.
 type Client interface {
 	Viewer(ctx context.Context) (User, error)
-	IssuesUpdatedSince(ctx context.Context, since time.Time, label string) (issues []Issue, truncated bool, err error)
+	// IssuesUpdatedSince returns issues whose updatedAt is greater than `since`,
+	// carry the gating `label`, and belong to one of the given `projects`. The
+	// caller must pass a non-empty `projects` list — empty is rejected by
+	// policy at the platform layer.
+	IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) (issues []Issue, truncated bool, err error)
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
 }
 
@@ -164,9 +168,13 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 const issuesPageSize = 50
 
 const issuesQuery = `
-query Issues($since: DateTimeOrDuration!, $label: String!, $first: Int!) {
+query Issues($since: DateTimeOrDuration!, $label: String!, $projects: [String!]!, $first: Int!) {
   issues(
-    filter: { updatedAt: { gt: $since }, labels: { name: { eq: $label } } }
+    filter: {
+      updatedAt: { gt: $since },
+      labels: { name: { eq: $label } },
+      project: { name: { in: $projects } }
+    }
     orderBy: updatedAt
     first: $first
   ) {
@@ -188,11 +196,12 @@ query Issues($since: DateTimeOrDuration!, $label: String!, $first: Int!) {
 // IssuesUpdatedSince returns matching issues. If hasNextPage is true the
 // returned bool is true, signaling the caller that the result is truncated and
 // the cursor must not be advanced.
-func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) (issues []Issue, truncated bool, err error) {
+func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) (issues []Issue, truncated bool, err error) {
 	vars := map[string]any{
-		"since": since.UTC().Format(time.RFC3339),
-		"label": label,
-		"first": issuesPageSize,
+		"since":    since.UTC().Format(time.RFC3339),
+		"label":    label,
+		"projects": projects,
+		"first":    issuesPageSize,
 	}
 	var data struct {
 		Issues struct {

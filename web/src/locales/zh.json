@@ -475,6 +475,14 @@
       "title": "Bee 引擎参数",
       "hint": "追加到 Bee 编排进程自身引擎调用的 CLI 参数，覆盖全局参数中对应项。",
       "updated": "Bee 引擎参数已更新"
+    },
+    "linearProjectsSection": {
+      "title": "Linear 项目白名单",
+      "hint": "仅项目名命中此列表的 Linear issue 会被处理；为空时 Linear 接入将被完全禁用。",
+      "addPlaceholder": "项目名",
+      "add": "添加",
+      "empty": "暂未配置项目，Linear 接入已禁用。",
+      "updated": "Linear 项目列表已更新"
     }
   },
   "notFound": {

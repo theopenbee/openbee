@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -40,8 +41,10 @@ type LinearPlatform struct {
 }
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
-// state lives in ~/.openbee/.linear/.
-func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
+// state lives in ~/.openbee/.linear/. The projectStore holds the project
+// allow-list and is consulted on every poll tick so runtime updates from
+// SystemSettings take effect on the next cycle.
+func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store) (platform.Platform, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
@@ -54,6 +57,7 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 			cursor:       NewCursor(dir),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
+			projectStore: projectStore,
 		},
 		sender: &LinearSender{client: client},
 	}, nil
@@ -69,6 +73,10 @@ type LinearReceiver struct {
 	cursor       cursorAPI
 	labelName    string
 	pollInterval time.Duration
+	// projectStore is consulted on every tick. An empty list (the default
+	// when no project is configured) means the receiver skips the API call
+	// entirely — by policy, no projects = process nothing.
+	projectStore *linearcfg.Store
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -91,13 +99,29 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	}
 }
 
+// projects returns the current Linear project allow-list. A nil store yields
+// nil (which the caller treats as "skip"), so tests can construct a Receiver
+// without wiring a store.
+func (r *LinearReceiver) projects() []string {
+	if r.projectStore == nil {
+		return nil
+	}
+	return r.projectStore.Get()
+}
+
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
+	projects := r.projects()
+	if len(projects) == 0 {
+		// No projects configured — by policy we skip the entire tick (do not
+		// process any issues). Logged at debug to avoid spamming the journal.
+		return
+	}
 	since, err := r.cursor.Load(ctx)
 	if err != nil {
 		log.Error("cursor load", zap.Error(err))
 		return
 	}
-	issues, truncated, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName)
+	issues, truncated, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName, projects)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return

@@ -173,7 +173,6 @@ func (p PlatformsConfig) BotNames() []string {
 		p.WeCom.BotName,
 		p.Telegram.BotName,
 		p.Weixin.BotName,
-		p.Linear.BotName,
 	} {
 		if n != "" {
 			names = append(names, n)
@@ -233,7 +232,7 @@ type LinearConfig struct {
 	APIKey       string        `yaml:"api_key"`       // Linear personal API key (required when enabled)
 	LabelName    string        `yaml:"label_name"`    // gating label; default "openbee"
 	PollInterval time.Duration `yaml:"poll_interval"` // default 10s
-	BotName      string        `yaml:"bot_name"`      // for ingest @-mention strip; default "openbee"
+	Projects     []string      `yaml:"projects"`      // project name allow-list; empty = process nothing
 }
 
 type RPCConfig struct {
@@ -362,9 +361,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.Linear.PollInterval == 0 {
 		cfg.Bee.Platforms.Linear.PollInterval = 10 * time.Second
-	}
-	if cfg.Bee.Platforms.Linear.BotName == "" {
-		cfg.Bee.Platforms.Linear.BotName = "openbee"
 	}
 	return nil
 }

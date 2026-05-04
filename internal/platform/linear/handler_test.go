@@ -9,16 +9,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
+// testProjectStore returns a linearcfg.Store seeded with one project so the
+// tickOnce path is not gated out by the empty-list policy.
+func testProjectStore() *linearcfg.Store {
+	return linearcfg.NewStore([]string{"proj-a"})
+}
+
 // fakeClient is a Client that returns canned data per call.
 type fakeClient struct {
-	mu      sync.Mutex
-	viewer  User
-	calls   int
-	issues  func(since time.Time) ([]Issue, bool, error)
-	created []struct {
+	mu           sync.Mutex
+	viewer       User
+	calls        int
+	lastProjects []string
+	issues       func(since time.Time) ([]Issue, bool, error)
+	created      []struct {
 		IssueID, Body string
 		ParentID      *string
 	}
@@ -26,9 +34,10 @@ type fakeClient struct {
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
 
-func (f *fakeClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string) ([]Issue, bool, error) {
+func (f *fakeClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) ([]Issue, bool, error) {
 	f.mu.Lock()
 	f.calls++
+	f.lastProjects = append([]string(nil), projects...)
 	f.mu.Unlock()
 	return f.issues(since)
 }
@@ -88,9 +97,10 @@ func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
 	cur := &fakeCursor{last: since}
 
 	r := &LinearReceiver{
-		client:    fc,
-		cursor:    cur,
-		labelName: "openbee",
+		client:       fc,
+		cursor:       cur,
+		labelName:    "openbee",
+		projectStore: testProjectStore(),
 	}
 
 	var got []platform.InboundMessage
@@ -123,7 +133,7 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -144,7 +154,7 @@ func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -222,7 +232,7 @@ func TestReceiver_TickOnce_SkipsPrefixedSelfComment(t *testing.T) {
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
 
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
@@ -232,6 +242,55 @@ func TestReceiver_TickOnce_SkipsPrefixedSelfComment(t *testing.T) {
 	}
 	if got[0].PlatformMessageID != "comment:C-user" {
 		t.Errorf("unexpected dispatch: %+v", got[0])
+	}
+}
+
+// TestReceiver_TickOnce_EmptyProjectsSkipsAPI verifies the policy that an
+// empty project allow-list causes the receiver to skip the tick entirely
+// (no API call, no cursor advance).
+func TestReceiver_TickOnce_EmptyProjectsSkipsAPI(t *testing.T) {
+	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) {
+			t.Fatal("IssuesUpdatedSince should not be called when projects is empty")
+			return nil, false, nil
+		},
+	}
+	r := &LinearReceiver{
+		client:       fc,
+		cursor:       cur,
+		labelName:    "openbee",
+		projectStore: linearcfg.NewStore(nil),
+	}
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {
+		t.Fatal("dispatch should not be called when projects is empty")
+	})
+	if !cur.saved.IsZero() {
+		t.Errorf("cursor advanced when projects is empty: %v", cur.saved)
+	}
+	if fc.calls != 0 {
+		t.Errorf("client called %d times, want 0", fc.calls)
+	}
+}
+
+// TestReceiver_TickOnce_ForwardsProjectsToClient verifies that the project
+// allow-list is passed through to the GraphQL client unchanged.
+func TestReceiver_TickOnce_ForwardsProjectsToClient(t *testing.T) {
+	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, nil },
+	}
+	r := &LinearReceiver{
+		client:       fc,
+		cursor:       cur,
+		labelName:    "openbee",
+		projectStore: linearcfg.NewStore([]string{"alpha", "beta"}),
+	}
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+	if got := fc.lastProjects; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
+		t.Errorf("client received projects = %v, want [alpha beta]", got)
 	}
 }
 
@@ -260,7 +319,7 @@ func TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString(t *testing
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee"}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
 
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })

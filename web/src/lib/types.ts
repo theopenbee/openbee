@@ -166,6 +166,7 @@ export const DEFAULT_BEE_ID = "default"
 export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
+export const SYSTEM_CONFIG_KEY_LINEAR_PROJECTS = "linear_projects"
 
 // Mirrors ai.AllEngines in Go — keep in sync.
 export const ENGINES = ["claude", "codex", "pi", "kimi"] as const

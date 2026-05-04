@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -25,10 +26,11 @@ type SystemConfigHandler struct {
 	store     sysConfigStore
 	validator engineValidatorForSys
 	engineCfg *enginecfg.Store
+	linearCfg *linearcfg.Store
 }
 
-func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store) *SystemConfigHandler {
-	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg}
+func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store) *SystemConfigHandler {
+	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg, linearCfg: linearCfg}
 }
 
 // Get returns all known system config keys as a JSON object.
@@ -39,6 +41,7 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 		model.SystemConfigKeyDefaultEngine,
 		model.SystemConfigKeyEngineArgsGlobal,
 		model.SystemConfigKeyEngineArgsBee,
+		model.SystemConfigKeyLinearProjects,
 	}
 	result := make(map[string]string, len(keys))
 	for _, key := range keys {
@@ -59,6 +62,32 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 type setSystemConfigRequest struct {
 	Value string `json:"value"`
 }
+
+// parseLinearProjects validates that value is either empty or a JSON array of
+// strings, and returns the trimmed non-empty entries.
+func parseLinearProjects(value string) ([]string, error) {
+	if value == "" || value == "[]" {
+		return nil, nil
+	}
+	var raw []string
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return nil, errInvalidLinearProjects
+	}
+	out := make([]string, 0, len(raw))
+	for _, p := range raw {
+		if p == "" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+var errInvalidLinearProjects = errLinearProjects("value must be a JSON array of project name strings")
+
+type errLinearProjects string
+
+func (e errLinearProjects) Error() string { return string(e) }
 
 // Set updates a single system config key.
 func (h *SystemConfigHandler) Set(c *gin.Context) {
@@ -96,6 +125,20 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+	case model.SystemConfigKeyLinearProjects:
+		projects, err := parseLinearProjects(req.Value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if h.linearCfg != nil {
+			h.linearCfg.Set(projects)
 		}
 
 	default:

@@ -74,6 +74,8 @@ prompt:
   linear_api_key: "Linear API Key:"
   linear_api_key_help: "Create a personal API key at https://linear.app/settings/api"
   linear_label_name: "Linear gating label (default: openbee):"
+  linear_projects: "Linear project allow-list (comma-separated names; empty = process nothing):"
+  linear_projects_help: "Issues outside this list are ignored even if they carry the gating label."
   bot_name: "Bot name for @mention stripping in group chats:"
   username: "Username:"
   password_change_confirm: "Password already configured. Change it?"

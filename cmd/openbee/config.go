@@ -82,7 +82,8 @@ type configValues struct {
 	LinearAPIKey       string
 	LinearLabelName    string
 	LinearPollInterval string
-	LinearBotName      string
+	LinearProjects     string // comma-separated user input
+	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
 
 	EngineDefault       string
 	EngineTimeoutBee    string
@@ -170,7 +171,7 @@ func loadExistingConfig(path string) *configValues {
 		LinearAPIKey:       cfg.Bee.Platforms.Linear.APIKey,
 		LinearLabelName:    cfg.Bee.Platforms.Linear.LabelName,
 		LinearPollInterval: cfg.Bee.Platforms.Linear.PollInterval.String(),
-		LinearBotName:      cfg.Bee.Platforms.Linear.BotName,
+		LinearProjects:     strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -552,8 +553,12 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			if vals.LinearPollInterval == "" {
 				vals.LinearPollInterval = "10s"
 			}
-			if err := promptBotName(&vals.LinearBotName); err != nil {
-				return err
+			fmt.Println(i18n.M.Prompt.LinearProjectsHelp)
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearProjects,
+				Default: vals.LinearProjects,
+			}, &vals.LinearProjects); err != nil {
+				return handleSurveyErr(err)
 			}
 		}
 	}
@@ -733,6 +738,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	vals.LinearProjectsYAML = renderProjectsYAML(vals.LinearProjects)
+
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -807,6 +814,21 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+// renderProjectsYAML formats a comma-separated project name list into the
+// inline YAML array body, e.g. `"a", "b"`. Empty input returns "".
+func renderProjectsYAML(csv string) string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%q", p))
+	}
+	return strings.Join(out, ", ")
 }
 
 func promptBotName(fieldPtr *string) error {

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
+	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -128,6 +130,21 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
+	// Initialize the Linear project allow-list from yaml, then override with DB
+	// if the system config has been written.
+	linearCfg := linearcfg.NewStore(cfg.Bee.Platforms.Linear.Projects)
+	if dbLin, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyLinearProjects); err != nil {
+		logger.Warn("failed to load linear projects from DB, falling back to config", zap.Error(err))
+	} else if found {
+		var raw []string
+		if err := json.Unmarshal([]byte(dbLin.Value), &raw); err != nil {
+			logger.Warn("DB linear projects value is not a JSON array, falling back to config",
+				zap.String("db_value", dbLin.Value), zap.Error(err))
+		} else {
+			linearCfg.Set(raw)
+		}
+	}
+
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
@@ -152,6 +169,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
 		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
+		linearCfg,
 		cfg.Bee.Media,
 	)
 	if err != nil {
@@ -176,7 +194,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
 			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
 			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
-			linear.PlatformID:   cfg.Bee.Platforms.Linear.BotName,
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
@@ -220,7 +237,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, linearCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -322,6 +339,7 @@ func buildPlatforms(
 	tc config.TelegramConfig,
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
+	linearCfg *linearcfg.Store,
 	mc config.MediaConfig,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
@@ -345,7 +363,7 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		p, err := linear.NewPlatform(lc)
+		p, err := linear.NewPlatform(lc, linearCfg)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
@@ -354,7 +372,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -373,7 +391,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
-		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
+		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg, linearCfg),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,

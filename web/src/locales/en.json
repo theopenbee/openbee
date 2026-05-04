@@ -476,6 +476,14 @@
       "title": "Bee Engine Args",
       "hint": "CLI flags appended to the Bee orchestrator's own engine invocation. Merged on top of global args.",
       "updated": "Bee engine args updated"
+    },
+    "linearProjectsSection": {
+      "title": "Linear Project Allow-list",
+      "hint": "Only Linear issues whose project name is in this list are processed. An empty list disables Linear ingest entirely.",
+      "addPlaceholder": "Project name",
+      "add": "Add",
+      "empty": "No projects configured. Linear ingest is disabled.",
+      "updated": "Linear projects updated"
     }
   },
   "notFound": {
