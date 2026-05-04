@@ -120,6 +120,7 @@ func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
 		cursor:       cur,
 		labelName:    "openbee",
 		projectStore: testProjectStore(),
+		seenComments: newFakeSeen(),
 	}
 
 	var got []platform.InboundMessage
@@ -152,7 +153,7 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -173,7 +174,7 @@ func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -251,7 +252,7 @@ func TestReceiver_TickOnce_SkipsPrefixedSelfComment(t *testing.T) {
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
 
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
@@ -281,6 +282,7 @@ func TestReceiver_TickOnce_EmptyProjectsSkipsAPI(t *testing.T) {
 		cursor:       cur,
 		labelName:    "openbee",
 		projectStore: linearcfg.NewStore(nil),
+		seenComments: newFakeSeen(),
 	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {
 		t.Fatal("dispatch should not be called when projects is empty")
@@ -306,6 +308,7 @@ func TestReceiver_TickOnce_ForwardsProjectsToClient(t *testing.T) {
 		cursor:       cur,
 		labelName:    "openbee",
 		projectStore: linearcfg.NewStore([]string{"alpha", "beta"}),
+		seenComments: newFakeSeen(),
 	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if got := fc.lastProjects; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
@@ -338,7 +341,7 @@ func TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString(t *testing
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore()}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
 
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })

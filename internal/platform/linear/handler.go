@@ -55,6 +55,7 @@ func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store) (platfo
 		receiver: &LinearReceiver{
 			client:       client,
 			cursor:       NewCursor(dir),
+			seenComments: NewSeenComments(dir),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
 			projectStore: projectStore,
@@ -71,6 +72,7 @@ func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.
 type LinearReceiver struct {
 	client       Client
 	cursor       cursorAPI
+	seenComments seenAPI
 	labelName    string
 	pollInterval time.Duration
 	// projectStore is consulted on every tick. An empty list (the default
@@ -81,6 +83,9 @@ type LinearReceiver struct {
 
 // Start runs the polling loop until ctx is cancelled.
 func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
+	if err := r.seenComments.Load(ctx); err != nil {
+		return fmt.Errorf("linear receiver: seen comments load: %w", err)
+	}
 	viewer, err := r.client.Viewer(ctx)
 	if err != nil {
 		return fmt.Errorf("linear receiver: viewer: %w", err)
@@ -112,8 +117,6 @@ func (r *LinearReceiver) projects() []string {
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
 	projects := r.projects()
 	if len(projects) == 0 {
-		// No projects configured — by policy we skip the entire tick (do not
-		// process any issues). Logged at debug to avoid spamming the journal.
 		return
 	}
 	since, err := r.cursor.Load(ctx)
@@ -141,6 +144,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 		zap.Strings("identifiers", identifiers),
 	)
 	highWater := since
+	var newIDs []string
 	for _, issue := range issues {
 		log.Info("tick: issue",
 			zap.String("identifier", issue.Identifier),
@@ -161,12 +165,11 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if len(body) > 80 {
 				body = body[:80] + "…"
 			}
-			if !c.CreatedAt.After(since) {
-				log.Info("tick: skip comment (not after since)",
+			if r.seenComments.Contains(c.ID) {
+				log.Info("tick: skip comment (already seen)",
 					zap.String("identifier", issue.Identifier),
 					zap.String("comment_id", c.ID),
 					zap.Time("comment_created_at", c.CreatedAt),
-					zap.Time("since", since),
 					zap.String("body_preview", body),
 				)
 				continue
@@ -187,9 +190,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.String("body_preview", body),
 			)
 			dispatch(buildCommentInbound(issue, c))
-			if c.CreatedAt.After(highWater) {
-				highWater = c.CreatedAt
-			}
+			newIDs = append(newIDs, c.ID)
 		}
 		if issue.UpdatedAt.After(highWater) {
 			log.Info("tick: highWater advanced by issue.UpdatedAt (no later comment)",
@@ -198,6 +199,11 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.Time("prev_high_water", highWater),
 			)
 			highWater = issue.UpdatedAt
+		}
+	}
+	if len(newIDs) > 0 {
+		if err := r.seenComments.Add(ctx, newIDs); err != nil {
+			log.Error("seen comments save", zap.Error(err))
 		}
 	}
 	// Don't advance the cursor when the page is truncated: we don't know what
