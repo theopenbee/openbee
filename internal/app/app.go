@@ -145,10 +145,22 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	// Linear workflow-state allow-list. Wired here so the receiver and the
-	// SystemConfig handler share the same in-memory store. yaml/DB seeding is
-	// the responsibility of a follow-up task; for now this is an empty store.
-	linearStates := linearcfg.NewStatesStore(nil)
+	// Initialize the Linear workflow-state allow-list from yaml, then override
+	// with DB if the system config has been written. Shared between the receiver
+	// and the SystemConfig handler so PUT /system-configs/linear_states takes
+	// effect on the receiver's next tick.
+	linearStates := linearcfg.NewStatesStore(cfg.Bee.Platforms.Linear.States)
+	if dbStates, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyLinearStates); err != nil {
+		logger.Warn("failed to load linear states from DB, falling back to config", zap.Error(err))
+	} else if found {
+		var raw []string
+		if err := json.Unmarshal([]byte(dbStates.Value), &raw); err != nil {
+			logger.Warn("DB linear states value is not a JSON array, falling back to config",
+				zap.String("db_value", dbStates.Value), zap.Error(err))
+		} else {
+			linearStates.Set(raw)
+		}
+	}
 
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
