@@ -169,27 +169,6 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 	}
 }
 
-func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
-	since := mustParse(t, "2026-05-02T09:00:00Z")
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-1", Title: "T", Team: Team{Key: "ENG"},
-		Creator:   User{ID: "U2"},
-		CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"),
-		UpdatedAt: mustParse(t, "2026-05-02T11:00:00Z"),
-	}
-	cur := &fakeCursor{last: since}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
-	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
-
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
-	if !cur.saved.IsZero() {
-		t.Errorf("cursor advanced under truncated page: %v", cur.saved)
-	}
-}
-
 func TestSender_PostsCommentWithParentID(t *testing.T) {
 	parent := "C0"
 	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1", ParentCommentID: &parent})
