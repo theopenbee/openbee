@@ -28,12 +28,6 @@ const selfMarker = "[openbee-bot]\n\n"
 
 var log = logger.With(zap.String("component", "linear"))
 
-// cursorAPI is satisfied by *Cursor and by test fakes.
-type cursorAPI interface {
-	Load(ctx context.Context) (time.Time, error)
-	Save(ctx context.Context, t time.Time) error
-}
-
 // LinearPlatform implements platform.Platform.
 type LinearPlatform struct {
 	receiver *LinearReceiver
@@ -41,10 +35,10 @@ type LinearPlatform struct {
 }
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
-// state lives in ~/.openbee/.linear/. The projectStore holds the project
-// allow-list and is consulted on every poll tick so runtime updates from
-// SystemSettings take effect on the next cycle.
-func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store) (platform.Platform, error) {
+// state (seen_issues.json, seen_comments.json) lives in ~/.openbee/.linear/.
+// projectStore and statesStore are consulted on every poll tick so runtime
+// updates from SystemSettings take effect on the next cycle.
+func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store, statesStore *linearcfg.StatesStore) (platform.Platform, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
@@ -54,11 +48,12 @@ func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store) (platfo
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
-			cursor:       NewCursor(dir),
+			seenIssues:   NewSeenIssues(dir),
 			seenComments: NewSeenComments(dir),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
 			projectStore: projectStore,
+			statesStore:  statesStore,
 		},
 		sender: &LinearSender{client: client},
 	}, nil
@@ -68,21 +63,22 @@ func (p *LinearPlatform) ID() string                                 { return Pl
 func (p *LinearPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
-// LinearReceiver polls Linear for issue/comment updates.
+// LinearReceiver polls Linear for issue/comment updates by workflow-state.
 type LinearReceiver struct {
 	client       Client
-	cursor       cursorAPI
+	seenIssues   seenIssuesAPI
 	seenComments seenAPI
 	labelName    string
 	pollInterval time.Duration
-	// projectStore is consulted on every tick. An empty list (the default
-	// when no project is configured) means the receiver skips the API call
-	// entirely — by policy, no projects = process nothing.
 	projectStore *linearcfg.Store
+	statesStore  *linearcfg.StatesStore
 }
 
 // Start runs the polling loop until ctx is cancelled.
 func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
+	if err := r.seenIssues.Load(ctx); err != nil {
+		return fmt.Errorf("linear receiver: seen issues load: %w", err)
+	}
 	if err := r.seenComments.Load(ctx); err != nil {
 		return fmt.Errorf("linear receiver: seen comments load: %w", err)
 	}
@@ -90,7 +86,10 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	if err != nil {
 		return fmt.Errorf("linear receiver: viewer: %w", err)
 	}
-	log.Info("linear receiver started", zap.String("viewer_id", viewer.ID), zap.String("label", r.labelName))
+	log.Info("linear receiver started",
+		zap.String("viewer_id", viewer.ID),
+		zap.String("label", r.labelName),
+	)
 
 	ticker := time.NewTicker(r.pollInterval)
 	defer ticker.Stop()
@@ -104,9 +103,6 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	}
 }
 
-// projects returns the current Linear project allow-list. A nil store yields
-// nil (which the caller treats as "skip"), so tests can construct a Receiver
-// without wiring a store.
 func (r *LinearReceiver) projects() []string {
 	if r.projectStore == nil {
 		return nil
@@ -114,131 +110,94 @@ func (r *LinearReceiver) projects() []string {
 	return r.projectStore.Get()
 }
 
+func (r *LinearReceiver) states() []string {
+	if r.statesStore == nil {
+		return nil
+	}
+	return r.statesStore.Get()
+}
+
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
 	projects := r.projects()
-	if len(projects) == 0 {
-		return
-	}
-	since, err := r.cursor.Load(ctx)
-	if err != nil {
-		log.Error("cursor load", zap.Error(err))
+	states := r.states()
+	if len(projects) == 0 || len(states) == 0 {
 		return
 	}
 	log.Info("tick: start",
-		zap.Time("since", since),
 		zap.Strings("projects", projects),
+		zap.Strings("states", states),
 		zap.String("label", r.labelName),
 	)
-	issues, err := r.client.IssuesInStates(ctx, []string{"Todo", "In Progress"}, r.labelName, projects)
+	issues, err := r.client.IssuesInStates(ctx, states, r.labelName, projects)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
 	}
-	// truncated is no longer reported by the client. Tasks 5/6 will fully
-	// rewrite this receiver; for now keep a local zero so the rest of the
-	// existing tick logic compiles unchanged.
-	truncated := false
 	identifiers := make([]string, 0, len(issues))
 	for _, i := range issues {
 		identifiers = append(identifiers, i.Identifier)
 	}
 	log.Info("tick: api result",
 		zap.Int("issue_count", len(issues)),
-		zap.Bool("truncated", truncated),
 		zap.Strings("identifiers", identifiers),
 	)
-	highWater := since
-	var newIDs []string
+
+	var newIssueIDs []string
+	var newCommentIDs []string
+
 	for _, issue := range issues {
-		log.Info("tick: issue",
-			zap.String("identifier", issue.Identifier),
-			zap.String("issue_id", issue.ID),
-			zap.Time("issue_updated_at", issue.UpdatedAt),
-			zap.Time("issue_created_at", issue.CreatedAt),
-			zap.Int("comment_count", len(issue.Comments)),
-		)
-		if isNewlyOwned(issue, since, r.labelName) {
-			log.Info("tick: dispatch issue body",
+		if !r.seenIssues.Contains(issue.ID) {
+			nonBot := nonBotComments(issue.Comments)
+			log.Info("tick: dispatch initial merged",
 				zap.String("identifier", issue.Identifier),
 				zap.String("issue_id", issue.ID),
+				zap.Int("non_bot_comment_count", len(nonBot)),
 			)
-			dispatch(buildIssueInbound(issue))
+			dispatch(buildInitialInbound(issue, nonBot))
+			newIssueIDs = append(newIssueIDs, issue.ID)
+			for _, c := range nonBot {
+				newCommentIDs = append(newCommentIDs, c.ID)
+			}
+			continue
 		}
 		for _, c := range issue.Comments {
-			body := c.Body
-			if len(body) > 80 {
-				body = body[:80] + "…"
-			}
 			if r.seenComments.Contains(c.ID) {
-				log.Info("tick: skip comment (already seen)",
-					zap.String("identifier", issue.Identifier),
-					zap.String("comment_id", c.ID),
-					zap.Time("comment_created_at", c.CreatedAt),
-					zap.String("body_preview", body),
-				)
 				continue
 			}
 			if strings.HasPrefix(c.Body, "[openbee-bot]") {
-				log.Info("tick: skip comment (self bot prefix)",
-					zap.String("identifier", issue.Identifier),
-					zap.String("comment_id", c.ID),
-					zap.Time("comment_created_at", c.CreatedAt),
-				)
 				continue
 			}
 			log.Info("tick: dispatch comment",
 				zap.String("identifier", issue.Identifier),
 				zap.String("comment_id", c.ID),
-				zap.Time("comment_created_at", c.CreatedAt),
 				zap.String("user_id", c.User.ID),
-				zap.String("body_preview", body),
 			)
 			dispatch(buildCommentInbound(issue, c))
-			newIDs = append(newIDs, c.ID)
-		}
-		if issue.UpdatedAt.After(highWater) {
-			log.Info("tick: highWater advanced by issue.UpdatedAt (no later comment)",
-				zap.String("identifier", issue.Identifier),
-				zap.Time("issue_updated_at", issue.UpdatedAt),
-				zap.Time("prev_high_water", highWater),
-			)
-			highWater = issue.UpdatedAt
+			newCommentIDs = append(newCommentIDs, c.ID)
 		}
 	}
-	if len(newIDs) > 0 {
-		if err := r.seenComments.Add(ctx, newIDs); err != nil {
+
+	if len(newIssueIDs) > 0 {
+		if err := r.seenIssues.Add(ctx, newIssueIDs); err != nil {
+			log.Error("seen issues save", zap.Error(err))
+		}
+	}
+	if len(newCommentIDs) > 0 {
+		if err := r.seenComments.Add(ctx, newCommentIDs); err != nil {
 			log.Error("seen comments save", zap.Error(err))
 		}
 	}
-	// Don't advance the cursor when the page is truncated: we don't know what
-	// lies past the page boundary, and advancing would skip it permanently.
-	if truncated {
-		log.Warn("tick: cursor not advanced (page truncated)",
-			zap.Time("since", since),
-			zap.Time("computed_high_water", highWater),
-		)
-		return
-	}
-	if highWater.After(since) {
-		log.Info("tick: cursor save",
-			zap.Time("from", since),
-			zap.Time("to", highWater),
-		)
-		if err := r.cursor.Save(ctx, highWater); err != nil {
-			log.Error("cursor save", zap.Error(err))
-		}
-	} else {
-		log.Info("tick: cursor unchanged", zap.Time("since", since))
-	}
 }
 
-func isNewlyOwned(issue Issue, since time.Time, labelName string) bool {
-	for _, l := range issue.Labels {
-		if l.Name == labelName && l.CreatedAt.After(since) {
-			return true
+func nonBotComments(in []Comment) []Comment {
+	out := make([]Comment, 0, len(in))
+	for _, c := range in {
+		if strings.HasPrefix(c.Body, "[openbee-bot]") {
+			continue
 		}
+		out = append(out, c)
 	}
-	return issue.CreatedAt.After(since)
+	return out
 }
 
 func buildSessionKey(teamKey, identifier string) string {
@@ -252,11 +211,15 @@ type replyTarget struct {
 	ParentCommentID *string `json:"parent_comment_id,omitempty"`
 }
 
-func buildIssueInbound(issue Issue) platform.InboundMessage {
+// buildInitialInbound merges title, description, and the supplied non-bot
+// comments into a single InboundMessage. The reply target is the issue itself
+// (no parent comment), so the bee's reply lands at the top level of the issue.
+func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessage {
 	raw, _ := json.Marshal(replyTarget{IssueID: issue.ID})
-	content := issue.Title
-	if issue.Description != "" {
-		content = issue.Title + "\n\n" + issue.Description
+	content := mergeIssueContent(issue, comments)
+	createdAt := issue.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
 	}
 	return platform.InboundMessage{
 		Platform:          PlatformID,
@@ -266,13 +229,46 @@ func buildIssueInbound(issue Issue) platform.InboundMessage {
 		RawContent:        content,
 		Raw:               string(raw),
 		PlatformMessageID: "issue:" + issue.ID,
-		MessageTime:       issue.CreatedAt.UnixMilli(),
+		MessageTime:       createdAt.UnixMilli(),
 	}
 }
 
+// mergeIssueContent renders the merged-initial body. Format (option A from
+// the design doc):
+//
+//	{title}
+//
+//	{description}        ← omitted when empty
+//
+//	---                  ← omitted when no non-bot comments
+//	Comments (N):
+//
+//	[user.name]: body
+//	[user.name]: body
+func mergeIssueContent(issue Issue, comments []Comment) string {
+	var b strings.Builder
+	b.WriteString(issue.Title)
+	if issue.Description != "" {
+		b.WriteString("\n\n")
+		b.WriteString(issue.Description)
+	}
+	if len(comments) > 0 {
+		fmt.Fprintf(&b, "\n\n---\nComments (%d):\n", len(comments))
+		for _, c := range comments {
+			name := c.User.Name
+			if name == "" {
+				name = c.User.Email
+			}
+			if name == "" {
+				name = c.User.ID
+			}
+			fmt.Fprintf(&b, "\n[%s]: %s", name, c.Body)
+		}
+	}
+	return b.String()
+}
+
 func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
-	// Top-level comments have no parent; reply under the comment itself so the
-	// thread stays attached to the original conversation.
 	parent := c.ParentID
 	if parent == nil {
 		id := c.ID

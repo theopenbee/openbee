@@ -363,7 +363,11 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		p, err := linear.NewPlatform(lc, linearCfg)
+		// NOTE: states wiring is deferred to a follow-up task; pass an empty
+		// StatesStore for now. The receiver treats an empty states list as
+		// "skip tick", so this preserves the previous behavior of "no platform
+		// activity until states are configured".
+		p, err := linear.NewPlatform(lc, linearCfg, linearcfg.NewStatesStore(nil))
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
