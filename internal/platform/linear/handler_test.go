@@ -34,12 +34,20 @@ type fakeClient struct {
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
 
-func (f *fakeClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) ([]Issue, bool, error) {
+// IssuesInStates is the new Client method. For now we delegate to the legacy
+// `issues` callback by passing a zero time so existing handler tests keep
+// compiling; Tasks 5/6 will rewrite handler tests to drive this method
+// directly.
+func (f *fakeClient) IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error) {
 	f.mu.Lock()
 	f.calls++
 	f.lastProjects = append([]string(nil), projects...)
 	f.mu.Unlock()
-	return f.issues(since)
+	if f.issues == nil {
+		return nil, nil
+	}
+	out, _, err := f.issues(time.Time{})
+	return out, err
 }
 
 func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error) {

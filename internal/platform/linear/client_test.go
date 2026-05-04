@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 )
 
 func newMockServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *httpClient) {
@@ -85,22 +85,38 @@ func TestClient_CreateComment(t *testing.T) {
 	}
 }
 
-func TestClient_IssuesUpdatedSince(t *testing.T) {
+func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		s := string(body)
+		if !strings.Contains(s, `"states":["Todo","In Progress"]`) {
+			t.Errorf("missing states var: %s", s)
+		}
 		if !strings.Contains(s, `"label":"openbee"`) {
 			t.Errorf("missing label var: %s", s)
-		}
-		if !strings.Contains(s, `"since":"`) {
-			t.Errorf("missing since var: %s", s)
 		}
 		if !strings.Contains(s, `"projects":["alpha","beta"]`) {
 			t.Errorf("missing projects var: %s", s)
 		}
+		// Decode the request and assert the variables map does not contain a
+		// "since" key (i.e. no time-based filter is being passed).
+		var req struct {
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if _, ok := req.Variables["since"]; ok {
+			t.Errorf("request variables unexpectedly contains 'since': %v", req.Variables)
+		}
+
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"issues": map[string]any{
+					"pageInfo": map[string]any{
+						"hasNextPage": false,
+						"endCursor":   "",
+					},
 					"nodes": []map[string]any{
 						{
 							"id":          "I1",
@@ -124,13 +140,9 @@ func TestClient_IssuesUpdatedSince(t *testing.T) {
 		})
 	})
 
-	since := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
-	out, truncated, err := c.IssuesUpdatedSince(context.Background(), since, "openbee", []string{"alpha", "beta"})
+	out, err := c.IssuesInStates(context.Background(), []string{"Todo", "In Progress"}, "openbee", []string{"alpha", "beta"})
 	if err != nil {
-		t.Fatalf("IssuesUpdatedSince: %v", err)
-	}
-	if truncated {
-		t.Errorf("expected truncated=false")
+		t.Fatalf("IssuesInStates: %v", err)
 	}
 	if len(out) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(out))
@@ -146,5 +158,111 @@ func TestClient_IssuesUpdatedSince(t *testing.T) {
 	}
 	if out[0].Comments[0].IssueID != "I1" {
 		t.Errorf("comment IssueID not back-filled: %q", out[0].Comments[0].IssueID)
+	}
+}
+
+func TestIssuesInStates_FullPagination(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		callCount int
+	)
+
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req struct {
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+
+		mu.Lock()
+		callCount++
+		current := callCount
+		mu.Unlock()
+
+		switch current {
+		case 1:
+			// First call: after should be nil/absent.
+			if v, ok := req.Variables["after"]; ok && v != nil {
+				t.Errorf("first call: expected after=nil, got %v", v)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"issues": map[string]any{
+						"pageInfo": map[string]any{
+							"hasNextPage": true,
+							"endCursor":   "page2",
+						},
+						"nodes": []map[string]any{
+							{
+								"id":          "I1",
+								"identifier":  "ENG-1",
+								"title":       "first",
+								"description": "",
+								"createdAt":   "2026-05-02T10:00:00Z",
+								"updatedAt":   "2026-05-02T11:00:00Z",
+								"team":        map[string]string{"key": "ENG"},
+								"creator":     map[string]string{"id": "U2"},
+								"labels":      map[string]any{"nodes": []map[string]any{}},
+								"comments":    map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+				},
+			})
+		case 2:
+			// Second call: after must be "page2".
+			if v, _ := req.Variables["after"].(string); v != "page2" {
+				t.Errorf("second call: expected after=\"page2\", got %v", req.Variables["after"])
+			}
+			if !strings.Contains(string(body), `"after":"page2"`) {
+				t.Errorf("second call body missing after=page2: %s", body)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"issues": map[string]any{
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
+						},
+						"nodes": []map[string]any{
+							{
+								"id":          "I2",
+								"identifier":  "ENG-2",
+								"title":       "second",
+								"description": "",
+								"createdAt":   "2026-05-02T12:00:00Z",
+								"updatedAt":   "2026-05-02T13:00:00Z",
+								"team":        map[string]string{"key": "ENG"},
+								"creator":     map[string]string{"id": "U2"},
+								"labels":      map[string]any{"nodes": []map[string]any{}},
+								"comments":    map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+				},
+			})
+		default:
+			t.Errorf("unexpected call count %d", current)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})
+
+	out, err := c.IssuesInStates(context.Background(), []string{"Todo"}, "openbee", []string{"alpha"})
+	if err != nil {
+		t.Fatalf("IssuesInStates: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("expected 2 issues, got %d", len(out))
+	}
+	if out[0].ID != "I1" || out[1].ID != "I2" {
+		t.Errorf("expected order [I1, I2], got [%s, %s]", out[0].ID, out[1].ID)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if callCount != 2 {
+		t.Errorf("expected 2 server calls, got %d", callCount)
 	}
 }

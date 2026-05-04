@@ -59,11 +59,12 @@ type Issue struct {
 // Tests substitute a fake.
 type Client interface {
 	Viewer(ctx context.Context) (User, error)
-	// IssuesUpdatedSince returns issues whose updatedAt is greater than `since`,
-	// carry the gating `label`, and belong to one of the given `projects`. The
-	// caller must pass a non-empty `projects` list — empty is rejected by
-	// policy at the platform layer.
-	IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) (issues []Issue, truncated bool, err error)
+	// IssuesInStates returns every issue whose state.name is in `states`,
+	// carrying label `label`, and belonging to one of the given `projects`.
+	// Empty `states` or `projects` is rejected by policy at the platform layer.
+	// The returned slice contains all pages materialized in chronological
+	// (createdAt-ascending) order.
+	IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error)
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
 }
 
@@ -168,17 +169,18 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 const issuesPageSize = 50
 
 const issuesQuery = `
-query Issues($since: DateTimeOrDuration!, $label: String!, $projects: [String!]!, $first: Int!) {
+query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first: Int!, $after: String) {
   issues(
     filter: {
-      updatedAt: { gt: $since },
-      labels: { name: { eq: $label } },
+      state:   { name: { in: $states } },
+      labels:  { name: { eq: $label } },
       project: { name: { in: $projects } }
     }
-    orderBy: updatedAt
+    orderBy: createdAt
     first: $first
+    after: $after
   ) {
-    pageInfo { hasNextPage }
+    pageInfo { hasNextPage endCursor }
     nodes {
       id identifier title description createdAt updatedAt
       team { key }
@@ -193,80 +195,73 @@ query Issues($since: DateTimeOrDuration!, $label: String!, $projects: [String!]!
   }
 }`
 
-// IssuesUpdatedSince returns matching issues. If hasNextPage is true the
-// returned bool is true, signaling the caller that the result is truncated and
-// the cursor must not be advanced.
-func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, label string, projects []string) (issues []Issue, truncated bool, err error) {
-	vars := map[string]any{
-		"since":    since.UTC().Format(time.RFC3339),
-		"label":    label,
-		"projects": projects,
-		"first":    issuesPageSize,
-	}
-	var data struct {
-		Issues struct {
-			PageInfo struct {
-				HasNextPage bool `json:"hasNextPage"`
-			} `json:"pageInfo"`
-			Nodes []struct {
-				ID          string    `json:"id"`
-				Identifier  string    `json:"identifier"`
-				Title       string    `json:"title"`
-				Description string    `json:"description"`
-				CreatedAt   time.Time `json:"createdAt"`
-				UpdatedAt   time.Time `json:"updatedAt"`
-				Team        Team      `json:"team"`
-				Creator     User      `json:"creator"`
-				Labels      struct {
-					Nodes []IssueLabel `json:"nodes"`
-				} `json:"labels"`
-				Comments struct {
-					Nodes []Comment `json:"nodes"`
-				} `json:"comments"`
-			} `json:"nodes"`
-		} `json:"issues"`
-	}
-	if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
-		return nil, false, err
-	}
-	truncated = data.Issues.PageInfo.HasNextPage
-	if truncated {
-		log.Warn("linear: issues page truncated; cursor will not advance until next tick clears it",
-			zap.Int("page_size", issuesPageSize))
-	}
-	log.Info("linear: graphql issues response",
-		zap.String("since", vars["since"].(string)),
-		zap.Int("returned", len(data.Issues.Nodes)),
-		zap.Bool("has_next_page", truncated),
-	)
-	out := make([]Issue, 0, len(data.Issues.Nodes))
-	for _, n := range data.Issues.Nodes {
-		commentIDs := make([]string, 0, len(n.Comments.Nodes))
-		for _, cn := range n.Comments.Nodes {
-			commentIDs = append(commentIDs, cn.ID)
+// IssuesInStates returns every issue whose state.name is in `states`, carrying
+// label `label`, and belonging to one of the given `projects`. All pages are
+// materialized within a single call.
+func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error) {
+	var all []Issue
+	var after *string
+	for {
+		vars := map[string]any{
+			"states":   states,
+			"label":    label,
+			"projects": projects,
+			"first":    issuesPageSize,
+			"after":    after,
 		}
-		log.Info("linear: graphql issue node",
-			zap.String("identifier", n.Identifier),
-			zap.Time("updated_at", n.UpdatedAt),
-			zap.Int("comments_returned", len(n.Comments.Nodes)),
-			zap.Strings("comment_ids", commentIDs),
+		var data struct {
+			Issues struct {
+				PageInfo struct {
+					HasNextPage bool   `json:"hasNextPage"`
+					EndCursor   string `json:"endCursor"`
+				} `json:"pageInfo"`
+				Nodes []struct {
+					ID          string    `json:"id"`
+					Identifier  string    `json:"identifier"`
+					Title       string    `json:"title"`
+					Description string    `json:"description"`
+					CreatedAt   time.Time `json:"createdAt"`
+					UpdatedAt   time.Time `json:"updatedAt"`
+					Team        Team      `json:"team"`
+					Creator     User      `json:"creator"`
+					Labels      struct {
+						Nodes []IssueLabel `json:"nodes"`
+					} `json:"labels"`
+					Comments struct {
+						Nodes []Comment `json:"nodes"`
+					} `json:"comments"`
+				} `json:"nodes"`
+			} `json:"issues"`
+		}
+		if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
+			return nil, err
+		}
+		log.Info("linear: graphql issues page",
+			zap.Int("returned", len(data.Issues.Nodes)),
+			zap.Bool("has_next_page", data.Issues.PageInfo.HasNextPage),
 		)
-		issue := Issue{
-			ID:          n.ID,
-			Identifier:  n.Identifier,
-			Title:       n.Title,
-			Description: n.Description,
-			CreatedAt:   n.CreatedAt,
-			UpdatedAt:   n.UpdatedAt,
-			Team:        n.Team,
-			Creator:     n.Creator,
-			Labels:      n.Labels.Nodes,
-			Comments:    n.Comments.Nodes,
+		for _, n := range data.Issues.Nodes {
+			issue := Issue{
+				ID:          n.ID,
+				Identifier:  n.Identifier,
+				Title:       n.Title,
+				Description: n.Description,
+				CreatedAt:   n.CreatedAt,
+				UpdatedAt:   n.UpdatedAt,
+				Team:        n.Team,
+				Creator:     n.Creator,
+				Labels:      n.Labels.Nodes,
+				Comments:    n.Comments.Nodes,
+			}
+			for i := range issue.Comments {
+				issue.Comments[i].IssueID = issue.ID
+			}
+			all = append(all, issue)
 		}
-		for i := range issue.Comments {
-			issue.Comments[i].IssueID = issue.ID
+		if !data.Issues.PageInfo.HasNextPage {
+			return all, nil
 		}
-		out = append(out, issue)
+		end := data.Issues.PageInfo.EndCursor
+		after = &end
 	}
-	return out, truncated, nil
 }

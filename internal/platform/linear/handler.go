@@ -129,11 +129,15 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 		zap.Strings("projects", projects),
 		zap.String("label", r.labelName),
 	)
-	issues, truncated, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName, projects)
+	issues, err := r.client.IssuesInStates(ctx, []string{"Todo", "In Progress"}, r.labelName, projects)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
 	}
+	// truncated is no longer reported by the client. Tasks 5/6 will fully
+	// rewrite this receiver; for now keep a local zero so the rest of the
+	// existing tick logic compiles unchanged.
+	truncated := false
 	identifiers := make([]string, 0, len(issues))
 	for _, i := range issues {
 		identifiers = append(identifiers, i.Identifier)
