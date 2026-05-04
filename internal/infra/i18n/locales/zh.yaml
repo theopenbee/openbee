@@ -76,6 +76,8 @@ prompt:
   linear_label_name: "Linear 触发标签（默认：openbee）："
   linear_projects: "Linear 项目白名单（逗号分隔；为空则不处理任何 issue）："
   linear_projects_help: "不在该列表中的项目即使携带触发标签也会被忽略。"
+  linear_states: "Linear 状态白名单（按状态名逗号分隔；为空则不处理任何 issue）："
+  linear_states_help: "状态名不在该列表中的 issue 即使携带触发标签也会被忽略。"
   bot_name: "机器人名称（用于群聊中消除 @提及）："
   username: "用户名："
   password_change_confirm: "已配置密码，是否修改？"

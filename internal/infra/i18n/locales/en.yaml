@@ -76,6 +76,8 @@ prompt:
   linear_label_name: "Linear gating label (default: openbee):"
   linear_projects: "Linear project allow-list (comma-separated names; empty = process nothing):"
   linear_projects_help: "Issues outside this list are ignored even if they carry the gating label."
+  linear_states: "Linear workflow-state allow-list (comma-separated state names; empty = process nothing):"
+  linear_states_help: "Issues whose state name is not in this list are skipped, even if they carry the gating label."
   bot_name: "Bot name for @mention stripping in group chats:"
   username: "Username:"
   password_change_confirm: "Password already configured. Change it?"

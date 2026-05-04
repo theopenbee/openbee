@@ -84,6 +84,8 @@ type configValues struct {
 	LinearPollInterval string
 	LinearProjects     string // comma-separated user input
 	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
+	LinearStates     string // comma-separated user input
+	LinearStatesYAML string // rendered into the YAML inline list
 
 	EngineDefault       string
 	EngineTimeoutBee    string
@@ -172,6 +174,7 @@ func loadExistingConfig(path string) *configValues {
 		LinearLabelName:    cfg.Bee.Platforms.Linear.LabelName,
 		LinearPollInterval: cfg.Bee.Platforms.Linear.PollInterval.String(),
 		LinearProjects:     strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
+		LinearStates:       strings.Join(cfg.Bee.Platforms.Linear.States, ","),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -560,6 +563,13 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			}, &vals.LinearProjects); err != nil {
 				return handleSurveyErr(err)
 			}
+			fmt.Println(i18n.M.Prompt.LinearStatesHelp)
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearStates,
+				Default: vals.LinearStates,
+			}, &vals.LinearStates); err != nil {
+				return handleSurveyErr(err)
+			}
 		}
 	}
 
@@ -739,6 +749,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	vals.LinearProjectsYAML = renderProjectsYAML(vals.LinearProjects)
+	vals.LinearStatesYAML = renderProjectsYAML(vals.LinearStates)
 
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {

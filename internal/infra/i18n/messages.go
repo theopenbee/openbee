@@ -86,6 +86,8 @@ type PromptMessages struct {
 	LinearLabelName      string `yaml:"linear_label_name"`
 	LinearProjects       string `yaml:"linear_projects"`
 	LinearProjectsHelp   string `yaml:"linear_projects_help"`
+	LinearStates       string `yaml:"linear_states"`
+	LinearStatesHelp   string `yaml:"linear_states_help"`
 	BotName              string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`
