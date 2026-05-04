@@ -219,6 +219,10 @@ func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessag
 	content := mergeIssueContent(issue, comments)
 	createdAt := issue.CreatedAt
 	if createdAt.IsZero() {
+		log.Warn("linear: issue createdAt is zero, falling back to wall clock for MessageTime",
+			zap.String("issue_id", issue.ID),
+			zap.String("identifier", issue.Identifier),
+		)
 		createdAt = time.Now()
 	}
 	return platform.InboundMessage{

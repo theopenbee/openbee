@@ -329,6 +329,109 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
+	bot := User{ID: "BOT"}
+	// New issue with a non-bot comment → merged-initial dispatch
+	issueA := Issue{
+		ID: "IA", Identifier: "ENG-1",
+		Title: "A title", Description: "A desc",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2", Name: "Alice"},
+		Comments: []Comment{
+			{ID: "CA1", Body: "from history", User: User{ID: "U2", Name: "Alice"}, IssueID: "IA"},
+		},
+	}
+	// Known issue with one already-seen comment and one new comment
+	issueB := Issue{
+		ID: "IB", Identifier: "ENG-2",
+		Title: "B title",
+		Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "CB-old", Body: "already seen", User: User{ID: "U3"}, IssueID: "IB"},
+			{ID: "CB-new", Body: "fresh", User: User{ID: "U3", Name: "Bob"}, IssueID: "IB"},
+		},
+	}
+
+	seenIssues := newFakeSeenIssues()
+	seenIssues.ids["IB"] = struct{}{}
+	seenComments := newFakeSeenComments()
+	seenComments.ids["CB-old"] = struct{}{}
+
+	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issueA, issueB}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   seenIssues,
+		seenComments: seenComments,
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+
+	if len(received) != 2 {
+		t.Fatalf("expected 2 dispatches (issue:IA + comment:CB-new), got %d", len(received))
+	}
+	if received[0].PlatformMessageID != "issue:IA" {
+		t.Errorf("first dispatch PlatformMessageID = %q, want issue:IA", received[0].PlatformMessageID)
+	}
+	if received[1].PlatformMessageID != "comment:CB-new" {
+		t.Errorf("second dispatch PlatformMessageID = %q, want comment:CB-new", received[1].PlatformMessageID)
+	}
+	if !seenIssues.Contains("IA") {
+		t.Error("seenIssues missing IA")
+	}
+	if !seenComments.Contains("CA1") {
+		t.Error("seenComments missing folded CA1")
+	}
+	if !seenComments.Contains("CB-new") {
+		t.Error("seenComments missing CB-new")
+	}
+}
+
+func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
+	bot := User{ID: "BOT"}
+	parent := "C-parent"
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42", Title: "T",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "C-reply", Body: "thread reply", User: User{ID: "U3"}, IssueID: "I1", ParentID: &parent},
+		},
+	}
+	seenIssues := newFakeSeenIssues()
+	seenIssues.ids["I1"] = struct{}{}
+
+	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   seenIssues,
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+
+	if len(received) != 1 {
+		t.Fatalf("expected 1 dispatch, got %d", len(received))
+	}
+	var got replyTarget
+	if err := json.Unmarshal([]byte(received[0].Raw), &got); err != nil {
+		t.Fatalf("unmarshal Raw: %v", err)
+	}
+	if got.IssueID != "I1" {
+		t.Errorf("Raw IssueID = %q, want I1", got.IssueID)
+	}
+	if got.ParentCommentID == nil || *got.ParentCommentID != "C-parent" {
+		t.Errorf("Raw ParentCommentID = %v, want \"C-parent\"", got.ParentCommentID)
+	}
+}
+
 func TestSender_PostsCommentWithParentID(t *testing.T) {
 	parent := "C0"
 	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1", ParentCommentID: &parent})
