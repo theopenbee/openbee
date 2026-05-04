@@ -116,8 +116,11 @@ if !c.CreatedAt.After(since) { continue }
 
 // Add:
 if r.seenComments.Contains(c.ID) { continue }
+```
 
-// After comment loop, persist new IDs:
+`newIDs []string` is declared **before** the outer `for _, issue := range issues` loop and accumulates IDs across all issues in one tick. After the outer loop completes (once per tick), persist:
+
+```go
 if len(newIDs) > 0 {
     if err := r.seenComments.Add(ctx, newIDs); err != nil {
         log.Error("seen comments save", zap.Error(err))
