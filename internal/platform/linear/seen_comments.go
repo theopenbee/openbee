@@ -60,6 +60,9 @@ func (s *SeenComments) Contains(id string) bool {
 
 // Add records ids as dispatched and atomically persists the full set to disk.
 func (s *SeenComments) Add(_ context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
 	for _, id := range ids {
 		s.ids[id] = struct{}{}
 	}
