@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -34,63 +33,6 @@ type cursorAPI interface {
 	Save(ctx context.Context, t time.Time) error
 }
 
-// selfComments tracks comment IDs the bot has posted so the receiver can skip
-// them on the next poll. The set is persisted to <dir>/self_comments.log
-// (one ID per line, append-only) so a restart does not cause the bot to
-// re-process its own replies.
-type selfComments struct {
-	mu  sync.Mutex
-	set map[string]struct{}
-	f   *os.File
-}
-
-func newSelfComments(dir string) (*selfComments, error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("self_comments: mkdir: %w", err)
-	}
-	path := filepath.Join(dir, "self_comments.log")
-	set := make(map[string]struct{})
-	if data, err := os.ReadFile(path); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			if line != "" {
-				set[line] = struct{}{}
-			}
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("self_comments: read %s: %w", path, err)
-	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("self_comments: open %s: %w", path, err)
-	}
-	return &selfComments{set: set, f: f}, nil
-}
-
-func (s *selfComments) Add(id string) {
-	if id == "" {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.set[id]; ok {
-		return
-	}
-	if _, err := s.f.Write([]byte(id + "\n")); err != nil {
-		// Log and skip — the in-memory set isn't updated either, so we'll
-		// retry persisting if the same ID comes back through a later Send.
-		log.Error("self_comments: write", zap.Error(err), zap.String("id", id))
-		return
-	}
-	s.set[id] = struct{}{}
-}
-
-func (s *selfComments) Has(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.set[id]
-	return ok
-}
-
 // LinearPlatform implements platform.Platform.
 type LinearPlatform struct {
 	receiver *LinearReceiver
@@ -106,19 +48,14 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 	}
 	dir := filepath.Join(home, ".openbee", ".linear")
 	client := NewClient(cfg.APIKey)
-	self, err := newSelfComments(dir)
-	if err != nil {
-		return nil, err
-	}
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
 			cursor:       NewCursor(dir),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
-			self:         self,
 		},
-		sender: &LinearSender{client: client, self: self},
+		sender: &LinearSender{client: client},
 	}, nil
 }
 
@@ -132,7 +69,6 @@ type LinearReceiver struct {
 	cursor       cursorAPI
 	labelName    string
 	pollInterval time.Duration
-	self         *selfComments
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -176,9 +112,6 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				continue
 			}
 			if strings.HasPrefix(c.Body, "[openbee-bot]") {
-				continue
-			}
-			if r.self.Has(c.ID) {
 				continue
 			}
 			dispatch(buildCommentInbound(issue, c))
@@ -264,7 +197,6 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 // LinearSender posts replies as Linear comments.
 type LinearSender struct {
 	client Client
-	self   *selfComments
 }
 
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
@@ -279,14 +211,8 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return errors.New("linear: reply target missing issue_id")
 	}
 	return utils.RetryWithBackoff(ctx, func() error {
-		c, err := s.client.CreateComment(ctx, target.IssueID, selfMarker+msg.Content, target.ParentCommentID)
-		if err != nil {
-			return err
-		}
-		if s.self != nil {
-			s.self.Add(c.ID)
-		}
-		return nil
+		_, err := s.client.CreateComment(ctx, target.IssueID, selfMarker+msg.Content, target.ParentCommentID)
+		return err
 	}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
 }
 
