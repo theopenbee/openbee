@@ -3,8 +3,6 @@ package linear
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -19,13 +17,20 @@ func testProjectStore() *linearcfg.Store {
 	return linearcfg.NewStore([]string{"proj-a"})
 }
 
+// testStatesStore returns a linearcfg.StatesStore seeded with two states so
+// tickOnce is not gated out by the empty-states policy.
+func testStatesStore() *linearcfg.StatesStore {
+	return linearcfg.NewStatesStore([]string{"Todo", "In Progress"})
+}
+
 // fakeClient is a Client that returns canned data per call.
 type fakeClient struct {
 	mu           sync.Mutex
 	viewer       User
 	calls        int
+	lastStates   []string
 	lastProjects []string
-	issues       func(since time.Time) ([]Issue, bool, error)
+	issues       func() ([]Issue, error)
 	created      []struct {
 		IssueID, Body string
 		ParentID      *string
@@ -34,20 +39,13 @@ type fakeClient struct {
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
 
-// IssuesInStates is the new Client method. For now we delegate to the legacy
-// `issues` callback by passing a zero time so existing handler tests keep
-// compiling; Tasks 5/6 will rewrite handler tests to drive this method
-// directly.
 func (f *fakeClient) IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error) {
 	f.mu.Lock()
 	f.calls++
+	f.lastStates = append([]string(nil), states...)
 	f.lastProjects = append([]string(nil), projects...)
 	f.mu.Unlock()
-	if f.issues == nil {
-		return nil, nil
-	}
-	out, _, err := f.issues(time.Time{})
-	return out, err
+	return f.issues()
 }
 
 func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error) {
@@ -60,26 +58,18 @@ func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return Comment{ID: "C-new"}, nil
 }
 
-type fakeCursor struct {
-	last  time.Time
-	saved time.Time
-}
-
-func (c *fakeCursor) Load(ctx context.Context) (time.Time, error) { return c.last, nil }
-func (c *fakeCursor) Save(ctx context.Context, t time.Time) error { c.saved = t; return nil }
-
-type fakeSeen struct {
+type fakeSeenComments struct {
 	ids   map[string]struct{}
 	added []string
 }
 
-func newFakeSeen() *fakeSeen {
-	return &fakeSeen{ids: make(map[string]struct{})}
+func newFakeSeenComments() *fakeSeenComments {
+	return &fakeSeenComments{ids: make(map[string]struct{})}
 }
 
-func (f *fakeSeen) Load(_ context.Context) error { return nil }
-func (f *fakeSeen) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
-func (f *fakeSeen) Add(_ context.Context, ids []string) error {
+func (f *fakeSeenComments) Load(_ context.Context) error { return nil }
+func (f *fakeSeenComments) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
+func (f *fakeSeenComments) Add(_ context.Context, ids []string) error {
 	for _, id := range ids {
 		f.ids[id] = struct{}{}
 	}
@@ -87,85 +77,255 @@ func (f *fakeSeen) Add(_ context.Context, ids []string) error {
 	return nil
 }
 
-func mustParse(t *testing.T, s string) time.Time {
-	t.Helper()
-	v, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v
+type fakeSeenIssues struct {
+	ids   map[string]struct{}
+	added []string
 }
 
-func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
+func newFakeSeenIssues() *fakeSeenIssues {
+	return &fakeSeenIssues{ids: make(map[string]struct{})}
+}
+
+func (f *fakeSeenIssues) Load(_ context.Context) error { return nil }
+func (f *fakeSeenIssues) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
+func (f *fakeSeenIssues) Add(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		f.ids[id] = struct{}{}
+	}
+	f.added = append(f.added, ids...)
+	return nil
+}
+
+func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 	bot := User{ID: "BOT"}
-	since := mustParse(t, "2026-05-02T09:00:00Z")
 	issue := Issue{
 		ID:          "I1",
 		Identifier:  "ENG-42",
-		Title:       "Title",
-		Description: "Body",
-		CreatedAt:   mustParse(t, "2026-05-02T10:00:00Z"),
-		UpdatedAt:   mustParse(t, "2026-05-02T11:30:00Z"),
+		Title:       "Fix login",
+		Description: "Users get 401 sporadically.",
 		Team:        Team{Key: "ENG"},
-		Creator:     User{ID: "U2"},
-		Labels: []IssueLabel{
-			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T10:30:00Z")},
-		},
+		Creator:     User{ID: "U2", Name: "Alice"},
 		Comments: []Comment{
-			{ID: "C1", Body: "first", CreatedAt: mustParse(t, "2026-05-02T11:00:00Z"), User: User{ID: "U2"}, IssueID: "I1"},
-			{ID: "C-bot", Body: "[openbee-bot]\n\nignore me", CreatedAt: mustParse(t, "2026-05-02T11:15:00Z"), User: bot, IssueID: "I1"},
-			{ID: "C2", Body: "second", CreatedAt: mustParse(t, "2026-05-02T11:30:00Z"), User: User{ID: "U2"}, IssueID: "I1"},
+			{ID: "C1", Body: "Saw it on Safari too", User: User{ID: "U2", Name: "Alice"}, IssueID: "I1"},
+			{ID: "C-bot", Body: "[openbee-bot]\n\nignore me", User: bot, IssueID: "I1"},
+			{ID: "C2", Body: "Probably the cookie domain", User: User{ID: "U3", Name: "Bob"}, IssueID: "I1"},
 		},
 	}
 	fc := &fakeClient{
 		viewer: bot,
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+		issues: func() ([]Issue, error) { return []Issue{issue}, nil },
 	}
-	cur := &fakeCursor{last: since}
+	seenIssues := newFakeSeenIssues()
+	seenComments := newFakeSeenComments()
 
 	r := &LinearReceiver{
 		client:       fc,
-		cursor:       cur,
+		seenIssues:   seenIssues,
+		seenComments: seenComments,
 		labelName:    "openbee",
+		pollInterval: time.Hour,
 		projectStore: testProjectStore(),
-		seenComments: newFakeSeen(),
+		statesStore:  testStatesStore(),
 	}
 
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
 
-	// Expect 3 dispatches: issue body, C1, C2 (C-bot filtered via body prefix).
-	if len(got) != 3 {
-		t.Fatalf("dispatched %d messages, want 3: %+v", len(got), got)
+	if len(received) != 1 {
+		t.Fatalf("expected exactly 1 InboundMessage, got %d", len(received))
 	}
-	// Sort for stable assertions (dispatch order should already be chronological).
-	sort.Slice(got, func(i, j int) bool { return got[i].MessageTime < got[j].MessageTime })
-	if got[0].PlatformMessageID != "issue:I1" {
-		t.Errorf("first dispatch should be issue body: %+v", got[0])
+	got := received[0]
+	if got.PlatformMessageID != "issue:I1" {
+		t.Errorf("PlatformMessageID = %q", got.PlatformMessageID)
 	}
-	if got[0].SessionKey != "linear:ENG:ENG-42" {
-		t.Errorf("session key: %q", got[0].SessionKey)
+	wantContent := "Fix login\n\nUsers get 401 sporadically.\n\n---\nComments (2):\n\n[Alice]: Saw it on Safari too\n[Bob]: Probably the cookie domain"
+	if got.Content != wantContent {
+		t.Errorf("Content mismatch.\nwant:\n%s\n\ngot:\n%s", wantContent, got.Content)
 	}
-	if got[1].PlatformMessageID != "comment:C1" || got[2].PlatformMessageID != "comment:C2" {
-		t.Errorf("comment IDs out of order: %+v", got)
+	if !seenIssues.Contains("I1") {
+		t.Error("seenIssues missing I1 after dispatch")
 	}
-	// Cursor advanced to issue.UpdatedAt or last comment, whichever later.
-	if !cur.saved.Equal(issue.UpdatedAt) {
-		t.Errorf("cursor saved = %v, want %v", cur.saved, issue.UpdatedAt)
+	if !seenComments.Contains("C1") || !seenComments.Contains("C2") {
+		t.Error("seenComments missing folded comment IDs after merged dispatch")
+	}
+	if seenComments.Contains("C-bot") {
+		t.Error("seenComments wrongly contains bot comment ID")
 	}
 }
 
-func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
-	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
+func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
+	bot := User{ID: "BOT"}
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "Fix login",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "C1", Body: "old comment", User: User{ID: "U2"}, IssueID: "I1"},
+			{ID: "C2", Body: "new comment", User: User{ID: "U3"}, IssueID: "I1"},
+		},
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
+	fc := &fakeClient{
+		viewer: bot,
+		issues: func() ([]Issue, error) { return []Issue{issue}, nil },
+	}
+	seenIssues := newFakeSeenIssues()
+	seenIssues.ids["I1"] = struct{}{}
+	seenComments := newFakeSeenComments()
+	seenComments.ids["C1"] = struct{}{}
 
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   seenIssues,
+		seenComments: seenComments,
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+
+	if len(received) != 1 {
+		t.Fatalf("expected 1 InboundMessage for new comment, got %d", len(received))
+	}
+	if received[0].PlatformMessageID != "comment:C2" {
+		t.Errorf("expected comment:C2, got %s", received[0].PlatformMessageID)
+	}
+}
+
+func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.T) {
+	bot := User{ID: "BOT"}
+	// Issue is unknown — merged dispatch path.
+	issueA := Issue{
+		ID: "IA", Identifier: "ENG-1", Title: "A", Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "C-bot-A", Body: "[openbee-bot]\n\nx", User: bot, IssueID: "IA"},
+		},
+	}
+	// Issue is known — per-comment dispatch path.
+	issueB := Issue{
+		ID: "IB", Identifier: "ENG-2", Title: "B", Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "C-bot-B", Body: "[openbee-bot]\n\ny", User: bot, IssueID: "IB"},
+		},
+	}
+	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issueA, issueB}, nil }}
+	seenIssues := newFakeSeenIssues()
+	seenIssues.ids["IB"] = struct{}{}
+
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   seenIssues,
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+
+	// Issue A: merged dispatch but with zero non-bot comments → still dispatch
+	// the title/description (the issue itself is new).
+	if len(received) != 1 {
+		t.Fatalf("expected exactly 1 dispatch (issue A initial, no per-comment), got %d", len(received))
+	}
+	if received[0].PlatformMessageID != "issue:IA" {
+		t.Errorf("got %s", received[0].PlatformMessageID)
+	}
+}
+
+func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) {
+		t.Fatal("issues should not be queried when states is empty")
+		return nil, nil
+	}}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenIssues(),
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  linearcfg.NewStatesStore(nil), // empty
+	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
-	if !cur.saved.IsZero() {
-		t.Errorf("cursor advanced on error: %v", cur.saved)
+}
+
+func TestReceiver_TickOnce_EmptyProjectsSkipsTick(t *testing.T) {
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) {
+		t.Fatal("issues should not be queried when projects is empty")
+		return nil, nil
+	}}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenIssues(),
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: linearcfg.NewStore(nil), // empty
+		statesStore:  testStatesStore(),
+	}
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+}
+
+func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T) {
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42",
+		Title: "Title only", Description: "Body line",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+	}
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenIssues(),
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+	if len(got) != 1 {
+		t.Fatalf("got %d", len(got))
+	}
+	if got[0].Content != "Title only\n\nBody line" {
+		t.Errorf("merged content with no comments should equal title+desc only; got %q", got[0].Content)
+	}
+}
+
+func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42",
+		Title: "Title only",
+		Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Comments: []Comment{
+			{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}, IssueID: "I1"},
+		},
+	}
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenIssues(),
+		seenComments: newFakeSeenComments(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+	if len(got) != 1 {
+		t.Fatalf("got %d", len(got))
+	}
+	want := "Title only\n\n---\nComments (1):\n\n[Alice]: hi"
+	if got[0].Content != want {
+		t.Errorf("merged content mismatch.\nwant: %q\ngot:  %q", want, got[0].Content)
 	}
 }
 
@@ -205,208 +365,5 @@ func TestSender_RejectsMediaPath(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error for MediaPath")
-	}
-}
-
-// TestReceiver_TickOnce_SkipsPrefixedSelfComment verifies the new
-// prefix-based identification: a polled comment whose body starts with
-// "[openbee-bot]" must be skipped even when it is NOT in the self-comment
-// ID set (simulates a fresh state file or an upgraded process).
-func TestReceiver_TickOnce_SkipsPrefixedSelfComment(t *testing.T) {
-	bot := User{ID: "BOT"}
-	since := mustParse(t, "2026-05-02T09:00:00Z")
-	issue := Issue{
-		ID:         "I1",
-		Identifier: "ENG-42",
-		Title:      "T",
-		Team:       Team{Key: "ENG"},
-		Creator:    User{ID: "U2"},
-		// Issue and label predate `since`; only comments are new.
-		CreatedAt: mustParse(t, "2026-05-02T08:00:00Z"),
-		UpdatedAt: mustParse(t, "2026-05-02T11:00:00Z"),
-		Labels: []IssueLabel{
-			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
-		},
-		Comments: []Comment{
-			// Bot's own outbound — has the marker, NOT in the self set.
-			{ID: "C-bot", Body: "[openbee-bot]\n\nhi there", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: bot},
-			// Real user comment — must be dispatched.
-			{ID: "C-user", Body: "what's up?", CreatedAt: mustParse(t, "2026-05-02T10:30:00Z"), User: User{ID: "U2"}},
-		},
-	}
-	fc := &fakeClient{
-		viewer: bot,
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
-	}
-	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
-
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-
-	if len(got) != 1 {
-		t.Fatalf("dispatched %d, want 1: %+v", len(got), got)
-	}
-	if got[0].PlatformMessageID != "comment:C-user" {
-		t.Errorf("unexpected dispatch: %+v", got[0])
-	}
-}
-
-// TestReceiver_TickOnce_EmptyProjectsSkipsAPI verifies the policy that an
-// empty project allow-list causes the receiver to skip the tick entirely
-// (no API call, no cursor advance).
-func TestReceiver_TickOnce_EmptyProjectsSkipsAPI(t *testing.T) {
-	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) {
-			t.Fatal("IssuesUpdatedSince should not be called when projects is empty")
-			return nil, false, nil
-		},
-	}
-	r := &LinearReceiver{
-		client:       fc,
-		cursor:       cur,
-		labelName:    "openbee",
-		projectStore: linearcfg.NewStore(nil),
-		seenComments: newFakeSeen(),
-	}
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {
-		t.Fatal("dispatch should not be called when projects is empty")
-	})
-	if !cur.saved.IsZero() {
-		t.Errorf("cursor advanced when projects is empty: %v", cur.saved)
-	}
-	if fc.calls != 0 {
-		t.Errorf("client called %d times, want 0", fc.calls)
-	}
-}
-
-// TestReceiver_TickOnce_ForwardsProjectsToClient verifies that the project
-// allow-list is passed through to the GraphQL client unchanged.
-func TestReceiver_TickOnce_ForwardsProjectsToClient(t *testing.T) {
-	cur := &fakeCursor{last: mustParse(t, "2026-05-02T09:00:00Z")}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, nil },
-	}
-	r := &LinearReceiver{
-		client:       fc,
-		cursor:       cur,
-		labelName:    "openbee",
-		projectStore: linearcfg.NewStore([]string{"alpha", "beta"}),
-		seenComments: newFakeSeen(),
-	}
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
-	if got := fc.lastProjects; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
-		t.Errorf("client received projects = %v, want [alpha beta]", got)
-	}
-}
-
-// TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString verifies the
-// prefix check is HasPrefix, not Contains: a user quoting "[openbee-bot]" later
-// in their reply should still be dispatched.
-func TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString(t *testing.T) {
-	since := mustParse(t, "2026-05-02T09:00:00Z")
-	issue := Issue{
-		ID:         "I1",
-		Identifier: "ENG-42",
-		Title:      "T",
-		Team:       Team{Key: "ENG"},
-		Creator:    User{ID: "U2"},
-		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
-		UpdatedAt:  mustParse(t, "2026-05-02T10:30:00Z"),
-		Labels: []IssueLabel{
-			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
-		},
-		Comments: []Comment{
-			{ID: "C-user", Body: "i saw [openbee-bot] in your reply", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
-		},
-	}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
-	}
-	cur := &fakeCursor{last: since}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: newFakeSeen()}
-
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-
-	if len(got) != 1 {
-		t.Fatalf("dispatched %d, want 1 (the user quote): %+v", len(got), got)
-	}
-	if got[0].PlatformMessageID != "comment:C-user" {
-		t.Errorf("unexpected dispatch: %+v", got[0])
-	}
-}
-
-func TestReceiver_TickOnce_SkipsAlreadySeenCommentID(t *testing.T) {
-	since := mustParse(t, "2026-05-02T09:00:00Z")
-	issue := Issue{
-		ID:         "I1",
-		Identifier: "ENG-42",
-		Title:      "T",
-		Team:       Team{Key: "ENG"},
-		Creator:    User{ID: "U2"},
-		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
-		UpdatedAt:  mustParse(t, "2026-05-02T11:00:00Z"),
-		Labels: []IssueLabel{
-			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
-		},
-		Comments: []Comment{
-			{ID: "C-seen", Body: "already dispatched", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
-			{ID: "C-new", Body: "new comment", CreatedAt: mustParse(t, "2026-05-02T10:30:00Z"), User: User{ID: "U2"}},
-		},
-	}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
-	}
-	cur := &fakeCursor{last: since}
-	seen := newFakeSeen()
-	seen.ids["C-seen"] = struct{}{} // pre-populate as already dispatched
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: seen}
-
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-
-	if len(got) != 1 {
-		t.Fatalf("dispatched %d, want 1: %+v", len(got), got)
-	}
-	if got[0].PlatformMessageID != "comment:C-new" {
-		t.Errorf("unexpected dispatch: %+v", got[0])
-	}
-}
-
-func TestReceiver_TickOnce_AddsDispatchedIDsToSeenSet(t *testing.T) {
-	since := mustParse(t, "2026-05-02T09:00:00Z")
-	issue := Issue{
-		ID:         "I1",
-		Identifier: "ENG-42",
-		Title:      "T",
-		Team:       Team{Key: "ENG"},
-		Creator:    User{ID: "U2"},
-		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
-		UpdatedAt:  mustParse(t, "2026-05-02T11:00:00Z"),
-		Labels: []IssueLabel{
-			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
-		},
-		Comments: []Comment{
-			{ID: "C1", Body: "hello", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
-		},
-	}
-	fc := &fakeClient{
-		viewer: User{ID: "BOT"},
-		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
-	}
-	cur := &fakeCursor{last: since}
-	seen := newFakeSeen()
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: seen}
-
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
-
-	if !seen.Contains("C1") {
-		t.Error("C1 not added to seen set after dispatch")
 	}
 }
