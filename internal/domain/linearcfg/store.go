@@ -44,3 +44,31 @@ func cloneNonEmpty(in []string) []string {
 	}
 	return out
 }
+
+// StatesStore holds the current Linear workflow-state name allow-list.
+// Safe for concurrent use. Operates identically to Store but tracks state names
+// instead of project names.
+type StatesStore struct {
+	mu     sync.RWMutex
+	states []string
+}
+
+// NewStatesStore returns a StatesStore seeded with the given state names.
+// Empty entries in initial are dropped.
+func NewStatesStore(initial []string) *StatesStore {
+	return &StatesStore{states: cloneNonEmpty(initial)}
+}
+
+// Get returns a copy of the current state name allow-list.
+func (s *StatesStore) Get() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneNonEmpty(s.states)
+}
+
+// Set replaces the state name allow-list.
+func (s *StatesStore) Set(states []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.states = cloneNonEmpty(states)
+}
