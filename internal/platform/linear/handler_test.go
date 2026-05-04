@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -87,7 +91,10 @@ func TestReceiver_TickOnce_DispatchesIssueAndComments(t *testing.T) {
 	}
 	cur := &fakeCursor{last: since}
 
-	self := newSelfComments()
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	self.Add("C-bot")
 	r := &LinearReceiver{
 		client:    fc,
@@ -126,7 +133,11 @@ func TestReceiver_TickOnce_ErrorDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return nil, false, errors.New("boom") },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: newSelfComments()}
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -147,7 +158,11 @@ func TestReceiver_TickOnce_TruncatedDoesNotAdvanceCursor(t *testing.T) {
 		viewer: User{ID: "BOT"},
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, true, nil },
 	}
-	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: newSelfComments()}
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 	if !cur.saved.IsZero() {
@@ -160,9 +175,12 @@ func TestSender_PostsCommentWithParentID(t *testing.T) {
 	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1", ParentCommentID: &parent})
 
 	fc := &fakeClient{viewer: User{ID: "BOT"}}
-	self := newSelfComments()
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := &LinearSender{client: fc, self: self}
-	err := s.Send(context.Background(), platform.OutboundMessage{
+	err = s.Send(context.Background(), platform.OutboundMessage{
 		Content: "hello",
 		ReplyTo: platform.InboundMessage{Raw: string(rawBytes)},
 	})
@@ -214,7 +232,10 @@ func TestReceiver_TickOnce_DispatchesHumanCommentSharingBotUserID(t *testing.T) 
 		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
 	}
 	cur := &fakeCursor{last: since}
-	self := newSelfComments()
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	self.Add("C-bot")
 
 	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
@@ -243,5 +264,81 @@ func TestSender_RejectsMediaPath(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error for MediaPath")
+	}
+}
+
+func TestSelfComments_PersistsAcrossRestart(t *testing.T) {
+	dir := t.TempDir()
+
+	a, err := newSelfComments(dir)
+	if err != nil {
+		t.Fatalf("newSelfComments: %v", err)
+	}
+	a.Add("C1")
+	a.Add("C2")
+	a.Add("C1") // duplicate — must not double-write
+	if !a.Has("C1") || !a.Has("C2") {
+		t.Fatal("set missing IDs after Add")
+	}
+
+	// Simulate restart: a fresh instance pointed at the same dir must
+	// reload the previously-recorded IDs.
+	b, err := newSelfComments(dir)
+	if err != nil {
+		t.Fatalf("newSelfComments restart: %v", err)
+	}
+	if !b.Has("C1") || !b.Has("C2") {
+		t.Errorf("after restart, set missing recorded IDs")
+	}
+	if b.Has("C-other") {
+		t.Errorf("unexpected ID survived restart")
+	}
+
+	// File should contain exactly two lines (no duplicates from the duplicate Add).
+	data, err := os.ReadFile(filepath.Join(dir, "self_comments.log"))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Errorf("expected 2 lines, got %d: %q", len(lines), data)
+	}
+}
+
+func TestSelfComments_ConcurrentAddsAreAtomic(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newSelfComments(dir)
+	if err != nil {
+		t.Fatalf("newSelfComments: %v", err)
+	}
+	const N = 200
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s.Add(fmt.Sprintf("C%d", i))
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < N; i++ {
+		if !s.Has(fmt.Sprintf("C%d", i)) {
+			t.Fatalf("missing ID C%d", i)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "self_comments.log"))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != N {
+		t.Errorf("expected %d lines, got %d", N, len(lines))
+	}
+	seen := map[string]struct{}{}
+	for _, l := range lines {
+		if _, dup := seen[l]; dup {
+			t.Errorf("duplicate line in log: %q", l)
+		}
+		seen[l] = struct{}{}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,22 +30,36 @@ type cursorAPI interface {
 	Save(ctx context.Context, t time.Time) error
 }
 
-// selfCommentsCap bounds the in-memory set of bot-posted comment IDs so a
-// long-running poller can't grow without limit.
-const selfCommentsCap = 1024
-
 // selfComments tracks comment IDs the bot has posted so the receiver can skip
-// them on the next poll. Linear users frequently configure the bot with their
-// own personal API key, so filtering by viewer.ID would also drop the user's
-// real comments — we must filter by comment ID instead.
+// them on the next poll. The set is persisted to <dir>/self_comments.log
+// (one ID per line, append-only) so a restart does not cause the bot to
+// re-process its own replies.
 type selfComments struct {
-	mu    sync.Mutex
-	set   map[string]struct{}
-	order []string
+	mu  sync.Mutex
+	set map[string]struct{}
+	f   *os.File
 }
 
-func newSelfComments() *selfComments {
-	return &selfComments{set: make(map[string]struct{})}
+func newSelfComments(dir string) (*selfComments, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("self_comments: mkdir: %w", err)
+	}
+	path := filepath.Join(dir, "self_comments.log")
+	set := make(map[string]struct{})
+	if data, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if line != "" {
+				set[line] = struct{}{}
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("self_comments: read %s: %w", path, err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("self_comments: open %s: %w", path, err)
+	}
+	return &selfComments{set: set, f: f}, nil
 }
 
 func (s *selfComments) Add(id string) {
@@ -56,13 +71,13 @@ func (s *selfComments) Add(id string) {
 	if _, ok := s.set[id]; ok {
 		return
 	}
-	s.set[id] = struct{}{}
-	s.order = append(s.order, id)
-	if len(s.order) > selfCommentsCap {
-		evict := s.order[0]
-		s.order = s.order[1:]
-		delete(s.set, evict)
+	if _, err := s.f.Write([]byte(id + "\n")); err != nil {
+		// Log and skip — the in-memory set isn't updated either, so we'll
+		// retry persisting if the same ID comes back through a later Send.
+		log.Error("self_comments: write", zap.Error(err), zap.String("id", id))
+		return
 	}
+	s.set[id] = struct{}{}
 }
 
 func (s *selfComments) Has(id string) bool {
@@ -87,7 +102,10 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 	}
 	dir := filepath.Join(home, ".openbee", ".linear")
 	client := NewClient(cfg.APIKey)
-	self := newSelfComments()
+	self, err := newSelfComments(dir)
+	if err != nil {
+		return nil, err
+	}
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
