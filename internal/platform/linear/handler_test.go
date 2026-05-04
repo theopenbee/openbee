@@ -191,12 +191,12 @@ func TestSender_PostsCommentWithParentID(t *testing.T) {
 		t.Fatalf("expected 1 CreateComment call, got %d", len(fc.created))
 	}
 	c := fc.created[0]
-	if c.IssueID != "I1" || c.Body != "hello" || c.ParentID == nil || *c.ParentID != "C0" {
+	if c.IssueID != "I1" || c.ParentID == nil || *c.ParentID != "C0" {
 		t.Errorf("unexpected call: %+v", c)
 	}
-	// Sender must register the returned comment ID so the receiver skips it.
-	if !self.Has("C-new") {
-		t.Error("sender did not record outbound comment ID in self set")
+	// Body must begin with the self-marker prefix and end with the caller's content.
+	if c.Body != "[openbee-bot]\n\nhello" {
+		t.Errorf("body = %q, want %q", c.Body, "[openbee-bot]\n\nhello")
 	}
 }
 

@@ -22,6 +22,10 @@ import (
 // PlatformID is the platform identifier used in SessionKey and ingest routing.
 const PlatformID = "linear"
 
+// selfMarker is prepended to every outbound comment body. The receiver
+// recognises bot-authored comments by checking HasPrefix(body, "[openbee-bot]").
+const selfMarker = "[openbee-bot]\n\n"
+
 var log = logger.With(zap.String("component", "linear"))
 
 // cursorAPI is satisfied by *Cursor and by test fakes.
@@ -272,7 +276,7 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return errors.New("linear: reply target missing issue_id")
 	}
 	return utils.RetryWithBackoff(ctx, func() error {
-		c, err := s.client.CreateComment(ctx, target.IssueID, msg.Content, target.ParentCommentID)
+		c, err := s.client.CreateComment(ctx, target.IssueID, selfMarker+msg.Content, target.ParentCommentID)
 		if err != nil {
 			return err
 		}
