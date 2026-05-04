@@ -186,7 +186,7 @@ query Issues($since: DateTimeOrDuration!, $label: String!, $projects: [String!]!
       labels(filter: { name: { eq: $label } }) {
         nodes { name createdAt }
       }
-      comments(filter: { createdAt: { gt: $since } }, orderBy: createdAt) {
+      comments(orderBy: createdAt) {
         nodes { id body createdAt user { id name email } parentId }
       }
     }
