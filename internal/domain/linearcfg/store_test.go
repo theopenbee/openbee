@@ -55,7 +55,7 @@ func TestStatesStore_SetReplacesAndDropsEmpty(t *testing.T) {
 	}
 }
 
-func TestStatesStore_NewStoreFiltersEmptyInitial(t *testing.T) {
+func TestStatesStore_NewStatesStoreFiltersEmptyInitial(t *testing.T) {
 	s := NewStatesStore([]string{"", "Todo", ""})
 	got := s.Get()
 	if len(got) != 1 || got[0] != "Todo" {

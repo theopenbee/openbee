@@ -22,9 +22,13 @@ import (
 // PlatformID is the platform identifier used in SessionKey and ingest routing.
 const PlatformID = "linear"
 
-// selfMarker is prepended to every outbound comment body. The receiver
-// recognises bot-authored comments by checking HasPrefix(body, "[openbee-bot]").
-const selfMarker = "[openbee-bot]\n\n"
+// botCommentPrefix marks bot-authored comments. Outbound comments are prefixed
+// with botCommentPrefix + "\n\n" (selfMarker); inbound dedup uses HasPrefix on
+// botCommentPrefix alone so a stray formatting variant still gets filtered.
+const botCommentPrefix = "[openbee-bot]"
+
+// selfMarker is prepended to every outbound comment body.
+const selfMarker = botCommentPrefix + "\n\n"
 
 var log = logger.With(zap.String("component", "linear"))
 
@@ -164,7 +168,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if r.seenComments.Contains(c.ID) {
 				continue
 			}
-			if strings.HasPrefix(c.Body, "[openbee-bot]") {
+			if strings.HasPrefix(c.Body, botCommentPrefix) {
 				continue
 			}
 			log.Info("tick: dispatch comment",
@@ -179,12 +183,18 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 
 	if len(newIssueIDs) > 0 {
 		if err := r.seenIssues.Add(ctx, newIssueIDs); err != nil {
-			log.Error("seen issues save", zap.Error(err))
+			log.Error("seen issues save",
+				zap.Int("count", len(newIssueIDs)),
+				zap.Strings("ids", newIssueIDs),
+				zap.Error(err))
 		}
 	}
 	if len(newCommentIDs) > 0 {
 		if err := r.seenComments.Add(ctx, newCommentIDs); err != nil {
-			log.Error("seen comments save", zap.Error(err))
+			log.Error("seen comments save",
+				zap.Int("count", len(newCommentIDs)),
+				zap.Strings("ids", newCommentIDs),
+				zap.Error(err))
 		}
 	}
 }
@@ -192,7 +202,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 func nonBotComments(in []Comment) []Comment {
 	out := make([]Comment, 0, len(in))
 	for _, c := range in {
-		if strings.HasPrefix(c.Body, "[openbee-bot]") {
+		if strings.HasPrefix(c.Body, botCommentPrefix) {
 			continue
 		}
 		out = append(out, c)

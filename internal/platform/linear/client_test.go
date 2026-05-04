@@ -127,9 +127,6 @@ func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 							"updatedAt":   "2026-05-02T11:00:00Z",
 							"team":        map[string]string{"key": "ENG"},
 							"creator":     map[string]string{"id": "U2"},
-							"labels": map[string]any{"nodes": []map[string]any{
-								{"name": "openbee", "createdAt": "2026-05-02T10:30:00Z"},
-							}},
 							"comments": map[string]any{"nodes": []map[string]any{
 								{"id": "C1", "body": "hi", "createdAt": "2026-05-02T10:45:00Z", "user": map[string]string{"id": "U2"}},
 							}},
@@ -149,9 +146,6 @@ func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 	}
 	if out[0].Identifier != "ENG-1" {
 		t.Errorf("identifier = %q", out[0].Identifier)
-	}
-	if len(out[0].Labels) != 1 || out[0].Labels[0].Name != "openbee" {
-		t.Errorf("labels = %+v", out[0].Labels)
 	}
 	if len(out[0].Comments) != 1 || out[0].Comments[0].ID != "C1" {
 		t.Errorf("comments = %+v", out[0].Comments)

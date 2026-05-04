@@ -24,13 +24,6 @@ type Team struct {
 	Key string `json:"key"` // e.g. "ENG"
 }
 
-// IssueLabel carries the per-issue label assignment timestamp so we can detect
-// when an issue first received the gating label.
-type IssueLabel struct {
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
 // Comment is the subset of Linear's Comment type we care about.
 type Comment struct {
 	ID        string    `json:"id"`
@@ -43,16 +36,15 @@ type Comment struct {
 
 // Issue is the subset of Linear's Issue type we care about.
 type Issue struct {
-	ID          string       `json:"id"`
-	Identifier  string       `json:"identifier"` // e.g. "ENG-42"
-	Title       string       `json:"title"`
-	Description string       `json:"description"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	UpdatedAt   time.Time    `json:"updatedAt"`
-	Team        Team         `json:"team"`
-	Creator     User         `json:"creator"`
-	Labels      []IssueLabel `json:"-"` // unwrapped from labels.nodes
-	Comments    []Comment    `json:"-"` // unwrapped from comments.nodes
+	ID          string    `json:"id"`
+	Identifier  string    `json:"identifier"` // e.g. "ENG-42"
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Team        Team      `json:"team"`
+	Creator     User      `json:"creator"`
+	Comments    []Comment `json:"-"` // unwrapped from comments.nodes
 }
 
 // Client is the Linear GraphQL client surface used by the receiver and sender.
@@ -185,9 +177,6 @@ query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first
       id identifier title description createdAt updatedAt
       team { key }
       creator { id name email }
-      labels(filter: { name: { eq: $label } }) {
-        nodes { name createdAt }
-      }
       comments(orderBy: createdAt) {
         nodes { id body createdAt user { id name email } parentId }
       }
@@ -201,7 +190,9 @@ query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first
 func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error) {
 	var all []Issue
 	var after *string
+	page := 0
 	for {
+		page++
 		vars := map[string]any{
 			"states":   states,
 			"label":    label,
@@ -224,19 +215,17 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 					UpdatedAt   time.Time `json:"updatedAt"`
 					Team        Team      `json:"team"`
 					Creator     User      `json:"creator"`
-					Labels      struct {
-						Nodes []IssueLabel `json:"nodes"`
-					} `json:"labels"`
-					Comments struct {
+					Comments    struct {
 						Nodes []Comment `json:"nodes"`
 					} `json:"comments"`
 				} `json:"nodes"`
 			} `json:"issues"`
 		}
 		if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("linear: issues page %d: %w", page, err)
 		}
 		log.Info("linear: graphql issues page",
+			zap.Int("page", page),
 			zap.Int("returned", len(data.Issues.Nodes)),
 			zap.Bool("has_next_page", data.Issues.PageInfo.HasNextPage),
 		)
@@ -250,7 +239,6 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 				UpdatedAt:   n.UpdatedAt,
 				Team:        n.Team,
 				Creator:     n.Creator,
-				Labels:      n.Labels.Nodes,
 				Comments:    n.Comments.Nodes,
 			}
 			for i := range issue.Comments {
