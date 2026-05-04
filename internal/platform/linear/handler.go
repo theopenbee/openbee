@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -12,7 +14,6 @@ import (
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/utils"
 )
@@ -77,20 +78,26 @@ type LinearPlatform struct {
 	sender   *LinearSender
 }
 
-// NewPlatform constructs a Linear platform from configuration.
-func NewPlatform(cfg config.LinearConfig, sysCfg *store.SystemConfigStore) platform.Platform {
+// NewPlatform constructs a Linear platform from configuration. Persistent
+// state lives in ~/.openbee/.linear/.
+func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
+	}
+	dir := filepath.Join(home, ".openbee", ".linear")
 	client := NewClient(cfg.APIKey)
 	self := newSelfComments()
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
-			cursor:       NewCursor(sysCfg),
+			cursor:       NewCursor(dir),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
 			self:         self,
 		},
 		sender: &LinearSender{client: client, self: self},
-	}
+	}, nil
 }
 
 func (p *LinearPlatform) ID() string                                 { return PlatformID }

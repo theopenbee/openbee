@@ -149,11 +149,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	platforms := buildPlatforms(
+	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
 		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
-		cfg.Bee.Media, s.systemConfigStore,
+		cfg.Bee.Media,
 	)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range platforms {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
@@ -320,8 +323,7 @@ func buildPlatforms(
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
 	mc config.MediaConfig,
-	sysCfg *store.SystemConfigStore,
-) []platform.Platform {
+) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
@@ -343,9 +345,13 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		result = append(result, linear.NewPlatform(lc, sysCfg))
+		p, err := linear.NewPlatform(lc)
+		if err != nil {
+			return nil, fmt.Errorf("init linear platform: %w", err)
+		}
+		result = append(result, p)
 	}
-	return result
+	return result, nil
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
