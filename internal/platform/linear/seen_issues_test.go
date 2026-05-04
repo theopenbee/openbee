@@ -66,3 +66,32 @@ func TestSeenIssues_AddEmptySliceIsNoop(t *testing.T) {
 		t.Errorf("Add(nil) should not create file; stat err: %v", err)
 	}
 }
+
+func TestSeenIssues_AddLeavesNoTempFile(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenIssues(dir)
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"I1"}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "seen_issues.json.tmp")); !os.IsNotExist(err) {
+		t.Error("seen_issues.json.tmp should be removed after rename")
+	}
+}
+
+func TestSeenIssues_AddCreatesDir(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "nested", "linear")
+	s := NewSeenIssues(dir)
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"I1"}); err != nil {
+		t.Fatalf("Add into missing dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "seen_issues.json")); err != nil {
+		t.Errorf("seen_issues.json not written: %v", err)
+	}
+}
