@@ -23,14 +23,15 @@ type engineValidatorForSys interface {
 
 // SystemConfigHandler serves GET /system-configs and PUT /system-configs/:key.
 type SystemConfigHandler struct {
-	store     sysConfigStore
-	validator engineValidatorForSys
-	engineCfg *enginecfg.Store
-	linearCfg *linearcfg.Store
+	store       sysConfigStore
+	validator   engineValidatorForSys
+	engineCfg   *enginecfg.Store
+	linearCfg   *linearcfg.Store
+	statesStore *linearcfg.StatesStore
 }
 
-func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store) *SystemConfigHandler {
-	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg, linearCfg: linearCfg}
+func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, statesStore *linearcfg.StatesStore) *SystemConfigHandler {
+	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg, linearCfg: linearCfg, statesStore: statesStore}
 }
 
 // Get returns all known system config keys as a JSON object.
@@ -42,6 +43,7 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 		model.SystemConfigKeyEngineArgsGlobal,
 		model.SystemConfigKeyEngineArgsBee,
 		model.SystemConfigKeyLinearProjects,
+		model.SystemConfigKeyLinearStates,
 	}
 	result := make(map[string]string, len(keys))
 	for _, key := range keys {
@@ -63,15 +65,15 @@ type setSystemConfigRequest struct {
 	Value string `json:"value"`
 }
 
-// parseLinearProjects validates that value is either empty or a JSON array of
+// parseStringList validates that value is either empty or a JSON array of
 // strings, and returns the trimmed non-empty entries.
-func parseLinearProjects(value string) ([]string, error) {
+func parseStringList(value string) ([]string, error) {
 	if value == "" || value == "[]" {
 		return nil, nil
 	}
 	var raw []string
 	if err := json.Unmarshal([]byte(value), &raw); err != nil {
-		return nil, errInvalidLinearProjects
+		return nil, errInvalidStringList
 	}
 	out := make([]string, 0, len(raw))
 	for _, p := range raw {
@@ -83,11 +85,11 @@ func parseLinearProjects(value string) ([]string, error) {
 	return out, nil
 }
 
-var errInvalidLinearProjects = errLinearProjects("value must be a JSON array of project name strings")
+var errInvalidStringList = errStringList("value must be a JSON array of non-empty strings")
 
-type errLinearProjects string
+type errStringList string
 
-func (e errLinearProjects) Error() string { return string(e) }
+func (e errStringList) Error() string { return string(e) }
 
 // Set updates a single system config key.
 func (h *SystemConfigHandler) Set(c *gin.Context) {
@@ -128,7 +130,7 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		}
 
 	case model.SystemConfigKeyLinearProjects:
-		projects, err := parseLinearProjects(req.Value)
+		projects, err := parseStringList(req.Value)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -139,6 +141,20 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		}
 		if h.linearCfg != nil {
 			h.linearCfg.Set(projects)
+		}
+
+	case model.SystemConfigKeyLinearStates:
+		states, err := parseStringList(req.Value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if h.statesStore != nil {
+			h.statesStore.Set(states)
 		}
 
 	default:

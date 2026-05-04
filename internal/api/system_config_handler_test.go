@@ -65,22 +65,23 @@ func (f *fakeEngineValidatorForSys) ValidateEngineArgs(raw map[string]string) er
 	return nil
 }
 
-func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store, *linearcfg.Store) {
+func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store, *linearcfg.Store, *linearcfg.StatesStore) {
 	gin.SetMode(gin.TestMode)
 	cfg := enginecfg.NewStore("")
 	linCfg := linearcfg.NewStore(nil)
-	h := NewSystemConfigHandler(store, validator, cfg, linCfg)
+	statesStore := linearcfg.NewStatesStore(nil)
+	h := NewSystemConfigHandler(store, validator, cfg, linCfg, statesStore)
 	r := gin.New()
 	api := r.Group("/api")
 	api.GET("/system-configs", h.Get)
 	api.PUT("/system-configs/:key", h.Set)
-	return r, cfg, linCfg
+	return r, cfg, linCfg, statesStore
 }
 
 // --- tests ---
 
 func TestSystemConfigHandler_Get_Empty(t *testing.T) {
-	router, _, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
@@ -100,7 +101,7 @@ func TestSystemConfigHandler_Get_Empty(t *testing.T) {
 
 func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
-	router, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
@@ -121,7 +122,7 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router, cfg, _ := newSysConfigRouter(store, validator)
+	router, cfg, _, _ := newSysConfigRouter(store, validator)
 
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
@@ -142,7 +143,7 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 
 func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
-	router, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": ""})
 	w := httptest.NewRecorder()
@@ -161,7 +162,7 @@ func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
 func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router, _, _ := newSysConfigRouter(store, validator)
+	router, _, _, _ := newSysConfigRouter(store, validator)
 
 	body, _ := json.Marshal(map[string]string{"value": "unknown-engine"})
 	w := httptest.NewRecorder()
@@ -175,7 +176,7 @@ func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 }
 
 func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
-	router, _, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(&fakeSysConfigStore{vals: map[string]string{}}, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": "something"})
 	w := httptest.NewRecorder()
@@ -190,7 +191,7 @@ func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
 
 func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
 	store := &fakeSysConfigStore{err: errors.New("db down")}
-	router, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
 	router.ServeHTTP(w, req)
@@ -201,7 +202,7 @@ func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
 
 func TestSystemConfigHandler_Set_LinearProjects(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
-	router, _, linCfg := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, linCfg, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": `["proj-a","proj-b"]`})
 	w := httptest.NewRecorder()
@@ -223,7 +224,7 @@ func TestSystemConfigHandler_Set_LinearProjects(t *testing.T) {
 
 func TestSystemConfigHandler_Set_LinearProjects_Empty(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
-	router, _, linCfg := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, linCfg, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 	linCfg.Set([]string{"old"})
 
 	body, _ := json.Marshal(map[string]string{"value": "[]"})
@@ -242,7 +243,7 @@ func TestSystemConfigHandler_Set_LinearProjects_Empty(t *testing.T) {
 
 func TestSystemConfigHandler_Set_LinearProjects_Invalid(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
-	router, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, _, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
 
 	body, _ := json.Marshal(map[string]string{"value": "not-json"})
 	w := httptest.NewRecorder()
@@ -258,7 +259,7 @@ func TestSystemConfigHandler_Set_LinearProjects_Invalid(t *testing.T) {
 func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	store := &fakeSysConfigStore{err: errors.New("db down")}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router, _, _ := newSysConfigRouter(store, validator)
+	router, _, _, _ := newSysConfigRouter(store, validator)
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
@@ -266,5 +267,61 @@ func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestSystemConfigHandler_SetLinearStates_Valid(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{}}
+	router, _, _, statesStore := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+
+	body, _ := json.Marshal(map[string]string{"value": `["Todo","In Progress"]`})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyLinearStates, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := store.vals[model.SystemConfigKeyLinearStates]; got != `["Todo","In Progress"]` {
+		t.Errorf("store mismatch: %q", got)
+	}
+	got := statesStore.Get()
+	if len(got) != 2 || got[0] != "Todo" || got[1] != "In Progress" {
+		t.Errorf("statesStore not updated: %v", got)
+	}
+}
+
+func TestSystemConfigHandler_SetLinearStates_Empty(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{}}
+	router, _, _, statesStore := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	statesStore.Set([]string{"Todo"})
+
+	body, _ := json.Marshal(map[string]string{"value": "[]"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyLinearStates, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := statesStore.Get(); len(got) != 0 {
+		t.Errorf("expected empty after [] write, got %v", got)
+	}
+}
+
+func TestSystemConfigHandler_SetLinearStates_Malformed(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{}}
+	router, _, _, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+
+	body, _ := json.Marshal(map[string]string{"value": "not json"})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyLinearStates, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }

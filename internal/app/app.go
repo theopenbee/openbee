@@ -145,6 +145,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
+	// Linear workflow-state allow-list. Wired here so the receiver and the
+	// SystemConfig handler share the same in-memory store. yaml/DB seeding is
+	// the responsibility of a follow-up task; for now this is an empty store.
+	linearStates := linearcfg.NewStatesStore(nil)
+
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
@@ -170,6 +175,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
 		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
 		linearCfg,
+		linearStates,
 		cfg.Bee.Media,
 	)
 	if err != nil {
@@ -237,7 +243,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, linearCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, linearCfg, linearStates, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -340,6 +346,7 @@ func buildPlatforms(
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
 	linearCfg *linearcfg.Store,
+	linearStates *linearcfg.StatesStore,
 	mc config.MediaConfig,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
@@ -363,11 +370,10 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		// NOTE: states wiring is deferred to a follow-up task; pass an empty
-		// StatesStore for now. The receiver treats an empty states list as
-		// "skip tick", so this preserves the previous behavior of "no platform
-		// activity until states are configured".
-		p, err := linear.NewPlatform(lc, linearCfg, linearcfg.NewStatesStore(nil))
+		// The states allow-list is shared with the SystemConfig handler so that
+		// runtime updates via the Web UI take effect on the receiver's next tick.
+		// Receiver treats an empty states list as "skip tick".
+		p, err := linear.NewPlatform(lc, linearCfg, linearStates)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
@@ -376,7 +382,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, linearStates *linearcfg.StatesStore, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -395,7 +401,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
-		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg, linearCfg),
+		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg, linearCfg, linearStates),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
