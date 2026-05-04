@@ -60,6 +60,25 @@ type fakeCursor struct {
 func (c *fakeCursor) Load(ctx context.Context) (time.Time, error) { return c.last, nil }
 func (c *fakeCursor) Save(ctx context.Context, t time.Time) error { c.saved = t; return nil }
 
+type fakeSeen struct {
+	ids   map[string]struct{}
+	added []string
+}
+
+func newFakeSeen() *fakeSeen {
+	return &fakeSeen{ids: make(map[string]struct{})}
+}
+
+func (f *fakeSeen) Load(_ context.Context) error { return nil }
+func (f *fakeSeen) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
+func (f *fakeSeen) Add(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		f.ids[id] = struct{}{}
+	}
+	f.added = append(f.added, ids...)
+	return nil
+}
+
 func mustParse(t *testing.T, s string) time.Time {
 	t.Helper()
 	v, err := time.Parse(time.RFC3339, s)
@@ -329,5 +348,75 @@ func TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString(t *testing
 	}
 	if got[0].PlatformMessageID != "comment:C-user" {
 		t.Errorf("unexpected dispatch: %+v", got[0])
+	}
+}
+
+func TestReceiver_TickOnce_SkipsAlreadySeenCommentID(t *testing.T) {
+	since := mustParse(t, "2026-05-02T09:00:00Z")
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "T",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U2"},
+		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
+		UpdatedAt:  mustParse(t, "2026-05-02T11:00:00Z"),
+		Labels: []IssueLabel{
+			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
+		},
+		Comments: []Comment{
+			{ID: "C-seen", Body: "already dispatched", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
+			{ID: "C-new", Body: "new comment", CreatedAt: mustParse(t, "2026-05-02T10:30:00Z"), User: User{ID: "U2"}},
+		},
+	}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+	}
+	cur := &fakeCursor{last: since}
+	seen := newFakeSeen()
+	seen.ids["C-seen"] = struct{}{} // pre-populate as already dispatched
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: seen}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 1 {
+		t.Fatalf("dispatched %d, want 1: %+v", len(got), got)
+	}
+	if got[0].PlatformMessageID != "comment:C-new" {
+		t.Errorf("unexpected dispatch: %+v", got[0])
+	}
+}
+
+func TestReceiver_TickOnce_AddsDispatchedIDsToSeenSet(t *testing.T) {
+	since := mustParse(t, "2026-05-02T09:00:00Z")
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "T",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U2"},
+		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
+		UpdatedAt:  mustParse(t, "2026-05-02T11:00:00Z"),
+		Labels: []IssueLabel{
+			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
+		},
+		Comments: []Comment{
+			{ID: "C1", Body: "hello", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
+		},
+	}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+	}
+	cur := &fakeCursor{last: since}
+	seen := newFakeSeen()
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", projectStore: testProjectStore(), seenComments: seen}
+
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+
+	if !seen.Contains("C1") {
+		t.Error("C1 not added to seen set after dispatch")
 	}
 }
