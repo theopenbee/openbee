@@ -342,3 +342,93 @@ func TestSelfComments_ConcurrentAddsAreAtomic(t *testing.T) {
 		seen[l] = struct{}{}
 	}
 }
+
+// TestReceiver_TickOnce_SkipsPrefixedSelfComment verifies the new
+// prefix-based identification: a polled comment whose body starts with
+// "[openbee-bot]" must be skipped even when it is NOT in the self-comment
+// ID set (simulates a fresh state file or an upgraded process).
+func TestReceiver_TickOnce_SkipsPrefixedSelfComment(t *testing.T) {
+	bot := User{ID: "BOT"}
+	since := mustParse(t, "2026-05-02T09:00:00Z")
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "T",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U2"},
+		// Issue and label predate `since`; only comments are new.
+		CreatedAt: mustParse(t, "2026-05-02T08:00:00Z"),
+		UpdatedAt: mustParse(t, "2026-05-02T11:00:00Z"),
+		Labels: []IssueLabel{
+			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
+		},
+		Comments: []Comment{
+			// Bot's own outbound — has the marker, NOT in the self set.
+			{ID: "C-bot", Body: "[openbee-bot]\n\nhi there", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: bot},
+			// Real user comment — must be dispatched.
+			{ID: "C-user", Body: "what's up?", CreatedAt: mustParse(t, "2026-05-02T10:30:00Z"), User: User{ID: "U2"}},
+		},
+	}
+	fc := &fakeClient{
+		viewer: bot,
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+	}
+	cur := &fakeCursor{last: since}
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 1 {
+		t.Fatalf("dispatched %d, want 1: %+v", len(got), got)
+	}
+	if got[0].PlatformMessageID != "comment:C-user" {
+		t.Errorf("unexpected dispatch: %+v", got[0])
+	}
+}
+
+// TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString verifies the
+// prefix check is HasPrefix, not Contains: a user quoting "[openbee-bot]" later
+// in their reply should still be dispatched.
+func TestReceiver_TickOnce_DispatchesCommentContainingMarkerMidString(t *testing.T) {
+	since := mustParse(t, "2026-05-02T09:00:00Z")
+	issue := Issue{
+		ID:         "I1",
+		Identifier: "ENG-42",
+		Title:      "T",
+		Team:       Team{Key: "ENG"},
+		Creator:    User{ID: "U2"},
+		CreatedAt:  mustParse(t, "2026-05-02T08:00:00Z"),
+		UpdatedAt:  mustParse(t, "2026-05-02T10:30:00Z"),
+		Labels: []IssueLabel{
+			{Name: "openbee", CreatedAt: mustParse(t, "2026-05-02T08:30:00Z")},
+		},
+		Comments: []Comment{
+			{ID: "C-user", Body: "i saw [openbee-bot] in your reply", CreatedAt: mustParse(t, "2026-05-02T10:00:00Z"), User: User{ID: "U2"}},
+		},
+	}
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func(_ time.Time) ([]Issue, bool, error) { return []Issue{issue}, false, nil },
+	}
+	cur := &fakeCursor{last: since}
+	self, err := newSelfComments(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &LinearReceiver{client: fc, cursor: cur, labelName: "openbee", self: self}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 1 {
+		t.Fatalf("dispatched %d, want 1 (the user quote): %+v", len(got), got)
+	}
+	if got[0].PlatformMessageID != "comment:C-user" {
+		t.Errorf("unexpected dispatch: %+v", got[0])
+	}
+}

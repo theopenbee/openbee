@@ -175,6 +175,9 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if !c.CreatedAt.After(since) {
 				continue
 			}
+			if strings.HasPrefix(c.Body, "[openbee-bot]") {
+				continue
+			}
 			if r.self.Has(c.ID) {
 				continue
 			}
