@@ -234,8 +234,23 @@ func (c *httpClient) IssuesUpdatedSince(ctx context.Context, since time.Time, la
 		log.Warn("linear: issues page truncated; cursor will not advance until next tick clears it",
 			zap.Int("page_size", issuesPageSize))
 	}
+	log.Info("linear: graphql issues response",
+		zap.String("since", vars["since"].(string)),
+		zap.Int("returned", len(data.Issues.Nodes)),
+		zap.Bool("has_next_page", truncated),
+	)
 	out := make([]Issue, 0, len(data.Issues.Nodes))
 	for _, n := range data.Issues.Nodes {
+		commentIDs := make([]string, 0, len(n.Comments.Nodes))
+		for _, cn := range n.Comments.Nodes {
+			commentIDs = append(commentIDs, cn.ID)
+		}
+		log.Info("linear: graphql issue node",
+			zap.String("identifier", n.Identifier),
+			zap.Time("updated_at", n.UpdatedAt),
+			zap.Int("comments_returned", len(n.Comments.Nodes)),
+			zap.Strings("comment_ids", commentIDs),
+		)
 		issue := Issue{
 			ID:          n.ID,
 			Identifier:  n.Identifier,

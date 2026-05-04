@@ -121,41 +121,104 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 		log.Error("cursor load", zap.Error(err))
 		return
 	}
+	log.Info("tick: start",
+		zap.Time("since", since),
+		zap.Strings("projects", projects),
+		zap.String("label", r.labelName),
+	)
 	issues, truncated, err := r.client.IssuesUpdatedSince(ctx, since, r.labelName, projects)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
 	}
+	identifiers := make([]string, 0, len(issues))
+	for _, i := range issues {
+		identifiers = append(identifiers, i.Identifier)
+	}
+	log.Info("tick: api result",
+		zap.Int("issue_count", len(issues)),
+		zap.Bool("truncated", truncated),
+		zap.Strings("identifiers", identifiers),
+	)
 	highWater := since
 	for _, issue := range issues {
+		log.Info("tick: issue",
+			zap.String("identifier", issue.Identifier),
+			zap.String("issue_id", issue.ID),
+			zap.Time("issue_updated_at", issue.UpdatedAt),
+			zap.Time("issue_created_at", issue.CreatedAt),
+			zap.Int("comment_count", len(issue.Comments)),
+		)
 		if isNewlyOwned(issue, since, r.labelName) {
+			log.Info("tick: dispatch issue body",
+				zap.String("identifier", issue.Identifier),
+				zap.String("issue_id", issue.ID),
+			)
 			dispatch(buildIssueInbound(issue))
 		}
 		for _, c := range issue.Comments {
+			body := c.Body
+			if len(body) > 80 {
+				body = body[:80] + "…"
+			}
 			if !c.CreatedAt.After(since) {
+				log.Info("tick: skip comment (not after since)",
+					zap.String("identifier", issue.Identifier),
+					zap.String("comment_id", c.ID),
+					zap.Time("comment_created_at", c.CreatedAt),
+					zap.Time("since", since),
+					zap.String("body_preview", body),
+				)
 				continue
 			}
 			if strings.HasPrefix(c.Body, "[openbee-bot]") {
+				log.Info("tick: skip comment (self bot prefix)",
+					zap.String("identifier", issue.Identifier),
+					zap.String("comment_id", c.ID),
+					zap.Time("comment_created_at", c.CreatedAt),
+				)
 				continue
 			}
+			log.Info("tick: dispatch comment",
+				zap.String("identifier", issue.Identifier),
+				zap.String("comment_id", c.ID),
+				zap.Time("comment_created_at", c.CreatedAt),
+				zap.String("user_id", c.User.ID),
+				zap.String("body_preview", body),
+			)
 			dispatch(buildCommentInbound(issue, c))
 			if c.CreatedAt.After(highWater) {
 				highWater = c.CreatedAt
 			}
 		}
 		if issue.UpdatedAt.After(highWater) {
+			log.Info("tick: highWater advanced by issue.UpdatedAt (no later comment)",
+				zap.String("identifier", issue.Identifier),
+				zap.Time("issue_updated_at", issue.UpdatedAt),
+				zap.Time("prev_high_water", highWater),
+			)
 			highWater = issue.UpdatedAt
 		}
 	}
 	// Don't advance the cursor when the page is truncated: we don't know what
 	// lies past the page boundary, and advancing would skip it permanently.
 	if truncated {
+		log.Warn("tick: cursor not advanced (page truncated)",
+			zap.Time("since", since),
+			zap.Time("computed_high_water", highWater),
+		)
 		return
 	}
 	if highWater.After(since) {
+		log.Info("tick: cursor save",
+			zap.Time("from", since),
+			zap.Time("to", highWater),
+		)
 		if err := r.cursor.Save(ctx, highWater); err != nil {
 			log.Error("cursor save", zap.Error(err))
 		}
+	} else {
+		log.Info("tick: cursor unchanged", zap.Time("since", since))
 	}
 }
 
