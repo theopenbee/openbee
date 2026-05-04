@@ -19,3 +19,7 @@ const SystemConfigKeyEngineArgsBee = "engine_args_bee"
 // SystemConfigKeyLinearProjects is the key for the Linear project allow-list.
 // Stored as a JSON-encoded array of project names.
 const SystemConfigKeyLinearProjects = "linear_projects"
+
+// SystemConfigKeyLinearStates is the key for the Linear workflow-state name
+// allow-list. Stored as a JSON-encoded array of state name strings.
+const SystemConfigKeyLinearStates = "linear_states"

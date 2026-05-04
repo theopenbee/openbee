@@ -233,6 +233,7 @@ type LinearConfig struct {
 	LabelName    string        `yaml:"label_name"`    // gating label; default "openbee"
 	PollInterval time.Duration `yaml:"poll_interval"` // default 10s
 	Projects     []string      `yaml:"projects"`      // project name allow-list; empty = process nothing
+	States       []string      `yaml:"states"`        // workflow-state name allow-list; empty = skip
 }
 
 type RPCConfig struct {
