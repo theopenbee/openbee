@@ -98,3 +98,22 @@ func TestSeenSet_AddCreatesDir(t *testing.T) {
 		t.Errorf("seen.json not written: %v", err)
 	}
 }
+
+func TestSeenSet_AddWritesNDJSON(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-1", "id-2"}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "seen.ndjson"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	got := string(data)
+	if got != "id-1\nid-2\n" {
+		t.Errorf("file format = %q, want %q", got, "id-1\nid-2\n")
+	}
+}
