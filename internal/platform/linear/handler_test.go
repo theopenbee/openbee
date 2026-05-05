@@ -3,6 +3,7 @@ package linear
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -439,6 +440,75 @@ func TestMergeIssueContent_WithoutProject(t *testing.T) {
 	want := "Fix login\n\nUsers get 401."
 	if got != want {
 		t.Errorf("mergeIssueContent without project mismatch.\nwant: %q\ngot:  %q", want, got)
+	}
+}
+
+func TestReceiver_TickOnce_FirstSightWithProjectIncludesProjectHeader(t *testing.T) {
+	proj := &Project{ID: "P1", Name: "Backend"}
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42",
+		Title: "Fix login", Description: "Users get 401.",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Project: proj,
+	}
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dispatch, got %d", len(got))
+	}
+	want := "[Project: Backend]\n\nFix login\n\nUsers get 401."
+	if got[0].Content != want {
+		t.Errorf("Content mismatch.\nwant: %q\ngot:  %q", want, got[0].Content)
+	}
+}
+
+func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
+	proj := &Project{ID: "P1", Name: "Backend"}
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42", Title: "Fix login",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+		Project: proj,
+		Comments: []Comment{
+			{ID: "C1", Body: "new comment", User: User{ID: "U3", Name: "Bob"}},
+		},
+	}
+	seenIssues := newFakeSeenSet()
+	seenIssues.ids["I1"] = struct{}{} // already seen — triggers comment path
+
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   seenIssues,
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectStore: testProjectStore(),
+		statesStore:  testStatesStore(),
+	}
+
+	var got []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 dispatch, got %d", len(got))
+	}
+	if got[0].PlatformMessageID != "comment:C1" {
+		t.Errorf("expected comment:C1, got %s", got[0].PlatformMessageID)
+	}
+	if strings.Contains(got[0].Content, "[Project:") {
+		t.Errorf("comment dispatch should not contain project header, got: %q", got[0].Content)
 	}
 }
 
