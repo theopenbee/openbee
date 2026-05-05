@@ -130,37 +130,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	// Initialize the Linear project allow-list from yaml, then override with DB
-	// if the system config has been written.
-	linearCfg := linearcfg.NewStore(cfg.Bee.Platforms.Linear.Projects)
-	if dbLin, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyLinearProjects); err != nil {
-		logger.Warn("failed to load linear projects from DB, falling back to config", zap.Error(err))
-	} else if found {
-		var raw []string
-		if err := json.Unmarshal([]byte(dbLin.Value), &raw); err != nil {
-			logger.Warn("DB linear projects value is not a JSON array, falling back to config",
-				zap.String("db_value", dbLin.Value), zap.Error(err))
-		} else {
-			linearCfg.Set(raw)
-		}
-	}
-
-	// Initialize the Linear workflow-state allow-list from yaml, then override
-	// with DB if the system config has been written. Shared between the receiver
-	// and the SystemConfig handler so PUT /system-configs/linear_states takes
-	// effect on the receiver's next tick.
-	linearStates := linearcfg.NewStatesStore(cfg.Bee.Platforms.Linear.States)
-	if dbStates, found, err := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyLinearStates); err != nil {
-		logger.Warn("failed to load linear states from DB, falling back to config", zap.Error(err))
-	} else if found {
-		var raw []string
-		if err := json.Unmarshal([]byte(dbStates.Value), &raw); err != nil {
-			logger.Warn("DB linear states value is not a JSON array, falling back to config",
-				zap.String("db_value", dbStates.Value), zap.Error(err))
-		} else {
-			linearStates.Set(raw)
-		}
-	}
+	// Linear allow-lists: yaml seeds the in-memory store, DB value (if any) wins.
+	// Stores are shared with the SystemConfig handler so runtime updates land on
+	// the receiver's next tick.
+	linearCfg := newLinearStoreFromDB(s.systemConfigStore, model.SystemConfigKeyLinearProjects, cfg.Bee.Platforms.Linear.Projects)
+	linearStates := newLinearStoreFromDB(s.systemConfigStore, model.SystemConfigKeyLinearStates, cfg.Bee.Platforms.Linear.States)
 
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
@@ -350,6 +324,30 @@ func buildDispatcher(
 	)
 }
 
+// newLinearStoreFromDB seeds a linearcfg.Store with yaml defaults, then
+// overrides with the DB value at key when present and parseable. Failures are
+// logged and treated as "no override".
+func newLinearStoreFromDB(sc *store.SystemConfigStore, key string, fallback []string) *linearcfg.Store {
+	s := linearcfg.NewStore(fallback)
+	cfg, found, err := sc.Get(context.Background(), key)
+	if err != nil {
+		logger.Warn("failed to load linear allow-list from DB, falling back to config",
+			zap.String("key", key), zap.Error(err))
+		return s
+	}
+	if !found {
+		return s
+	}
+	var raw []string
+	if err := json.Unmarshal([]byte(cfg.Value), &raw); err != nil {
+		logger.Warn("DB linear allow-list is not a JSON array, falling back to config",
+			zap.String("key", key), zap.String("db_value", cfg.Value), zap.Error(err))
+		return s
+	}
+	s.Set(raw)
+	return s
+}
+
 func buildPlatforms(
 	fc config.FeishuConfig,
 	dc config.DingTalkConfig,
@@ -358,7 +356,7 @@ func buildPlatforms(
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
 	linearCfg *linearcfg.Store,
-	linearStates *linearcfg.StatesStore,
+	linearStates *linearcfg.Store,
 	mc config.MediaConfig,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
@@ -382,9 +380,6 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		// The states allow-list is shared with the SystemConfig handler so that
-		// runtime updates via the Web UI take effect on the receiver's next tick.
-		// Receiver treats an empty states list as "skip tick".
 		p, err := linear.NewPlatform(lc, linearCfg, linearStates)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
@@ -394,7 +389,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, linearStates *linearcfg.StatesStore, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, linearStates *linearcfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)

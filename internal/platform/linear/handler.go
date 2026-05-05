@@ -22,12 +22,10 @@ import (
 // PlatformID is the platform identifier used in SessionKey and ingest routing.
 const PlatformID = "linear"
 
-// botCommentPrefix marks bot-authored comments. Outbound comments are prefixed
-// with botCommentPrefix + "\n\n" (selfMarker); inbound dedup uses HasPrefix on
-// botCommentPrefix alone so a stray formatting variant still gets filtered.
+// botCommentPrefix marks bot-authored comments. Inbound dedup matches on this
+// prefix alone so a stray formatting variant still filters; outbound bodies use
+// selfMarker (prefix + blank line) for readability.
 const botCommentPrefix = "[openbee-bot]"
-
-// selfMarker is prepended to every outbound comment body.
 const selfMarker = botCommentPrefix + "\n\n"
 
 var log = logger.With(zap.String("component", "linear"))
@@ -40,9 +38,7 @@ type LinearPlatform struct {
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
 // state (seen_issues.json, seen_comments.json) lives in ~/.openbee/.linear/.
-// projectStore and statesStore are consulted on every poll tick so runtime
-// updates from SystemSettings take effect on the next cycle.
-func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store, statesStore *linearcfg.StatesStore) (platform.Platform, error) {
+func NewPlatform(cfg config.LinearConfig, projectStore, statesStore *linearcfg.Store) (platform.Platform, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
@@ -52,8 +48,8 @@ func NewPlatform(cfg config.LinearConfig, projectStore *linearcfg.Store, statesS
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
-			seenIssues:   NewSeenIssues(dir),
-			seenComments: NewSeenComments(dir),
+			seenIssues:   NewSeenSet(dir, "seen_issues.json"),
+			seenComments: NewSeenSet(dir, "seen_comments.json"),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
 			projectStore: projectStore,
@@ -70,12 +66,12 @@ func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.
 // LinearReceiver polls Linear for issue/comment updates by workflow-state.
 type LinearReceiver struct {
 	client       Client
-	seenIssues   seenIssuesAPI
+	seenIssues   seenAPI
 	seenComments seenAPI
 	labelName    string
 	pollInterval time.Duration
 	projectStore *linearcfg.Store
-	statesStore  *linearcfg.StatesStore
+	statesStore  *linearcfg.Store
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -127,7 +123,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	if len(projects) == 0 || len(states) == 0 {
 		return
 	}
-	log.Info("tick: start",
+	log.Debug("tick: start",
 		zap.Strings("projects", projects),
 		zap.Strings("states", states),
 		zap.String("label", r.labelName),
@@ -137,14 +133,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 		log.Error("issues fetch", zap.Error(err))
 		return
 	}
-	identifiers := make([]string, 0, len(issues))
-	for _, i := range issues {
-		identifiers = append(identifiers, i.Identifier)
-	}
-	log.Info("tick: api result",
-		zap.Int("issue_count", len(issues)),
-		zap.Strings("identifiers", identifiers),
-	)
+	log.Debug("tick: api result", zap.Int("issue_count", len(issues)))
 
 	var newIssueIDs []string
 	var newCommentIDs []string
@@ -152,7 +141,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	for _, issue := range issues {
 		if !r.seenIssues.Contains(issue.ID) {
 			nonBot := nonBotComments(issue.Comments)
-			log.Info("tick: dispatch initial merged",
+			log.Debug("tick: dispatch initial merged",
 				zap.String("identifier", issue.Identifier),
 				zap.String("issue_id", issue.ID),
 				zap.Int("non_bot_comment_count", len(nonBot)),
@@ -171,7 +160,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if strings.HasPrefix(c.Body, botCommentPrefix) {
 				continue
 			}
-			log.Info("tick: dispatch comment",
+			log.Debug("tick: dispatch comment",
 				zap.String("identifier", issue.Identifier),
 				zap.String("comment_id", c.ID),
 				zap.String("user_id", c.User.ID),
@@ -247,18 +236,9 @@ func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessag
 	}
 }
 
-// mergeIssueContent renders the merged-initial body. Format (option A from
-// the design doc):
-//
-//	{title}
-//
-//	{description}        ← omitted when empty
-//
-//	---                  ← omitted when no non-bot comments
-//	Comments (N):
-//
-//	[user.name]: body
-//	[user.name]: body
+// mergeIssueContent renders title, optional description, and the supplied
+// non-bot comments into one body. Description is omitted when empty; the
+// "Comments (N):" header is omitted when there are no non-bot comments.
 func mergeIssueContent(issue Issue, comments []Comment) string {
 	var b strings.Builder
 	b.WriteString(issue.Title)

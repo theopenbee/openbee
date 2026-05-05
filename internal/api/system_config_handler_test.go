@@ -65,11 +65,11 @@ func (f *fakeEngineValidatorForSys) ValidateEngineArgs(raw map[string]string) er
 	return nil
 }
 
-func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store, *linearcfg.Store, *linearcfg.StatesStore) {
+func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store, *linearcfg.Store, *linearcfg.Store) {
 	gin.SetMode(gin.TestMode)
 	cfg := enginecfg.NewStore("")
 	linCfg := linearcfg.NewStore(nil)
-	statesStore := linearcfg.NewStatesStore(nil)
+	statesStore := linearcfg.NewStore(nil)
 	h := NewSystemConfigHandler(store, validator, cfg, linCfg, statesStore)
 	r := gin.New()
 	api := r.Group("/api")

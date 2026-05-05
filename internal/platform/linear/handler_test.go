@@ -17,10 +17,10 @@ func testProjectStore() *linearcfg.Store {
 	return linearcfg.NewStore([]string{"proj-a"})
 }
 
-// testStatesStore returns a linearcfg.StatesStore seeded with two states so
+// testStatesStore returns a linearcfg.Store seeded with two states so
 // tickOnce is not gated out by the empty-states policy.
-func testStatesStore() *linearcfg.StatesStore {
-	return linearcfg.NewStatesStore([]string{"Todo", "In Progress"})
+func testStatesStore() *linearcfg.Store {
+	return linearcfg.NewStore([]string{"Todo", "In Progress"})
 }
 
 // fakeClient is a Client that returns canned data per call.
@@ -58,37 +58,18 @@ func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return Comment{ID: "C-new"}, nil
 }
 
-type fakeSeenComments struct {
+type fakeSeenSet struct {
 	ids   map[string]struct{}
 	added []string
 }
 
-func newFakeSeenComments() *fakeSeenComments {
-	return &fakeSeenComments{ids: make(map[string]struct{})}
+func newFakeSeenSet() *fakeSeenSet {
+	return &fakeSeenSet{ids: make(map[string]struct{})}
 }
 
-func (f *fakeSeenComments) Load(_ context.Context) error { return nil }
-func (f *fakeSeenComments) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
-func (f *fakeSeenComments) Add(_ context.Context, ids []string) error {
-	for _, id := range ids {
-		f.ids[id] = struct{}{}
-	}
-	f.added = append(f.added, ids...)
-	return nil
-}
-
-type fakeSeenIssues struct {
-	ids   map[string]struct{}
-	added []string
-}
-
-func newFakeSeenIssues() *fakeSeenIssues {
-	return &fakeSeenIssues{ids: make(map[string]struct{})}
-}
-
-func (f *fakeSeenIssues) Load(_ context.Context) error { return nil }
-func (f *fakeSeenIssues) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
-func (f *fakeSeenIssues) Add(_ context.Context, ids []string) error {
+func (f *fakeSeenSet) Load(_ context.Context) error { return nil }
+func (f *fakeSeenSet) Contains(id string) bool      { _, ok := f.ids[id]; return ok }
+func (f *fakeSeenSet) Add(_ context.Context, ids []string) error {
 	for _, id := range ids {
 		f.ids[id] = struct{}{}
 	}
@@ -115,8 +96,8 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 		viewer: bot,
 		issues: func() ([]Issue, error) { return []Issue{issue}, nil },
 	}
-	seenIssues := newFakeSeenIssues()
-	seenComments := newFakeSeenComments()
+	seenIssues := newFakeSeenSet()
+	seenComments := newFakeSeenSet()
 
 	r := &LinearReceiver{
 		client:       fc,
@@ -170,9 +151,9 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 		viewer: bot,
 		issues: func() ([]Issue, error) { return []Issue{issue}, nil },
 	}
-	seenIssues := newFakeSeenIssues()
+	seenIssues := newFakeSeenSet()
 	seenIssues.ids["I1"] = struct{}{}
-	seenComments := newFakeSeenComments()
+	seenComments := newFakeSeenSet()
 	seenComments.ids["C1"] = struct{}{}
 
 	r := &LinearReceiver{
@@ -213,13 +194,13 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 		},
 	}
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issueA, issueB}, nil }}
-	seenIssues := newFakeSeenIssues()
+	seenIssues := newFakeSeenSet()
 	seenIssues.ids["IB"] = struct{}{}
 
 	r := &LinearReceiver{
 		client:       fc,
 		seenIssues:   seenIssues,
-		seenComments: newFakeSeenComments(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: testProjectStore(),
@@ -246,12 +227,12 @@ func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
 	}}
 	r := &LinearReceiver{
 		client:       fc,
-		seenIssues:   newFakeSeenIssues(),
-		seenComments: newFakeSeenComments(),
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: testProjectStore(),
-		statesStore:  linearcfg.NewStatesStore(nil), // empty
+		statesStore:  linearcfg.NewStore(nil), // empty
 	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
@@ -263,8 +244,8 @@ func TestReceiver_TickOnce_EmptyProjectsSkipsTick(t *testing.T) {
 	}}
 	r := &LinearReceiver{
 		client:       fc,
-		seenIssues:   newFakeSeenIssues(),
-		seenComments: newFakeSeenComments(),
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: linearcfg.NewStore(nil), // empty
@@ -282,8 +263,8 @@ func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T)
 	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
 	r := &LinearReceiver{
 		client:       fc,
-		seenIssues:   newFakeSeenIssues(),
-		seenComments: newFakeSeenComments(),
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: testProjectStore(),
@@ -311,8 +292,8 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
 	r := &LinearReceiver{
 		client:       fc,
-		seenIssues:   newFakeSeenIssues(),
-		seenComments: newFakeSeenComments(),
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: testProjectStore(),
@@ -351,9 +332,9 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 		},
 	}
 
-	seenIssues := newFakeSeenIssues()
+	seenIssues := newFakeSeenSet()
 	seenIssues.ids["IB"] = struct{}{}
-	seenComments := newFakeSeenComments()
+	seenComments := newFakeSeenSet()
 	seenComments.ids["CB-old"] = struct{}{}
 
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issueA, issueB}, nil }}
@@ -400,14 +381,14 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 			{ID: "C-reply", Body: "thread reply", User: User{ID: "U3"}, IssueID: "I1", ParentID: &parent},
 		},
 	}
-	seenIssues := newFakeSeenIssues()
+	seenIssues := newFakeSeenSet()
 	seenIssues.ids["I1"] = struct{}{}
 
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
 	r := &LinearReceiver{
 		client:       fc,
 		seenIssues:   seenIssues,
-		seenComments: newFakeSeenComments(),
+		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
 		projectStore: testProjectStore(),

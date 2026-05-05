@@ -23,15 +23,25 @@ type engineValidatorForSys interface {
 
 // SystemConfigHandler serves GET /system-configs and PUT /system-configs/:key.
 type SystemConfigHandler struct {
-	store       sysConfigStore
-	validator   engineValidatorForSys
-	engineCfg   *enginecfg.Store
-	linearCfg   *linearcfg.Store
-	statesStore *linearcfg.StatesStore
+	store     sysConfigStore
+	validator engineValidatorForSys
+	engineCfg *enginecfg.Store
+	// linearStores routes Linear allow-list keys (projects, states) to the
+	// corresponding in-memory store so the running receiver picks up updates
+	// on its next poll tick.
+	linearStores map[string]*linearcfg.Store
 }
 
-func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, statesStore *linearcfg.StatesStore) *SystemConfigHandler {
-	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg, linearCfg: linearCfg, statesStore: statesStore}
+func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg, statesStore *linearcfg.Store) *SystemConfigHandler {
+	return &SystemConfigHandler{
+		store:     store,
+		validator: validator,
+		engineCfg: engineCfg,
+		linearStores: map[string]*linearcfg.Store{
+			model.SystemConfigKeyLinearProjects: linearCfg,
+			model.SystemConfigKeyLinearStates:   statesStore,
+		},
+	}
 }
 
 // Get returns all known system config keys as a JSON object.
@@ -129,8 +139,8 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 			return
 		}
 
-	case model.SystemConfigKeyLinearProjects:
-		projects, err := parseStringList(req.Value)
+	case model.SystemConfigKeyLinearProjects, model.SystemConfigKeyLinearStates:
+		values, err := parseStringList(req.Value)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -139,22 +149,8 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		if h.linearCfg != nil {
-			h.linearCfg.Set(projects)
-		}
-
-	case model.SystemConfigKeyLinearStates:
-		states, err := parseStringList(req.Value)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if h.statesStore != nil {
-			h.statesStore.Set(states)
+		if s := h.linearStores[key]; s != nil {
+			s.Set(values)
 		}
 
 	default:
