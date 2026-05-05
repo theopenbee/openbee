@@ -117,3 +117,51 @@ func TestSeenSet_AddWritesNDJSON(t *testing.T) {
 		t.Errorf("file format = %q, want %q", got, "id-1\nid-2\n")
 	}
 }
+
+func TestSeenSet_AddIsAppendOnly(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-1"}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "seen.ndjson")
+	if err := os.WriteFile(path, []byte("SENTINEL\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-2"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "SENTINEL\nid-2\n" {
+		t.Errorf("file = %q, want %q (Add must append, not rewrite)",
+			string(data), "SENTINEL\nid-2\n")
+	}
+}
+
+func TestSeenSet_AddSkipsAlreadySeen(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-1", "id-2"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "seen.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "id-1\nid-2\n" {
+		t.Errorf("file = %q, want %q (duplicates must not be re-appended)",
+			string(data), "id-1\nid-2\n")
+	}
+}
