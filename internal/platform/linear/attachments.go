@@ -1,8 +1,8 @@
 package linear
 
 import (
+	"bytes"
 	"regexp"
-	"strings"
 )
 
 // assetMatch is one extracted markdown image or link pointing at uploads.linear.app.
@@ -12,9 +12,6 @@ type assetMatch struct {
 	altOrName string
 	isImage   bool
 }
-
-// linearAssetHost gates the extractor to only Linear-hosted uploads.
-const linearAssetHost = "https://uploads.linear.app/"
 
 // markdown image: ![alt](url)   ; alt may be empty, may contain unicode and spaces; URL ends at ) or whitespace.
 var imageRE = regexp.MustCompile(`!\[([^\]]*)\]\((https://uploads\.linear\.app/[^)\s]+)\)`)
@@ -85,12 +82,12 @@ func maskCodeRegions(text string) string {
 
 	fence := []byte("```")
 	for i := 0; i+3 <= len(b); {
-		if !bytesEq(b[i:i+3], fence) {
+		if !bytes.Equal(b[i:i+3], fence) {
 			i++
 			continue
 		}
 		j := i + 3
-		for j+3 <= len(b) && !bytesEq(b[j:j+3], fence) {
+		for j+3 <= len(b) && !bytes.Equal(b[j:j+3], fence) {
 			j++
 		}
 		end := j + 3
@@ -123,17 +120,3 @@ func maskCodeRegions(text string) string {
 	}
 	return string(out)
 }
-
-func bytesEq(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func isLinearAssetURL(u string) bool { return strings.HasPrefix(u, linearAssetHost) }
