@@ -8,20 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-// testProjectStore returns a linearcfg.Store seeded with one project so the
-// tickOnce path is not gated out by the empty-list policy.
-func testProjectStore() *linearcfg.Store {
-	return linearcfg.NewStore([]string{"proj-a"})
+func testProjects() []string {
+	return []string{"proj-a"}
 }
 
-// testStatesStore returns a linearcfg.Store seeded with two states so
-// tickOnce is not gated out by the empty-states policy.
-func testStatesStore() *linearcfg.Store {
-	return linearcfg.NewStore([]string{"Todo", "In Progress"})
+func testStates() []string {
+	return []string{"Todo", "In Progress"}
 }
 
 // fakeClient is a Client that returns canned data per call.
@@ -106,8 +101,8 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 		seenComments: seenComments,
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var received []platform.InboundMessage
@@ -163,8 +158,8 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 		seenComments: seenComments,
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var received []platform.InboundMessage
@@ -204,8 +199,8 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var received []platform.InboundMessage
@@ -232,8 +227,8 @@ func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  linearcfg.NewStore(nil), // empty
+		projectsList: testProjects(),
+		statesList:   nil, // empty
 	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
@@ -249,10 +244,40 @@ func TestReceiver_TickOnce_EmptyProjectsSkipsTick(t *testing.T) {
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: linearcfg.NewStore(nil), // empty
-		statesStore:  testStatesStore(),
+		projectsList: nil, // empty
+		statesList:   testStates(),
 	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+}
+
+func TestReceiver_TickOnce_FiltersEmptyConfiguredValues(t *testing.T) {
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		issues: func() ([]Issue, error) {
+			return nil, nil
+		},
+	}
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectsList: cleanStringList([]string{"", "proj-a", ""}),
+		statesList:   cleanStringList([]string{"Todo", "", "In Progress"}),
+	}
+
+	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+
+	if fc.calls != 1 {
+		t.Fatalf("expected one Linear query, got %d", fc.calls)
+	}
+	if got, want := strings.Join(fc.lastProjects, ","), "proj-a"; got != want {
+		t.Errorf("projects = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(fc.lastStates, ","), "Todo,In Progress"; got != want {
+		t.Errorf("states = %q, want %q", got, want)
+	}
 }
 
 func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T) {
@@ -268,8 +293,8 @@ func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T)
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
@@ -297,8 +322,8 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
@@ -345,8 +370,8 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 		seenComments: seenComments,
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var received []platform.InboundMessage
@@ -392,8 +417,8 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var received []platform.InboundMessage
@@ -458,8 +483,8 @@ func TestReceiver_TickOnce_FirstSightWithProjectIncludesProjectHeader(t *testing
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var got []platform.InboundMessage
@@ -494,8 +519,8 @@ func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
 		seenComments: newFakeSeenSet(),
 		labelName:    "openbee",
 		pollInterval: time.Hour,
-		projectStore: testProjectStore(),
-		statesStore:  testStatesStore(),
+		projectsList: testProjects(),
+		statesList:   testStates(),
 	}
 
 	var got []platform.InboundMessage
@@ -511,4 +536,3 @@ func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
 		t.Errorf("comment dispatch should not contain project header, got: %q", got[0].Content)
 	}
 }
-

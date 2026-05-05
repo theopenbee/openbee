@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -52,8 +51,8 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 			seenComments: NewSeenSet(dir, "seen_comments.ndjson"),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
-			projectStore: linearcfg.NewStore(cfg.Projects),
-			statesStore:  linearcfg.NewStore(cfg.States),
+			projectsList: cleanStringList(cfg.Projects),
+			statesList:   cleanStringList(cfg.States),
 		},
 		sender: &LinearSender{client: client},
 	}, nil
@@ -70,8 +69,8 @@ type LinearReceiver struct {
 	seenComments seenAPI
 	labelName    string
 	pollInterval time.Duration
-	projectStore *linearcfg.Store
-	statesStore  *linearcfg.Store
+	projectsList []string
+	statesList   []string
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -104,17 +103,22 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 }
 
 func (r *LinearReceiver) projects() []string {
-	if r.projectStore == nil {
-		return nil
-	}
-	return r.projectStore.Get()
+	return append([]string(nil), r.projectsList...)
 }
 
 func (r *LinearReceiver) states() []string {
-	if r.statesStore == nil {
-		return nil
+	return append([]string(nil), r.statesList...)
+}
+
+func cleanStringList(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		if v == "" {
+			continue
+		}
+		out = append(out, v)
 	}
-	return r.statesStore.Get()
+	return out
 }
 
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
