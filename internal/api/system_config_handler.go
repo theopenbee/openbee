@@ -76,7 +76,7 @@ type setSystemConfigRequest struct {
 }
 
 // parseStringList validates that value is either empty or a JSON array of
-// strings, and returns the trimmed non-empty entries.
+// strings. Empty entries are dropped downstream by linearcfg.Store.Set.
 func parseStringList(value string) ([]string, error) {
 	if value == "" || value == "[]" {
 		return nil, nil
@@ -85,14 +85,7 @@ func parseStringList(value string) ([]string, error) {
 	if err := json.Unmarshal([]byte(value), &raw); err != nil {
 		return nil, errInvalidStringList
 	}
-	out := make([]string, 0, len(raw))
-	for _, p := range raw {
-		if p == "" {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out, nil
+	return raw, nil
 }
 
 var errInvalidStringList = errStringList("value must be a JSON array of non-empty strings")
