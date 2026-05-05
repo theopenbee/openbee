@@ -165,3 +165,21 @@ func TestSeenSet_AddSkipsAlreadySeen(t *testing.T) {
 			string(data), "id-1\nid-2\n")
 	}
 }
+
+func TestSeenSet_LoadIgnoresPartialTrailingLine(t *testing.T) {
+	dir := t.TempDir()
+	content := []byte("id-1\nid-2\nid-3-partial")
+	if err := os.WriteFile(filepath.Join(dir, "seen.ndjson"), content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !s.Contains("id-1") || !s.Contains("id-2") {
+		t.Error("complete IDs should be loaded")
+	}
+	if s.Contains("id-3-partial") {
+		t.Error("partial trailing line must be ignored on Load")
+	}
+}
