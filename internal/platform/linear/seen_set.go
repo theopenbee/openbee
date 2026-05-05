@@ -1,8 +1,9 @@
 package linear
 
 import (
+	"bufio"
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ type seenAPI interface {
 }
 
 // SeenSet persists a grow-only set of already-dispatched IDs to
-// <dir>/<filename>. Writes use tmp+rename for atomicity.
+// <dir>/<filename> as NDJSON (one ID per line). Add is append-only.
 type SeenSet struct {
 	dir      string
 	filename string
@@ -29,12 +30,9 @@ func NewSeenSet(dir, filename string) *SeenSet {
 	return &SeenSet{dir: dir, filename: filename, ids: make(map[string]struct{})}
 }
 
-type seenFile struct {
-	IDs []string `json:"ids"`
-}
-
-// Load reads the persisted ID set from disk. ErrNotExist or corrupt JSON
-// silently yields an empty set.
+// Load reads the persisted ID set from disk. A missing file silently
+// yields an empty set. A trailing line without a newline is treated as
+// crash debris and dropped.
 func (s *SeenSet) Load(_ context.Context) error {
 	data, err := os.ReadFile(filepath.Join(s.dir, s.filename))
 	if errors.Is(err, os.ErrNotExist) {
@@ -43,12 +41,21 @@ func (s *SeenSet) Load(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	var sf seenFile
-	if err := json.Unmarshal(data, &sf); err != nil {
-		return nil
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		s.ids[line] = struct{}{}
 	}
-	for _, id := range sf.IDs {
-		s.ids[id] = struct{}{}
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
+			delete(s.ids, string(data[i+1:]))
+		} else {
+			delete(s.ids, string(data))
+		}
 	}
 	return nil
 }
@@ -59,29 +66,41 @@ func (s *SeenSet) Contains(id string) bool {
 	return ok
 }
 
-// Add records ids as dispatched and atomically persists the full set.
-// Empty input is a no-op.
+// Add records ids as dispatched and appends only the previously-unseen
+// IDs to the on-disk NDJSON file. Empty input and fully-duplicate input
+// are no-ops.
 func (s *SeenSet) Add(_ context.Context, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
+	fresh := make([]string, 0, len(ids))
 	for _, id := range ids {
+		if _, ok := s.ids[id]; ok {
+			continue
+		}
 		s.ids[id] = struct{}{}
+		fresh = append(fresh, id)
+	}
+	if len(fresh) == 0 {
+		return nil
 	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
-	all := make([]string, 0, len(s.ids))
-	for id := range s.ids {
-		all = append(all, id)
+	var buf bytes.Buffer
+	for _, id := range fresh {
+		buf.WriteString(id)
+		buf.WriteByte('\n')
 	}
-	data, err := json.Marshal(seenFile{IDs: all})
+	f, err := os.OpenFile(
+		filepath.Join(s.dir, s.filename),
+		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
+		0o600,
+	)
 	if err != nil {
 		return err
 	}
-	tmp := filepath.Join(s.dir, s.filename+".tmp")
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(s.dir, s.filename))
+	defer f.Close()
+	_, err = f.Write(buf.Bytes())
+	return err
 }
