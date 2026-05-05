@@ -189,6 +189,66 @@ func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 	}
 }
 
+func TestClient_FileUpload(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		s := string(body)
+		if !strings.Contains(s, "fileUpload") {
+			t.Errorf("query missing fileUpload: %s", s)
+		}
+		if !strings.Contains(s, `"filename":"foo.png"`) {
+			t.Errorf("variables missing filename: %s", s)
+		}
+		if !strings.Contains(s, `"contentType":"image/png"`) {
+			t.Errorf("variables missing contentType: %s", s)
+		}
+		if !strings.Contains(s, `"size":42`) {
+			t.Errorf("variables missing size: %s", s)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"fileUpload": map[string]any{
+					"success": true,
+					"uploadFile": map[string]any{
+						"assetUrl":  "https://uploads.linear.app/abc.png",
+						"uploadUrl": "https://s3.example/abc?sig=xyz",
+						"headers": []map[string]string{
+							{"key": "x-amz-acl", "value": "private"},
+							{"key": "Content-Type", "value": "image/png"},
+						},
+					},
+				},
+			},
+		})
+	})
+
+	got, err := c.FileUpload(context.Background(), "foo.png", "image/png", 42)
+	if err != nil {
+		t.Fatalf("FileUpload: %v", err)
+	}
+	if got.AssetURL != "https://uploads.linear.app/abc.png" {
+		t.Errorf("AssetURL = %q", got.AssetURL)
+	}
+	if got.UploadURL != "https://s3.example/abc?sig=xyz" {
+		t.Errorf("UploadURL = %q", got.UploadURL)
+	}
+	if got.Headers["x-amz-acl"] != "private" || got.Headers["Content-Type"] != "image/png" {
+		t.Errorf("Headers = %v", got.Headers)
+	}
+}
+
+func TestClient_FileUpload_GraphQLError(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"errors": []map[string]string{{"message": "denied"}},
+		})
+	})
+	_, err := c.FileUpload(context.Background(), "foo.png", "image/png", 1)
+	if err == nil {
+		t.Fatal("expected error on graphql error response")
+	}
+}
+
 func TestIssuesInStates_FullPagination(t *testing.T) {
 	var (
 		mu        sync.Mutex

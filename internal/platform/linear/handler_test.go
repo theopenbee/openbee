@@ -58,6 +58,10 @@ func (f *fakeClient) DownloadAsset(ctx context.Context, url string) ([]byte, str
 	return nil, "", nil
 }
 
+func (f *fakeClient) FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error) {
+	return FileUploadTicket{}, nil
+}
+
 type fakeSeenSet struct {
 	ids   map[string]struct{}
 	added []string

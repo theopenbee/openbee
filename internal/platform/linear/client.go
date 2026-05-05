@@ -37,6 +37,15 @@ type Comment struct {
 	ParentID  *string   `json:"parentId"`
 }
 
+// FileUploadTicket is the result of Linear's fileUpload mutation. AssetURL is
+// embedded into a comment markdown after the bytes are PUT to UploadURL with
+// the supplied Headers.
+type FileUploadTicket struct {
+	AssetURL  string
+	UploadURL string
+	Headers   map[string]string
+}
+
 // Issue is the subset of Linear's Issue type we care about.
 type Issue struct {
 	ID          string    `json:"id"`
@@ -66,6 +75,9 @@ type Client interface {
 	// key in the Authorization header. Returns the body and the server-reported
 	// Content-Type. A non-2xx response is returned as an error.
 	DownloadAsset(ctx context.Context, url string) (data []byte, contentType string, err error)
+	// FileUpload runs Linear's fileUpload mutation and returns the presigned
+	// upload target plus the asset URL to embed in a comment markdown.
+	FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error)
 }
 
 const defaultEndpoint = "https://api.linear.app/graphql"
@@ -164,6 +176,54 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 		return Comment{}, err
 	}
 	return data.CommentCreate.Comment, nil
+}
+
+const fileUploadMutation = `
+mutation FileUpload($filename: String!, $contentType: String!, $size: Int!) {
+  fileUpload(filename: $filename, contentType: $contentType, size: $size) {
+    success
+    uploadFile {
+      assetUrl
+      uploadUrl
+      headers { key value }
+    }
+  }
+}`
+
+func (c *httpClient) FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error) {
+	vars := map[string]any{
+		"filename":    name,
+		"contentType": mime,
+		"size":        size,
+	}
+	var data struct {
+		FileUpload struct {
+			Success    bool `json:"success"`
+			UploadFile struct {
+				AssetURL  string `json:"assetUrl"`
+				UploadURL string `json:"uploadUrl"`
+				Headers   []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"headers"`
+			} `json:"uploadFile"`
+		} `json:"fileUpload"`
+	}
+	if err := c.do(ctx, "fileUpload", fileUploadMutation, vars, &data); err != nil {
+		return FileUploadTicket{}, err
+	}
+	if !data.FileUpload.Success {
+		return FileUploadTicket{}, fmt.Errorf("linear: fileUpload not successful")
+	}
+	headers := make(map[string]string, len(data.FileUpload.UploadFile.Headers))
+	for _, h := range data.FileUpload.UploadFile.Headers {
+		headers[h.Key] = h.Value
+	}
+	return FileUploadTicket{
+		AssetURL:  data.FileUpload.UploadFile.AssetURL,
+		UploadURL: data.FileUpload.UploadFile.UploadURL,
+		Headers:   headers,
+	}, nil
 }
 
 const downloadTimeout = 30 * time.Second
