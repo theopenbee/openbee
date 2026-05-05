@@ -150,9 +150,6 @@ func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 	if len(out[0].Comments) != 1 || out[0].Comments[0].ID != "C1" {
 		t.Errorf("comments = %+v", out[0].Comments)
 	}
-	if out[0].Comments[0].IssueID != "I1" {
-		t.Errorf("comment IssueID not back-filled: %q", out[0].Comments[0].IssueID)
-	}
 }
 
 func TestIssuesInStates_FullPagination(t *testing.T) {

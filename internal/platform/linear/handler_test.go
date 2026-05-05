@@ -87,9 +87,9 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 		Team:        Team{Key: "ENG"},
 		Creator:     User{ID: "U2", Name: "Alice"},
 		Comments: []Comment{
-			{ID: "C1", Body: "Saw it on Safari too", User: User{ID: "U2", Name: "Alice"}, IssueID: "I1"},
-			{ID: "C-bot", Body: "[openbee-bot]\n\nignore me", User: bot, IssueID: "I1"},
-			{ID: "C2", Body: "Probably the cookie domain", User: User{ID: "U3", Name: "Bob"}, IssueID: "I1"},
+			{ID: "C1", Body: "Saw it on Safari too", User: User{ID: "U2", Name: "Alice"}},
+			{ID: "C-bot", Body: "[openbee-bot]\n\nignore me", User: bot},
+			{ID: "C2", Body: "Probably the cookie domain", User: User{ID: "U3", Name: "Bob"}},
 		},
 	}
 	fc := &fakeClient{
@@ -143,8 +143,8 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 		Team:       Team{Key: "ENG"},
 		Creator:    User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "C1", Body: "old comment", User: User{ID: "U2"}, IssueID: "I1"},
-			{ID: "C2", Body: "new comment", User: User{ID: "U3"}, IssueID: "I1"},
+			{ID: "C1", Body: "old comment", User: User{ID: "U2"}},
+			{ID: "C2", Body: "new comment", User: User{ID: "U3"}},
 		},
 	}
 	fc := &fakeClient{
@@ -183,14 +183,14 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 	issueA := Issue{
 		ID: "IA", Identifier: "ENG-1", Title: "A", Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "C-bot-A", Body: "[openbee-bot]\n\nx", User: bot, IssueID: "IA"},
+			{ID: "C-bot-A", Body: "[openbee-bot]\n\nx", User: bot},
 		},
 	}
 	// Issue is known — per-comment dispatch path.
 	issueB := Issue{
 		ID: "IB", Identifier: "ENG-2", Title: "B", Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "C-bot-B", Body: "[openbee-bot]\n\ny", User: bot, IssueID: "IB"},
+			{ID: "C-bot-B", Body: "[openbee-bot]\n\ny", User: bot},
 		},
 	}
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issueA, issueB}, nil }}
@@ -286,7 +286,7 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 		Title: "Title only",
 		Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}, IssueID: "I1"},
+			{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}},
 		},
 	}
 	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
@@ -318,7 +318,7 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 		Title: "A title", Description: "A desc",
 		Team: Team{Key: "ENG"}, Creator: User{ID: "U2", Name: "Alice"},
 		Comments: []Comment{
-			{ID: "CA1", Body: "from history", User: User{ID: "U2", Name: "Alice"}, IssueID: "IA"},
+			{ID: "CA1", Body: "from history", User: User{ID: "U2", Name: "Alice"}},
 		},
 	}
 	// Known issue with one already-seen comment and one new comment
@@ -327,8 +327,8 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 		Title: "B title",
 		Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "CB-old", Body: "already seen", User: User{ID: "U3"}, IssueID: "IB"},
-			{ID: "CB-new", Body: "fresh", User: User{ID: "U3", Name: "Bob"}, IssueID: "IB"},
+			{ID: "CB-old", Body: "already seen", User: User{ID: "U3"}},
+			{ID: "CB-new", Body: "fresh", User: User{ID: "U3", Name: "Bob"}},
 		},
 	}
 
@@ -378,7 +378,7 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 		ID: "I1", Identifier: "ENG-42", Title: "T",
 		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 		Comments: []Comment{
-			{ID: "C-reply", Body: "thread reply", User: User{ID: "U3"}, IssueID: "I1", ParentID: &parent},
+			{ID: "C-reply", Body: "thread reply", User: User{ID: "U3"}, ParentID: &parent},
 		},
 	}
 	seenIssues := newFakeSeenSet()

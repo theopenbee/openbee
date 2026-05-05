@@ -31,7 +31,6 @@ type Comment struct {
 	CreatedAt time.Time `json:"createdAt"`
 	User      User      `json:"user"`
 	ParentID  *string   `json:"parentId"`
-	IssueID   string    `json:"-"` // populated when read from Issue.Comments
 }
 
 // Issue is the subset of Linear's Issue type we care about.
@@ -240,9 +239,6 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 				Team:        n.Team,
 				Creator:     n.Creator,
 				Comments:    n.Comments.Nodes,
-			}
-			for i := range issue.Comments {
-				issue.Comments[i].IssueID = issue.ID
 			}
 			all = append(all, issue)
 		}
