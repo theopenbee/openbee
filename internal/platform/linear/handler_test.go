@@ -65,6 +65,9 @@ func (f *fakeClient) DownloadAsset(ctx context.Context, url string) ([]byte, str
 }
 
 func (f *fakeClient) FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error) {
+	if f.uploadImpl != nil {
+		return f.uploadImpl(name, mime, size)
+	}
 	return FileUploadTicket{}, nil
 }
 

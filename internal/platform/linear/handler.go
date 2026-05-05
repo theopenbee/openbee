@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,7 +66,14 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 				maxSize: maxSize,
 			},
 		},
-		sender: &LinearSender{client: client},
+		sender: &LinearSender{
+			client: client,
+			uploader: &uploader{
+				client:  client,
+				maxSize: maxSize,
+				http:    &http.Client{Timeout: uploadPutTimeout + 30*time.Second},
+			},
+		},
 	}, nil
 }
 
@@ -306,13 +314,11 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 
 // LinearSender posts replies as Linear comments.
 type LinearSender struct {
-	client Client
+	client   Client
+	uploader *uploader
 }
 
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
-	if msg.MediaPath != "" {
-		return errors.New("linear: media attachments not supported in v0")
-	}
 	var target replyTarget
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &target); err != nil {
 		return fmt.Errorf("linear: parse reply target: %w", err)
@@ -320,8 +326,22 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	if target.IssueID == "" {
 		return errors.New("linear: reply target missing issue_id")
 	}
+
+	body := selfMarker + msg.Content
+	if msg.MediaPath != "" {
+		md, err := s.uploader.Upload(ctx, msg.MediaPath)
+		if err != nil {
+			return fmt.Errorf("linear: upload attachment: %w", err)
+		}
+		if msg.Content != "" {
+			body = body + "\n\n" + md
+		} else {
+			body = selfMarker + md
+		}
+	}
+
 	return utils.RetryWithBackoff(ctx, func() error {
-		_, err := s.client.CreateComment(ctx, target.IssueID, selfMarker+msg.Content, target.ParentCommentID)
+		_, err := s.client.CreateComment(ctx, target.IssueID, body, target.ParentCommentID)
 		return err
 	}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
 }
