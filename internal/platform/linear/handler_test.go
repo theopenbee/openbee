@@ -413,3 +413,32 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 	}
 }
 
+func TestMergeIssueContent_WithProject(t *testing.T) {
+	proj := &Project{ID: "P1", Name: "Backend"}
+	issue := Issue{
+		ID:          "I1",
+		Title:       "Fix login",
+		Description: "Users get 401.",
+		Project:     proj,
+	}
+	got := mergeIssueContent(issue, nil)
+	want := "[Project: Backend]\n\nFix login\n\nUsers get 401."
+	if got != want {
+		t.Errorf("mergeIssueContent with project mismatch.\nwant: %q\ngot:  %q", want, got)
+	}
+}
+
+func TestMergeIssueContent_WithoutProject(t *testing.T) {
+	issue := Issue{
+		ID:          "I1",
+		Title:       "Fix login",
+		Description: "Users get 401.",
+		Project:     nil,
+	}
+	got := mergeIssueContent(issue, nil)
+	want := "Fix login\n\nUsers get 401."
+	if got != want {
+		t.Errorf("mergeIssueContent without project mismatch.\nwant: %q\ngot:  %q", want, got)
+	}
+}
+

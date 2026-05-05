@@ -230,11 +230,14 @@ func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessag
 	}
 }
 
-// mergeIssueContent renders title, optional description, and the supplied
-// non-bot comments into one body. Description is omitted when empty; the
-// "Comments (N):" header is omitted when there are no non-bot comments.
+// mergeIssueContent renders project header (if any), title, optional description,
+// and the supplied non-bot comments into one body. Description is omitted when
+// empty; the "Comments (N):" header is omitted when there are no non-bot comments.
 func mergeIssueContent(issue Issue, comments []Comment) string {
 	var b strings.Builder
+	if issue.Project != nil {
+		fmt.Fprintf(&b, "[Project: %s]\n\n", issue.Project.Name)
+	}
 	b.WriteString(issue.Title)
 	if issue.Description != "" {
 		b.WriteString("\n\n")
