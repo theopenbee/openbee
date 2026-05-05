@@ -162,6 +162,7 @@ func (c *httpClient) Viewer(ctx context.Context) (User, error) {
 const createCommentMutation = `
 mutation CreateComment($issueId: String!, $body: String!, $parentId: String) {
   commentCreate(input: { issueId: $issueId, body: $body, parentId: $parentId }) {
+    success
     comment { id body createdAt user { id } parentId }
   }
 }`
@@ -170,13 +171,21 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 	vars := map[string]any{"issueId": issueID, "body": body, "parentId": parentID}
 	var data struct {
 		CommentCreate struct {
+			Success bool    `json:"success"`
 			Comment Comment `json:"comment"`
 		} `json:"commentCreate"`
 	}
 	if err := c.do(ctx, "commentCreate", createCommentMutation, vars, &data); err != nil {
 		return Comment{}, err
 	}
-	return data.CommentCreate.Comment, nil
+	if !data.CommentCreate.Success {
+		return Comment{}, fmt.Errorf("linear: commentCreate not successful")
+	}
+	comment := data.CommentCreate.Comment
+	if comment.ID == "" {
+		return Comment{}, fmt.Errorf("linear: commentCreate returned empty comment id")
+	}
+	return comment, nil
 }
 
 const fileUploadMutation = `

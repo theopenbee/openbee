@@ -106,6 +106,9 @@ func TestClient_CreateComment(t *testing.T) {
 		if !strings.Contains(s, "commentCreate") {
 			t.Errorf("query missing commentCreate: %s", s)
 		}
+		if !strings.Contains(s, "success") {
+			t.Errorf("query missing success: %s", s)
+		}
 		if !strings.Contains(s, `"issueId":"I1"`) {
 			t.Errorf("variables missing issueId: %s", s)
 		}
@@ -115,6 +118,7 @@ func TestClient_CreateComment(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"commentCreate": map[string]any{
+					"success": true,
 					"comment": map[string]any{
 						"id":        "C9",
 						"body":      "hi",
@@ -133,6 +137,51 @@ func TestClient_CreateComment(t *testing.T) {
 	}
 	if got.ID != "C9" {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestClient_CreateComment_UnsuccessfulPayloadReturnsError(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"commentCreate": map[string]any{
+					"success": false,
+					"comment": map[string]any{
+						"id":        "C9",
+						"body":      "hi",
+						"createdAt": "2026-05-03T00:00:00Z",
+						"user":      map[string]string{"id": "U1"},
+					},
+				},
+			},
+		})
+	})
+
+	_, err := c.CreateComment(context.Background(), "I1", "hi", nil)
+	if err == nil {
+		t.Fatal("expected error when commentCreate success is false")
+	}
+}
+
+func TestClient_CreateComment_EmptyCommentIDReturnsError(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"commentCreate": map[string]any{
+					"success": true,
+					"comment": map[string]any{
+						"body":      "hi",
+						"createdAt": "2026-05-03T00:00:00Z",
+						"user":      map[string]string{"id": "U1"},
+					},
+				},
+			},
+		})
+	})
+
+	_, err := c.CreateComment(context.Background(), "I1", "hi", nil)
+	if err == nil {
+		t.Fatal("expected error when commentCreate returns an empty comment id")
 	}
 }
 
