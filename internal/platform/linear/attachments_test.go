@@ -391,3 +391,22 @@ func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
 		t.Fatal("expected error on PUT 5xx")
 	}
 }
+
+func TestUploader_FileUploadMutationFails_ReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	p := tmp + "/foo.png"
+	if err := os.WriteFile(p, []byte("PNG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	u := &uploader{
+		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
+			return FileUploadTicket{}, errors.New("graphql denied")
+		}},
+		maxSize: 10 * 1024 * 1024,
+		http:    http.DefaultClient,
+	}
+	_, err := u.Upload(context.Background(), p)
+	if err == nil {
+		t.Fatal("expected error when fileUpload mutation fails")
+	}
+}
