@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -130,11 +129,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	// Linear allow-lists: yaml seeds the in-memory store, DB value (if any) wins.
-	// Stores are shared with the SystemConfig handler so runtime updates land on
-	// the receiver's next tick.
-	linearCfg := newLinearStoreFromDB(s.systemConfigStore, model.SystemConfigKeyLinearProjects, cfg.Bee.Platforms.Linear.Projects)
-	linearStates := newLinearStoreFromDB(s.systemConfigStore, model.SystemConfigKeyLinearStates, cfg.Bee.Platforms.Linear.States)
+	linearCfg := linearcfg.NewStore(cfg.Bee.Platforms.Linear.Projects)
+	linearStates := linearcfg.NewStore(cfg.Bee.Platforms.Linear.States)
 
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
@@ -229,7 +225,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, linearCfg, linearStates, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -324,30 +320,6 @@ func buildDispatcher(
 	)
 }
 
-// newLinearStoreFromDB seeds a linearcfg.Store with yaml defaults, then
-// overrides with the DB value at key when present and parseable. Failures are
-// logged and treated as "no override".
-func newLinearStoreFromDB(sc *store.SystemConfigStore, key string, fallback []string) *linearcfg.Store {
-	s := linearcfg.NewStore(fallback)
-	cfg, found, err := sc.Get(context.Background(), key)
-	if err != nil {
-		logger.Warn("failed to load linear allow-list from DB, falling back to config",
-			zap.String("key", key), zap.Error(err))
-		return s
-	}
-	if !found {
-		return s
-	}
-	var raw []string
-	if err := json.Unmarshal([]byte(cfg.Value), &raw); err != nil {
-		logger.Warn("DB linear allow-list is not a JSON array, falling back to config",
-			zap.String("key", key), zap.String("db_value", cfg.Value), zap.Error(err))
-		return s
-	}
-	s.Set(raw)
-	return s
-}
-
 func buildPlatforms(
 	fc config.FeishuConfig,
 	dc config.DingTalkConfig,
@@ -389,7 +361,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, linearCfg *linearcfg.Store, linearStates *linearcfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -408,7 +380,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
-		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg, linearCfg, linearStates),
+		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,

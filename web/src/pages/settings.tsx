@@ -12,8 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -23,111 +21,7 @@ import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
-  SYSTEM_CONFIG_KEY_LINEAR_PROJECTS,
 } from "@/lib/types"
-import { XIcon } from "lucide-react"
-
-function parseLinearProjects(raw: string | undefined): string[] {
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string" && p.length > 0) : []
-  } catch {
-    return []
-  }
-}
-
-function LinearProjectsSection({ savedValue }: { savedValue: string[] }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const [pending, setPending] = useState<string[] | null>(null)
-  const [draft, setDraft] = useState("")
-  const value = pending ?? savedValue
-
-  const { mutate: save, isPending } = useMutation({
-    mutationFn: (v: string[]) =>
-      api.systemConfigs.set(SYSTEM_CONFIG_KEY_LINEAR_PROJECTS, JSON.stringify(v)),
-    onError: () => setPending(null),
-    onSuccess: () => {
-      setPending(null)
-      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
-      toast.success(t("systemSettings.linearProjectsSection.updated"))
-    },
-  })
-
-  const isDirty =
-    pending !== null &&
-    (pending.length !== savedValue.length ||
-      pending.some((p, i) => p !== savedValue[i]))
-
-  const addDraft = () => {
-    const trimmed = draft.trim()
-    if (!trimmed || value.includes(trimmed)) {
-      setDraft("")
-      return
-    }
-    setPending([...value, trimmed])
-    setDraft("")
-  }
-
-  const remove = (idx: number) => {
-    setPending(value.filter((_, i) => i !== idx))
-  }
-
-  return (
-    <DetailSection className="p-5 sm:p-6 space-y-4">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          {t("systemSettings.linearProjectsSection.title")}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          {t("systemSettings.linearProjectsSection.hint")}
-        </p>
-      </div>
-      {value.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">
-          {t("systemSettings.linearProjectsSection.empty")}
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {value.map((p, i) => (
-            <Badge key={`${p}-${i}`} variant="secondary" className="gap-1.5 pr-1">
-              <span>{p}</span>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="rounded-sm hover:bg-muted-foreground/10 p-0.5"
-                aria-label={`remove ${p}`}
-              >
-                <XIcon className="size-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              addDraft()
-            }
-          }}
-          placeholder={t("systemSettings.linearProjectsSection.addPlaceholder")}
-          className="max-w-xs"
-        />
-        <Button type="button" variant="outline" onClick={addDraft} disabled={!draft.trim()}>
-          {t("systemSettings.linearProjectsSection.add")}
-        </Button>
-      </div>
-      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
-        {t("common.save")}
-      </Button>
-    </DetailSection>
-  )
-}
 
 interface EngineArgsConfigSectionProps {
   configKey: string
@@ -211,10 +105,8 @@ export function SystemSettings() {
 
   const globalArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL]
   const beeArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE]
-  const linearProjectsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_LINEAR_PROJECTS]
   const savedGlobalArgs = useMemo(() => parseEngineArgs(globalArgsRaw), [globalArgsRaw])
   const savedBeeArgs = useMemo(() => parseEngineArgs(beeArgsRaw), [beeArgsRaw])
-  const savedLinearProjects = useMemo(() => parseLinearProjects(linearProjectsRaw), [linearProjectsRaw])
 
   return (
     <FadeIn>
@@ -271,8 +163,6 @@ export function SystemSettings() {
           hint={t("systemSettings.beeArgsSection.hint")}
           successMessage={t("systemSettings.beeArgsSection.updated")}
         />
-
-        <LinearProjectsSection savedValue={savedLinearProjects} />
       </div>
     </FadeIn>
   )

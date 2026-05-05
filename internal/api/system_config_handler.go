@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
-	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -26,21 +25,13 @@ type SystemConfigHandler struct {
 	store     sysConfigStore
 	validator engineValidatorForSys
 	engineCfg *enginecfg.Store
-	// linearStores routes Linear allow-list keys (projects, states) to the
-	// corresponding in-memory store so the running receiver picks up updates
-	// on its next poll tick.
-	linearStores map[string]*linearcfg.Store
 }
 
-func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store, linearCfg, statesStore *linearcfg.Store) *SystemConfigHandler {
+func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store) *SystemConfigHandler {
 	return &SystemConfigHandler{
 		store:     store,
 		validator: validator,
 		engineCfg: engineCfg,
-		linearStores: map[string]*linearcfg.Store{
-			model.SystemConfigKeyLinearProjects: linearCfg,
-			model.SystemConfigKeyLinearStates:   statesStore,
-		},
 	}
 }
 
@@ -52,8 +43,6 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 		model.SystemConfigKeyDefaultEngine,
 		model.SystemConfigKeyEngineArgsGlobal,
 		model.SystemConfigKeyEngineArgsBee,
-		model.SystemConfigKeyLinearProjects,
-		model.SystemConfigKeyLinearStates,
 	}
 	result := make(map[string]string, len(keys))
 	for _, key := range keys {
@@ -74,25 +63,6 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 type setSystemConfigRequest struct {
 	Value string `json:"value"`
 }
-
-// parseStringList validates that value is either empty or a JSON array of
-// strings. Empty entries are dropped downstream by linearcfg.Store.Set.
-func parseStringList(value string) ([]string, error) {
-	if value == "" || value == "[]" {
-		return nil, nil
-	}
-	var raw []string
-	if err := json.Unmarshal([]byte(value), &raw); err != nil {
-		return nil, errInvalidStringList
-	}
-	return raw, nil
-}
-
-var errInvalidStringList = errStringList("value must be a JSON array of non-empty strings")
-
-type errStringList string
-
-func (e errStringList) Error() string { return string(e) }
 
 // Set updates a single system config key.
 func (h *SystemConfigHandler) Set(c *gin.Context) {
@@ -130,20 +100,6 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
-		}
-
-	case model.SystemConfigKeyLinearProjects, model.SystemConfigKeyLinearStates:
-		values, err := parseStringList(req.Value)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		if err := h.store.Set(c.Request.Context(), key, req.Value); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if s := h.linearStores[key]; s != nil {
-			s.Set(values)
 		}
 
 	default:
