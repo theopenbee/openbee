@@ -22,6 +22,12 @@ type Team struct {
 	Key string `json:"key"` // e.g. "ENG"
 }
 
+// Project is the subset of Linear's Project type we care about.
+type Project struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // Comment is the subset of Linear's Comment type we care about.
 type Comment struct {
 	ID        string    `json:"id"`
@@ -41,7 +47,8 @@ type Issue struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 	Team        Team      `json:"team"`
 	Creator     User      `json:"creator"`
-	Comments    []Comment `json:"-"` // unwrapped from comments.nodes
+	Project     *Project  `json:"project,omitempty"` // nil when issue has no project
+	Comments    []Comment `json:"-"`                 // unwrapped from comments.nodes
 }
 
 // Client is the Linear GraphQL client surface used by the receiver and sender.
@@ -174,6 +181,7 @@ query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first
       id identifier title description createdAt updatedAt
       team { key }
       creator { id name email }
+      project { id name }
       comments(orderBy: createdAt) {
         nodes { id body createdAt user { id name email } parentId }
       }
@@ -212,6 +220,7 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 					UpdatedAt   time.Time `json:"updatedAt"`
 					Team        Team      `json:"team"`
 					Creator     User      `json:"creator"`
+					Project     *Project  `json:"project"`
 					Comments    struct {
 						Nodes []Comment `json:"nodes"`
 					} `json:"comments"`
@@ -231,6 +240,7 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 				UpdatedAt:   n.UpdatedAt,
 				Team:        n.Team,
 				Creator:     n.Creator,
+				Project:     n.Project,
 				Comments:    n.Comments.Nodes,
 			}
 			all = append(all, issue)
