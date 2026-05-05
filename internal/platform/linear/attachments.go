@@ -3,8 +3,14 @@ package linear
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -221,4 +227,71 @@ func spliceReplacements(text string, matches []assetMatch, reps []string) string
 	}
 	b = append(b, text[cursor:]...)
 	return string(b)
+}
+
+const uploadPutTimeout = 120 * time.Second
+
+// uploader runs Linear's two-step upload (fileUpload mutation + presigned PUT)
+// and returns markdown to embed in a comment body.
+type uploader struct {
+	client  Client
+	maxSize int
+	http    *http.Client
+}
+
+// Upload returns the markdown fragment for the given local file path.
+// Image files render as "![name](assetUrl)"; everything else as "[name](assetUrl)".
+func (u *uploader) Upload(ctx context.Context, path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("linear: read upload file: %w", err)
+	}
+	if len(data) > u.maxSize {
+		return "", fmt.Errorf("linear: upload file too large: %d bytes (max %d)", len(data), u.maxSize)
+	}
+
+	name := filepath.Base(path)
+	mime := http.DetectContentType(data)
+	isImage := strings.HasPrefix(mime, "image/") || isImageExt(filepath.Ext(name))
+
+	ticket, err := u.client.FileUpload(ctx, name, mime, len(data))
+	if err != nil {
+		return "", fmt.Errorf("linear: fileUpload mutation: %w", err)
+	}
+
+	putCtx, cancel := context.WithTimeout(ctx, uploadPutTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(putCtx, http.MethodPut, ticket.UploadURL, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("linear: build upload PUT: %w", err)
+	}
+	for k, v := range ticket.Headers {
+		req.Header.Set(k, v)
+	}
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", mime)
+	}
+
+	resp, err := u.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("linear: upload PUT: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("linear: upload PUT http %d", resp.StatusCode)
+	}
+
+	if isImage {
+		return fmt.Sprintf("![%s](%s)", name, ticket.AssetURL), nil
+	}
+	return fmt.Sprintf("[%s](%s)", name, ticket.AssetURL), nil
+}
+
+func isImageExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
+		return true
+	}
+	return false
 }

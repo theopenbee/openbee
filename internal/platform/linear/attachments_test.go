@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -223,5 +227,167 @@ func TestResolver_Resolve_MultipleMatchesPartialFailure(t *testing.T) {
 	}
 	if !strings.HasPrefix(out, "a ") || !strings.HasSuffix(out, " c") {
 		t.Errorf("surrounding text not preserved: %q", out)
+	}
+}
+
+// fakeUploaderClient lets the test inject a FileUpload implementation.
+type fakeUploaderClient struct {
+	*fakeClient
+	upload func(name, mime string, size int) (FileUploadTicket, error)
+}
+
+func (f *fakeUploaderClient) FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error) {
+	return f.upload(name, mime, size)
+}
+
+func TestUploader_UploadImage_ReturnsImageMarkdown(t *testing.T) {
+	var (
+		gotMethod  string
+		gotHeaders map[string]string
+		gotBody    []byte
+	)
+	s3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotHeaders = map[string]string{}
+		for k := range r.Header {
+			gotHeaders[k] = r.Header.Get(k)
+		}
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer s3.Close()
+
+	tmp := t.TempDir()
+	imgPath := tmp + "/foo.png"
+	if err := os.WriteFile(imgPath, []byte("PNGBYTES"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	u := &uploader{
+		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(name, mime string, size int) (FileUploadTicket, error) {
+			if name != "foo.png" || mime == "" || size != len("PNGBYTES") {
+				t.Errorf("FileUpload args: name=%q mime=%q size=%d", name, mime, size)
+			}
+			return FileUploadTicket{
+				AssetURL:  "https://uploads.linear.app/asset.png",
+				UploadURL: s3.URL + "/sig",
+				Headers:   map[string]string{"X-Test": "yes"},
+			}, nil
+		}},
+		maxSize: 10 * 1024 * 1024,
+		http:    http.DefaultClient,
+	}
+
+	md, err := u.Upload(context.Background(), imgPath)
+	if err != nil {
+		t.Fatalf("Upload: %v", err)
+	}
+	if md != "![foo.png](https://uploads.linear.app/asset.png)" {
+		t.Errorf("md = %q", md)
+	}
+	if gotMethod != http.MethodPut {
+		t.Errorf("S3 method = %q, want PUT", gotMethod)
+	}
+	if string(gotBody) != "PNGBYTES" {
+		t.Errorf("S3 body = %q", string(gotBody))
+	}
+	if gotHeaders["X-Test"] != "yes" {
+		t.Errorf("S3 headers missing X-Test: %v", gotHeaders)
+	}
+}
+
+func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
+	s3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer s3.Close()
+
+	tmp := t.TempDir()
+	pdf := tmp + "/spec.pdf"
+	if err := os.WriteFile(pdf, []byte("%PDF-1.4 ..."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	u := &uploader{
+		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
+			return FileUploadTicket{
+				AssetURL:  "https://uploads.linear.app/spec.pdf",
+				UploadURL: s3.URL + "/sig",
+			}, nil
+		}},
+		maxSize: 10 * 1024 * 1024,
+		http:    http.DefaultClient,
+	}
+
+	md, err := u.Upload(context.Background(), pdf)
+	if err != nil {
+		t.Fatalf("Upload: %v", err)
+	}
+	if md != "[spec.pdf](https://uploads.linear.app/spec.pdf)" {
+		t.Errorf("md = %q", md)
+	}
+}
+
+func TestUploader_FileMissing_ReturnsError(t *testing.T) {
+	u := &uploader{
+		client:  &fakeUploaderClient{fakeClient: &fakeClient{}, upload: nil},
+		maxSize: 10 * 1024 * 1024,
+		http:    http.DefaultClient,
+	}
+	_, err := u.Upload(context.Background(), "/no/such/file.png")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestUploader_FileTooLarge_RejectsBeforeMutation(t *testing.T) {
+	tmp := t.TempDir()
+	p := tmp + "/big.png"
+	if err := os.WriteFile(p, make([]byte, 11), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	u := &uploader{
+		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
+			called = true
+			return FileUploadTicket{}, nil
+		}},
+		maxSize: 10,
+		http:    http.DefaultClient,
+	}
+	_, err := u.Upload(context.Background(), p)
+	if err == nil {
+		t.Fatal("expected error for oversized file")
+	}
+	if called {
+		t.Error("FileUpload should not be invoked when over limit")
+	}
+}
+
+func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
+	s3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer s3.Close()
+
+	tmp := t.TempDir()
+	p := tmp + "/foo.png"
+	if err := os.WriteFile(p, []byte("PNG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	u := &uploader{
+		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
+			return FileUploadTicket{
+				AssetURL:  "https://uploads.linear.app/foo.png",
+				UploadURL: s3.URL + "/sig",
+			}, nil
+		}},
+		maxSize: 10 * 1024 * 1024,
+		http:    http.DefaultClient,
+	}
+	_, err := u.Upload(context.Background(), p)
+	if err == nil {
+		t.Fatal("expected error on PUT 5xx")
 	}
 }
