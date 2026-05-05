@@ -2,7 +2,14 @@ package linear
 
 import (
 	"bytes"
+	"context"
 	"regexp"
+	"sync"
+
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/theopenbee/openbee/internal/infra/media"
 )
 
 // assetMatch is one extracted markdown image or link pointing at uploads.linear.app.
@@ -119,4 +126,99 @@ func maskCodeRegions(text string) string {
 		i = end
 	}
 	return string(out)
+}
+
+const resolverConcurrency = 4
+
+// resolver downloads uploads.linear.app assets cited in markdown text and
+// rewrites the segments into <media:*> placeholders. Per-asset failures fall
+// back to a placeholder that retains the original URL on a separate line.
+type resolver struct {
+	client  Client
+	media   *media.Service
+	maxSize int
+}
+
+// Resolve never returns an error; per-match failure falls back inline.
+func (r *resolver) Resolve(ctx context.Context, text string) string {
+	matches := extractAssetURLs(text)
+	if len(matches) == 0 {
+		return text
+	}
+
+	replacements := make([]string, len(matches))
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(resolverConcurrency)
+	var mu sync.Mutex
+	for i, m := range matches {
+		g.Go(func() error {
+			rep := r.resolveOne(gCtx, m)
+			mu.Lock()
+			replacements[i] = rep
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	return spliceReplacements(text, matches, replacements)
+}
+
+// resolveOne returns the replacement string for a single match. It never
+// returns an error; failures collapse into the fallback placeholder.
+func (r *resolver) resolveOne(ctx context.Context, m assetMatch) string {
+	data, contentType, err := r.client.DownloadAsset(ctx, m.url)
+	if err != nil {
+		log.Warn("linear: download asset failed",
+			zap.String("url", m.url), zap.Error(err))
+		return r.fallback(m)
+	}
+	if len(data) > r.maxSize {
+		log.Warn("linear: asset exceeds max size",
+			zap.String("url", m.url),
+			zap.Int("size", len(data)),
+			zap.Int("max", r.maxSize),
+		)
+		return r.fallback(m)
+	}
+
+	mime := r.media.DetectMIME(data, m.altOrName)
+	if contentType != "" {
+		mime = contentType
+	}
+	ext := r.media.ExtensionFromMIME(mime)
+	path, err := r.media.SaveInbound(ctx, data, ext)
+	if err != nil {
+		log.Warn("linear: save asset failed",
+			zap.String("url", m.url), zap.Error(err))
+		return r.fallback(m)
+	}
+	return r.media.BuildPlaceholder(media.MediaTypeFromMIME(mime), path, m.altOrName)
+}
+
+func (r *resolver) fallback(m assetMatch) string {
+	mediaType := "document"
+	if m.isImage {
+		mediaType = "image"
+	}
+	placeholder := r.media.BuildPlaceholder(mediaType, "", m.altOrName)
+	return placeholder + "\nOriginal: " + m.url
+}
+
+// spliceReplacements stitches text + replacements together. matches is sorted
+// by span start (extractAssetURLs guarantees this).
+func spliceReplacements(text string, matches []assetMatch, reps []string) string {
+	if len(matches) == 0 {
+		return text
+	}
+	var b []byte
+	cursor := 0
+	for i, m := range matches {
+		b = append(b, text[cursor:m.span[0]]...)
+		b = append(b, reps[i]...)
+		cursor = m.span[1]
+	}
+	b = append(b, text[cursor:]...)
+	return string(b)
 }

@@ -1,8 +1,14 @@
 package linear
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/theopenbee/openbee/internal/infra/media"
 )
 
 func TestExtractAssetURLs_Image(t *testing.T) {
@@ -87,5 +93,135 @@ func TestExtractAssetURLs_AltCanBeEmpty(t *testing.T) {
 	}
 	if got[0].altOrName != "" {
 		t.Errorf("altOrName = %q, want empty", got[0].altOrName)
+	}
+}
+
+// fakeAssetClient is a Client double for resolver tests; it overrides
+// DownloadAsset while delegating all other interface methods to the
+// embedded fakeClient (see handler_test.go).
+type fakeAssetClient struct {
+	*fakeClient
+	download func(url string) ([]byte, string, error)
+}
+
+func (f *fakeAssetClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+	return f.download(url)
+}
+
+func newFakeResolverClient(dl func(url string) ([]byte, string, error)) *fakeAssetClient {
+	return &fakeAssetClient{fakeClient: &fakeClient{}, download: dl}
+}
+
+func TestResolver_Resolve_NoMatchesReturnsOriginal(t *testing.T) {
+	r := &resolver{
+		client:  newFakeResolverClient(nil),
+		media:   media.NewService(),
+		maxSize: 10 * 1024 * 1024,
+	}
+	in := "plain text without any media"
+	if got := r.Resolve(context.Background(), in); got != in {
+		t.Errorf("got %q, want %q", got, in)
+	}
+}
+
+func TestResolver_Resolve_ImageSuccessReplacesWithPlaceholder(t *testing.T) {
+	r := &resolver{
+		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
+			return []byte("PNGDATA"), "image/png", nil
+		}),
+		media:   media.NewService(),
+		maxSize: 10 * 1024 * 1024,
+	}
+	in := "see ![diagram](https://uploads.linear.app/a/b.png)!"
+	out := r.Resolve(context.Background(), in)
+	if !strings.HasPrefix(out, "see <media:image ") {
+		t.Errorf("expected placeholder prefix, got %q", out)
+	}
+	if !strings.HasSuffix(out, "!") {
+		t.Errorf("expected suffix preserved, got %q", out)
+	}
+	if !strings.Contains(out, `name="diagram"`) {
+		t.Errorf("placeholder missing name: %q", out)
+	}
+	if !strings.Contains(out, `path="`) {
+		t.Errorf("placeholder missing path: %q", out)
+	}
+}
+
+func TestResolver_Resolve_HTTPFailureFallsBackToOriginalURL(t *testing.T) {
+	r := &resolver{
+		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
+			return nil, "", errors.New("403 forbidden")
+		}),
+		media:   media.NewService(),
+		maxSize: 10 * 1024 * 1024,
+	}
+	in := "look ![pic](https://uploads.linear.app/x.png)"
+	out := r.Resolve(context.Background(), in)
+	if !strings.Contains(out, "<media:image") {
+		t.Errorf("expected fallback placeholder, got %q", out)
+	}
+	if strings.Contains(out, `path="`) {
+		t.Errorf("fallback should not have path: %q", out)
+	}
+	if !strings.Contains(out, "Original: https://uploads.linear.app/x.png") {
+		t.Errorf("fallback should retain original URL: %q", out)
+	}
+}
+
+func TestResolver_Resolve_LinkFallbackUsesDocumentType(t *testing.T) {
+	r := &resolver{
+		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
+			return nil, "", errors.New("timeout")
+		}),
+		media:   media.NewService(),
+		maxSize: 10 * 1024 * 1024,
+	}
+	in := "ref [spec.pdf](https://uploads.linear.app/x.pdf)"
+	out := r.Resolve(context.Background(), in)
+	if !strings.Contains(out, "<media:document") {
+		t.Errorf("expected document fallback, got %q", out)
+	}
+}
+
+func TestResolver_Resolve_SizeLimitExceededFallsBack(t *testing.T) {
+	r := &resolver{
+		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
+			return make([]byte, 11), "image/png", nil
+		}),
+		media:   media.NewService(),
+		maxSize: 10,
+	}
+	in := "x ![big](https://uploads.linear.app/big.png)"
+	out := r.Resolve(context.Background(), in)
+	if strings.Contains(out, `path="`) {
+		t.Errorf("oversize should not save, got %q", out)
+	}
+	if !strings.Contains(out, "Original: https://uploads.linear.app/big.png") {
+		t.Errorf("oversize fallback missing Original: %q", out)
+	}
+}
+
+func TestResolver_Resolve_MultipleMatchesPartialFailure(t *testing.T) {
+	r := &resolver{
+		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
+			if strings.Contains(url, "good") {
+				return []byte("PNG"), "image/png", nil
+			}
+			return nil, "", fmt.Errorf("nope")
+		}),
+		media:   media.NewService(),
+		maxSize: 10 * 1024 * 1024,
+	}
+	in := "a ![ok](https://uploads.linear.app/good.png) b ![bad](https://uploads.linear.app/bad.png) c"
+	out := r.Resolve(context.Background(), in)
+	if !strings.Contains(out, `path="`) {
+		t.Errorf("expected one success placeholder with path: %q", out)
+	}
+	if !strings.Contains(out, "Original: https://uploads.linear.app/bad.png") {
+		t.Errorf("expected fallback for bad URL: %q", out)
+	}
+	if !strings.HasPrefix(out, "a ") || !strings.HasSuffix(out, " c") {
+		t.Errorf("surrounding text not preserved: %q", out)
 	}
 }
