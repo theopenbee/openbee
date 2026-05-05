@@ -38,7 +38,7 @@ type LinearPlatform struct {
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
 // state (seen_issues.ndjson, seen_comments.ndjson) lives in ~/.openbee/.linear/.
-func NewPlatform(cfg config.LinearConfig, projectStore, statesStore *linearcfg.Store) (platform.Platform, error) {
+func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
@@ -52,8 +52,8 @@ func NewPlatform(cfg config.LinearConfig, projectStore, statesStore *linearcfg.S
 			seenComments: NewSeenSet(dir, "seen_comments.ndjson"),
 			labelName:    cfg.LabelName,
 			pollInterval: cfg.PollInterval,
-			projectStore: projectStore,
-			statesStore:  statesStore,
+			projectStore: linearcfg.NewStore(cfg.Projects),
+			statesStore:  linearcfg.NewStore(cfg.States),
 		},
 		sender: &LinearSender{client: client},
 	}, nil

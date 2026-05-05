@@ -26,7 +26,6 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
-	"github.com/theopenbee/openbee/internal/domain/linearcfg"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -129,9 +128,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	linearCfg := linearcfg.NewStore(cfg.Bee.Platforms.Linear.Projects)
-	linearStates := linearcfg.NewStore(cfg.Bee.Platforms.Linear.States)
-
 	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
@@ -156,8 +152,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
 		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
-		linearCfg,
-		linearStates,
 		cfg.Bee.Media,
 	)
 	if err != nil {
@@ -327,8 +321,6 @@ func buildPlatforms(
 	tc config.TelegramConfig,
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
-	linearCfg *linearcfg.Store,
-	linearStates *linearcfg.Store,
 	mc config.MediaConfig,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
@@ -352,7 +344,7 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		p, err := linear.NewPlatform(lc, linearCfg, linearStates)
+		p, err := linear.NewPlatform(lc)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
