@@ -62,6 +62,10 @@ type Client interface {
 	// (createdAt-ascending) order.
 	IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error)
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
+	// DownloadAsset fetches a uploads.linear.app asset using the workspace API
+	// key in the Authorization header. Returns the body and the server-reported
+	// Content-Type. A non-2xx response is returned as an error.
+	DownloadAsset(ctx context.Context, url string) (data []byte, contentType string, err error)
 }
 
 const defaultEndpoint = "https://api.linear.app/graphql"
@@ -160,6 +164,36 @@ func (c *httpClient) CreateComment(ctx context.Context, issueID, body string, pa
 		return Comment{}, err
 	}
 	return data.CommentCreate.Comment, nil
+}
+
+const downloadTimeout = 30 * time.Second
+
+func (c *httpClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+	dlCtx, cancel := context.WithTimeout(ctx, downloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("linear: build download request: %w", err)
+	}
+	req.Header.Set("Authorization", c.apiKey)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("linear: download asset: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return nil, "", fmt.Errorf("linear: download asset http %d: %s", resp.StatusCode, string(body))
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("linear: read asset body: %w", err)
+	}
+	return data, resp.Header.Get("Content-Type"), nil
 }
 
 const issuesPageSize = 50

@@ -11,6 +11,43 @@ import (
 	"testing"
 )
 
+func TestClient_DownloadAsset(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "test-key" {
+			t.Errorf("Authorization = %q, want test-key", got)
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("PNGDATA"))
+	}))
+	defer srv.Close()
+
+	c := newHTTPClient("test-key")
+	data, ct, err := c.DownloadAsset(context.Background(), srv.URL+"/some/path")
+	if err != nil {
+		t.Fatalf("DownloadAsset: %v", err)
+	}
+	if string(data) != "PNGDATA" {
+		t.Errorf("data = %q, want PNGDATA", string(data))
+	}
+	if ct != "image/png" {
+		t.Errorf("contentType = %q, want image/png", ct)
+	}
+}
+
+func TestClient_DownloadAsset_NonOKReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	c := newHTTPClient("test-key")
+	_, _, err := c.DownloadAsset(context.Background(), srv.URL+"/x")
+	if err == nil {
+		t.Fatal("expected error on non-2xx, got nil")
+	}
+}
+
 func newMockServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *httpClient) {
 	t.Helper()
 	srv := httptest.NewServer(handler)

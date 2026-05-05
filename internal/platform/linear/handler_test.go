@@ -54,6 +54,10 @@ func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return Comment{ID: "C-new"}, nil
 }
 
+func (f *fakeClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
 type fakeSeenSet struct {
 	ids   map[string]struct{}
 	added []string
