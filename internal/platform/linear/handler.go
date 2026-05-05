@@ -39,7 +39,7 @@ type LinearPlatform struct {
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
 // state (seen_issues.ndjson, seen_comments.ndjson) lives in ~/.openbee/.linear/.
-func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
+func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Platform, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("linear: resolve home dir: %w", err)
@@ -50,7 +50,6 @@ func NewPlatform(cfg config.LinearConfig) (platform.Platform, error) {
 	if maxSize == 0 {
 		maxSize = 50 * 1024 * 1024
 	}
-	mediaSvc := media.NewService()
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,

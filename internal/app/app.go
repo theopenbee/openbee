@@ -344,7 +344,7 @@ func buildPlatforms(
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
 	if lc.Enabled {
-		p, err := linear.NewPlatform(lc)
+		p, err := linear.NewPlatform(lc, mediaSvc)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
