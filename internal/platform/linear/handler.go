@@ -71,6 +71,7 @@ type LinearReceiver struct {
 	pollInterval time.Duration
 	projectsList []string
 	statesList   []string
+	resolver     *resolver
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -139,12 +140,20 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	for _, issue := range issues {
 		if !r.seenIssues.Contains(issue.ID) {
 			nonBot := nonBotComments(issue.Comments)
+			resolvedIssue := issue
+			resolvedIssue.Description = r.resolver.Resolve(ctx, issue.Description)
+			resolvedComments := make([]Comment, len(nonBot))
+			for i, c := range nonBot {
+				rc := c
+				rc.Body = r.resolver.Resolve(ctx, c.Body)
+				resolvedComments[i] = rc
+			}
 			log.Debug("tick: dispatch initial merged",
 				zap.String("identifier", issue.Identifier),
 				zap.String("issue_id", issue.ID),
 				zap.Int("non_bot_comment_count", len(nonBot)),
 			)
-			dispatch(buildInitialInbound(issue, nonBot))
+			dispatch(buildInitialInbound(resolvedIssue, resolvedComments))
 			newIssueIDs = append(newIssueIDs, issue.ID)
 			for _, c := range nonBot {
 				newCommentIDs = append(newCommentIDs, c.ID)
@@ -158,12 +167,14 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if strings.HasPrefix(c.Body, botCommentPrefix) {
 				continue
 			}
+			rc := c
+			rc.Body = r.resolver.Resolve(ctx, c.Body)
 			log.Debug("tick: dispatch comment",
 				zap.String("identifier", issue.Identifier),
 				zap.String("comment_id", c.ID),
 				zap.String("user_id", c.User.ID),
 			)
-			dispatch(buildCommentInbound(issue, c))
+			dispatch(buildCommentInbound(issue, rc))
 			newCommentIDs = append(newCommentIDs, c.ID)
 		}
 	}

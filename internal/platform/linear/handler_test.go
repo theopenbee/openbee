@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -31,6 +32,8 @@ type fakeClient struct {
 		IssueID, Body string
 		ParentID      *string
 	}
+	downloads  map[string][]byte
+	uploadImpl func(name, mime string, size int) (FileUploadTicket, error)
 }
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
@@ -55,6 +58,9 @@ func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, pa
 }
 
 func (f *fakeClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+	if data, ok := f.downloads[url]; ok {
+		return data, "image/png", nil
+	}
 	return nil, "", nil
 }
 
@@ -111,7 +117,11 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -168,7 +178,11 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -209,7 +223,11 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -237,7 +255,11 @@ func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   nil, // empty
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
 
@@ -254,7 +276,11 @@ func TestReceiver_TickOnce_EmptyProjectsSkipsTick(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: nil, // empty
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
 
@@ -303,7 +329,11 @@ func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T)
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 	if len(got) != 1 {
@@ -332,7 +362,11 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 	if len(got) != 1 {
@@ -380,7 +414,11 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -427,7 +465,11 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
-	}
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},	}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -493,6 +535,11 @@ func TestReceiver_TickOnce_FirstSightWithProjectIncludesProjectHeader(t *testing
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},
 	}
 
 	var got []platform.InboundMessage
@@ -529,6 +576,11 @@ func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
 		pollInterval: time.Hour,
 		projectsList: testProjects(),
 		statesList:   testStates(),
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},
 	}
 
 	var got []platform.InboundMessage
@@ -542,5 +594,57 @@ func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
 	}
 	if strings.Contains(got[0].Content, "[Project:") {
 		t.Errorf("comment dispatch should not contain project header, got: %q", got[0].Content)
+	}
+}
+
+func TestReceiver_TickOnce_ResolvesAssetURLsInDescriptionAndComments(t *testing.T) {
+	bot := User{ID: "BOT"}
+	descURL := "https://uploads.linear.app/d/desc.png"
+	commURL := "https://uploads.linear.app/d/comm.png"
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42",
+		Title:       "Fix login",
+		Description: "Snapshot ![desc](" + descURL + ")",
+		Team:        Team{Key: "ENG"}, Creator: User{ID: "U2", Name: "Alice"},
+		Comments: []Comment{
+			{ID: "C1", Body: "Repro: ![c1](" + commURL + ")", User: User{ID: "U2", Name: "Alice"}},
+		},
+	}
+
+	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	fc.downloads = map[string][]byte{
+		descURL: []byte("PNG-D"),
+		commURL: []byte("PNG-C"),
+	}
+
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectsList: testProjects(),
+		statesList:   testStates(),
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+	if len(received) != 1 {
+		t.Fatalf("got %d", len(received))
+	}
+	body := received[0].Content
+	if strings.Contains(body, descURL) {
+		t.Errorf("description URL not replaced: %q", body)
+	}
+	if strings.Contains(body, commURL) {
+		t.Errorf("comment URL not replaced: %q", body)
+	}
+	if !strings.Contains(body, "<media:image") {
+		t.Errorf("expected placeholders in body: %q", body)
 	}
 }
