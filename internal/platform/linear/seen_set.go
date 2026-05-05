@@ -18,6 +18,7 @@ type seenAPI interface {
 
 // SeenSet persists a grow-only set of already-dispatched IDs to
 // <dir>/<filename> as NDJSON (one ID per line). Add is append-only.
+// Not safe for concurrent use; expected to be driven by a single goroutine.
 type SeenSet struct {
 	dir      string
 	filename string
@@ -68,17 +69,22 @@ func (s *SeenSet) Contains(id string) bool {
 
 // Add records ids as dispatched and appends only the previously-unseen
 // IDs to the on-disk NDJSON file. Empty input and fully-duplicate input
-// are no-ops.
+// are no-ops. The in-memory set is updated only after the write succeeds,
+// so a write failure leaves memory and disk in sync.
 func (s *SeenSet) Add(_ context.Context, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	fresh := make([]string, 0, len(ids))
+	added := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		if _, ok := s.ids[id]; ok {
 			continue
 		}
-		s.ids[id] = struct{}{}
+		if _, ok := added[id]; ok {
+			continue
+		}
+		added[id] = struct{}{}
 		fresh = append(fresh, id)
 	}
 	if len(fresh) == 0 {
@@ -100,7 +106,16 @@ func (s *SeenSet) Add(_ context.Context, ids []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	_, err = f.Write(buf.Bytes())
-	return err
+	_, writeErr := f.Write(buf.Bytes())
+	closeErr := f.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	for _, id := range fresh {
+		s.ids[id] = struct{}{}
+	}
+	return nil
 }

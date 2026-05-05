@@ -138,6 +138,60 @@ func TestSeenSet_AddSkipsAlreadySeen(t *testing.T) {
 	}
 }
 
+func TestSeenSet_LoadIgnoresLonePartialLine(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "seen.ndjson"), []byte("only-id"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if s.Contains("only-id") {
+		t.Error("a lone partial line (no newline anywhere) must be dropped on Load")
+	}
+}
+
+func TestSeenSet_AddDoesNotMutateMemoryOnWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Replace the file path with a directory of the same name; OpenFile
+	// for write will fail with EISDIR-equivalent on every platform.
+	path := filepath.Join(dir, "seen.ndjson")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	err := s.Add(context.Background(), []string{"id-1"})
+	if err == nil {
+		t.Fatal("expected Add to fail when the target path is a directory")
+	}
+	if s.Contains("id-1") {
+		t.Error("on write failure, in-memory set must not contain the new ID")
+	}
+}
+
+func TestSeenSet_AddDeduplicatesWithinSingleCall(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSeenSet(dir, "seen.ndjson")
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add(context.Background(), []string{"id-1", "id-1", "id-2"}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "seen.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "id-1\nid-2\n" {
+		t.Errorf("file = %q, want %q (within-call duplicates must collapse)",
+			string(data), "id-1\nid-2\n")
+	}
+}
+
 func TestSeenSet_LoadIgnoresPartialTrailingLine(t *testing.T) {
 	dir := t.TempDir()
 	content := []byte("id-1\nid-2\nid-3-partial")
