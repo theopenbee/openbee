@@ -234,6 +234,7 @@ type LinearConfig struct {
 	PollInterval time.Duration `yaml:"poll_interval"` // default 10s
 	Projects     []string      `yaml:"projects"`      // project name allow-list; empty = process nothing
 	States       []string      `yaml:"states"`        // workflow-state name allow-list; empty = skip
+	MaxMediaSize int           `yaml:"max_media_size"` // bytes; default 50 MB
 }
 
 type RPCConfig struct {
@@ -336,6 +337,9 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.Weixin.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Weixin.MaxMediaSize = 100 * 1024 * 1024 // 100MB
+	}
+	if cfg.Bee.Platforms.Linear.MaxMediaSize == 0 {
+		cfg.Bee.Platforms.Linear.MaxMediaSize = 50 * 1024 * 1024 // 50MB
 	}
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
