@@ -3,11 +3,10 @@
 ## [Unreleased]
 
 ### Breaking Changes
-- Renamed the internal `mcp` concept to `rpc`. Config users must rename `bee.mcp:` to `bee.rpc:` in their `config.yaml`, or re-run `openbee config init`. The HTTP endpoint moved from `/mcp/bee/call` to `/rpc/bee/call`. Any reverse proxy or external script hardcoding `/mcp` must be updated.
+- Renamed the internal `mcp` concept to `rpc`
 
 ### Added
-- Add Linear platform integration: issues with the `openbee` label (and their comments) flow into the existing message pipeline; bee/worker replies are posted back as Linear comments. Polling-based receiver; configuration under `bee.platforms.linear`. Dispatched-ID state is persisted as append-only NDJSON under `~/.openbee/.linear/`.
-- Linear platform now downloads `uploads.linear.app` images and files cited in issue descriptions and comments into the standard `<media:*>` placeholders, and supports outbound attachments by uploading via Linear's `fileUpload` mutation and appending the resulting markdown to the comment body. New `bee.platforms.linear.max_media_size` config (default 50 MB).
+- Add Linear platform
 
 ## [0.0.34] - 2026-04-29
 
