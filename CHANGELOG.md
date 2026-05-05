@@ -8,13 +8,6 @@
 ### Added
 - Add Linear platform integration: issues with the `openbee` label (and their comments) flow into the existing message pipeline; bee/worker replies are posted back as Linear comments. Polling-based receiver; configuration under `bee.platforms.linear`.
 
-### Changed
-- Linear receiver now polls by workflow-state name (`linear_states` config) instead of an `updatedAt` cursor. Configurable via `bee.platforms.linear.states` in yaml or the `linear_states` system config key, hot-reloaded on the next tick.
-- First-sight Linear issues now dispatch a single merged message containing title, description, and all existing non-bot comments, instead of fragmented per-comment messages.
-
-### Removed
-- `cursor.json` and the timestamp-based polling cursor in the Linear receiver. Operators may delete the stale file: `rm ~/.openbee/.linear/cursor.json`.
-
 ## [0.0.34] - 2026-04-29
 
 ### Added
