@@ -23,7 +23,7 @@ func TestClient_DownloadAsset(t *testing.T) {
 	defer srv.Close()
 
 	c := newHTTPClient("test-key")
-	data, ct, err := c.DownloadAsset(context.Background(), srv.URL+"/some/path")
+	data, ct, err := c.DownloadAsset(context.Background(), srv.URL+"/some/path", 1024)
 	if err != nil {
 		t.Fatalf("DownloadAsset: %v", err)
 	}
@@ -42,9 +42,23 @@ func TestClient_DownloadAsset_NonOKReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	c := newHTTPClient("test-key")
-	_, _, err := c.DownloadAsset(context.Background(), srv.URL+"/x")
+	_, _, err := c.DownloadAsset(context.Background(), srv.URL+"/x", 1024)
 	if err == nil {
 		t.Fatal("expected error on non-2xx, got nil")
+	}
+}
+
+func TestClient_DownloadAsset_RespectsMaxBytes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("12345678901"))
+	}))
+	defer srv.Close()
+
+	c := newHTTPClient("test-key")
+	_, _, err := c.DownloadAsset(context.Background(), srv.URL+"/large", 10)
+	if err == nil {
+		t.Fatal("expected error when asset exceeds max bytes")
 	}
 }
 
@@ -186,6 +200,118 @@ func TestClient_IssuesInStates_SinglePage(t *testing.T) {
 	}
 	if len(out[0].Comments) != 1 || out[0].Comments[0].ID != "C1" {
 		t.Errorf("comments = %+v", out[0].Comments)
+	}
+}
+
+func TestClient_IssuesInStates_PaginatesNestedComments(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		callCount int
+	)
+
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+
+		mu.Lock()
+		callCount++
+		current := callCount
+		mu.Unlock()
+
+		switch current {
+		case 1:
+			if !strings.Contains(req.Query, "query Issues") {
+				t.Fatalf("first call should query issues, got: %s", req.Query)
+			}
+			if got := req.Variables["commentsFirst"]; got != float64(commentsPageSize) {
+				t.Errorf("commentsFirst = %v, want %d", got, commentsPageSize)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"issues": map[string]any{
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
+						},
+						"nodes": []map[string]any{
+							{
+								"id":          "I1",
+								"identifier":  "ENG-1",
+								"title":       "first",
+								"description": "",
+								"createdAt":   "2026-05-02T10:00:00Z",
+								"updatedAt":   "2026-05-02T11:00:00Z",
+								"team":        map[string]string{"key": "ENG"},
+								"creator":     map[string]string{"id": "U2"},
+								"comments": map[string]any{
+									"pageInfo": map[string]any{
+										"hasNextPage": true,
+										"endCursor":   "comments-page-2",
+									},
+									"nodes": []map[string]any{
+										{"id": "C1", "body": "first comment", "createdAt": "2026-05-02T10:45:00Z", "user": map[string]string{"id": "U2"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+		case 2:
+			if !strings.Contains(req.Query, "query IssueComments") {
+				t.Fatalf("second call should query issue comments, got: %s", req.Query)
+			}
+			if got := req.Variables["issueId"]; got != "I1" {
+				t.Errorf("issueId = %v, want I1", got)
+			}
+			if got := req.Variables["after"]; got != "comments-page-2" {
+				t.Errorf("after = %v, want comments-page-2", got)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"issue": map[string]any{
+						"comments": map[string]any{
+							"pageInfo": map[string]any{
+								"hasNextPage": false,
+								"endCursor":   "",
+							},
+							"nodes": []map[string]any{
+								{"id": "C2", "body": "second comment", "createdAt": "2026-05-02T10:46:00Z", "user": map[string]string{"id": "U3"}},
+							},
+						},
+					},
+				},
+			})
+		default:
+			t.Errorf("unexpected call count %d", current)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})
+
+	out, err := c.IssuesInStates(context.Background(), []string{"Todo"}, "openbee", []string{"alpha"})
+	if err != nil {
+		t.Fatalf("IssuesInStates: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(out))
+	}
+	if got, want := len(out[0].Comments), 2; got != want {
+		t.Fatalf("comments len = %d, want %d", got, want)
+	}
+	if out[0].Comments[0].ID != "C1" || out[0].Comments[1].ID != "C2" {
+		t.Errorf("comments = %+v", out[0].Comments)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if callCount != 2 {
+		t.Errorf("expected 2 server calls, got %d", callCount)
 	}
 }
 

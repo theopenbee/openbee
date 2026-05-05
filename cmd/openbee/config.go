@@ -42,13 +42,13 @@ func applySurveyTemplates() {
 }
 
 type configValues struct {
-	Language   string
-	ServerPort string
-	ServerHost string
-	Debug      bool
-	DBPath     string
-	RPCTokenSecret   string
-	RPCTokenTTL      string
+	Language        string
+	ServerPort      string
+	ServerHost      string
+	Debug           bool
+	DBPath          string
+	RPCTokenSecret  string
+	RPCTokenTTL     string
 	ServerEnvSecret string
 
 	FeishuEnabled   bool
@@ -84,20 +84,20 @@ type configValues struct {
 	LinearPollInterval string
 	LinearProjects     string // comma-separated user input
 	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
-	LinearStates     string // comma-separated user input
-	LinearStatesYAML string // rendered into the YAML inline list
+	LinearStates       string // comma-separated user input
+	LinearStatesYAML   string // rendered into the YAML inline list
 
 	EngineDefault       string
 	EngineTimeoutBee    string
 	EngineTimeoutWorker string
 	ClaudeEnabled       bool
-	CodexEnabled  bool
-	PiEnabled     bool
-	KimiEnabled   bool
-	ClaudePath    string
-	CodexPath     string
-	PiPath        string
-	KimiPath      string
+	CodexEnabled        bool
+	PiEnabled           bool
+	KimiEnabled         bool
+	ClaudePath          string
+	CodexPath           string
+	PiPath              string
+	KimiPath            string
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
@@ -139,42 +139,42 @@ func loadExistingConfig(path string) *configValues {
 	}
 
 	return &configValues{
-		Language:             cfg.Language,
-		ServerPort:           strconv.Itoa(cfg.Server.Port),
-		ServerHost:           cfg.Server.Host,
-		Debug:                cfg.Server.Debug,
-		DBPath:               cfg.Database.Path,
-		RPCTokenSecret:        cfg.Bee.RPC.TokenSecret,
-		RPCTokenTTL:           cfg.Bee.RPC.TokenTTL.String(),
-		ServerEnvSecret:       cfg.Server.EnvSecret,
-		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
-		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
-		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
-		FeishuBotName:        cfg.Bee.Platforms.Feishu.BotName,
-		DingtalkEnabled:      cfg.Bee.Platforms.DingTalk.Enabled,
-		DingtalkClientID:     cfg.Bee.Platforms.DingTalk.ClientID,
-		DingtalkClientSecret: cfg.Bee.Platforms.DingTalk.ClientSecret,
-		DingtalkBotName:      cfg.Bee.Platforms.DingTalk.BotName,
-		WecomEnabled:         cfg.Bee.Platforms.WeCom.Enabled,
-		WecomBotID:           cfg.Bee.Platforms.WeCom.BotID,
-		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
-		WecomBotName:         cfg.Bee.Platforms.WeCom.BotName,
-		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
-		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
-		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
-		TelegramBotName:      cfg.Bee.Platforms.Telegram.BotName,
-		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
-		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
-		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
-		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
-		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
-		WeixinBotName:        cfg.Bee.Platforms.Weixin.BotName,
-		LinearEnabled:      cfg.Bee.Platforms.Linear.Enabled,
-		LinearAPIKey:       cfg.Bee.Platforms.Linear.APIKey,
-		LinearLabelName:    cfg.Bee.Platforms.Linear.LabelName,
-		LinearPollInterval: cfg.Bee.Platforms.Linear.PollInterval.String(),
-		LinearProjects:     strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
-		LinearStates:       strings.Join(cfg.Bee.Platforms.Linear.States, ","),
+		Language:               cfg.Language,
+		ServerPort:             strconv.Itoa(cfg.Server.Port),
+		ServerHost:             cfg.Server.Host,
+		Debug:                  cfg.Server.Debug,
+		DBPath:                 cfg.Database.Path,
+		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
+		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
+		ServerEnvSecret:        cfg.Server.EnvSecret,
+		FeishuEnabled:          cfg.Bee.Platforms.Feishu.Enabled,
+		FeishuAppID:            cfg.Bee.Platforms.Feishu.AppID,
+		FeishuAppSecret:        cfg.Bee.Platforms.Feishu.AppSecret,
+		FeishuBotName:          cfg.Bee.Platforms.Feishu.BotName,
+		DingtalkEnabled:        cfg.Bee.Platforms.DingTalk.Enabled,
+		DingtalkClientID:       cfg.Bee.Platforms.DingTalk.ClientID,
+		DingtalkClientSecret:   cfg.Bee.Platforms.DingTalk.ClientSecret,
+		DingtalkBotName:        cfg.Bee.Platforms.DingTalk.BotName,
+		WecomEnabled:           cfg.Bee.Platforms.WeCom.Enabled,
+		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
+		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
+		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
+		TelegramEnabled:        cfg.Bee.Platforms.Telegram.Enabled,
+		TelegramToken:          cfg.Bee.Platforms.Telegram.Token,
+		TelegramAuthCode:       cfg.Bee.Platforms.Telegram.AuthCode,
+		TelegramBotName:        cfg.Bee.Platforms.Telegram.BotName,
+		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
+		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
+		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
+		WeixinCDNBaseURL:       cfg.Bee.Platforms.Weixin.CDNBaseURL,
+		WeixinUserID:           cfg.Bee.Platforms.Weixin.UserID,
+		WeixinBotName:          cfg.Bee.Platforms.Weixin.BotName,
+		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
+		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
+		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
+		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
+		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
+		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -187,14 +187,14 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		KimiPath:               cfg.Bee.Engines.Kimi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
-		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
-		FFprobePath:          cfg.Bee.Media.FFprobePath,
-		FFmpegPath:           cfg.Bee.Media.FFmpegPath,
-		AuthUsername:         cfg.Server.Auth.Username,
-		AuthPassword:         cfg.Server.Auth.Password,
-		AuthJWTSecret:        cfg.Server.Auth.JWTSecret,
-		AuthAccessTTL:        cfg.Server.Auth.AccessTokenTTL.String(),
-		AuthRefreshTTL:       cfg.Server.Auth.RefreshTokenTTL.String(),
+		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
+		FFprobePath:            cfg.Bee.Media.FFprobePath,
+		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
+		AuthUsername:           cfg.Server.Auth.Username,
+		AuthPassword:           cfg.Server.Auth.Password,
+		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
+		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
+		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),
 	}
 }
 

@@ -174,13 +174,13 @@ func (r *resolver) Resolve(ctx context.Context, text string) string {
 // resolveOne returns the replacement string for a single match. It never
 // returns an error; failures collapse into the fallback placeholder.
 func (r *resolver) resolveOne(ctx context.Context, m assetMatch) string {
-	data, contentType, err := r.client.DownloadAsset(ctx, m.url)
+	data, contentType, err := r.client.DownloadAsset(ctx, m.url, r.maxSize)
 	if err != nil {
 		log.Warn("linear: download asset failed",
 			zap.String("url", m.url), zap.Error(err))
 		return r.fallback(m)
 	}
-	if len(data) > r.maxSize {
+	if r.maxSize > 0 && len(data) > r.maxSize {
 		log.Warn("linear: asset exceeds max size",
 			zap.String("url", m.url),
 			zap.Int("size", len(data)),
@@ -242,11 +242,22 @@ type uploader struct {
 // Upload returns the markdown fragment for the given local file path.
 // Image files render as "![name](assetUrl)"; everything else as "[name](assetUrl)".
 func (u *uploader) Upload(ctx context.Context, path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("linear: stat upload file: %w", err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("linear: upload path is a directory: %s", path)
+	}
+	if u.maxSize > 0 && info.Size() > int64(u.maxSize) {
+		return "", fmt.Errorf("linear: upload file too large: %d bytes (max %d)", info.Size(), u.maxSize)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("linear: read upload file: %w", err)
 	}
-	if len(data) > u.maxSize {
+	if u.maxSize > 0 && len(data) > u.maxSize {
 		return "", fmt.Errorf("linear: upload file too large: %d bytes (max %d)", len(data), u.maxSize)
 	}
 

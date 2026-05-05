@@ -73,8 +73,9 @@ type Client interface {
 	CreateComment(ctx context.Context, issueID, body string, parentID *string) (Comment, error)
 	// DownloadAsset fetches a uploads.linear.app asset using the workspace API
 	// key in the Authorization header. Returns the body and the server-reported
-	// Content-Type. A non-2xx response is returned as an error.
-	DownloadAsset(ctx context.Context, url string) (data []byte, contentType string, err error)
+	// Content-Type. A non-2xx response or body larger than maxBytes is returned
+	// as an error. maxBytes <= 0 disables the size limit.
+	DownloadAsset(ctx context.Context, url string, maxBytes int) (data []byte, contentType string, err error)
 	// FileUpload runs Linear's fileUpload mutation and returns the presigned
 	// upload target plus the asset URL to embed in a comment markdown.
 	FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error)
@@ -228,7 +229,7 @@ func (c *httpClient) FileUpload(ctx context.Context, name, mime string, size int
 
 const downloadTimeout = 30 * time.Second
 
-func (c *httpClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+func (c *httpClient) DownloadAsset(ctx context.Context, url string, maxBytes int) ([]byte, string, error) {
 	dlCtx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
 
@@ -248,18 +249,39 @@ func (c *httpClient) DownloadAsset(ctx context.Context, url string) ([]byte, str
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, "", fmt.Errorf("linear: download asset http %d: %s", resp.StatusCode, string(body))
 	}
+	if maxBytes > 0 && resp.ContentLength > int64(maxBytes) {
+		return nil, "", fmt.Errorf("linear: asset exceeds max size: %d bytes (max %d)", resp.ContentLength, maxBytes)
+	}
 
-	data, err := io.ReadAll(resp.Body)
+	var reader io.Reader = resp.Body
+	if maxBytes > 0 {
+		reader = io.LimitReader(resp.Body, int64(maxBytes)+1)
+	}
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, "", fmt.Errorf("linear: read asset body: %w", err)
+	}
+	if maxBytes > 0 && len(data) > maxBytes {
+		return nil, "", fmt.Errorf("linear: asset exceeds max size: >%d bytes", maxBytes)
 	}
 	return data, resp.Header.Get("Content-Type"), nil
 }
 
 const issuesPageSize = 50
+const commentsPageSize = 50
+
+type pageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+type commentsConnection struct {
+	PageInfo pageInfo  `json:"pageInfo"`
+	Nodes    []Comment `json:"nodes"`
+}
 
 const issuesQuery = `
-query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first: Int!, $after: String) {
+query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first: Int!, $after: String, $commentsFirst: Int!) {
   issues(
     filter: {
       state:   { name: { in: $states } },
@@ -276,7 +298,8 @@ query Issues($states: [String!]!, $label: String!, $projects: [String!]!, $first
       team { key }
       creator { id name email }
       project { id name }
-      comments(orderBy: createdAt) {
+      comments(orderBy: createdAt, first: $commentsFirst) {
+        pageInfo { hasNextPage endCursor }
         nodes { id body createdAt user { id name email } parentId }
       }
     }
@@ -293,31 +316,27 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 	for {
 		page++
 		vars := map[string]any{
-			"states":   states,
-			"label":    label,
-			"projects": projects,
-			"first":    issuesPageSize,
-			"after":    after,
+			"states":        states,
+			"label":         label,
+			"projects":      projects,
+			"first":         issuesPageSize,
+			"after":         after,
+			"commentsFirst": commentsPageSize,
 		}
 		var data struct {
 			Issues struct {
-				PageInfo struct {
-					HasNextPage bool   `json:"hasNextPage"`
-					EndCursor   string `json:"endCursor"`
-				} `json:"pageInfo"`
-				Nodes []struct {
-					ID          string    `json:"id"`
-					Identifier  string    `json:"identifier"`
-					Title       string    `json:"title"`
-					Description string    `json:"description"`
-					CreatedAt   time.Time `json:"createdAt"`
-					UpdatedAt   time.Time `json:"updatedAt"`
-					Team        Team      `json:"team"`
-					Creator     User      `json:"creator"`
-					Project     *Project  `json:"project"`
-					Comments    struct {
-						Nodes []Comment `json:"nodes"`
-					} `json:"comments"`
+				PageInfo pageInfo `json:"pageInfo"`
+				Nodes    []struct {
+					ID          string             `json:"id"`
+					Identifier  string             `json:"identifier"`
+					Title       string             `json:"title"`
+					Description string             `json:"description"`
+					CreatedAt   time.Time          `json:"createdAt"`
+					UpdatedAt   time.Time          `json:"updatedAt"`
+					Team        Team               `json:"team"`
+					Creator     User               `json:"creator"`
+					Project     *Project           `json:"project"`
+					Comments    commentsConnection `json:"comments"`
 				} `json:"nodes"`
 			} `json:"issues"`
 		}
@@ -325,6 +344,14 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 			return nil, fmt.Errorf("linear: issues page %d: %w", page, err)
 		}
 		for _, n := range data.Issues.Nodes {
+			comments := append([]Comment(nil), n.Comments.Nodes...)
+			if n.Comments.PageInfo.HasNextPage {
+				more, err := c.issueCommentsAfter(ctx, n.ID, n.Comments.PageInfo.EndCursor)
+				if err != nil {
+					return nil, fmt.Errorf("linear: issue %s comments: %w", n.ID, err)
+				}
+				comments = append(comments, more...)
+			}
 			issue := Issue{
 				ID:          n.ID,
 				Identifier:  n.Identifier,
@@ -335,7 +362,7 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 				Team:        n.Team,
 				Creator:     n.Creator,
 				Project:     n.Project,
-				Comments:    n.Comments.Nodes,
+				Comments:    comments,
 			}
 			all = append(all, issue)
 		}
@@ -343,6 +370,51 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 			return all, nil
 		}
 		end := data.Issues.PageInfo.EndCursor
+		after = &end
+	}
+}
+
+const issueCommentsQuery = `
+query IssueComments($issueId: String!, $first: Int!, $after: String) {
+  issue(id: $issueId) {
+    comments(orderBy: createdAt, first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes { id body createdAt user { id name email } parentId }
+    }
+  }
+}`
+
+func (c *httpClient) issueCommentsAfter(ctx context.Context, issueID, cursor string) ([]Comment, error) {
+	if cursor == "" {
+		return nil, fmt.Errorf("missing comment endCursor")
+	}
+
+	var all []Comment
+	after := &cursor
+	page := 0
+	for {
+		page++
+		var data struct {
+			Issue struct {
+				Comments commentsConnection `json:"comments"`
+			} `json:"issue"`
+		}
+		vars := map[string]any{
+			"issueId": issueID,
+			"first":   commentsPageSize,
+			"after":   after,
+		}
+		if err := c.do(ctx, "issueComments", issueCommentsQuery, vars, &data); err != nil {
+			return nil, fmt.Errorf("page %d: %w", page, err)
+		}
+		all = append(all, data.Issue.Comments.Nodes...)
+		if !data.Issue.Comments.PageInfo.HasNextPage {
+			return all, nil
+		}
+		end := data.Issue.Comments.PageInfo.EndCursor
+		if end == "" {
+			return nil, fmt.Errorf("page %d missing endCursor", page)
+		}
 		after = &end
 	}
 }

@@ -3,6 +3,7 @@ package linear
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -57,8 +58,11 @@ func (f *fakeClient) CreateComment(ctx context.Context, issueID, body string, pa
 	return Comment{ID: "C-new"}, nil
 }
 
-func (f *fakeClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
+func (f *fakeClient) DownloadAsset(ctx context.Context, url string, maxBytes int) ([]byte, string, error) {
 	if data, ok := f.downloads[url]; ok {
+		if maxBytes > 0 && len(data) > maxBytes {
+			return nil, "", errors.New("asset exceeds max size")
+		}
 		return data, "image/png", nil
 	}
 	return nil, "", nil
@@ -124,7 +128,7 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -185,7 +189,7 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -230,7 +234,7 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -262,7 +266,7 @@ func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
 
@@ -283,7 +287,7 @@ func TestReceiver_TickOnce_EmptyProjectsSkipsTick(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 }
 
@@ -336,7 +340,7 @@ func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T)
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 	if len(got) != 1 {
@@ -369,7 +373,7 @@ func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 	if len(got) != 1 {
@@ -421,7 +425,7 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
@@ -472,7 +476,7 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 			client:  fc,
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
-		},	}
+		}}
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })

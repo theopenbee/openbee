@@ -114,13 +114,13 @@ type MediaConfig struct {
 }
 
 type BeeConfig struct {
-	MessageDebounce time.Duration      `yaml:"message_debounce"`
+	MessageDebounce time.Duration       `yaml:"message_debounce"`
 	Engine          EngineDefaultConfig `yaml:"engine"`
-	Engines         EnginesConfig      `yaml:"engines"`
-	Feeder          FeederConfig       `yaml:"feeder"`
-	Platforms       PlatformsConfig    `yaml:"platforms"`
-	RPC             RPCConfig          `yaml:"rpc"`
-	Media           MediaConfig        `yaml:"media"`
+	Engines         EnginesConfig       `yaml:"engines"`
+	Feeder          FeederConfig        `yaml:"feeder"`
+	Platforms       PlatformsConfig     `yaml:"platforms"`
+	RPC             RPCConfig           `yaml:"rpc"`
+	Media           MediaConfig         `yaml:"media"`
 
 	// Derived fields — not in YAML, computed by Load()
 	RPCBaseURL string `yaml:"-"` // http://host:port (no path suffix)
@@ -229,11 +229,11 @@ type WeixinConfig struct {
 
 type LinearConfig struct {
 	Enabled      bool          `yaml:"enabled"`
-	APIKey       string        `yaml:"api_key"`       // Linear personal API key (required when enabled)
-	LabelName    string        `yaml:"label_name"`    // gating label; default "openbee"
-	PollInterval time.Duration `yaml:"poll_interval"` // default 10s
-	Projects     []string      `yaml:"projects"`      // project name allow-list; empty = process nothing
-	States       []string      `yaml:"states"`        // workflow-state name allow-list; empty = skip
+	APIKey       string        `yaml:"api_key"`        // Linear personal API key (required when enabled)
+	LabelName    string        `yaml:"label_name"`     // gating label; default "openbee"
+	PollInterval time.Duration `yaml:"poll_interval"`  // default 10s
+	Projects     []string      `yaml:"projects"`       // project name allow-list; empty = process nothing
+	States       []string      `yaml:"states"`         // workflow-state name allow-list; empty = skip
 	MaxMediaSize int           `yaml:"max_media_size"` // bytes; default 50 MB
 }
 

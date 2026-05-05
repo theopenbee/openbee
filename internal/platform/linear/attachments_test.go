@@ -108,8 +108,15 @@ type fakeAssetClient struct {
 	download func(url string) ([]byte, string, error)
 }
 
-func (f *fakeAssetClient) DownloadAsset(ctx context.Context, url string) ([]byte, string, error) {
-	return f.download(url)
+func (f *fakeAssetClient) DownloadAsset(ctx context.Context, url string, maxBytes int) ([]byte, string, error) {
+	data, contentType, err := f.download(url)
+	if err != nil {
+		return nil, "", err
+	}
+	if maxBytes > 0 && len(data) > maxBytes {
+		return nil, "", errors.New("asset exceeds max size")
+	}
+	return data, contentType, nil
 }
 
 func newFakeResolverClient(dl func(url string) ([]byte, string, error)) *fakeAssetClient {
