@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // User is the subset of Linear's User type we care about.
@@ -223,11 +221,6 @@ func (c *httpClient) IssuesInStates(ctx context.Context, states []string, label 
 		if err := c.do(ctx, "issues", issuesQuery, vars, &data); err != nil {
 			return nil, fmt.Errorf("linear: issues page %d: %w", page, err)
 		}
-		log.Info("linear: graphql issues page",
-			zap.Int("page", page),
-			zap.Int("returned", len(data.Issues.Nodes)),
-			zap.Bool("has_next_page", data.Issues.PageInfo.HasNextPage),
-		)
 		for _, n := range data.Issues.Nodes {
 			issue := Issue{
 				ID:          n.ID,

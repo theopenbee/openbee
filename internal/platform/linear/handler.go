@@ -123,17 +123,11 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	if len(projects) == 0 || len(states) == 0 {
 		return
 	}
-	log.Debug("tick: start",
-		zap.Strings("projects", projects),
-		zap.Strings("states", states),
-		zap.String("label", r.labelName),
-	)
 	issues, err := r.client.IssuesInStates(ctx, states, r.labelName, projects)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
 	}
-	log.Debug("tick: api result", zap.Int("issue_count", len(issues)))
 
 	var newIssueIDs []string
 	var newCommentIDs []string
