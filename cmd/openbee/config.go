@@ -86,6 +86,7 @@ type configValues struct {
 	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
 	LinearStates       string // comma-separated user input
 	LinearStatesYAML   string // rendered into the YAML inline list
+	LinearMaxMediaSize string
 
 	EngineDefault       string
 	EngineTimeoutBee    string
@@ -175,6 +176,7 @@ func loadExistingConfig(path string) *configValues {
 		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
 		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
 		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
+		LinearMaxMediaSize:     strconv.Itoa(cfg.Bee.Platforms.Linear.MaxMediaSize),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -219,6 +221,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		AuthUsername:           "admin",
 		AuthAccessTTL:          "2h",
 		AuthRefreshTTL:         "168h",
+		LinearMaxMediaSize:     strconv.Itoa(50 * 1024 * 1024),
 	}
 
 	// If an existing config file exists, load its values as defaults silently

@@ -25,6 +25,7 @@ func testStates() []string {
 type fakeClient struct {
 	mu           sync.Mutex
 	viewer       User
+	viewerErr    error
 	calls        int
 	lastStates   []string
 	lastProjects []string
@@ -37,7 +38,7 @@ type fakeClient struct {
 	uploadImpl func(name, mime string, size int) (FileUploadTicket, error)
 }
 
-func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, nil }
+func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, f.viewerErr }
 
 func (f *fakeClient) IssuesInStates(ctx context.Context, states []string, label string, projects []string) ([]Issue, error) {
 	f.mu.Lock()
@@ -152,6 +153,61 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 	}
 	if seenComments.Contains("C-bot") {
 		t.Error("seenComments wrongly contains bot comment ID")
+	}
+}
+
+func TestReceiver_Start_ViewerFailureDoesNotStopPolling(t *testing.T) {
+	polled := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fc := &fakeClient{
+		viewerErr: errors.New("temporary viewer failure"),
+		issues: func() ([]Issue, error) {
+			select {
+			case polled <- struct{}{}:
+			default:
+			}
+			cancel()
+			return nil, nil
+		},
+	}
+
+	r := &LinearReceiver{
+		client:       fc,
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: 5 * time.Millisecond,
+		projectsList: testProjects(),
+		statesList:   testStates(),
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- r.Start(ctx, func(platform.InboundMessage) {})
+	}()
+
+	select {
+	case <-polled:
+	case err := <-errCh:
+		t.Fatalf("Start returned before polling after viewer failure: %v", err)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("receiver did not poll after viewer failure")
+	}
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Start after cancellation returned error: %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("receiver did not stop after context cancellation")
 	}
 }
 

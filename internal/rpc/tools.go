@@ -124,6 +124,7 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 const (
 	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
+	linearPlatformID           = "linear"
 )
 
 type workerBrief struct {
@@ -530,6 +531,16 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		SourceType:   sourceType,
 		SourceID:     sourceID,
 		InboundMsgID: params.MessageID,
+	}
+
+	if stored.Platform == linearPlatformID && params.Content != "" && params.MediaPath != "" {
+		outbound := base
+		outbound.Content = params.Content
+		outbound.MediaPath = params.MediaPath
+		if err := sender.Send(ctx, outbound); err != nil {
+			return nil, fmt.Errorf("send linear message: %w", err)
+		}
+		return map[string]string{"status": "sent"}, nil
 	}
 
 	if params.Content != "" {

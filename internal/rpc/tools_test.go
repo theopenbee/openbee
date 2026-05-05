@@ -14,8 +14,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/rpc"
 	_ "modernc.org/sqlite"
 )
 
@@ -404,6 +404,40 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	want := "worker-deleted-xyz\ntask done"
 	if mock.sent[0].Content != want {
 		t.Errorf("expected content %q, got %q", want, mock.sent[0].Content)
+	}
+}
+
+func TestCallTool_SendMessage_LinearContentAndMediaSentTogether(t *testing.T) {
+	mock := &mockSender{}
+	s, db := setupServerWithSender(t, "linear", mock)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-linear-media", "linear:ENG:ENG-42", "linear", "hello", `{"issue_id":"I1"}`, "", 0) //nolint
+
+	result, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-linear-media",
+		"content":    "see attached",
+		"media_path": "/tmp/snap.png",
+	}))
+	if err != nil {
+		t.Fatalf("send_message: %v", err)
+	}
+	m := result.(map[string]string)
+	if m["status"] != "sent" {
+		t.Errorf("expected status=sent, got %q", m["status"])
+	}
+
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if len(mock.sent) != 1 {
+		t.Fatalf("expected one combined send for Linear, got %d", len(mock.sent))
+	}
+	if mock.sent[0].Content != "see attached" {
+		t.Errorf("Content = %q", mock.sent[0].Content)
+	}
+	if mock.sent[0].MediaPath != "/tmp/snap.png" {
+		t.Errorf("MediaPath = %q", mock.sent[0].MediaPath)
 	}
 }
 

@@ -102,12 +102,16 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	}
 	viewer, err := r.client.Viewer(ctx)
 	if err != nil {
-		return fmt.Errorf("linear receiver: viewer: %w", err)
+		log.Warn("linear receiver viewer check failed; continuing polling",
+			zap.String("label", r.labelName),
+			zap.Error(err),
+		)
+	} else {
+		log.Info("linear receiver started",
+			zap.String("viewer_id", viewer.ID),
+			zap.String("label", r.labelName),
+		)
 	}
-	log.Info("linear receiver started",
-		zap.String("viewer_id", viewer.ID),
-		zap.String("label", r.labelName),
-	)
 
 	ticker := time.NewTicker(r.pollInterval)
 	defer ticker.Stop()

@@ -72,10 +72,10 @@ bee:
       poll_interval: {{.LinearPollInterval}}
       projects: [{{.LinearProjectsYAML}}]
       states: [{{.LinearStatesYAML}}]
+      max_media_size: {{.LinearMaxMediaSize}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:
     ffprobe_path: {{.FFprobePath}}
     ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}
-
