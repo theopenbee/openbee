@@ -193,6 +193,43 @@ func (r *LinearReceiver) addReaction(ctx context.Context, key string, target Rea
 	}()
 }
 
+// removeReaction is invoked by the sender after a reply has been posted. It
+// looks up any pending reaction stored under key, waits up to 5s for the
+// reactionID, and fires DeleteReaction in a background goroutine. Failures
+// are logged and never propagated to the caller.
+func (s *LinearSender) removeReaction(key string) {
+	if s.pendingReactions == nil {
+		return
+	}
+	val, ok := s.pendingReactions.LoadAndDelete(key)
+	if !ok {
+		return
+	}
+	ch, ok := val.(chan string)
+	if !ok {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		select {
+		case reactionID, received := <-ch:
+			if !received || reactionID == "" {
+				return
+			}
+			if err := utils.RetryWithBackoff(ctx, func() error {
+				return s.client.DeleteReaction(ctx, reactionID)
+			}, utils.DefaultRetryCount, utils.DefaultRetryDelay); err != nil {
+				log.Warn("linear: remove reaction failed", zap.String("key", key), zap.Error(err))
+			}
+		case <-timer.C:
+			log.Warn("linear: timed out waiting for reaction ID", zap.String("key", key))
+		}
+	}()
+}
+
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
 	projects := r.projects()
 	states := r.states()
@@ -395,10 +432,14 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		}
 	}
 
-	return utils.RetryWithBackoff(ctx, func() error {
+	if err := utils.RetryWithBackoff(ctx, func() error {
 		_, err := s.client.CreateComment(ctx, target.IssueID, body, target.ParentCommentID)
 		return err
-	}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
+	}, utils.DefaultRetryCount, utils.DefaultRetryDelay); err != nil {
+		return err
+	}
+	s.removeReaction(msg.ReplyTo.PlatformMessageID)
+	return nil
 }
 
 var _ platform.Platform = (*LinearPlatform)(nil)

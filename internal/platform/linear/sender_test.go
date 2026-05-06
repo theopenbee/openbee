@@ -3,10 +3,13 @@ package linear
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -78,5 +81,91 @@ func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
 	wantBody := "[openbee-bot]\n\nsee attached\n\n![snap.png](https://uploads.linear.app/snap.png)"
 	if fc.created[0].Body != wantBody {
 		t.Errorf("body = %q, want %q", fc.created[0].Body, wantBody)
+	}
+}
+
+func TestSender_DeletesReactionAfterReply(t *testing.T) {
+	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1"})
+	pending := &sync.Map{}
+	ch := make(chan string, 1)
+	ch <- "R7"
+	pending.Store("issue:I1", ch)
+
+	fc := &fakeClient{viewer: User{ID: "BOT"}}
+	s := &LinearSender{client: fc, pendingReactions: pending}
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		Content: "hi",
+		ReplyTo: platform.InboundMessage{
+			Raw:               string(rawBytes),
+			PlatformMessageID: "issue:I1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		fc.mu.Lock()
+		n := len(fc.reactionDeleted)
+		fc.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if len(fc.reactionDeleted) != 1 || fc.reactionDeleted[0] != "R7" {
+		t.Errorf("reactionDeleted = %v, want [R7]", fc.reactionDeleted)
+	}
+	if _, ok := pending.Load("issue:I1"); ok {
+		t.Error("pendingReactions still has key issue:I1 after Send")
+	}
+}
+
+func TestSender_NoPendingReaction_StillSucceeds(t *testing.T) {
+	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1"})
+	fc := &fakeClient{viewer: User{ID: "BOT"}}
+	s := &LinearSender{client: fc, pendingReactions: &sync.Map{}}
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		Content: "hi",
+		ReplyTo: platform.InboundMessage{
+			Raw:               string(rawBytes),
+			PlatformMessageID: "issue:I1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if len(fc.reactionDeleted) != 0 {
+		t.Errorf("reactionDeleted = %v, want empty", fc.reactionDeleted)
+	}
+}
+
+func TestSender_ReactionDeleteFails_StillSucceeds(t *testing.T) {
+	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1"})
+	pending := &sync.Map{}
+	ch := make(chan string, 1)
+	ch <- "R8"
+	pending.Store("issue:I1", ch)
+
+	fc := &fakeClient{
+		viewer: User{ID: "BOT"},
+		deleteReactionImpl: func(id string) error {
+			return errors.New("boom")
+		},
+	}
+	s := &LinearSender{client: fc, pendingReactions: pending}
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		Content: "hi",
+		ReplyTo: platform.InboundMessage{
+			Raw:               string(rawBytes),
+			PlatformMessageID: "issue:I1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send must not propagate reaction delete failure; got %v", err)
 	}
 }
