@@ -179,7 +179,7 @@ func (r *LinearReceiver) addReaction(ctx context.Context, key string, target Rea
 			}
 			reactionID = id
 			return nil
-		}, 1, utils.DefaultRetryDelay)
+		}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
 		if err != nil {
 			log.Warn("linear: add reaction failed", zap.String("key", key), zap.Error(err))
 			close(ch)

@@ -884,10 +884,17 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 		ID: "I1", Identifier: "ENG-42", Title: "T",
 		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 	}
+
+	// Cancel ctx from inside createReactionImpl so RetryWithBackoff aborts
+	// between retries — keeps the test fast without coupling to retry count.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	fc := &fakeClient{
 		viewer: User{ID: "BOT"},
 		issues: func() ([]Issue, error) { return []Issue{issue}, nil },
 		createReactionImpl: func(target ReactionTarget, emoji string) (string, error) {
+			cancel()
 			return "", errors.New("boom")
 		},
 	}
@@ -909,13 +916,12 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 	}
 
 	var dispatched []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+	r.tickOnce(ctx, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
 
 	if len(dispatched) != 1 {
 		t.Fatalf("dispatch must run regardless of reaction failure; got %d", len(dispatched))
 	}
 
-	// Allow the reaction goroutine to finish before asserting.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		v, ok := pending.Load("issue:I1")
