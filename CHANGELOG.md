@@ -7,6 +7,7 @@
 
 ### Added
 - Add Linear platform
+- Add Linear `:eyes:` reaction support
 
 ## [0.0.34] - 2026-04-29
 
