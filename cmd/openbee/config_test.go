@@ -43,8 +43,8 @@ bee:
 		t.Fatalf("LinearMaxMediaSize = %q, want 10485760", got)
 	}
 
-	vals.LinearProjectsYAML = renderProjectsYAML(vals.LinearProjects)
-	vals.LinearStatesYAML = renderProjectsYAML(vals.LinearStates)
+	vals.LinearProjectsYAML = renderInlineYAMLList(vals.LinearProjects)
+	vals.LinearStatesYAML = renderInlineYAMLList(vals.LinearStates)
 
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {

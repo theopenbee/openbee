@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -61,7 +62,7 @@ func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
 
 	s := &LinearSender{
 		client:   fc,
-		uploader: &uploader{client: fc, maxSize: 10 * 1024 * 1024, http: http.DefaultClient},
+		uploader: &uploader{client: fc, media: media.NewService(), maxSize: 10 * 1024 * 1024, http: http.DefaultClient},
 	}
 
 	err := s.Send(context.Background(), platform.OutboundMessage{

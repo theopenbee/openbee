@@ -751,8 +751,8 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	vals.LinearProjectsYAML = renderProjectsYAML(vals.LinearProjects)
-	vals.LinearStatesYAML = renderProjectsYAML(vals.LinearStates)
+	vals.LinearProjectsYAML = renderInlineYAMLList(vals.LinearProjects)
+	vals.LinearStatesYAML = renderInlineYAMLList(vals.LinearStates)
 
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
@@ -830,9 +830,9 @@ func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
 }
 
-// renderProjectsYAML formats a comma-separated project name list into the
-// inline YAML array body, e.g. `"a", "b"`. Empty input returns "".
-func renderProjectsYAML(csv string) string {
+// renderInlineYAMLList formats a comma-separated string into an inline YAML
+// array body, e.g. `"a", "b"`. Empty input returns "".
+func renderInlineYAMLList(csv string) string {
 	parts := strings.Split(csv, ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

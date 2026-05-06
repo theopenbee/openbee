@@ -281,6 +281,7 @@ func TestUploader_UploadImage_ReturnsImageMarkdown(t *testing.T) {
 				Headers:   map[string]string{"X-Test": "yes"},
 			}, nil
 		}},
+		media:   media.NewService(),
 		maxSize: 10 * 1024 * 1024,
 		http:    http.DefaultClient,
 	}
@@ -322,6 +323,7 @@ func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
 				UploadURL: s3.URL + "/sig",
 			}, nil
 		}},
+		media:   media.NewService(),
 		maxSize: 10 * 1024 * 1024,
 		http:    http.DefaultClient,
 	}
@@ -338,6 +340,7 @@ func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
 func TestUploader_FileMissing_ReturnsError(t *testing.T) {
 	u := &uploader{
 		client:  &fakeUploaderClient{fakeClient: &fakeClient{}, upload: nil},
+		media:   media.NewService(),
 		maxSize: 10 * 1024 * 1024,
 		http:    http.DefaultClient,
 	}
@@ -359,6 +362,7 @@ func TestUploader_FileTooLarge_RejectsBeforeMutation(t *testing.T) {
 			called = true
 			return FileUploadTicket{}, nil
 		}},
+		media:   media.NewService(),
 		maxSize: 10,
 		http:    http.DefaultClient,
 	}
@@ -390,6 +394,7 @@ func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
 				UploadURL: s3.URL + "/sig",
 			}, nil
 		}},
+		media:   media.NewService(),
 		maxSize: 10 * 1024 * 1024,
 		http:    http.DefaultClient,
 	}
@@ -409,6 +414,7 @@ func TestUploader_FileUploadMutationFails_ReturnsError(t *testing.T) {
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
 			return FileUploadTicket{}, errors.New("graphql denied")
 		}},
+		media:   media.NewService(),
 		maxSize: 10 * 1024 * 1024,
 		http:    http.DefaultClient,
 	}

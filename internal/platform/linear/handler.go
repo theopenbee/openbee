@@ -72,6 +72,7 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 			client: client,
 			uploader: &uploader{
 				client:  client,
+				media:   mediaSvc,
 				maxSize: maxSize,
 				http:    &http.Client{Timeout: uploadPutTimeout + 30*time.Second},
 			},
@@ -128,14 +129,6 @@ func (r *LinearReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 	}
 }
 
-func (r *LinearReceiver) projects() []string {
-	return append([]string(nil), r.projectsList...)
-}
-
-func (r *LinearReceiver) states() []string {
-	return append([]string(nil), r.statesList...)
-}
-
 func cleanStringList(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, v := range in {
@@ -162,12 +155,10 @@ func (r *LinearReceiver) addReaction(ctx context.Context, target ReactionTarget)
 }
 
 func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.InboundMessage)) {
-	projects := r.projects()
-	states := r.states()
-	if len(projects) == 0 || len(states) == 0 {
+	if len(r.projectsList) == 0 || len(r.statesList) == 0 {
 		return
 	}
-	issues, err := r.client.IssuesInStates(ctx, states, r.labelName, projects)
+	issues, err := r.client.IssuesInStates(ctx, r.statesList, r.labelName, r.projectsList)
 	if err != nil {
 		log.Error("issues fetch", zap.Error(err))
 		return
@@ -204,7 +195,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 			if r.seenComments.Contains(c.ID) {
 				continue
 			}
-			if strings.HasPrefix(c.Body, botCommentPrefix) {
+			if isBotComment(c.Body) {
 				continue
 			}
 			rc := c
@@ -238,10 +229,14 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 	}
 }
 
+func isBotComment(body string) bool {
+	return strings.HasPrefix(body, botCommentPrefix)
+}
+
 func nonBotComments(in []Comment) []Comment {
 	out := make([]Comment, 0, len(in))
 	for _, c := range in {
-		if strings.HasPrefix(c.Body, botCommentPrefix) {
+		if isBotComment(c.Body) {
 			continue
 		}
 		out = append(out, c)
@@ -356,9 +351,9 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 			return fmt.Errorf("linear: upload attachment: %w", err)
 		}
 		if msg.Content != "" {
-			body = body + "\n\n" + md
+			body += "\n\n" + md
 		} else {
-			body = selfMarker + md
+			body += md
 		}
 	}
 

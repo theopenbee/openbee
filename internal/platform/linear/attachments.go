@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
+	"sort"
 	"sync"
 	"time"
 
@@ -77,11 +77,7 @@ func isImageSpan(images []assetMatch, start, end int) bool {
 }
 
 func sortMatchesBySpan(in []assetMatch) {
-	for i := 1; i < len(in); i++ {
-		for j := i; j > 0 && in[j-1].span[0] > in[j].span[0]; j-- {
-			in[j-1], in[j] = in[j], in[j-1]
-		}
-	}
+	sort.Slice(in, func(i, j int) bool { return in[i].span[0] < in[j].span[0] })
 }
 
 // maskCodeRegions replaces all bytes inside ```fenced``` blocks and inline
@@ -235,6 +231,7 @@ const uploadPutTimeout = 120 * time.Second
 // and returns markdown to embed in a comment body.
 type uploader struct {
 	client  Client
+	media   *media.Service
 	maxSize int
 	http    *http.Client
 }
@@ -262,8 +259,8 @@ func (u *uploader) Upload(ctx context.Context, path string) (string, error) {
 	}
 
 	name := filepath.Base(path)
-	mime := http.DetectContentType(data)
-	isImage := strings.HasPrefix(mime, "image/") || isImageExt(filepath.Ext(name))
+	mime := u.media.DetectMIME(data, name)
+	isImage := media.MediaTypeFromMIME(mime) == "image"
 
 	ticket, err := u.client.FileUpload(ctx, name, mime, len(data))
 	if err != nil {
@@ -299,10 +296,3 @@ func (u *uploader) Upload(ctx context.Context, path string) (string, error) {
 	return fmt.Sprintf("[%s](%s)", name, ticket.AssetURL), nil
 }
 
-func isImageExt(ext string) bool {
-	switch strings.ToLower(ext) {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
-		return true
-	}
-	return false
-}
