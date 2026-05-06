@@ -775,7 +775,6 @@ func TestReceiver_TickOnce_AddsReactionForInitialIssue(t *testing.T) {
 		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 	}
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	pending := &sync.Map{}
 	r := &LinearReceiver{
 		client:       fc,
 		seenIssues:   newFakeSeenSet(),
@@ -789,7 +788,6 @@ func TestReceiver_TickOnce_AddsReactionForInitialIssue(t *testing.T) {
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
 		},
-		pendingReactions: pending,
 	}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
@@ -818,9 +816,6 @@ func TestReceiver_TickOnce_AddsReactionForInitialIssue(t *testing.T) {
 	if got.Emoji != ":eyes:" {
 		t.Errorf("emoji = %q, want :eyes:", got.Emoji)
 	}
-	if _, ok := pending.Load("issue:I1"); !ok {
-		t.Error("pendingReactions missing key issue:I1")
-	}
 }
 
 func TestReceiver_TickOnce_AddsReactionForNewComment(t *testing.T) {
@@ -835,7 +830,6 @@ func TestReceiver_TickOnce_AddsReactionForNewComment(t *testing.T) {
 	seenIssues := newFakeSeenSet()
 	seenIssues.ids["I1"] = struct{}{}
 	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	pending := &sync.Map{}
 	r := &LinearReceiver{
 		client:       fc,
 		seenIssues:   seenIssues,
@@ -849,7 +843,6 @@ func TestReceiver_TickOnce_AddsReactionForNewComment(t *testing.T) {
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
 		},
-		pendingReactions: pending,
 	}
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
@@ -874,9 +867,6 @@ func TestReceiver_TickOnce_AddsReactionForNewComment(t *testing.T) {
 	if got.Target.CommentID != "C1" || got.Target.IssueID != "" {
 		t.Errorf("target = %+v, want CommentID=C1", got.Target)
 	}
-	if _, ok := pending.Load("comment:C1"); !ok {
-		t.Error("pendingReactions missing key comment:C1")
-	}
 }
 
 func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T) {
@@ -885,8 +875,6 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 	}
 
-	// Cancel ctx from inside createReactionImpl so RetryWithBackoff aborts
-	// between retries — keeps the test fast without coupling to retry count.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -898,7 +886,6 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 			return "", errors.New("boom")
 		},
 	}
-	pending := &sync.Map{}
 	r := &LinearReceiver{
 		client:       fc,
 		seenIssues:   newFakeSeenSet(),
@@ -912,7 +899,6 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 			media:   media.NewService(),
 			maxSize: 10 * 1024 * 1024,
 		},
-		pendingReactions: pending,
 	}
 
 	var dispatched []platform.InboundMessage
@@ -921,22 +907,4 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 	if len(dispatched) != 1 {
 		t.Fatalf("dispatch must run regardless of reaction failure; got %d", len(dispatched))
 	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		v, ok := pending.Load("issue:I1")
-		if ok {
-			if ch, ok := v.(chan string); ok {
-				select {
-				case _, open := <-ch:
-					if !open {
-						return // closed channel: failure path completed cleanly
-					}
-				default:
-				}
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("reaction failure goroutine did not close channel within 2s")
 }

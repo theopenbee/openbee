@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,10 +32,6 @@ const selfMarker = botCommentPrefix + "\n\n"
 // reactionEmoji is the shortcode used to acknowledge inbound dispatches.
 const reactionEmoji = ":eyes:"
 
-// reactionCleanupTTL bounds how long an unresolved pendingReactions entry
-// lingers before being swept (memory-leak guard).
-const reactionCleanupTTL = 10 * time.Minute
-
 var log = logger.With(zap.String("component", "linear"))
 
 // LinearPlatform implements platform.Platform.
@@ -58,7 +53,6 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 	if maxSize == 0 {
 		maxSize = 50 * 1024 * 1024
 	}
-	pending := &sync.Map{}
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
@@ -73,7 +67,6 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 				media:   mediaSvc,
 				maxSize: maxSize,
 			},
-			pendingReactions: pending,
 		},
 		sender: &LinearSender{
 			client: client,
@@ -92,15 +85,14 @@ func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.
 
 // LinearReceiver polls Linear for issue/comment updates by workflow-state.
 type LinearReceiver struct {
-	client           Client
-	seenIssues       seenAPI
-	seenComments     seenAPI
-	labelName        string
-	pollInterval     time.Duration
-	projectsList     []string
-	statesList       []string
-	resolver         *resolver
-	pendingReactions *sync.Map
+	client       Client
+	seenIssues   seenAPI
+	seenComments seenAPI
+	labelName    string
+	pollInterval time.Duration
+	projectsList []string
+	statesList   []string
+	resolver     *resolver
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -155,39 +147,17 @@ func cleanStringList(in []string) []string {
 	return out
 }
 
-// addReaction asynchronously creates a reaction on target and stores the
-// resulting ID in pendingReactions under key. A buffered channel coordinates
-// with sender's LoadAndDelete so the sender can wait for the ID even when
-// the API call has not yet returned.
-func (r *LinearReceiver) addReaction(ctx context.Context, key string, target ReactionTarget) {
-	if r.pendingReactions == nil {
-		return
-	}
-	ch := make(chan string, 1)
-	r.pendingReactions.Store(key, ch)
+// addReaction asynchronously creates the dispatch acknowledgment reaction on
+// target. Failures are logged and never propagated; the call site does not
+// observe completion.
+func (r *LinearReceiver) addReaction(ctx context.Context, target ReactionTarget) {
 	go func() {
-		defer time.AfterFunc(reactionCleanupTTL, func() {
-			r.pendingReactions.Delete(key)
-		})
-		var reactionID string
-		err := utils.RetryWithBackoff(ctx, func() error {
-			id, e := r.client.CreateReaction(ctx, target, reactionEmoji)
-			if e != nil {
-				return e
-			}
-			reactionID = id
-			return nil
-		}, utils.DefaultRetryCount, utils.DefaultRetryDelay)
-		if err != nil {
-			log.Warn("linear: add reaction failed", zap.String("key", key), zap.Error(err))
-			close(ch)
-			return
+		if err := utils.RetryWithBackoff(ctx, func() error {
+			_, e := r.client.CreateReaction(ctx, target, reactionEmoji)
+			return e
+		}, utils.DefaultRetryCount, utils.DefaultRetryDelay); err != nil {
+			log.Warn("linear: add reaction failed", zap.Error(err))
 		}
-		if reactionID == "" {
-			close(ch)
-			return
-		}
-		ch <- reactionID
 	}()
 }
 
@@ -223,7 +193,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.Int("non_bot_comment_count", len(nonBot)),
 			)
 			dispatch(buildInitialInbound(resolvedIssue, resolvedComments))
-			r.addReaction(ctx, "issue:"+issue.ID, ReactionTarget{IssueID: issue.ID})
+			r.addReaction(ctx, ReactionTarget{IssueID: issue.ID})
 			newIssueIDs = append(newIssueIDs, issue.ID)
 			for _, c := range nonBot {
 				newCommentIDs = append(newCommentIDs, c.ID)
@@ -245,7 +215,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.String("user_id", c.User.ID),
 			)
 			dispatch(buildCommentInbound(issue, rc))
-			r.addReaction(ctx, "comment:"+c.ID, ReactionTarget{CommentID: c.ID})
+			r.addReaction(ctx, ReactionTarget{CommentID: c.ID})
 			newCommentIDs = append(newCommentIDs, c.ID)
 		}
 	}
