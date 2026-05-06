@@ -19,6 +19,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/skillinstall"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var configTemplate = config.ConfigTemplate
@@ -833,14 +834,10 @@ func handleSurveyErr(err error) error {
 // renderInlineYAMLList formats a comma-separated string into an inline YAML
 // array body, e.g. `"a", "b"`. Empty input returns "".
 func renderInlineYAMLList(csv string) string {
-	parts := strings.Split(csv, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		out = append(out, fmt.Sprintf("%q", p))
+	parts := utils.SplitAndTrim(csv)
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = fmt.Sprintf("%q", p)
 	}
 	return strings.Join(out, ", ")
 }

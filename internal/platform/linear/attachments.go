@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"sync"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -85,6 +85,9 @@ func sortMatchesBySpan(in []assetMatch) {
 // Length is preserved, so byte offsets in the masked string still line up
 // with the original text.
 func maskCodeRegions(text string) string {
+	if !strings.ContainsRune(text, '`') {
+		return text
+	}
 	b := []byte(text)
 	out := make([]byte, len(b))
 	copy(out, b)
@@ -99,10 +102,7 @@ func maskCodeRegions(text string) string {
 		for j+3 <= len(b) && !bytes.Equal(b[j:j+3], fence) {
 			j++
 		}
-		end := j + 3
-		if end > len(b) {
-			end = len(b)
-		}
+		end := min(j+3, len(b))
 		for k := i; k < end; k++ {
 			out[k] = '.'
 		}
@@ -118,10 +118,7 @@ func maskCodeRegions(text string) string {
 		for j < len(out) && out[j] != '`' {
 			j++
 		}
-		end := j + 1
-		if end > len(out) {
-			end = len(out)
-		}
+		end := min(j+1, len(out))
 		for k := i; k < end; k++ {
 			out[k] = '.'
 		}
@@ -152,13 +149,9 @@ func (r *resolver) Resolve(ctx context.Context, text string) string {
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(resolverConcurrency)
-	var mu sync.Mutex
 	for i, m := range matches {
 		g.Go(func() error {
-			rep := r.resolveOne(gCtx, m)
-			mu.Lock()
-			replacements[i] = rep
-			mu.Unlock()
+			replacements[i] = r.resolveOne(gCtx, m)
 			return nil
 		})
 	}
