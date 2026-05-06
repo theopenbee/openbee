@@ -30,8 +30,7 @@ const PlatformID = "linear"
 const botCommentPrefix = "[openbee-bot]"
 const selfMarker = botCommentPrefix + "\n\n"
 
-// reactionEmoji is the shortcode used to acknowledge inbound dispatches; it
-// is removed by the sender after the reply comment is posted.
+// reactionEmoji is the shortcode used to acknowledge inbound dispatches.
 const reactionEmoji = ":eyes:"
 
 // reactionCleanupTTL bounds how long an unresolved pendingReactions entry
@@ -83,7 +82,6 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 				maxSize: maxSize,
 				http:    &http.Client{Timeout: uploadPutTimeout + 30*time.Second},
 			},
-			pendingReactions: pending,
 		},
 	}, nil
 }
@@ -190,43 +188,6 @@ func (r *LinearReceiver) addReaction(ctx context.Context, key string, target Rea
 			return
 		}
 		ch <- reactionID
-	}()
-}
-
-// removeReaction is invoked by the sender after a reply has been posted. It
-// looks up any pending reaction stored under key, waits up to 5s for the
-// reactionID, and fires DeleteReaction in a background goroutine. Failures
-// are logged and never propagated to the caller.
-func (s *LinearSender) removeReaction(key string) {
-	if s.pendingReactions == nil {
-		return
-	}
-	val, ok := s.pendingReactions.LoadAndDelete(key)
-	if !ok {
-		return
-	}
-	ch, ok := val.(chan string)
-	if !ok {
-		return
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-		select {
-		case reactionID, received := <-ch:
-			if !received || reactionID == "" {
-				return
-			}
-			if err := utils.RetryWithBackoff(ctx, func() error {
-				return s.client.DeleteReaction(ctx, reactionID)
-			}, utils.DefaultRetryCount, utils.DefaultRetryDelay); err != nil {
-				log.Warn("linear: remove reaction failed", zap.String("key", key), zap.Error(err))
-			}
-		case <-timer.C:
-			log.Warn("linear: timed out waiting for reaction ID", zap.String("key", key))
-		}
 	}()
 }
 
@@ -405,9 +366,8 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 
 // LinearSender posts replies as Linear comments.
 type LinearSender struct {
-	client           Client
-	uploader         *uploader
-	pendingReactions *sync.Map
+	client   Client
+	uploader *uploader
 }
 
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
@@ -438,7 +398,6 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	}, utils.DefaultRetryCount, utils.DefaultRetryDelay); err != nil {
 		return err
 	}
-	s.removeReaction(msg.ReplyTo.PlatformMessageID)
 	return nil
 }
 
