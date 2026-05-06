@@ -38,18 +38,16 @@ type fakeClient struct {
 	downloads  map[string][]byte
 	uploadImpl func(name, mime string, size int) (FileUploadTicket, error)
 
-	// Reaction tracking. Tests can inject behavior via createReactionImpl /
-	// deleteReactionImpl; otherwise the defaults record calls and return
-	// monotonically increasing reaction IDs.
+	// Reaction tracking. Tests can inject behavior via createReactionImpl;
+	// the default records calls and returns monotonically increasing reaction
+	// IDs.
 	createReactionImpl func(target ReactionTarget, emoji string) (string, error)
-	deleteReactionImpl func(id string) error
 	reactionCreated    []struct {
 		Target ReactionTarget
 		Emoji  string
 		ID     string
 	}
-	reactionDeleted []string
-	nextReactionID  int
+	nextReactionID int
 }
 
 func (f *fakeClient) Viewer(ctx context.Context) (User, error) { return f.viewer, f.viewerErr }
@@ -114,22 +112,6 @@ func (f *fakeClient) CreateReaction(ctx context.Context, target ReactionTarget, 
 	}{target, emoji, id})
 	f.mu.Unlock()
 	return id, nil
-}
-
-func (f *fakeClient) DeleteReaction(ctx context.Context, reactionID string) error {
-	if f.deleteReactionImpl != nil {
-		err := f.deleteReactionImpl(reactionID)
-		if err == nil {
-			f.mu.Lock()
-			f.reactionDeleted = append(f.reactionDeleted, reactionID)
-			f.mu.Unlock()
-		}
-		return err
-	}
-	f.mu.Lock()
-	f.reactionDeleted = append(f.reactionDeleted, reactionID)
-	f.mu.Unlock()
-	return nil
 }
 
 type fakeSeenSet struct {

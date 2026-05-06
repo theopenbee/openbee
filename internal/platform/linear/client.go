@@ -89,8 +89,6 @@ type Client interface {
 	// CreateReaction adds a reaction to the given target with the given emoji
 	// shortcode (e.g. ":eyes:") and returns the new reaction's ID.
 	CreateReaction(ctx context.Context, target ReactionTarget, emoji string) (string, error)
-	// DeleteReaction removes a reaction by its ID.
-	DeleteReaction(ctx context.Context, reactionID string) error
 }
 
 const defaultEndpoint = "https://api.linear.app/graphql"
@@ -275,30 +273,6 @@ func (c *httpClient) CreateReaction(ctx context.Context, target ReactionTarget, 
 		return "", err
 	}
 	return data.ReactionCreate.Reaction.ID, nil
-}
-
-const reactionDeleteMutation = `
-mutation ReactionDelete($id: String!) {
-  reactionDelete(id: $id) { success }
-}`
-
-func (c *httpClient) DeleteReaction(ctx context.Context, reactionID string) error {
-	if reactionID == "" {
-		return fmt.Errorf("linear: DeleteReaction requires reactionID")
-	}
-	vars := map[string]any{"id": reactionID}
-	var data struct {
-		ReactionDelete struct {
-			Success bool `json:"success"`
-		} `json:"reactionDelete"`
-	}
-	if err := c.do(ctx, "reactionDelete", reactionDeleteMutation, vars, &data); err != nil {
-		return err
-	}
-	if !data.ReactionDelete.Success {
-		return fmt.Errorf("linear: reactionDelete not successful")
-	}
-	return nil
 }
 
 const downloadTimeout = 30 * time.Second

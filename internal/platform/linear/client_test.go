@@ -496,27 +496,6 @@ func TestClient_CreateReaction_RejectsEmptyTarget(t *testing.T) {
 	}
 }
 
-func TestClient_DeleteReaction(t *testing.T) {
-	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		s := string(body)
-		if !strings.Contains(s, "reactionDelete") {
-			t.Errorf("query missing reactionDelete: %s", s)
-		}
-		if !strings.Contains(s, `"id":"R1"`) {
-			t.Errorf("variables missing id: %s", s)
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"reactionDelete": map[string]any{"success": true},
-			},
-		})
-	})
-	if err := c.DeleteReaction(context.Background(), "R1"); err != nil {
-		t.Fatalf("DeleteReaction: %v", err)
-	}
-}
-
 func TestIssuesInStates_FullPagination(t *testing.T) {
 	var (
 		mu        sync.Mutex
