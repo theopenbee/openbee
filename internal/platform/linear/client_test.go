@@ -424,6 +424,78 @@ func TestClient_FileUpload_GraphQLError(t *testing.T) {
 	}
 }
 
+func TestClient_CreateReaction_OnComment(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		s := string(body)
+		if !strings.Contains(s, "reactionCreate") {
+			t.Errorf("query missing reactionCreate: %s", s)
+		}
+		if !strings.Contains(s, `"commentId":"C9"`) {
+			t.Errorf("variables missing commentId: %s", s)
+		}
+		if !strings.Contains(s, `"emoji":":eyes:"`) {
+			t.Errorf("variables missing emoji: %s", s)
+		}
+		if strings.Contains(s, `"issueId":`) {
+			t.Errorf("variables should not contain issueId when commentId is set: %s", s)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"reactionCreate": map[string]any{
+					"reaction": map[string]any{"id": "R1"},
+				},
+			},
+		})
+	})
+
+	id, err := c.CreateReaction(context.Background(), ReactionTarget{CommentID: "C9"}, ":eyes:")
+	if err != nil {
+		t.Fatalf("CreateReaction: %v", err)
+	}
+	if id != "R1" {
+		t.Errorf("reactionID = %q, want R1", id)
+	}
+}
+
+func TestClient_CreateReaction_OnIssue(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		s := string(body)
+		if !strings.Contains(s, `"issueId":"I1"`) {
+			t.Errorf("variables missing issueId: %s", s)
+		}
+		if strings.Contains(s, `"commentId":`) {
+			t.Errorf("variables should not contain commentId when only issueId is set: %s", s)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"reactionCreate": map[string]any{
+					"reaction": map[string]any{"id": "R2"},
+				},
+			},
+		})
+	})
+
+	id, err := c.CreateReaction(context.Background(), ReactionTarget{IssueID: "I1"}, ":eyes:")
+	if err != nil {
+		t.Fatalf("CreateReaction: %v", err)
+	}
+	if id != "R2" {
+		t.Errorf("reactionID = %q, want R2", id)
+	}
+}
+
+func TestClient_CreateReaction_RejectsEmptyTarget(t *testing.T) {
+	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("HTTP should not be called when target is empty")
+	})
+	_, err := c.CreateReaction(context.Background(), ReactionTarget{}, ":eyes:")
+	if err == nil {
+		t.Fatal("expected error on empty target, got nil")
+	}
+}
+
 func TestIssuesInStates_FullPagination(t *testing.T) {
 	var (
 		mu        sync.Mutex

@@ -46,6 +46,13 @@ type FileUploadTicket struct {
 	Headers   map[string]string
 }
 
+// ReactionTarget identifies what to react on. Exactly one of CommentID or
+// IssueID must be non-empty; CommentID takes precedence when both are set.
+type ReactionTarget struct {
+	CommentID string
+	IssueID   string
+}
+
 // Issue is the subset of Linear's Issue type we care about.
 type Issue struct {
 	ID          string    `json:"id"`
@@ -234,6 +241,35 @@ func (c *httpClient) FileUpload(ctx context.Context, name, mime string, size int
 		UploadURL: data.FileUpload.UploadFile.UploadURL,
 		Headers:   headers,
 	}, nil
+}
+
+const reactionCreateMutation = `
+mutation ReactionCreate($input: ReactionCreateInput!) {
+  reactionCreate(input: $input) { reaction { id } }
+}`
+
+func (c *httpClient) CreateReaction(ctx context.Context, target ReactionTarget, emoji string) (string, error) {
+	input := map[string]any{"emoji": emoji}
+	switch {
+	case target.CommentID != "":
+		input["commentId"] = target.CommentID
+	case target.IssueID != "":
+		input["issueId"] = target.IssueID
+	default:
+		return "", fmt.Errorf("linear: CreateReaction requires CommentID or IssueID")
+	}
+	vars := map[string]any{"input": input}
+	var data struct {
+		ReactionCreate struct {
+			Reaction struct {
+				ID string `json:"id"`
+			} `json:"reaction"`
+		} `json:"reactionCreate"`
+	}
+	if err := c.do(ctx, "reactionCreate", reactionCreateMutation, vars, &data); err != nil {
+		return "", err
+	}
+	return data.ReactionCreate.Reaction.ID, nil
 }
 
 const downloadTimeout = 30 * time.Second
