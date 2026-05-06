@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -50,6 +51,7 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 	if maxSize == 0 {
 		maxSize = 50 * 1024 * 1024
 	}
+	pending := &sync.Map{}
 	return &LinearPlatform{
 		receiver: &LinearReceiver{
 			client:       client,
@@ -64,6 +66,7 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 				media:   mediaSvc,
 				maxSize: maxSize,
 			},
+			pendingReactions: pending,
 		},
 		sender: &LinearSender{
 			client: client,
@@ -72,6 +75,7 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 				maxSize: maxSize,
 				http:    &http.Client{Timeout: uploadPutTimeout + 30*time.Second},
 			},
+			pendingReactions: pending,
 		},
 	}, nil
 }
@@ -82,14 +86,15 @@ func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.
 
 // LinearReceiver polls Linear for issue/comment updates by workflow-state.
 type LinearReceiver struct {
-	client       Client
-	seenIssues   seenAPI
-	seenComments seenAPI
-	labelName    string
-	pollInterval time.Duration
-	projectsList []string
-	statesList   []string
-	resolver     *resolver
+	client           Client
+	seenIssues       seenAPI
+	seenComments     seenAPI
+	labelName        string
+	pollInterval     time.Duration
+	projectsList     []string
+	statesList       []string
+	resolver         *resolver
+	pendingReactions *sync.Map
 }
 
 // Start runs the polling loop until ctx is cancelled.
@@ -317,8 +322,9 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 
 // LinearSender posts replies as Linear comments.
 type LinearSender struct {
-	client   Client
-	uploader *uploader
+	client           Client
+	uploader         *uploader
+	pendingReactions *sync.Map
 }
 
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
