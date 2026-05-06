@@ -272,6 +272,30 @@ func (c *httpClient) CreateReaction(ctx context.Context, target ReactionTarget, 
 	return data.ReactionCreate.Reaction.ID, nil
 }
 
+const reactionDeleteMutation = `
+mutation ReactionDelete($id: String!) {
+  reactionDelete(id: $id) { success }
+}`
+
+func (c *httpClient) DeleteReaction(ctx context.Context, reactionID string) error {
+	if reactionID == "" {
+		return fmt.Errorf("linear: DeleteReaction requires reactionID")
+	}
+	vars := map[string]any{"id": reactionID}
+	var data struct {
+		ReactionDelete struct {
+			Success bool `json:"success"`
+		} `json:"reactionDelete"`
+	}
+	if err := c.do(ctx, "reactionDelete", reactionDeleteMutation, vars, &data); err != nil {
+		return err
+	}
+	if !data.ReactionDelete.Success {
+		return fmt.Errorf("linear: reactionDelete not successful")
+	}
+	return nil
+}
+
 const downloadTimeout = 30 * time.Second
 
 func (c *httpClient) DownloadAsset(ctx context.Context, url string, maxBytes int) ([]byte, string, error) {
