@@ -86,6 +86,11 @@ type Client interface {
 	// FileUpload runs Linear's fileUpload mutation and returns the presigned
 	// upload target plus the asset URL to embed in a comment markdown.
 	FileUpload(ctx context.Context, name, mime string, size int) (FileUploadTicket, error)
+	// CreateReaction adds a reaction to the given target with the given emoji
+	// shortcode (e.g. ":eyes:") and returns the new reaction's ID.
+	CreateReaction(ctx context.Context, target ReactionTarget, emoji string) (string, error)
+	// DeleteReaction removes a reaction by its ID.
+	DeleteReaction(ctx context.Context, reactionID string) error
 }
 
 const defaultEndpoint = "https://api.linear.app/graphql"
