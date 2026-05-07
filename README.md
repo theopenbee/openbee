@@ -16,7 +16,7 @@
 <p align="center">
   <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
   <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0XTYZ">Author @0XTYZ</a>
+  <a href="https://x.com/0xtyz">Author @0xtyz</a>
 </p>
 
 **OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
@@ -25,10 +25,10 @@
 
 <div align="center">
 
-| | | | |
-|:---:|:---:|:---:|:---:|
-| 🤖 **AI Workers** | 💬 **Multi-Platform Support** | 🧠 **Persistent Memory** | ⏰ **Scheduled Tasks** |
-| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, Telegram, and Linear — receive tasks and reply where the work starts | Workers retain long-term memory across sessions, knowing context just like a real worker | Cron-based scheduling for automatic, hands-free triggering |
+| | | |
+|:---:|:---:|:---:|
+| 🤖 **AI Workers** | 💬 **Multi-Platform Support** | ⏰ **Scheduled Tasks** |
+| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, Telegram, and Linear — receive tasks and reply where the work starts | Cron-based scheduling for automatic, hands-free triggering |
 
 </div>
 
@@ -149,7 +149,7 @@ Includes Lark, DingTalk, WeCom, WeChat, Telegram, and Linear. Users can send mes
 Responsible for task scheduling — receives messages from the Communication layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the Communication layer.
 
 **3. Execution Layer**
-Each Worker is an independent AI Agent, equipped with persistent memory, tool invocation (CLI), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the Communication layer — just like real workers.
+Each Worker is an independent AI Agent, equipped with tool invocation (CLI) and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the Communication layer — just like real workers.
 
 ## 🌟 Star History
 
