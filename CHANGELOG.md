@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.35] - 2026-05-06
 
 ### Breaking Changes
 - Renamed the internal `mcp` concept to `rpc`
