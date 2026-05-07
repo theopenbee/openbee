@@ -261,6 +261,54 @@ bee:
 	}
 }
 
+func TestBeeConfig_LinearDefaults(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`
+server:
+  port: 8080
+`)
+	f.Close()
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Bee.Platforms.Linear.MaxMediaSize != 50*1024*1024 {
+		t.Errorf("Linear.MaxMediaSize default: want %d got %d",
+			50*1024*1024, cfg.Bee.Platforms.Linear.MaxMediaSize)
+	}
+}
+
+func TestBeeConfig_LinearLoad(t *testing.T) {
+	f, _ := os.CreateTemp("", "*.yaml")
+	f.WriteString(`
+server:
+  port: 8080
+bee:
+  platforms:
+    linear:
+      enabled: true
+      api_key: "lin_test"
+      max_media_size: 10485760
+`)
+	f.Close()
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	lc := cfg.Bee.Platforms.Linear
+	if !lc.Enabled {
+		t.Error("Linear.Enabled: want true")
+	}
+	if lc.APIKey != "lin_test" {
+		t.Errorf("Linear.APIKey: want lin_test got %q", lc.APIKey)
+	}
+	if lc.MaxMediaSize != 10485760 {
+		t.Errorf("Linear.MaxMediaSize: want 10485760 got %d", lc.MaxMediaSize)
+	}
+}
+
 func TestEngineConfigRawFor_IncludesEnv(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`

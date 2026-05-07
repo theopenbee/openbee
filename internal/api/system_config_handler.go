@@ -28,7 +28,11 @@ type SystemConfigHandler struct {
 }
 
 func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSys, engineCfg *enginecfg.Store) *SystemConfigHandler {
-	return &SystemConfigHandler{store: store, validator: validator, engineCfg: engineCfg}
+	return &SystemConfigHandler{
+		store:     store,
+		validator: validator,
+		engineCfg: engineCfg,
+	}
 }
 
 // Get returns all known system config keys as a JSON object.

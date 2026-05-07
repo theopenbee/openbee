@@ -34,14 +34,15 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/dingtalk"
 	"github.com/theopenbee/openbee/internal/platform/feishu"
+	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
+	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 	webui "github.com/theopenbee/openbee/web"
 )
@@ -148,7 +149,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	platforms := buildPlatforms(cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom, cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Media)
+	platforms, err := buildPlatforms(
+		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
+		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
+		cfg.Bee.Media,
+	)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range platforms {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
@@ -306,7 +314,15 @@ func buildDispatcher(
 	)
 }
 
-func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.WeComConfig, tc config.TelegramConfig, wxc config.WeixinConfig, mc config.MediaConfig) []platform.Platform {
+func buildPlatforms(
+	fc config.FeishuConfig,
+	dc config.DingTalkConfig,
+	wc config.WeComConfig,
+	tc config.TelegramConfig,
+	wxc config.WeixinConfig,
+	lc config.LinearConfig,
+	mc config.MediaConfig,
+) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
 	if fc.Enabled {
@@ -327,7 +343,14 @@ func buildPlatforms(fc config.FeishuConfig, dc config.DingTalkConfig, wc config.
 	if wxc.Enabled {
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
 	}
-	return result
+	if lc.Enabled {
+		p, err := linear.NewPlatform(lc, mediaSvc)
+		if err != nil {
+			return nil, fmt.Errorf("init linear platform: %w", err)
+		}
+		result = append(result, p)
+	}
+	return result, nil
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {

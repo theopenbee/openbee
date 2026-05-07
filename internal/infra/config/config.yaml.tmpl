@@ -65,10 +65,17 @@ bee:
       cdn_base_url: "{{.WeixinCDNBaseURL}}"
       user_id: "{{.WeixinUserID}}"
       bot_name: "{{.WeixinBotName}}"
+    linear:
+      enabled: {{.LinearEnabled}}
+      api_key: "{{.LinearAPIKey}}"
+      label_name: "{{.LinearLabelName}}"
+      poll_interval: {{.LinearPollInterval}}
+      projects: [{{.LinearProjectsYAML}}]
+      states: [{{.LinearStatesYAML}}]
+      max_media_size: {{.LinearMaxMediaSize}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:
     ffprobe_path: {{.FFprobePath}}
     ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}
-

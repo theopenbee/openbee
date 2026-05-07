@@ -390,8 +390,6 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 
 	worker, err := f.workerLookup.GetByName(workerName)
 	if err != nil {
-		log.Warn("direct: worker not found, falling back to bee",
-			zap.String("name", workerName))
 		return false
 	}
 

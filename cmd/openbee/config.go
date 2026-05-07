@@ -19,6 +19,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/skillinstall"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var configTemplate = config.ConfigTemplate
@@ -42,13 +43,13 @@ func applySurveyTemplates() {
 }
 
 type configValues struct {
-	Language   string
-	ServerPort string
-	ServerHost string
-	Debug      bool
-	DBPath     string
-	RPCTokenSecret   string
-	RPCTokenTTL      string
+	Language        string
+	ServerPort      string
+	ServerHost      string
+	Debug           bool
+	DBPath          string
+	RPCTokenSecret  string
+	RPCTokenTTL     string
 	ServerEnvSecret string
 
 	FeishuEnabled   bool
@@ -78,17 +79,27 @@ type configValues struct {
 	WeixinUserID     string
 	WeixinBotName    string
 
+	LinearEnabled      bool
+	LinearAPIKey       string
+	LinearLabelName    string
+	LinearPollInterval string
+	LinearProjects     string // comma-separated user input
+	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
+	LinearStates       string // comma-separated user input
+	LinearStatesYAML   string // rendered into the YAML inline list
+	LinearMaxMediaSize string
+
 	EngineDefault       string
 	EngineTimeoutBee    string
 	EngineTimeoutWorker string
 	ClaudeEnabled       bool
-	CodexEnabled  bool
-	PiEnabled     bool
-	KimiEnabled   bool
-	ClaudePath    string
-	CodexPath     string
-	PiPath        string
-	KimiPath      string
+	CodexEnabled        bool
+	PiEnabled           bool
+	KimiEnabled         bool
+	ClaudePath          string
+	CodexPath           string
+	PiPath              string
+	KimiPath            string
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
@@ -130,36 +141,43 @@ func loadExistingConfig(path string) *configValues {
 	}
 
 	return &configValues{
-		Language:             cfg.Language,
-		ServerPort:           strconv.Itoa(cfg.Server.Port),
-		ServerHost:           cfg.Server.Host,
-		Debug:                cfg.Server.Debug,
-		DBPath:               cfg.Database.Path,
-		RPCTokenSecret:        cfg.Bee.RPC.TokenSecret,
-		RPCTokenTTL:           cfg.Bee.RPC.TokenTTL.String(),
-		ServerEnvSecret:       cfg.Server.EnvSecret,
-		FeishuEnabled:        cfg.Bee.Platforms.Feishu.Enabled,
-		FeishuAppID:          cfg.Bee.Platforms.Feishu.AppID,
-		FeishuAppSecret:      cfg.Bee.Platforms.Feishu.AppSecret,
-		FeishuBotName:        cfg.Bee.Platforms.Feishu.BotName,
-		DingtalkEnabled:      cfg.Bee.Platforms.DingTalk.Enabled,
-		DingtalkClientID:     cfg.Bee.Platforms.DingTalk.ClientID,
-		DingtalkClientSecret: cfg.Bee.Platforms.DingTalk.ClientSecret,
-		DingtalkBotName:      cfg.Bee.Platforms.DingTalk.BotName,
-		WecomEnabled:         cfg.Bee.Platforms.WeCom.Enabled,
-		WecomBotID:           cfg.Bee.Platforms.WeCom.BotID,
-		WecomSecret:          cfg.Bee.Platforms.WeCom.Secret,
-		WecomBotName:         cfg.Bee.Platforms.WeCom.BotName,
-		TelegramEnabled:      cfg.Bee.Platforms.Telegram.Enabled,
-		TelegramToken:        cfg.Bee.Platforms.Telegram.Token,
-		TelegramAuthCode:     cfg.Bee.Platforms.Telegram.AuthCode,
-		TelegramBotName:      cfg.Bee.Platforms.Telegram.BotName,
-		WeixinEnabled:        cfg.Bee.Platforms.Weixin.Enabled,
-		WeixinToken:          cfg.Bee.Platforms.Weixin.Token,
-		WeixinBaseURL:        cfg.Bee.Platforms.Weixin.BaseURL,
-		WeixinCDNBaseURL:     cfg.Bee.Platforms.Weixin.CDNBaseURL,
-		WeixinUserID:         cfg.Bee.Platforms.Weixin.UserID,
-		WeixinBotName:        cfg.Bee.Platforms.Weixin.BotName,
+		Language:               cfg.Language,
+		ServerPort:             strconv.Itoa(cfg.Server.Port),
+		ServerHost:             cfg.Server.Host,
+		Debug:                  cfg.Server.Debug,
+		DBPath:                 cfg.Database.Path,
+		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
+		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
+		ServerEnvSecret:        cfg.Server.EnvSecret,
+		FeishuEnabled:          cfg.Bee.Platforms.Feishu.Enabled,
+		FeishuAppID:            cfg.Bee.Platforms.Feishu.AppID,
+		FeishuAppSecret:        cfg.Bee.Platforms.Feishu.AppSecret,
+		FeishuBotName:          cfg.Bee.Platforms.Feishu.BotName,
+		DingtalkEnabled:        cfg.Bee.Platforms.DingTalk.Enabled,
+		DingtalkClientID:       cfg.Bee.Platforms.DingTalk.ClientID,
+		DingtalkClientSecret:   cfg.Bee.Platforms.DingTalk.ClientSecret,
+		DingtalkBotName:        cfg.Bee.Platforms.DingTalk.BotName,
+		WecomEnabled:           cfg.Bee.Platforms.WeCom.Enabled,
+		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
+		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
+		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
+		TelegramEnabled:        cfg.Bee.Platforms.Telegram.Enabled,
+		TelegramToken:          cfg.Bee.Platforms.Telegram.Token,
+		TelegramAuthCode:       cfg.Bee.Platforms.Telegram.AuthCode,
+		TelegramBotName:        cfg.Bee.Platforms.Telegram.BotName,
+		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
+		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
+		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
+		WeixinCDNBaseURL:       cfg.Bee.Platforms.Weixin.CDNBaseURL,
+		WeixinUserID:           cfg.Bee.Platforms.Weixin.UserID,
+		WeixinBotName:          cfg.Bee.Platforms.Weixin.BotName,
+		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
+		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
+		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
+		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
+		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
+		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
+		LinearMaxMediaSize:     strconv.Itoa(cfg.Bee.Platforms.Linear.MaxMediaSize),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
@@ -172,14 +190,14 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		KimiPath:               cfg.Bee.Engines.Kimi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
-		MessageDebounce:      cfg.Bee.MessageDebounce.String(),
-		FFprobePath:          cfg.Bee.Media.FFprobePath,
-		FFmpegPath:           cfg.Bee.Media.FFmpegPath,
-		AuthUsername:         cfg.Server.Auth.Username,
-		AuthPassword:         cfg.Server.Auth.Password,
-		AuthJWTSecret:        cfg.Server.Auth.JWTSecret,
-		AuthAccessTTL:        cfg.Server.Auth.AccessTokenTTL.String(),
-		AuthRefreshTTL:       cfg.Server.Auth.RefreshTokenTTL.String(),
+		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
+		FFprobePath:            cfg.Bee.Media.FFprobePath,
+		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
+		AuthUsername:           cfg.Server.Auth.Username,
+		AuthPassword:           cfg.Server.Auth.Password,
+		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
+		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
+		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),
 	}
 }
 
@@ -204,6 +222,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		AuthUsername:           "admin",
 		AuthAccessTTL:          "2h",
 		AuthRefreshTTL:         "168h",
+		LinearMaxMediaSize:     strconv.Itoa(50 * 1024 * 1024),
 	}
 
 	// If an existing config file exists, load its values as defaults silently
@@ -360,6 +379,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	if vals.WeixinEnabled {
 		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeixin)
 	}
+	if vals.LinearEnabled {
+		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformLinear)
+	}
 
 	var selectedPlatforms []string
 	if err := survey.AskOne(&survey.MultiSelect{
@@ -370,6 +392,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			i18n.M.Prompt.PlatformWeCom,
 			i18n.M.Prompt.PlatformTelegram,
 			i18n.M.Prompt.PlatformWeixin,
+			i18n.M.Prompt.PlatformLinear,
 		},
 		Default: defaultPlatforms,
 	}, &selectedPlatforms); err != nil {
@@ -382,6 +405,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	vals.WecomEnabled = false
 	vals.TelegramEnabled = false
 	vals.WeixinEnabled = false
+	vals.LinearEnabled = false
 
 	for _, p := range selectedPlatforms {
 		switch p {
@@ -513,6 +537,42 @@ func runConfig(cmd *cobra.Command, args []string) error {
 			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 			if err := promptBotName(&vals.WeixinBotName); err != nil {
 				return err
+			}
+		case i18n.M.Prompt.PlatformLinear:
+			vals.LinearEnabled = true
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearAPIKey,
+				Help:    i18n.M.Prompt.LinearAPIKeyHelp,
+				Default: vals.LinearAPIKey,
+			}, &vals.LinearAPIKey, survey.WithValidator(survey.Required)); err != nil {
+				return handleSurveyErr(err)
+			}
+			labelDefault := vals.LinearLabelName
+			if labelDefault == "" {
+				labelDefault = "openbee"
+			}
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearLabelName,
+				Default: labelDefault,
+			}, &vals.LinearLabelName); err != nil {
+				return handleSurveyErr(err)
+			}
+			if vals.LinearPollInterval == "" {
+				vals.LinearPollInterval = "10s"
+			}
+			fmt.Println(i18n.M.Prompt.LinearProjectsHelp)
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearProjects,
+				Default: vals.LinearProjects,
+			}, &vals.LinearProjects); err != nil {
+				return handleSurveyErr(err)
+			}
+			fmt.Println(i18n.M.Prompt.LinearStatesHelp)
+			if err := survey.AskOne(&survey.Input{
+				Message: i18n.M.Prompt.LinearStates,
+				Default: vals.LinearStates,
+			}, &vals.LinearStates); err != nil {
+				return handleSurveyErr(err)
 			}
 		}
 	}
@@ -692,6 +752,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	vals.LinearProjectsYAML = renderInlineYAMLList(vals.LinearProjects)
+	vals.LinearStatesYAML = renderInlineYAMLList(vals.LinearStates)
+
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -766,6 +829,17 @@ func promptPassword(vals *configValues) error {
 
 func handleSurveyErr(err error) error {
 	return claude.HandleSurveyErr(err)
+}
+
+// renderInlineYAMLList formats a comma-separated string into an inline YAML
+// array body, e.g. `"a", "b"`. Empty input returns "".
+func renderInlineYAMLList(csv string) string {
+	parts := utils.SplitAndTrim(csv)
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = fmt.Sprintf("%q", p)
+	}
+	return strings.Join(out, ", ")
 }
 
 func promptBotName(fieldPtr *string) error {

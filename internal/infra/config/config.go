@@ -114,13 +114,13 @@ type MediaConfig struct {
 }
 
 type BeeConfig struct {
-	MessageDebounce time.Duration      `yaml:"message_debounce"`
+	MessageDebounce time.Duration       `yaml:"message_debounce"`
 	Engine          EngineDefaultConfig `yaml:"engine"`
-	Engines         EnginesConfig      `yaml:"engines"`
-	Feeder          FeederConfig       `yaml:"feeder"`
-	Platforms       PlatformsConfig    `yaml:"platforms"`
-	RPC             RPCConfig          `yaml:"rpc"`
-	Media           MediaConfig        `yaml:"media"`
+	Engines         EnginesConfig       `yaml:"engines"`
+	Feeder          FeederConfig        `yaml:"feeder"`
+	Platforms       PlatformsConfig     `yaml:"platforms"`
+	RPC             RPCConfig           `yaml:"rpc"`
+	Media           MediaConfig         `yaml:"media"`
 
 	// Derived fields — not in YAML, computed by Load()
 	RPCBaseURL string `yaml:"-"` // http://host:port (no path suffix)
@@ -162,6 +162,7 @@ type PlatformsConfig struct {
 	WeCom    WeComConfig    `yaml:"wecom"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	Weixin   WeixinConfig   `yaml:"weixin"`
+	Linear   LinearConfig   `yaml:"linear"`
 }
 
 func (p PlatformsConfig) BotNames() []string {
@@ -224,6 +225,16 @@ type WeixinConfig struct {
 	UserID       string `yaml:"user_id"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 100MB
 	BotName      string `yaml:"bot_name"`       // bot display name used to strip @mention in group commands
+}
+
+type LinearConfig struct {
+	Enabled      bool          `yaml:"enabled"`
+	APIKey       string        `yaml:"api_key"`        // Linear personal API key (required when enabled)
+	LabelName    string        `yaml:"label_name"`     // gating label; default "openbee"
+	PollInterval time.Duration `yaml:"poll_interval"`  // default 10s
+	Projects     []string      `yaml:"projects"`       // project name allow-list; empty = process nothing
+	States       []string      `yaml:"states"`         // workflow-state name allow-list; empty = skip
+	MaxMediaSize int           `yaml:"max_media_size"` // bytes; default 50 MB
 }
 
 type RPCConfig struct {
@@ -327,6 +338,9 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Platforms.Weixin.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Weixin.MaxMediaSize = 100 * 1024 * 1024 // 100MB
 	}
+	if cfg.Bee.Platforms.Linear.MaxMediaSize == 0 {
+		cfg.Bee.Platforms.Linear.MaxMediaSize = 50 * 1024 * 1024 // 50MB
+	}
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
 	}
@@ -346,6 +360,12 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.RPC.TokenTTL == 0 {
 		cfg.Bee.RPC.TokenTTL = 2 * time.Hour
+	}
+	if cfg.Bee.Platforms.Linear.LabelName == "" {
+		cfg.Bee.Platforms.Linear.LabelName = "openbee"
+	}
+	if cfg.Bee.Platforms.Linear.PollInterval == 0 {
+		cfg.Bee.Platforms.Linear.PollInterval = 10 * time.Second
 	}
 	return nil
 }
