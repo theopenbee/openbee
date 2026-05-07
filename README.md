@@ -107,18 +107,6 @@ The config file is written to `config.yaml` in the current directory by default.
 openbee config -o /path/to/config.yaml
 ```
 
-#### Linear support
-
-When Linear is enabled, OpenBee can poll matching Linear issues and comments, dispatch them to Workers, and post Worker replies back as Linear comments.
-
-The Linear setup asks for:
-- A personal API key from [Linear API settings](https://linear.app/settings/api)
-- A gating label name (default `openbee`)
-- Project and workflow-state allow-lists; only issues that match both lists and carry the gating label are processed
-- Optional polling and media size settings
-
-Linear attachments referenced in issue/comment markdown are imported as media placeholders for Workers, and Worker media replies are uploaded back to Linear.
-
 ### Step 3: Start the service
 
 ```bash
