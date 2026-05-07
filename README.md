@@ -27,8 +27,8 @@
 
 | | | | |
 |:---:|:---:|:---:|:---:|
-| 🤖 **AI Workers** | 💬 **Multi-IM Support** | 🧠 **Persistent Memory** | ⏰ **Scheduled Tasks** |
-| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, and Telegram — receive and reply in the same conversation | Workers retain long-term memory across sessions, knowing context just like a real worker | Cron-based scheduling for automatic, hands-free triggering |
+| 🤖 **AI Workers** | 💬 **Multi-Platform Support** | 🧠 **Persistent Memory** | ⏰ **Scheduled Tasks** |
+| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, Telegram, and Linear — receive tasks and reply where the work starts | Workers retain long-term memory across sessions, knowing context just like a real worker | Cron-based scheduling for automatic, hands-free triggering |
 
 </div>
 
@@ -98,7 +98,7 @@ openbee config
 
 The wizard will guide you through:
 - Claude executable path
-- IM platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram) and their credentials
+- Platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) and their credentials
 - Advanced options (can be skipped to use defaults)
 
 The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
@@ -106,6 +106,18 @@ The config file is written to `config.yaml` in the current directory by default.
 ```bash
 openbee config -o /path/to/config.yaml
 ```
+
+#### Linear support
+
+When Linear is enabled, OpenBee can poll matching Linear issues and comments, dispatch them to Workers, and post Worker replies back as Linear comments.
+
+The Linear setup asks for:
+- A personal API key from [Linear API settings](https://linear.app/settings/api)
+- A gating label name (default `openbee`)
+- Project and workflow-state allow-lists; only issues that match both lists and carry the gating label are processed
+- Optional polling and media size settings
+
+Linear attachments referenced in issue/comment markdown are imported as media placeholders for Workers, and Worker media replies are uploaded back to Linear.
 
 ### Step 3: Start the service
 
@@ -116,13 +128,13 @@ openbee server -d
 ### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
-- Send messages directly in any configured IM platform (Lark / DingTalk / WeCom / WeChat / Telegram) to interact with OpenBee
+- Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
 
 ## ⚙️ How It Works
 
 ```mermaid
 graph TD
-    A["💬 IM Layer (Communication)\nLark / DingTalk / WeCom / WeChat / Telegram"] --> B["🧠 Scheduling Layer\nAI Agent"]
+    A["💬 Communication Layer\nLark / DingTalk / WeCom / WeChat / Telegram / Linear"] --> B["🧠 Scheduling Layer\nAI Agent"]
     B --> C["🤖 Execution Layer\nAI Agents"]
     C -. "Reply Results" .-> A
     B -. "Reply Results" .-> A
@@ -130,14 +142,14 @@ graph TD
 
 OpenBee consists of three core layers:
 
-**1. IM Layer (Communication Layer)**
-Includes Lark, DingTalk, WeCom, WeChat, and Telegram. Users send messages through these platforms to interact with OpenBee, and receive replies in the same conversation.
+**1. Communication Layer**
+Includes Lark, DingTalk, WeCom, WeChat, Telegram, and Linear. Users can send messages from chat platforms, or create and comment on Linear issues, then receive replies in the same conversation or issue thread.
 
 **2. Scheduling Layer (AI Agent)**
-Responsible for task scheduling — receives messages from the IM layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the IM layer.
+Responsible for task scheduling — receives messages from the Communication layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the Communication layer.
 
 **3. Execution Layer**
-Each Worker is an independent AI Agent, equipped with persistent memory, tool invocation (CLI), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the IM layer — just like real workers.
+Each Worker is an independent AI Agent, equipped with persistent memory, tool invocation (CLI), and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the Communication layer — just like real workers.
 
 ## 🌟 Star History
 

@@ -27,8 +27,8 @@
 
 | | | | |
 |:---:|:---:|:---:|:---:|
-| 🤖 **AI 数字员工** | 💬 **多平台 IM 接入** | 🧠 **持久记忆** | ⏰ **定时任务** |
-| 每个 Worker 是一个 AI Agent，可独立规划和执行多步骤任务 | 原生支持飞书、钉钉、企业微信、微信、Telegram，消息收发零配置 | Worker 拥有跨会话的长期记忆，像真实员工一样了解上下文 | 支持 cron 表达式定时触发，自动化无需人工干预 |
+| 🤖 **AI 数字员工** | 💬 **多平台接入** | 🧠 **持久记忆** | ⏰ **定时任务** |
+| 每个 Worker 是一个 AI Agent，可独立规划和执行多步骤任务 | 原生支持飞书、钉钉、企业微信、微信、Telegram 和 Linear，任务从哪里来就回复到哪里 | Worker 拥有跨会话的长期记忆，像真实员工一样了解上下文 | 支持 cron 表达式定时触发，自动化无需人工干预 |
 
 </div>
 
@@ -98,7 +98,7 @@ openbee config
 
 向导将引导你完成以下配置：
 - Claude 可执行文件路径
-- 启用的 IM 平台（飞书 / 钉钉 / 企微 / 微信 / Telegram）及对应凭证
+- 启用的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）及对应凭证
 - 高级选项（可跳过，使用默认值）
 
 配置文件默认写入当前目录的 `config.yaml`，如需指定路径，使用 `-o` 参数：
@@ -106,6 +106,18 @@ openbee config
 ```bash
 openbee config -o /path/to/config.yaml
 ```
+
+#### Linear 支持
+
+启用 Linear 后，OpenBee 可以轮询匹配条件的 Linear issue 和评论，将其分派给 Worker，并把 Worker 的回复写回为 Linear 评论。
+
+Linear 配置会要求填写：
+- 在 [Linear API 设置](https://linear.app/settings/api) 创建的个人 API Key
+- 触发标签名称（默认 `openbee`）
+- 项目白名单和工作流状态白名单；只有同时匹配两个白名单且带有触发标签的 issue 才会被处理
+- 可选的轮询间隔和媒体大小限制
+
+Linear issue 或评论中的附件会转换为 Worker 可处理的媒体占位符，Worker 回复中的媒体也会上传回 Linear。
 
 ### 第三步：启动服务
 
@@ -116,13 +128,13 @@ openbee server -d
 ### 第四步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
-- 在已配置的 IM 平台（飞书 / 钉钉 / 企微 / 微信 / Telegram）中直接发送消息与 OpenBee 交互
+- 在已配置的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
 
 ## ⚙️ 工作原理
 
 ```mermaid
 graph TD
-    A["💬 IM 层（通讯层）\n飞书 / 钉钉 / 企微 / 微信 / Telegram"] --> B["🧠 调度层\nAI Agent"]
+    A["💬 通讯层\n飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear"] --> B["🧠 调度层\nAI Agent"]
     B --> C["🤖 执行层\nAI Agent"]
     C -. "回复结果" .-> A
     B -. "回复结果" .-> A
@@ -130,14 +142,14 @@ graph TD
 
 OpenBee 由三个核心层构成：
 
-**1. IM 层（通讯层）**
-包含飞书、钉钉、企业微信、微信和 Telegram。用户通过这些平台发送消息与 OpenBee 交互，并在同一对话中接收回复。
+**1. 通讯层**
+包含飞书、钉钉、企业微信、微信、Telegram 和 Linear。用户可以通过聊天平台发送消息，也可以创建或评论 Linear issue，并在同一对话或 issue 线程中接收回复。
 
 **2. 调度层（AI Agent）**
-负责任务调度——接收来自 IM 层的消息，理解用户意图，并将任务分派给执行层执行。支持定时任务，可按计划自动触发。调度层也可将结果直接回复到 IM 层。
+负责任务调度——接收来自通讯层的消息，理解用户意图，并将任务分派给执行层执行。支持定时任务，可按计划自动触发。调度层也可将结果直接回复到通讯层。
 
 **3. 执行层**
-每个 Worker 是一个独立的 AI Agent 智能体，具备持久记忆、工具调用（CLI）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到 IM 层——像真实员工一样独立完成工作。
+每个 Worker 是一个独立的 AI Agent 智能体，具备持久记忆、工具调用（CLI）和多步任务规划能力。Worker 自主执行分配的任务，并将结果直接回复到通讯层——像真实员工一样独立完成工作。
 
 ## 🌟 Star History
 
