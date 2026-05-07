@@ -16,7 +16,7 @@
 <p align="center">
   <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
   <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0xtyz">Author @0xtyz</a>
+  <a href="https://x.com/0xtyz">0xtyz</a>
 </p>
 
 **OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
@@ -97,7 +97,7 @@ openbee config
 ```
 
 The wizard will guide you through:
-- Claude executable path
+- Agent executable path
 - Platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) and their credentials
 - Advanced options (can be skipped to use defaults)
 

@@ -48,7 +48,7 @@ prompt:
   option_engine_pi: "Pi"
   option_engine_kimi: "Kimi"
   claude_not_found: "未找到 Claude，请选择获取方式："
-  claude_path: "Claude 可执行文件路径："
+  claude_path: "agent 可执行文件路径："
   codex_path: "Codex 可执行文件路径："
   pi_path: "Pi 可执行文件路径："
   kimi_path: "Kimi 可执行文件路径："

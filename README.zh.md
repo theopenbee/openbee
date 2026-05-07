@@ -16,7 +16,7 @@
 <p align="center">
   <a href="README.md">English</a> &nbsp;|&nbsp;
   <a href="https://docs.theopenbee.com">📖 文档</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0xtyz">作者 @0xtyz</a>
+  <a href="https://x.com/0xtyz">0xtyz</a>
 </p>
 
 **OpenBee** 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。
@@ -97,7 +97,7 @@ openbee config
 ```
 
 向导将引导你完成以下配置：
-- Claude 可执行文件路径
+- agent 可执行文件路径
 - 启用的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）及对应凭证
 - 高级选项（可跳过，使用默认值）
 
@@ -106,18 +106,6 @@ openbee config
 ```bash
 openbee config -o /path/to/config.yaml
 ```
-
-#### Linear 支持
-
-启用 Linear 后，OpenBee 可以轮询匹配条件的 Linear issue 和评论，将其分派给 Worker，并把 Worker 的回复写回为 Linear 评论。
-
-Linear 配置会要求填写：
-- 在 [Linear API 设置](https://linear.app/settings/api) 创建的个人 API Key
-- 触发标签名称（默认 `openbee`）
-- 项目白名单和工作流状态白名单；只有同时匹配两个白名单且带有触发标签的 issue 才会被处理
-- 可选的轮询间隔和媒体大小限制
-
-Linear issue 或评论中的附件会转换为 Worker 可处理的媒体占位符，Worker 回复中的媒体也会上传回 Linear。
 
 ### 第三步：启动服务
 
