@@ -31,7 +31,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool, systemPrompt string) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -334,18 +334,14 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 // worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
 // configured but worker is nil, the lookup failed and the task is aborted.
 func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	hint := ai.SkillHintPrefix(ai.RoleWorker)
-	if d.workerLookup != nil {
-		if worker == nil {
-			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
-		}
-		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
-		hint += "\n<worker_persona>\n" + persona + "</worker_persona>"
+	if d.workerLookup != nil && worker == nil {
+		return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 	}
+	systemPrompt := ai.BuildSystemPrompt(ai.RoleWorker, worker)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, false, systemPrompt)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
@@ -361,7 +357,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true, "")
 	if err == nil {
 		return exec, nil
 	}

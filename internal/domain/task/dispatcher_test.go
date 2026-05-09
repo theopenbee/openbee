@@ -20,18 +20,20 @@ import (
 // --- Mocks ---
 
 type mockExecManager struct {
-	mu                   sync.Mutex
-	execResult           model.WorkerExecution
-	resumedWithSessionID string
-	executedInstructions []string
+	mu                    sync.Mutex
+	execResult            model.WorkerExecution
+	resumedWithSessionID  string
+	executedInstructions  []string
+	executedSystemPrompts []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool, systemPrompt string) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	if resume {
 		m.resumedWithSessionID = sessionID
 	}
 	m.executedInstructions = append(m.executedInstructions, instruction)
+	m.executedSystemPrompts = append(m.executedSystemPrompts, systemPrompt)
 	m.mu.Unlock()
 	return m.execResult, nil
 }
@@ -63,7 +65,7 @@ type quickCancelExecManager struct {
 	cancelCount *int64
 }
 
-func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool, _ string) (model.WorkerExecution, error) {
 	select {
 	case m.execCalled <- struct{}{}:
 	default:
@@ -258,7 +260,7 @@ type orderedMockManager struct {
 	receivedSessID string
 }
 
-func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	m.callOrder = append(m.callOrder, "execute")
 	m.receivedResume = resume
@@ -730,7 +732,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool, _ string) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -743,7 +745,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool, _ string) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -755,7 +757,7 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool) (model.WorkerExecution, error) {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool, _ string) (model.WorkerExecution, error) {
 	if resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
@@ -884,7 +886,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool, _ string) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }
@@ -1187,9 +1189,13 @@ func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
 	}
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
+	systemPrompt := mgr.executedSystemPrompts[0]
 	mgr.mu.Unlock()
-	if !strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("new session must start with skill hint\ngot: %q", instruction)
+	if strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("instruction must NOT start with skill hint (it now lives in systemPrompt)\ngot: %q", instruction)
+	}
+	if !strings.HasPrefix(systemPrompt, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("new session systemPrompt must start with skill hint\ngot: %q", systemPrompt)
 	}
 }
 
@@ -1217,9 +1223,13 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	}
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
+	systemPrompt := mgr.executedSystemPrompts[0]
 	mgr.mu.Unlock()
 	if strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
+		t.Errorf("resume session must NOT have skill hint in instruction\ngot: %q", instruction)
+	}
+	if systemPrompt != "" {
+		t.Errorf("resume session must have empty systemPrompt\ngot: %q", systemPrompt)
 	}
 }
 
@@ -1252,25 +1262,29 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 
 	mgr.mu.Lock()
 	instr := mgr.executedInstructions[0]
+	sysPrompt := mgr.executedSystemPrompts[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	if strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("instruction must NOT carry the skill hint anymore, got: %q", instr)
 	}
-	if !strings.Contains(instr, "<worker_persona>") {
-		t.Errorf("instruction missing <worker_persona> tag, got: %q", instr)
+	if !strings.HasPrefix(sysPrompt, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("systemPrompt missing skill hint, got: %q", sysPrompt)
 	}
-	if !strings.Contains(instr, "Name: 毛毛") {
-		t.Errorf("instruction missing worker name, got: %q", instr)
+	if !strings.Contains(sysPrompt, "<worker_persona>") {
+		t.Errorf("systemPrompt missing <worker_persona> tag, got: %q", sysPrompt)
 	}
-	if !strings.Contains(instr, "Description: 负责 openbee 开发") {
-		t.Errorf("instruction missing worker description, got: %q", instr)
+	if !strings.Contains(sysPrompt, "Name: 毛毛") {
+		t.Errorf("systemPrompt missing worker name, got: %q", sysPrompt)
 	}
-	if !strings.Contains(instr, "记住老板的偏好") {
-		t.Errorf("instruction missing worker constraints, got: %q", instr)
+	if !strings.Contains(sysPrompt, "Description: 负责 openbee 开发") {
+		t.Errorf("systemPrompt missing worker description, got: %q", sysPrompt)
 	}
-	if !strings.Contains(instr, "</worker_persona>") {
-		t.Errorf("instruction missing </worker_persona> tag, got: %q", instr)
+	if !strings.Contains(sysPrompt, "记住老板的偏好") {
+		t.Errorf("systemPrompt missing worker constraints, got: %q", sysPrompt)
+	}
+	if !strings.Contains(sysPrompt, "</worker_persona>") {
+		t.Errorf("systemPrompt missing </worker_persona> tag, got: %q", sysPrompt)
 	}
 }
 
@@ -1293,13 +1307,17 @@ func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
 
 	mgr.mu.Lock()
 	instr := mgr.executedInstructions[0]
+	sysPrompt := mgr.executedSystemPrompts[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	if strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("instruction must NOT carry the skill hint anymore, got: %q", instr)
 	}
-	if strings.Contains(instr, "<worker_persona>") {
-		t.Errorf("instruction should not contain <worker_persona> when lookup is nil, got: %q", instr)
+	if !strings.HasPrefix(sysPrompt, ai.SkillHintPrefix(ai.RoleWorker)) {
+		t.Errorf("nil-lookup path must still inject the skill hint via systemPrompt, got: %q", sysPrompt)
+	}
+	if strings.Contains(sysPrompt, "<worker_persona>") {
+		t.Errorf("nil-lookup path must not include <worker_persona>, got: %q", sysPrompt)
 	}
 }
 
