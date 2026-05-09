@@ -101,9 +101,20 @@ func ExtractResultFromLog(logPath string) string {
 	return lastText
 }
 
+// applySystemPrompt prepends the system-level instructions onto the user
+// prompt when the engine has no native system-prompt channel. Caller is
+// responsible for only setting systemPrompt on fresh sessions.
+func applySystemPrompt(userPrompt, systemPrompt string) string {
+	if systemPrompt == "" {
+		return userPrompt
+	}
+	return systemPrompt + "\n\n" + userPrompt
+}
+
 // Run starts a Codex CLI process, redirecting output to logPath.
 // For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
+	prompt = applySystemPrompt(prompt, opts.SystemPrompt)
 	threadID, resume := inv.resolveThread(opts.SessionID, opts.Resume)
 	args := buildArgs(threadID, resume, prompt, opts.ExtraArgs)
 
