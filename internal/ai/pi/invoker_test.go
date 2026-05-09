@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildArgs_NewSession(t *testing.T) {
-	args := buildArgs("", "/tmp/session.jsonl", nil)
+	args := buildArgs("", "/tmp/session.jsonl", "", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", ""}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -19,7 +19,7 @@ func TestBuildArgs_NewSession(t *testing.T) {
 }
 
 func TestBuildArgs_WithPrompt(t *testing.T) {
-	args := buildArgs("hello world", "/tmp/session.jsonl", nil)
+	args := buildArgs("hello world", "/tmp/session.jsonl", "", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", "hello world"}
 	if !slices.Equal(args, want) {
 		t.Errorf("got %v, want %v", args, want)
@@ -182,6 +182,26 @@ func TestExtractPiError_EmptyStderr(t *testing.T) {
 	got := extractPiError("", "exit status 1")
 	if got != "exit status 1" {
 		t.Errorf("got %q, want %q", got, "exit status 1")
+	}
+}
+
+func TestBuildArgs_OmitsSystemPromptWhenEmpty(t *testing.T) {
+	args := buildArgs("hi", "/tmp/sess.jsonl", "", nil)
+	for _, a := range args {
+		if a == "--append-system-prompt" {
+			t.Errorf("unexpected --append-system-prompt in args: %v", args)
+		}
+	}
+}
+
+func TestBuildArgs_AppendsSystemPromptFlag(t *testing.T) {
+	args := buildArgs("hi", "/tmp/sess.jsonl", "be terse", nil)
+	idx := slices.Index(args, "--append-system-prompt")
+	if idx < 0 || idx == len(args)-1 {
+		t.Fatalf("expected --append-system-prompt with value, got %v", args)
+	}
+	if args[idx+1] != "be terse" {
+		t.Errorf("expected value %q, got %q", "be terse", args[idx+1])
 	}
 }
 

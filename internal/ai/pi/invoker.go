@@ -56,8 +56,11 @@ const (
 	contentTypeText   = "text"
 )
 
-func buildArgs(prompt, sessionPath string, extraArgs []string) []string {
+func buildArgs(prompt, sessionPath, systemPrompt string, extraArgs []string) []string {
 	base := []string{"--mode", "json", "--session", sessionPath, "-p", prompt}
+	if systemPrompt != "" {
+		base = append(base, "--append-system-prompt", systemPrompt)
+	}
 	return append(base, extraArgs...)
 }
 
@@ -163,7 +166,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 	sessionPath := inv.sessionFilePath(opts.SessionID)
 
-	args := buildArgs(prompt, sessionPath, opts.ExtraArgs)
+	args := buildArgs(prompt, sessionPath, opts.SystemPrompt, opts.ExtraArgs)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
