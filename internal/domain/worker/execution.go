@@ -15,7 +15,9 @@ import (
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
 // to resume the session identified by sessionID; otherwise it starts a fresh session.
 // sessionID must always be non-empty; callers are responsible for generating it.
-func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
+// systemPrompt is the session-level system instructions (skill hint + persona);
+// it is only meaningful for fresh sessions and should be "" on resume.
+func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool, systemPrompt string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
@@ -37,7 +39,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume, systemPrompt); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -46,7 +48,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool, systemPrompt string) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -74,11 +76,12 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 	extraArgs := m.resolveEngineArgs(ctx, worker, engineName)
 
 	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
-		SessionID: exec.SessionID,
-		Resume:    resume,
-		APIKey:    token,
-		ExtraEnv:  extraEnv,
-		ExtraArgs: extraArgs,
+		SessionID:    exec.SessionID,
+		Resume:       resume,
+		APIKey:       token,
+		ExtraEnv:     extraEnv,
+		ExtraArgs:    extraArgs,
+		SystemPrompt: systemPrompt,
 	}, logPath)
 	if err != nil {
 		cancel()
