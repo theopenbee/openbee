@@ -122,10 +122,13 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Stderr = logFile
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
+	stdin := ""
 	if !resume {
 		cmd.Stdin = strings.NewReader(prompt)
+		stdin = prompt
 	}
 	ai.ConfigureCmd(cmd)
+	ai.LogCommand(ai.EngineCodex, inv.binary, workDir, args, stdin)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

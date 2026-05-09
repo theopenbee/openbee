@@ -142,13 +142,15 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
 
+	stdin := ai.PrependSystemPrompt(prompt, opts.SystemPrompt)
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stdin = strings.NewReader(ai.PrependSystemPrompt(prompt, opts.SystemPrompt))
+	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 	ai.ConfigureCmd(cmd)
+	ai.LogCommand(ai.EngineKimi, inv.binary, workDir, args, stdin)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()

@@ -185,6 +185,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 		return nil, nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 	ai.ConfigureCmd(cmd)
+	ai.LogCommand(ai.EnginePi, inv.binary, workDir, args, "")
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
