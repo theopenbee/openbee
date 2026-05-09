@@ -1,6 +1,10 @@
 package ai
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/theopenbee/openbee/internal/infra/model"
+)
 
 // WorkerPersona returns the persona-only content injected into new worker session prompts.
 func WorkerPersona(name, description, constraints string) string {
@@ -31,4 +35,20 @@ func SkillHintPrefix(role Role) string {
 	default:
 		return ""
 	}
+}
+
+// BuildSystemPrompt returns the full session-level system instructions for
+// the given role: the skill-invocation hint, plus (for workers with a
+// resolved record) the persona block wrapped in <worker_persona> tags.
+// Returns "" for unknown roles.
+func BuildSystemPrompt(role Role, w *model.Worker) string {
+	hint := SkillHintPrefix(role)
+	if hint == "" {
+		return ""
+	}
+	if role == RoleWorker && w != nil {
+		persona := WorkerPersona(w.Name, w.Description, w.Constraints)
+		return hint + "\n<worker_persona>\n" + persona + "</worker_persona>"
+	}
+	return hint
 }
