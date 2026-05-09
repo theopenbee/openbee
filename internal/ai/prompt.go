@@ -20,23 +20,6 @@ func WorkerPersona(name, description, constraints string) string {
 	return s
 }
 
-// SkillHintPrefix returns the skill invocation hint prepended to the first
-// message of a new session.
-//
-// Deprecated: callers should migrate to BuildSessionPrefix, which wraps the
-// hint and persona in an explicit Step 1 / Step 2 structure. This function
-// will be removed once all internal callers have been migrated.
-func SkillHintPrefix(role Role) string {
-	switch role {
-	case RoleBee:
-		return "[MANDATORY] You MUST invoke the openbee-bee skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step. Do NOT produce any text output before invoking the skill."
-	case RoleWorker:
-		return "[MANDATORY] You MUST invoke the openbee-worker skill immediately. This is your FIRST and ONLY action before doing anything else. Do NOT skip this step. Do NOT produce any text output before invoking the skill."
-	default:
-		return ""
-	}
-}
-
 // BuildSessionPrefix returns the Step-1 + Step-2 header for a new session.
 // The trailing "## Step 2: ...\n" line ends with a newline so the caller can
 // append the task body directly without inserting a separator.
@@ -47,8 +30,8 @@ func SkillHintPrefix(role Role) string {
 //	          is emitted only when role == RoleWorker and persona != ""; for
 //	          RoleBee any non-empty persona is intentionally ignored.
 //
-// For unknown roles the function returns "", matching the legacy SkillHintPrefix
-// behaviour so callers that previously checked for empty prefix keep working.
+// For unknown roles the function returns "" so callers that check for an empty
+// prefix keep working without special-casing unknown roles.
 func BuildSessionPrefix(role Role, persona string) string {
 	var skillName, step2Title string
 	switch role {
