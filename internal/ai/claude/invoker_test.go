@@ -254,4 +254,3 @@ func TestBuildArgs_WithSystemPromptAndResume(t *testing.T) {
 		t.Errorf("expected --append-system-prompt even on resume (caller controls; adapter is stateless): %v", args)
 	}
 }
-
