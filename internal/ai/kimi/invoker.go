@@ -131,15 +131,6 @@ func ExtractResultFromLog(logPath string) string {
 	return lastSentMsg
 }
 
-// applySystemPrompt prepends the system-level instructions onto the user
-// prompt. Mirrors codex; kimi has no --append-system-prompt flag.
-func applySystemPrompt(userPrompt, systemPrompt string) string {
-	if systemPrompt == "" {
-		return userPrompt
-	}
-	return systemPrompt + "\n\n" + userPrompt
-}
-
 // Run starts a Kimi CLI process, redirecting output to logPath.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
@@ -153,7 +144,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
-	cmd.Stdin = strings.NewReader(applySystemPrompt(prompt, opts.SystemPrompt))
+	cmd.Stdin = strings.NewReader(ai.PrependSystemPrompt(prompt, opts.SystemPrompt))
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)

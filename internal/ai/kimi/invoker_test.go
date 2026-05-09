@@ -101,18 +101,3 @@ func TestExtractResultFromLog_MissingFile(t *testing.T) {
 		t.Errorf("got %q, want empty", got)
 	}
 }
-
-func TestApplySystemPrompt_Empty(t *testing.T) {
-	got := applySystemPrompt("hello", "")
-	if got != "hello" {
-		t.Errorf("empty system prompt must not modify user prompt, got: %q", got)
-	}
-}
-
-func TestApplySystemPrompt_Prepends(t *testing.T) {
-	got := applySystemPrompt("hello", "be terse")
-	want := "be terse\n\nhello"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}

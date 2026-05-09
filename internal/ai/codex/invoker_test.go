@@ -64,18 +64,3 @@ func TestExtractResultFromLog(t *testing.T) {
 		t.Errorf("got %q, want %q", result, "hello world")
 	}
 }
-
-func TestApplySystemPrompt_Empty(t *testing.T) {
-	got := applySystemPrompt("hello", "")
-	if got != "hello" {
-		t.Errorf("empty system prompt must not modify user prompt, got: %q", got)
-	}
-}
-
-func TestApplySystemPrompt_Prepends(t *testing.T) {
-	got := applySystemPrompt("hello", "be terse")
-	want := "be terse\n\nhello"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}

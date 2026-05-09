@@ -37,10 +37,8 @@ func SkillHintPrefix(role Role) string {
 	}
 }
 
-// BuildSystemPrompt returns the full session-level system instructions for
-// the given role: the skill-invocation hint, plus (for workers with a
-// resolved record) the persona block wrapped in <worker_persona> tags.
-// Returns "" for unknown roles.
+// BuildSystemPrompt returns the session-level system instructions for the
+// given role, or "" for unknown roles.
 func BuildSystemPrompt(role Role, w *model.Worker) string {
 	hint := SkillHintPrefix(role)
 	if hint == "" {
@@ -51,4 +49,14 @@ func BuildSystemPrompt(role Role, w *model.Worker) string {
 		return hint + "\n<worker_persona>\n" + persona + "</worker_persona>"
 	}
 	return hint
+}
+
+// PrependSystemPrompt prepends system instructions to a user prompt for
+// engines without a native system-prompt channel. Returns userPrompt
+// unchanged when systemPrompt is empty.
+func PrependSystemPrompt(userPrompt, systemPrompt string) string {
+	if systemPrompt == "" {
+		return userPrompt
+	}
+	return systemPrompt + "\n\n" + userPrompt
 }

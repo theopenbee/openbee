@@ -15,8 +15,6 @@ import (
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
 // to resume the session identified by sessionID; otherwise it starts a fresh session.
 // sessionID must always be non-empty; callers are responsible for generating it.
-// systemPrompt is the session-level system instructions (skill hint + persona);
-// it is only meaningful for fresh sessions and should be "" on resume.
 func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool, systemPrompt string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {

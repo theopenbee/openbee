@@ -238,7 +238,6 @@ func TestBuildArgs_WithSystemPrompt(t *testing.T) {
 	if args[idx+1] != "be terse" {
 		t.Errorf("expected value %q, got %q", "be terse", args[idx+1])
 	}
-	// Must still come before --print so engine args (ExtraArgs) keep their relative order.
 	printIdx := slices.Index(args, "--print")
 	if printIdx < 0 || idx >= printIdx {
 		t.Errorf("--append-system-prompt must precede --print, got %v", args)
@@ -251,6 +250,6 @@ func TestBuildArgs_WithSystemPromptAndResume(t *testing.T) {
 		t.Errorf("expected --resume in args: %v", args)
 	}
 	if !slices.Contains(args, "--append-system-prompt") {
-		t.Errorf("expected --append-system-prompt even on resume (caller controls; adapter is stateless): %v", args)
+		t.Errorf("expected --append-system-prompt even on resume: %v", args)
 	}
 }

@@ -104,3 +104,18 @@ func TestBuildSystemPrompt_UnknownRole(t *testing.T) {
 		t.Errorf("unknown role must return empty string, got: %q", got)
 	}
 }
+
+func TestPrependSystemPrompt_Empty(t *testing.T) {
+	got := PrependSystemPrompt("hello", "")
+	if got != "hello" {
+		t.Errorf("empty system prompt must not modify user prompt, got: %q", got)
+	}
+}
+
+func TestPrependSystemPrompt_Prepends(t *testing.T) {
+	got := PrependSystemPrompt("hello", "be terse")
+	want := "be terse\n\nhello"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

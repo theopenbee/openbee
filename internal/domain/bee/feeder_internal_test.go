@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -53,12 +52,5 @@ func TestBuildPrompt_NeverHasPlatformContext(t *testing.T) {
 	got := buildPrompt(msgs)
 	if strings.Contains(got, `"platform_context"`) {
 		t.Errorf("platform_context must never appear in bee message_meta, got: %q", got)
-	}
-}
-
-func TestBeeSystemPrompt_StartsWithSkillHint(t *testing.T) {
-	got := ai.BuildSystemPrompt(ai.RoleBee, nil)
-	if !strings.HasPrefix(got, ai.SkillHintPrefix(ai.RoleBee)) {
-		t.Errorf("bee system prompt must start with skill hint, got: %q", got)
 	}
 }

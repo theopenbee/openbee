@@ -33,7 +33,7 @@ type RunOptions struct {
 	APIKey       string
 	ExtraEnv     []string // additional KEY=VALUE env vars to inject
 	ExtraArgs    []string // additional CLI args to pass to the engine
-	SystemPrompt string   // session-level system instructions; routed by each adapter to its highest-priority channel (--append-system-prompt or user-prompt prefix). Leave empty to skip.
+	SystemPrompt string   // session-level system instructions; empty to skip.
 }
 
 // OutputType classifies a lifecycle event from a running process.
