@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -130,6 +131,9 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	if call.opts.Resume {
 		t.Error("expected resume=false on first call")
 	}
+	if !strings.HasPrefix(call.opts.SystemPrompt, ai.SkillHintPrefix(ai.RoleBee)) {
+		t.Errorf("fresh bee run must carry skill hint via SystemPrompt, got: %q", call.opts.SystemPrompt)
+	}
 
 	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
@@ -174,6 +178,9 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	}
 	if !call.opts.Resume {
 		t.Error("expected resume=true on second call")
+	}
+	if call.opts.SystemPrompt != "" {
+		t.Errorf("resume bee run must have empty SystemPrompt, got: %q", call.opts.SystemPrompt)
 	}
 }
 
