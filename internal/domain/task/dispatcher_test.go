@@ -1257,7 +1257,11 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	if !strings.Contains(instr, "## Step 1: Initialize your role") {
 		t.Errorf("instruction missing Step 1 header, got: %q", instr)
 	}
-	if strings.Index(instr, "<worker_persona>") > strings.Index(instr, "## Step 2:") {
+	step2Idx := strings.Index(instr, "## Step 2:")
+	personaIdx := strings.Index(instr, "<worker_persona>")
+	if step2Idx < 0 {
+		t.Errorf("instruction missing Step 2 header, got: %q", instr)
+	} else if personaIdx < 0 || personaIdx > step2Idx {
 		t.Errorf("persona block must appear before Step 2, got: %q", instr)
 	}
 	if !strings.Contains(instr, "<worker_persona>") {
