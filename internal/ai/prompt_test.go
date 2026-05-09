@@ -118,6 +118,17 @@ func TestBuildSessionPrefix_Bee(t *testing.T) {
 	}
 }
 
+func TestBuildSessionPrefix_BeeIgnoresPersona(t *testing.T) {
+	// Bee has no persona concept; passing one must not embed it.
+	got := BuildSessionPrefix(RoleBee, WorkerPersona("ghost", "should be ignored", ""))
+	if strings.Contains(got, "<worker_persona>") {
+		t.Errorf("Bee prefix must not include persona even when one is passed, got:\n%s", got)
+	}
+	if strings.Contains(got, "ghost") {
+		t.Errorf("Bee prefix must not leak persona content, got:\n%s", got)
+	}
+}
+
 func TestBuildSessionPrefix_UnknownRole(t *testing.T) {
 	if got := BuildSessionPrefix(Role("other"), ""); got != "" {
 		t.Errorf("expected empty string for unknown role, got %q", got)

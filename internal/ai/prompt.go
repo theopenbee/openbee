@@ -43,8 +43,9 @@ func SkillHintPrefix(role Role) string {
 //
 //	role    — RoleWorker or RoleBee. Selects the skill name and Step 2 title.
 //	persona — Worker persona body produced by WorkerPersona(). Pass "" for Bee
-//	          or when no worker record is available; the <worker_persona> block
-//	          is omitted in that case.
+//	          or when no worker record is available. The <worker_persona> block
+//	          is emitted only when role == RoleWorker and persona != ""; for
+//	          RoleBee any non-empty persona is intentionally ignored.
 //
 // For unknown roles the function returns "", matching the legacy SkillHintPrefix
 // behaviour so callers that previously checked for empty prefix keep working.
