@@ -217,3 +217,41 @@ func TestScanResultLog_NoResultEvent(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_NoSystemPrompt(t *testing.T) {
+	args := buildArgs(ai.RunOptions{SessionID: "s1"})
+	for _, a := range args {
+		if a == "--append-system-prompt" {
+			t.Errorf("unexpected --append-system-prompt in args: %v", args)
+		}
+	}
+	if !slices.Contains(args, "--session-id") || !slices.Contains(args, "s1") {
+		t.Errorf("session args missing: %v", args)
+	}
+}
+
+func TestBuildArgs_WithSystemPrompt(t *testing.T) {
+	args := buildArgs(ai.RunOptions{SessionID: "s1", SystemPrompt: "be terse"})
+	idx := slices.Index(args, "--append-system-prompt")
+	if idx < 0 || idx == len(args)-1 {
+		t.Fatalf("expected --append-system-prompt with value, got %v", args)
+	}
+	if args[idx+1] != "be terse" {
+		t.Errorf("expected value %q, got %q", "be terse", args[idx+1])
+	}
+	// Must still come before --print so engine args (ExtraArgs) keep their relative order.
+	printIdx := slices.Index(args, "--print")
+	if printIdx < 0 || idx >= printIdx {
+		t.Errorf("--append-system-prompt must precede --print, got %v", args)
+	}
+}
+
+func TestBuildArgs_WithSystemPromptAndResume(t *testing.T) {
+	args := buildArgs(ai.RunOptions{SessionID: "s1", Resume: true, SystemPrompt: "x"})
+	if !slices.Contains(args, "--resume") {
+		t.Errorf("expected --resume in args: %v", args)
+	}
+	if !slices.Contains(args, "--append-system-prompt") {
+		t.Errorf("expected --append-system-prompt even on resume (caller controls; adapter is stateless): %v", args)
+	}
+}
+

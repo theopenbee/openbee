@@ -40,6 +40,27 @@ type streamContent struct {
 	Text string `json:"text,omitempty"`
 }
 
+func buildArgs(opts ai.RunOptions) []string {
+	args := []string{
+		"--dangerously-skip-permissions",
+		"--verbose",
+		"--output-format", "stream-json",
+	}
+	if opts.SystemPrompt != "" {
+		args = append(args, "--append-system-prompt", opts.SystemPrompt)
+	}
+	if opts.SessionID != "" {
+		if opts.Resume {
+			args = append(args, "--resume", opts.SessionID)
+		} else {
+			args = append(args, "--session-id", opts.SessionID)
+		}
+	}
+	args = append(args, opts.ExtraArgs...)
+	args = append(args, "--print")
+	return args
+}
+
 // scanResultLog scans logPath for the terminal result event and the last
 // assistant text before it. The result event is always the last event in the
 // stream, so scanning stops immediately on hitting it.
@@ -83,20 +104,7 @@ func ExtractResultFromLog(logPath string) string {
 
 // Run starts a Claude CLI process, redirecting output to logPath.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
-	args := []string{
-		"--dangerously-skip-permissions",
-		"--verbose",
-		"--output-format", "stream-json",
-	}
-	if opts.SessionID != "" {
-		if opts.Resume {
-			args = append(args, "--resume", opts.SessionID)
-		} else {
-			args = append(args, "--session-id", opts.SessionID)
-		}
-	}
-	args = append(args, opts.ExtraArgs...)
-	args = append(args, "--print")
+	args := buildArgs(opts)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
