@@ -334,18 +334,18 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 // worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
 // configured but worker is nil, the lookup failed and the task is aborted.
 func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	hint := ai.SkillHintPrefix(ai.RoleWorker)
+	persona := ""
 	if d.workerLookup != nil {
 		if worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona := ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
-		hint += "\n<worker_persona>\n" + persona + "</worker_persona>"
+		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
 	}
+	prefix := ai.BuildSessionPrefix(ai.RoleWorker, persona)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, hint+"\n"+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
