@@ -40,9 +40,9 @@ func TestWorkerPersona_Empty(t *testing.T) {
 	}
 }
 
-func TestBuildSessionPrefix_WorkerWithPersona(t *testing.T) {
+func TestBuildWorkerSessionPrefix_WithPersona(t *testing.T) {
 	persona := WorkerPersona("貂蝉", "负责 openbee 开发", "称呼老板")
-	got := BuildSessionPrefix(RoleWorker, persona)
+	got := BuildWorkerSessionPrefix(persona)
 
 	wants := []string{
 		"## Step 1: Initialize your role",
@@ -66,8 +66,8 @@ func TestBuildSessionPrefix_WorkerWithPersona(t *testing.T) {
 	}
 }
 
-func TestBuildSessionPrefix_WorkerNoPersona(t *testing.T) {
-	got := BuildSessionPrefix(RoleWorker, "")
+func TestBuildWorkerSessionPrefix_NoPersona(t *testing.T) {
+	got := BuildWorkerSessionPrefix("")
 
 	if strings.Contains(got, "<worker_persona>") {
 		t.Errorf("expected no persona block when persona is empty, got:\n%s", got)
@@ -80,8 +80,8 @@ func TestBuildSessionPrefix_WorkerNoPersona(t *testing.T) {
 	}
 }
 
-func TestBuildSessionPrefix_Bee(t *testing.T) {
-	got := BuildSessionPrefix(RoleBee, "")
+func TestBuildBeeSessionPrefix(t *testing.T) {
+	got := BuildBeeSessionPrefix()
 
 	if !strings.Contains(got, "openbee-bee") {
 		t.Errorf("expected bee skill name, got:\n%s", got)
@@ -91,21 +91,5 @@ func TestBuildSessionPrefix_Bee(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "## Step 2: Handle the messages below\n") {
 		t.Errorf("expected suffix %q, got:\n%s", "## Step 2: Handle the messages below\n", got)
-	}
-}
-
-func TestBuildSessionPrefix_BeeIgnoresPersona(t *testing.T) {
-	got := BuildSessionPrefix(RoleBee, WorkerPersona("ghost", "should be ignored", ""))
-	if strings.Contains(got, "<worker_persona>") {
-		t.Errorf("Bee prefix must not include persona even when one is passed, got:\n%s", got)
-	}
-	if strings.Contains(got, "ghost") {
-		t.Errorf("Bee prefix must not leak persona content, got:\n%s", got)
-	}
-}
-
-func TestBuildSessionPrefix_UnknownRole(t *testing.T) {
-	if got := BuildSessionPrefix(Role("other"), ""); got != "" {
-		t.Errorf("expected empty string for unknown role, got %q", got)
 	}
 }

@@ -202,7 +202,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	prefix := ""
 	if !resume {
-		prefix = ai.BuildSessionPrefix(ai.RoleBee, "")
+		prefix = ai.BuildBeeSessionPrefix()
 	}
 	prompt := buildPrompt(msgs, prefix)
 

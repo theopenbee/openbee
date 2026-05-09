@@ -1161,7 +1161,7 @@ func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
 		t.Fatal("expected worker to be called")
 	}
 	got := instructions[0]
-	// New sessions get the skill hint prefix; the raw instruction follows after the newline.
+	// New sessions get the session prefix; the raw instruction follows after the newline.
 	if !strings.Contains(got, "raw instruction") {
 		t.Errorf("expected instruction to contain original text, got: %q", got)
 	}

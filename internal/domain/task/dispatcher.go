@@ -86,7 +86,7 @@ type TaskDispatcher struct {
 	execStore       ExecutionQuerier              // queries execution state by ID
 	engineCfg       *enginecfg.Store              // resolves the current default engine
 	failureNotifier FailureNotifier               // sends failure notifications (optional)
-	workerLookup    WorkerLookup                  // optional; if nil, only skill hint is injected
+	workerLookup    WorkerLookup                  // optional; if nil, no persona is injected
 	inCh            <-chan DispatchTask           // inbound task channel
 	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
 	queues          map[string]*queueState        // per-workerID serial queues
@@ -342,7 +342,7 @@ func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, in
 		}
 		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
 	}
-	prefix := ai.BuildSessionPrefix(ai.RoleWorker, persona)
+	prefix := ai.BuildWorkerSessionPrefix(persona)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
