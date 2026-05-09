@@ -200,11 +200,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	hint := ""
+	prefix := ""
 	if !resume {
-		hint = ai.SkillHintPrefix(ai.RoleBee)
+		prefix = ai.BuildSessionPrefix(ai.RoleBee, "")
 	}
-	prompt := buildPrompt(msgs, hint)
+	prompt := buildPrompt(msgs, prefix)
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
