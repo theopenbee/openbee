@@ -200,11 +200,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	hint := ""
+	systemPrompt := ""
 	if !resume {
-		hint = ai.SkillHintPrefix(ai.RoleBee)
+		systemPrompt = ai.BuildSystemPrompt(ai.RoleBee, nil)
 	}
-	prompt := buildPrompt(msgs, hint)
+	prompt := buildPrompt(msgs)
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
@@ -234,7 +234,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.runningMu.Unlock()
 	}()
 
-	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{
+		SessionID:    sessionID,
+		Resume:       resume,
+		SystemPrompt: systemPrompt,
+	}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -335,13 +339,9 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 	return ids
 }
 
-func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
+func buildPrompt(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
 	sb.Grow(len(msgs) * 128)
-	if skillHint != "" {
-		sb.WriteString(skillHint)
-		sb.WriteByte('\n')
-	}
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
