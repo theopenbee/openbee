@@ -1167,7 +1167,7 @@ func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
 	}
 }
 
-func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
+func TestTaskDispatcher_NewSession_HasSessionPrefix(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 	}
@@ -1193,7 +1193,7 @@ func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
 	}
 }
 
-func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
+func TestTaskDispatcher_ResumeSession_NoSessionPrefix(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 	}
@@ -1281,7 +1281,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	}
 }
 
-func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
+func TestTaskDispatcher_NewSession_NilLookup_NoPersona(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
 	}

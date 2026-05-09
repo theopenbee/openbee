@@ -335,11 +335,11 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 	return ids
 }
 
-func buildPrompt(msgs []store.ClaimedMessage, skillHint string) string {
+func buildPrompt(msgs []store.ClaimedMessage, prefix string) string {
 	var sb strings.Builder
 	sb.Grow(len(msgs) * 128)
-	if skillHint != "" {
-		sb.WriteString(skillHint)
+	if prefix != "" {
+		sb.WriteString(prefix)
 		sb.WriteByte('\n')
 	}
 	for i, m := range msgs {

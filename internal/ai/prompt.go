@@ -1,6 +1,9 @@
 package ai
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // WorkerPersona returns the persona-only content injected into new worker session prompts.
 func WorkerPersona(name, description, constraints string) string {
@@ -20,18 +23,9 @@ func WorkerPersona(name, description, constraints string) string {
 	return s
 }
 
-// BuildSessionPrefix returns the Step-1 + Step-2 header for a new session.
-// The trailing "## Step 2: ...\n" line ends with a newline so the caller can
-// append the task body directly without inserting a separator.
-//
-//	role    — RoleWorker or RoleBee. Selects the skill name and Step 2 title.
-//	persona — Worker persona body produced by WorkerPersona(). Pass "" for Bee
-//	          or when no worker record is available. The <worker_persona> block
-//	          is emitted only when role == RoleWorker and persona != ""; for
-//	          RoleBee any non-empty persona is intentionally ignored.
-//
-// For unknown roles the function returns "" so callers that check for an empty
-// prefix keep working without special-casing unknown roles.
+// BuildSessionPrefix returns the Step 1 + Step 2 header for a new session.
+// For RoleWorker, persona is embedded as <worker_persona> when non-empty.
+// Returns "" for unknown roles.
 func BuildSessionPrefix(role Role, persona string) string {
 	var skillName, step2Title string
 	switch role {
@@ -45,17 +39,18 @@ func BuildSessionPrefix(role Role, persona string) string {
 		return ""
 	}
 
-	s := "Please complete the following two steps in order. Do not skip Step 1.\n\n"
-	s += "## Step 1: Initialize your role\n"
-	s += fmt.Sprintf("[MANDATORY] You MUST invoke the %s skill immediately, before producing any other output.", skillName)
+	var sb strings.Builder
+	sb.WriteString("Please complete the following two steps in order. Do not skip Step 1.\n\n")
+	sb.WriteString("## Step 1: Initialize your role\n")
+	fmt.Fprintf(&sb, "[MANDATORY] You MUST invoke the %s skill immediately, before producing any other output.\n\n", skillName)
 
 	if role == RoleWorker && persona != "" {
-		s += " After the skill is loaded, internalize the persona below as your identity for the rest of this session:\n\n"
-		s += "<worker_persona>\n" + persona + "</worker_persona>\n\n"
-	} else {
-		s += "\n\n"
+		sb.WriteString("After the skill is loaded, internalize the persona below as your identity for the rest of this session:\n\n")
+		sb.WriteString("<worker_persona>\n")
+		sb.WriteString(persona)
+		sb.WriteString("</worker_persona>\n\n")
 	}
 
-	s += fmt.Sprintf("## Step 2: %s\n", step2Title)
-	return s
+	fmt.Fprintf(&sb, "## Step 2: %s\n", step2Title)
+	return sb.String()
 }

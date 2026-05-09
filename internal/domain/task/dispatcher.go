@@ -316,7 +316,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 
 // resolveWorkerEngine returns the engine name and the fetched worker (nil if
 // workerLookup is unavailable or the lookup fails). A single DB call covers
-// both engine selection and the persona injection needed by executeWithHint.
+// both engine selection and the persona injection needed by executeFresh.
 func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Worker) {
 	if d.workerLookup != nil {
 		w, err := d.workerLookup.GetByID(workerID)
@@ -330,10 +330,11 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 	return d.engineCfg.Get(), nil
 }
 
-// executeWithHint builds the skill hint + persona and starts a fresh execution.
-// worker is the pre-fetched record from resolveWorkerEngine; if workerLookup is
-// configured but worker is nil, the lookup failed and the task is aborted.
-func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+// executeFresh builds the session prefix (Step 1 + persona) and starts a fresh
+// execution. worker is the pre-fetched record from resolveWorkerEngine; if
+// workerLookup is configured but worker is nil, the lookup failed and the task
+// is aborted.
+func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
 	persona := ""
 	if d.workerLookup != nil {
 		if worker == nil {
@@ -350,14 +351,14 @@ func (d *TaskDispatcher) executeWithHint(ctx context.Context, task DispatchTask,
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		return d.executeWithHint(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, worker)
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		return d.executeWithHint(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, worker)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
@@ -371,7 +372,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}
-	return d.executeWithHint(ctx, task, instruction, engineName, worker)
+	return d.executeFresh(ctx, task, instruction, engineName, worker)
 }
 
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {

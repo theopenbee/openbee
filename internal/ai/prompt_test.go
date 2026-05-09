@@ -61,7 +61,6 @@ func TestBuildSessionPrefix_WorkerWithPersona(t *testing.T) {
 	if !strings.HasSuffix(got, "## Step 2: Execute the task\n") {
 		t.Errorf("expected suffix %q, got:\n%s", "## Step 2: Execute the task\n", got)
 	}
-	// Persona must appear before the Step 2 header.
 	if strings.Index(got, "</worker_persona>") > strings.Index(got, "## Step 2:") {
 		t.Errorf("persona block must precede Step 2, got:\n%s", got)
 	}
@@ -96,7 +95,6 @@ func TestBuildSessionPrefix_Bee(t *testing.T) {
 }
 
 func TestBuildSessionPrefix_BeeIgnoresPersona(t *testing.T) {
-	// Bee has no persona concept; passing one must not embed it.
 	got := BuildSessionPrefix(RoleBee, WorkerPersona("ghost", "should be ignored", ""))
 	if strings.Contains(got, "<worker_persona>") {
 		t.Errorf("Bee prefix must not include persona even when one is passed, got:\n%s", got)
