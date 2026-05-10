@@ -31,14 +31,10 @@ type TaskBySessionLister interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 }
 
-type StatusWorkerLookup interface {
-	GetByIDs(ids []string) ([]model.Worker, error)
-}
-
 type StatusCommandHandler struct {
 	sessions  SessionContextLister
 	tasks     TaskBySessionLister
-	workers   StatusWorkerLookup
+	workers   WorkerByIDsLookup
 	senders   map[string]platform.PlatformSenderAdapter
 	engineCfg *enginecfg.Store
 	now       func() time.Time
@@ -47,7 +43,7 @@ type StatusCommandHandler struct {
 func NewStatusCommandHandler(
 	sessions SessionContextLister,
 	tasks TaskBySessionLister,
-	workers StatusWorkerLookup,
+	workers WorkerByIDsLookup,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
 ) *StatusCommandHandler {
