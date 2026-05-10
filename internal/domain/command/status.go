@@ -102,7 +102,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
-	workerNames := h.resolveWorkerNames(tasks)
+	workerNames := resolveWorkerNames(h.workers, tasks)
 
 	beeBody := len(agents)
 	if beeBody == 0 {
@@ -137,40 +137,6 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-// On error returns nil so the caller falls back to raw IDs.
-func (h *StatusCommandHandler) resolveWorkerNames(tasks []model.Task) map[string]string {
-	if len(tasks) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(tasks))
-	ids := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		if t.WorkerID == "" {
-			continue
-		}
-		if _, ok := seen[t.WorkerID]; ok {
-			continue
-		}
-		seen[t.WorkerID] = struct{}{}
-		ids = append(ids, t.WorkerID)
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	workers, err := h.workers.GetByIDs(ids)
-	if err != nil {
-		log.Error("batch lookup workers for /status", zap.Error(err))
-		return nil
-	}
-	out := make(map[string]string, len(workers))
-	for _, w := range workers {
-		if w.Name != "" {
-			out[w.ID] = w.Name
-		}
-	}
-	return out
 }
 
 func workerNameOrFallback(names map[string]string, id string) string {
