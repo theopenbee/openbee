@@ -253,7 +253,6 @@ runtime:
     worker_duplicate: "Multiple workers named %q found:\n%s"
     no_context: "No session contexts to clear."
     lookup_failed: "⚠️ Failed to look up session contexts. Please retry; if this persists, check server logs."
-    confirm_all_with_tasks: "⚠️ Will clear session contexts: %s\nThis will also stop %d running task(s).\nSend /clear again within 30s to confirm."
     confirm_header: "⚠️ Will clear session contexts:"
     confirm_agent_line: "  - %s (%s)"
     confirm_tasks_header: "This will also stop %d running task(s):"

@@ -318,7 +318,6 @@ type ClearCommandMessages struct {
 	WorkerDuplicate     string `yaml:"worker_duplicate"`        // contains %s, %s (name, id list)
 	NoContext           string `yaml:"no_context"`
 	LookupFailed        string `yaml:"lookup_failed"`
-	ConfirmAllWithTasks string `yaml:"confirm_all_with_tasks"`  // DEPRECATED: removed in follow-up commit
 	ConfirmHeader       string `yaml:"confirm_header"`
 	ConfirmAgentLine    string `yaml:"confirm_agent_line"`      // contains %s, %s (name, engine)
 	ConfirmTasksHeader  string `yaml:"confirm_tasks_header"`    // contains %d (task count)
