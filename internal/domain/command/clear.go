@@ -49,6 +49,8 @@ type ClearCommandHandler struct {
 	senders      map[string]platform.PlatformSenderAdapter
 	engineCfg    *enginecfg.Store
 
+	now func() time.Time
+
 	mu      sync.Mutex
 	pending map[string]time.Time // key: sessionKey + "::" + normalized command → expiry
 }
@@ -70,6 +72,7 @@ func NewClearCommandHandler(
 		sessionClear: sessionClear,
 		senders:      senders,
 		engineCfg:    engineCfg,
+		now:          time.Now,
 		pending:      make(map[string]time.Time),
 	}
 }
