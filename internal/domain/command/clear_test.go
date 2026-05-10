@@ -172,3 +172,60 @@ func TestClearCommand_ConfirmPromptListsTasksAndAgents(t *testing.T) {
 		t.Errorf("expected no session cleared on first /clear, got %v", fx.disp.cleared)
 	}
 }
+
+func TestClearCommand_ConfirmedWithin30sStopsAndClears(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	agents := []store.SessionAgent{
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
+	}
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "w1", Instruction: "do work", ExecutionID: "exec-1234abcd", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
+	fx := makeClearFixture(agents, tasks, workers, clock)
+	fx.tasks.cancelled = 1
+
+	// First /clear -> confirmation prompt.
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	if len(fx.sender.sent) != 1 {
+		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
+	}
+
+	// Second /clear within 30s -> actually stop & clear.
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	if len(fx.sender.sent) != 2 {
+		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
+	}
+	if got, want := fx.stopper.stopped, []string{"exec-1234abcd"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("expected stopped=%v, got %v", want, got)
+	}
+	if len(fx.disp.cleared) != 1 {
+		t.Errorf("expected ClearSession called once, got %d", len(fx.disp.cleared))
+	}
+	if !strings.Contains(fx.sender.sent[1], "✅ 已清除：") {
+		t.Errorf("expected cleared message, got: %s", fx.sender.sent[1])
+	}
+}
+
+func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	agents := []store.SessionAgent{
+		{AgentID: "ghost", AgentType: "worker", Engine: "claude", Name: "ghost", UpdatedAt: nowMs - 1000},
+	}
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "ghost", Instruction: "do something", ExecutionID: "deadbeef0000", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	// workers map deliberately empty -> GetByIDs returns no entries.
+	fx := makeClearFixture(agents, tasks, nil, clock)
+
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	if len(fx.sender.sent) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(fx.sender.sent))
+	}
+	out := fx.sender.sent[0]
+	if !strings.Contains(out, "[ghost] do something") {
+		t.Errorf("expected raw worker id fallback in task line, got:\n%s", out)
+	}
+}
