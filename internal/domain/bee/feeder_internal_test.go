@@ -34,7 +34,7 @@ func TestBuildPrompt_WithHint(t *testing.T) {
 	}
 	got := buildPrompt(msgs, "use openbee-bee skill.")
 	if !strings.HasPrefix(got, "use openbee-bee skill.\n") {
-		t.Errorf("skill hint must be first line\ngot: %q", got)
+		t.Errorf("prefix must be first line\ngot: %q", got)
 	}
 	if !strings.Contains(got, "<message_meta>") {
 		t.Errorf("missing message_meta, got: %q", got)
@@ -65,7 +65,7 @@ func TestBuildPrompt_MultipleMessages_WithHint(t *testing.T) {
 	}
 	got := buildPrompt(msgs, "use openbee-bee skill.")
 	if !strings.HasPrefix(got, "use openbee-bee skill.\n") {
-		t.Errorf("skill hint must be first line\ngot: %q", got)
+		t.Errorf("prefix must be first line\ngot: %q", got)
 	}
 	if strings.Count(got, "<message_meta>") != 2 {
 		t.Errorf("expected 2 message_meta blocks, got: %q", got)

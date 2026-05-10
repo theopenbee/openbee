@@ -1161,13 +1161,13 @@ func TestDispatcher_BuildInstruction_NoMetadata(t *testing.T) {
 		t.Fatal("expected worker to be called")
 	}
 	got := instructions[0]
-	// New sessions get the skill hint prefix; the raw instruction follows after the newline.
+	// New sessions get the session prefix; the raw instruction follows after the newline.
 	if !strings.Contains(got, "raw instruction") {
 		t.Errorf("expected instruction to contain original text, got: %q", got)
 	}
 }
 
-func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
+func TestTaskDispatcher_NewSession_HasSessionPrefix(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 	}
@@ -1188,12 +1188,12 @@ func TestTaskDispatcher_NewSession_HasSkillHint(t *testing.T) {
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
-	if !strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("new session must start with skill hint\ngot: %q", instruction)
+	if !strings.Contains(instruction, "## Step 1: Initialize your role") {
+		t.Errorf("new session must start with Step 1 header\ngot: %q", instruction)
 	}
 }
 
-func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
+func TestTaskDispatcher_ResumeSession_NoSessionPrefix(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1"},
 	}
@@ -1218,8 +1218,8 @@ func TestTaskDispatcher_ResumeSession_NoSkillHint(t *testing.T) {
 	mgr.mu.Lock()
 	instruction := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
-	if strings.HasPrefix(instruction, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("resume session must NOT have skill hint\ngot: %q", instruction)
+	if strings.Contains(instruction, "## Step 1: Initialize your role") {
+		t.Errorf("resume session must NOT have Step 1 header\ngot: %q", instruction)
 	}
 }
 
@@ -1254,8 +1254,15 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	if !strings.Contains(instr, "## Step 1: Initialize your role") {
+		t.Errorf("instruction missing Step 1 header, got: %q", instr)
+	}
+	step2Idx := strings.Index(instr, "## Step 2:")
+	personaIdx := strings.Index(instr, "<worker_persona>")
+	if step2Idx < 0 {
+		t.Errorf("instruction missing Step 2 header, got: %q", instr)
+	} else if personaIdx < 0 || personaIdx > step2Idx {
+		t.Errorf("persona block must appear before Step 2, got: %q", instr)
 	}
 	if !strings.Contains(instr, "<worker_persona>") {
 		t.Errorf("instruction missing <worker_persona> tag, got: %q", instr)
@@ -1274,7 +1281,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	}
 }
 
-func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
+func TestTaskDispatcher_NewSession_NilLookup_NoPersona(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
 	}
@@ -1295,8 +1302,8 @@ func TestTaskDispatcher_NewSession_NilLookup_OnlySkillHint(t *testing.T) {
 	instr := mgr.executedInstructions[0]
 	mgr.mu.Unlock()
 
-	if !strings.HasPrefix(instr, ai.SkillHintPrefix(ai.RoleWorker)) {
-		t.Errorf("instruction missing skill hint prefix, got: %q", instr)
+	if !strings.Contains(instr, "## Step 1: Initialize your role") {
+		t.Errorf("instruction missing Step 1 header, got: %q", instr)
 	}
 	if strings.Contains(instr, "<worker_persona>") {
 		t.Errorf("instruction should not contain <worker_persona> when lookup is nil, got: %q", instr)
