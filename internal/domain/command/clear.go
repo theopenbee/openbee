@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -20,6 +21,7 @@ const clearConfirmTimeout = 30 * time.Second
 
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
+	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
 type ClearSessionStore interface {
@@ -123,9 +125,8 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 
 	if len(runningTasks) > 0 && !confirmed {
-		list := formatAgentList(agents)
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, fmt.Sprintf(m.ConfirmAllWithTasks, list, len(runningTasks)))
+		h.reply(ctx, replyTo, h.formatConfirmPrompt(agents, runningTasks))
 		return
 	}
 
@@ -150,6 +151,33 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	} else {
 		h.reply(ctx, replyTo, fmt.Sprintf(m.Cleared, list))
 	}
+}
+
+func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	statusM := i18n.M.Runtime.StatusCommand
+	nowMs := h.now().UnixMilli()
+	workerNames := resolveWorkerNames(h.workers, tasks)
+
+	lines := make([]string, 0, 1+len(agents)+1+1+len(tasks)+1+1)
+	lines = append(lines, m.ConfirmHeader)
+	for _, a := range agents {
+		lines = append(lines, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
+	}
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
+	for _, t := range tasks {
+		runtimeSec := (nowMs - t.CreatedAt) / 1000
+		lines = append(lines, fmt.Sprintf(statusM.TaskLine,
+			workerNameOrFallback(workerNames, t.WorkerID),
+			utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
+			formatRelative(runtimeSec),
+			shortExecID(t.ExecutionID),
+		))
+	}
+	lines = append(lines, "")
+	lines = append(lines, m.ConfirmFooter)
+	return strings.Join(lines, "\n")
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
