@@ -475,14 +475,21 @@ func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
 
 // mockEmptyHandler records HandleEmpty invocations.
 type mockEmptyHandler struct {
-	mu    sync.Mutex
-	calls []platform.InboundMessage
+	mu        sync.Mutex
+	calls     []platform.InboundMessage
+	called    chan struct{} // closed on first HandleEmpty invocation
+	closeOnce sync.Once
+}
+
+func newMockEmptyHandler() *mockEmptyHandler {
+	return &mockEmptyHandler{called: make(chan struct{})}
 }
 
 func (m *mockEmptyHandler) HandleEmpty(_ context.Context, msg platform.InboundMessage) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.calls = append(m.calls, msg)
+	m.mu.Unlock()
+	m.closeOnce.Do(func() { close(m.called) })
 }
 
 func (m *mockEmptyHandler) callCount() int {
@@ -496,7 +503,7 @@ func (m *mockEmptyHandler) callCount() int {
 // never written to DB, and never emitted.
 func TestGateway_EmptyAfterStrip_InvokesEmptyHandler(t *testing.T) {
 	st := newMock()
-	handler := &mockEmptyHandler{}
+	handler := newMockEmptyHandler()
 	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
 		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
 		msgingest.WithEmptyMessageHandler(handler),
@@ -507,13 +514,10 @@ func TestGateway_EmptyAfterStrip_InvokesEmptyHandler(t *testing.T) {
 
 	g.Dispatch(inbound("s1", "@Bot", "m1"))
 
-	deadline := time.After(300 * time.Millisecond)
-	for handler.callCount() == 0 {
-		select {
-		case <-deadline:
-			t.Fatal("HandleEmpty not invoked within 300ms")
-		case <-time.After(10 * time.Millisecond):
-		}
+	select {
+	case <-handler.called:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("HandleEmpty not invoked within 300ms")
 	}
 
 	if got := handler.callCount(); got != 1 {
@@ -533,7 +537,7 @@ func TestGateway_EmptyAfterStrip_InvokesEmptyHandler(t *testing.T) {
 // messages sharing one PlatformMessageID produce exactly one HandleEmpty call.
 func TestGateway_EmptyAfterStrip_DedupStillApplies(t *testing.T) {
 	st := newMock()
-	handler := &mockEmptyHandler{}
+	handler := newMockEmptyHandler()
 	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
 		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
 		msgingest.WithEmptyMessageHandler(handler),
@@ -545,7 +549,12 @@ func TestGateway_EmptyAfterStrip_DedupStillApplies(t *testing.T) {
 	g.Dispatch(inbound("s1", "@Bot", "pm-dup"))
 	g.Dispatch(inbound("s1", "@Bot", "pm-dup")) // same PlatformMessageID → dropped
 
-	time.Sleep(150 * time.Millisecond)
+	select {
+	case <-handler.called:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("HandleEmpty not invoked within 300ms")
+	}
+	time.Sleep(50 * time.Millisecond) // brief window for a (wrong) second call
 
 	if got := handler.callCount(); got != 1 {
 		t.Errorf("HandleEmpty calls = %d, want 1 (duplicate should be dedup'd)", got)
@@ -581,7 +590,7 @@ func TestGateway_EmptyAfterStrip_NoHandler_NoOp(t *testing.T) {
 // messages bypass the empty branch and reach the debounce path as before.
 func TestGateway_NonEmpty_DoesNotInvokeEmptyHandler(t *testing.T) {
 	st := newMock()
-	handler := &mockEmptyHandler{}
+	handler := newMockEmptyHandler()
 	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
 		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
 		msgingest.WithEmptyMessageHandler(handler),
