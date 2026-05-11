@@ -165,7 +165,7 @@ func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, t
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
 	for _, t := range tasks {
-		lines = append(lines, formatTaskLine(t, workerNames, nowMs))
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
 	}
 	lines = append(lines, "")
 	lines = append(lines, m.ConfirmFooter)

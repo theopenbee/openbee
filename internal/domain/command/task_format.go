@@ -6,7 +6,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -15,11 +14,9 @@ type WorkerByIDsLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
-// formatTaskLine renders one row using i18n.StatusCommand.TaskLine. Shared
-// by /status and /clear so any column change lands in one place.
-func formatTaskLine(t model.Task, workerNames map[string]string, nowMs int64) string {
+func formatTaskLine(format string, t model.Task, workerNames map[string]string, nowMs int64) string {
 	runtimeSec := (nowMs - t.CreatedAt) / 1000
-	return fmt.Sprintf(i18n.M.Runtime.StatusCommand.TaskLine,
+	return fmt.Sprintf(format,
 		workerNameOrFallback(workerNames, t.WorkerID),
 		utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
 		formatRelative(runtimeSec),

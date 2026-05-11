@@ -122,7 +122,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, t := range tasks {
-			lines = append(lines, formatTaskLine(t, workerNames, nowMs))
+			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, nowMs))
 		}
 	}
 	return strings.Join(lines, "\n")
