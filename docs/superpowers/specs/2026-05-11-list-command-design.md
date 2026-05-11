@@ -145,7 +145,7 @@ type ListCommandMessages struct {
     Usage         string `yaml:"usage"`
     LookupFailed  string `yaml:"lookup_failed"`
     HeaderAll     string `yaml:"header_all"`     // %d worker count
-    HeaderSearch  string `yaml:"header_search"`  // %s keyword, %d count
+    HeaderSearch  string `yaml:"header_search"`  // %q keyword, %d count
     EmptyAll      string `yaml:"empty_all"`
     EmptySearch   string `yaml:"empty_search"`
     Line          string `yaml:"line"`           // %s name, %s status, %s description

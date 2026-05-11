@@ -60,7 +60,7 @@ type ListCommandMessages struct {
     Usage         string `yaml:"usage"`
     LookupFailed  string `yaml:"lookup_failed"`
     HeaderAll     string `yaml:"header_all"`     // contains %d (count)
-    HeaderSearch  string `yaml:"header_search"`  // contains %s, %d (keyword, count)
+    HeaderSearch  string `yaml:"header_search"`  // contains %q, %d (keyword, count)
     EmptyAll      string `yaml:"empty_all"`
     EmptySearch   string `yaml:"empty_search"`
     Line          string `yaml:"line"`           // contains %s, %s, %s (name, status, description)
@@ -79,7 +79,7 @@ Append to `internal/infra/i18n/locales/zh.yaml` at end of file (after `status_co
     usage: "用法：/list [关键词]"
     lookup_failed: "⚠️ 查询员工列表失败，请稍后重试；若持续出现请检查服务端日志。"
     header_all: "员工列表（共 %d 个）："
-    header_search: "匹配 \"%s\" 的员工（共 %d 个）："
+    header_search: "匹配 %q 的员工（共 %d 个）："
     empty_all: "  (暂无员工)"
     empty_search: "  (无匹配的员工)"
     line: "  - %s   状态: %s   %s"
