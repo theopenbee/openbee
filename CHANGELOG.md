@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Filter empty messages after bot @mention strip: reply with a localized hint and skip DB write, debounce, and LLM invocation
+
 ### Changed
 - Enhance `/clear` command output with more detailed information
 
