@@ -176,7 +176,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
 			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
 			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
-		}))
+		}),
+		msgingest.WithEmptyMessageHandler(msgingest.NewDefaultEmptyMessageHandler(sendersByPlatform)),
+	)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
