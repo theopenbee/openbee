@@ -10,10 +10,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/reply"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -239,19 +239,5 @@ func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platfo
 }
 
 func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
-	sendReply(ctx, h.senders, replyTo, text)
-}
-
-func sendReply(ctx context.Context, senders map[string]platform.PlatformSenderAdapter, replyTo platform.InboundMessage, text string) {
-	sender, ok := senders[replyTo.Platform]
-	if !ok {
-		return
-	}
-	if err := sender.Send(ctx, platform.OutboundMessage{
-		Content:    text,
-		ReplyTo:    replyTo,
-		SourceType: store.SourceTypeSystem,
-	}); err != nil {
-		log.Warn("command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
-	}
+	reply.Send(ctx, h.senders, replyTo, text)
 }

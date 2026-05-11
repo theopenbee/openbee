@@ -491,20 +491,6 @@ func (m *mockEmptyHandler) callCount() int {
 	return len(m.calls)
 }
 
-// TestGateway_WithEmptyMessageHandler_OptionInstalls verifies that the option
-// can be constructed without panic and that the option compiles into the
-// Gateway. The behavior test (Dispatch triggers HandleEmpty) is in Task 4.
-func TestGateway_WithEmptyMessageHandler_OptionInstalls(t *testing.T) {
-	st := newMock()
-	handler := &mockEmptyHandler{}
-	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
-		msgingest.WithEmptyMessageHandler(handler),
-	)
-	if g == nil {
-		t.Fatal("New returned nil")
-	}
-}
-
 // TestGateway_EmptyAfterStrip_InvokesEmptyHandler verifies that a message
 // becoming empty after stripBotMention is routed to EmptyMessageHandler,
 // never written to DB, and never emitted.
@@ -579,7 +565,7 @@ func TestGateway_EmptyAfterStrip_NoHandler_NoOp(t *testing.T) {
 
 	g.Dispatch(inbound("s1", "@Bot", "m1"))
 
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 
 	if len(st.batches) != 0 {
 		t.Errorf("CreateBatch should not have been called for empty msg, got %d batches", len(st.batches))

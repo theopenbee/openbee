@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/reply"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -50,17 +51,17 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 
 	beeWasStopped := h.feeder.StopSession(sessionKey)
 
-	var reply string
+	var text string
 	switch {
 	case beeWasStopped && len(ids) > 0:
-		reply = fmt.Sprintf(m.StoppedWithMessages, len(ids))
+		text = fmt.Sprintf(m.StoppedWithMessages, len(ids))
 	case beeWasStopped:
-		reply = m.Stopped
+		text = m.Stopped
 	case len(ids) > 0:
-		reply = fmt.Sprintf(m.CancelledMessages, len(ids))
+		text = fmt.Sprintf(m.CancelledMessages, len(ids))
 	default:
-		reply = m.NothingToStop
+		text = m.NothingToStop
 	}
-	sendReply(ctx, h.senders, replyTo, reply)
+	reply.Send(ctx, h.senders, replyTo, text)
 	return true
 }

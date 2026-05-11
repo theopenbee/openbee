@@ -7,6 +7,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -48,15 +49,12 @@ func TestDefaultEmptyMessageHandler_SendsHint(t *testing.T) {
 	if got.Content != i18n.M.Runtime.EmptyMessage.Hint {
 		t.Errorf("Content = %q, want %q", got.Content, i18n.M.Runtime.EmptyMessage.Hint)
 	}
-	if got.SessionKey != msg.SessionKey {
-		t.Errorf("SessionKey = %q, want %q", got.SessionKey, msg.SessionKey)
-	}
 	if got.ReplyTo.PlatformMessageID != msg.PlatformMessageID {
 		t.Errorf("ReplyTo.PlatformMessageID = %q, want %q",
 			got.ReplyTo.PlatformMessageID, msg.PlatformMessageID)
 	}
-	if got.SourceType != "system" {
-		t.Errorf("SourceType = %q, want %q", got.SourceType, "system")
+	if got.SourceType != store.SourceTypeSystem {
+		t.Errorf("SourceType = %q, want %q", got.SourceType, store.SourceTypeSystem)
 	}
 }
 

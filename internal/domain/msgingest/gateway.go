@@ -80,10 +80,7 @@ func WithPlatformBotNames(names map[string]string) Option {
 }
 
 // WithEmptyMessageHandler registers a handler invoked when a message is empty
-// after the bot @mention is stripped. The empty-message short-circuit in
-// Dispatch (no DB write, no debounce, no downstream emit) runs unconditionally
-// once content is detected as empty; this option only controls whether a reply
-// is sent. When no handler is registered, empty messages are silently dropped.
+// after the bot @mention is stripped. When unset, empty messages are silently dropped.
 func WithEmptyMessageHandler(h EmptyMessageHandler) Option {
 	return func(g *Gateway) { g.emptyHandler = h }
 }

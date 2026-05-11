@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/reply"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -139,7 +140,7 @@ func workerNameOrFallback(names map[string]string, id string) string {
 }
 
 func (h *StatusCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
-	sendReply(ctx, h.senders, replyTo, text)
+	reply.Send(ctx, h.senders, replyTo, text)
 }
 
 // formatRelative clamps negative inputs to "0s" to tolerate clock skew.
