@@ -504,3 +504,118 @@ func TestGateway_WithEmptyMessageHandler_OptionInstalls(t *testing.T) {
 		t.Fatal("New returned nil")
 	}
 }
+
+// TestGateway_EmptyAfterStrip_InvokesEmptyHandler verifies that a message
+// becoming empty after stripBotMention is routed to EmptyMessageHandler,
+// never written to DB, and never emitted.
+func TestGateway_EmptyAfterStrip_InvokesEmptyHandler(t *testing.T) {
+	st := newMock()
+	handler := &mockEmptyHandler{}
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
+		msgingest.WithEmptyMessageHandler(handler),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot", "m1"))
+
+	deadline := time.After(300 * time.Millisecond)
+	for handler.callCount() == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("HandleEmpty not invoked within 300ms")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	if got := handler.callCount(); got != 1 {
+		t.Errorf("HandleEmpty calls = %d, want 1", got)
+	}
+	if len(st.batches) != 0 {
+		t.Errorf("CreateBatch should not have been called, got %d batches", len(st.batches))
+	}
+	select {
+	case msg := <-g.Out():
+		t.Errorf("expected no emit, got %+v", msg)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// TestGateway_EmptyAfterStrip_DedupStillApplies verifies that two empty
+// messages sharing one PlatformMessageID produce exactly one HandleEmpty call.
+func TestGateway_EmptyAfterStrip_DedupStillApplies(t *testing.T) {
+	st := newMock()
+	handler := &mockEmptyHandler{}
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
+		msgingest.WithEmptyMessageHandler(handler),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot", "pm-dup"))
+	g.Dispatch(inbound("s1", "@Bot", "pm-dup")) // same PlatformMessageID → dropped
+
+	time.Sleep(150 * time.Millisecond)
+
+	if got := handler.callCount(); got != 1 {
+		t.Errorf("HandleEmpty calls = %d, want 1 (duplicate should be dedup'd)", got)
+	}
+}
+
+// TestGateway_EmptyAfterStrip_NoHandler_NoOp verifies that when no handler is
+// installed, empty messages still short-circuit (no DB write, no emit).
+func TestGateway_EmptyAfterStrip_NoHandler_NoOp(t *testing.T) {
+	st := newMock()
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot", "m1"))
+
+	time.Sleep(250 * time.Millisecond)
+
+	if len(st.batches) != 0 {
+		t.Errorf("CreateBatch should not have been called for empty msg, got %d batches", len(st.batches))
+	}
+	select {
+	case msg := <-g.Out():
+		t.Errorf("expected no emit, got %+v", msg)
+	default:
+	}
+}
+
+// TestGateway_NonEmpty_DoesNotInvokeEmptyHandler verifies that normal (non-empty)
+// messages bypass the empty branch and reach the debounce path as before.
+func TestGateway_NonEmpty_DoesNotInvokeEmptyHandler(t *testing.T) {
+	st := newMock()
+	handler := &mockEmptyHandler{}
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
+		msgingest.WithEmptyMessageHandler(handler),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.Run(ctx)
+
+	g.Dispatch(inbound("s1", "@Bot hello", "m1"))
+
+	select {
+	case msg := <-g.Out():
+		if msg.Content != "hello" {
+			t.Errorf("emitted content = %q, want %q", msg.Content, "hello")
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for non-empty message to be emitted")
+	}
+
+	if got := handler.callCount(); got != 0 {
+		t.Errorf("HandleEmpty calls = %d, want 0 for non-empty msg", got)
+	}
+}

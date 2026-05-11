@@ -165,6 +165,21 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 		g.seen[msg.PlatformMessageID] = struct{}{}
 	}
 
+	// Empty-message short-circuit: must come after dedup (so platform retries
+	// don't cause double replies) and before the command/debounce branches (so
+	// empty content never enters DB or accumulation state).
+	if strings.TrimSpace(stripped) == "" {
+		g.mu.Unlock()
+		log.Info("empty message after strip",
+			zap.String("sessionKey", msg.SessionKey),
+			zap.String("platform", msg.Platform),
+			zap.String("platformMsgID", msg.PlatformMessageID))
+		if g.emptyHandler != nil {
+			g.emptyHandler.HandleEmpty(context.Background(), msg)
+		}
+		return
+	}
+
 	if g.commandHandler.IsCommand(stripped) {
 		g.mu.Unlock()
 		select {
