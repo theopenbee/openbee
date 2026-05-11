@@ -44,10 +44,10 @@ type debounceState struct {
 	content    string                    // merged content string
 }
 
-type commandTask struct {
-	content string
-	msg     platform.InboundMessage
-}
+// pendingFn is a deferred action queued from Dispatch and run by the consumer
+// goroutine with the gateway's Run-scoped context (so shutdown can cancel
+// in-flight I/O and the receiver goroutine is never blocked by network calls).
+type pendingFn func(context.Context)
 
 // Gateway receives raw platform messages, deduplicates, debounces, and emits IngestedMessages.
 type Gateway struct {
@@ -58,7 +58,7 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	cmdCh          chan commandTask           // serialized command dispatch queue
+	pendingCh      chan pendingFn            // serialized deferred-action queue (commands, empty-replies)
 	commandHandler CommandHandler            // intercepts slash commands before DB write
 	botNameREs     map[string]*regexp.Regexp // platform → compiled @mention regex
 	emptyHandler   EmptyMessageHandler
@@ -102,7 +102,7 @@ func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, 
 		sessions:       make(map[string]*debounceState),
 		seen:           make(map[string]struct{}),
 		out:            make(chan IngestedMessage, 64),
-		cmdCh:          make(chan commandTask, 32),
+		pendingCh:      make(chan pendingFn, 32),
 	}
 	for _, o := range opts {
 		o(g)
@@ -114,19 +114,30 @@ func New(msgStore MessageStore, debounce time.Duration, handler CommandHandler, 
 func (g *Gateway) Out() <-chan IngestedMessage { return g.out }
 
 func (g *Gateway) Run(ctx context.Context) {
-	go g.runCommandConsumer(ctx)
+	go g.runConsumer(ctx)
 	<-ctx.Done()
 	close(g.out)
 }
 
-func (g *Gateway) runCommandConsumer(ctx context.Context) {
+func (g *Gateway) runConsumer(ctx context.Context) {
 	for {
 		select {
-		case task := <-g.cmdCh:
-			g.commandHandler.HandleCommand(ctx, task.content, task.msg)
+		case fn := <-g.pendingCh:
+			fn(ctx)
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// enqueuePending queues fn on the consumer goroutine; drops and logs if the
+// pending channel is full. kind labels the action in drop-warning logs.
+func (g *Gateway) enqueuePending(fn pendingFn, kind, sessionKey string) {
+	select {
+	case g.pendingCh <- fn:
+	default:
+		log.Warn("pending channel full, dropping action",
+			zap.String("kind", kind), zap.String("sessionKey", sessionKey))
 	}
 }
 
@@ -172,18 +183,18 @@ func (g *Gateway) Dispatch(msg platform.InboundMessage) {
 			zap.String("platform", msg.Platform),
 			zap.String("platformMsgID", msg.PlatformMessageID))
 		if g.emptyHandler != nil {
-			g.emptyHandler.HandleEmpty(context.Background(), msg)
+			g.enqueuePending(func(ctx context.Context) {
+				g.emptyHandler.HandleEmpty(ctx, msg)
+			}, "empty reply", msg.SessionKey)
 		}
 		return
 	}
 
 	if g.commandHandler.IsCommand(stripped) {
 		g.mu.Unlock()
-		select {
-		case g.cmdCh <- commandTask{stripped, msg}:
-		default:
-			log.Warn("command channel full, dropping command", zap.String("sessionKey", msg.SessionKey))
-		}
+		g.enqueuePending(func(ctx context.Context) {
+			g.commandHandler.HandleCommand(ctx, stripped, msg)
+		}, "command", msg.SessionKey)
 		return
 	}
 
