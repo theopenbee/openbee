@@ -208,6 +208,41 @@ func TestClearCommand_ConfirmedWithin30sStopsAndClears(t *testing.T) {
 	}
 }
 
+func TestClearCommand_ConfirmExpiresAfter30s(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	agents := []store.SessionAgent{
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
+	}
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "w1", Instruction: "do work", ExecutionID: "exec-1234abcd", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
+	fx := makeClearFixture(agents, tasks, workers, clock)
+	current := clock
+	command.SetClearClockForTest(fx.handler, func() time.Time { return current })
+
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	if len(fx.sender.sent) != 1 {
+		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
+	}
+
+	current = clock.Add(31 * time.Second)
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	if len(fx.sender.sent) != 2 {
+		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
+	}
+	if len(fx.stopper.stopped) != 0 {
+		t.Errorf("expected no execution stopped after window expired, got %v", fx.stopper.stopped)
+	}
+	if len(fx.disp.cleared) != 0 {
+		t.Errorf("expected no session cleared after window expired, got %v", fx.disp.cleared)
+	}
+	if !strings.Contains(fx.sender.sent[1], "30s 内再发一次 /clear 确认。") {
+		t.Errorf("expected new confirm prompt after expiry, got: %s", fx.sender.sent[1])
+	}
+}
+
 func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	nowMs := clock.UnixMilli()

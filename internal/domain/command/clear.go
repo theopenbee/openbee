@@ -217,10 +217,11 @@ func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 
 // consumePending atomically retrieves and removes a valid (non-expired) pending entry.
 func (h *ClearCommandHandler) consumePending(key string) bool {
+	now := h.now()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	expiresAt, exists := h.pending[key]
-	if !exists || !time.Now().Before(expiresAt) {
+	if !exists || !now.Before(expiresAt) {
 		return false
 	}
 	delete(h.pending, key)
@@ -230,7 +231,7 @@ func (h *ClearCommandHandler) consumePending(key string) bool {
 // storePending records a confirmation deadline and opportunistically reaps any
 // other expired entries — the only path that grows the map, so it bounds size.
 func (h *ClearCommandHandler) storePending(key string) {
-	now := time.Now()
+	now := h.now()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for k, expiresAt := range h.pending {
