@@ -4,6 +4,7 @@
 
 ### Changed
 - Restructure the skill-loading instruction in session prompts into a multi-step prompt format to improve skill load rate
+- Enhance `/clear` command output with more detailed information
 
 ## [0.0.35] - 2026-05-06
 
