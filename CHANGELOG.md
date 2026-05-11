@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.36] - 2026-05-10
 
 ### Changed
 - Restructure the skill-loading instruction in session prompts into a multi-step prompt format to improve skill load rate
