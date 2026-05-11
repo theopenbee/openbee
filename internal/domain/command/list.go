@@ -59,6 +59,7 @@ func (h *ListCommandHandler) HandleCommand(ctx context.Context, content string, 
 
 	if keyword != "" {
 		kw := strings.ToLower(keyword)
+		// 3-index slice: zero cap forces a fresh backing array, no aliasing with workers.
 		filtered := workers[:0:0]
 		for _, w := range workers {
 			if strings.Contains(strings.ToLower(w.Description), kw) {
