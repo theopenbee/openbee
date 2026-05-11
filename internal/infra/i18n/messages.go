@@ -296,6 +296,7 @@ type RuntimeMessages struct {
 	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
 	StopCommand     StopCommandMessages       `yaml:"stop_command"`
 	StatusCommand   StatusCommandMessages     `yaml:"status_command"`
+	EmptyMessage    EmptyMessageMessages      `yaml:"empty_message"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -345,6 +346,12 @@ type StatusCommandMessages struct {
 	EmptyMarker  string `yaml:"empty_marker"`
 	BeeLine      string `yaml:"bee_line"`
 	TaskLine     string `yaml:"task_line"`
+}
+
+// EmptyMessageMessages holds text sent to IM users when their message is
+// empty after the bot @mention is stripped.
+type EmptyMessageMessages struct {
+	Hint string `yaml:"hint"`
 }
 
 // DepartmentRuntimeMessages holds error messages returned by the department API.

@@ -274,3 +274,5 @@ runtime:
     empty_marker: "  (无)"
     bee_line: "  - %s   引擎: %s   最近活跃: %s 前"
     task_line: "  - [%s] %s   已运行 %s   exec: %s"
+  empty_message:
+    hint: "📭 老板，您发的消息看起来是空的（可能只 @ 了我没带内容）。请补一下要我做什么？"

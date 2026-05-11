@@ -274,3 +274,5 @@ runtime:
     empty_marker: "  (none)"
     bee_line: "  - %s   engine: %s   last active: %s ago"
     task_line: "  - [%s] %s   running for %s   exec: %s"
+  empty_message:
+    hint: "📭 Looks like your message is empty (perhaps just an @mention with no content). Could you tell me what you'd like me to do?"
