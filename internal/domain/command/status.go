@@ -12,7 +12,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -123,13 +122,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, t := range tasks {
-			runtimeSec := (nowMs - t.CreatedAt) / 1000
-			lines = append(lines, fmt.Sprintf(m.TaskLine,
-				workerNameOrFallback(workerNames, t.WorkerID),
-				utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
-				formatRelative(runtimeSec),
-				shortExecID(t.ExecutionID),
-			))
+			lines = append(lines, formatTaskLine(t, workerNames, nowMs))
 		}
 	}
 	return strings.Join(lines, "\n")

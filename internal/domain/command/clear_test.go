@@ -217,7 +217,6 @@ func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 	tasks := []model.Task{
 		{ID: "t1", WorkerID: "ghost", Instruction: "do something", ExecutionID: "deadbeef0000", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
-	// workers map deliberately empty -> GetByIDs returns no entries.
 	fx := makeClearFixture(agents, tasks, nil, clock)
 
 	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
