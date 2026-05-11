@@ -58,9 +58,10 @@ type Gateway struct {
 	seenPrev       map[string]struct{} // previous generation, checked on lookup only
 	mu             sync.Mutex
 	out            chan IngestedMessage
-	cmdCh          chan commandTask  // serialized command dispatch queue
-	commandHandler CommandHandler   // intercepts slash commands before DB write
+	cmdCh          chan commandTask           // serialized command dispatch queue
+	commandHandler CommandHandler            // intercepts slash commands before DB write
 	botNameREs     map[string]*regexp.Regexp // platform → compiled @mention regex
+	emptyHandler   EmptyMessageHandler
 }
 
 // Option configures a Gateway.
@@ -76,6 +77,15 @@ func WithPlatformBotNames(names map[string]string) Option {
 		}
 	}
 	return func(g *Gateway) { g.botNameREs = res }
+}
+
+// WithEmptyMessageHandler registers a handler invoked when a message is empty
+// after the bot @mention is stripped. The empty-message short-circuit in
+// Dispatch (no DB write, no debounce, no downstream emit) runs unconditionally
+// once content is detected as empty; this option only controls whether a reply
+// is sent. When no handler is registered, empty messages are silently dropped.
+func WithEmptyMessageHandler(h EmptyMessageHandler) Option {
+	return func(g *Gateway) { g.emptyHandler = h }
 }
 
 func (g *Gateway) stripBotMention(content, platform string) string {

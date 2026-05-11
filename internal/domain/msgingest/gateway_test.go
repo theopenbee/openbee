@@ -472,3 +472,35 @@ func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
 		t.Errorf("batch[1].Content = %q, want %q", got, "world")
 	}
 }
+
+// mockEmptyHandler records HandleEmpty invocations.
+type mockEmptyHandler struct {
+	mu    sync.Mutex
+	calls []platform.InboundMessage
+}
+
+func (m *mockEmptyHandler) HandleEmpty(_ context.Context, msg platform.InboundMessage) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, msg)
+}
+
+func (m *mockEmptyHandler) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+// TestGateway_WithEmptyMessageHandler_OptionInstalls verifies that the option
+// can be constructed without panic and that the option compiles into the
+// Gateway. The behavior test (Dispatch triggers HandleEmpty) is in Task 4.
+func TestGateway_WithEmptyMessageHandler_OptionInstalls(t *testing.T) {
+	st := newMock()
+	handler := &mockEmptyHandler{}
+	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
+		msgingest.WithEmptyMessageHandler(handler),
+	)
+	if g == nil {
+		t.Fatal("New returned nil")
+	}
+}
