@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add `/list [keyword]` command to print all workers with status and description; keyword performs case-insensitive substring search on `worker.description`.
+
 ### Changed
 - Enhance `/clear` command output with more detailed information
 
