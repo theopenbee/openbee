@@ -20,6 +20,7 @@ const clearConfirmTimeout = 30 * time.Second
 
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
+	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
 type ClearSessionStore interface {
@@ -49,6 +50,8 @@ type ClearCommandHandler struct {
 	senders      map[string]platform.PlatformSenderAdapter
 	engineCfg    *enginecfg.Store
 
+	now func() time.Time
+
 	mu      sync.Mutex
 	pending map[string]time.Time // key: sessionKey + "::" + normalized command → expiry
 }
@@ -70,6 +73,7 @@ func NewClearCommandHandler(
 		sessionClear: sessionClear,
 		senders:      senders,
 		engineCfg:    engineCfg,
+		now:          time.Now,
 		pending:      make(map[string]time.Time),
 	}
 }
@@ -120,9 +124,8 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 
 	if len(runningTasks) > 0 && !confirmed {
-		list := formatAgentList(agents)
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, fmt.Sprintf(m.ConfirmAllWithTasks, list, len(runningTasks)))
+		h.reply(ctx, replyTo, h.formatConfirmPrompt(agents, runningTasks))
 		return
 	}
 
@@ -147,6 +150,26 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	} else {
 		h.reply(ctx, replyTo, fmt.Sprintf(m.Cleared, list))
 	}
+}
+
+func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	nowMs := h.now().UnixMilli()
+	workerNames := resolveWorkerNames(h.workers, tasks)
+
+	lines := make([]string, 0, 5+len(agents)+len(tasks))
+	lines = append(lines, m.ConfirmHeader)
+	for _, a := range agents {
+		lines = append(lines, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
+	}
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
+	for _, t := range tasks {
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
+	}
+	lines = append(lines, "")
+	lines = append(lines, m.ConfirmFooter)
+	return strings.Join(lines, "\n")
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
@@ -194,10 +217,11 @@ func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 
 // consumePending atomically retrieves and removes a valid (non-expired) pending entry.
 func (h *ClearCommandHandler) consumePending(key string) bool {
+	now := h.now()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	expiresAt, exists := h.pending[key]
-	if !exists || !time.Now().Before(expiresAt) {
+	if !exists || !now.Before(expiresAt) {
 		return false
 	}
 	delete(h.pending, key)
@@ -207,7 +231,7 @@ func (h *ClearCommandHandler) consumePending(key string) bool {
 // storePending records a confirmation deadline and opportunistically reaps any
 // other expired entries — the only path that grows the map, so it bounds size.
 func (h *ClearCommandHandler) storePending(key string) {
-	now := time.Now()
+	now := h.now()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for k, expiresAt := range h.pending {

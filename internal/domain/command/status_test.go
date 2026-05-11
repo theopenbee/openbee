@@ -35,24 +35,6 @@ func (f *fakeStatusTaskLister) ListBySessionKey(_ context.Context, _, _, _ strin
 	return f.tasks, f.err
 }
 
-type fakeStatusWorkerLookup struct {
-	byID map[string]model.Worker
-	err  error
-}
-
-func (f *fakeStatusWorkerLookup) GetByIDs(ids []string) ([]model.Worker, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	out := make([]model.Worker, 0, len(ids))
-	for _, id := range ids {
-		if w, ok := f.byID[id]; ok {
-			out = append(out, w)
-		}
-	}
-	return out, nil
-}
-
 type statusFixtureOpts struct {
 	sessionsErr error
 	tasksErr    error
@@ -87,7 +69,7 @@ func makeStatusHandler(
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
 	sessions := &fakeStatusSessionLister{agents: agents, err: cfg.sessionsErr}
 	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
-	wl := &fakeStatusWorkerLookup{byID: workers}
+	wl := &fakeWorkerByIDsLookup{byID: workers}
 	engineCfg := enginecfg.NewStore("claude")
 	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
 	if cfg.now != nil {

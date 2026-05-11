@@ -12,7 +12,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -31,14 +30,10 @@ type TaskBySessionLister interface {
 	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
 }
 
-type StatusWorkerLookup interface {
-	GetByIDs(ids []string) ([]model.Worker, error)
-}
-
 type StatusCommandHandler struct {
 	sessions  SessionContextLister
 	tasks     TaskBySessionLister
-	workers   StatusWorkerLookup
+	workers   WorkerByIDsLookup
 	senders   map[string]platform.PlatformSenderAdapter
 	engineCfg *enginecfg.Store
 	now       func() time.Time
@@ -47,7 +42,7 @@ type StatusCommandHandler struct {
 func NewStatusCommandHandler(
 	sessions SessionContextLister,
 	tasks TaskBySessionLister,
-	workers StatusWorkerLookup,
+	workers WorkerByIDsLookup,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
 ) *StatusCommandHandler {
@@ -102,7 +97,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
-	workerNames := h.resolveWorkerNames(tasks)
+	workerNames := resolveWorkerNames(h.workers, tasks)
 
 	beeBody := len(agents)
 	if beeBody == 0 {
@@ -127,50 +122,10 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, t := range tasks {
-			runtimeSec := (nowMs - t.CreatedAt) / 1000
-			lines = append(lines, fmt.Sprintf(m.TaskLine,
-				workerNameOrFallback(workerNames, t.WorkerID),
-				utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
-				formatRelative(runtimeSec),
-				shortExecID(t.ExecutionID),
-			))
+			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, nowMs))
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-// On error returns nil so the caller falls back to raw IDs.
-func (h *StatusCommandHandler) resolveWorkerNames(tasks []model.Task) map[string]string {
-	if len(tasks) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(tasks))
-	ids := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		if t.WorkerID == "" {
-			continue
-		}
-		if _, ok := seen[t.WorkerID]; ok {
-			continue
-		}
-		seen[t.WorkerID] = struct{}{}
-		ids = append(ids, t.WorkerID)
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	workers, err := h.workers.GetByIDs(ids)
-	if err != nil {
-		log.Error("batch lookup workers for /status", zap.Error(err))
-		return nil
-	}
-	out := make(map[string]string, len(workers))
-	for _, w := range workers {
-		if w.Name != "" {
-			out[w.ID] = w.Name
-		}
-	}
-	return out
 }
 
 func workerNameOrFallback(names map[string]string, id string) string {

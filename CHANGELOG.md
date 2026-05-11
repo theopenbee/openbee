@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Enhance `/clear` command output with more detailed information
+
 ## [0.0.36] - 2026-05-10
 
 ### Changed
