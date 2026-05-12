@@ -2,11 +2,13 @@ package claude
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -39,6 +41,28 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter 
 			Extract:   ExtractResultFromLog,
 		},
 	}
+}
+
+// Run starts the underlying invoker and returns a RunResult whose
+// ExtractResult is memoized so repeated calls don't re-scan the log file.
+func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
+	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+	proc, out, err := a.Invoker.Run(ctx, workDir, prompt, opts, logPath)
+	if err != nil {
+		return ai.RunResult{}, err
+	}
+	var (
+		once   sync.Once
+		result string
+	)
+	return ai.RunResult{
+		Process: proc,
+		Output:  out,
+		ExtractResult: func() string {
+			once.Do(func() { result = ExtractResultFromLog(logPath) })
+			return result
+		},
+	}, nil
 }
 
 // Prepare removes the legacy .openbee.md rules file and its import line from CLAUDE.md.
