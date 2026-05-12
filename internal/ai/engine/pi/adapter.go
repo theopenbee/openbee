@@ -2,6 +2,7 @@ package pi
 
 import (
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 func init() {
@@ -16,7 +17,7 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter
 	if err != nil {
 		return nil, err
 	}
-	return &ai.BaseAdapter{
+	return &core.BaseAdapter{
 		Invoker:   inv,
 		Collector: NewCollector(),
 		Extract:   ExtractResultFromLog,

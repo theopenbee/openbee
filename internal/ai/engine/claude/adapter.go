@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 const (
@@ -26,16 +27,16 @@ func init() {
 	})
 }
 
-// claudeAdapter embeds ai.BaseAdapter and overrides Prepare to clean up the
+// claudeAdapter embeds core.BaseAdapter and overrides Prepare to clean up the
 // legacy openbee rules file and matching import line in CLAUDE.md.
 type claudeAdapter struct {
-	*ai.BaseAdapter
+	*core.BaseAdapter
 }
 
 // NewAdapter constructs a Claude engine adapter with Claude-specific Prepare.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &claudeAdapter{
-		BaseAdapter: &ai.BaseAdapter{
+		BaseAdapter: &core.BaseAdapter{
 			Invoker:   NewInvoker(binaryPath, extraEnv),
 			Collector: NewCollector(),
 			Extract:   ExtractResultFromLog,

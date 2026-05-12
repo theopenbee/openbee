@@ -1,4 +1,4 @@
-package ai_test
+package core_test
 
 import (
 	"context"
@@ -8,13 +8,14 @@ import (
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 func TestSpawnSubprocess_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "log.txt")
 
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  "/bin/sh",
 		Args:    []string{"-c", "echo hello"},
 		WorkDir: dir,
@@ -22,7 +23,7 @@ func TestSpawnSubprocess_HappyPath(t *testing.T) {
 		Env:     os.Environ(),
 	}
 
-	proc, out, err := ai.SpawnSubprocess(context.Background(), spec)
+	proc, out, err := core.SpawnSubprocess(context.Background(), spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestSpawnSubprocess_NonZeroExit(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "log.txt")
 
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  "/bin/sh",
 		Args:    []string{"-c", "exit 7"},
 		WorkDir: dir,
@@ -57,7 +58,7 @@ func TestSpawnSubprocess_NonZeroExit(t *testing.T) {
 		Env:     os.Environ(),
 	}
 
-	_, out, err := ai.SpawnSubprocess(context.Background(), spec)
+	_, out, err := core.SpawnSubprocess(context.Background(), spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +74,13 @@ func TestSpawnSubprocess_NonZeroExit(t *testing.T) {
 }
 
 func TestSpawnSubprocess_OpenLogFailure(t *testing.T) {
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  "/bin/sh",
 		Args:    []string{"-c", "true"},
 		LogPath: "/nonexistent-dir-zxywqv/log.txt",
 		Env:     os.Environ(),
 	}
-	_, _, err := ai.SpawnSubprocess(context.Background(), spec)
+	_, _, err := core.SpawnSubprocess(context.Background(), spec)
 	if err == nil {
 		t.Fatal("want error opening log")
 	}
@@ -90,7 +91,7 @@ func TestSpawnSubprocess_PostWaitOverride(t *testing.T) {
 	logPath := filepath.Join(dir, "log.txt")
 
 	override := ai.Output{Type: ai.OutputError, Content: "custom"}
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  "/bin/sh",
 		Args:    []string{"-c", "echo ok"},
 		WorkDir: dir,
@@ -104,7 +105,7 @@ func TestSpawnSubprocess_PostWaitOverride(t *testing.T) {
 		},
 	}
 
-	_, out, err := ai.SpawnSubprocess(context.Background(), spec)
+	_, out, err := core.SpawnSubprocess(context.Background(), spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestSpawnSubprocess_StdinDelivered(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "log.txt")
 
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  "/bin/sh",
 		Args:    []string{"-c", "cat"},
 		WorkDir: dir,
@@ -131,7 +132,7 @@ func TestSpawnSubprocess_StdinDelivered(t *testing.T) {
 		Stdin:   "the-payload",
 	}
 
-	_, out, err := ai.SpawnSubprocess(context.Background(), spec)
+	_, out, err := core.SpawnSubprocess(context.Background(), spec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
@@ -55,7 +56,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 }
 
 func parsePiFile(path string) ([]ai.TokenUsage, error) {
-	usages, err := ai.AggregateUsage[piJSONLLine](path, func(line piJSONLLine, agg map[string]*ai.TokenUsage) {
+	usages, err := core.AggregateUsage[piJSONLLine](path, func(line piJSONLLine, agg map[string]*ai.TokenUsage) {
 		if line.Type != "message" || line.Message.Role != "assistant" || line.Message.Usage == nil {
 			return
 		}

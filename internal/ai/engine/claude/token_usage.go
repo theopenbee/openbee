@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
@@ -68,7 +69,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 }
 
 func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
-	usages, err := ai.AggregateUsage[claudeJSONLLine](path, func(line claudeJSONLLine, agg map[string]*ai.TokenUsage) {
+	usages, err := core.AggregateUsage[claudeJSONLLine](path, func(line claudeJSONLLine, agg map[string]*ai.TokenUsage) {
 		m := line.Message.Model
 		if m == "" || m == syntheticModel || line.Message.Usage == nil {
 			return

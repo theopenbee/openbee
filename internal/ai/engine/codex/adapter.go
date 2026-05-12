@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 func init() {
@@ -18,7 +19,7 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter
 	if err != nil {
 		return nil, fmt.Errorf("init codex session store: %w", err)
 	}
-	return &ai.BaseAdapter{
+	return &core.BaseAdapter{
 		Invoker:   NewInvoker(binaryPath, store, extraEnv),
 		Collector: NewCollector(),
 		Extract:   ExtractResultFromLog,

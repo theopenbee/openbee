@@ -1,6 +1,6 @@
 //go:build windows
 
-package ai
+package core
 
 import (
 	"os/exec"

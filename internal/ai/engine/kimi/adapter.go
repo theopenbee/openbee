@@ -2,6 +2,7 @@ package kimi
 
 import (
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 func init() {
@@ -12,7 +13,7 @@ func init() {
 
 // NewAdapter constructs a Kimi engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
-	return &ai.BaseAdapter{
+	return &core.BaseAdapter{
 		Invoker:   NewInvoker(binaryPath, extraEnv),
 		Collector: NewCollector(),
 		Extract:   ExtractResultFromLog,

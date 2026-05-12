@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
@@ -28,7 +29,7 @@ func NewInvoker(binary string, extraEnv map[string]string) (*Invoker, error) {
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
-	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv), sessionDir: sessionDir}, nil
+	return &Invoker{binary: binary, baseEnv: core.NewBaseEnv(extraEnv), sessionDir: sessionDir}, nil
 }
 
 type piAgentEnd struct {
@@ -68,7 +69,7 @@ func scanLastAssistantMessage(logPath string) *piMessage {
 	defer f.Close()
 
 	var result *piMessage
-	ai.ScanJSONLines(f, func(line string) bool {
+	core.ScanJSONLines(f, func(line string) bool {
 		var event piAgentEnd
 		if json.Unmarshal([]byte(line), &event) != nil || event.Type != eventTypeAgentEnd {
 			return true
@@ -173,21 +174,21 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stderr = io.MultiWriter(logFile, &limitWriter{w: &stderrBuf, rem: 4096})
-	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
+	cmd.Env = core.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		logFile.Close()
 		return nil, nil, fmt.Errorf("stdout pipe: %w", err)
 	}
-	ai.ConfigureCmd(cmd)
+	core.ConfigureCmd(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return nil, nil, fmt.Errorf("start pi: %w", err)
 	}
 
-	proc := ai.NewCmdProcess(cmd)
+	proc := core.NewCmdProcess(cmd)
 	ch := make(chan ai.Output, 1)
 
 	go func() {

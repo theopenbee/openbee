@@ -1,8 +1,9 @@
-package ai
+package core
 
 import (
 	"encoding/json"
 
+	"github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
@@ -10,8 +11,8 @@ import (
 // lets fold accumulate per-model TokenUsage into agg. Lines that fail to
 // unmarshal are silently skipped (matches existing per-engine behavior).
 // The returned slice ordering is unspecified.
-func AggregateUsage[T any](path string, fold func(line T, agg map[string]*TokenUsage)) ([]TokenUsage, error) {
-	agg := map[string]*TokenUsage{}
+func AggregateUsage[T any](path string, fold func(line T, agg map[string]*ai.TokenUsage)) ([]ai.TokenUsage, error) {
+	agg := map[string]*ai.TokenUsage{}
 	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
 		var line T
 		if json.Unmarshal(data, &line) != nil {
@@ -22,7 +23,7 @@ func AggregateUsage[T any](path string, fold func(line T, agg map[string]*TokenU
 	if err != nil {
 		return nil, err
 	}
-	out := make([]TokenUsage, 0, len(agg))
+	out := make([]ai.TokenUsage, 0, len(agg))
 	for _, u := range agg {
 		out = append(out, *u)
 	}

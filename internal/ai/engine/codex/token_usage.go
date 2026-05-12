@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
@@ -131,7 +132,7 @@ func findCodexSessionFile(codexBase, sessionID string) (string, error) {
 func parseCodexFile(path string) ([]ai.TokenUsage, error) {
 	prevByModel := map[string]*codexTokenUsage{}
 	currentModel := ""
-	usages, err := ai.AggregateUsage[codexJSONLLine](path, func(line codexJSONLLine, agg map[string]*ai.TokenUsage) {
+	usages, err := core.AggregateUsage[codexJSONLLine](path, func(line codexJSONLLine, agg map[string]*ai.TokenUsage) {
 		switch line.Type {
 		case codexLineTurnContext:
 			if line.Payload.Model != "" {

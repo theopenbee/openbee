@@ -1,9 +1,11 @@
-package ai
+package core
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/theopenbee/openbee/internal/ai"
 )
 
 func TestAggregateUsage_AddsAcrossLines(t *testing.T) {
@@ -22,13 +24,13 @@ func TestAggregateUsage_AddsAcrossLines(t *testing.T) {
 		In    int64  `json:"in"`
 		Out   int64  `json:"out"`
 	}
-	usages, err := AggregateUsage[line](path, func(l line, agg map[string]*TokenUsage) {
+	usages, err := AggregateUsage[line](path, func(l line, agg map[string]*ai.TokenUsage) {
 		if l.Model == "" {
 			return
 		}
 		u := agg[l.Model]
 		if u == nil {
-			u = &TokenUsage{Model: l.Model}
+			u = &ai.TokenUsage{Model: l.Model}
 			agg[l.Model] = u
 		}
 		u.InputTokens += l.In
@@ -40,7 +42,7 @@ func TestAggregateUsage_AddsAcrossLines(t *testing.T) {
 	if len(usages) != 2 {
 		t.Fatalf("want 2 models, got %d", len(usages))
 	}
-	byModel := map[string]TokenUsage{}
+	byModel := map[string]ai.TokenUsage{}
 	for _, u := range usages {
 		byModel[u.Model] = u
 	}
@@ -53,7 +55,7 @@ func TestAggregateUsage_AddsAcrossLines(t *testing.T) {
 }
 
 func TestAggregateUsage_MissingFile(t *testing.T) {
-	_, err := AggregateUsage[struct{}]("/nonexistent/path/abc.jsonl", func(struct{}, map[string]*TokenUsage) {})
+	_, err := AggregateUsage[struct{}]("/nonexistent/path/abc.jsonl", func(struct{}, map[string]*ai.TokenUsage) {})
 	if err == nil {
 		t.Fatal("want error for missing file")
 	}
@@ -74,13 +76,13 @@ also-not-json
 		In    int64  `json:"in"`
 		Out   int64  `json:"out"`
 	}
-	usages, err := AggregateUsage[line](path, func(l line, agg map[string]*TokenUsage) {
+	usages, err := AggregateUsage[line](path, func(l line, agg map[string]*ai.TokenUsage) {
 		if l.Model == "" {
 			return
 		}
 		u := agg[l.Model]
 		if u == nil {
-			u = &TokenUsage{Model: l.Model}
+			u = &ai.TokenUsage{Model: l.Model}
 			agg[l.Model] = u
 		}
 		u.InputTokens += l.In

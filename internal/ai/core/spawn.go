@@ -1,4 +1,4 @@
-package ai
+package core
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/theopenbee/openbee/internal/ai"
 )
 
 // SubprocessSpec describes a subprocess to launch via SpawnSubprocess. Stdin
@@ -24,13 +26,13 @@ type SubprocessSpec struct {
 	// PostWait, if non-nil, runs after cmd.Wait() returns. A non-nil return
 	// becomes the terminal Output event; a nil return falls back to the
 	// default mapping (waitErr → OutputError, nil → OutputDone).
-	PostWait func(waitErr error, logPath string) *Output
+	PostWait func(waitErr error, logPath string) *ai.Output
 }
 
 // SpawnSubprocess starts a subprocess described by spec, redirects output to
 // spec.LogPath, and returns a Process plus a 1-buffered channel that receives
 // exactly one Output (Done or Error) when the process exits.
-func SpawnSubprocess(ctx context.Context, spec SubprocessSpec) (Process, <-chan Output, error) {
+func SpawnSubprocess(ctx context.Context, spec SubprocessSpec) (ai.Process, <-chan ai.Output, error) {
 	logFile, err := os.OpenFile(spec.LogPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open log file: %w", err)
@@ -60,7 +62,7 @@ func SpawnSubprocess(ctx context.Context, spec SubprocessSpec) (Process, <-chan 
 	}
 
 	proc := NewCmdProcess(cmd)
-	ch := make(chan Output, 1)
+	ch := make(chan ai.Output, 1)
 
 	go func() {
 		defer close(ch)
@@ -73,9 +75,9 @@ func SpawnSubprocess(ctx context.Context, spec SubprocessSpec) (Process, <-chan 
 			}
 		}
 		if waitErr != nil {
-			ch <- Output{Type: OutputError, Content: waitErr.Error()}
+			ch <- ai.Output{Type: ai.OutputError, Content: waitErr.Error()}
 		} else {
-			ch <- Output{Type: OutputDone}
+			ch <- ai.Output{Type: ai.OutputDone}
 		}
 	}()
 

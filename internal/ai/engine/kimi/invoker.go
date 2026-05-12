@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 const (
@@ -26,7 +27,7 @@ type Invoker struct {
 
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment (e.g. MOONSHOT_API_KEY).
 func NewInvoker(binary string, extraEnv map[string]string) *Invoker {
-	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv)}
+	return &Invoker{binary: binary, baseEnv: core.NewBaseEnv(extraEnv)}
 }
 
 func buildArgs(sessionID string, extraArgs []string) []string {
@@ -90,7 +91,7 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastText, lastSentMsg string
-	ai.ScanJSONLines(f, func(line string) bool {
+	core.ScanJSONLines(f, func(line string) bool {
 		var msg kimiMessage
 		if json.Unmarshal([]byte(line), &msg) != nil || msg.Role != kimiRoleAssistant {
 			return true
@@ -144,13 +145,13 @@ func ExtractResultFromLog(logPath string) string {
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  inv.binary,
 		Args:    buildArgs(opts.SessionID, opts.ExtraArgs),
 		WorkDir: workDir,
 		LogPath: logPath,
-		Env:     ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey),
+		Env:     core.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey),
 		Stdin:   prompt,
 	}
-	return ai.SpawnSubprocess(ctx, spec)
+	return core.SpawnSubprocess(ctx, spec)
 }

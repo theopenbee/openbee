@@ -1,4 +1,4 @@
-package ai_test
+package core_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 type fakeInvoker struct {
@@ -32,7 +33,7 @@ func TestBaseAdapter_RunBindsExtract(t *testing.T) {
 	ch := make(chan ai.Output)
 	close(ch)
 	var capturedLogPath string
-	b := &ai.BaseAdapter{
+	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{ch: ch},
 		Collector: &fakeCollector{},
 		Extract:   func(logPath string) string { capturedLogPath = logPath; return "x" },
@@ -51,7 +52,7 @@ func TestBaseAdapter_RunBindsExtract(t *testing.T) {
 
 func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 	wantErr := errors.New("boom")
-	b := &ai.BaseAdapter{
+	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{err: wantErr},
 		Collector: &fakeCollector{},
 		Extract:   func(string) string { return "" },
@@ -63,7 +64,7 @@ func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 }
 
 func TestBaseAdapter_PrepareIsNoop(t *testing.T) {
-	b := &ai.BaseAdapter{}
+	b := &core.BaseAdapter{}
 	if err := b.Prepare("/wd", ai.PrepareOptions{}); err != nil {
 		t.Error(err)
 	}
@@ -71,7 +72,7 @@ func TestBaseAdapter_PrepareIsNoop(t *testing.T) {
 
 func TestBaseAdapter_CollectDelegates(t *testing.T) {
 	want := []ai.TokenUsage{{Model: "m", InputTokens: 7}}
-	b := &ai.BaseAdapter{
+	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{},
 		Collector: &fakeCollector{usages: want},
 		Extract:   func(string) string { return "" },

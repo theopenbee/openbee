@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"go.uber.org/zap"
 )
@@ -58,7 +59,7 @@ type Invoker struct {
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment at lowest priority.
 // OPENBEE_URL is inherited from the server process environment.
 func NewInvoker(binary string, store *SessionStore, extraEnv map[string]string) *Invoker {
-	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv), store: store}
+	return &Invoker{binary: binary, baseEnv: core.NewBaseEnv(extraEnv), store: store}
 }
 
 type codexEvent struct {
@@ -94,7 +95,7 @@ func buildArgs(threadID string, resume bool, prompt string, extraArgs []string) 
 // the first "thread.started" event, or "" if not found.
 func extractSessionID(r io.Reader) string {
 	var threadID string
-	ai.ScanJSONLines(r, func(line string) bool {
+	core.ScanJSONLines(r, func(line string) bool {
 		var event codexEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
 			return true
@@ -118,7 +119,7 @@ func ExtractResultFromLog(logPath string) string {
 	defer f.Close()
 
 	var lastText string
-	ai.ScanJSONLines(f, func(line string) bool {
+	core.ScanJSONLines(f, func(line string) bool {
 		var event codexEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
 			return true
@@ -150,12 +151,12 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	cmd.Dir = workDir
 	cmd.Stdout = writer
 	cmd.Stderr = logFile
-	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
+	cmd.Env = core.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	if !resume {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
-	ai.ConfigureCmd(cmd)
+	core.ConfigureCmd(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -164,7 +165,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		return nil, nil, fmt.Errorf("start codex: %w", err)
 	}
 
-	proc := ai.NewCmdProcess(cmd)
+	proc := core.NewCmdProcess(cmd)
 	ch := make(chan ai.Output, 2)
 
 	go func() {

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	core "github.com/theopenbee/openbee/internal/ai/core"
 )
 
 // Invoker spawns Claude CLI processes. It is immutable after construction and safe for concurrent use.
@@ -16,7 +17,7 @@ type Invoker struct {
 
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment at lowest priority.
 func NewInvoker(binary string, extraEnv map[string]string) *Invoker {
-	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv)}
+	return &Invoker{binary: binary, baseEnv: core.NewBaseEnv(extraEnv)}
 }
 
 type streamEvent struct {
@@ -44,7 +45,7 @@ func scanResultLog(logPath string) (result string, isError bool, lastAssistantTe
 		return
 	}
 	defer f.Close()
-	ai.ScanJSONLines(f, func(line string) bool {
+	core.ScanJSONLines(f, func(line string) bool {
 		var event streamEvent
 		if json.Unmarshal([]byte(line), &event) != nil {
 			return true
@@ -93,12 +94,12 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	args = append(args, opts.ExtraArgs...)
 	args = append(args, "--print")
 
-	spec := ai.SubprocessSpec{
+	spec := core.SubprocessSpec{
 		Binary:  inv.binary,
 		Args:    args,
 		WorkDir: workDir,
 		LogPath: logPath,
-		Env:     ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey),
+		Env:     core.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey),
 		Stdin:   prompt,
 		PostWait: func(waitErr error, logPath string) *ai.Output {
 			if waitErr != nil {
@@ -114,5 +115,5 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 			return &ai.Output{Type: ai.OutputError, Content: result}
 		},
 	}
-	return ai.SpawnSubprocess(ctx, spec)
+	return core.SpawnSubprocess(ctx, spec)
 }
