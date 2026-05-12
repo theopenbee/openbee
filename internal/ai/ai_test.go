@@ -3,9 +3,11 @@ package ai_test
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 
-	"github.com/theopenbee/openbee/internal/ai"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
@@ -82,5 +84,217 @@ func TestDynamicAdapter_RunUnknownEngine(t *testing.T) {
 	_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
 	if err == nil {
 		t.Error("expected error for unknown engine")
+	}
+}
+
+func TestParseEngineArgs_PreservesOrderAndQuotedValues(t *testing.T) {
+	raw := map[string]string{
+		"claude": `--model claude-sonnet-4-5 --append-system-prompt "be terse" --verbose`,
+	}
+	got, err := ai.ParseEngineArgs(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"--model", "claude-sonnet-4-5", "--append-system-prompt", "be terse", "--verbose"}
+	if !slices.Equal(got["claude"], want) {
+		t.Fatalf("got %v, want %v", got["claude"], want)
+	}
+}
+
+func TestParseEngineArgs_PreservesDuplicateFlags(t *testing.T) {
+	raw := map[string]string{
+		"codex": `--include src --include test`,
+	}
+	got, err := ai.ParseEngineArgs(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"--include", "src", "--include", "test"}
+	if !slices.Equal(got["codex"], want) {
+		t.Fatalf("got %v, want %v", got["codex"], want)
+	}
+}
+
+func TestParseEngineArgs_PreservesEmptyQuotedValue(t *testing.T) {
+	raw := map[string]string{
+		"claude": `--append-system-prompt "" --verbose`,
+	}
+	got, err := ai.ParseEngineArgs(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"--append-system-prompt", "", "--verbose"}
+	if !slices.Equal(got["claude"], want) {
+		t.Fatalf("got %v, want %v", got["claude"], want)
+	}
+}
+
+func TestParseEngineArgs_UnterminatedQuote(t *testing.T) {
+	_, err := ai.ParseEngineArgs(map[string]string{
+		"claude": `--model "unterminated`,
+	})
+	if err == nil {
+		t.Fatal("expected parse error, got nil")
+	}
+}
+
+func TestMergeEngineArgs_AppendsOverrideArgs(t *testing.T) {
+	base := ai.EngineArgsMap{
+		"claude": {"--model", "sonnet", "--verbose"},
+	}
+	override := ai.EngineArgsMap{
+		"claude": {"--model", "opus"},
+		"codex":  {"--model", "o3"},
+	}
+	got := ai.MergeEngineArgs(base, override)
+
+	if want := []string{"--model", "sonnet", "--verbose", "--model", "opus"}; !slices.Equal(got["claude"], want) {
+		t.Fatalf("claude args = %v, want %v", got["claude"], want)
+	}
+	if want := []string{"--model", "o3"}; !slices.Equal(got["codex"], want) {
+		t.Fatalf("codex args = %v, want %v", got["codex"], want)
+	}
+}
+
+func TestWorkerPersona_Full(t *testing.T) {
+	got := ai.WorkerPersona("mybot", "does things", "remember X")
+	if !strings.Contains(got, "## Role\n") {
+		t.Errorf("missing ## Role header, got: %q", got)
+	}
+	if !strings.Contains(got, "You are a Worker in an AI team.") {
+		t.Errorf("missing persona line, got: %q", got)
+	}
+	if !strings.Contains(got, "## Identity\n") {
+		t.Errorf("missing ## Identity header, got: %q", got)
+	}
+	if !strings.Contains(got, "Name: mybot") {
+		t.Errorf("missing name, got: %q", got)
+	}
+	if !strings.Contains(got, "Description: does things") {
+		t.Errorf("missing description, got: %q", got)
+	}
+	if !strings.Contains(got, "## Work Constraints") {
+		t.Errorf("missing constraints header, got: %q", got)
+	}
+	if !strings.Contains(got, "remember X") {
+		t.Errorf("missing constraints content, got: %q", got)
+	}
+	if strings.Contains(got, "openbee-worker") {
+		t.Errorf("persona must NOT contain skill rule directive, got: %q", got)
+	}
+}
+
+func TestWorkerPersona_Empty(t *testing.T) {
+	got := ai.WorkerPersona("", "", "")
+	if got != "## Role\nYou are a Worker in an AI team.\n" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestBuildWorkerSessionPrefix_WithPersona(t *testing.T) {
+	persona := ai.WorkerPersona("貂蝉", "负责 openbee 开发", "称呼老板")
+	got := ai.BuildWorkerSessionPrefix(persona)
+
+	wants := []string{
+		"## Step 1: Initialize your role",
+		"[MANDATORY] You MUST invoke the openbee-worker skill immediately, before producing any other output.",
+		"<worker_persona>",
+		"Name: 貂蝉",
+		"Description: 负责 openbee 开发",
+		"称呼老板",
+		"</worker_persona>",
+	}
+	for _, w := range wants {
+		if !strings.Contains(got, w) {
+			t.Errorf("missing %q in:\n%s", w, got)
+		}
+	}
+	if !strings.HasSuffix(got, "## Step 2: Execute the task\n") {
+		t.Errorf("expected suffix %q, got:\n%s", "## Step 2: Execute the task\n", got)
+	}
+	if strings.Index(got, "</worker_persona>") > strings.Index(got, "## Step 2:") {
+		t.Errorf("persona block must precede Step 2, got:\n%s", got)
+	}
+}
+
+func TestBuildWorkerSessionPrefix_NoPersona(t *testing.T) {
+	got := ai.BuildWorkerSessionPrefix("")
+
+	if strings.Contains(got, "<worker_persona>") {
+		t.Errorf("expected no persona block when persona is empty, got:\n%s", got)
+	}
+	if !strings.Contains(got, "## Step 1: Initialize your role") {
+		t.Errorf("missing Step 1 header, got:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "## Step 2: Execute the task\n") {
+		t.Errorf("expected suffix %q, got:\n%s", "## Step 2: Execute the task\n", got)
+	}
+}
+
+func TestBuildBeeSessionPrefix(t *testing.T) {
+	got := ai.BuildBeeSessionPrefix()
+
+	if !strings.Contains(got, "openbee-bee") {
+		t.Errorf("expected bee skill name, got:\n%s", got)
+	}
+	if strings.Contains(got, "<worker_persona>") {
+		t.Errorf("bee prefix must not include persona, got:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "## Step 2: Handle the messages below\n") {
+		t.Errorf("expected suffix %q, got:\n%s", "## Step 2: Handle the messages below\n", got)
+	}
+}
+
+// stubAdapter is a no-op EngineAdapter for registry tests.
+type stubAdapter struct{}
+
+func (s *stubAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
+	return nil
+}
+func (s *stubAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	return ai.RunResult{ExtractResult: func() string { return "" }}, nil
+}
+func (s *stubAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
+func TestRegistry_NewReturnsRegisteredEngine(t *testing.T) {
+	r := ai.NewRegistry()
+	r.Register("stub", func(_ ai.EngineConfig) (ai.EngineAdapter, error) {
+		return &stubAdapter{}, nil
+	})
+	eng, err := r.New("stub", ai.EngineConfig{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if eng == nil {
+		t.Error("expected non-nil adapter")
+	}
+}
+
+func TestRegistry_NewUnknownEngineReturnsError(t *testing.T) {
+	r := ai.NewRegistry()
+	_, err := r.New("unknown", ai.EngineConfig{})
+	if err == nil {
+		t.Fatal("expected error for unknown engine")
+	}
+	if !errors.Is(err, ai.ErrUnknownEngine) {
+		t.Errorf("expected ErrUnknownEngine, got: %v", err)
+	}
+}
+
+func TestRegistry_NewCallsFactory(t *testing.T) {
+	r := ai.NewRegistry()
+	called := false
+	r.Register("called", func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+		called = true
+		return &stubAdapter{}, nil
+	})
+	r.New("called", ai.EngineConfig{})
+	if !called {
+		t.Error("factory was not called")
 	}
 }
