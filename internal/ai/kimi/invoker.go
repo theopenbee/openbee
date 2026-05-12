@@ -19,7 +19,6 @@ type Invoker struct {
 }
 
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment (e.g. MOONSHOT_API_KEY).
-// OPENBEE_URL is inherited from the server process environment.
 func NewInvoker(binary string, extraEnv map[string]string) *Invoker {
 	base := ai.BuildBaseEnv()
 	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}

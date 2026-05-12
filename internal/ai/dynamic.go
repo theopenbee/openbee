@@ -22,8 +22,6 @@ func NewDynamicAdapter(engines map[string]EngineAdapter, cfg *enginecfg.Store) *
 }
 
 // Prepare initialises every engine adapter for the given workDir.
-// Most engines have a no-op Prepare; the only meaningful work (Claude's legacy
-// file cleanup) is a single os.Remove, so a sequential loop is sufficient.
 func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
 	for name, e := range d.engines {
 		if err := e.Prepare(workDir, opts); err != nil {

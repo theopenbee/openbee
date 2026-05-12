@@ -21,7 +21,6 @@ const (
 )
 
 // PrepareOptions carries parameters for the engine-specific Prepare hook.
-// Add future fields here without changing the Prepare method signature.
 type PrepareOptions struct {
 	Role Role
 }
@@ -72,17 +71,14 @@ type Process interface {
 	Stop() error
 }
 
-// RunResult is the handle returned from EngineAdapter.Run. ExtractResult is
-// bound to the engine that handled this Run, so it remains correct even if
-// the active engine later changes.
+// RunResult is the handle returned from EngineAdapter.Run.
 type RunResult struct {
 	Process       Process
 	Output        <-chan Output
 	ExtractResult func(logPath string) string
 }
 
-// NewRunResult wraps the (process, output, error) tuple returned by an engine
-// invoker into a RunResult, attaching the engine's result extractor on success.
+// NewRunResult builds a RunResult, propagating err unchanged.
 func NewRunResult(proc Process, out <-chan Output, err error, extract func(logPath string) string) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err

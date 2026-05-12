@@ -38,5 +38,3 @@ func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,
 func (a *piAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	return a.collector.Collect(ctx, sessionID)
 }
-
-var _ ai.EngineAdapter = (*piAdapter)(nil)

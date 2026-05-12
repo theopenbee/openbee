@@ -43,8 +43,7 @@ func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
 }
 
 // AppendExtraEnv appends non-empty entries from extraEnv to base and returns
-// the result re-clipped to its length, preventing concurrent Run() appends from
-// sharing the backing array with other goroutines.
+// the result re-clipped to its length.
 func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
 	for k, v := range extraEnv {
 		if v != "" {
@@ -56,7 +55,6 @@ func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
 
 // BuildBaseEnv constructs the base environment for engine subprocesses.
 // It prepends the current executable's directory to PATH.
-// OPENBEE_URL is inherited from the server process environment (set via os.Setenv at startup).
 func BuildBaseEnv() []string {
 	sysEnv := os.Environ()
 	env := make([]string, 0, len(sysEnv)+1)
@@ -71,7 +69,6 @@ func BuildBaseEnv() []string {
 	} else {
 		env = append(env, sysEnv...)
 	}
-	// Clip to length so concurrent append calls in Run() cannot share the backing array.
 	return env[:len(env):len(env)]
 }
 

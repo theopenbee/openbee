@@ -37,5 +37,3 @@ func (a *kimiAdapter) Run(ctx context.Context, workDir, prompt string,
 func (a *kimiAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	return a.collector.Collect(ctx, sessionID)
 }
-
-var _ ai.EngineAdapter = (*kimiAdapter)(nil)
