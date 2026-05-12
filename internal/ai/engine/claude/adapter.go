@@ -38,7 +38,7 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter 
 		BaseAdapter: &core.BaseAdapter{
 			Invoker:   NewInvoker(binaryPath, extraEnv),
 			Collector: NewCollector(),
-			Extract:   ExtractResultFromLog,
+			Extractor: Extractor{},
 		},
 	}
 }

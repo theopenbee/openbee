@@ -67,9 +67,12 @@ func scanResultLog(logPath string) (result string, isError bool, lastAssistantTe
 	return
 }
 
-// ExtractResultFromLog scans a Claude stream-json log file and returns the best
-// result string: prefers {"type":"result"} over the last assistant text.
-func ExtractResultFromLog(logPath string) string {
+// Extractor reads the result text from a Claude stream-json log file: prefers
+// {"type":"result"} over the last assistant text.
+type Extractor struct{}
+
+// Extract implements core.Extractor.
+func (Extractor) Extract(logPath string) string {
 	result, _, lastAssistantText := scanResultLog(logPath)
 	if result != "" {
 		return result
