@@ -57,6 +57,14 @@ func DefaultKimiSessionsDir() string {
 	return filepath.Join(home, ".kimi", "sessions")
 }
 
+// EngineSessionsDir returns the directory from envVar, or the fallback when unset.
+func EngineSessionsDir(envVar string, fallback func() string) string {
+	if v := os.Getenv(envVar); v != "" {
+		return v
+	}
+	return fallback()
+}
+
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
