@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -335,18 +336,26 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 // workerLookup is configured but worker is nil, the lookup failed and the task
 // is aborted.
 func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	persona := ""
+	identity := core.WorkerIdentity{}
 	if d.workerLookup != nil {
 		if worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
+		identity = core.WorkerIdentity{
+			Name:        worker.Name,
+			Description: worker.Description,
+			Constraints: worker.Constraints,
+		}
 	}
-	prefix := ai.BuildWorkerSessionPrefix(persona)
+	prompt := core.BuildSessionPrompt(core.SessionRequest{
+		Role:     ai.RoleWorker,
+		Identity: identity,
+		Content:  instruction,
+	})
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, prompt, sessionID, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
@@ -362,7 +371,12 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	resumePrompt := core.BuildSessionPrompt(core.SessionRequest{
+		Role:    ai.RoleWorker,
+		Resume:  true,
+		Content: instruction,
+	})
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, resumePrompt, sessionID, true)
 	if err == nil {
 		return exec, nil
 	}
