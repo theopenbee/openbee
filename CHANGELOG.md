@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Add `/list [keyword]` command
+
 ### Changed
 - Enhance `/clear` command output with more detailed information
 
