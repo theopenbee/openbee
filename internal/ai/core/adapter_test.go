@@ -63,13 +63,6 @@ func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 	}
 }
 
-func TestBaseAdapter_PrepareIsNoop(t *testing.T) {
-	b := &core.BaseAdapter{}
-	if err := b.Prepare("/wd", ai.PrepareOptions{}); err != nil {
-		t.Error(err)
-	}
-}
-
 func TestBaseAdapter_CollectDelegates(t *testing.T) {
 	want := []ai.TokenUsage{{Model: "m", InputTokens: 7}}
 	b := &core.BaseAdapter{

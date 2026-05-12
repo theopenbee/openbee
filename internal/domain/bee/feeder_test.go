@@ -61,10 +61,6 @@ type beeCall struct {
 	logPath string
 }
 
-func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
 func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
@@ -580,10 +576,6 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 type callbackBeeRunner struct {
 	fn   func()
 	done chan struct{}
-}
-
-func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
 }
 
 func (r *callbackBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {

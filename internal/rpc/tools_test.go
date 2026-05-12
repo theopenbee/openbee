@@ -22,9 +22,6 @@ import (
 // stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
 type stubEngineAdapter struct{}
 
-func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
 func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	return ai.RunResult{ExtractResult: func() string { return "" }}, nil
 }

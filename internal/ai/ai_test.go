@@ -12,14 +12,9 @@ import (
 
 // stubEngine is a minimal EngineAdapter for testing.
 type stubEngine struct {
-	name     string
-	prepared []string // workDirs seen
+	name string
 }
 
-func (s *stubEngine) Prepare(workDir string, _ ai.PrepareOptions) error {
-	s.prepared = append(s.prepared, workDir)
-	return nil
-}
 func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	name := s.name
 	return ai.RunResult{
@@ -54,19 +49,6 @@ func TestNewRunResult_PropagatesError(t *testing.T) {
 	_, err := ai.NewRunResult(nil, nil, wantErr, func() string { return "" })
 	if !errors.Is(err, wantErr) {
 		t.Errorf("want %v, got %v", wantErr, err)
-	}
-}
-
-func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
-	a := &stubEngine{name: "a"}
-	b := &stubEngine{name: "b"}
-	cfg := enginecfg.NewStore("a")
-	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
-	if err := d.Prepare("/work", ai.PrepareOptions{}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	if len(a.prepared) != 1 || len(b.prepared) != 1 {
-		t.Errorf("expected each engine prepared once; a=%d b=%d", len(a.prepared), len(b.prepared))
 	}
 }
 
@@ -188,9 +170,6 @@ func TestMergeEngineArgs_AppendsOverrideArgs(t *testing.T) {
 // stubAdapter is a no-op EngineAdapter for registry tests.
 type stubAdapter struct{}
 
-func (s *stubAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
 func (s *stubAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	return ai.RunResult{ExtractResult: func() string { return "" }}, nil
 }

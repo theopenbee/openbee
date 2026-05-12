@@ -19,7 +19,7 @@ type Collector interface {
 // BaseAdapter implements the EngineAdapter parts that are identical across
 // engines: Run wires the invoker output into a RunResult with a bound result
 // extractor; CollectTokenUsage delegates to the collector. Engines embed
-// BaseAdapter and optionally override Prepare.
+// BaseAdapter and optionally override Run.
 type BaseAdapter struct {
 	Invoker   Invoker
 	Collector Collector
@@ -38,6 +38,3 @@ func (b *BaseAdapter) Run(ctx context.Context, workDir, prompt string,
 func (b *BaseAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	return b.Collector.Collect(ctx, sessionID)
 }
-
-// Prepare is a no-op default that engines may override (e.g. claude).
-func (b *BaseAdapter) Prepare(string, ai.PrepareOptions) error { return nil }

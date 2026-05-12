@@ -45,11 +45,6 @@ const (
 	RoleWorker Role = "worker"
 )
 
-// PrepareOptions carries parameters for the engine-specific Prepare hook.
-type PrepareOptions struct {
-	Role Role
-}
-
 // RunOptions controls session behaviour for an engine invocation.
 type RunOptions struct {
 	SessionID string
@@ -107,11 +102,6 @@ func NewRunResult(proc Process, out <-chan Output, err error, extract func() str
 // EngineAdapter is the complete plugin contract for an AI engine.
 // Implementations must be safe for concurrent use.
 type EngineAdapter interface {
-	// Prepare is an engine-specific initialisation hook called before each Run.
-	// It must be idempotent. Claude uses it to clean up legacy config files;
-	// other engines return nil.
-	Prepare(workDir string, opts PrepareOptions) error
-
 	// Run executes a task and returns a RunResult carrying the process handle,
 	// event channel, and an engine-bound result extractor. The event channel
 	// is closed after the process exits.
@@ -220,16 +210,6 @@ type DynamicAdapter struct {
 // NewDynamicAdapter constructs a DynamicAdapter routing through cfg.
 func NewDynamicAdapter(engines map[string]EngineAdapter, cfg *enginecfg.Store) *DynamicAdapter {
 	return &DynamicAdapter{engines: engines, cfg: cfg}
-}
-
-// Prepare initialises every engine adapter for the given workDir.
-func (d *DynamicAdapter) Prepare(workDir string, opts PrepareOptions) error {
-	for name, e := range d.engines {
-		if err := e.Prepare(workDir, opts); err != nil {
-			return fmt.Errorf("prepare engine %q: %w", name, err)
-		}
-	}
-	return nil
 }
 
 func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (RunResult, error) {

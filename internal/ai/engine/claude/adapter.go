@@ -84,7 +84,3 @@ func removeImportLine(workDir string) error {
 	}
 	return os.WriteFile(claudePath, cleaned, 0o644)
 }
-
-// Prepare is retained as a transitional no-op so existing callers keep
-// compiling; it will be removed once callers and the interface are cleaned up.
-func (a *claudeAdapter) Prepare(string, ai.PrepareOptions) error { return nil }

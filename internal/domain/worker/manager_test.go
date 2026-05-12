@@ -17,10 +17,6 @@ import (
 
 type mockEngine struct{}
 
-func (e *mockEngine) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
 func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output, 1)
 	ch <- ai.Output{Type: ai.OutputDone}
@@ -40,8 +36,6 @@ func (p *mockProcess) Stop() error { return nil }
 // silentMockEngine simulates a process whose output channel closes without
 // emitting a terminal Done/Error signal — the abandoned-process scenario.
 type silentMockEngine struct{}
-
-func (e *silentMockEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
 
 func (e *silentMockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output)

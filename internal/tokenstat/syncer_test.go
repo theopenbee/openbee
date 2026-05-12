@@ -17,7 +17,6 @@ type fakeAdapter struct {
 	collect func(ctx context.Context, sessionID string) ([]ai.TokenUsage, error)
 }
 
-func (f *fakeAdapter) Prepare(string, ai.PrepareOptions) error { return nil }
 func (f *fakeAdapter) Run(context.Context, string, string, ai.RunOptions, string) (ai.RunResult, error) {
 	return ai.RunResult{}, nil
 }
