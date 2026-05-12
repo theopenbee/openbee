@@ -37,6 +37,10 @@ func ScanJSONLFile(path string, fn func([]byte)) error {
 //
 // Returns fs.ErrNotExist (wrapped) when nothing matches or when the directory
 // does not exist.
+//
+// The os.Stat probe before WalkDir is technically a TOCTOU pattern, but
+// callers re-open by path immediately after, and the saved syscall on the
+// legacy-hit happy path outweighs the negligible race window.
 func FindWithLegacyFast(dir, legacyName string, match func(string, fs.DirEntry) bool) (string, error) {
 	legacyPath := filepath.Join(dir, legacyName)
 	if _, err := os.Stat(legacyPath); err == nil {
