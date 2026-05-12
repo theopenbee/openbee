@@ -12,6 +12,13 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
+const (
+	// SystemRulesFile is the legacy rules file Claude's Prepare cleans up.
+	SystemRulesFile = ".openbee.md"
+	// ImportLine is the legacy reference line removed from CLAUDE.md.
+	ImportLine = "@" + SystemRulesFile
+)
+
 func init() {
 	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.ExtraEnv()), nil
@@ -31,9 +38,9 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter 
 }
 
 func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
-	rulesPath := filepath.Join(workDir, ai.SystemRulesFile)
+	rulesPath := filepath.Join(workDir, SystemRulesFile)
 	if err := os.Remove(rulesPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("remove %s: %w", ai.SystemRulesFile, err)
+		return fmt.Errorf("remove %s: %w", SystemRulesFile, err)
 	}
 	return removeImportLine(workDir)
 }
@@ -58,7 +65,7 @@ func removeImportLine(workDir string) error {
 		return fmt.Errorf("read CLAUDE.md: %w", err)
 	}
 
-	target := []byte(ai.ImportLine)
+	target := []byte(ImportLine)
 	lines := bytes.Split(data, []byte("\n"))
 	out := lines[:0]
 	for _, line := range lines {

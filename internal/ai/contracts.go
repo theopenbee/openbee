@@ -5,13 +5,6 @@ import (
 	"errors"
 )
 
-const (
-	// SystemRulesFile is the legacy rules file that Claude's Prepare hook cleans up.
-	SystemRulesFile = ".openbee.md"
-	// ImportLine is the legacy reference line that Claude's Prepare hook removes from CLAUDE.md.
-	ImportLine = "@" + SystemRulesFile
-)
-
 // Role identifies the openbee agent role.
 type Role string
 

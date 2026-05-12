@@ -36,7 +36,7 @@ func TestClaudeAdapter_Prepare_Stub(t *testing.T) {
 
 func TestClaudeAdapter_Prepare_DeletesOpenbeeFile(t *testing.T) {
 	dir := t.TempDir()
-	openbeeFile := filepath.Join(dir, ai.SystemRulesFile)
+	openbeeFile := filepath.Join(dir, claude.SystemRulesFile)
 	if err := os.WriteFile(openbeeFile, []byte("old rules"), 0o644); err != nil {
 		t.Fatalf("write .openbee.md: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestClaudeAdapter_Prepare_DeletesOpenbeeFile(t *testing.T) {
 func TestClaudeAdapter_Prepare_RemovesImportLine(t *testing.T) {
 	dir := t.TempDir()
 	claudeFile := filepath.Join(dir, "CLAUDE.md")
-	content := "# My Bot\n" + ai.ImportLine + "\nOther content\n"
+	content := "# My Bot\n" + claude.ImportLine + "\nOther content\n"
 	if err := os.WriteFile(claudeFile, []byte(content), 0o644); err != nil {
 		t.Fatalf("write CLAUDE.md: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestClaudeAdapter_Prepare_RemovesImportLine(t *testing.T) {
 
 	data, _ := os.ReadFile(claudeFile)
 	got := string(data)
-	if strings.Contains(got, ai.ImportLine) {
+	if strings.Contains(got, claude.ImportLine) {
 		t.Errorf("CLAUDE.md should not contain import line after Prepare, got:\n%s", got)
 	}
 	if !strings.Contains(got, "# My Bot") {
@@ -105,13 +105,13 @@ func TestClaudeAdapter_Prepare_BothRoles(t *testing.T) {
 	for _, role := range []ai.Role{ai.RoleBee, ai.RoleWorker} {
 		dir := t.TempDir()
 		// Setup: both legacy files present
-		os.WriteFile(filepath.Join(dir, ai.SystemRulesFile), []byte("rules"), 0o644)
-		os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(ai.ImportLine+"\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, claude.SystemRulesFile), []byte("rules"), 0o644)
+		os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(claude.ImportLine+"\n"), 0o644)
 
 		if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: role}); err != nil {
 			t.Errorf("Prepare(%s): %v", role, err)
 		}
-		if _, err := os.Stat(filepath.Join(dir, ai.SystemRulesFile)); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dir, claude.SystemRulesFile)); !os.IsNotExist(err) {
 			t.Errorf("role %s: .openbee.md should be deleted", role)
 		}
 	}
