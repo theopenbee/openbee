@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.37] - 2026-05-11
 
 ### Added
 - Add `/list [keyword]` command
