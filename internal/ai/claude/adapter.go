@@ -2,7 +2,6 @@ package claude
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -25,36 +24,30 @@ func init() {
 	})
 }
 
+// claudeAdapter embeds ai.BaseAdapter and overrides Prepare to clean up the
+// legacy openbee rules file and matching import line in CLAUDE.md.
 type claudeAdapter struct {
-	invoker   *Invoker
-	collector *Collector
+	*ai.BaseAdapter
 }
 
+// NewAdapter constructs a Claude engine adapter with Claude-specific Prepare.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &claudeAdapter{
-		invoker:   NewInvoker(binaryPath, extraEnv),
-		collector: NewCollector(),
+		BaseAdapter: &ai.BaseAdapter{
+			Invoker:   NewInvoker(binaryPath, extraEnv),
+			Collector: NewCollector(),
+			Extract:   ExtractResultFromLog,
+		},
 	}
 }
 
+// Prepare removes the legacy .openbee.md rules file and its import line from CLAUDE.md.
 func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
 	rulesPath := filepath.Join(workDir, SystemRulesFile)
 	if err := os.Remove(rulesPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("remove %s: %w", SystemRulesFile, err)
 	}
 	return removeImportLine(workDir)
-}
-
-func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
-	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
-	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-	return ai.NewRunResult(proc, out, err, func() string {
-		return ExtractResultFromLog(logPath)
-	})
-}
-
-func (a *claudeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
-	return a.collector.Collect(ctx, sessionID)
 }
 
 func removeImportLine(workDir string) error {
