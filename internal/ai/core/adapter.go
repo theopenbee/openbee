@@ -28,10 +28,8 @@ type Extractor interface {
 type BaseAdapter struct {
 	Invoker   Invoker
 	Collector Collector
-	// Extractor is the per-engine result extractor; preferred over Extract when set.
+	// Extractor is the per-engine result extractor bound to logPath in Run.
 	Extractor Extractor
-	// Extract is the legacy func-typed extractor; will be removed once all engines migrate.
-	Extract func(logPath string) string
 }
 
 // Run launches the invoker and binds the extractor to logPath in the returned RunResult.
@@ -39,10 +37,7 @@ func (b *BaseAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := b.Invoker.Run(ctx, workDir, prompt, opts, logPath)
 	return ai.NewRunResult(proc, out, err, func() string {
-		if b.Extractor != nil {
-			return b.Extractor.Extract(logPath)
-		}
-		return b.Extract(logPath)
+		return b.Extractor.Extract(logPath)
 	})
 }
 

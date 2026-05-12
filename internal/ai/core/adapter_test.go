@@ -36,7 +36,7 @@ func TestBaseAdapter_RunBindsExtract(t *testing.T) {
 	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{ch: ch},
 		Collector: &fakeCollector{},
-		Extract:   func(logPath string) string { capturedLogPath = logPath; return "x" },
+		Extractor: &fakeExtractor{captured: &capturedLogPath, result: "x"},
 	}
 	res, err := b.Run(context.Background(), "/wd", "p", ai.RunOptions{}, "/the/log")
 	if err != nil {
@@ -55,7 +55,7 @@ func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{err: wantErr},
 		Collector: &fakeCollector{},
-		Extract:   func(string) string { return "" },
+		Extractor: &fakeExtractor{},
 	}
 	_, err := b.Run(context.Background(), "/wd", "", ai.RunOptions{}, "/log")
 	if !errors.Is(err, wantErr) {
@@ -68,7 +68,7 @@ func TestBaseAdapter_CollectDelegates(t *testing.T) {
 	b := &core.BaseAdapter{
 		Invoker:   &fakeInvoker{},
 		Collector: &fakeCollector{usages: want},
-		Extract:   func(string) string { return "" },
+		Extractor: &fakeExtractor{},
 	}
 	got, err := b.CollectTokenUsage(context.Background(), "sid")
 	if err != nil {
@@ -91,23 +91,3 @@ func (f *fakeExtractor) Extract(logPath string) string {
 	return f.result
 }
 
-func TestBaseAdapter_RunPrefersExtractorOverExtract(t *testing.T) {
-	ch := make(chan ai.Output)
-	close(ch)
-	var capturedLogPath string
-	b := &core.BaseAdapter{
-		Invoker:   &fakeInvoker{ch: ch},
-		Collector: &fakeCollector{},
-		Extractor: &fakeExtractor{captured: &capturedLogPath, result: "from-iface"},
-	}
-	res, err := b.Run(context.Background(), "/wd", "p", ai.RunOptions{}, "/the/log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r := res.ExtractResult(); r != "from-iface" {
-		t.Errorf("got %q, want %q", r, "from-iface")
-	}
-	if capturedLogPath != "/the/log" {
-		t.Errorf("logPath not bound; got %q", capturedLogPath)
-	}
-}
