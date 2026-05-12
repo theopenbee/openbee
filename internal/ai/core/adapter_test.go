@@ -78,3 +78,36 @@ func TestBaseAdapter_CollectDelegates(t *testing.T) {
 		t.Errorf("delegation broken; got %+v", got)
 	}
 }
+
+type fakeExtractor struct {
+	captured *string
+	result   string
+}
+
+func (f *fakeExtractor) Extract(logPath string) string {
+	if f.captured != nil {
+		*f.captured = logPath
+	}
+	return f.result
+}
+
+func TestBaseAdapter_RunPrefersExtractorOverExtract(t *testing.T) {
+	ch := make(chan ai.Output)
+	close(ch)
+	var capturedLogPath string
+	b := &core.BaseAdapter{
+		Invoker:   &fakeInvoker{ch: ch},
+		Collector: &fakeCollector{},
+		Extractor: &fakeExtractor{captured: &capturedLogPath, result: "from-iface"},
+	}
+	res, err := b.Run(context.Background(), "/wd", "p", ai.RunOptions{}, "/the/log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := res.ExtractResult(); r != "from-iface" {
+		t.Errorf("got %q, want %q", r, "from-iface")
+	}
+	if capturedLogPath != "/the/log" {
+		t.Errorf("logPath not bound; got %q", capturedLogPath)
+	}
+}
