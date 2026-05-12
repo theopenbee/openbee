@@ -2,7 +2,6 @@ package codex
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -22,15 +21,19 @@ type Collector struct {
 	codexBase  string
 }
 
+// defaultCodexBase returns ~/.codex.
+func defaultCodexBase() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".codex")
+}
+
 // NewCollector builds a Collector using the default mapping directory and
 // CODEX_HOME (or ~/.codex if unset).
 func NewCollector() *Collector {
-	codexBase := os.Getenv("CODEX_HOME")
-	if codexBase == "" {
-		home, _ := os.UserHomeDir()
-		codexBase = filepath.Join(home, ".codex")
-	}
-	return NewCollectorAt(config.DefaultCodexSessionsDir(), codexBase)
+	return NewCollectorAt(
+		config.DefaultCodexSessionsDir(),
+		config.EngineSessionsDir("CODEX_HOME", defaultCodexBase),
+	)
 }
 
 // NewCollectorAt is a test seam allowing arbitrary mapping/codex roots.
@@ -126,14 +129,9 @@ func findCodexSessionFile(codexBase, sessionID string) (string, error) {
 }
 
 func parseCodexFile(path string) ([]ai.TokenUsage, error) {
-	agg := map[string]*ai.TokenUsage{}
 	prevByModel := map[string]*codexTokenUsage{}
 	currentModel := ""
-	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
-		var line codexJSONLLine
-		if err := json.Unmarshal(data, &line); err != nil {
-			return
-		}
+	usages, err := ai.AggregateUsage[codexJSONLLine](path, func(line codexJSONLLine, agg map[string]*ai.TokenUsage) {
 		switch line.Type {
 		case codexLineTurnContext:
 			if line.Payload.Model != "" {
@@ -151,8 +149,8 @@ func parseCodexFile(path string) ([]ai.TokenUsage, error) {
 			if m == "" {
 				return
 			}
-			u, ok := agg[m]
-			if !ok {
+			u := agg[m]
+			if u == nil {
 				u = &ai.TokenUsage{Model: m}
 				agg[m] = u
 			}
@@ -178,7 +176,7 @@ func parseCodexFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan codex session file: %w", err)
 	}
-	return ai.DrainUsageMap(agg), nil
+	return usages, nil
 }
 
 func addCodexUsage(dst *ai.TokenUsage, usage codexTokenUsage) {
