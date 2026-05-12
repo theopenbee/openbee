@@ -110,12 +110,3 @@ type TokenUsage struct {
 
 // ErrSessionDataNotFound is returned by CollectTokenUsage when no session data exists.
 var ErrSessionDataNotFound = errors.New("ai: session data not found")
-
-// DrainUsageMap converts a model→*TokenUsage aggregation map into a flat slice.
-func DrainUsageMap(agg map[string]*TokenUsage) []TokenUsage {
-	out := make([]TokenUsage, 0, len(agg))
-	for _, u := range agg {
-		out = append(out, *u)
-	}
-	return out
-}
