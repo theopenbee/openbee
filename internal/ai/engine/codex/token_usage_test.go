@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/codex"
+	"github.com/theopenbee/openbee/internal/ai/engine/codex"
 )
 
 // writeCodexTempFile creates a file at dir/name with the given content.

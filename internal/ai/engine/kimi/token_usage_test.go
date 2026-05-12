@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/kimi"
+	"github.com/theopenbee/openbee/internal/ai/engine/kimi"
 )
 
 func makeKimiSessionFile(t *testing.T, sessionsDir, sessionID, content string) {

@@ -1,17 +1,16 @@
-package codex_test
+package pi_test
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/codex"
+	"github.com/theopenbee/openbee/internal/ai/engine/pi"
 )
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
-	a, err := codex.NewAdapter("echo", nil)
+	a, err := pi.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -19,16 +18,14 @@ func TestAdapter_Prepare_NoOp(t *testing.T) {
 	if err := a.Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
-	// Prepare must not create any files
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
 		t.Errorf("Prepare must not create files, found: %v", entries)
 	}
-	_ = filepath.Join(dir, "AGENTS.md") // Ensure path helpers compile
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
-	a, err := codex.NewAdapter("echo", nil)
+	a, err := pi.NewAdapter("echo", nil)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -38,14 +35,4 @@ func TestAdapter_Prepare_BothRoles(t *testing.T) {
 			t.Errorf("Prepare(%s): %v", role, err)
 		}
 	}
-}
-
-func TestAdapter_ExtraEnvInBaseEnv(t *testing.T) {
-	a, err := codex.NewAdapter("echo", map[string]string{
-		"CODEX_CUSTOM": "value",
-	})
-	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
-	}
-	var _ ai.EngineAdapter = a
 }

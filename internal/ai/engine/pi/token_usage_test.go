@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/pi"
+	"github.com/theopenbee/openbee/internal/ai/engine/pi"
 )
 
 func writePiTempFile(t *testing.T, dir, name, content string) {

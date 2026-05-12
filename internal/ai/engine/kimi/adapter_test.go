@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/kimi"
+	"github.com/theopenbee/openbee/internal/ai/engine/kimi"
 )
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {

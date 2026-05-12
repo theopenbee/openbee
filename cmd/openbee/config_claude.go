@@ -5,7 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/AlecAivazis/survey/v2"
-	claude "github.com/theopenbee/openbee/internal/ai/claude"
+	claude "github.com/theopenbee/openbee/internal/ai/engine/claude"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 

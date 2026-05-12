@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/ai/engine/claude"
 )
 
 func newTestAdapter(t *testing.T) ai.EngineAdapter {

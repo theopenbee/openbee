@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/claude"
+	"github.com/theopenbee/openbee/internal/ai/engine/claude"
 )
 
 func writeClaudeTempFile(t *testing.T, dir, name, content string) {
