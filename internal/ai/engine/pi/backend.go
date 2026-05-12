@@ -24,37 +24,43 @@ import (
 // pi CLI process, extracts the final assistant message from the JSON log, and
 // reads token-usage data from the session JSONL written by the CLI.
 type Backend struct {
-	binary      string
-	baseEnv     []string // pre-built env (openbee vars + extraEnv), without per-run API key
-	sessionsDir string   // directory for both run-time session files and collect-time lookup
+	binary             string
+	baseEnv            []string // pre-built env (openbee vars + extraEnv), without per-run API key
+	runSessionDir      string   // directory Run writes session files to (hardcoded default, ignores PI_AGENT_DIR)
+	collectSessionsDir string   // directory Collect searches for session files (honors PI_AGENT_DIR)
 }
 
-// NewBackend builds a pi Backend using PI_AGENT_DIR or the config default for
-// the sessions directory, and creates the directory on startup.
+// NewBackend builds a pi Backend. Run writes session files to the hardcoded
+// default directory (ignoring PI_AGENT_DIR), matching the original Invoker
+// behavior. Collect searches PI_AGENT_DIR if set, falling back to the default.
 // extraEnv entries are merged into the base environment at lowest priority.
 func NewBackend(binary string, extraEnv map[string]string) (*Backend, error) {
-	sessionsDir := config.EngineSessionsDir("PI_AGENT_DIR", config.DefaultPiSessionsDir)
-	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
+	runSessionDir := config.DefaultPiSessionsDir()
+	if err := os.MkdirAll(runSessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
 	return &Backend{
-		binary:      binary,
-		baseEnv:     core.NewBaseEnv(extraEnv),
-		sessionsDir: sessionsDir,
+		binary:             binary,
+		baseEnv:            core.NewBaseEnv(extraEnv),
+		runSessionDir:      runSessionDir,
+		collectSessionsDir: config.EngineSessionsDir("PI_AGENT_DIR", config.DefaultPiSessionsDir),
 	}, nil
 }
 
-// NewBackendAt is a test seam allowing an arbitrary sessions root.
+// NewBackendAt is a test seam. It sets collectSessionsDir to the supplied dir
+// (matching the old NewCollectorAt semantics). runSessionDir is also set to the
+// supplied dir so tests can redirect Run-time writes alongside Collect reads.
 func NewBackendAt(binary string, extraEnv map[string]string, sessionsDir string) *Backend {
 	return &Backend{
-		binary:      binary,
-		baseEnv:     core.NewBaseEnv(extraEnv),
-		sessionsDir: sessionsDir,
+		binary:             binary,
+		baseEnv:            core.NewBaseEnv(extraEnv),
+		runSessionDir:      sessionsDir,
+		collectSessionsDir: sessionsDir,
 	}
 }
 
 func (b *Backend) sessionFilePath(sessionID string) string {
-	return filepath.Join(b.sessionsDir, sessionID+".jsonl")
+	return filepath.Join(b.runSessionDir, sessionID+".jsonl")
 }
 
 type piAgentEnd struct {
@@ -385,7 +391,7 @@ type piJSONLLine struct {
 
 // Collect reads token usage for the given session from the pi session JSONL file.
 func (b *Backend) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
-	path, err := sessionfile.FindWithLegacyFast(b.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
+	path, err := sessionfile.FindWithLegacyFast(b.collectSessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
 		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
 	})
 	if err != nil {
