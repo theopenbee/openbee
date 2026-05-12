@@ -31,6 +31,33 @@ func (s *stubEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenU
 	return nil, ai.ErrSessionDataNotFound
 }
 
+func TestNewRunResult_MemoizesExtract(t *testing.T) {
+	calls := 0
+	res, err := ai.NewRunResult(nil, nil, nil, func() string {
+		calls++
+		return "value"
+	})
+	if err != nil {
+		t.Fatalf("NewRunResult: %v", err)
+	}
+	for i := range 3 {
+		if got := res.ExtractResult(); got != "value" {
+			t.Fatalf("call %d: got %q want %q", i, got, "value")
+		}
+	}
+	if calls != 1 {
+		t.Errorf("extract should run once; got %d calls", calls)
+	}
+}
+
+func TestNewRunResult_PropagatesError(t *testing.T) {
+	wantErr := errors.New("boom")
+	_, err := ai.NewRunResult(nil, nil, wantErr, func() string { return "" })
+	if !errors.Is(err, wantErr) {
+		t.Errorf("want %v, got %v", wantErr, err)
+	}
+}
+
 func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
 	a := &stubEngine{name: "a"}
 	b := &stubEngine{name: "b"}
