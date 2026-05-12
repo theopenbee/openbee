@@ -29,6 +29,22 @@ const (
 	ProviderCustom     = "Custom provider"
 )
 
+// Anthropic environment variable keys.
+const (
+	envAnthropicAuthToken            = "ANTHROPIC_AUTH_TOKEN"
+	envAnthropicAPIKey               = "ANTHROPIC_API_KEY"
+	envAnthropicBaseURL              = "ANTHROPIC_BASE_URL"
+	envAnthropicModel                = "ANTHROPIC_MODEL"
+	envAnthropicSmallFastModel       = "ANTHROPIC_SMALL_FAST_MODEL"
+	envAnthropicDefaultSonnetModel   = "ANTHROPIC_DEFAULT_SONNET_MODEL"
+	envAnthropicDefaultOpusModel     = "ANTHROPIC_DEFAULT_OPUS_MODEL"
+	envAnthropicDefaultHaikuModel    = "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+	envClaudeCodeSubagentModel       = "CLAUDE_CODE_SUBAGENT_MODEL"
+	envEnableToolSearch              = "ENABLE_TOOL_SEARCH"
+	envAPITimeoutMS                  = "API_TIMEOUT_MS"
+	envClaudeCodeDisableNonessential = "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+)
+
 // HandleSurveyErr converts a survey interrupt into ErrInterrupted and passes
 // other errors through unchanged. It is exported so that cmd-layer code can
 // share the same sentinel error without duplicating the check.
@@ -54,71 +70,71 @@ func promptAPIKey(message string) (string, error) {
 
 func kimiCodeEnv(apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":  "https://api.kimi.com/coding/",
-		"ANTHROPIC_API_KEY":   apiKey,
-		"ENABLE_TOOL_SEARCH":  "false",
+		envAnthropicBaseURL: "https://api.kimi.com/coding/",
+		envAnthropicAPIKey:  apiKey,
+		envEnableToolSearch: "false",
 	}
 }
 
 func moonshotEnv(apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":                      "https://api.moonshot.cn/anthropic",
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"ANTHROPIC_MODEL":                         "kimi-k2.5",
-		"ANTHROPIC_SMALL_FAST_MODEL":              "kimi-k2.5",
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":            "kimi-k2.5",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL":          "kimi-k2.5",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":           "kimi-k2.5",
-		"CLAUDE_CODE_SUBAGENT_MODEL":              "kimi-k2.5",
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"ENABLE_TOOL_SEARCH":                      "false",
-		"API_TIMEOUT_MS":                          "600000",
+		envAnthropicBaseURL:              "https://api.moonshot.cn/anthropic",
+		envAnthropicAuthToken:            apiKey,
+		envAnthropicModel:                "kimi-k2.5",
+		envAnthropicSmallFastModel:       "kimi-k2.5",
+		envAnthropicDefaultOpusModel:     "kimi-k2.5",
+		envAnthropicDefaultSonnetModel:   "kimi-k2.5",
+		envAnthropicDefaultHaikuModel:    "kimi-k2.5",
+		envClaudeCodeSubagentModel:       "kimi-k2.5",
+		envClaudeCodeDisableNonessential: "1",
+		envEnableToolSearch:              "false",
+		envAPITimeoutMS:                  "600000",
 	}
 }
 
 func glmEnv(apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"ANTHROPIC_BASE_URL":                      "https://open.bigmodel.cn/api/anthropic",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":           "glm-4.5-air",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL":          "glm-5-turbo",
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":            "glm-5.1",
-		"API_TIMEOUT_MS":                          "3000000",
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		envAnthropicAuthToken:            apiKey,
+		envAnthropicBaseURL:              "https://open.bigmodel.cn/api/anthropic",
+		envAnthropicDefaultHaikuModel:    "glm-4.5-air",
+		envAnthropicDefaultSonnetModel:   "glm-5-turbo",
+		envAnthropicDefaultOpusModel:     "glm-5.1",
+		envAPITimeoutMS:                  "3000000",
+		envClaudeCodeDisableNonessential: "1",
 	}
 }
 
 func minimaxEnv(apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":                      "https://api.minimaxi.com/anthropic",
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"API_TIMEOUT_MS":                          "3000000",
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"ANTHROPIC_MODEL":                         "MiniMax-M2.7",
-		"ANTHROPIC_SMALL_FAST_MODEL":              "MiniMax-M2.7",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL":          "MiniMax-M2.7",
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":            "MiniMax-M2.7",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":           "MiniMax-M2.7",
+		envAnthropicBaseURL:              "https://api.minimaxi.com/anthropic",
+		envAnthropicAuthToken:            apiKey,
+		envAPITimeoutMS:                  "3000000",
+		envClaudeCodeDisableNonessential: "1",
+		envAnthropicModel:                "MiniMax-M2.7",
+		envAnthropicSmallFastModel:       "MiniMax-M2.7",
+		envAnthropicDefaultSonnetModel:   "MiniMax-M2.7",
+		envAnthropicDefaultOpusModel:     "MiniMax-M2.7",
+		envAnthropicDefaultHaikuModel:    "MiniMax-M2.7",
 	}
 }
 
 func deepseekEnv(apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":                      "https://api.deepseek.com/anthropic",
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"ANTHROPIC_MODEL":                         "deepseek-chat",
-		"ANTHROPIC_SMALL_FAST_MODEL":              "deepseek-chat",
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"API_TIMEOUT_MS":                          "600000",
+		envAnthropicBaseURL:              "https://api.deepseek.com/anthropic",
+		envAnthropicAuthToken:            apiKey,
+		envAnthropicModel:                "deepseek-chat",
+		envAnthropicSmallFastModel:       "deepseek-chat",
+		envClaudeCodeDisableNonessential: "1",
+		envAPITimeoutMS:                  "600000",
 	}
 }
 
 func standardProviderEnv(baseURL, apiKey, model string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"ANTHROPIC_BASE_URL":                      baseURL,
-		"ANTHROPIC_MODEL":                         model,
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		envAnthropicAuthToken:            apiKey,
+		envAnthropicBaseURL:              baseURL,
+		envAnthropicModel:                model,
+		envClaudeCodeDisableNonessential: "1",
 	}
 }
 
@@ -136,21 +152,21 @@ func tencentEnv(apiKey, model string) map[string]string {
 
 func mimoEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":                      baseURL,
-		"ANTHROPIC_AUTH_TOKEN":                    apiKey,
-		"ANTHROPIC_MODEL":                         "mimo-v2.5-pro",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL":          "mimo-v2.5-pro",
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":            "mimo-v2.5-pro",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":           "mimo-v2.5-pro",
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"API_TIMEOUT_MS":                          "3000000",
+		envAnthropicBaseURL:              baseURL,
+		envAnthropicAuthToken:            apiKey,
+		envAnthropicModel:                "mimo-v2.5-pro",
+		envAnthropicDefaultSonnetModel:   "mimo-v2.5-pro",
+		envAnthropicDefaultOpusModel:     "mimo-v2.5-pro",
+		envAnthropicDefaultHaikuModel:    "mimo-v2.5-pro",
+		envClaudeCodeDisableNonessential: "1",
+		envAPITimeoutMS:                  "3000000",
 	}
 }
 
 func customEnv(baseURL, apiKey string) map[string]string {
 	return map[string]string{
-		"ANTHROPIC_BASE_URL":   baseURL,
-		"ANTHROPIC_AUTH_TOKEN": apiKey,
+		envAnthropicBaseURL:   baseURL,
+		envAnthropicAuthToken: apiKey,
 	}
 }
 
@@ -158,18 +174,18 @@ func customEnv(baseURL, apiKey string) map[string]string {
 // These are cleared before writing new provider settings so that stale keys from a
 // previous provider do not linger after switching.
 var providerEnvKeys = []string{
-	"ANTHROPIC_AUTH_TOKEN",
-	"ANTHROPIC_API_KEY",
-	"ANTHROPIC_BASE_URL",
-	"ANTHROPIC_MODEL",
-	"ANTHROPIC_SMALL_FAST_MODEL",
-	"ANTHROPIC_DEFAULT_SONNET_MODEL",
-	"ANTHROPIC_DEFAULT_OPUS_MODEL",
-	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
-	"CLAUDE_CODE_SUBAGENT_MODEL",
-	"ENABLE_TOOL_SEARCH",
-	"API_TIMEOUT_MS",
-	"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+	envAnthropicAuthToken,
+	envAnthropicAPIKey,
+	envAnthropicBaseURL,
+	envAnthropicModel,
+	envAnthropicSmallFastModel,
+	envAnthropicDefaultSonnetModel,
+	envAnthropicDefaultOpusModel,
+	envAnthropicDefaultHaikuModel,
+	envClaudeCodeSubagentModel,
+	envEnableToolSearch,
+	envAPITimeoutMS,
+	envClaudeCodeDisableNonessential,
 }
 
 // mergeJSONFile reads the JSON file at path (if it exists) into a map,
