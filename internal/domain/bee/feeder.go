@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -200,11 +201,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	prefix := ""
-	if !resume {
-		prefix = ai.BuildBeeSessionPrefix()
-	}
-	prompt := buildPrompt(msgs, prefix)
+	prompt := core.BuildSessionPrompt(core.SessionRequest{
+		Role:    ai.RoleBee,
+		Resume:  resume,
+		Content: assembleMessages(msgs),
+	})
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
@@ -335,13 +336,12 @@ func messageIDs(msgs []store.ClaimedMessage) []string {
 	return ids
 }
 
-func buildPrompt(msgs []store.ClaimedMessage, prefix string) string {
+// assembleMessages renders the bee message section in the
+// <message_meta>/<message_content> envelope. Messages are separated by a
+// single blank line. No leading or trailing whitespace.
+func assembleMessages(msgs []store.ClaimedMessage) string {
 	var sb strings.Builder
 	sb.Grow(len(msgs) * 128)
-	if prefix != "" {
-		sb.WriteString(prefix)
-		sb.WriteByte('\n')
-	}
 	for i, m := range msgs {
 		if i > 0 {
 			sb.WriteByte('\n')
