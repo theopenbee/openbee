@@ -37,7 +37,7 @@ func TestCodexCollector_Collect_WithLastTokenUsage(t *testing.T) {
 {"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":300,"output_tokens":100,"cached_input_tokens":0},"total_token_usage":{"input_tokens":600,"output_tokens":230,"cached_input_tokens":30}}}}
 `)
 
-	collector := codex.NewCollectorAt(mappingDir, codexBase)
+	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-1")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -81,7 +81,7 @@ func TestCodexCollector_Collect_DeltaFromTotalTokenUsage(t *testing.T) {
 {"type":"event_msg","info":{"total_token_usage":{"input_tokens":250,"output_tokens":120,"cached_input_tokens":25}}}
 `)
 
-	collector := codex.NewCollectorAt(mappingDir, codexBase)
+	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-2")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -109,7 +109,7 @@ func TestCodexCollector_Collect_LegacyTopLevelInfo(t *testing.T) {
 {"type":"event_msg","info":{"last_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":10}}}
 `)
 
-	collector := codex.NewCollectorAt(mappingDir, codexBase)
+	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-legacy")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -125,7 +125,7 @@ func TestCodexCollector_Collect_LegacyTopLevelInfo(t *testing.T) {
 func TestCodexCollector_Collect_MappingFileNotFound(t *testing.T) {
 	mappingDir := t.TempDir()
 	codexBase := t.TempDir()
-	collector := codex.NewCollectorAt(mappingDir, codexBase)
+	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
 	_, err := collector.Collect(context.Background(), "nonexistent-session")
 	if err == nil {
 		t.Error("expected error for missing mapping file, got nil")

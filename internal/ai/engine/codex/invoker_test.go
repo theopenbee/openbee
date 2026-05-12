@@ -59,7 +59,7 @@ func TestExtractResultFromLog(t *testing.T) {
 	if err := os.WriteFile(tmpFile, []byte(jsonStream), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := Extractor{}.Extract(tmpFile)
+	result := (&Backend{}).Extract(tmpFile)
 	if result != "hello world" {
 		t.Errorf("got %q, want %q", result, "hello world")
 	}
