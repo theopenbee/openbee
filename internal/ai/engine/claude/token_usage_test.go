@@ -29,7 +29,7 @@ func TestClaudeCollector_Collect_AggregatesByModel(t *testing.T) {
 {"timestamp":"2025-01-01T00:00:00Z"}
 `)
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
-	collector := claude.NewCollector()
+	collector := claude.NewBackend("", nil)
 
 	usages, err := collector.Collect(context.Background(), "test-session")
 	if err != nil {
@@ -67,7 +67,7 @@ func TestClaudeCollector_Collect_FastSpeedSuffix(t *testing.T) {
 		`{"message":{"model":"claude-3-5-sonnet","speed":"fast","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n")
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
 
-	usages, err := claude.NewCollector().Collect(context.Background(), "fast-session")
+	usages, err := claude.NewBackend("", nil).Collect(context.Background(), "fast-session")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestClaudeCollector_Collect_SkipsSyntheticModel(t *testing.T) {
 			`{"message":{"model":"claude-3-5-sonnet","usage":{"input_tokens":100,"output_tokens":50}}}`+"\n")
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
 
-	usages, err := claude.NewCollector().Collect(context.Background(), "syn-session")
+	usages, err := claude.NewBackend("", nil).Collect(context.Background(), "syn-session")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestClaudeCollector_Collect_SkipsSyntheticModel(t *testing.T) {
 
 func TestClaudeCollector_Collect_FileNotFound(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	_, err := claude.NewCollector().Collect(context.Background(), "nonexistent-session")
+	_, err := claude.NewBackend("", nil).Collect(context.Background(), "nonexistent-session")
 	if err == nil {
 		t.Error("expected error for missing file, got nil")
 	}
