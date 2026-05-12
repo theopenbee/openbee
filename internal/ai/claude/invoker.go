@@ -3,10 +3,7 @@ package claude
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -97,44 +94,26 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	args = append(args, opts.ExtraArgs...)
 	args = append(args, "--print")
 
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open log file: %w", err)
-	}
-
-	cmd := exec.CommandContext(ctx, inv.binary, args...)
-	cmd.Dir = workDir
-	cmd.Stdin = strings.NewReader(prompt)
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
-	ai.ConfigureCmd(cmd)
-
-	if err := cmd.Start(); err != nil {
-		logFile.Close()
-		return nil, nil, fmt.Errorf("start claude: %w", err)
-	}
-
-	proc := ai.NewCmdProcess(cmd)
-	ch := make(chan ai.Output, 1)
-
-	go func() {
-		defer close(ch)
-		defer logFile.Close()
-		if err := cmd.Wait(); err != nil {
-			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
-			return
-		}
-		result, isError, _ := scanResultLog(logPath)
-		if isError {
+	spec := ai.SubprocessSpec{
+		Binary:  inv.binary,
+		Args:    args,
+		WorkDir: workDir,
+		LogPath: logPath,
+		Env:     ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey),
+		Stdin:   prompt,
+		PostWait: func(waitErr error, logPath string) *ai.Output {
+			if waitErr != nil {
+				return nil // default mapping → OutputError(waitErr.Error())
+			}
+			result, isError, _ := scanResultLog(logPath)
+			if !isError {
+				return nil // default → OutputDone
+			}
 			if result == "" {
 				result = "bee execution failed (no details available)"
 			}
-			ch <- ai.Output{Type: ai.OutputError, Content: result}
-			return
-		}
-		ch <- ai.Output{Type: ai.OutputDone}
-	}()
-
-	return proc, ch, nil
+			return &ai.Output{Type: ai.OutputError, Content: result}
+		},
+	}
+	return ai.SpawnSubprocess(ctx, spec)
 }
