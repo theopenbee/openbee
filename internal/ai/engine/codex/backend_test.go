@@ -1,17 +1,17 @@
-package codex_test
+package codex
 
 import (
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/engine/codex"
 )
 
-// writeCodexTempFile creates a file at dir/name with the given content.
 func writeCodexTempFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -19,6 +19,64 @@ func writeCodexTempFile(t *testing.T, dir, name, content string) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
 		t.Fatalf("WriteFile %s/%s: %v", dir, name, err)
+	}
+}
+
+func TestBuildArgs_NewSession(t *testing.T) {
+	args := buildArgs("", false, "", nil)
+	want := []string{"exec", "-", "--json", "--dangerously-bypass-approvals-and-sandbox"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestBuildArgs_ResumeWithID(t *testing.T) {
+	args := buildArgs("sess-123", true, "", nil)
+	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestBuildArgs_ResumeWithIDAndPrompt(t *testing.T) {
+	args := buildArgs("sess-123", true, "do something", nil)
+	want := []string{"exec", "resume", "sess-123", "--json", "--dangerously-bypass-approvals-and-sandbox", "do something"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestExtractSessionID(t *testing.T) {
+	jsonStream := `{"type":"thread.started","thread_id":"019d7293-0a51-71e0-b634-02183839d7b2"}
+{"type":"turn.started"}
+{"type":"turn.completed","usage":{}}
+`
+	id := extractSessionID(strings.NewReader(jsonStream))
+	if id != "019d7293-0a51-71e0-b634-02183839d7b2" {
+		t.Errorf("got %q, want 019d7293-0a51-71e0-b634-02183839d7b2", id)
+	}
+}
+
+func TestBuildArgs_ResumeUsesThreadID(t *testing.T) {
+	args := buildArgs("thread-xyz-from-store", true, "follow up", nil)
+	want := []string{"exec", "resume", "thread-xyz-from-store", "--json", "--dangerously-bypass-approvals-and-sandbox", "follow up"}
+	if !slices.Equal(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestExtractResultFromLog(t *testing.T) {
+	jsonStream := `{"type":"thread.started","thread_id":"abc"}
+{"type":"item.completed","item":{"type":"agent_message","text":"hello world"}}
+{"type":"turn.completed","usage":{}}
+`
+	tmpFile := t.TempDir() + "/test.log"
+	if err := os.WriteFile(tmpFile, []byte(jsonStream), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := (&Backend{}).Extract(tmpFile)
+	if result != "hello world" {
+		t.Errorf("got %q, want %q", result, "hello world")
 	}
 }
 
@@ -37,7 +95,7 @@ func TestCodexCollector_Collect_WithLastTokenUsage(t *testing.T) {
 {"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":300,"output_tokens":100,"cached_input_tokens":0},"total_token_usage":{"input_tokens":600,"output_tokens":230,"cached_input_tokens":30}}}}
 `)
 
-	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
+	collector := NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-1")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -81,7 +139,7 @@ func TestCodexCollector_Collect_DeltaFromTotalTokenUsage(t *testing.T) {
 {"type":"event_msg","info":{"total_token_usage":{"input_tokens":250,"output_tokens":120,"cached_input_tokens":25}}}
 `)
 
-	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
+	collector := NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-2")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -109,7 +167,7 @@ func TestCodexCollector_Collect_LegacyTopLevelInfo(t *testing.T) {
 {"type":"event_msg","info":{"last_token_usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":10}}}
 `)
 
-	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
+	collector := NewBackendAt("", nil, nil, mappingDir, codexBase)
 	usages, err := collector.Collect(context.Background(), "openbee-sess-legacy")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -125,7 +183,7 @@ func TestCodexCollector_Collect_LegacyTopLevelInfo(t *testing.T) {
 func TestCodexCollector_Collect_MappingFileNotFound(t *testing.T) {
 	mappingDir := t.TempDir()
 	codexBase := t.TempDir()
-	collector := codex.NewBackendAt("", nil, nil, mappingDir, codexBase)
+	collector := NewBackendAt("", nil, nil, mappingDir, codexBase)
 	_, err := collector.Collect(context.Background(), "nonexistent-session")
 	if err == nil {
 		t.Error("expected error for missing mapping file, got nil")
