@@ -68,6 +68,13 @@ func BuildBaseEnv() []string {
 	return env[:len(env):len(env)]
 }
 
+// NewBaseEnv combines BuildBaseEnv with extraEnv into a clipped, append-safe
+// slice. It is the canonical way to build the static portion of an engine
+// subprocess env.
+func NewBaseEnv(extraEnv map[string]string) []string {
+	return AppendExtraEnv(BuildBaseEnv(), extraEnv)
+}
+
 // ScanJSONLines reads r line by line and calls fn for each line that starts
 // with '{'. fn returns true to keep scanning or false to stop early.
 func ScanJSONLines(r io.Reader, fn func(line string) bool) {

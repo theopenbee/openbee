@@ -32,8 +32,7 @@ type Invoker struct {
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment at lowest priority.
 // OPENBEE_URL is inherited from the server process environment.
 func NewInvoker(binary string, store *SessionStore, extraEnv map[string]string) *Invoker {
-	base := ai.BuildBaseEnv()
-	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), store: store}
+	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv), store: store}
 }
 
 type codexEvent struct {

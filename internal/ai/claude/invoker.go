@@ -16,8 +16,7 @@ type Invoker struct {
 
 // NewInvoker creates an Invoker. extraEnv entries are merged into the base environment at lowest priority.
 func NewInvoker(binary string, extraEnv map[string]string) *Invoker {
-	base := ai.BuildBaseEnv()
-	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv)}
+	return &Invoker{binary: binary, baseEnv: ai.NewBaseEnv(extraEnv)}
 }
 
 type streamEvent struct {
