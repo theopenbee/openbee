@@ -8,8 +8,6 @@ import (
 )
 
 func (p *CmdProcess) Stop() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}

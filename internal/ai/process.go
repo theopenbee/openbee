@@ -7,13 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 // CmdProcess implements Process for an os/exec.Cmd.
 type CmdProcess struct {
 	cmd *exec.Cmd
-	mu  sync.Mutex
 }
 
 // NewCmdProcess wraps an exec.Cmd as a Process.
@@ -22,8 +20,6 @@ func NewCmdProcess(cmd *exec.Cmd) *CmdProcess {
 }
 
 func (p *CmdProcess) PID() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.cmd != nil && p.cmd.Process != nil {
 		return p.cmd.Process.Pid
 	}
