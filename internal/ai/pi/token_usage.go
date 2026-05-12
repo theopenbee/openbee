@@ -2,7 +2,6 @@ package pi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,11 +19,7 @@ type Collector struct {
 
 // NewCollector builds a Collector using PI_AGENT_DIR or the config default.
 func NewCollector() *Collector {
-	dir := os.Getenv("PI_AGENT_DIR")
-	if dir == "" {
-		dir = config.DefaultPiSessionsDir()
-	}
-	return NewCollectorAt(dir)
+	return NewCollectorAt(config.EngineSessionsDir("PI_AGENT_DIR", config.DefaultPiSessionsDir))
 }
 
 // NewCollectorAt is a test seam allowing an arbitrary sessions root.
@@ -60,18 +55,13 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 }
 
 func parsePiFile(path string) ([]ai.TokenUsage, error) {
-	agg := map[string]*ai.TokenUsage{}
-	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
-		var line piJSONLLine
-		if err := json.Unmarshal(data, &line); err != nil {
-			return
-		}
+	usages, err := ai.AggregateUsage[piJSONLLine](path, func(line piJSONLLine, agg map[string]*ai.TokenUsage) {
 		if line.Type != "message" || line.Message.Role != "assistant" || line.Message.Usage == nil {
 			return
 		}
 		m := line.Message.Model
-		u, ok := agg[m]
-		if !ok {
+		u := agg[m]
+		if u == nil {
 			u = &ai.TokenUsage{Model: m}
 			agg[m] = u
 		}
@@ -83,5 +73,5 @@ func parsePiFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan pi session file: %w", err)
 	}
-	return ai.DrainUsageMap(agg), nil
+	return usages, nil
 }
