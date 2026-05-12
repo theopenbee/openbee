@@ -26,7 +26,7 @@ import (
 type Backend struct {
 	binary             string
 	baseEnv            []string // pre-built env (openbee vars + extraEnv), without per-run API key
-	runSessionDir      string   // directory Run writes session files to (hardcoded default, ignores PI_AGENT_DIR)
+	runSessionsDir     string   // directory Run writes session files to (hardcoded default, ignores PI_AGENT_DIR)
 	collectSessionsDir string   // directory Collect searches for session files (honors PI_AGENT_DIR)
 }
 
@@ -35,32 +35,32 @@ type Backend struct {
 // behavior. Collect searches PI_AGENT_DIR if set, falling back to the default.
 // extraEnv entries are merged into the base environment at lowest priority.
 func NewBackend(binary string, extraEnv map[string]string) (*Backend, error) {
-	runSessionDir := config.DefaultPiSessionsDir()
-	if err := os.MkdirAll(runSessionDir, 0o755); err != nil {
+	runSessionsDir := config.DefaultPiSessionsDir()
+	if err := os.MkdirAll(runSessionsDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
 	return &Backend{
 		binary:             binary,
 		baseEnv:            core.NewBaseEnv(extraEnv),
-		runSessionDir:      runSessionDir,
+		runSessionsDir:     runSessionsDir,
 		collectSessionsDir: config.EngineSessionsDir("PI_AGENT_DIR", config.DefaultPiSessionsDir),
 	}, nil
 }
 
 // NewBackendAt is a test seam. It sets collectSessionsDir to the supplied dir
-// (matching the old NewCollectorAt semantics). runSessionDir is also set to the
+// (matching the old NewCollectorAt semantics). runSessionsDir is also set to the
 // supplied dir so tests can redirect Run-time writes alongside Collect reads.
 func NewBackendAt(binary string, extraEnv map[string]string, sessionsDir string) *Backend {
 	return &Backend{
 		binary:             binary,
 		baseEnv:            core.NewBaseEnv(extraEnv),
-		runSessionDir:      sessionsDir,
+		runSessionsDir:     sessionsDir,
 		collectSessionsDir: sessionsDir,
 	}
 }
 
 func (b *Backend) sessionFilePath(sessionID string) string {
-	return filepath.Join(b.runSessionDir, sessionID+".jsonl")
+	return filepath.Join(b.runSessionsDir, sessionID+".jsonl")
 }
 
 type piAgentEnd struct {
