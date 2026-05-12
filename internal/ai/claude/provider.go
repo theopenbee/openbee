@@ -235,6 +235,101 @@ func mergeClaudeJSON(path string) error {
 	})
 }
 
+// providerSpec describes one interactive provider configuration entry.
+type providerSpec struct {
+	Name           string        // display name shown in selection menu (matches ProviderXxx const)
+	KeyPrompt      func() string // returns the i18n string for prompting the API key
+	BaseURLPrompt  func() string // non-nil ⇒ prompt for base URL BEFORE the API key (Mimo / Custom)
+	ModelOptions   []string      // non-empty ⇒ show survey.Select for model picker
+	ModelDefault   string        // default selection for ModelOptions
+	NeedClaudeJSON bool          // true ⇒ also write ~/.claude.json (GLM/MiniMax/Volcengine/Tencent/Mimo)
+	BuildEnv       func(apiKey, modelOrBaseURL string) map[string]string
+}
+
+var providerSpecs = []providerSpec{
+	{
+		Name:      ProviderKimiCode,
+		KeyPrompt: func() string { return i18n.M.Provider.KeyKimiCode },
+		BuildEnv:  func(k, _ string) map[string]string { return kimiCodeEnv(k) },
+	},
+	{
+		Name:      ProviderMoonshot,
+		KeyPrompt: func() string { return i18n.M.Provider.KeyMoonshot },
+		BuildEnv:  func(k, _ string) map[string]string { return moonshotEnv(k) },
+	},
+	{
+		Name:      ProviderDeepSeek,
+		KeyPrompt: func() string { return i18n.M.Provider.KeyDeepSeek },
+		BuildEnv:  func(k, _ string) map[string]string { return deepseekEnv(k) },
+	},
+	{
+		Name:           ProviderGLM,
+		KeyPrompt:      func() string { return i18n.M.Provider.KeyGLM },
+		NeedClaudeJSON: true,
+		BuildEnv:       func(k, _ string) map[string]string { return glmEnv(k) },
+	},
+	{
+		Name:           ProviderMiniMax,
+		KeyPrompt:      func() string { return i18n.M.Provider.KeyMiniMax },
+		NeedClaudeJSON: true,
+		BuildEnv:       func(k, _ string) map[string]string { return minimaxEnv(k) },
+	},
+	{
+		Name:         ProviderAliyun,
+		KeyPrompt:    func() string { return i18n.M.Provider.KeyAliyun },
+		ModelOptions: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
+		ModelDefault: "qwen3.5-plus",
+		BuildEnv:     aliyunEnv,
+	},
+	{
+		Name:           ProviderVolcengine,
+		KeyPrompt:      func() string { return i18n.M.Provider.KeyVolcengine },
+		NeedClaudeJSON: true,
+		ModelOptions: []string{
+			"doubao-seed-2.0-code",
+			"doubao-seed-2.0-pro",
+			"doubao-seed-2.0-lite",
+			"doubao-seed-code",
+			"minimax-m2.5",
+			"glm-4.7",
+			"deepseek-v3.2",
+			"kimi-k2.5",
+		},
+		ModelDefault: "doubao-seed-2.0-code",
+		BuildEnv:     volcengineEnv,
+	},
+	{
+		Name:           ProviderTencent,
+		KeyPrompt:      func() string { return i18n.M.Provider.KeyTencent },
+		NeedClaudeJSON: true,
+		ModelOptions: []string{
+			"tc-code-latest（auto）",
+			"hunyuan-2.0-instruct",
+			"hunyuan-2.0-thinking",
+			"minimax-m2.5",
+			"kimi-k2.5",
+			"glm-5",
+			"hunyuan-t1",
+			"hunyuan-turbos",
+		},
+		ModelDefault: "tc-code-latest（auto）",
+		BuildEnv:     tencentEnv,
+	},
+	{
+		Name:           ProviderMimo,
+		KeyPrompt:      func() string { return i18n.M.Provider.KeyMimoToken },
+		BaseURLPrompt:  func() string { return i18n.M.Provider.KeyMimoURL },
+		NeedClaudeJSON: true,
+		BuildEnv:       func(k, baseURL string) map[string]string { return mimoEnv(baseURL, k) },
+	},
+	{
+		Name:          ProviderCustom,
+		KeyPrompt:     func() string { return i18n.M.Provider.KeyCustomToken },
+		BaseURLPrompt: func() string { return i18n.M.Provider.KeyCustomURL },
+		BuildEnv:      func(k, baseURL string) map[string]string { return customEnv(baseURL, k) },
+	},
+}
+
 // ConfigureProvider runs an interactive survey to select a provider and API key,
 // then writes the result to ~/.claude/settings.json (and ~/.claude.json where needed).
 // Returns ErrInterrupted if the user cancels with Ctrl+C.
@@ -243,7 +338,6 @@ func ConfigureProvider() error {
 	if err != nil {
 		return fmt.Errorf("get home directory: %w", err)
 	}
-
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
 	claudeJSONPath := filepath.Join(home, ".claude.json")
 
@@ -260,169 +354,70 @@ func ConfigureProvider() error {
 		}
 	}
 
-	providerOptions := []string{
-		ProviderKimiCode,
-		ProviderMoonshot,
-		ProviderDeepSeek,
-		ProviderGLM,
-		ProviderMiniMax,
-		ProviderAliyun,
-		ProviderVolcengine,
-		ProviderTencent,
-		ProviderMimo,
-		ProviderCustom,
+	names := make([]string, len(providerSpecs))
+	specByName := make(map[string]*providerSpec, len(providerSpecs))
+	for i := range providerSpecs {
+		names[i] = providerSpecs[i].Name
+		specByName[providerSpecs[i].Name] = &providerSpecs[i]
 	}
-	var provider string
+
+	var providerName string
 	if err := survey.AskOne(&survey.Select{
 		Message: i18n.M.Provider.Select,
-		Options: providerOptions,
-	}, &provider); err != nil {
+		Options: names,
+	}, &providerName); err != nil {
 		return HandleSurveyErr(err)
 	}
 
-	var env map[string]string
-	needClaudeJSON := false
-
-	switch provider {
-	case ProviderKimiCode:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyKimiCode)
-		if err != nil {
-			return err
-		}
-		env = kimiCodeEnv(apiKey)
-
-	case ProviderMoonshot:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMoonshot)
-		if err != nil {
-			return err
-		}
-		env = moonshotEnv(apiKey)
-
-	case ProviderDeepSeek:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyDeepSeek)
-		if err != nil {
-			return err
-		}
-		env = deepseekEnv(apiKey)
-
-	case ProviderGLM:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyGLM)
-		if err != nil {
-			return err
-		}
-		env = glmEnv(apiKey)
-		needClaudeJSON = true
-
-	case ProviderMiniMax:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMiniMax)
-		if err != nil {
-			return err
-		}
-		env = minimaxEnv(apiKey)
-		needClaudeJSON = true
-
-	case ProviderAliyun:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyAliyun)
-		if err != nil {
-			return err
-		}
-		var model string
-		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Provider.SelectModel,
-			Options: []string{"qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5"},
-			Default: "qwen3.5-plus",
-		}, &model); err != nil {
-			return HandleSurveyErr(err)
-		}
-		env = aliyunEnv(apiKey, model)
-
-	case ProviderVolcengine:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyVolcengine)
-		if err != nil {
-			return err
-		}
-		var model string
-		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Provider.SelectModel,
-			Options: []string{
-				"doubao-seed-2.0-code",
-				"doubao-seed-2.0-pro",
-				"doubao-seed-2.0-lite",
-				"doubao-seed-code",
-				"minimax-m2.5",
-				"glm-4.7",
-				"deepseek-v3.2",
-				"kimi-k2.5",
-			},
-			Default: "doubao-seed-2.0-code",
-		}, &model); err != nil {
-			return HandleSurveyErr(err)
-		}
-		env = volcengineEnv(apiKey, model)
-		needClaudeJSON = true
-
-	case ProviderTencent:
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyTencent)
-		if err != nil {
-			return err
-		}
-		var model string
-		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Provider.SelectModel,
-			Options: []string{
-				"tc-code-latest（auto）",
-				"hunyuan-2.0-instruct",
-				"hunyuan-2.0-thinking",
-				"minimax-m2.5",
-				"kimi-k2.5",
-				"glm-5",
-				"hunyuan-t1",
-				"hunyuan-turbos",
-			},
-			Default: "tc-code-latest（auto）",
-		}, &model); err != nil {
-			return HandleSurveyErr(err)
-		}
-		env = tencentEnv(apiKey, model)
-		needClaudeJSON = true
-
-	case ProviderMimo:
-		baseURL, err := promptAPIKey(i18n.M.Provider.KeyMimoURL)
-		if err != nil {
-			return err
-		}
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyMimoToken)
-		if err != nil {
-			return err
-		}
-		env = mimoEnv(baseURL, apiKey)
-		needClaudeJSON = true
-
-	case ProviderCustom:
-		baseURL, err := promptAPIKey(i18n.M.Provider.KeyCustomURL)
-		if err != nil {
-			return err
-		}
-		apiKey, err := promptAPIKey(i18n.M.Provider.KeyCustomToken)
-		if err != nil {
-			return err
-		}
-		env = customEnv(baseURL, apiKey)
-	default:
-		return fmt.Errorf("unknown provider: %s", provider)
+	spec, ok := specByName[providerName]
+	if !ok {
+		return fmt.Errorf("unknown provider: %s", providerName)
 	}
+
+	// Mimo/Custom prompt for base URL FIRST.
+	var baseURL string
+	if spec.BaseURLPrompt != nil {
+		v, err := promptAPIKey(spec.BaseURLPrompt())
+		if err != nil {
+			return err
+		}
+		baseURL = v
+	}
+
+	apiKey, err := promptAPIKey(spec.KeyPrompt())
+	if err != nil {
+		return err
+	}
+
+	// Determine the second argument passed to BuildEnv:
+	//   - if a model picker is configured, prompt and use the selected model
+	//   - else if a base URL was prompted, pass it through
+	//   - else pass empty string (single-key providers ignore the second arg)
+	secondArg := ""
+	if len(spec.ModelOptions) > 0 {
+		if err := survey.AskOne(&survey.Select{
+			Message: i18n.M.Provider.SelectModel,
+			Options: spec.ModelOptions,
+			Default: spec.ModelDefault,
+		}, &secondArg); err != nil {
+			return HandleSurveyErr(err)
+		}
+	} else if baseURL != "" {
+		secondArg = baseURL
+	}
+
+	env := spec.BuildEnv(apiKey, secondArg)
 
 	if err := mergeClaudeSettings(settingsPath, env); err != nil {
 		return fmt.Errorf("write settings.json: %w", err)
 	}
 	fmt.Println(i18n.M.Provider.WrittenSettings)
 
-	if needClaudeJSON {
+	if spec.NeedClaudeJSON {
 		if err := mergeClaudeJSON(claudeJSONPath); err != nil {
 			return fmt.Errorf("write .claude.json: %w", err)
 		}
 		fmt.Println(i18n.M.Provider.WrittenJSON)
 	}
-
 	return nil
 }
