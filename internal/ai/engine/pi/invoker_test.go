@@ -31,7 +31,7 @@ func TestExtractResultFromLog_BasicResult(t *testing.T) {
 {"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"final answer"}]}]}
 `
 	path := writeTemp(t, log)
-	result := ExtractResultFromLog(path)
+	result := Extractor{}.Extract(path)
 	if result != "final answer" {
 		t.Errorf("got %q, want %q", result, "final answer")
 	}
@@ -42,7 +42,7 @@ func TestExtractResultFromLog_LastAgentEndWins(t *testing.T) {
 {"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"last"}]}]}
 `
 	path := writeTemp(t, log)
-	result := ExtractResultFromLog(path)
+	result := Extractor{}.Extract(path)
 	if result != "last" {
 		t.Errorf("got %q, want %q", result, "last")
 	}
@@ -52,7 +52,7 @@ func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
 	log := `{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"x"},{"type":"text","text":"answer"}]}]}
 `
 	path := writeTemp(t, log)
-	result := ExtractResultFromLog(path)
+	result := Extractor{}.Extract(path)
 	if result != "answer" {
 		t.Errorf("got %q, want %q", result, "answer")
 	}
@@ -60,7 +60,7 @@ func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
 
 func TestExtractResultFromLog_Empty(t *testing.T) {
 	path := writeTemp(t, "")
-	result := ExtractResultFromLog(path)
+	result := Extractor{}.Extract(path)
 	if result != "" {
 		t.Errorf("got %q, want %q", result, "")
 	}
@@ -68,7 +68,7 @@ func TestExtractResultFromLog_Empty(t *testing.T) {
 
 func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 	path := writeTemp(t, `{"type":"turn.started"}`+"\n")
-	result := ExtractResultFromLog(path)
+	result := Extractor{}.Extract(path)
 	if result != "" {
 		t.Errorf("got %q, want %q", result, "")
 	}

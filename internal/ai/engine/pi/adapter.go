@@ -20,6 +20,6 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter
 	return &core.BaseAdapter{
 		Invoker:   inv,
 		Collector: NewCollector(),
-		Extract:   ExtractResultFromLog,
+		Extractor: Extractor{},
 	}, nil
 }

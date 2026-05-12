@@ -86,9 +86,13 @@ func scanLastAssistantMessage(logPath string) *piMessage {
 	return result
 }
 
-// ExtractResultFromLog scans logPath for the last agent_end event and returns
-// the text of the last assistant message's first text content item, or "".
-func ExtractResultFromLog(logPath string) string {
+// Extractor reads the result text from a pi log: returns the text of the last
+// assistant message's first text content item from the last agent_end event,
+// or "".
+type Extractor struct{}
+
+// Extract implements core.Extractor.
+func (Extractor) Extract(logPath string) string {
 	msg := scanLastAssistantMessage(logPath)
 	if msg == nil {
 		return ""
