@@ -2,7 +2,6 @@ package claude
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -69,12 +68,7 @@ func (c *Collector) Collect(_ context.Context, sessionID string) ([]ai.TokenUsag
 }
 
 func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
-	agg := map[string]*ai.TokenUsage{}
-	err := sessionfile.ScanJSONLFile(path, func(data []byte) {
-		var line claudeJSONLLine
-		if err := json.Unmarshal(data, &line); err != nil {
-			return
-		}
+	usages, err := ai.AggregateUsage[claudeJSONLLine](path, func(line claudeJSONLLine, agg map[string]*ai.TokenUsage) {
 		m := line.Message.Model
 		if m == "" || m == syntheticModel || line.Message.Usage == nil {
 			return
@@ -82,8 +76,8 @@ func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
 		if line.Message.Speed == "fast" {
 			m += "-fast"
 		}
-		u, ok := agg[m]
-		if !ok {
+		u := agg[m]
+		if u == nil {
 			u = &ai.TokenUsage{Model: m}
 			agg[m] = u
 		}
@@ -95,5 +89,5 @@ func parseClaudeFile(path string) ([]ai.TokenUsage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan claude session file: %w", err)
 	}
-	return ai.DrainUsageMap(agg), nil
+	return usages, nil
 }
