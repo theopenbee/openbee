@@ -30,7 +30,7 @@ func TestKimiCollector_Collect_TakesLastStatusUpdate(t *testing.T) {
 {"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":446,"output":70,"input_cache_read":16384,"input_cache_creation":0}}}}
 `)
 
-	collector := kimi.NewCollectorAt(sessionsDir)
+	collector := kimi.NewBackendAt("", nil, sessionsDir)
 	usages, err := collector.Collect(context.Background(), "sess-abc")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -60,7 +60,7 @@ func TestKimiCollector_Collect_FileNotFound(t *testing.T) {
 	home := t.TempDir()
 	sessionsDir := filepath.Join(home, ".kimi", "sessions")
 
-	collector := kimi.NewCollectorAt(sessionsDir)
+	collector := kimi.NewBackendAt("", nil, sessionsDir)
 	_, err := collector.Collect(context.Background(), "nonexistent-session")
 	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
@@ -74,7 +74,7 @@ func TestKimiCollector_Collect_NoStatusUpdate(t *testing.T) {
 {"message":{"type":"Progress","payload":{}}}
 `)
 
-	collector := kimi.NewCollectorAt(sessionsDir)
+	collector := kimi.NewBackendAt("", nil, sessionsDir)
 	_, err := collector.Collect(context.Background(), "sess-empty")
 	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
@@ -87,7 +87,7 @@ func TestKimiCollector_Collect_ZeroTokens(t *testing.T) {
 	makeKimiSessionFile(t, sessionsDir, "sess-zero", `{"message":{"type":"StatusUpdate","payload":{"token_usage":{"input_other":0,"output":0,"input_cache_read":0,"input_cache_creation":0}}}}
 `)
 
-	collector := kimi.NewCollectorAt(sessionsDir)
+	collector := kimi.NewBackendAt("", nil, sessionsDir)
 	usages, err := collector.Collect(context.Background(), "sess-zero")
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
