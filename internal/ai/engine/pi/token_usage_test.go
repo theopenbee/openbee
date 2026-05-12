@@ -32,7 +32,7 @@ func TestPiCollector_Collect_AggregatesByModel(t *testing.T) {
 {"type":"other","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":999,"output":999}}}
 `)
 	t.Setenv("PI_AGENT_DIR", sessionsDir)
-	collector := pi.NewCollector()
+	collector := pi.NewBackendAt("", nil, sessionsDir)
 
 	usages, err := collector.Collect(context.Background(), sessionID)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestPiCollector_Collect_SkipsNonAssistantAndWrongType(t *testing.T) {
 `)
 	t.Setenv("PI_AGENT_DIR", sessionsDir)
 
-	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
+	usages, err := pi.NewBackendAt("", nil, sessionsDir).Collect(context.Background(), sessionID)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -86,16 +86,15 @@ func TestPiCollector_Collect_SkipsNonAssistantAndWrongType(t *testing.T) {
 }
 
 func TestPiCollector_Collect_FileNotFound(t *testing.T) {
-	t.Setenv("PI_AGENT_DIR", t.TempDir())
-	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
+	dir := t.TempDir()
+	_, err := pi.NewBackendAt("", nil, dir).Collect(context.Background(), "nonexistent-session")
 	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
 	}
 }
 
 func TestPiCollector_Collect_DirectoryNotFound(t *testing.T) {
-	t.Setenv("PI_AGENT_DIR", t.TempDir()+"/missing")
-	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
+	_, err := pi.NewBackendAt("", nil, t.TempDir()+"/missing").Collect(context.Background(), "nonexistent-session")
 	if !errors.Is(err, ai.ErrSessionDataNotFound) {
 		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
 	}
@@ -109,7 +108,8 @@ func TestPiCollector_Collect_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
 
 	writePiTempFile(t, home, ".openbee/.pi/sessions/"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
 
-	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
+	sessionsDir := home + "/.openbee/.pi/sessions"
+	usages, err := pi.NewBackendAt("", nil, sessionsDir).Collect(context.Background(), sessionID)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}

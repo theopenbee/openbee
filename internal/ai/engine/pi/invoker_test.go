@@ -31,7 +31,7 @@ func TestExtractResultFromLog_BasicResult(t *testing.T) {
 {"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"final answer"}]}]}
 `
 	path := writeTemp(t, log)
-	result := Extractor{}.Extract(path)
+	result := (&Backend{}).Extract(path)
 	if result != "final answer" {
 		t.Errorf("got %q, want %q", result, "final answer")
 	}
@@ -42,7 +42,7 @@ func TestExtractResultFromLog_LastAgentEndWins(t *testing.T) {
 {"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"last"}]}]}
 `
 	path := writeTemp(t, log)
-	result := Extractor{}.Extract(path)
+	result := (&Backend{}).Extract(path)
 	if result != "last" {
 		t.Errorf("got %q, want %q", result, "last")
 	}
@@ -52,7 +52,7 @@ func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
 	log := `{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"x"},{"type":"text","text":"answer"}]}]}
 `
 	path := writeTemp(t, log)
-	result := Extractor{}.Extract(path)
+	result := (&Backend{}).Extract(path)
 	if result != "answer" {
 		t.Errorf("got %q, want %q", result, "answer")
 	}
@@ -60,7 +60,7 @@ func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
 
 func TestExtractResultFromLog_Empty(t *testing.T) {
 	path := writeTemp(t, "")
-	result := Extractor{}.Extract(path)
+	result := (&Backend{}).Extract(path)
 	if result != "" {
 		t.Errorf("got %q, want %q", result, "")
 	}
@@ -68,7 +68,7 @@ func TestExtractResultFromLog_Empty(t *testing.T) {
 
 func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 	path := writeTemp(t, `{"type":"turn.started"}`+"\n")
-	result := Extractor{}.Extract(path)
+	result := (&Backend{}).Extract(path)
 	if result != "" {
 		t.Errorf("got %q, want %q", result, "")
 	}
@@ -77,11 +77,11 @@ func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 func TestResolveSessionPath_UsesUUID(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	sessionID := "4d0ce91b-0856-44e2-b0d7-7765d824bba3"
-	inv, err := NewInvoker("true", nil)
+	b, err := NewBackend("true", nil)
 	if err != nil {
-		t.Fatalf("NewInvoker: %v", err)
+		t.Fatalf("NewBackend: %v", err)
 	}
-	got := inv.sessionFilePath(sessionID)
+	got := b.sessionFilePath(sessionID)
 	home, _ := os.UserHomeDir()
 	want := filepath.Join(home, ".openbee", ".pi", "sessions", sessionID+".jsonl")
 	if got != want {
@@ -91,13 +91,13 @@ func TestResolveSessionPath_UsesUUID(t *testing.T) {
 
 func TestInvoker_Run_ExitsCleanly(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
-	inv, err := NewInvoker("true", nil)
+	b, err := NewBackend("true", nil)
 	if err != nil {
-		t.Fatalf("NewInvoker: %v", err)
+		t.Fatalf("NewBackend: %v", err)
 	}
 	logPath := filepath.Join(t.TempDir(), "pi.log")
 
-	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello",
+	_, ch, err := b.Run(context.Background(), t.TempDir(), "hello",
 		ai.RunOptions{SessionID: "4d0ce91b-0856-44e2-b0d7-7765d824bba3"}, logPath)
 	if err != nil {
 		t.Fatalf("Run: %v", err)

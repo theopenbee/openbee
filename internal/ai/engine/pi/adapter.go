@@ -13,13 +13,9 @@ func init() {
 
 // NewAdapter constructs a pi engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter, error) {
-	inv, err := NewInvoker(binaryPath, extraEnv)
+	b, err := NewBackend(binaryPath, extraEnv)
 	if err != nil {
 		return nil, err
 	}
-	return &core.Composite{
-		Invoker:   inv,
-		Collector: NewCollector(),
-		Extractor: Extractor{},
-	}, nil
+	return core.NewEngineAdapter(b), nil
 }

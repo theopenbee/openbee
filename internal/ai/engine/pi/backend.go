@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,21 +17,44 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/utils/sessionfile"
 )
 
-// Invoker spawns pi CLI processes. It is stateless and safe for concurrent use.
-type Invoker struct {
-	binary     string
-	baseEnv    []string // pre-built env (openbee vars + extraEnv), without per-run API key
-	sessionDir string   // ~/.openbee/.pi/sessions, created once at startup
+// Backend is the pi engine implementation of core.BaseAdapter. It spawns the
+// pi CLI process, extracts the final assistant message from the JSON log, and
+// reads token-usage data from the session JSONL written by the CLI.
+type Backend struct {
+	binary      string
+	baseEnv     []string // pre-built env (openbee vars + extraEnv), without per-run API key
+	sessionsDir string   // directory for both run-time session files and collect-time lookup
 }
 
-func NewInvoker(binary string, extraEnv map[string]string) (*Invoker, error) {
-	sessionDir := config.DefaultPiSessionsDir()
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+// NewBackend builds a pi Backend using PI_AGENT_DIR or the config default for
+// the sessions directory, and creates the directory on startup.
+// extraEnv entries are merged into the base environment at lowest priority.
+func NewBackend(binary string, extraEnv map[string]string) (*Backend, error) {
+	sessionsDir := config.EngineSessionsDir("PI_AGENT_DIR", config.DefaultPiSessionsDir)
+	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
-	return &Invoker{binary: binary, baseEnv: core.NewBaseEnv(extraEnv), sessionDir: sessionDir}, nil
+	return &Backend{
+		binary:      binary,
+		baseEnv:     core.NewBaseEnv(extraEnv),
+		sessionsDir: sessionsDir,
+	}, nil
+}
+
+// NewBackendAt is a test seam allowing an arbitrary sessions root.
+func NewBackendAt(binary string, extraEnv map[string]string, sessionsDir string) *Backend {
+	return &Backend{
+		binary:      binary,
+		baseEnv:     core.NewBaseEnv(extraEnv),
+		sessionsDir: sessionsDir,
+	}
+}
+
+func (b *Backend) sessionFilePath(sessionID string) string {
+	return filepath.Join(b.sessionsDir, sessionID+".jsonl")
 }
 
 type piAgentEnd struct {
@@ -86,13 +111,9 @@ func scanLastAssistantMessage(logPath string) *piMessage {
 	return result
 }
 
-// Extractor reads the result text from a pi log: returns the text of the last
-// assistant message's first text content item from the last agent_end event,
-// or "".
-type Extractor struct{}
-
-// Extract implements core.Extractor.
-func (Extractor) Extract(logPath string) string {
+// Extract returns the text of the last assistant message's first text content
+// item from the last agent_end event, or "".
+func (b *Backend) Extract(logPath string) string {
 	msg := scanLastAssistantMessage(logPath)
 	if msg == nil {
 		return ""
@@ -154,18 +175,14 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 	return orig, nil
 }
 
-func (inv *Invoker) sessionFilePath(sessionID string) string {
-	return filepath.Join(inv.sessionDir, sessionID+".jsonl")
-}
-
 // Run starts a pi CLI process, redirecting stdout+stderr to logPath.
 // opts.SessionID must be a UUID; the session file path is derived as
-// ~/.openbee/.pi/sessions/{sessionID}.jsonl. Resume vs. new session is
-// inferred by pi CLI from whether that file already exists.
-func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
+// {sessionsDir}/{sessionID}.jsonl. Resume vs. new session is inferred by pi
+// CLI from whether that file already exists.
+func (b *Backend) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
-	sessionPath := inv.sessionFilePath(opts.SessionID)
+	sessionPath := b.sessionFilePath(opts.SessionID)
 
 	args := buildArgs(prompt, sessionPath, opts.ExtraArgs)
 
@@ -175,10 +192,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	}
 
 	var stderrBuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, inv.binary, args...)
+	cmd := exec.CommandContext(ctx, b.binary, args...)
 	cmd.Dir = workDir
 	cmd.Stderr = io.MultiWriter(logFile, &limitWriter{w: &stderrBuf, rem: 4096})
-	cmd.Env = core.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
+	cmd.Env = core.BuildRunEnv(b.baseEnv, opts.ExtraEnv, opts.APIKey)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -348,4 +365,56 @@ func stripThinkingSignatureFromMessage(msgRaw json.RawMessage) (json.RawMessage,
 func isStreamingDelta(line []byte) bool {
 	return bytes.Contains(line, []byte(`"type":"message_update"`)) ||
 		bytes.Contains(line, []byte(`"type":"tool_execution_update"`))
+}
+
+// --- Token usage (Collect) ---
+
+type piJSONLLine struct {
+	Type    string `json:"type"`
+	Message struct {
+		Role  string `json:"role"`
+		Model string `json:"model"`
+		Usage *struct {
+			Input      int64 `json:"input"`
+			Output     int64 `json:"output"`
+			CacheWrite int64 `json:"cacheWrite"`
+			CacheRead  int64 `json:"cacheRead"`
+		} `json:"usage"`
+	} `json:"message"`
+}
+
+// Collect reads token usage for the given session from the pi session JSONL file.
+func (b *Backend) Collect(_ context.Context, sessionID string) ([]ai.TokenUsage, error) {
+	path, err := sessionfile.FindWithLegacyFast(b.sessionsDir, sessionID+".jsonl", func(_ string, d os.DirEntry) bool {
+		return strings.HasSuffix(d.Name(), "_"+sessionID+".jsonl")
+	})
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%w: pi session file not found for %s", ai.ErrSessionDataNotFound, sessionID)
+		}
+		return nil, fmt.Errorf("pi session file lookup for %s: %w", sessionID, err)
+	}
+	return parsePiFile(path)
+}
+
+func parsePiFile(path string) ([]ai.TokenUsage, error) {
+	usages, err := core.AggregateUsage[piJSONLLine](path, func(line piJSONLLine, agg map[string]*ai.TokenUsage) {
+		if line.Type != "message" || line.Message.Role != "assistant" || line.Message.Usage == nil {
+			return
+		}
+		m := line.Message.Model
+		u := agg[m]
+		if u == nil {
+			u = &ai.TokenUsage{Model: m}
+			agg[m] = u
+		}
+		u.InputTokens += line.Message.Usage.Input
+		u.OutputTokens += line.Message.Usage.Output
+		u.CacheCreationTokens += line.Message.Usage.CacheWrite
+		u.CacheReadTokens += line.Message.Usage.CacheRead
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan pi session file: %w", err)
+	}
+	return usages, nil
 }
