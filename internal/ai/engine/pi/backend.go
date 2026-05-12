@@ -31,9 +31,9 @@ type Backend struct {
 }
 
 // NewBackend builds a pi Backend. Run writes session files to the hardcoded
-// default directory (ignoring PI_AGENT_DIR), matching the original Invoker
-// behavior. Collect searches PI_AGENT_DIR if set, falling back to the default.
-// extraEnv entries are merged into the base environment at lowest priority.
+// default directory (ignoring PI_AGENT_DIR); Collect searches PI_AGENT_DIR
+// if set, falling back to the default. extraEnv entries are merged into the
+// base environment at lowest priority.
 func NewBackend(binary string, extraEnv map[string]string) (*Backend, error) {
 	runSessionsDir := config.DefaultPiSessionsDir()
 	if err := os.MkdirAll(runSessionsDir, 0o755); err != nil {
