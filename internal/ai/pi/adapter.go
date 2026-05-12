@@ -1,8 +1,6 @@
 package pi
 
 import (
-	"context"
-
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
@@ -12,31 +10,15 @@ func init() {
 	})
 }
 
-type piAdapter struct {
-	invoker   *Invoker
-	collector *Collector
-}
-
+// NewAdapter constructs a pi engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter, error) {
 	inv, err := NewInvoker(binaryPath, extraEnv)
 	if err != nil {
 		return nil, err
 	}
-	return &piAdapter{invoker: inv, collector: NewCollector()}, nil
-}
-
-func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
-func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,
-	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
-	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-	return ai.NewRunResult(proc, out, err, func() string {
-		return ExtractResultFromLog(logPath)
-	})
-}
-
-func (a *piAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
-	return a.collector.Collect(ctx, sessionID)
+	return &ai.BaseAdapter{
+		Invoker:   inv,
+		Collector: NewCollector(),
+		Extract:   ExtractResultFromLog,
+	}, nil
 }
