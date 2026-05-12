@@ -12,6 +12,13 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
+const (
+	kimiRoleAssistant = "assistant"
+	kimiToolShell     = "Shell"
+	kimiContentText   = "text"
+	kimiEmptyPrefix   = "(Empty response:"
+)
+
 // Invoker spawns Kimi CLI processes. It is immutable after construction and safe for concurrent use.
 type Invoker struct {
 	binary  string
@@ -87,11 +94,11 @@ func ExtractResultFromLog(logPath string) string {
 	var lastText, lastSentMsg string
 	ai.ScanJSONLines(f, func(line string) bool {
 		var msg kimiMessage
-		if json.Unmarshal([]byte(line), &msg) != nil || msg.Role != "assistant" {
+		if json.Unmarshal([]byte(line), &msg) != nil || msg.Role != kimiRoleAssistant {
 			return true
 		}
 		for _, tc := range msg.ToolCalls {
-			if tc.Function.Name == "Shell" {
+			if tc.Function.Name == kimiToolShell {
 				var args struct {
 					Command string `json:"command"`
 				}
@@ -107,7 +114,7 @@ func ExtractResultFromLog(logPath string) string {
 		}
 		var s string
 		if json.Unmarshal(msg.Content, &s) == nil && s != "" {
-			if !strings.HasPrefix(s, "(Empty response:") {
+			if !strings.HasPrefix(s, kimiEmptyPrefix) {
 				lastText = s
 			}
 			return true
@@ -117,7 +124,7 @@ func ExtractResultFromLog(logPath string) string {
 			return true
 		}
 		for _, b := range blocks {
-			if b.Type == "text" && b.Text != "" && !strings.HasPrefix(b.Text, "(Empty response:") {
+			if b.Type == kimiContentText && b.Text != "" && !strings.HasPrefix(b.Text, kimiEmptyPrefix) {
 				lastText = b.Text
 				break
 			}

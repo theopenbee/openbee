@@ -38,6 +38,12 @@ func NewCollectorAt(mappingDir, codexBase string) *Collector {
 	return &Collector{mappingDir: mappingDir, codexBase: codexBase}
 }
 
+const (
+	codexLineTurnContext = "turn_context"
+	codexLineEventMsg    = "event_msg"
+	codexPayloadTokens   = "token_count"
+)
+
 type codexJSONLLine struct {
 	Type    string `json:"type"`
 	Payload struct {
@@ -129,12 +135,12 @@ func parseCodexFile(path string) ([]ai.TokenUsage, error) {
 			return
 		}
 		switch line.Type {
-		case "turn_context":
+		case codexLineTurnContext:
 			if line.Payload.Model != "" {
 				currentModel = line.Payload.Model
 			}
-		case "event_msg":
-			if line.Payload.Type != "" && line.Payload.Type != "token_count" {
+		case codexLineEventMsg:
+			if line.Payload.Type != "" && line.Payload.Type != codexPayloadTokens {
 				return
 			}
 			info := line.tokenInfo()

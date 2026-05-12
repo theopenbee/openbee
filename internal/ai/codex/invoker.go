@@ -16,6 +16,12 @@ import (
 
 var log = logger.With(zap.String("component", "codex"))
 
+const (
+	codexEventThreadStarted = "thread.started"
+	codexEventItemCompleted = "item.completed"
+	codexItemAgentMessage   = "agent_message"
+)
+
 // Invoker spawns Codex CLI processes and is safe for concurrent use.
 type Invoker struct {
 	binary  string
@@ -68,7 +74,7 @@ func extractSessionID(r io.Reader) string {
 		if json.Unmarshal([]byte(line), &event) != nil {
 			return true
 		}
-		if event.Type == "thread.started" && event.ThreadID != "" {
+		if event.Type == codexEventThreadStarted && event.ThreadID != "" {
 			threadID = event.ThreadID
 			return false
 		}
@@ -92,8 +98,8 @@ func ExtractResultFromLog(logPath string) string {
 		if json.Unmarshal([]byte(line), &event) != nil {
 			return true
 		}
-		if event.Type == "item.completed" && event.Item != nil &&
-			event.Item.Type == "agent_message" && event.Item.Text != "" {
+		if event.Type == codexEventItemCompleted && event.Item != nil &&
+			event.Item.Type == codexItemAgentMessage && event.Item.Text != "" {
 			lastText = event.Item.Text
 		}
 		return true
