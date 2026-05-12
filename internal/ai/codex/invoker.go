@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -21,6 +22,31 @@ const (
 	codexEventItemCompleted = "item.completed"
 	codexItemAgentMessage   = "agent_message"
 )
+
+// switchableWriter writes to main always, and to branch when set. branch can
+// be detached at runtime so subsequent writes go only to main.
+type switchableWriter struct {
+	mu     sync.Mutex
+	main   io.Writer
+	branch io.Writer
+}
+
+func (s *switchableWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	branch := s.branch
+	s.mu.Unlock()
+	n, err := s.main.Write(p)
+	if branch != nil && n > 0 {
+		_, _ = branch.Write(p[:n])
+	}
+	return n, err
+}
+
+func (s *switchableWriter) Detach() {
+	s.mu.Lock()
+	s.branch = nil
+	s.mu.Unlock()
+}
 
 // Invoker spawns Codex CLI processes and is safe for concurrent use.
 type Invoker struct {
@@ -118,7 +144,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 	}
 
 	pr, pw := io.Pipe()
-	writer := io.MultiWriter(logFile, pw)
+	writer := &switchableWriter{main: logFile, branch: pw}
 
 	cmd := exec.CommandContext(ctx, inv.binary, args...)
 	cmd.Dir = workDir
@@ -148,6 +174,7 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 		doneCh := make(chan error, 1)
 		go func() {
 			doneCh <- cmd.Wait()
+			writer.Detach()
 			pw.Close()
 		}()
 
@@ -156,9 +183,10 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.Run
 				if err := inv.store.Set(opts.SessionID, newThreadID); err != nil {
 					log.Error("store codex session", zap.String("uuid", opts.SessionID), zap.Error(err))
 				}
+				writer.Detach() // stop branching to pipe — pipe writes are no-ops now
 			}
 		}
-		io.Copy(io.Discard, pr)
+		io.Copy(io.Discard, pr) // drain any bytes still in the pipe before pw closes
 
 		if err := <-doneCh; err != nil {
 			ch <- ai.Output{Type: ai.OutputError, Content: err.Error()}
