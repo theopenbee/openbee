@@ -109,9 +109,12 @@ func extractSessionID(r io.Reader) string {
 	return threadID
 }
 
-// ExtractResultFromLog scans a Codex JSON log file and returns the text of the
-// last agent_message item, or "" if none found.
-func ExtractResultFromLog(logPath string) string {
+// Extractor reads the result text from a Codex JSON log file: returns the text
+// of the last agent_message item, or "" if none found.
+type Extractor struct{}
+
+// Extract implements core.Extractor.
+func (Extractor) Extract(logPath string) string {
 	f, err := os.Open(logPath)
 	if err != nil {
 		return ""
