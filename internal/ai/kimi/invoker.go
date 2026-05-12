@@ -1,6 +1,7 @@
 package kimi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -109,21 +110,26 @@ func ExtractResultFromLog(logPath string) string {
 		if len(msg.Content) == 0 {
 			return true
 		}
-		var s string
-		if json.Unmarshal(msg.Content, &s) == nil && s != "" {
-			if !strings.HasPrefix(s, kimiEmptyPrefix) {
+		trimmed := bytes.TrimSpace(msg.Content)
+		if len(trimmed) == 0 {
+			return true
+		}
+		switch trimmed[0] {
+		case '"':
+			var s string
+			if json.Unmarshal(msg.Content, &s) == nil && s != "" && !strings.HasPrefix(s, kimiEmptyPrefix) {
 				lastText = s
 			}
-			return true
-		}
-		var blocks []kimiContentBlock
-		if json.Unmarshal(msg.Content, &blocks) != nil {
-			return true
-		}
-		for _, b := range blocks {
-			if b.Type == kimiContentText && b.Text != "" && !strings.HasPrefix(b.Text, kimiEmptyPrefix) {
-				lastText = b.Text
-				break
+		case '[':
+			var blocks []kimiContentBlock
+			if json.Unmarshal(msg.Content, &blocks) != nil {
+				return true
+			}
+			for _, b := range blocks {
+				if b.Type == kimiContentText && b.Text != "" && !strings.HasPrefix(b.Text, kimiEmptyPrefix) {
+					lastText = b.Text
+					break
+				}
 			}
 		}
 		return true
