@@ -159,3 +159,12 @@ func TestNewEngineAdapter_CollectDelegates(t *testing.T) {
 	}
 }
 
+func TestNewEngineAdapter_CollectPropagatesError(t *testing.T) {
+	wantErr := errors.New("boom")
+	a := core.NewEngineAdapter(&fakeBackend{collectErr: wantErr})
+	_, err := a.CollectTokenUsage(context.Background(), "sid")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("want wantErr, got %v", err)
+	}
+}
+
