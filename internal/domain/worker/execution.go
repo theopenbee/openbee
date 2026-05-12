@@ -101,12 +101,12 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 	for out := range runRes.Output {
 		switch out.Type {
 		case ai.OutputDone:
-			result := runRes.ExtractResult(logPath)
+			result := runRes.ExtractResult()
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 			finalized = true
 		case ai.OutputError:
-			result := runRes.ExtractResult(logPath)
+			result := runRes.ExtractResult()
 			if result == "" {
 				result = out.Content
 			}
@@ -120,7 +120,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		// Output channel closed without a terminal Done/Error signal —
 		// process was killed, crashed, or signal-terminated. Without this
 		// fallback the execution would stay in `running` forever.
-		result := runRes.ExtractResult(logPath)
+		result := runRes.ExtractResult()
 		if result == "" {
 			result = "process exited without completion signal"
 		}

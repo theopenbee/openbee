@@ -32,7 +32,9 @@ func (a *piAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 func (a *piAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
+	return ai.NewRunResult(proc, out, err, func() string {
+		return ExtractResultFromLog(logPath)
+	})
 }
 
 func (a *piAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {

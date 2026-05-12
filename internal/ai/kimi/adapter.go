@@ -31,7 +31,9 @@ func (a *kimiAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
 func (a *kimiAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := a.invoker.Run(ctx, workDir, prompt, opts, logPath)
-	return ai.NewRunResult(proc, out, err, ExtractResultFromLog)
+	return ai.NewRunResult(proc, out, err, func() string {
+		return ExtractResultFromLog(logPath)
+	})
 }
 
 func (a *kimiAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {

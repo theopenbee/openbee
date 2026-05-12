@@ -22,7 +22,7 @@ func (s *stubEngine) Prepare(workDir string, _ ai.PrepareOptions) error {
 func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	name := s.name
 	return ai.RunResult{
-		ExtractResult: func(string) string { return name + "-result" },
+		ExtractResult: func() string { return name + "-result" },
 	}, errors.New(s.name + " run called")
 }
 func (s *stubEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
@@ -71,7 +71,7 @@ func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
 	// Simulate /engine switch mid-execution.
 	cfg.Set("b")
 
-	if got := res.ExtractResult("/log"); got != "a-result" {
+	if got := res.ExtractResult(); got != "a-result" {
 		t.Errorf("expected Run-time engine 'a' extractor; got %s", got)
 	}
 }

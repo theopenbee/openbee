@@ -25,7 +25,7 @@ func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ stri
 	ch := make(chan ai.Output, 1)
 	ch <- ai.Output{Type: ai.OutputDone}
 	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func() string { return "" }}, nil
 }
 
 func (m *mockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
@@ -46,7 +46,7 @@ func (e *silentMockEngine) Prepare(_ string, _ ai.PrepareOptions) error { return
 func (e *silentMockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output)
 	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func() string { return "" }}, nil
 }
 
 func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {

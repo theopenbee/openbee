@@ -83,7 +83,7 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 		ch <- l
 	}
 	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func() string { return "" }}, nil
 }
 
 func (m *mockBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
@@ -600,7 +600,7 @@ func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions,
 		ch <- ai.Output{Type: ai.OutputDone}
 		close(ch)
 	}()
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func() string { return "" }}, nil
 }
 
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {

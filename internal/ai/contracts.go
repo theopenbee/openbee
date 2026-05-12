@@ -68,11 +68,11 @@ type Process interface {
 type RunResult struct {
 	Process       Process
 	Output        <-chan Output
-	ExtractResult func(logPath string) string
+	ExtractResult func() string
 }
 
 // NewRunResult builds a RunResult, propagating err unchanged.
-func NewRunResult(proc Process, out <-chan Output, err error, extract func(logPath string) string) (RunResult, error) {
+func NewRunResult(proc Process, out <-chan Output, err error, extract func() string) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
