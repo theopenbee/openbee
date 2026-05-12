@@ -59,8 +59,7 @@ func (h *ListCommandHandler) HandleCommand(ctx context.Context, content string, 
 
 	if keyword != "" {
 		kw := strings.ToLower(keyword)
-		// 3-index slice: zero cap forces a fresh backing array, no aliasing with workers.
-		filtered := workers[:0:0]
+		filtered := make([]model.Worker, 0, len(workers))
 		for _, w := range workers {
 			if strings.Contains(strings.ToLower(w.Description), kw) {
 				filtered = append(filtered, w)
@@ -69,24 +68,23 @@ func (h *ListCommandHandler) HandleCommand(ctx context.Context, content string, 
 		workers = filtered
 	}
 
-	sort.SliceStable(workers, func(i, j int) bool { return workers[i].Name < workers[j].Name })
+	sort.Slice(workers, func(i, j int) bool { return workers[i].Name < workers[j].Name })
 	h.reply(ctx, replyTo, formatList(keyword, workers))
 	return true
 }
 
 func formatList(keyword string, workers []model.Worker) string {
 	m := i18n.M.Runtime.ListCommand
+	header := fmt.Sprintf(m.HeaderAll, len(workers))
+	empty := m.EmptyAll
+	if keyword != "" {
+		header = fmt.Sprintf(m.HeaderSearch, keyword, len(workers))
+		empty = m.EmptySearch
+	}
 	lines := make([]string, 0, len(workers)+2)
-	if keyword == "" {
-		lines = append(lines, fmt.Sprintf(m.HeaderAll, len(workers)))
-		if len(workers) == 0 {
-			lines = append(lines, m.EmptyAll)
-		}
-	} else {
-		lines = append(lines, fmt.Sprintf(m.HeaderSearch, keyword, len(workers)))
-		if len(workers) == 0 {
-			lines = append(lines, m.EmptySearch)
-		}
+	lines = append(lines, header)
+	if len(workers) == 0 {
+		lines = append(lines, empty)
 	}
 	for _, w := range workers {
 		lines = append(lines, fmt.Sprintf(m.Line, w.Name, statusLabel(w.Status), w.Description))

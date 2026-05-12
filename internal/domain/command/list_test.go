@@ -3,6 +3,7 @@ package command_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -65,7 +66,8 @@ func TestListCommand_EmptyDirectory(t *testing.T) {
 		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
 	}
 	out := sender.sent[0]
-	for _, want := range []string{"员工列表（共 0 个）：", "  (暂无员工)"} {
+	m := i18n.M.Runtime.ListCommand
+	for _, want := range []string{fmt.Sprintf(m.HeaderAll, 0), m.EmptyAll} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
 		}
@@ -81,8 +83,9 @@ func TestListCommand_AllWorkersSortedByName(t *testing.T) {
 	h, sender := makeListHandler(workers, nil)
 	h.HandleCommand(context.Background(), "/list", makeReplyTo())
 	out := sender.sent[0]
+	m := i18n.M.Runtime.ListCommand
 
-	if !strings.Contains(out, "员工列表（共 3 个）：") {
+	if !strings.Contains(out, fmt.Sprintf(m.HeaderAll, 3)) {
 		t.Errorf("missing header\n%s", out)
 	}
 	// expected sort: 小乔 < 张三 < 李四 (by Go's default string < on UTF-8 bytes)
@@ -97,9 +100,9 @@ func TestListCommand_AllWorkersSortedByName(t *testing.T) {
 			idxXiao, idxZhang, idxLi, out)
 	}
 	for _, want := range []string{
-		"  - 小乔   状态: 空闲   负责 openbee 开发",
-		"  - 张三   状态: 工作中   前端开发",
-		"  - 李四   状态: 异常   后端开发",
+		fmt.Sprintf(m.Line, "小乔", m.StatusIdle, "负责 openbee 开发"),
+		fmt.Sprintf(m.Line, "张三", m.StatusWorking, "前端开发"),
+		fmt.Sprintf(m.Line, "李四", m.StatusError, "后端开发"),
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing line %q\n%s", want, out)
@@ -117,8 +120,9 @@ func TestListCommand_KeywordSubstringMatch(t *testing.T) {
 	h.HandleCommand(context.Background(), "/list openbee", makeReplyTo())
 	out := sender.sent[0]
 
-	if !strings.Contains(out, `匹配 "openbee" 的员工（共 2 个）：`) {
-		t.Errorf("missing search header\n%s", out)
+	wantHeader := fmt.Sprintf(i18n.M.Runtime.ListCommand.HeaderSearch, "openbee", 2)
+	if !strings.Contains(out, wantHeader) {
+		t.Errorf("missing search header %q\n%s", wantHeader, out)
 	}
 	if strings.Contains(out, "alice") {
 		t.Errorf("alice should be filtered out\n%s", out)
@@ -147,7 +151,8 @@ func TestListCommand_KeywordNoMatch(t *testing.T) {
 	h, sender := makeListHandler(workers, nil)
 	h.HandleCommand(context.Background(), "/list zzznope", makeReplyTo())
 	out := sender.sent[0]
-	for _, want := range []string{`匹配 "zzznope" 的员工（共 0 个）：`, "  (无匹配的员工)"} {
+	m := i18n.M.Runtime.ListCommand
+	for _, want := range []string{fmt.Sprintf(m.HeaderSearch, "zzznope", 0), m.EmptySearch} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q\n%s", want, out)
 		}
@@ -177,7 +182,8 @@ func TestListCommand_StatusLabels(t *testing.T) {
 	h, sender := makeListHandler(workers, nil)
 	h.HandleCommand(context.Background(), "/list", makeReplyTo())
 	out := sender.sent[0]
-	for _, want := range []string{"空闲", "工作中", "异常"} {
+	m := i18n.M.Runtime.ListCommand
+	for _, want := range []string{m.StatusIdle, m.StatusWorking, m.StatusError} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing status label %q\n%s", want, out)
 		}
