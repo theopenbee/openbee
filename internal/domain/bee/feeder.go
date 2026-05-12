@@ -118,9 +118,6 @@ func (f *Feeder) Run(ctx context.Context) {
 	if err := os.MkdirAll(f.workDir, 0o755); err != nil {
 		log.Error("create bee workspace", zap.Error(err))
 	}
-	if err := f.runner.Prepare(f.workDir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
-		log.Error("setup bee workspace", zap.Error(err))
-	}
 	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
 	for {

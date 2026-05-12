@@ -42,6 +42,9 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Se
 	}
 }
 
+// Prepare is a transitional no-op kept so BeeProcess still satisfies
+// ai.EngineAdapter while Task 3 of the refactor removes Prepare from the
+// interface entirely. The actual cleanup now lives in claudeAdapter.Run.
 func (p *BeeProcess) Prepare(workDir string, opts ai.PrepareOptions) error {
 	return p.engine.Prepare(workDir, opts)
 }
