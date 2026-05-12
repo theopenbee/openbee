@@ -45,7 +45,7 @@ accordingly, but the test files still carry the old conceptual names
 |---|---|---|
 | Merge + repackage | `invoker_test.go` + `token_usage_test.go` | `backend_test.go` |
 | Keep | `session_store_test.go` | unchanged |
-| Delete | `adapter_test.go` | compile-time assertion `var _ ai.EngineAdapter = (*Adapter)(nil)` is moved into `adapter.go` |
+| Delete | `adapter_test.go` | the runtime type assertion is redundant with `NewAdapter`'s return type and is dropped entirely |
 
 ### pi/
 
@@ -67,9 +67,11 @@ accordingly, but the test files still carry the old conceptual names
    file (both call `cleanupLegacyRules` on an empty directory and assert no
    error). Drop the stub.
 2. **`codex/adapter_test.go::TestAdapter_ExtraEnvInBaseEnv`** — the only
-   meaningful assertion is the compile-time `var _ ai.EngineAdapter = a`
-   line. Move that assertion into `adapter.go` as a package-level
-   `var _ ai.EngineAdapter = (*Adapter)(nil)` and delete the runtime test.
+   meaningful assertion (`var _ ai.EngineAdapter = a`) is already
+   guaranteed by `NewAdapter`'s declared return type
+   `(ai.EngineAdapter, error)`. The runtime test adds nothing over the
+   function signature and is deleted entirely; no source-file change
+   needed.
 
 ## Implementation Notes
 
@@ -99,7 +101,6 @@ After the reorg:
 
 ## Out of Scope
 
-- No production code changes beyond the single line moved into
-  `codex/adapter.go`.
+- No production code changes.
 - No new test coverage. This reorg only relocates and deletes; existing
   assertions are preserved.
