@@ -75,15 +75,17 @@ func extractSentMsg(command string) string {
 	return m[1]
 }
 
-// ExtractResultFromLog scans a Kimi stream-json log and returns the last
-// meaningful result text, or "" if none found.
+// Extractor reads the result text from a Kimi stream-json log.
 //
 // The content field may be a plain string or an array of content blocks.
 // Text blocks starting with "(Empty response:" are skipped — when Kimi ends
 // with such a placeholder, the actual response was already sent to the user
 // via `openbee ctl message send --stdin`. In that case the heredoc body from
 // the last matching Shell tool call is returned instead.
-func ExtractResultFromLog(logPath string) string {
+type Extractor struct{}
+
+// Extract implements core.Extractor.
+func (Extractor) Extract(logPath string) string {
 	f, err := os.Open(logPath)
 	if err != nil {
 		return ""
