@@ -33,7 +33,7 @@ func TestBaseAdapter_RunBindsExtract(t *testing.T) {
 	ch := make(chan ai.Output)
 	close(ch)
 	var capturedLogPath string
-	b := &core.BaseAdapter{
+	b := &core.Composite{
 		Invoker:   &fakeInvoker{ch: ch},
 		Collector: &fakeCollector{},
 		Extractor: &fakeExtractor{captured: &capturedLogPath, result: "x"},
@@ -52,7 +52,7 @@ func TestBaseAdapter_RunBindsExtract(t *testing.T) {
 
 func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 	wantErr := errors.New("boom")
-	b := &core.BaseAdapter{
+	b := &core.Composite{
 		Invoker:   &fakeInvoker{err: wantErr},
 		Collector: &fakeCollector{},
 		Extractor: &fakeExtractor{},
@@ -65,7 +65,7 @@ func TestBaseAdapter_RunPropagatesError(t *testing.T) {
 
 func TestBaseAdapter_CollectDelegates(t *testing.T) {
 	want := []ai.TokenUsage{{Model: "m", InputTokens: 7}}
-	b := &core.BaseAdapter{
+	b := &core.Composite{
 		Invoker:   &fakeInvoker{},
 		Collector: &fakeCollector{usages: want},
 		Extractor: &fakeExtractor{},

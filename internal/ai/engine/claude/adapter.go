@@ -26,16 +26,16 @@ func init() {
 	})
 }
 
-// claudeAdapter embeds core.BaseAdapter and wraps Run to clean up the legacy
+// claudeAdapter embeds core.Composite and wraps Run to clean up the legacy
 // openbee rules file and matching import line in CLAUDE.md before each run.
 type claudeAdapter struct {
-	*core.BaseAdapter
+	*core.Composite
 }
 
 // NewAdapter constructs a Claude engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &claudeAdapter{
-		BaseAdapter: &core.BaseAdapter{
+		Composite: &core.Composite{
 			Invoker:   NewInvoker(binaryPath, extraEnv),
 			Collector: NewCollector(),
 			Extractor: Extractor{},
@@ -43,13 +43,13 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter 
 	}
 }
 
-// Run cleans up legacy openbee rules before delegating to the embedded BaseAdapter.
+// Run cleans up legacy openbee rules before delegating to the embedded Composite.
 func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	if err := cleanupLegacyRules(workDir); err != nil {
 		return ai.RunResult{}, err
 	}
-	return a.BaseAdapter.Run(ctx, workDir, prompt, opts, logPath)
+	return a.Composite.Run(ctx, workDir, prompt, opts, logPath)
 }
 
 func cleanupLegacyRules(workDir string) error {

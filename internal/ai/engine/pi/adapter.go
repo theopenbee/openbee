@@ -17,7 +17,7 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter
 	if err != nil {
 		return nil, err
 	}
-	return &core.BaseAdapter{
+	return &core.Composite{
 		Invoker:   inv,
 		Collector: NewCollector(),
 		Extractor: Extractor{},

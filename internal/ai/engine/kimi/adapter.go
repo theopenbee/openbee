@@ -13,7 +13,7 @@ func init() {
 
 // NewAdapter constructs a Kimi engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
-	return &core.BaseAdapter{
+	return &core.Composite{
 		Invoker:   NewInvoker(binaryPath, extraEnv),
 		Collector: NewCollector(),
 		Extractor: Extractor{},

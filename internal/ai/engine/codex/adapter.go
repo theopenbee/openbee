@@ -19,7 +19,7 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) (ai.EngineAdapter
 	if err != nil {
 		return nil, fmt.Errorf("init codex session store: %w", err)
 	}
-	return &core.BaseAdapter{
+	return &core.Composite{
 		Invoker:   NewInvoker(binaryPath, store, extraEnv),
 		Collector: NewCollector(),
 		Extractor: Extractor{},

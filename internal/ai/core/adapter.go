@@ -21,19 +21,17 @@ type Extractor interface {
 	Extract(logPath string) string
 }
 
-// BaseAdapter implements the EngineAdapter parts that are identical across
-// engines: Run wires the invoker output into a RunResult with a bound result
-// extractor; CollectTokenUsage delegates to the collector. Engines embed
-// BaseAdapter and optionally override Run.
-type BaseAdapter struct {
+// Composite is the transitional struct previously named BaseAdapter. It is
+// being replaced by the BaseAdapter interface and will be removed once every
+// engine migrates to core.NewEngineAdapter. New code MUST NOT reference it.
+type Composite struct {
 	Invoker   Invoker
 	Collector Collector
-	// Extractor is the per-engine result extractor bound to logPath in Run.
 	Extractor Extractor
 }
 
 // Run launches the invoker and binds the extractor to logPath in the returned RunResult.
-func (b *BaseAdapter) Run(ctx context.Context, workDir, prompt string,
+func (b *Composite) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := b.Invoker.Run(ctx, workDir, prompt, opts, logPath)
 	return ai.NewRunResult(proc, out, err, func() string {
@@ -42,6 +40,6 @@ func (b *BaseAdapter) Run(ctx context.Context, workDir, prompt string,
 }
 
 // CollectTokenUsage delegates to the embedded collector.
-func (b *BaseAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
+func (b *Composite) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
 	return b.Collector.Collect(ctx, sessionID)
 }
