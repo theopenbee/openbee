@@ -2,6 +2,7 @@ package claude
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,10 +14,10 @@ import (
 )
 
 const (
-	// SystemRulesFile is the legacy rules file Claude's Prepare cleans up.
-	SystemRulesFile = ".openbee.md"
-	// ImportLine is the legacy reference line removed from CLAUDE.md.
-	ImportLine = "@" + SystemRulesFile
+	// systemRulesFile is the legacy rules file Claude's Run cleanup removes.
+	systemRulesFile = ".openbee.md"
+	// importLine is the legacy reference line removed from CLAUDE.md.
+	importLine = "@" + systemRulesFile
 )
 
 func init() {
@@ -25,13 +26,13 @@ func init() {
 	})
 }
 
-// claudeAdapter embeds core.BaseAdapter and overrides Prepare to clean up the
-// legacy openbee rules file and matching import line in CLAUDE.md.
+// claudeAdapter embeds core.BaseAdapter and wraps Run to clean up the legacy
+// openbee rules file and matching import line in CLAUDE.md before each run.
 type claudeAdapter struct {
 	*core.BaseAdapter
 }
 
-// NewAdapter constructs a Claude engine adapter with Claude-specific Prepare.
+// NewAdapter constructs a Claude engine adapter.
 func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter {
 	return &claudeAdapter{
 		BaseAdapter: &core.BaseAdapter{
@@ -42,11 +43,19 @@ func NewAdapter(binaryPath string, extraEnv map[string]string) ai.EngineAdapter 
 	}
 }
 
-// Prepare removes the legacy .openbee.md rules file and its import line from CLAUDE.md.
-func (a *claudeAdapter) Prepare(workDir string, _ ai.PrepareOptions) error {
-	rulesPath := filepath.Join(workDir, SystemRulesFile)
+// Run cleans up legacy openbee rules before delegating to the embedded BaseAdapter.
+func (a *claudeAdapter) Run(ctx context.Context, workDir, prompt string,
+	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+	if err := cleanupLegacyRules(workDir); err != nil {
+		return ai.RunResult{}, err
+	}
+	return a.BaseAdapter.Run(ctx, workDir, prompt, opts, logPath)
+}
+
+func cleanupLegacyRules(workDir string) error {
+	rulesPath := filepath.Join(workDir, systemRulesFile)
 	if err := os.Remove(rulesPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("remove %s: %w", SystemRulesFile, err)
+		return fmt.Errorf("remove %s: %w", systemRulesFile, err)
 	}
 	return removeImportLine(workDir)
 }
@@ -61,7 +70,7 @@ func removeImportLine(workDir string) error {
 		return fmt.Errorf("read CLAUDE.md: %w", err)
 	}
 
-	target := []byte(ImportLine)
+	target := []byte(importLine)
 	lines := bytes.Split(data, []byte("\n"))
 	out := lines[:0]
 	for _, line := range lines {
@@ -75,3 +84,7 @@ func removeImportLine(workDir string) error {
 	}
 	return os.WriteFile(claudePath, cleaned, 0o644)
 }
+
+// Prepare is retained as a transitional no-op so existing callers keep
+// compiling; it will be removed once callers and the interface are cleaned up.
+func (a *claudeAdapter) Prepare(string, ai.PrepareOptions) error { return nil }
