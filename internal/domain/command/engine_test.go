@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	bridge "github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -104,7 +104,7 @@ func (f *fakeWorkerBusyChecker) HasActiveImmediateTasksByWorkerID(_ context.Cont
 	return f.activeTasks, f.err
 }
 
-var defaultValidator = &fakeValidator{engines: ai.AllEngines()}
+var defaultValidator = &fakeValidator{engines: bridge.AllEngines()}
 var notBeeBusy    = &fakeBeeBusyChecker{}
 var notWorkerBusy = &fakeWorkerBusyChecker{}
 

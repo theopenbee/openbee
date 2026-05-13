@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -347,11 +346,7 @@ func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, in
 			Constraints: worker.Constraints,
 		}
 	}
-	prompt := core.BuildSessionPrompt(core.SessionRequest{
-		Role:     ai.RoleWorker,
-		Identity: identity,
-		Content:  instruction,
-	})
+	prompt := core.BuildWorkerSessionPrompt(identity, false, instruction)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
@@ -371,11 +366,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	resumePrompt := core.BuildSessionPrompt(core.SessionRequest{
-		Role:    ai.RoleWorker,
-		Resume:  true,
-		Content: instruction,
-	})
+	resumePrompt := core.BuildWorkerSessionPrompt(core.WorkerIdentity{}, true, instruction)
 	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, resumePrompt, sessionID, true)
 	if err == nil {
 		return exec, nil

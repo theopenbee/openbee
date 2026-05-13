@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	bridge "github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -116,7 +116,7 @@ type mockSessionRef struct {
 
 func normalizeMockEngine(engine string) string {
 	if engine == "" {
-		return ai.EngineClaude
+		return bridge.EngineClaude
 	}
 	return engine
 }
