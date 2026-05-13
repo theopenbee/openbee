@@ -9,6 +9,7 @@ import (
 	"sync"
 	"unicode"
 
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
@@ -351,6 +352,6 @@ func ResolveExtraArgs(engineName string, layers ...string) string {
 // CLI lexer (single/double quotes, backslash escape). Used at config
 // ingestion to surface typos before they hit a running engine.
 func ValidateExtraArgs(s string) error {
-	_, err := splitCLIArgs(s)
+	_, err := cliargs.SplitArgs(s)
 	return err
 }

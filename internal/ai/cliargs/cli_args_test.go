@@ -1,15 +1,15 @@
-package core_test
+package cliargs_test
 
 import (
 	"slices"
 	"strings"
 	"testing"
 
-	core "github.com/theopenbee/openbee/internal/ai/core"
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 )
 
 func TestSplitArgs_PreservesOrderAndQuotedValues(t *testing.T) {
-	got, err := core.SplitArgs(`--model claude-sonnet-4-5 --append-system-prompt "be terse" --verbose`)
+	got, err := cliargs.SplitArgs(`--model claude-sonnet-4-5 --append-system-prompt "be terse" --verbose`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestSplitArgs_PreservesOrderAndQuotedValues(t *testing.T) {
 }
 
 func TestSplitArgs_PreservesDuplicateFlags(t *testing.T) {
-	got, err := core.SplitArgs(`--include src --include test`)
+	got, err := cliargs.SplitArgs(`--include src --include test`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestSplitArgs_PreservesDuplicateFlags(t *testing.T) {
 }
 
 func TestSplitArgs_PreservesEmptyQuotedValue(t *testing.T) {
-	got, err := core.SplitArgs(`--append-system-prompt "" --verbose`)
+	got, err := cliargs.SplitArgs(`--append-system-prompt "" --verbose`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestSplitArgs_PreservesEmptyQuotedValue(t *testing.T) {
 }
 
 func TestSplitArgs_HandlesSingleQuotes(t *testing.T) {
-	got, err := core.SplitArgs(`--msg 'hello world'`)
+	got, err := cliargs.SplitArgs(`--msg 'hello world'`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestSplitArgs_HandlesSingleQuotes(t *testing.T) {
 }
 
 func TestSplitArgs_HandlesBackslashEscape(t *testing.T) {
-	got, err := core.SplitArgs(`a\ b c`)
+	got, err := cliargs.SplitArgs(`a\ b c`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestSplitArgs_HandlesBackslashEscape(t *testing.T) {
 }
 
 func TestSplitArgs_HandlesEscapedQuoteInsideDoubleQuotes(t *testing.T) {
-	got, err := core.SplitArgs(`"a\"b"`)
+	got, err := cliargs.SplitArgs(`"a\"b"`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestSplitArgs_HandlesEscapedQuoteInsideDoubleQuotes(t *testing.T) {
 }
 
 func TestSplitArgs_EmptyStringReturnsEmpty(t *testing.T) {
-	got, err := core.SplitArgs("")
+	got, err := cliargs.SplitArgs("")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestSplitArgs_EmptyStringReturnsEmpty(t *testing.T) {
 }
 
 func TestSplitArgs_UnterminatedDoubleQuote(t *testing.T) {
-	_, err := core.SplitArgs(`--model "unterminated`)
+	_, err := cliargs.SplitArgs(`--model "unterminated`)
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
 	}
@@ -95,7 +95,7 @@ func TestSplitArgs_UnterminatedDoubleQuote(t *testing.T) {
 }
 
 func TestSplitArgs_UnterminatedSingleQuote(t *testing.T) {
-	_, err := core.SplitArgs(`--msg 'unterminated`)
+	_, err := cliargs.SplitArgs(`--msg 'unterminated`)
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
 	}
@@ -105,7 +105,7 @@ func TestSplitArgs_UnterminatedSingleQuote(t *testing.T) {
 }
 
 func TestSplitArgs_UnterminatedEscape(t *testing.T) {
-	_, err := core.SplitArgs(`--flag value\`)
+	_, err := cliargs.SplitArgs(`--flag value\`)
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
 	}

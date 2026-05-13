@@ -1,4 +1,4 @@
-package core
+package cliargs
 
 import (
 	"fmt"
