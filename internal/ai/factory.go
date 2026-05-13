@@ -23,15 +23,20 @@ const (
 	EngineKimi   = "kimi"
 )
 
-// AllEngines returns the canonical engine name list in registration order.
+var allEngineNames = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
+
+// AllEngines returns the canonical engine name list in declaration
+// order. It is independent of which engine packages have been
+// imported, so callers that build engine-name maps (e.g., config UIs,
+// tokenstat fallback chains) get a stable list without needing blank
+// imports of every engine.
+//
+// Use Factory.Names() when you need the names actually registered in
+// a particular Factory instance.
 func AllEngines() []string {
-	registrationsMu.Lock()
-	defer registrationsMu.Unlock()
-	names := make([]string, 0, len(registrations))
-	for _, r := range registrations {
-		names = append(names, r.name)
-	}
-	return names
+	cp := make([]string, len(allEngineNames))
+	copy(cp, allEngineNames)
+	return cp
 }
 
 // =========================================================
