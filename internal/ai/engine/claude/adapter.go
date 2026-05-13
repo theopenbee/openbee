@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	ai.Register(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+	ai.RegisterEngine(ai.EngineClaude, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		return NewAdapter(cfg.PathOrDefault(ai.EngineClaude), cfg.ExtraEnv()), nil
 	})
 }

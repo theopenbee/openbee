@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	ai.Register(ai.EngineCodex, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
+	ai.RegisterEngine(ai.EngineCodex, func(cfg ai.EngineConfig) (ai.EngineAdapter, error) {
 		return NewAdapter(cfg.PathOrDefault(ai.EngineCodex), cfg.ExtraEnv())
 	})
 }
