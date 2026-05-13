@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"unicode"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -79,24 +78,6 @@ type RunResult struct {
 	Process       Process
 	Output        <-chan Output
 	ExtractResult func() string
-}
-
-// NewRunResult builds a RunResult, propagating err unchanged. The provided
-// extract function is wrapped with sync.Once so ExtractResult only runs the
-// underlying scan the first time and returns the cached result thereafter.
-func NewRunResult(proc Process, out <-chan Output, err error, extract func() string) (RunResult, error) {
-	if err != nil {
-		return RunResult{}, err
-	}
-	var (
-		once   sync.Once
-		result string
-	)
-	memo := func() string {
-		once.Do(func() { result = extract() })
-		return result
-	}
-	return RunResult{Process: proc, Output: out, ExtractResult: memo}, nil
 }
 
 // EngineAdapter is the complete plugin contract for an AI engine.

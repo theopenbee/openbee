@@ -34,7 +34,7 @@ type engineAdapter struct{ base BaseAdapter }
 func (a *engineAdapter) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	proc, out, err := a.base.Run(ctx, workDir, prompt, opts, logPath)
-	return ai.NewRunResult(proc, out, err, func() string {
+	return NewRunResult(proc, out, err, func() string {
 		return a.base.Extract(logPath)
 	})
 }
