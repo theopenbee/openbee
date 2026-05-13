@@ -284,7 +284,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 }
 
 // buildEngineFactory constructs the ai.Factory and builds every enabled engine.
-// The returned Factory is the single source of truth for engine lookup and dynamic routing.
+// The factory's Enabled() map is then handed to ai/bridge, which owns routing.
 func buildEngineFactory(cfg config.BeeConfig) (*ai.Factory, error) {
 	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
 

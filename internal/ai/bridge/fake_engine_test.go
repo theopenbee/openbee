@@ -33,9 +33,11 @@ type fakeEngine struct {
 	usages     []ai.TokenUsage
 	usagesErr  error
 	proc       *fakeProcess
+	gotCtx     context.Context // captures the ctx engine.Run received
 }
 
-func (f *fakeEngine) Run(_ context.Context, _ string, _ string, opts ai.RunOptions, _ string) (ai.RunResult, error) {
+func (f *fakeEngine) Run(ctx context.Context, _ string, _ string, opts ai.RunOptions, _ string) (ai.RunResult, error) {
+	f.gotCtx = ctx
 	if f.runErr != nil {
 		return ai.RunResult{}, f.runErr
 	}

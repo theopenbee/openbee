@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"errors"
-	"strings"
 	"testing"
 )
 
@@ -42,11 +41,7 @@ func TestResolveEngineForBeeDelegates(t *testing.T) {
 
 func TestNewValidatesConfig(t *testing.T) {
 	_, err := New(Config{})
-	if err == nil || !strings.Contains(err.Error(), "invalid config") {
-		t.Fatalf("expected invalid-config error, got %v", err)
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got %v", err)
 	}
-	// Sanity: errors.Is should match the sentinel when wrapped properly
-	// in future work, even though the current implementation uses string
-	// concatenation; keep the test loose here.
-	_ = errors.Is
 }

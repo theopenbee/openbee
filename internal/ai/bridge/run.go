@@ -148,7 +148,7 @@ func (b *bridgeImpl) RunWorker(ctx context.Context, req WorkerRunRequest) (Handl
 	}
 	args := b.deps.ArgsResolver.ForWorker(ctx, req.EngineArgs, engineName)
 
-	execCtx, cancel := newRunContext(req.Timeout)
+	execCtx, cancel := newRunContext(ctx, req.Timeout)
 
 	res, err := engine.Run(execCtx, req.WorkDir, req.Prompt, ai.RunOptions{
 		SessionID: req.SessionID,
@@ -192,7 +192,7 @@ func (b *bridgeImpl) RunBee(ctx context.Context, req BeeRunRequest) (Handle, err
 	}
 	args := b.deps.ArgsResolver.ForBee(ctx, engineName)
 
-	execCtx, cancel := newRunContext(0) // bee currently has no explicit timeout
+	execCtx, cancel := newRunContext(ctx, 0) // bee timeout is owned by the caller's ctx
 
 	res, err := engine.Run(execCtx, req.WorkDir, req.Prompt, ai.RunOptions{
 		SessionID: req.SessionID,
@@ -218,9 +218,13 @@ func (b *bridgeImpl) RunBee(ctx context.Context, req BeeRunRequest) (Handle, err
 	return h, nil
 }
 
-func newRunContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+// newRunContext returns the context bridge uses for engine.Run. It derives
+// from the caller's parent ctx so cancellation (e.g. /stop, bee timeout)
+// propagates to the engine subprocess via exec.CommandContext. When timeout
+// is positive, it is layered on top.
+func newRunContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout > 0 {
-		return context.WithTimeout(context.Background(), timeout)
+		return context.WithTimeout(parent, timeout)
 	}
-	return context.WithCancel(context.Background())
+	return context.WithCancel(parent)
 }

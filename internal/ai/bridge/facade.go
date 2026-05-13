@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -43,21 +44,22 @@ type Config struct {
 var ErrInvalidConfig = errors.New("bridge: invalid config")
 
 // New returns a Bridge. It validates that all five ports are non-nil and
-// that Engines is non-empty.
+// that Engines is non-empty. All validation errors wrap ErrInvalidConfig
+// so callers can match with errors.Is.
 func New(cfg Config) (Bridge, error) {
 	switch {
 	case len(cfg.Engines) == 0:
-		return nil, errors.New("bridge: Config.Engines is empty: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Config.Engines is empty: %w", ErrInvalidConfig)
 	case cfg.Deps.TokenIssuer == nil:
-		return nil, errors.New("bridge: Deps.TokenIssuer is nil: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Deps.TokenIssuer is nil: %w", ErrInvalidConfig)
 	case cfg.Deps.EnvResolver == nil:
-		return nil, errors.New("bridge: Deps.EnvResolver is nil: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Deps.EnvResolver is nil: %w", ErrInvalidConfig)
 	case cfg.Deps.EngineSelector == nil:
-		return nil, errors.New("bridge: Deps.EngineSelector is nil: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Deps.EngineSelector is nil: %w", ErrInvalidConfig)
 	case cfg.Deps.ArgsResolver == nil:
-		return nil, errors.New("bridge: Deps.ArgsResolver is nil: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Deps.ArgsResolver is nil: %w", ErrInvalidConfig)
 	case cfg.Deps.LogPathProvider == nil:
-		return nil, errors.New("bridge: Deps.LogPathProvider is nil: " + ErrInvalidConfig.Error())
+		return nil, fmt.Errorf("Deps.LogPathProvider is nil: %w", ErrInvalidConfig)
 	}
 	return &bridgeImpl{engines: cfg.Engines, deps: cfg.Deps}, nil
 }

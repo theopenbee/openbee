@@ -91,10 +91,10 @@ func RegisterEngine(name string, ctor EngineConstructor) {
 // Section 3: Factory facade
 // =========================================================
 
-// Factory is the unified entry point for engine construction, lookup,
-// and dynamic routing. The composition root (internal/app/app.go)
-// builds one Factory, Builds the enabled engines, and hands derived
-// values (Enabled map / Dynamic adapter) to consumer code.
+// Factory is the entry point for engine construction and lookup. The
+// composition root (internal/app/app.go) builds one Factory, Builds the
+// enabled engines, and hands the resulting map to ai/bridge, which owns
+// routing.
 type Factory struct {
 	names []string
 	ctors map[string]EngineConstructor

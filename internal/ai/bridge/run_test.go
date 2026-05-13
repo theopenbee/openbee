@@ -106,6 +106,21 @@ func TestRunWorkerFailedOutcome(t *testing.T) {
 	}
 }
 
+// When the engine produced a final result before erroring (e.g. partial
+// stdout captured), prefer the extracted result over the event's Content.
+func TestRunWorkerFailedOutcome_PrefersExtractedResult(t *testing.T) {
+	ch := make(chan ai.Output, 1)
+	eng := &fakeEngine{pid: 1, scriptedCh: ch, extract: func() string { return "engine-result" }}
+	b := newTestBridge(t, eng, nil)
+	h, _ := b.RunWorker(context.Background(), WorkerRunRequest{})
+	ch <- ai.Output{Type: ai.OutputError, Content: "framework-error"}
+	close(ch)
+	got, _ := h.Wait(context.Background())
+	if got.Status != StatusFailed || got.Result != "engine-result" {
+		t.Fatalf("outcome: %+v; want StatusFailed with Result=engine-result", got)
+	}
+}
+
 func TestRunWorkerAbandonedOutcome(t *testing.T) {
 	ch := make(chan ai.Output)
 	eng := &fakeEngine{pid: 1, scriptedCh: ch, extract: func() string { return "" }}
@@ -156,6 +171,57 @@ func TestRunWorkerStopIsIdempotentAndWaitStillReturns(t *testing.T) {
 	if _, err := h.Wait(context.Background()); err != nil {
 		t.Fatalf("Wait after Stop: %v", err)
 	}
+}
+
+// When the caller cancels the ctx passed to RunWorker, the engine's own
+// ctx must be cancelled too — otherwise the underlying subprocess (which
+// uses exec.CommandContext) would keep running after the caller has
+// given up. This restores the pre-bridge behaviour where a /stop or
+// bee-timeout cancel propagated to the engine process.
+func TestRunWorkerCallerCtxCancellationPropagatesToEngine(t *testing.T) {
+	ch := make(chan ai.Output, 1)
+	eng := &fakeEngine{pid: 1, scriptedCh: ch, extract: func() string { return "" }}
+	b := newTestBridge(t, eng, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, err := b.RunWorker(ctx, WorkerRunRequest{}); err != nil {
+		t.Fatalf("RunWorker: %v", err)
+	}
+	if eng.gotCtx == nil {
+		t.Fatal("engine did not receive a ctx")
+	}
+	select {
+	case <-eng.gotCtx.Done():
+		t.Fatal("engine ctx unexpectedly cancelled before caller cancel")
+	default:
+	}
+	cancel()
+	select {
+	case <-eng.gotCtx.Done():
+		// ok
+	case <-time.After(time.Second):
+		t.Fatal("engine ctx not cancelled after caller cancel")
+	}
+	close(ch)
+}
+
+func TestRunBeeCallerCtxCancellationPropagatesToEngine(t *testing.T) {
+	ch := make(chan ai.Output, 1)
+	eng := &fakeEngine{pid: 1, scriptedCh: ch, extract: func() string { return "" }}
+	b := newTestBridge(t, eng, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, err := b.RunBee(ctx, BeeRunRequest{}); err != nil {
+		t.Fatalf("RunBee: %v", err)
+	}
+	cancel()
+	select {
+	case <-eng.gotCtx.Done():
+		// ok
+	case <-time.After(time.Second):
+		t.Fatal("engine ctx not cancelled after caller cancel")
+	}
+	close(ch)
 }
 
 func TestRunWorkerWaitContextCancelled(t *testing.T) {
