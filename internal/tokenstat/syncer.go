@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -16,6 +16,15 @@ import (
 
 const syncInterval = 10 * time.Minute
 
+// usageBridge is the subset of bridge.Bridge that Syncer needs. Declared
+// locally so tests can substitute a lightweight fake without importing the
+// full bridge package.
+type usageBridge interface {
+	AllEngines() []string
+	IsEnabled(name string) bool
+	CollectUsage(ctx context.Context, engineName, sessionID string) ([]bridge.Usage, error)
+}
+
 // Syncer periodically reads completed sessions from bee_executions and asks
 // the matching engine adapter to produce per-model token usage, then upserts
 // into bee_token_stats. Engines whose bee_executions.engine field is empty
@@ -23,22 +32,12 @@ const syncInterval = 10 * time.Minute
 type Syncer struct {
 	db         *sql.DB
 	tokenStore *store.TokenStatsStore
-
-	// adapters maps engine name → adapter. Always non-empty for non-legacy rows.
-	adapters map[string]ai.EngineAdapter
-
-	// fallbackOrder is the deterministic engine name order used when
-	// dispatching a session whose engine field is empty. Each name must
-	// appear in adapters; absent names are silently skipped.
-	fallbackOrder []string
-
+	br         usageBridge
 	collectSQL string
 }
 
-// NewSyncer builds a Syncer that dispatches to the supplied adapters.
-// fallbackOrder controls the legacy fallback chain — pass ai.AllEngines()
-// to preserve the historical chain order.
-func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore, adapters map[string]ai.EngineAdapter, fallbackOrder []string) *Syncer {
+// NewSyncer builds a Syncer that dispatches through the supplied bridge.
+func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore, br usageBridge) *Syncer {
 	collectSQL := `
 		SELECT e.session_id, COALESCE(MAX(NULLIF(e.engine, '')), '')
 		FROM bee_executions e
@@ -47,11 +46,10 @@ func NewSyncer(db *sql.DB, tokenStore *store.TokenStatsStore, adapters map[strin
 		HAVING MAX(e.completed_at) > COALESCE(MAX(ts.synced_at), 0)
 		LIMIT 500`
 	return &Syncer{
-		db:            db,
-		tokenStore:    tokenStore,
-		adapters:      adapters,
-		fallbackOrder: fallbackOrder,
-		collectSQL:    collectSQL,
+		db:         db,
+		tokenStore: tokenStore,
+		br:         br,
+		collectSQL: collectSQL,
 	}
 }
 
@@ -122,13 +120,13 @@ func (s *Syncer) collectSessions(ctx context.Context) ([]sessionItem, error) {
 	return items, rows.Err()
 }
 
-// syncSession dispatches one session to the appropriate adapter. A known engine
+// syncSession dispatches one session to the appropriate engine. A known engine
 // is tried once; an empty/unregistered engine walks the fallback chain.
 func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) error {
 	if engine != "" {
-		if adapter, ok := s.adapters[engine]; ok {
-			err := s.tryAdapter(ctx, sessionID, engine, adapter)
-			if errors.Is(err, ai.ErrSessionDataNotFound) {
+		if s.br.IsEnabled(engine) {
+			err := s.tryEngine(ctx, sessionID, engine)
+			if errors.Is(err, bridge.ErrSessionDataNotFound) {
 				return s.tombstone(sessionID, "known engine: session data not found")
 			}
 			return err
@@ -137,13 +135,12 @@ func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) erro
 
 	// Empty or unknown engine → fallback chain.
 	var sawNotFound bool
-	for _, name := range s.fallbackOrder {
-		adapter, ok := s.adapters[name]
-		if !ok {
+	for _, name := range s.br.AllEngines() {
+		if !s.br.IsEnabled(name) {
 			continue
 		}
-		err := s.tryAdapter(ctx, sessionID, name, adapter)
-		if err == nil || !errors.Is(err, ai.ErrSessionDataNotFound) {
+		err := s.tryEngine(ctx, sessionID, name)
+		if err == nil || !errors.Is(err, bridge.ErrSessionDataNotFound) {
 			return err
 		}
 		sawNotFound = true
@@ -154,10 +151,10 @@ func (s *Syncer) syncSession(ctx context.Context, sessionID, engine string) erro
 	return s.tombstone(sessionID, "no adapters available")
 }
 
-func (s *Syncer) tryAdapter(ctx context.Context, sessionID, engine string, adapter ai.EngineAdapter) error {
-	usages, err := adapter.CollectTokenUsage(ctx, sessionID)
+func (s *Syncer) tryEngine(ctx context.Context, sessionID, engine string) error {
+	usages, err := s.br.CollectUsage(ctx, engine, sessionID)
 	if err != nil {
-		if errors.Is(err, ai.ErrSessionDataNotFound) {
+		if errors.Is(err, bridge.ErrSessionDataNotFound) {
 			logger.Debug("tokenstat: session data not found",
 				zap.String("session_id", sessionID),
 				zap.String("engine", engine))
@@ -185,10 +182,10 @@ func (s *Syncer) tombstone(sessionID, reason string) error {
 	logger.Debug("tokenstat: tombstoning session",
 		zap.String("session_id", sessionID),
 		zap.String("reason", reason))
-	return s.upsertRows(sessionID, "", []ai.TokenUsage{{Model: store.TombstoneModel}})
+	return s.upsertRows(sessionID, "", []bridge.Usage{{Model: store.TombstoneModel}})
 }
 
-func (s *Syncer) upsertRows(sessionID, agentType string, usages []ai.TokenUsage) error {
+func (s *Syncer) upsertRows(sessionID, agentType string, usages []bridge.Usage) error {
 	if len(usages) == 0 {
 		return nil
 	}

@@ -207,7 +207,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Info("reset orphaned executions", zap.Int64("count", n))
 	}
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, factory.Names())
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, br)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
