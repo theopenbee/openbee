@@ -1,14 +1,12 @@
 package ai
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 
 	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
 // =========================================================
@@ -160,32 +158,6 @@ func (f *Factory) Names() []string {
 	out := make([]string, len(f.names))
 	copy(out, f.names)
 	return out
-}
-
-// Dynamic returns an EngineAdapter that routes each call through
-// cfg.Get() at invocation time. The RunResult.ExtractResult closes
-// over the engine picked at Run time, so a later cfg.Set does not
-// affect in-flight results.
-func (f *Factory) Dynamic(cfg *enginecfg.Store) EngineAdapter {
-	return &dynamicAdapter{factory: f, cfg: cfg}
-}
-
-type dynamicAdapter struct {
-	factory *Factory
-	cfg     *enginecfg.Store
-}
-
-func (d *dynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts RunOptions, logPath string) (RunResult, error) {
-	name := d.cfg.Get()
-	e, ok := d.factory.built[name]
-	if !ok {
-		return RunResult{}, fmt.Errorf("engine %q not available", name)
-	}
-	return e.Run(ctx, workDir, prompt, opts, logPath)
-}
-
-func (d *dynamicAdapter) CollectTokenUsage(_ context.Context, _ string) ([]TokenUsage, error) {
-	return nil, ErrSessionDataNotFound
 }
 
 // =========================================================

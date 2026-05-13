@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
 // Test stubs registered at init time. Each test uses a unique engine
@@ -98,54 +97,6 @@ func TestFactory_NamesIncludesAllRegistrations(t *testing.T) {
 	}
 	if got := f.Names(); !slices.Contains(got, "factory-test-b") {
 		t.Errorf("Names() after Build = %v, expected factory-test-b still present", got)
-	}
-}
-
-func TestFactory_DynamicRoutesToCurrentEngine(t *testing.T) {
-	f := ai.NewFactory()
-	if err := f.Build(enabledForTest("factory-test-a", "factory-test-b"), func(string) map[string]any { return nil }); err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	cfg := enginecfg.NewStore("factory-test-a")
-	dyn := f.Dynamic(cfg)
-
-	_, err := dyn.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	if err == nil || err.Error() != "factory-test-a run called" {
-		t.Errorf("expected 'factory-test-a run called', got %v", err)
-	}
-
-	cfg.Set("factory-test-b")
-	_, err = dyn.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	if err == nil || err.Error() != "factory-test-b run called" {
-		t.Errorf("expected 'factory-test-b run called', got %v", err)
-	}
-}
-
-func TestFactory_DynamicBindsExtractToRunTimeEngine(t *testing.T) {
-	f := ai.NewFactory()
-	if err := f.Build(enabledForTest("factory-test-a", "factory-test-b"), func(string) map[string]any { return nil }); err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	cfg := enginecfg.NewStore("factory-test-a")
-	dyn := f.Dynamic(cfg)
-
-	res, _ := dyn.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	cfg.Set("factory-test-b") // simulate /engine switch mid-execution
-	if got := res.ExtractResult(); got != "factory-test-a-result" {
-		t.Errorf("expected run-time engine extractor; got %s", got)
-	}
-}
-
-func TestFactory_DynamicUnknownEngineErrors(t *testing.T) {
-	f := ai.NewFactory()
-	if err := f.Build(enabledForTest("factory-test-a"), func(string) map[string]any { return nil }); err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	cfg := enginecfg.NewStore("not-built")
-	dyn := f.Dynamic(cfg)
-	_, err := dyn.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	if err == nil {
-		t.Fatal("expected error for unknown engine")
 	}
 }
 
