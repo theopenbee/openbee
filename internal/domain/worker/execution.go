@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"go.uber.org/zap"
@@ -21,7 +20,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	engineName, engine := m.resolveEngine(worker)
+	engineName := m.resolveEngineForWorker(worker)
 
 	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
 	if err != nil {
@@ -32,119 +31,77 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	timeout := m.workerTimeout
+	var startedAt time.Time
+	if exec.StartedAt != nil {
+		startedAt = time.UnixMilli(*exec.StartedAt)
+	}
 
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
+	handle, err := m.br.RunWorker(ctx, bridge.WorkerRunRequest{
+		WorkerID:         worker.ID,
+		PermissionScopes: utils.SplitAndTrim(worker.PermissionScopes),
+		ExecutionID:      exec.ID,
+		StartedAt:        startedAt,
+		EngineHint:       worker.Engine,
+		EngineArgs:       worker.EngineArgs,
+		WorkDir:          worker.WorkDir,
+		Prompt:           triggerInput,
+		SessionID:        exec.SessionID,
+		Resume:           resume,
+		Timeout:          m.workerTimeout,
+	})
+	if err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
 	}
 
+	m.mu.Lock()
+	m.activeHandles[exec.ID] = handle
+	m.mu.Unlock()
+
+	m.executionStore.UpdatePID(exec.ID, handle.PID())
+	go m.monitorExecution(exec, worker, handle)
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
-	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, handle bridge.Handle) {
+	outcome, err := handle.Wait(context.Background())
 	if err != nil {
-		return fmt.Errorf("prepare log path: %w", err)
-	}
-
-	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), m.tokenTTL)
-	if err != nil {
-		return fmt.Errorf("generate worker token: %w", err)
-	}
-
-	var execCtx context.Context
-	var cancel context.CancelFunc
-	if timeout > 0 {
-		execCtx, cancel = context.WithTimeout(context.Background(), timeout)
-	} else {
-		execCtx, cancel = context.WithCancel(context.Background())
-	}
-
-	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)
-	if err != nil {
-		cancel()
-		return fmt.Errorf("resolve worker env: %w", err)
-	}
-
-	extraArgs := m.resolveEngineArgs(ctx, worker, engineName)
-
-	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
-		SessionID: exec.SessionID,
-		Resume:    resume,
-		APIKey:    token,
-		ExtraEnv:  extraEnv,
-		ExtraArgs: extraArgs,
-	}, logPath)
-	if err != nil {
-		cancel()
-		return err
-	}
-
-	m.mu.Lock()
-	m.activeProcesses[exec.ID] = runRes.Process
-	m.mu.Unlock()
-
-	m.executionStore.UpdatePID(exec.ID, runRes.Process.PID())
-	go m.monitorExecution(exec, worker, runRes, cancel, logPath)
-	return nil
-}
-
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
-	defer cancel()
-
-	finalized := false
-	for out := range runRes.Output {
-		switch out.Type {
-		case ai.OutputDone:
-			result := runRes.ExtractResult()
-			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
-			finalized = true
-		case ai.OutputError:
-			result := runRes.ExtractResult()
-			if result == "" {
-				result = out.Content
-			}
-			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
-			finalized = true
-		}
-	}
-
-	if !finalized {
-		// Output channel closed without a terminal Done/Error signal —
-		// process was killed, crashed, or signal-terminated. Without this
-		// fallback the execution would stay in `running` forever.
-		result := runRes.ExtractResult()
-		if result == "" {
-			result = "process exited without completion signal"
-		}
-		if _, err := m.executionStore.MarkAbandoned(context.Background(), exec.ID, result); err != nil {
-			log.Error("finalize abandoned execution", zap.String("executionID", exec.ID), zap.Error(err))
-		}
+		log.Error("worker Wait error", zap.String("execution_id", exec.ID), zap.Error(err))
+		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+	} else {
+		switch outcome.Status {
+		case bridge.StatusCompleted:
+			m.executionStore.UpdateResult(exec.ID, outcome.Result, model.ExecStatusCompleted)
+			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
+		case bridge.StatusFailed:
+			m.executionStore.UpdateResult(exec.ID, outcome.Result, model.ExecStatusFailed)
+			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		case bridge.StatusAbandoned:
+			if _, err := m.executionStore.MarkAbandoned(context.Background(), exec.ID, outcome.Result); err != nil {
+				log.Error("finalize abandoned execution", zap.String("executionID", exec.ID), zap.Error(err))
+			}
+			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		}
 	}
 
 	m.mu.Lock()
-	delete(m.activeProcesses, exec.ID)
+	delete(m.activeHandles, exec.ID)
 	m.mu.Unlock()
 }
 
 func (m *Manager) StopExecution(executionID string) error {
 	m.mu.RLock()
-	proc, ok := m.activeProcesses[executionID]
+	h, ok := m.activeHandles[executionID]
 	m.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("no active process for execution %s", executionID)
 	}
-	return proc.Stop()
+	return h.Stop()
 }
 
-// CancelExecution implements task.ExecutionManager.
-// It stops the active worker process for the given executionID.
 func (m *Manager) CancelExecution(_ context.Context, executionID string) error {
 	return m.StopExecution(executionID)
 }

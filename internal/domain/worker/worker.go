@@ -179,7 +179,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		EngineArgs:       engineArgs,
 		PermissionScopes: p.PermissionScopes,
 	}
-	if _, _, err := m.resolveEngineSelection(workerModel); err != nil {
+	if err := m.ValidateEngine(workerModel.Engine); err != nil {
 		return model.Worker{}, err
 	}
 
