@@ -18,12 +18,6 @@ cmd:
     short: "Create a backup archive of the openbee database, config, and state"
   restore:
     short: "Restore openbee data from a backup archive"
-  claude:
-    short: "Manage Claude Code installation and provider configuration"
-  claude_download:
-    short: "Download Claude Code binary to ~/.openbee/bin/claude"
-  claude_env:
-    short: "Configure Claude Code provider and environment settings"
   ctl:
     short: "Control the running openbee server"
   ctl_worker:
@@ -47,7 +41,6 @@ prompt:
   option_engine_codex: "Codex"
   option_engine_pi: "Pi"
   option_engine_kimi: "Kimi"
-  claude_not_found: "Claude not found, how would you like to get it?"
   claude_path: "Agent executable path:"
   codex_path: "Codex executable path:"
   pi_path: "Pi executable path:"
@@ -97,8 +90,6 @@ prompt:
   confirm_write: "Confirm write config file?"
   option_enter_manually: "Enter manually"
   option_generate_random: "Generate randomly"
-  option_enter_path_manually: "Enter path manually"
-  option_download_claude: "Download Claude"
   telegram_token_help: "Get a token from @BotFather on Telegram"
   telegram_auth_code_help: "Users must send /auth <code> to use the bot; leave empty to allow all"
   cancelled: "\nCancelled."
@@ -112,9 +103,6 @@ flag:
   upgrade_check: "check for updates only, do not upgrade"
   upgrade_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
   upgrade_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
-  claude_download_force: "Force re-download even if already installed"
-  claude_download_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
-  claude_download_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
 output:
   stop:
     not_running: "openbee is not running"
@@ -165,7 +153,6 @@ output:
     qr_fallback: "Falling back to manual token entry."
     weixin_success: "Weixin login successful!"
     claude_found: "Found Claude in PATH: %s, using it automatically."
-    claude_download_failed: "Download failed: %v"
     claude_manual_entry: "Please enter the Claude path manually."
     codex_found: "Found Codex in PATH: %s, using it automatically."
     codex_manual_entry: "Codex not found in PATH. Please enter the path manually."
@@ -177,11 +164,6 @@ output:
     skill_updated: "skill %s updated"
     skill_up_to_date: "skill %s up to date (skipped)"
     skills_install_warning: "skills install warning (skipped): %v"
-  claude:
-    already_installed: "Claude is already installed at %s"
-    use_force: "Use --force to re-download."
-    installed_at: "Claude installed at: %s"
-    using_cdn: "Using CDN: %s"
   weixin:
     scan_qr: "\nScan this QR code with WeChat:"
     waiting: "\nWaiting for scan..."
@@ -194,24 +176,6 @@ output:
   daemon:
     started: "Daemon started (PID: %d)"
     already_running: "daemon already running (PID: %d)"
-provider:
-  found_settings: "Found ~/.claude/settings.json, skip model provider setup?"
-  select: "Select model provider:"
-  select_model: "Select model:"
-  key_kimicode: "KimiCode API Key:"
-  key_moonshot: "Moonshot API Key:"
-  key_deepseek: "DeepSeek API Key:"
-  key_glm: "Zhipu API Key:"
-  key_minimax: "MiniMax API Key:"
-  key_aliyun: "Alibaba Cloud API Key:"
-  key_volcengine: "Volcengine API Key:"
-  key_tencent: "Tencent Cloud API Key:"
-  key_mimo_url: "Mimo Base URL (Anthropic-compatible):"
-  key_mimo_token: "Mimo API Key:"
-  key_custom_url: "ANTHROPIC_BASE_URL:"
-  key_custom_token: "ANTHROPIC_AUTH_TOKEN:"
-  written_settings: "Written ~/.claude/settings.json"
-  written_json: "Written ~/.claude.json"
 validate:
   port_integer: "port must be an integer"
   positive_integer: "must be a positive integer"

@@ -18,12 +18,6 @@ cmd:
     short: "备份 openbee 数据库、配置及状态"
   restore:
     short: "从备份文件恢复 openbee 数据"
-  claude:
-    short: "管理 Claude Code 安装及 AI 提供商配置"
-  claude_download:
-    short: "下载 Claude Code 二进制文件至 ~/.openbee/bin/claude"
-  claude_env:
-    short: "配置 Claude Code 提供商及环境设置"
   ctl:
     short: "控制运行中的 openbee 服务器"
   ctl_worker:
@@ -47,7 +41,6 @@ prompt:
   option_engine_codex: "Codex"
   option_engine_pi: "Pi"
   option_engine_kimi: "Kimi"
-  claude_not_found: "未找到 Claude，请选择获取方式："
   claude_path: "agent 可执行文件路径："
   codex_path: "Codex 可执行文件路径："
   pi_path: "Pi 可执行文件路径："
@@ -97,8 +90,6 @@ prompt:
   confirm_write: "确认写入配置文件？"
   option_enter_manually: "手动输入"
   option_generate_random: "随机生成"
-  option_enter_path_manually: "手动输入路径"
-  option_download_claude: "下载 Claude"
   telegram_token_help: "从 Telegram 的 @BotFather 获取 Token"
   telegram_auth_code_help: "用户需发送 /auth <code> 才能使用 bot；留空则不限制"
   cancelled: "\n已取消。"
@@ -112,9 +103,6 @@ flag:
   upgrade_check: "仅检查更新，不执行升级"
   upgrade_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
   upgrade_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
-  claude_download_force: "即使已安装也强制重新下载"
-  claude_download_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
-  claude_download_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
 output:
   stop:
     not_running: "openbee 未运行"
@@ -165,7 +153,6 @@ output:
     qr_fallback: "切换为手动输入 token。"
     weixin_success: "微信登录成功！"
     claude_found: "在 PATH 中找到 Claude：%s，将自动使用。"
-    claude_download_failed: "下载失败：%v"
     claude_manual_entry: "请手动输入 Claude 路径。"
     codex_found: "在 PATH 中找到 Codex：%s，将自动使用。"
     codex_manual_entry: "未在 PATH 中找到 Codex，请手动输入路径。"
@@ -177,11 +164,6 @@ output:
     skill_updated: "skill %s 已更新"
     skill_up_to_date: "skill %s 已是最新（跳过）"
     skills_install_warning: "安装 skills 时出错（已跳过）：%v"
-  claude:
-    already_installed: "Claude 已安装在 %s"
-    use_force: "使用 --force 重新下载。"
-    installed_at: "Claude 已安装至：%s"
-    using_cdn: "正在使用 CDN 渠道：%s"
   weixin:
     scan_qr: "\n请使用微信扫描以下二维码："
     waiting: "\n等待扫码..."
@@ -194,24 +176,6 @@ output:
   daemon:
     started: "守护进程已启动（PID: %d）"
     already_running: "守护进程已在运行（PID: %d）"
-provider:
-  found_settings: "已找到 ~/.claude/settings.json，跳过模型提供商配置？"
-  select: "选择模型提供商："
-  select_model: "选择模型："
-  key_kimicode: "KimiCode API Key："
-  key_moonshot: "Moonshot API Key："
-  key_deepseek: "DeepSeek API Key："
-  key_glm: "智谱 API Key："
-  key_minimax: "MiniMax API Key："
-  key_aliyun: "阿里云 API Key："
-  key_volcengine: "火山引擎 API Key："
-  key_tencent: "腾讯云 API Key："
-  key_mimo_url: "Mimo Base URL（Anthropic 兼容协议）："
-  key_mimo_token: "Mimo API Key："
-  key_custom_url: "ANTHROPIC_BASE_URL："
-  key_custom_token: "ANTHROPIC_AUTH_TOKEN："
-  written_settings: "已写入 ~/.claude/settings.json"
-  written_json: "已写入 ~/.claude.json"
 validate:
   port_integer: "端口必须为整数"
   positive_integer: "必须为正整数"

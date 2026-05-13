@@ -6,7 +6,6 @@ type Messages struct {
 	Prompt   PromptMessages   `yaml:"prompt"`
 	Flag     FlagMessages     `yaml:"flag"`
 	Output   OutputMessages   `yaml:"output"`
-	Provider ProviderMessages `yaml:"provider"`
 	Validate ValidateMessages `yaml:"validate"`
 	Runtime  RuntimeMessages  `yaml:"runtime"`
 }
@@ -28,9 +27,6 @@ type CmdMessages struct {
 	Upgrade        CmdEntry `yaml:"upgrade"`
 	Backup         CmdEntry `yaml:"backup"`
 	Restore        CmdEntry `yaml:"restore"`
-	Claude         CmdEntry `yaml:"claude"`
-	ClaudeDownload CmdEntry `yaml:"claude_download"`
-	ClaudeEnv      CmdEntry `yaml:"claude_env"`
 	Ctl            CmdEntry `yaml:"ctl"`
 	CtlWorker      CmdEntry `yaml:"ctl_worker"`
 	CtlTask        CmdEntry `yaml:"ctl_task"`
@@ -52,7 +48,6 @@ type PromptMessages struct {
 	OptionEnginePi     string `yaml:"option_engine_pi"`
 	OptionEngineKimi   string `yaml:"option_engine_kimi"`
 	// Claude setup
-	ClaudeNotFound string `yaml:"claude_not_found"`
 	ClaudePath     string `yaml:"claude_path"`
 	// Codex setup
 	CodexPath string `yaml:"codex_path"`
@@ -111,8 +106,6 @@ type PromptMessages struct {
 	// Survey options (used in both Options slice and switch cases)
 	OptionEnterManually     string `yaml:"option_enter_manually"`
 	OptionGenerateRandom    string `yaml:"option_generate_random"`
-	OptionEnterPathManually string `yaml:"option_enter_path_manually"`
-	OptionDownloadClaude    string `yaml:"option_download_claude"`
 	// Telegram help text
 	TelegramTokenHelp    string `yaml:"telegram_token_help"`
 	TelegramAuthCodeHelp string `yaml:"telegram_auth_code_help"`
@@ -131,30 +124,6 @@ type FlagMessages struct {
 	UpgradeCheck           string `yaml:"upgrade_check"`
 	UpgradeCDNURL          string `yaml:"upgrade_cdn_url"`
 	UpgradeCN              string `yaml:"upgrade_cn"`
-	ClaudeDownloadForce    string `yaml:"claude_download_force"`
-	ClaudeDownloadCDNURL   string `yaml:"claude_download_cdn_url"`
-	ClaudeDownloadCN       string `yaml:"claude_download_cn"`
-}
-
-// ProviderMessages maps to all user-visible text in claude/provider.go.
-type ProviderMessages struct {
-	FoundSettings   string `yaml:"found_settings"`
-	Select          string `yaml:"select"`
-	SelectModel     string `yaml:"select_model"`
-	KeyKimiCode     string `yaml:"key_kimicode"`
-	KeyMoonshot     string `yaml:"key_moonshot"`
-	KeyDeepSeek     string `yaml:"key_deepseek"`
-	KeyGLM          string `yaml:"key_glm"`
-	KeyMiniMax      string `yaml:"key_minimax"`
-	KeyAliyun       string `yaml:"key_aliyun"`
-	KeyVolcengine   string `yaml:"key_volcengine"`
-	KeyTencent      string `yaml:"key_tencent"`
-	KeyMimoURL      string `yaml:"key_mimo_url"`
-	KeyMimoToken    string `yaml:"key_mimo_token"`
-	KeyCustomURL    string `yaml:"key_custom_url"`
-	KeyCustomToken  string `yaml:"key_custom_token"`
-	WrittenSettings string `yaml:"written_settings"`
-	WrittenJSON     string `yaml:"written_json"`
 }
 
 // ValidateMessages maps to interactive input validation error messages.
@@ -174,7 +143,6 @@ type OutputMessages struct {
 	Backup  BackupOutput  `yaml:"backup"`
 	Restore RestoreOutput `yaml:"restore"`
 	Config  ConfigOutput  `yaml:"config"`
-	Claude  ClaudeOutput  `yaml:"claude"`
 	Weixin  WeixinOutput  `yaml:"weixin"`
 	Daemon  DaemonOutput  `yaml:"daemon"`
 }
@@ -244,7 +212,6 @@ type ConfigOutput struct {
 	QRFallback              string `yaml:"qr_fallback"`
 	WeixinSuccess           string `yaml:"weixin_success"`
 	ClaudeFound             string `yaml:"claude_found"`             // contains %s
-	ClaudeDownloadFailed    string `yaml:"claude_download_failed"`   // contains %v
 	ClaudeManualEntry       string `yaml:"claude_manual_entry"`
 	CodexFound              string `yaml:"codex_found"`              // contains %s
 	CodexManualEntry        string `yaml:"codex_manual_entry"`
@@ -256,14 +223,6 @@ type ConfigOutput struct {
 	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
 	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s
 	SkillsInstallWarning    string `yaml:"skills_install_warning"`   // contains %v
-}
-
-// ClaudeOutput maps to claude subcommand runtime output.
-type ClaudeOutput struct {
-	AlreadyInstalled string `yaml:"already_installed"` // contains %s
-	UseForce         string `yaml:"use_force"`
-	InstalledAt      string `yaml:"installed_at"` // contains %s
-	UsingCDN         string `yaml:"using_cdn"`    // contains %s
 }
 
 // WeixinOutput maps to Weixin QR-code login flow output.
