@@ -3,7 +3,6 @@ package bee
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -55,7 +54,7 @@ type Feeder struct {
 	taskStore       *store.TaskStore
 	sessionStore    *store.SessionStore
 	execStore       *store.ExecutionStore
-	runner          ai.EngineAdapter
+	br              bridge.Bridge
 	workDir         string
 	cfg             config.BeeConfig
 	engineCfg       *enginecfg.Store
@@ -67,13 +66,13 @@ type Feeder struct {
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, br bridge.Bridge, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
 		sessionStore: ss,
 		execStore:    es,
-		runner:       runner,
+		br:           br,
 		workDir:      workDir,
 		cfg:          cfg,
 		engineCfg:    engineCfg,
@@ -198,11 +197,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 
-	prompt := core.BuildSessionPrompt(core.SessionRequest{
-		Role:    ai.RoleBee,
-		Resume:  resume,
-		Content: assembleMessages(msgs),
-	})
+	prompt := core.BuildBeeSessionPrompt(resume, assembleMessages(msgs))
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
@@ -232,7 +227,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.runningMu.Unlock()
 	}()
 
-	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	handle, err := f.br.RunBee(beeCtx, bridge.BeeRunRequest{
+		WorkDir:   f.workDir,
+		Prompt:    prompt,
+		SessionID: sessionID,
+		Resume:    resume,
+		LogPath:   logPath,
+	})
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -246,26 +247,35 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		return
 	}
 
-	if pidErr := f.execStore.UpdatePID(exec.ID, runRes.Process.PID()); pidErr != nil {
+	if pidErr := f.execStore.UpdatePID(exec.ID, handle.PID()); pidErr != nil {
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	drainErr := f.waitBeeOutput(runRes.Output)
-
-	finalStatus := model.ExecStatusCompleted
-	resultMsg := runRes.ExtractResult()
-	if drainErr != nil {
+	outcome, waitErr := handle.Wait(beeCtx)
+	var resultMsg string
+	var finalStatus = model.ExecStatusCompleted
+	var failed bool
+	switch {
+	case waitErr != nil:
+		resultMsg = waitErr.Error()
 		finalStatus = model.ExecStatusFailed
-		if resultMsg == "" {
-			resultMsg = drainErr.Error()
-		}
+		failed = true
+	case outcome.Status == bridge.StatusCompleted:
+		resultMsg = outcome.Result
+	case outcome.Status == bridge.StatusFailed:
+		resultMsg = outcome.Result
+		finalStatus = model.ExecStatusFailed
+		failed = true
+	case outcome.Status == bridge.StatusAbandoned:
+		resultMsg = outcome.Result
+		finalStatus = model.ExecStatusFailed
+		failed = true
 	}
 	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
 		log.Error("update execution result", zap.Error(resErr))
 	}
-
-	if drainErr != nil {
-		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
+	if failed {
+		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.String("reason", resultMsg))
 		f.failMessages(ctx, msgs, resultMsg)
 		return
 	}
@@ -309,20 +319,6 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}
-}
-
-// waitBeeOutput consumes the output channel and waits for a lifecycle signal.
-// Returns nil on OutputDone, or an error on OutputError or channel close without signal.
-func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
-	for out := range ch {
-		switch out.Type {
-		case ai.OutputDone:
-			return nil
-		case ai.OutputError:
-			return errors.New(out.Content)
-		}
-	}
-	return fmt.Errorf("output channel closed without completion signal")
 }
 
 func messageIDs(msgs []store.ClaimedMessage) []string {
