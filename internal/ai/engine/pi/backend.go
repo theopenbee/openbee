@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
@@ -189,8 +190,11 @@ func (b *Backend) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
 	sessionPath := b.sessionFilePath(opts.SessionID)
-
-	args := buildArgs(prompt, sessionPath, opts.ExtraArgs)
+	extra, err := cliargs.SplitArgs(opts.ExtraArgs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse extra args: %w", err)
+	}
+	args := buildArgs(prompt, sessionPath, extra)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

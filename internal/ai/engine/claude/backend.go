@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
@@ -133,7 +134,11 @@ func (b *Backend) Run(ctx context.Context, workDir, prompt string,
 			args = append(args, "--session-id", opts.SessionID)
 		}
 	}
-	args = append(args, opts.ExtraArgs...)
+	extra, err := cliargs.SplitArgs(opts.ExtraArgs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse extra args: %w", err)
+	}
+	args = append(args, extra...)
 	args = append(args, "--print")
 
 	spec := core.SubprocessSpec{

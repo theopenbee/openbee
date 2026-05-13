@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -169,7 +170,11 @@ func (b *Backend) Extract(logPath string) string {
 // For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (b *Backend) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	threadID, resume := b.resolveThread(opts.SessionID, opts.Resume)
-	args := buildArgs(threadID, resume, prompt, opts.ExtraArgs)
+	extra, err := cliargs.SplitArgs(opts.ExtraArgs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse extra args: %w", err)
+	}
+	args := buildArgs(threadID, resume, prompt, extra)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

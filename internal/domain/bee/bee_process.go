@@ -53,9 +53,13 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	if err != nil {
 		return ai.RunResult{}, fmt.Errorf("resolve bee env: %w", err)
 	}
+
+	globalJSON := p.readSysConfig(ctx, model.SystemConfigKeyEngineArgsGlobal)
+	beeJSON := p.readSysConfig(ctx, model.SystemConfigKeyEngineArgsBee)
+
 	opts.ExtraEnv = extraEnv
 	opts.APIKey = token
-	opts.ExtraArgs = p.resolveEngineArgs(ctx)
+	opts.ExtraArgs = ai.ResolveExtraArgs(p.engineCfg.Get(), globalJSON, beeJSON)
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
 
@@ -63,21 +67,16 @@ func (b *BeeProcess) CollectTokenUsage(ctx context.Context, sessionID string) ([
 	return b.engine.CollectTokenUsage(ctx, sessionID)
 }
 
-func (p *BeeProcess) resolveEngineArgs(ctx context.Context) []string {
-	engineName := p.engineCfg.Get()
-	globalMap := p.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsGlobal)
-	beeMap := p.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsBee)
-	merged := ai.MergeEngineArgs(globalMap, beeMap)
-	return merged[engineName]
-}
-
-func (p *BeeProcess) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
+// readSysConfig returns the raw config value, or "" on miss / read error.
+// Errors are deliberately swallowed: a missing or corrupt engine_args row
+// must not block the bee from running.
+func (p *BeeProcess) readSysConfig(ctx context.Context, key string) string {
 	if p.sysConfigStore == nil {
-		return nil
+		return ""
 	}
 	cfg, found, err := p.sysConfigStore.Get(ctx, key)
 	if err != nil || !found {
-		return nil
+		return ""
 	}
-	return ai.ParseEngineArgsJSON(cfg.Value)
+	return cfg.Value
 }

@@ -103,38 +103,39 @@ func (m *Manager) EnabledEngines() []string {
 	return enabled
 }
 
-func (m *Manager) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
+// readSysConfigValue returns the raw config value, or "" on miss / read
+// error. Errors are deliberately swallowed: a missing or corrupt
+// engine_args row must not block worker runs.
+func (m *Manager) readSysConfigValue(ctx context.Context, key string) string {
 	if m.sysConfigStore == nil {
-		return nil
+		return ""
 	}
 	cfg, found, err := m.sysConfigStore.Get(ctx, key)
 	if err != nil || !found {
-		return nil
+		return ""
 	}
-	return ai.ParseEngineArgsJSON(cfg.Value)
+	return cfg.Value
 }
 
-func (m *Manager) resolveEngineArgs(ctx context.Context, worker model.Worker, engineName string) []string {
-	globalMap := m.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsGlobal)
-	workerMap := ai.ParseEngineArgsJSON(worker.EngineArgs)
-	merged := ai.MergeEngineArgs(globalMap, workerMap)
-	return merged[engineName]
+func (m *Manager) resolveEngineArgs(ctx context.Context, worker model.Worker, engineName string) string {
+	globalJSON := m.readSysConfigValue(ctx, model.SystemConfigKeyEngineArgsGlobal)
+	return ai.ResolveExtraArgs(engineName, globalJSON, worker.EngineArgs)
 }
 
 func (m *Manager) ValidateEngineArgs(raw map[string]string) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	for engine := range raw {
+	for engine, line := range raw {
 		if engine == "" {
 			return fmt.Errorf("engine_args contains an empty engine name: %w", ErrValidation)
 		}
 		if err := m.ValidateEngine(engine); err != nil {
 			return fmt.Errorf("engine_args[%q]: %w", engine, err)
 		}
-	}
-	if _, err := ai.ParseEngineArgs(raw); err != nil {
-		return fmt.Errorf("invalid engine_args: %w", err)
+		if err := ai.ValidateExtraArgs(line); err != nil {
+			return fmt.Errorf("engine_args[%q]: %w", engine, err)
+		}
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	cliargs "github.com/theopenbee/openbee/internal/ai/cliargs"
 	core "github.com/theopenbee/openbee/internal/ai/core"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/utils/sessionfile"
@@ -168,9 +169,13 @@ func (b *Backend) Extract(logPath string) string {
 func (b *Backend) Run(ctx context.Context, workDir, prompt string,
 	opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 
+	extra, err := cliargs.SplitArgs(opts.ExtraArgs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse extra args: %w", err)
+	}
 	spec := core.SubprocessSpec{
 		Binary:  b.binary,
-		Args:    buildArgs(opts.SessionID, opts.ExtraArgs),
+		Args:    buildArgs(opts.SessionID, extra),
 		WorkDir: workDir,
 		LogPath: logPath,
 		Env:     core.BuildRunEnv(b.baseEnv, opts.ExtraEnv, opts.APIKey),

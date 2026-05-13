@@ -19,7 +19,7 @@ type RunOptions struct {
 	Resume    bool
 	APIKey    string
 	ExtraEnv  []string // additional KEY=VALUE env vars to inject
-	ExtraArgs []string // additional CLI args to pass to the engine
+	ExtraArgs string   // raw CLI tail for the active engine; tokenised by the engine backend
 }
 
 // OutputType classifies a lifecycle event from a running process.
