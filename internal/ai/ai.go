@@ -2,35 +2,11 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
-	"unicode"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
-
-// =========================================================
-// Section 1: Engine identifiers (from contracts.go)
-// =========================================================
-
-const (
-	EngineClaude = "claude"
-	EngineCodex  = "codex"
-	EnginePi     = "pi"
-	EngineKimi   = "kimi"
-)
-
-var allEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
-
-// AllEngines returns a snapshot of the canonical engine name list in registration order.
-func AllEngines() []string {
-	cp := make([]string, len(allEngines))
-	copy(cp, allEngines)
-	return cp
-}
 
 // =========================================================
 // Section 2: Core contracts (from contracts.go)
@@ -114,41 +90,21 @@ var ErrSessionDataNotFound = errors.New("ai: session data not found")
 // ErrUnknownEngine is returned when New is called with an unregistered engine name.
 var ErrUnknownEngine = fmt.Errorf("unknown engine")
 
-// EngineConfig holds the configuration passed to a Factory when constructing an engine.
-type EngineConfig struct {
-	// Raw holds engine-specific configuration (parsed from config.yaml).
-	Raw map[string]any
-}
-
-// PathOrDefault returns Raw["path"] when it's a non-empty string, else def.
-func (c EngineConfig) PathOrDefault(def string) string {
-	if path, _ := c.Raw["path"].(string); path != "" {
-		return path
-	}
-	return def
-}
-
-// ExtraEnv returns Raw["env"] as a map[string]string, or nil if absent / mistyped.
-func (c EngineConfig) ExtraEnv() map[string]string {
-	env, _ := c.Raw["env"].(map[string]string)
-	return env
-}
-
-// Factory creates an EngineAdapter from the supplied config.
-type Factory func(cfg EngineConfig) (EngineAdapter, error)
+// legacyFactory creates an EngineAdapter from the supplied config.
+type legacyFactory func(cfg EngineConfig) (EngineAdapter, error)
 
 // Registry maps engine names to their factories.
 type Registry struct {
-	factories map[string]Factory
+	factories map[string]legacyFactory
 }
 
 // NewRegistry creates an empty Registry.
 func NewRegistry() *Registry {
-	return &Registry{factories: make(map[string]Factory)}
+	return &Registry{factories: make(map[string]legacyFactory)}
 }
 
 // Register adds a factory under name. Panics if name is already registered.
-func (r *Registry) Register(name string, f Factory) {
+func (r *Registry) Register(name string, f legacyFactory) {
 	if _, exists := r.factories[name]; exists {
 		panic(fmt.Sprintf("ai: engine %q already registered", name))
 	}
@@ -168,7 +124,7 @@ func (r *Registry) New(name string, cfg EngineConfig) (EngineAdapter, error) {
 var DefaultRegistry = NewRegistry()
 
 // Register adds a factory to the DefaultRegistry.
-func Register(name string, f Factory) { DefaultRegistry.Register(name, f) }
+func Register(name string, f legacyFactory) { DefaultRegistry.Register(name, f) }
 
 // New constructs an engine from the DefaultRegistry.
 func New(name string, cfg EngineConfig) (EngineAdapter, error) {
@@ -176,13 +132,15 @@ func New(name string, cfg EngineConfig) (EngineAdapter, error) {
 }
 
 // =========================================================
-// Section 4: Dynamic routing (from dynamic.go)
+// Section 4 (transitional): legacy DynamicAdapter
 // =========================================================
+//
+// Kept as a compatibility shim until app.go migrates to Factory.Dynamic
+// (Task 4 of the Factory-facade refactor). Removed in Task 5 alongside
+// the rest of the legacy registry.
 
-// DynamicAdapter wraps multiple EngineAdapters and routes each Run call to
-// whichever engine cfg.Get() returns at call time. The RunResult's
-// ExtractResult closes over the engine that was actually picked, so callers
-// processing results asynchronously are immune to later /engine switches.
+// DynamicAdapter wraps a map of engines and routes each Run call to
+// whichever engine cfg.Get() returns at call time.
 type DynamicAdapter struct {
 	engines map[string]EngineAdapter
 	cfg     *enginecfg.Store
@@ -202,129 +160,6 @@ func (d *DynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts R
 	return e.Run(ctx, workDir, prompt, opts, logPath)
 }
 
-func (d *DynamicAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]TokenUsage, error) {
+func (d *DynamicAdapter) CollectTokenUsage(_ context.Context, _ string) ([]TokenUsage, error) {
 	return nil, ErrSessionDataNotFound
-}
-
-// =========================================================
-// Section 5: Engine argument helpers (from engine_args.go)
-// =========================================================
-
-type EngineArgsMap map[string][]string
-
-// ParseEngineArgs tokenizes raw CLI strings per engine while preserving
-// order, duplicates, and quoted values.
-func ParseEngineArgs(raw map[string]string) (EngineArgsMap, error) {
-	result := make(EngineArgsMap, len(raw))
-	for engine, s := range raw {
-		args, err := splitCLIArgs(s)
-		if err != nil {
-			return nil, fmt.Errorf("engine %q: %w", engine, err)
-		}
-		result[engine] = args
-	}
-	return result, nil
-}
-
-func splitCLIArgs(s string) ([]string, error) {
-	var (
-		args      []string
-		buf       strings.Builder
-		inSingle  bool
-		inDouble  bool
-		escaped   bool
-		tokenOpen bool
-	)
-
-	flush := func() {
-		if !tokenOpen {
-			return
-		}
-		args = append(args, buf.String())
-		buf.Reset()
-		tokenOpen = false
-	}
-
-	for _, r := range s {
-		switch {
-		case escaped:
-			buf.WriteRune(r)
-			escaped = false
-			tokenOpen = true
-
-		case inSingle:
-			if r == '\'' {
-				inSingle = false
-			} else {
-				buf.WriteRune(r)
-			}
-			tokenOpen = true
-
-		case inDouble:
-			switch r {
-			case '"':
-				inDouble = false
-			case '\\':
-				escaped = true
-				tokenOpen = true
-			default:
-				buf.WriteRune(r)
-				tokenOpen = true
-			}
-
-		default:
-			switch {
-			case unicode.IsSpace(r):
-				flush()
-			case r == '\'':
-				inSingle = true
-				tokenOpen = true
-			case r == '"':
-				inDouble = true
-				tokenOpen = true
-			case r == '\\':
-				escaped = true
-				tokenOpen = true
-			default:
-				buf.WriteRune(r)
-				tokenOpen = true
-			}
-		}
-	}
-
-	if escaped {
-		return nil, fmt.Errorf("unterminated escape sequence")
-	}
-	if inSingle || inDouble {
-		return nil, fmt.Errorf("unterminated quoted string")
-	}
-	flush()
-	return args, nil
-}
-
-// MergeEngineArgs merges base and override by appending override args
-// after base args, so later flags can override earlier ones while preserving
-// the original CLI ordering.
-func MergeEngineArgs(base, override EngineArgsMap) EngineArgsMap {
-	result := make(EngineArgsMap, len(base)+len(override))
-	for engine, args := range base {
-		result[engine] = slices.Clone(args)
-	}
-	for engine, overrideArgs := range override {
-		result[engine] = append(result[engine], overrideArgs...)
-	}
-	return result
-}
-
-// ParseEngineArgsJSON returns nil for empty/unset values.
-func ParseEngineArgsJSON(value string) EngineArgsMap {
-	if value == "" || value == "{}" {
-		return nil
-	}
-	var raw map[string]string
-	if json.Unmarshal([]byte(value), &raw) != nil {
-		return nil
-	}
-	parsed, _ := ParseEngineArgs(raw)
-	return parsed
 }
