@@ -4,13 +4,7 @@
 
 ### Removed
 
-- `openbee claude download` and `openbee claude env` subcommands, along with the
-  `openbee claude` parent command, have been removed. Install Claude Code via
-  upstream channels (e.g. `npm i -g @anthropic-ai/claude-code`) and configure
-  provider environment variables directly in `~/.claude/settings.json` or via
-  shell env. The `openbee config` flow no longer offers automatic Claude
-  download or provider setup; selecting Claude only prompts for the executable
-  path, matching the codex/pi/kimi flows.
+- Remove `openbee claude download` and `openbee claude env` subcommands
 
 ## [0.0.37] - 2026-05-11
 
