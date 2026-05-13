@@ -63,7 +63,18 @@ func TestSplitArgs_HandlesBackslashEscape(t *testing.T) {
 	}
 }
 
-func TestSplitArgs_EmptyStringReturnsNil(t *testing.T) {
+func TestSplitArgs_HandlesEscapedQuoteInsideDoubleQuotes(t *testing.T) {
+	got, err := core.SplitArgs(`"a\"b"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{`a"b`}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestSplitArgs_EmptyStringReturnsEmpty(t *testing.T) {
 	got, err := core.SplitArgs("")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -87,6 +98,9 @@ func TestSplitArgs_UnterminatedSingleQuote(t *testing.T) {
 	_, err := core.SplitArgs(`--msg 'unterminated`)
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unterminated quoted string") {
+		t.Errorf("error = %q, want contains 'unterminated quoted string'", err.Error())
 	}
 }
 
