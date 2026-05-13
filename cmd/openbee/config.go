@@ -13,14 +13,19 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/ai/claude"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/skillinstall"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
+
+// errInterrupted is returned when a survey prompt is cancelled (Ctrl+C).
+// It is used as a sentinel so callers can suppress the error and return nil
+// from the cobra RunE function.
+var errInterrupted = errors.New("interrupted")
 
 var configTemplate = config.ConfigTemplate
 
@@ -119,7 +124,7 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactively generate a config file",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := runConfig(cmd, args); errors.Is(err, claude.ErrInterrupted) {
+		if err := runConfig(cmd, args); errors.Is(err, errInterrupted) {
 			return nil
 		} else {
 			return err
@@ -294,9 +299,6 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		case ai.EngineClaude:
 			vals.ClaudeEnabled = true
 			if err := configureClaudeExecutable(&vals); err != nil {
-				return err
-			}
-			if err := configureClaudeProvider(&vals); err != nil {
 				return err
 			}
 		case ai.EngineCodex:
@@ -828,7 +830,11 @@ func promptPassword(vals *configValues) error {
 }
 
 func handleSurveyErr(err error) error {
-	return claude.HandleSurveyErr(err)
+	if errors.Is(err, terminal.InterruptErr) {
+		fmt.Println(i18n.M.Prompt.Cancelled)
+		return errInterrupted
+	}
+	return err
 }
 
 // renderInlineYAMLList formats a comma-separated string into an inline YAML
@@ -925,4 +931,14 @@ func installBuiltinSkills() {
 			fmt.Printf(i18n.M.Output.Config.SkillUpToDate+"\n", r.Name)
 		}
 	}
+}
+
+func configureClaudeExecutable(vals *configValues) error {
+	return configureEngineExecutable(
+		"claude",
+		i18n.M.Output.Config.ClaudeFound,
+		i18n.M.Output.Config.ClaudeManualEntry,
+		i18n.M.Prompt.ClaudePath,
+		&vals.ClaudePath,
+	)
 }
