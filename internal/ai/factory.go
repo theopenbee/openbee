@@ -312,3 +312,45 @@ func splitCLIArgs(s string) ([]string, error) {
 	flush()
 	return args, nil
 }
+
+// =========================================================
+// Section 5: Engine args resolver (new public surface)
+// =========================================================
+
+// ResolveExtraArgs merges any number of engine_args JSON layers and
+// returns the raw CLI line for engineName. Each layer is JSON shaped as
+// {"<engine>": "<cli line>", ...}. Empty layers ("" and "{}") are
+// skipped. A malformed JSON layer is silently skipped, matching the
+// behaviour of the old ParseEngineArgsJSON: a corrupt sysconfig row
+// must not block running engines.
+//
+// Layers are concatenated in the order given (base, override, ...) with
+// a single space separator. The same base+override semantics as the
+// previous MergeEngineArgs but on the un-tokenised string — equivalent
+// because the lexer treats whitespace as the token separator.
+//
+// Returns "" when no layer contributes a value for engineName.
+func ResolveExtraArgs(engineName string, layers ...string) string {
+	var parts []string
+	for _, layer := range layers {
+		if layer == "" || layer == "{}" {
+			continue
+		}
+		var raw map[string]string
+		if json.Unmarshal([]byte(layer), &raw) != nil {
+			continue
+		}
+		if v, ok := raw[engineName]; ok && v != "" {
+			parts = append(parts, v)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// ValidateExtraArgs returns nil if s tokenises cleanly under the shared
+// CLI lexer (single/double quotes, backslash escape). Used at config
+// ingestion to surface typos before they hit a running engine.
+func ValidateExtraArgs(s string) error {
+	_, err := splitCLIArgs(s)
+	return err
+}

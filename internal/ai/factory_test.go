@@ -217,3 +217,75 @@ func TestMergeEngineArgs_AppendsOverrideArgs(t *testing.T) {
 		t.Fatalf("codex args = %v, want %v", got["codex"], want)
 	}
 }
+
+func TestResolveExtraArgs_SingleLayer(t *testing.T) {
+	layer := `{"claude": "--model sonnet --verbose"}`
+	got := ai.ResolveExtraArgs("claude", layer)
+	if want := "--model sonnet --verbose"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveExtraArgs_MergesLayersInOrder(t *testing.T) {
+	base := `{"claude": "--model sonnet --verbose"}`
+	override := `{"claude": "--model opus"}`
+	got := ai.ResolveExtraArgs("claude", base, override)
+	if want := "--model sonnet --verbose --model opus"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveExtraArgs_MissingEngineReturnsEmpty(t *testing.T) {
+	layer := `{"codex": "--model o3"}`
+	if got := ai.ResolveExtraArgs("claude", layer); got != "" {
+		t.Errorf("got %q, want empty string", got)
+	}
+}
+
+func TestResolveExtraArgs_SkipsEmptyLayers(t *testing.T) {
+	got := ai.ResolveExtraArgs("claude", "", "{}", `{"claude":"--model opus"}`)
+	if want := "--model opus"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveExtraArgs_SkipsMalformedJSON(t *testing.T) {
+	got := ai.ResolveExtraArgs("claude", `{not json`, `{"claude":"--verbose"}`)
+	if want := "--verbose"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveExtraArgs_PreservesQuotingInValue(t *testing.T) {
+	layer := `{"claude": "--append-system-prompt \"be terse\" --verbose"}`
+	got := ai.ResolveExtraArgs("claude", layer)
+	if want := `--append-system-prompt "be terse" --verbose`; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveExtraArgs_SkipsEmptyEngineValue(t *testing.T) {
+	got := ai.ResolveExtraArgs("claude", `{"claude":""}`, `{"claude":"--verbose"}`)
+	if want := "--verbose"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestValidateExtraArgs_OK(t *testing.T) {
+	if err := ai.ValidateExtraArgs(`--model sonnet --verbose --msg "hi there"`); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateExtraArgs_Empty(t *testing.T) {
+	if err := ai.ValidateExtraArgs(""); err != nil {
+		t.Errorf("empty string should validate, got %v", err)
+	}
+}
+
+func TestValidateExtraArgs_UnterminatedQuote(t *testing.T) {
+	err := ai.ValidateExtraArgs(`--model "unterminated`)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
