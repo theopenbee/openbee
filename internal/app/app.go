@@ -18,6 +18,8 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/bridge"
+	"github.com/theopenbee/openbee/internal/ai/bridge/adapters"
 	_ "github.com/theopenbee/openbee/internal/ai/engine/claude"
 	_ "github.com/theopenbee/openbee/internal/ai/engine/codex"
 	_ "github.com/theopenbee/openbee/internal/ai/engine/kimi"
@@ -133,6 +135,20 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
+	br, err := bridge.New(bridge.Config{
+		Engines: engines,
+		Deps: bridge.Deps{
+			TokenIssuer:     adapters.NewTokenIssuer(cfg.Bee.RPC.TokenSecret, cfg.Bee.RPC.TokenTTL),
+			EnvResolver:     adapters.NewEnvResolver(envSvc),
+			EngineSelector:  adapters.NewEngineSelector(engines, engineCfg),
+			ArgsResolver:    adapters.NewArgsResolver(s.systemConfigStore),
+			LogPathProvider: adapters.NewLogPathProvider(s.execStore),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init ai bridge: %w", err)
+	}
+	_ = br // wired into business objects in phases 2 & 3
 	mgr := buildWorkerManager(cfg.Bee, s, engines, engineCfg, envSvc)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
