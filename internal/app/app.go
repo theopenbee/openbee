@@ -105,14 +105,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	engines, err := buildAllEngines(cfg.Bee)
+	factory, err := buildEngineFactory(cfg.Bee)
 	if err != nil {
 		return nil, fmt.Errorf("init engines: %w", err)
 	}
 	defaultEngine := cfg.Bee.EffectiveEngine()
-	if engines[defaultEngine] == nil {
+	if _, ok := factory.Get(defaultEngine); !ok {
 		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", defaultEngine)
 	}
+	engines := factory.Enabled()
 
 	// Initialize the default engine store from DB, falling back to config.
 	engineCfg := enginecfg.NewStore(defaultEngine)
@@ -140,7 +141,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, factory, engineCfg, envSvc)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
@@ -191,7 +192,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Info("reset orphaned executions", zap.Int64("count", n))
 	}
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, factory.Names())
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -267,24 +268,16 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-// buildAllEngines initializes engine adapters shared safely across concurrent workers.
-func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
+// buildEngineFactory constructs the ai.Factory and builds every enabled engine.
+// The returned Factory is the single source of truth for engine lookup and dynamic routing.
+func buildEngineFactory(cfg config.BeeConfig) (*ai.Factory, error) {
 	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
 
-	result := make(map[string]ai.EngineAdapter)
-	for _, name := range ai.AllEngines() {
-		if !cfg.Engines.IsEnabled(name) {
-			continue
-		}
-		adapter, err := ai.New(name, ai.EngineConfig{
-			Raw: cfg.EngineConfigRawFor(name),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("init engine %q: %w", name, err)
-		}
-		result[name] = adapter
+	f := ai.NewFactory()
+	if err := f.Build(cfg.Engines.IsEnabled, cfg.EngineConfigRawFor); err != nil {
+		return nil, err
 	}
-	return result, nil
+	return f, nil
 }
 
 func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
@@ -292,8 +285,8 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
-	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
+	failureNotifier bee.FailureNotifier, factory *ai.Factory, engineCfg *enginecfg.Store, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
+	dynamic := factory.Dynamic(engineCfg)
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
