@@ -124,11 +124,11 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactively generate a config file",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := runConfig(cmd, args); errors.Is(err, errInterrupted) {
+		err := runConfig(cmd, args)
+		if errors.Is(err, errInterrupted) {
 			return nil
-		} else {
-			return err
 		}
+		return err
 	},
 }
 
@@ -931,14 +931,4 @@ func installBuiltinSkills() {
 			fmt.Printf(i18n.M.Output.Config.SkillUpToDate+"\n", r.Name)
 		}
 	}
-}
-
-func configureClaudeExecutable(vals *configValues) error {
-	return configureEngineExecutable(
-		"claude",
-		i18n.M.Output.Config.ClaudeFound,
-		i18n.M.Output.Config.ClaudeManualEntry,
-		i18n.M.Prompt.ClaudePath,
-		&vals.ClaudePath,
-	)
 }
