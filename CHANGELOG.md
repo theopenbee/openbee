@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- Remove `openbee claude download` and `openbee claude env` subcommands
+
 ## [0.0.37] - 2026-05-11
 
 ### Added

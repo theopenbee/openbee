@@ -1,10 +1,13 @@
 package main
 
-import "github.com/theopenbee/openbee/internal/infra/i18n"
+import (
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+)
 
 func configureKimiExecutable(vals *configValues) error {
 	return configureEngineExecutable(
-		"kimi",
+		ai.EngineKimi,
 		i18n.M.Output.Config.KimiFound,
 		i18n.M.Output.Config.KimiManualEntry,
 		i18n.M.Prompt.KimiPath,
