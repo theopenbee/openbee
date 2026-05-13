@@ -163,6 +163,17 @@ func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
 	}
 }
 
+func TestManager_ValidateEngineArgs_RejectsEmptyEngineName(t *testing.T) {
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	err := mgr.ValidateEngineArgs(map[string]string{"": "--flag"})
+	if err == nil {
+		t.Fatal("expected error for empty engine name, got nil")
+	}
+	if !errors.Is(err, ErrValidation) {
+		t.Errorf("expected error to wrap ErrValidation, got %v", err)
+	}
+}
+
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}

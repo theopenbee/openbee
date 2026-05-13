@@ -187,6 +187,7 @@ func (d *dynamicAdapter) Run(ctx context.Context, workDir, prompt string, opts R
 func (d *dynamicAdapter) CollectTokenUsage(_ context.Context, _ string) ([]TokenUsage, error) {
 	return nil, ErrSessionDataNotFound
 }
+
 // =========================================================
 // Section 4: Engine args resolver
 // =========================================================

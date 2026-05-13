@@ -137,23 +137,25 @@ existing behaviour, avoids fail-closed at runtime when stored config is
 corrupt). Strict validation is the job of `ValidateExtraArgs` at the
 ingestion path.
 
-### 2. Tokeniser lives in `internal/ai/core`
+### 2. Tokeniser lives in `internal/ai/cliargs`
 
-The current private `splitCLIArgs` in `factory.go` moves to
-`internal/ai/core` and is exported as:
+The current private `splitCLIArgs` in `factory.go` moves to a new leaf
+package `internal/ai/cliargs` and is exported as:
 
 ```go
-// internal/ai/core/cli_args.go
+// internal/ai/cliargs/cli_args.go
 func SplitArgs(s string) ([]string, error)
 ```
 
-Why `core` and not `ai`: every engine backend (`claude`, `codex`, `kimi`,
-`pi`) already imports `internal/ai/core` for `SubprocessSpec` and
-`BuildRunEnv`. Putting `SplitArgs` there means engines tokenise without
-adding a new dep and without `ai` re-exporting a low-level helper. Domain
-packages (`worker`, `bee`) do not import `core` and never need to.
+Why `cliargs` and not `core`: `internal/ai/core` already imports
+`internal/ai` (it uses `ai.TokenUsage`, `ai.Output`, etc), so the `ai`
+package cannot import `core` back without an import cycle. A new leaf
+package that depends on neither side is the cleanest home. The
+engine backends (`claude`, `codex`, `kimi`, `pi`) and `ai.ValidateExtraArgs`
+all import `cliargs.SplitArgs` directly; domain packages (`worker`, `bee`)
+never need to.
 
-`ai.ValidateExtraArgs` delegates internally to `core.SplitArgs`, so the
+`ai.ValidateExtraArgs` delegates internally to `cliargs.SplitArgs`, so the
 parser implementation lives in exactly one place.
 
 ### 3. Engine backends tokenise locally
@@ -226,7 +228,7 @@ ExtraArgs: m.resolveEngineArgs(ctx, worker, engineName), // now a string
 |---|---|
 | `internal/ai/contracts.go` | `ExtraArgs []string` → `string`. |
 | `internal/ai/factory.go` | Replace Section 4 with `ResolveExtraArgs` + `ValidateExtraArgs`; delete `EngineArgsMap`, `ParseEngineArgs`, `ParseEngineArgsJSON`, `MergeEngineArgs`, `splitCLIArgs`. |
-| `internal/ai/core/cli_args.go` | **New.** Holds `SplitArgs` (moved from `factory.go`). |
+| `internal/ai/cliargs/cli_args.go` | **New.** Holds `SplitArgs` (moved from `factory.go`). |
 | `internal/ai/engine/claude/backend.go` | Tokenise `opts.ExtraArgs` via `core.SplitArgs`. |
 | `internal/ai/engine/codex/backend.go` | Same. |
 | `internal/ai/engine/kimi/backend.go` | Same. |
@@ -235,7 +237,7 @@ ExtraArgs: m.resolveEngineArgs(ctx, worker, engineName), // now a string
 | `internal/domain/worker/manager.go` | Inline resolution; rewrite `ValidateEngineArgs` against `ai.ValidateExtraArgs`. |
 | `internal/domain/worker/execution.go` | `ExtraArgs` assignment now takes a string. |
 | `internal/ai/factory_test.go` | Replace `TestParseEngineArgs_*` / `TestMergeEngineArgs_*` with `TestResolveExtraArgs_*` and `TestValidateExtraArgs_*`. |
-| `internal/ai/core/cli_args_test.go` | **New.** Table-driven tests for `SplitArgs` (port the quoting / dup-flag / unterminated-quote / empty-quoted-value cases). |
+| `internal/ai/cliargs/cli_args_test.go` | **New.** Table-driven tests for `SplitArgs` (port the quoting / dup-flag / unterminated-quote / empty-quoted-value cases). |
 
 ## Test plan
 
