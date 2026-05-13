@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	bridge "github.com/theopenbee/openbee/internal/ai/bridge"
 )
 
 // RPC endpoint path prefixes.
@@ -101,13 +101,13 @@ type EnginesConfig struct {
 
 func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 	switch name {
-	case ai.EngineClaude:
+	case bridge.EngineClaude:
 		return e.Claude
-	case ai.EngineCodex:
+	case bridge.EngineCodex:
 		return e.Codex
-	case ai.EnginePi:
+	case bridge.EnginePi:
 		return e.Pi
-	case ai.EngineKimi:
+	case bridge.EngineKimi:
 		return e.Kimi
 	}
 	return EngineItemConfig{}
@@ -144,7 +144,7 @@ func (b BeeConfig) EffectiveEngine() string {
 	if b.Engine.Default != "" {
 		return b.Engine.Default
 	}
-	return ai.EngineClaude
+	return bridge.EngineClaude
 }
 
 // EngineConfigRaw returns the raw config map for the default engine.
