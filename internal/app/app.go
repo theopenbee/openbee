@@ -148,8 +148,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init ai bridge: %w", err)
 	}
-	_ = br // wired into business objects in phases 2 & 3
-	mgr := buildWorkerManager(cfg.Bee, s, engines, engineCfg, envSvc)
+	mgr := buildWorkerManager(cfg.Bee, s, br)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -296,8 +295,8 @@ func buildEngineFactory(cfg config.BeeConfig) (*ai.Factory, error) {
 	return f, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, engineCfg, envSvc, s.systemConfigStore)
+func buildWorkerManager(bc config.BeeConfig, s appStores, br bridge.Bridge) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, br)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,

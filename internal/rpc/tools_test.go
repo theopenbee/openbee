@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/ai/bridge"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -19,14 +19,31 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
-type stubEngineAdapter struct{}
+// stubBridge is a no-op bridge.Bridge for tests that don't exercise the engine.
+type stubBridge struct{}
 
-func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	return ai.RunResult{ExtractResult: func() string { return "" }}, nil
+func (s *stubBridge) RunWorker(_ context.Context, _ bridge.WorkerRunRequest) (bridge.Handle, error) {
+	return nil, nil
 }
-func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (s *stubBridge) RunBee(_ context.Context, _ bridge.BeeRunRequest) (bridge.Handle, error) {
+	return nil, nil
+}
+func (s *stubBridge) AllEngines() []string     { return []string{"claude"} }
+func (s *stubBridge) EnabledEngines() []string { return []string{"claude"} }
+func (s *stubBridge) IsEnabled(name string) bool {
+	return name == "claude"
+}
+func (s *stubBridge) ValidateEngine(name string) error {
+	if name == "" || name == "claude" {
+		return nil
+	}
+	return errors.New("engine not enabled: " + name)
+}
+func (s *stubBridge) ValidateEngineArgs(_ string) error      { return nil }
+func (s *stubBridge) ResolveEngineForWorker(_, hint string) string { return hint }
+func (s *stubBridge) ResolveEngineForBee() string            { return "claude" }
+func (s *stubBridge) CollectUsage(_ context.Context, _, _ string) ([]bridge.Usage, error) {
+	return nil, nil
 }
 
 func setupServerWithMessaging(t *testing.T) *rpc.Server {
@@ -45,7 +62,7 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		&stubBridge{},
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
@@ -244,7 +261,7 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		&stubBridge{},
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
@@ -526,7 +543,7 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		&stubBridge{},
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
