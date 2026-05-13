@@ -34,6 +34,18 @@ func BuildSessionPrompt(req SessionRequest) string {
 	return buildSessionPrefix(req.Role, req.Identity.persona()) + req.Content
 }
 
+// BuildBeeSessionPrompt is a role-fixed convenience for the bee path so
+// business callers do not need to import internal/ai for the Role enum.
+func BuildBeeSessionPrompt(resume bool, content string) string {
+	return BuildSessionPrompt(SessionRequest{Role: ai.RoleBee, Resume: resume, Content: content})
+}
+
+// BuildWorkerSessionPrompt is a role-fixed convenience for the worker path so
+// business callers do not need to import internal/ai for the Role enum.
+func BuildWorkerSessionPrompt(identity WorkerIdentity, resume bool, content string) string {
+	return BuildSessionPrompt(SessionRequest{Role: ai.RoleWorker, Identity: identity, Resume: resume, Content: content})
+}
+
 type sessionPrefixSpec struct {
 	skillName   string
 	step2Header string
