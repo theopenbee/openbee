@@ -13,6 +13,9 @@ const (
 // independent of which engines are enabled in the running process.
 func AllEngines() []string { return ai.AllEngines() }
 
+// AllEngines implements Bridge.AllEngines.
+func (b *bridgeImpl) AllEngines() []string { return ai.AllEngines() }
+
 // EnabledEngines returns the enabled engines in canonical order.
 func (b *bridgeImpl) EnabledEngines() []string {
 	out := make([]string, 0, len(b.engines))

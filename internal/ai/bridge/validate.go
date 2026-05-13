@@ -15,6 +15,9 @@ var ErrEngineNotEnabled = errors.New("bridge: engine not enabled")
 // CLI lexer (single/double quotes, backslash escape).
 func ValidateEngineArgs(s string) error { return ai.ValidateExtraArgs(s) }
 
+// ValidateEngineArgs implements Bridge.ValidateEngineArgs.
+func (b *bridgeImpl) ValidateEngineArgs(line string) error { return ai.ValidateExtraArgs(line) }
+
 // ValidateEngine accepts the empty string (caller will fall back to the
 // default engine) and otherwise requires the name to be enabled.
 func (b *bridgeImpl) ValidateEngine(name string) error {
