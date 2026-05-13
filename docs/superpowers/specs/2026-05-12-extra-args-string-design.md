@@ -165,7 +165,7 @@ surface as `Run` errors:
 
 ```go
 // internal/ai/engine/claude/backend.go
-extra, err := core.SplitArgs(opts.ExtraArgs)
+extra, err := cliargs.SplitArgs(opts.ExtraArgs)
 if err != nil {
     return nil, nil, fmt.Errorf("parse extra args: %w", err)
 }
