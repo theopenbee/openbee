@@ -76,7 +76,7 @@ type Bridge interface {
 	RunBee(ctx context.Context, req BeeRunRequest) (RunHandle, error)
 	RunWorker(ctx context.Context, req WorkerRunRequest) (RunHandle, error)
 
-	CollectTokenUsage(ctx context.Context, sessionID, engineName string) ([]TokenUsage, error)
+	CollectTokenUsage(ctx context.Context, sessionID, engineName string) (UsageResult, error)
 }
 ```
 
@@ -127,9 +127,24 @@ type LifecycleEvent struct {
 	Type    LifecycleEventType
 	Content string
 }
+
+type TokenUsage struct {
+	Model               string
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+}
+
+type UsageResult struct {
+	Engine string
+	Usages []TokenUsage
+}
 ```
 
 `RunHandle.Engine` records the actual engine used for the run. Business code can continue storing engine names in execution records and session contexts without knowing which adapter handled the run.
+
+`UsageResult.Engine` records the actual engine whose adapter produced token usage. This preserves the existing legacy fallback behavior, where rows with missing or unknown execution engine values are still attributed to the engine that contains the session data.
 
 ## Data Flow
 
@@ -161,7 +176,8 @@ Token usage flow:
 1. `tokenstat.Syncer` collects pending session IDs from the database.
 2. `tokenstat.Syncer` calls `Bridge.CollectTokenUsage`.
 3. Bridge dispatches to the known engine adapter or performs the legacy fallback chain internally.
-4. `tokenstat.Syncer` continues to write usage rows and tombstones.
+4. Bridge returns the usage rows plus the actual engine that produced them.
+5. `tokenstat.Syncer` continues to write usage rows and tombstones.
 
 ## Error Handling
 
