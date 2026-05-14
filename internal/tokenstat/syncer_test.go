@@ -6,23 +6,39 @@ import (
 	"testing"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 )
 
-// fakeAdapter is a test double for ai.EngineAdapter.
-type fakeAdapter struct {
-	collect func(ctx context.Context, sessionID string) ([]ai.TokenUsage, error)
+type collectCall struct {
+	sessionID string
+	engine    string
 }
 
-func (f *fakeAdapter) Prepare(string, ai.PrepareOptions) error { return nil }
-func (f *fakeAdapter) Run(context.Context, string, string, ai.RunOptions, string) (ai.RunResult, error) {
-	return ai.RunResult{}, nil
+// fakeBridge is a test double for bridge.Bridge.
+type fakeBridge struct {
+	collect func(ctx context.Context, sessionID, engine string) (bridge.UsageResult, error)
+	calls   []collectCall
 }
-func (f *fakeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
-	return f.collect(ctx, sessionID)
+
+func (f *fakeBridge) EnabledEngines() []string                             { return nil }
+func (f *fakeBridge) ValidateEngine(string) error                          { return nil }
+func (f *fakeBridge) ResolveEngine(engine string) (string, error)          { return engine, nil }
+func (f *fakeBridge) BuildBeeSessionPrefix() string                        { return "" }
+func (f *fakeBridge) BuildWorkerSessionPrefix(bridge.WorkerPersona) string { return "" }
+func (f *fakeBridge) PrepareBeeWorkspace(string) error                     { return nil }
+func (f *fakeBridge) PrepareWorkerWorkspace(string, string) error          { return nil }
+func (f *fakeBridge) RunBee(context.Context, bridge.BeeRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+func (f *fakeBridge) RunWorker(context.Context, bridge.WorkerRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+func (f *fakeBridge) CollectTokenUsage(ctx context.Context, sessionID, engine string) (bridge.UsageResult, error) {
+	f.calls = append(f.calls, collectCall{sessionID: sessionID, engine: engine})
+	return f.collect(ctx, sessionID, engine)
 }
 
 func newSyncerTestDB(t *testing.T) (*sql.DB, *store.TokenStatsStore, func()) {
@@ -71,12 +87,13 @@ func TestSyncer_Direct_KnownEngine(t *testing.T) {
 	insertTestWorker(t, db, "w1", "claude")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-1", "claude", time.Now().UnixMilli())
 
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-			return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 100, OutputTokens: 50}}, nil
-		}},
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{
+			Engine: bridge.EngineClaude,
+			Usages: []bridge.TokenUsage{{Model: "sonnet-4", InputTokens: 100, OutputTokens: 50}},
+		}, nil
+	}}
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	stats, err := tokenStore.GetBySessionID("sess-1")
@@ -95,6 +112,9 @@ func TestSyncer_Direct_KnownEngine(t *testing.T) {
 	if stats[0].AgentType != "claude" {
 		t.Errorf("AgentType: want claude, got %s", stats[0].AgentType)
 	}
+	if len(br.calls) != 1 || br.calls[0].engine != bridge.EngineClaude {
+		t.Fatalf("CollectTokenUsage calls=%+v", br.calls)
+	}
 }
 
 // TestSyncer_Direct_KnownEngine_NotFound_Tombstones: known engine returns ErrSessionDataNotFound → tombstone.
@@ -105,12 +125,10 @@ func TestSyncer_Direct_KnownEngine_NotFound_Tombstones(t *testing.T) {
 	insertTestWorker(t, db, "w1", "claude")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-nf", "claude", time.Now().UnixMilli())
 
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-			return nil, ai.ErrSessionDataNotFound
-		}},
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
+	}}
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	var count int
@@ -136,12 +154,10 @@ func TestSyncer_Direct_KnownEngine_Empty_Tombstones(t *testing.T) {
 	insertTestWorker(t, db, "w1", "claude")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-empty", "claude", time.Now().UnixMilli())
 
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-			return []ai.TokenUsage{}, nil
-		}},
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{Engine: bridge.EngineClaude}, nil
+	}}
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	var count int
@@ -161,12 +177,10 @@ func TestSyncer_Direct_KnownEngine_HardError_NoTombstone(t *testing.T) {
 	insertTestWorker(t, db, "w1", "claude")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-err", "claude", time.Now().UnixMilli())
 
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-			return nil, context.DeadlineExceeded
-		}},
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{}, context.DeadlineExceeded
+	}}
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	var count int
@@ -178,7 +192,7 @@ func TestSyncer_Direct_KnownEngine_HardError_NoTombstone(t *testing.T) {
 	}
 }
 
-// TestSyncer_Legacy_FallbackHits: engine empty, third adapter in chain succeeds.
+// TestSyncer_Legacy_FallbackHits: engine empty, bridge resolves usage to the hit engine.
 func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
@@ -186,19 +200,16 @@ func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecution(t, db, "w1", "sess-legacy", time.Now().UnixMilli())
 
-	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return nil, ai.ErrSessionDataNotFound
+	br := &fakeBridge{collect: func(_ context.Context, _ string, engine string) (bridge.UsageResult, error) {
+		if engine != "" {
+			t.Fatalf("legacy session should pass empty engine to bridge, got %q", engine)
+		}
+		return bridge.UsageResult{
+			Engine: bridge.EngineKimi,
+			Usages: []bridge.TokenUsage{{Model: "kimi", InputTokens: 200}},
+		}, nil
 	}}
-	kimiHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return []ai.TokenUsage{{Model: "kimi", InputTokens: 200}}, nil
-	}}
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: notFound,
-		ai.EngineCodex:  notFound,
-		ai.EnginePi:     notFound,
-		ai.EngineKimi:   kimiHit,
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	stats, err := tokenStore.GetBySessionID("sess-legacy")
@@ -216,7 +227,7 @@ func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	}
 }
 
-// TestSyncer_Legacy_AllNotFound_Tombstones: engine empty, all adapters return NotFound → tombstone.
+// TestSyncer_Legacy_AllNotFound_Tombstones: engine empty, bridge returns NotFound -> tombstone.
 func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
@@ -224,16 +235,10 @@ func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecution(t, db, "w1", "sess-all-nf", time.Now().UnixMilli())
 
-	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return nil, ai.ErrSessionDataNotFound
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
 	}}
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: notFound,
-		ai.EngineCodex:  notFound,
-		ai.EnginePi:     notFound,
-		ai.EngineKimi:   notFound,
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	var count int
@@ -253,7 +258,7 @@ func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 	}
 }
 
-// TestSyncer_UnknownEngine_FallsBack: engine set but not in adapter map → walks fallback chain.
+// TestSyncer_UnknownEngine_FallsBack: unknown engine is delegated to bridge, which resolves fallback.
 func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
@@ -261,13 +266,13 @@ func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-unknown", "obsolete-engine", time.Now().UnixMilli())
 
-	claudeHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 77}}, nil
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{
+			Engine: bridge.EngineClaude,
+			Usages: []bridge.TokenUsage{{Model: "sonnet-4", InputTokens: 77}},
+		}, nil
 	}}
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: claudeHit,
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, []string{ai.EngineClaude})
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	stats, err := tokenStore.GetBySessionID("sess-unknown")
@@ -280,9 +285,12 @@ func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
 	if stats[0].InputTokens != 77 {
 		t.Errorf("InputTokens: want 77, got %d", stats[0].InputTokens)
 	}
+	if len(br.calls) != 1 || br.calls[0].engine != "obsolete-engine" {
+		t.Fatalf("CollectTokenUsage calls=%+v", br.calls)
+	}
 }
 
-// TestSyncer_UnknownEngine_AllNotFound_Tombstones: unknown engine, all fallbacks also NotFound → tombstone.
+// TestSyncer_UnknownEngine_AllNotFound_Tombstones: bridge returns NotFound -> tombstone.
 func TestSyncer_UnknownEngine_AllNotFound_Tombstones(t *testing.T) {
 	db, tokenStore, cleanup := newSyncerTestDB(t)
 	defer cleanup()
@@ -290,13 +298,10 @@ func TestSyncer_UnknownEngine_AllNotFound_Tombstones(t *testing.T) {
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-unk-nf", "obsolete-engine", time.Now().UnixMilli())
 
-	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return nil, ai.ErrSessionDataNotFound
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
 	}}
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: notFound,
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, []string{ai.EngineClaude})
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	var count int
@@ -329,13 +334,14 @@ func TestSyncer_DoesNotResyncCompleted(t *testing.T) {
 	}
 
 	callCount := 0
-	adapters := map[string]ai.EngineAdapter{
-		ai.EngineClaude: &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-			callCount++
-			return []ai.TokenUsage{{Model: "sonnet-4", InputTokens: 999}}, nil
-		}},
-	}
-	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
+	br := &fakeBridge{collect: func(_ context.Context, _ string, _ string) (bridge.UsageResult, error) {
+		callCount++
+		return bridge.UsageResult{
+			Engine: bridge.EngineClaude,
+			Usages: []bridge.TokenUsage{{Model: "sonnet-4", InputTokens: 999}},
+		}, nil
+	}}
+	syncer := tokenstat.NewSyncer(db, tokenStore, br)
 	syncer.SyncOnce(context.Background())
 
 	if callCount != 0 {
