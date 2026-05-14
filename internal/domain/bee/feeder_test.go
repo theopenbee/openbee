@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -47,71 +47,120 @@ type mockProcess struct{}
 func (m *mockProcess) PID() int    { return 0 }
 func (m *mockProcess) Stop() error { return nil }
 
-// mockBeeRunner records all Run calls.
-type mockBeeRunner struct {
+type mockBridge struct {
 	mu          sync.Mutex
 	calls       []beeCall
-	err         error
-	outputLines []ai.Output
+	runErr      error
+	outputs     []bridge.LifecycleEvent
+	engine      string
+	prefix      string
+	onRun       func()
+	done        chan struct{}
+	prepareDirs []string
 }
 
 type beeCall struct {
-	prompt  string
-	opts    ai.RunOptions
-	logPath string
+	req bridge.BeeRunRequest
 }
 
-func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
+func (m *mockBridge) EnabledEngines() []string {
+	if m.engine != "" {
+		return []string{m.engine}
+	}
+	return []string{bridge.EngineClaude}
+}
+
+func (m *mockBridge) ValidateEngine(string) error { return nil }
+
+func (m *mockBridge) ResolveEngine(string) (string, error) {
+	if m.engine != "" {
+		return m.engine, nil
+	}
+	return bridge.EngineClaude, nil
+}
+
+func (m *mockBridge) BuildBeeSessionPrefix() string {
+	if m.prefix != "" {
+		return m.prefix
+	}
+	return bridge.BuildBeeSessionPrefix()
+}
+
+func (m *mockBridge) BuildWorkerSessionPrefix(bridge.WorkerPersona) string { return "" }
+
+func (m *mockBridge) PrepareBeeWorkspace(workDir string) error {
+	m.mu.Lock()
+	m.prepareDirs = append(m.prepareDirs, workDir)
+	m.mu.Unlock()
 	return nil
 }
 
-func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
+func (m *mockBridge) PrepareWorkerWorkspace(string, string) error { return nil }
+
+func (m *mockBridge) RunBee(_ context.Context, req bridge.BeeRunRequest) (bridge.RunHandle, error) {
 	m.mu.Lock()
-	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
+	m.calls = append(m.calls, beeCall{req: req})
 	m.mu.Unlock()
-	if m.err != nil {
-		return ai.RunResult{}, m.err
+	if m.runErr != nil {
+		return bridge.RunHandle{}, m.runErr
 	}
-	var lines []ai.Output
-	if len(m.outputLines) > 0 {
-		lines = m.outputLines
-	} else {
-		lines = []ai.Output{{Type: ai.OutputDone}}
+
+	if m.onRun != nil {
+		m.onRun()
 	}
-	ch := make(chan ai.Output, len(lines))
-	for _, l := range lines {
-		ch <- l
+	if m.done != nil {
+		close(m.done)
+	}
+
+	events := m.outputs
+	if len(events) == 0 {
+		events = []bridge.LifecycleEvent{{Type: bridge.LifecycleDone}}
+	}
+	ch := make(chan bridge.LifecycleEvent, len(events))
+	for _, event := range events {
+		ch <- event
 	}
 	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+	return bridge.RunHandle{Engine: m.engineName(), Process: &mockProcess{}, Events: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
-func (m *mockBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (m *mockBridge) engineName() string {
+	if m.engine != "" {
+		return m.engine
+	}
+	return bridge.EngineClaude
 }
 
-func (m *mockBeeRunner) getCalls() []beeCall {
+func (m *mockBridge) RunWorker(context.Context, bridge.WorkerRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+
+func (m *mockBridge) CollectTokenUsage(context.Context, string, string) (bridge.UsageResult, error) {
+	return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
+}
+
+func (m *mockBridge) getCalls() []beeCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]beeCall{}, m.calls...)
 }
 
-func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter) *bee.Feeder {
-	return newFeederWithEngine(ms, ts, ss, es, runner, "")
+func newFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, br bridge.Bridge) *bee.Feeder {
+	return newFeederWithEngine(ms, ts, ss, es, br, "")
 }
 
-func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, engine string) *bee.Feeder {
+func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, br bridge.Bridge, engine string) *bee.Feeder {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(engine))
+	return bee.NewFeeder(ms, ts, ss, es, br, "/tmp", cfg, enginecfg.NewStore(engine))
 }
 
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -124,10 +173,10 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.opts.SessionID == "" {
+	if call.req.SessionID == "" {
 		t.Error("expected non-empty sessionID on first call")
 	}
-	if call.opts.Resume {
+	if call.req.Resume {
 		t.Error("expected resume=false on first call")
 	}
 
@@ -135,8 +184,8 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session context: %v", err)
 	}
-	if got != call.opts.SessionID {
-		t.Errorf("persisted sessionID mismatch: want %q got %q", call.opts.SessionID, got)
+	if got != call.req.SessionID {
+		t.Errorf("persisted sessionID mismatch: want %q got %q", call.req.SessionID, got)
 	}
 
 	var status string
@@ -156,7 +205,7 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 
 	insertMessage(t, db, "m1", "feishu:c:u", "follow-up")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -169,10 +218,10 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 		t.Fatal("expected bee runner to be called")
 	}
 	call := calls[0]
-	if call.opts.SessionID != "existing-session" {
-		t.Errorf("expected existing-session, got %q", call.opts.SessionID)
+	if call.req.SessionID != "existing-session" {
+		t.Errorf("expected existing-session, got %q", call.req.SessionID)
 	}
-	if !call.opts.Resume {
+	if !call.req.Resume {
 		t.Error("expected resume=true on second call")
 	}
 }
@@ -187,7 +236,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 
 	insertMessage(t, db, "m1", "feishu:c:u", "switch to codex")
 
-	codexRunner := &mockBeeRunner{}
+	codexRunner := &mockBridge{engine: "codex"}
 	codexFeeder := newFeederWithEngine(ms, ts, ss, es, codexRunner, "codex")
 
 	tickCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -199,10 +248,10 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 		t.Fatal("expected codex bee runner to be called")
 	}
 	codexCall := codexCalls[0]
-	if codexCall.opts.Resume {
+	if codexCall.req.Resume {
 		t.Error("expected codex run to start fresh on engine switch")
 	}
-	if codexCall.opts.SessionID == "claude-session" {
+	if codexCall.req.SessionID == "claude-session" {
 		t.Error("expected codex run to use a new session ID")
 	}
 
@@ -217,8 +266,8 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	if claudeSID != "claude-session" {
 		t.Errorf("expected claude session preserved, got %q", claudeSID)
 	}
-	if codexSID != codexCall.opts.SessionID {
-		t.Errorf("expected codex session persisted, got %q want %q", codexSID, codexCall.opts.SessionID)
+	if codexSID != codexCall.req.SessionID {
+		t.Errorf("expected codex session persisted, got %q want %q", codexSID, codexCall.req.SessionID)
 	}
 
 	cancel()
@@ -226,7 +275,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 
 	insertMessage(t, db, "m2", "feishu:c:u", "switch back to claude")
 
-	claudeRunner := &mockBeeRunner{}
+	claudeRunner := &mockBridge{engine: "claude"}
 	claudeFeeder := newFeederWithEngine(ms, ts, ss, es, claudeRunner, "claude")
 
 	tickCtx2, cancel2 := context.WithTimeout(ctx, 2*time.Second)
@@ -238,11 +287,11 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	if len(claudeCalls) == 0 {
 		t.Fatal("expected claude bee runner to be called")
 	}
-	if !claudeCalls[0].opts.Resume {
+	if !claudeCalls[0].req.Resume {
 		t.Error("expected claude run to resume original claude session")
 	}
-	if claudeCalls[0].opts.SessionID != "claude-session" {
-		t.Errorf("expected original claude session, got %q", claudeCalls[0].opts.SessionID)
+	if claudeCalls[0].req.SessionID != "claude-session" {
+		t.Errorf("expected original claude session, got %q", claudeCalls[0].req.SessionID)
 	}
 }
 
@@ -250,7 +299,7 @@ func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
-	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	runner := &mockBridge{runErr: fmt.Errorf("bee crashed")}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -275,7 +324,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	insertMessage(t, db, "m1", "feishu:c:u1", "message from user1")
 	insertMessage(t, db, "m2", "feishu:c:u2", "message from user2")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -305,7 +354,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -358,7 +407,7 @@ func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
 	var capturedLogPath string
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	// Intercept: after Run is called, log_path should already be in DB.
 	// We verify this by checking the call's logPath is non-empty AND matches DB.
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -372,7 +421,7 @@ func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected runner to be called")
 	}
-	capturedLogPath = calls[0].logPath
+	capturedLogPath = calls[0].req.LogPath
 	if capturedLogPath == "" {
 		t.Error("logPath passed to runner must be non-empty")
 	}
@@ -387,7 +436,7 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
 
-	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	runner := &mockBridge{runErr: fmt.Errorf("bee crashed")}
 	f := newFeeder(ms, ts, ss, es, runner)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -432,7 +481,7 @@ func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "feishu:c:u", "hello")
 
-	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	runner := &mockBridge{runErr: fmt.Errorf("bee crashed")}
 	notifier := &mockFailureNotifier{}
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
@@ -477,8 +526,8 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 		startTimes []time.Time
 	)
 	// Runner records when each call starts; simulate 200ms bee execution.
-	slowRunner := &callbackBeeRunner{
-		fn: func() {
+	slowRunner := &mockBridge{
+		onRun: func() {
 			mu.Lock()
 			startTimes = append(startTimes, time.Now())
 			mu.Unlock()
@@ -536,8 +585,8 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 		maxActive     int
 		currentActive int
 	)
-	slowRunner := &callbackBeeRunner{
-		fn: func() {
+	slowRunner := &mockBridge{
+		onRun: func() {
 			mu.Lock()
 			currentActive++
 			if currentActive > maxActive {
@@ -576,38 +625,11 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	}
 }
 
-// callbackBeeRunner invokes fn synchronously inside Run, then signals done.
-type callbackBeeRunner struct {
-	fn   func()
-	done chan struct{}
-}
-
-func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
-func (r *callbackBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
-}
-
-func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	ch := make(chan ai.Output, 1)
-	go func() {
-		r.fn()
-		if r.done != nil {
-			close(r.done)
-		}
-		ch <- ai.Output{Type: ai.OutputDone}
-		close(ch)
-	}()
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
-}
-
 func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "sk1", "hello world")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	ws := store.NewWorkerStore(db)
 
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
@@ -630,7 +652,7 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	insertMessage(t, db, "m1", "sk1", "unknown do something")
 
-	runner := &mockBeeRunner{}
+	runner := &mockBridge{}
 	ws := store.NewWorkerStore(db) // empty store: "unknown" worker does not exist
 
 	cfg := config.BeeConfig{}
@@ -657,8 +679,8 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	done := make(chan struct{})
 
 	// Verify the session context row exists in DB when runner.Run() is called.
-	runner := &callbackBeeRunner{
-		fn: func() {
+	runner := &mockBridge{
+		onRun: func() {
 			ctx := context.Background()
 			sid, _, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
 			if err == nil && sid != "" {
@@ -698,7 +720,7 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 			db, ms, ts, ss, es := setupFeederDB(t)
 			insertMessage(t, db, "m1", "sk1", tc.msg)
 
-			runner := &mockBeeRunner{}
+			runner := &mockBridge{}
 			ws := store.NewWorkerStore(db)
 			w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
 			if err != nil {

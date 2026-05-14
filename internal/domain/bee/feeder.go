@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -54,7 +54,7 @@ type Feeder struct {
 	taskStore       *store.TaskStore
 	sessionStore    *store.SessionStore
 	execStore       *store.ExecutionStore
-	runner          ai.EngineAdapter
+	bridge          bridge.Bridge
 	workDir         string
 	cfg             config.BeeConfig
 	engineCfg       *enginecfg.Store
@@ -66,18 +66,18 @@ type Feeder struct {
 }
 
 // NewFeeder creates a Feeder.
-func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner ai.EngineAdapter, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
+func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, br bridge.Bridge, workDir string, cfg config.BeeConfig, engineCfg *enginecfg.Store, opts ...Option) *Feeder {
 	f := &Feeder{
 		msgStore:     ms,
 		taskStore:    ts,
 		sessionStore: ss,
 		execStore:    es,
-		runner:       runner,
+		bridge:       br,
 		workDir:      workDir,
 		cfg:          cfg,
 		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
-		running: make(map[string]context.CancelFunc),
+		running:      make(map[string]context.CancelFunc),
 	}
 	for _, o := range opts {
 		o(f)
@@ -117,7 +117,7 @@ func (f *Feeder) Run(ctx context.Context) {
 	if err := os.MkdirAll(f.workDir, 0o755); err != nil {
 		log.Error("create bee workspace", zap.Error(err))
 	}
-	if err := f.runner.Prepare(f.workDir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
+	if err := f.bridge.PrepareBeeWorkspace(f.workDir); err != nil {
 		log.Error("setup bee workspace", zap.Error(err))
 	}
 	ticker := time.NewTicker(PollInterval)
@@ -202,7 +202,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	prefix := ""
 	if !resume {
-		prefix = ai.BuildBeeSessionPrefix()
+		prefix = f.bridge.BuildBeeSessionPrefix()
 	}
 	prompt := buildPrompt(msgs, prefix)
 
@@ -234,7 +234,13 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.runningMu.Unlock()
 	}()
 
-	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	runRes, err := f.bridge.RunBee(beeCtx, bridge.BeeRunRequest{
+		WorkDir:   f.workDir,
+		Prompt:    prompt,
+		SessionID: sessionID,
+		Resume:    resume,
+		LogPath:   logPath,
+	})
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -252,7 +258,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		log.Error("update execution pid", zap.Error(pidErr))
 	}
 
-	drainErr := f.waitBeeOutput(runRes.Output)
+	drainErr := f.waitBeeOutput(runRes.Events)
 
 	finalStatus := model.ExecStatusCompleted
 	resultMsg := runRes.ExtractResult(logPath)
@@ -315,13 +321,13 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 
 // waitBeeOutput consumes the output channel and waits for a lifecycle signal.
 // Returns nil on OutputDone, or an error on OutputError or channel close without signal.
-func (f *Feeder) waitBeeOutput(ch <-chan ai.Output) error {
-	for out := range ch {
-		switch out.Type {
-		case ai.OutputDone:
+func (f *Feeder) waitBeeOutput(ch <-chan bridge.LifecycleEvent) error {
+	for event := range ch {
+		switch event.Type {
+		case bridge.LifecycleDone:
 			return nil
-		case ai.OutputError:
-			return errors.New(out.Content)
+		case bridge.LifecycleError:
+			return errors.New(event.Content)
 		}
 	}
 	return fmt.Errorf("output channel closed without completion signal")
