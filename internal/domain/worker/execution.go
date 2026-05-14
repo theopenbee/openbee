@@ -14,7 +14,7 @@ import (
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
 // to resume the session identified by sessionID; otherwise it starts a fresh session.
 // sessionID must always be non-empty; callers are responsible for generating it.
-func (m *Manager) ExecuteWorker(_ context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
@@ -39,7 +39,7 @@ func (m *Manager) ExecuteWorker(_ context.Context, workerID, triggerInput, sessi
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(exec, worker, engineName, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engineName, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -48,7 +48,7 @@ func (m *Manager) ExecuteWorker(_ context.Context, workerID, triggerInput, sessi
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engineName string, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engineName string, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
@@ -57,9 +57,9 @@ func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker,
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		execCtx, cancel = context.WithTimeout(context.Background(), timeout)
+		execCtx, cancel = context.WithTimeout(ctx, timeout)
 	} else {
-		execCtx, cancel = context.WithCancel(context.Background())
+		execCtx, cancel = context.WithCancel(ctx)
 	}
 
 	runRes, err := m.bridge.RunWorker(execCtx, bridge.WorkerRunRequest{

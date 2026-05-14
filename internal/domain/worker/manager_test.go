@@ -24,6 +24,8 @@ type fakeBridge struct {
 	resolveErr    error
 	runHandle     bridge.RunHandle
 	runErr        error
+	runErrFromCtx bool
+	runCtxErr     error
 	runRequest    bridge.WorkerRunRequest
 	prepareEngine string
 }
@@ -72,8 +74,12 @@ func (f *fakeBridge) PrepareWorkerWorkspace(_ string, engineName string) error {
 func (f *fakeBridge) RunBee(context.Context, bridge.BeeRunRequest) (bridge.RunHandle, error) {
 	return bridge.RunHandle{}, nil
 }
-func (f *fakeBridge) RunWorker(_ context.Context, req bridge.WorkerRunRequest) (bridge.RunHandle, error) {
+func (f *fakeBridge) RunWorker(ctx context.Context, req bridge.WorkerRunRequest) (bridge.RunHandle, error) {
 	f.runRequest = req
+	f.runCtxErr = ctx.Err()
+	if f.runErrFromCtx && f.runCtxErr != nil {
+		return bridge.RunHandle{}, f.runCtxErr
+	}
 	if f.runErr != nil {
 		return bridge.RunHandle{}, f.runErr
 	}
@@ -220,6 +226,28 @@ func TestManager_ExecuteWorker_StoresAndRunsResolvedEngine(t *testing.T) {
 	}
 	if br.runRequest.WorkerEngine != bridge.EngineCodex {
 		t.Fatalf("RunWorker request engine %q, want %q", br.runRequest.WorkerEngine, bridge.EngineCodex)
+	}
+}
+
+func TestManager_ExecuteWorker_PassesCallerCancellationToBridge(t *testing.T) {
+	br := newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude)
+	br.runErrFromCtx = true
+	mgr := newTestManager(t, br)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
+	if err != nil {
+		t.Fatalf("CreateWorker: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = mgr.ExecuteWorker(ctx, w.ID, "test", "session-cancel", false)
+	if err == nil {
+		t.Fatal("expected canceled launch error")
+	}
+	if !errors.Is(br.runCtxErr, context.Canceled) {
+		t.Fatalf("RunWorker ctx err = %v, want context.Canceled", br.runCtxErr)
 	}
 }
 
