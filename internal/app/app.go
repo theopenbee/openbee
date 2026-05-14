@@ -114,9 +114,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init ai bridge: %w", err)
 	}
-	if err := aiBridge.ValidateEngine(defaultEngine); err != nil {
-		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", defaultEngine)
-	}
 
 	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
 	if dbErr != nil {
@@ -128,6 +125,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 			logger.Warn("DB default engine is not enabled, falling back to config",
 				zap.String("db_value", dbCfg.Value))
 		}
+	}
+	if err := aiBridge.ValidateEngine(engineCfg.Get()); err != nil {
+		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", engineCfg.Get())
 	}
 
 	mgr := buildWorkerManager(cfg.Bee, s, aiBridge)

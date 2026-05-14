@@ -15,13 +15,25 @@ import (
 // to resume the session identified by sessionID; otherwise it starts a fresh session.
 // sessionID must always be non-empty; callers are responsible for generating it.
 func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.executeWorker(ctx, workerID, triggerInput, sessionID, resume, "")
+}
+
+func (m *Manager) ExecuteWorkerWithEngine(ctx context.Context, workerID, triggerInput, sessionID string, resume bool, engineName string) (model.WorkerExecution, error) {
+	return m.executeWorker(ctx, workerID, triggerInput, sessionID, resume, engineName)
+}
+
+func (m *Manager) executeWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool, engineName string) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	engineName, err := m.resolveEngine(worker)
-	if err != nil {
+	if engineName == "" {
+		engineName, err = m.resolveEngine(worker)
+		if err != nil {
+			return model.WorkerExecution{}, err
+		}
+	} else if err := m.bridge.ValidateEngine(engineName); err != nil {
 		return model.WorkerExecution{}, err
 	}
 

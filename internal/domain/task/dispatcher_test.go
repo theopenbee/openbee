@@ -24,14 +24,24 @@ type mockExecManager struct {
 	execResult           model.WorkerExecution
 	resumedWithSessionID string
 	executedInstructions []string
+	executedEngines      []string
 }
 
 func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+	return m.recordExecute(instruction, sessionID, resume, "")
+}
+
+func (m *mockExecManager) ExecuteWorkerWithEngine(_ context.Context, _, instruction, sessionID string, resume bool, engineName string) (model.WorkerExecution, error) {
+	return m.recordExecute(instruction, sessionID, resume, engineName)
+}
+
+func (m *mockExecManager) recordExecute(instruction, sessionID string, resume bool, engineName string) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	if resume {
 		m.resumedWithSessionID = sessionID
 	}
 	m.executedInstructions = append(m.executedInstructions, instruction)
+	m.executedEngines = append(m.executedEngines, engineName)
 	m.mu.Unlock()
 	return m.execResult, nil
 }
@@ -69,6 +79,10 @@ func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string
 	default:
 	}
 	return model.WorkerExecution{}, nil
+}
+
+func (m *quickCancelExecManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
 }
 
 func (m *quickCancelExecManager) CancelExecution(_ context.Context, _ string) error {
@@ -308,6 +322,10 @@ func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID st
 	m.mu.Unlock()
 	m.executed.Add(1)
 	return m.execResult, nil
+}
+
+func (m *orderedMockManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
 }
 
 func (m *orderedMockManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -779,6 +797,10 @@ func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _
 	return model.WorkerExecution{ID: "exec-x"}, nil
 }
 
+func (m *blockingExecManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
+}
+
 func (m *blockingExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
 
 type alwaysFailExecManager struct {
@@ -788,6 +810,10 @@ type alwaysFailExecManager struct {
 func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
+}
+
+func (m *alwaysFailExecManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
 }
 
 func (m *alwaysFailExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -803,6 +829,10 @@ func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, r
 	}
 	atomic.AddInt64(&m.freshCount, 1)
 	return m.freshResult, nil
+}
+
+func (m *fallbackExecManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
 }
 
 func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -929,6 +959,10 @@ type cancelTrackingExecManager struct {
 func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
+}
+
+func (m *cancelTrackingExecManager) ExecuteWorkerWithEngine(ctx context.Context, workerID, input, sessionID string, resume bool, _ string) (model.WorkerExecution, error) {
+	return m.ExecuteWorker(ctx, workerID, input, sessionID, resume)
 }
 
 func (m *cancelTrackingExecManager) CancelExecution(_ context.Context, _ string) error {
@@ -1505,6 +1539,12 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 	}
 	if got := ss.sessionID("sk-1", "w1", "kimi"); got != "" {
 		t.Errorf("session context must not be stored under system-default engine 'kimi', got %q", got)
+	}
+	mgr.mu.Lock()
+	executedEngines := append([]string{}, mgr.executedEngines...)
+	mgr.mu.Unlock()
+	if len(executedEngines) != 1 || executedEngines[0] != "pi" {
+		t.Fatalf("expected worker execution to receive engine snapshot 'pi', got %v", executedEngines)
 	}
 }
 

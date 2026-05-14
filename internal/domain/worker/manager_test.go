@@ -229,6 +229,28 @@ func TestManager_ExecuteWorker_StoresAndRunsResolvedEngine(t *testing.T) {
 	}
 }
 
+func TestManager_ExecuteWorkerWithEngine_UsesEngineSnapshot(t *testing.T) {
+	br := newTestBridge([]string{bridge.EngineClaude, bridge.EngineCodex}, bridge.EngineCodex)
+	mgr := newTestManager(t, br)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice", Engine: "missing-engine"})
+	if err != nil {
+		t.Fatalf("CreateWorker: %v", err)
+	}
+
+	exec, err := mgr.ExecuteWorkerWithEngine(context.Background(), w.ID, "test", "session-1", false, bridge.EngineClaude)
+	if err != nil {
+		t.Fatalf("ExecuteWorkerWithEngine: %v", err)
+	}
+
+	if exec.Engine != bridge.EngineClaude {
+		t.Fatalf("execution stored engine %q, want %q", exec.Engine, bridge.EngineClaude)
+	}
+	if br.runRequest.WorkerEngine != bridge.EngineClaude {
+		t.Fatalf("RunWorker request engine %q, want %q", br.runRequest.WorkerEngine, bridge.EngineClaude)
+	}
+}
+
 func TestManager_ExecuteWorker_PassesCallerCancellationToBridge(t *testing.T) {
 	br := newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude)
 	br.runErrFromCtx = true
