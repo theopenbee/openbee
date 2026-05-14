@@ -7,9 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/bridge"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/bridge/testkit"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -20,31 +18,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
-type stubEngineAdapter struct{}
-
-func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
-}
-func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
-}
-
 func newTestWorkerManager(t *testing.T, ws *store.WorkerStore, es *store.ExecutionStore) *worker.Manager {
 	t.Helper()
-	br := bridge.NewService(bridge.ServiceOptions{
-		Engines:     bridge.EngineSetForTest(map[string]ai.EngineAdapter{bridge.EngineClaude: &stubEngineAdapter{}}),
-		EngineCfg:   enginecfg.NewStore(bridge.EngineClaude),
-		TokenSecret: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
-	})
 	return worker.NewManager(
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		br,
+		testkit.NewBridge(),
 	)
 }
 
