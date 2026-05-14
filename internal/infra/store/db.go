@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	_ "modernc.org/sqlite"
 )
 
@@ -276,7 +276,7 @@ INSERT INTO bee_session_contexts_new (session_key, agent_id, engine, session_id,
 SELECT session_key, agent_id, '%s', session_id, updated_at
 FROM bee_session_contexts;
 DROP TABLE bee_session_contexts;
-ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.EngineClaude),
+ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, bridge.EngineClaude),
 	},
 	{
 		version: 30,

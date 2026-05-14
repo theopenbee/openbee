@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 )
 
 func TestInitDB(t *testing.T) {
@@ -240,10 +240,10 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	var sessionID, engine string
 	if err := db.QueryRow(`SELECT session_id, engine
 		FROM bee_session_contexts
-		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = ?`, ai.EngineClaude).Scan(&sessionID, &engine); err != nil {
+		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = ?`, bridge.EngineClaude).Scan(&sessionID, &engine); err != nil {
 		t.Fatalf("query migrated row: %v", err)
 	}
-	if sessionID != "legacy-sid" || engine != ai.EngineClaude {
+	if sessionID != "legacy-sid" || engine != bridge.EngineClaude {
 		t.Fatalf("unexpected migrated row: session_id=%q engine=%q", sessionID, engine)
 	}
 

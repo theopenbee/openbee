@@ -1,13 +1,13 @@
 package main
 
 import (
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func configurePiExecutable(vals *configValues) error {
 	return configureEngineExecutable(
-		ai.EnginePi,
+		bridge.EnginePi,
 		i18n.M.Output.Config.PiFound,
 		i18n.M.Output.Config.PiManualEntry,
 		i18n.M.Prompt.PiPath,

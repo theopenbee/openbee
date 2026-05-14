@@ -15,7 +15,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/skillinstall"
@@ -253,20 +253,20 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	// Step 1 — Engine config
 	fmt.Println(i18n.M.Output.Config.SectionEngine)
 
-	enabledByName := map[string]bool{
-		ai.EngineClaude: vals.ClaudeEnabled,
-		ai.EngineCodex:  vals.CodexEnabled,
-		ai.EnginePi:     vals.PiEnabled,
-		ai.EngineKimi:   vals.KimiEnabled,
+	enabledByEngine := map[string]bool{
+		bridge.EngineClaude: vals.ClaudeEnabled,
+		bridge.EngineCodex:  vals.CodexEnabled,
+		bridge.EnginePi:     vals.PiEnabled,
+		bridge.EngineKimi:   vals.KimiEnabled,
 	}
 	var defaultEngines []string
-	for _, name := range ai.AllEngines() {
-		if enabledByName[name] {
+	for _, name := range bridge.AllEngines() {
+		if enabledByEngine[name] {
 			defaultEngines = append(defaultEngines, engineLabel(name))
 		}
 	}
 	if len(defaultEngines) == 0 {
-		defaultEngines = []string{engineLabel(ai.EngineClaude)}
+		defaultEngines = []string{engineLabel(bridge.EngineClaude)}
 	}
 
 	mappings := engineMappings()
@@ -296,22 +296,22 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
 	for _, e := range selectedEngines {
 		switch engineName(e) {
-		case ai.EngineClaude:
+		case bridge.EngineClaude:
 			vals.ClaudeEnabled = true
 			if err := configureClaudeExecutable(&vals); err != nil {
 				return err
 			}
-		case ai.EngineCodex:
+		case bridge.EngineCodex:
 			vals.CodexEnabled = true
 			if err := configureCodexExecutable(&vals); err != nil {
 				return err
 			}
-		case ai.EnginePi:
+		case bridge.EnginePi:
 			vals.PiEnabled = true
 			if err := configurePiExecutable(&vals); err != nil {
 				return err
 			}
-		case ai.EngineKimi:
+		case bridge.EngineKimi:
 			vals.KimiEnabled = true
 			if err := configureKimiExecutable(&vals); err != nil {
 				return err
@@ -859,10 +859,10 @@ type engineMapping struct{ name, label string }
 
 func engineMappings() []engineMapping {
 	return []engineMapping{
-		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
-		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
-		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
-		{ai.EngineKimi, i18n.M.Prompt.OptionEngineKimi},
+		{bridge.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
+		{bridge.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
+		{bridge.EnginePi, i18n.M.Prompt.OptionEnginePi},
+		{bridge.EngineKimi, i18n.M.Prompt.OptionEngineKimi},
 	}
 }
 

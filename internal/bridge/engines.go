@@ -5,10 +5,6 @@ import (
 	"os"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	_ "github.com/theopenbee/openbee/internal/ai/claude"
-	_ "github.com/theopenbee/openbee/internal/ai/codex"
-	_ "github.com/theopenbee/openbee/internal/ai/kimi"
-	_ "github.com/theopenbee/openbee/internal/ai/pi"
 )
 
 type EngineSet struct {
