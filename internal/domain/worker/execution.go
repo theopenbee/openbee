@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"go.uber.org/zap"
@@ -15,13 +14,16 @@ import (
 // ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
 // to resume the session identified by sessionID; otherwise it starts a fresh session.
 // sessionID must always be non-empty; callers are responsible for generating it.
-func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *Manager) ExecuteWorker(_ context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
 	worker, err := m.workerStore.GetByID(workerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	engineName, engine := m.resolveEngine(worker)
+	engineName, err := m.resolveEngine(worker)
+	if err != nil {
+		return model.WorkerExecution{}, err
+	}
 
 	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
 	if err != nil {
@@ -32,12 +34,12 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
+	if err := m.bridge.PrepareWorkerWorkspace(worker.WorkDir, engineName); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(exec, worker, engineName, timeout, triggerInput, resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -46,15 +48,10 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	return exec, nil
 }
 
-func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution, worker model.Worker, engine ai.EngineAdapter, engineName string, timeout time.Duration, prompt string, resume bool) error {
+func (m *Manager) launchRuntime(exec model.WorkerExecution, worker model.Worker, engineName string, timeout time.Duration, prompt string, resume bool) error {
 	logPath, err := m.executionStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		return fmt.Errorf("prepare log path: %w", err)
-	}
-
-	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), m.tokenTTL)
-	if err != nil {
-		return fmt.Errorf("generate worker token: %w", err)
 	}
 
 	var execCtx context.Context
@@ -65,21 +62,17 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		execCtx, cancel = context.WithCancel(context.Background())
 	}
 
-	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)
-	if err != nil {
-		cancel()
-		return fmt.Errorf("resolve worker env: %w", err)
-	}
-
-	extraArgs := m.resolveEngineArgs(ctx, worker, engineName)
-
-	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
-		SessionID: exec.SessionID,
-		Resume:    resume,
-		APIKey:    token,
-		ExtraEnv:  extraEnv,
-		ExtraArgs: extraArgs,
-	}, logPath)
+	runRes, err := m.bridge.RunWorker(execCtx, bridge.WorkerRunRequest{
+		WorkerID:         worker.ID,
+		WorkDir:          worker.WorkDir,
+		PermissionScopes: utils.SplitAndTrim(worker.PermissionScopes),
+		WorkerEngine:     engineName,
+		WorkerEngineArgs: worker.EngineArgs,
+		Prompt:           prompt,
+		SessionID:        exec.SessionID,
+		Resume:           resume,
+		LogPath:          logPath,
+	})
 	if err != nil {
 		cancel()
 		return err
@@ -94,21 +87,21 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 	return nil
 }
 
-func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes ai.RunResult, cancel context.CancelFunc, logPath string) {
+func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Worker, runRes bridge.RunHandle, cancel context.CancelFunc, logPath string) {
 	defer cancel()
 
 	finalized := false
-	for out := range runRes.Output {
-		switch out.Type {
-		case ai.OutputDone:
+	for event := range runRes.Events {
+		switch event.Type {
+		case bridge.LifecycleDone:
 			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
 			finalized = true
-		case ai.OutputError:
+		case bridge.LifecycleError:
 			result := runRes.ExtractResult(logPath)
 			if result == "" {
-				result = out.Content
+				result = event.Content
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
 			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)

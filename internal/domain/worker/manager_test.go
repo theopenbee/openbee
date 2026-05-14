@@ -3,61 +3,106 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
-	"github.com/theopenbee/openbee/internal/domain/env"
-	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
-
-type mockEngine struct{}
-
-func (e *mockEngine) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
-func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	ch := make(chan ai.Output, 1)
-	ch <- ai.Output{Type: ai.OutputDone}
-	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
-}
-
-func (m *mockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
-}
 
 type mockProcess struct{}
 
 func (p *mockProcess) PID() int    { return 0 }
 func (p *mockProcess) Stop() error { return nil }
 
-// silentMockEngine simulates a process whose output channel closes without
-// emitting a terminal Done/Error signal — the abandoned-process scenario.
-type silentMockEngine struct{}
-
-func (e *silentMockEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
-
-func (e *silentMockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	ch := make(chan ai.Output)
-	close(ch)
-	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
+type fakeBridge struct {
+	enabled       []string
+	resolved      string
+	resolveErr    error
+	runHandle     bridge.RunHandle
+	runErr        error
+	runRequest    bridge.WorkerRunRequest
+	prepareEngine string
 }
 
-func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (f *fakeBridge) EnabledEngines() []string { return f.enabled }
+
+func (f *fakeBridge) ValidateEngine(name string) error {
+	if name == "" {
+		return nil
+	}
+	for _, engine := range f.enabled {
+		if name == engine {
+			return nil
+		}
+	}
+	return fmt.Errorf("engine %q is not enabled", name)
 }
 
-func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
-	return newTestManagerWithBotNames(t, engines, defaultEngine, nil)
+func (f *fakeBridge) ResolveEngine(workerEngine string) (string, error) {
+	if f.resolveErr != nil {
+		return "", f.resolveErr
+	}
+	for _, engine := range f.enabled {
+		if workerEngine == engine {
+			return workerEngine, nil
+		}
+	}
+	if f.resolved != "" {
+		return f.resolved, nil
+	}
+	if len(f.enabled) > 0 {
+		return f.enabled[0], nil
+	}
+	return "", fmt.Errorf("no engine")
 }
 
-func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string, botNames []string) *Manager {
+func (f *fakeBridge) BuildBeeSessionPrefix() string { return "" }
+func (f *fakeBridge) BuildWorkerSessionPrefix(bridge.WorkerPersona) string {
+	return ""
+}
+func (f *fakeBridge) PrepareBeeWorkspace(string) error { return nil }
+func (f *fakeBridge) PrepareWorkerWorkspace(_ string, engineName string) error {
+	f.prepareEngine = engineName
+	return nil
+}
+func (f *fakeBridge) RunBee(context.Context, bridge.BeeRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+func (f *fakeBridge) RunWorker(_ context.Context, req bridge.WorkerRunRequest) (bridge.RunHandle, error) {
+	f.runRequest = req
+	if f.runErr != nil {
+		return bridge.RunHandle{}, f.runErr
+	}
+	if f.runHandle.Events == nil {
+		ch := make(chan bridge.LifecycleEvent, 1)
+		ch <- bridge.LifecycleEvent{Type: bridge.LifecycleDone}
+		close(ch)
+		f.runHandle = bridge.RunHandle{
+			Engine:        req.WorkerEngine,
+			Process:       &mockProcess{},
+			Events:        ch,
+			ExtractResult: func(string) string { return "" },
+		}
+	}
+	return f.runHandle, nil
+}
+func (f *fakeBridge) CollectTokenUsage(context.Context, string, string) (bridge.UsageResult, error) {
+	return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
+}
+
+func newTestBridge(enabled []string, defaultEngine string) *fakeBridge {
+	return &fakeBridge{enabled: enabled, resolved: defaultEngine}
+}
+
+func newTestManager(t *testing.T, br *fakeBridge) *Manager {
+	return newTestManagerWithBotNames(t, br, nil)
+}
+
+func newTestManagerWithBotNames(t *testing.T, br *fakeBridge, botNames []string) *Manager {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := store.InitDB(filepath.Join(dir, "test.db"))
@@ -67,94 +112,71 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 	t.Cleanup(func() { db.Close() })
 	ws := store.NewWorkerStore(db)
 	es := store.NewExecutionStore(db, dir)
-	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bc := config.BeeConfig{}
-	bc.RPC.TokenTTL = time.Minute
 	m := &Manager{
 		workerBaseDir:   dir,
-		tokenSecret:     bc.RPC.TokenSecret,
-		tokenTTL:        bc.RPC.TokenTTL,
 		workerTimeout:   30 * time.Minute,
 		workerStore:     ws,
 		executionStore:  es,
-		engines:         engines,
-		engineCfg:       enginecfg.NewStore(defaultEngine),
-		envService:      envSvc,
+		bridge:          br,
 		botNamesLower:   botNames,
-		activeProcesses: make(map[string]ai.Process),
+		activeProcesses: make(map[string]bridge.ProcessHandle),
 	}
 	return m
 }
 
 func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
-	claude := &mockEngine{}
-	codex := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude, "codex": codex}
-	mgr := newTestManager(t, engines, "claude")
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude, bridge.EngineCodex}, bridge.EngineClaude))
 
 	w := model.Worker{Engine: "codex"}
-	name, got := mgr.resolveEngine(w)
+	name, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("resolveEngine: %v", err)
+	}
 	if name != "codex" {
 		t.Fatalf("expected codex engine name, got %q", name)
-	}
-	if got != codex {
-		t.Error("expected codex engine adapter")
 	}
 }
 
 func TestManager_ResolveEngine_EmptyEngine_FallsBackToDefault(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w := model.Worker{Engine: ""}
-	name, got := mgr.resolveEngine(w)
+	name, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("resolveEngine: %v", err)
+	}
 	if name != "claude" {
 		t.Fatalf("expected default claude engine name, got %q", name)
-	}
-	if got != claude {
-		t.Error("expected default claude engine adapter")
 	}
 }
 
 func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w := model.Worker{Engine: "unknown-engine"}
-	name, got := mgr.resolveEngine(w)
+	name, err := mgr.resolveEngine(w)
+	if err != nil {
+		t.Fatalf("resolveEngine: %v", err)
+	}
 	if name != "claude" {
 		t.Fatalf("expected fallback engine name claude, got %q", name)
-	}
-	if got != claude {
-		t.Error("expected fallback to default claude engine adapter")
 	}
 }
 
 func TestManager_ResolveEngineSelection_UnknownEngineUsesFallbackName(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
-	name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
+	name, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if name != "claude" {
 		t.Fatalf("got engine name %q, want %q", name, "claude")
 	}
-	if got != claude {
-		t.Error("expected fallback to default claude engine adapter")
-	}
 }
 
 func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})
 	if err == nil {
 		t.Fatal("expected error for unknown engine, got nil")
@@ -162,7 +184,7 @@ func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
 }
 
 func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 	err := mgr.ValidateEngineArgs(map[string]string{"claude": `--model "unterminated`})
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
@@ -171,8 +193,7 @@ func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	err := mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
 	if err == nil {
@@ -180,12 +201,42 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	}
 }
 
+func TestManager_ExecuteWorker_StoresAndRunsResolvedEngine(t *testing.T) {
+	br := newTestBridge([]string{bridge.EngineClaude, bridge.EngineCodex}, bridge.EngineCodex)
+	mgr := newTestManager(t, br)
+
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice", Engine: "missing-engine"})
+	if err != nil {
+		t.Fatalf("CreateWorker: %v", err)
+	}
+
+	exec, err := mgr.ExecuteWorker(context.Background(), w.ID, "test", "session-1", false)
+	if err != nil {
+		t.Fatalf("ExecuteWorker: %v", err)
+	}
+
+	if exec.Engine != bridge.EngineCodex {
+		t.Fatalf("execution stored engine %q, want %q", exec.Engine, bridge.EngineCodex)
+	}
+	if br.runRequest.WorkerEngine != bridge.EngineCodex {
+		t.Fatalf("RunWorker request engine %q, want %q", br.runRequest.WorkerEngine, bridge.EngineCodex)
+	}
+}
+
 // Regression: when a worker process exits without emitting Done/Error (killed,
 // crashed, signal-terminated), monitorExecution must finalize the execution
 // row instead of leaving it stuck in `running` forever.
 func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &silentMockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	br := newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude)
+	ch := make(chan bridge.LifecycleEvent)
+	close(ch)
+	br.runHandle = bridge.RunHandle{
+		Engine:        bridge.EngineClaude,
+		Process:       &mockProcess{},
+		Events:        ch,
+		ExtractResult: func(string) string { return "" },
+	}
+	mgr := newTestManager(t, br)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -213,8 +264,7 @@ func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
 }
 
 func TestManager_ValidateWorkerName_DuplicateName(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -230,8 +280,7 @@ func TestManager_ValidateWorkerName_DuplicateName(t *testing.T) {
 }
 
 func TestManager_ValidateWorkerName_CaseInsensitiveDuplicate(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "Alice"})
 	if err != nil {
@@ -247,8 +296,7 @@ func TestManager_ValidateWorkerName_CaseInsensitiveDuplicate(t *testing.T) {
 }
 
 func TestManager_ValidateWorkerName_BotNameConflict(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude), []string{"feishu"})
 
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "feishu"})
 	if err == nil {
@@ -260,8 +308,7 @@ func TestManager_ValidateWorkerName_BotNameConflict(t *testing.T) {
 }
 
 func TestManager_ValidateWorkerName_BotNameConflict_CaseInsensitive(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude), []string{"feishu"})
 
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "FEISHU"})
 	if err == nil {
@@ -273,8 +320,7 @@ func TestManager_ValidateWorkerName_BotNameConflict_CaseInsensitive(t *testing.T
 }
 
 func TestManager_ValidateWorkerName_WhitespaceTrimmed(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -290,8 +336,7 @@ func TestManager_ValidateWorkerName_WhitespaceTrimmed(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToDifferentName_Duplicate(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w1, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -313,8 +358,7 @@ func TestManager_UpdateWorker_RenameToDifferentName_Duplicate(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -329,8 +373,7 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}, ai.EngineCodex: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude, bridge.EngineCodex}, bridge.EngineClaude))
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{
 		Name:       "alice",
@@ -352,8 +395,7 @@ func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -368,8 +410,7 @@ func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude), []string{"feishu"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -387,8 +428,7 @@ func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude), []string{"feishu"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	if err != nil {
@@ -406,8 +446,7 @@ func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) 
 }
 
 func TestManager_UpdateWorker_NoNameChange_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	mgr := newTestManager(t, newTestBridge([]string{bridge.EngineClaude}, bridge.EngineClaude))
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice", Description: "original"})
 	if err != nil {
