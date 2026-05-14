@@ -17,12 +17,8 @@ import (
 	"github.com/theopenbee/openbee/internal/routes"
 	"go.uber.org/zap"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
-	_ "github.com/theopenbee/openbee/internal/ai/claude"
-	_ "github.com/theopenbee/openbee/internal/ai/codex"
-	_ "github.com/theopenbee/openbee/internal/ai/kimi"
-	_ "github.com/theopenbee/openbee/internal/ai/pi"
 	"github.com/theopenbee/openbee/internal/bridge"
+	bridgeengines "github.com/theopenbee/openbee/internal/bridge/engines"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -106,22 +102,27 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	engines, err := buildAllEngines(cfg.Bee)
-	if err != nil {
-		return nil, fmt.Errorf("init engines: %w", err)
-	}
 	defaultEngine := cfg.Bee.EffectiveEngine()
-	if engines[defaultEngine] == nil {
+	// Initialize the default engine store from DB, falling back to config.
+	engineCfg := enginecfg.NewStore(defaultEngine)
+
+	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
+	if err != nil {
+		return nil, fmt.Errorf("init env service: %w", err)
+	}
+	aiBridge, err := buildBridge(cfg.Bee, engineCfg, envSvc, s.systemConfigStore)
+	if err != nil {
+		return nil, fmt.Errorf("init ai bridge: %w", err)
+	}
+	if err := aiBridge.ValidateEngine(defaultEngine); err != nil {
 		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", defaultEngine)
 	}
 
-	// Initialize the default engine store from DB, falling back to config.
-	engineCfg := enginecfg.NewStore(defaultEngine)
 	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
 	if dbErr != nil {
 		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))
 	} else if found {
-		if engines[dbCfg.Value] != nil {
+		if err := aiBridge.ValidateEngine(dbCfg.Value); err == nil {
 			engineCfg.Set(dbCfg.Value)
 		} else {
 			logger.Warn("DB default engine is not enabled, falling back to config",
@@ -129,11 +130,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
-	if err != nil {
-		return nil, fmt.Errorf("init env service: %w", err)
-	}
-	aiBridge := buildBridgeFromEngines(cfg.Bee, s, engines, engineCfg, envSvc)
 	mgr := buildWorkerManager(cfg.Bee, s, aiBridge)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
@@ -193,7 +189,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Info("reset orphaned executions", zap.Int64("count", n))
 	}
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, aiBridge)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -222,7 +218,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		s.msgStore,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp, aiBridge)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -269,35 +265,19 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-// buildAllEngines initializes engine adapters shared safely across concurrent workers.
-func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
-
-	result := make(map[string]ai.EngineAdapter)
-	for _, name := range ai.AllEngines() {
-		if !cfg.Engines.IsEnabled(name) {
-			continue
-		}
-		adapter, err := ai.New(name, ai.EngineConfig{
-			Raw: cfg.EngineConfigRawFor(name),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("init engine %q: %w", name, err)
-		}
-		result[name] = adapter
+func buildBridge(bc config.BeeConfig, engineCfg *enginecfg.Store, envSvc *env.Service, sysStore *store.SystemConfigStore) (bridge.Bridge, error) {
+	engines, err := bridgeengines.BuildEngines(bc.RPCBaseURL, bc.Engines.IsEnabled, bc.EngineConfigRawFor)
+	if err != nil {
+		return nil, err
 	}
-	return result, nil
-}
-
-func buildBridgeFromEngines(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) bridge.Bridge {
 	return bridge.NewService(bridge.ServiceOptions{
-		Engines:      bridge.NewEngineSet(engines),
+		Engines:      engines,
 		EngineCfg:    engineCfg,
 		TokenSecret:  bc.RPC.TokenSecret,
 		TokenTTL:     bc.RPC.TokenTTL,
 		Env:          envSvc,
-		SystemConfig: s.systemConfigStore,
-	})
+		SystemConfig: sysStore,
+	}), nil
 }
 
 func buildWorkerManager(bc config.BeeConfig, s appStores, br bridge.Bridge) *worker.Manager {
@@ -366,7 +346,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller, br bridge.Bridge) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -381,7 +361,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Stats:             api.NewStatsHandler(s.statsStore),
-		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
+		Config:            api.NewConfigHandler(language, br.EnabledEngines()),
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
