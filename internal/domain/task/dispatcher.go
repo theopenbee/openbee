@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -85,6 +85,7 @@ type TaskDispatcher struct {
 	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
 	execStore       ExecutionQuerier              // queries execution state by ID
 	engineCfg       *enginecfg.Store              // resolves the current default engine
+	bridge          bridge.Bridge                 // owns AI prompt and engine helper boundaries
 	failureNotifier FailureNotifier               // sends failure notifications (optional)
 	workerLookup    WorkerLookup                  // optional; if nil, no persona is injected
 	inCh            <-chan DispatchTask           // inbound task channel
@@ -96,13 +97,14 @@ type TaskDispatcher struct {
 }
 
 // New constructs a TaskDispatcher.
-func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, engineCfg *enginecfg.Store, opts ...Option) *TaskDispatcher {
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, engineCfg *enginecfg.Store, br bridge.Bridge, opts ...Option) *TaskDispatcher {
 	d := &TaskDispatcher{
 		manager:      manager,
 		taskStore:    taskStore,
 		sessionStore: sessionStore,
 		execStore:    execStore,
 		engineCfg:    engineCfg,
+		bridge:       br,
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
@@ -325,7 +327,13 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 				zap.String("workerID", workerID), zap.Error(err))
 			return d.engineCfg.Get(), nil
 		}
-		return d.engineCfg.Resolve(w.Engine), &w
+		engineName, err := d.bridge.ResolveEngine(w.Engine)
+		if err != nil {
+			log.Warn("worker engine resolution failed, falling back to current default",
+				zap.String("workerID", workerID), zap.Error(err))
+			return d.engineCfg.Get(), &w
+		}
+		return engineName, &w
 	}
 	return d.engineCfg.Get(), nil
 }
@@ -335,14 +343,18 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 // workerLookup is configured but worker is nil, the lookup failed and the task
 // is aborted.
 func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
-	persona := ""
+	persona := bridge.WorkerPersona{}
 	if d.workerLookup != nil {
 		if worker == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
+		persona = bridge.WorkerPersona{
+			Name:        worker.Name,
+			Description: worker.Description,
+			Constraints: worker.Constraints,
+		}
 	}
-	prefix := ai.BuildWorkerSessionPrefix(persona)
+	prefix := d.bridge.BuildWorkerSessionPrefix(persona)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))

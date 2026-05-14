@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -116,7 +116,7 @@ type mockSessionRef struct {
 
 func normalizeMockEngine(engine string) string {
 	if engine == "" {
-		return ai.EngineClaude
+		return bridge.EngineClaude
 	}
 	return engine
 }
@@ -248,6 +248,48 @@ func (m *mockWorkerLookup) GetByID(_ string) (model.Worker, error) {
 	return m.worker, m.err
 }
 
+type fakeTaskBridge struct {
+	defaultEngine string
+}
+
+func (f fakeTaskBridge) EnabledEngines() []string {
+	return []string{bridge.EngineClaude, bridge.EngineCodex, bridge.EnginePi, bridge.EngineKimi}
+}
+
+func (f fakeTaskBridge) ValidateEngine(string) error { return nil }
+
+func (f fakeTaskBridge) ResolveEngine(workerEngine string) (string, error) {
+	if workerEngine != "" {
+		return workerEngine, nil
+	}
+	if f.defaultEngine != "" {
+		return f.defaultEngine, nil
+	}
+	return bridge.EngineClaude, nil
+}
+
+func (f fakeTaskBridge) BuildBeeSessionPrefix() string { return "" }
+
+func (f fakeTaskBridge) BuildWorkerSessionPrefix(persona bridge.WorkerPersona) string {
+	return bridge.BuildWorkerSessionPrefix(persona)
+}
+
+func (f fakeTaskBridge) PrepareBeeWorkspace(string) error { return nil }
+
+func (f fakeTaskBridge) PrepareWorkerWorkspace(string, string) error { return nil }
+
+func (f fakeTaskBridge) RunBee(context.Context, bridge.BeeRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+
+func (f fakeTaskBridge) RunWorker(context.Context, bridge.WorkerRunRequest) (bridge.RunHandle, error) {
+	return bridge.RunHandle{}, nil
+}
+
+func (f fakeTaskBridge) CollectTokenUsage(context.Context, string, string) (bridge.UsageResult, error) {
+	return bridge.UsageResult{}, bridge.ErrSessionDataNotFound
+}
+
 // orderedMockManager records whether UpsertSessionContext was called before ExecuteWorker.
 type orderedMockManager struct {
 	mu             sync.Mutex
@@ -290,7 +332,7 @@ func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss t
 func newTaskDispatcherWithEngine(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, engine string, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, ss, eq, in, enginecfg.NewStore(engine), opts...)
+	d := task.New(mgr, ts, ss, eq, in, enginecfg.NewStore(engine), fakeTaskBridge{defaultEngine: engine}, opts...)
 	return d, in, ts
 }
 
@@ -428,7 +470,7 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""), fakeTaskBridge{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -580,7 +622,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("codex"))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("codex"), fakeTaskBridge{defaultEngine: "codex"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -822,7 +864,7 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
 
 	in := make(chan task.DispatchTask, 8)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""), fakeTaskBridge{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -902,7 +944,7 @@ func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""), fakeTaskBridge{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -943,7 +985,7 @@ func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""), fakeTaskBridge{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -980,7 +1022,7 @@ func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
 	ss := newMockSessionStore()
 
 	ch := make(chan task.DispatchTask, 1)
-	d := task.New(mgr, ts, ss, execStore, ch, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, ss, execStore, ch, enginecfg.NewStore(""), fakeTaskBridge{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -1028,7 +1070,7 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 	taskStore := &mockTaskStore{}
 	sessionStore := newMockSessionStore()
 
-	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh, enginecfg.NewStore(""))
+	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh, enginecfg.NewStore(""), fakeTaskBridge{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)
@@ -1281,7 +1323,7 @@ func TestTaskDispatcher_NewSession_InjectsWorkerPersona(t *testing.T) {
 	}
 }
 
-func TestTaskDispatcher_NewSession_NilLookup_NoPersona(t *testing.T) {
+func TestTaskDispatcher_NewSession_NilLookup_UsesDefaultPersona(t *testing.T) {
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-1", Status: model.ExecStatusCompleted},
 	}
@@ -1305,8 +1347,11 @@ func TestTaskDispatcher_NewSession_NilLookup_NoPersona(t *testing.T) {
 	if !strings.Contains(instr, "## Step 1: Initialize your role") {
 		t.Errorf("instruction missing Step 1 header, got: %q", instr)
 	}
-	if strings.Contains(instr, "<worker_persona>") {
-		t.Errorf("instruction should not contain <worker_persona> when lookup is nil, got: %q", instr)
+	if !strings.Contains(instr, "<worker_persona>") {
+		t.Errorf("instruction missing default <worker_persona> when lookup is nil, got: %q", instr)
+	}
+	if strings.Contains(instr, "Name:") || strings.Contains(instr, "Description:") || strings.Contains(instr, "Constraints:") {
+		t.Errorf("instruction should not contain custom worker metadata when lookup is nil, got: %q", instr)
 	}
 }
 
