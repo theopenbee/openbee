@@ -202,6 +202,7 @@ func TestRunBeeMapsRequestEnvArgsAndLifecycle(t *testing.T) {
 	})
 	handle, err := svc.RunBee(context.Background(), bridge.BeeRunRequest{
 		WorkDir:   "/tmp/bee",
+		Engine:    bridge.EngineClaude,
 		Prompt:    "dispatch",
 		SessionID: "bee-session",
 		Resume:    true,

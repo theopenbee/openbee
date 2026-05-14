@@ -47,6 +47,7 @@ type WorkerPersona struct {
 
 type BeeRunRequest struct {
 	WorkDir   string
+	Engine    string
 	Prompt    string
 	SessionID string
 	Resume    bool

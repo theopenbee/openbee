@@ -125,7 +125,7 @@ func (s *Service) PrepareWorkerWorkspace(workDir string, engineName string) erro
 }
 
 func (s *Service) RunBee(ctx context.Context, req BeeRunRequest) (RunHandle, error) {
-	engineName, err := s.ResolveEngine("")
+	engineName, err := s.ResolveEngine(req.Engine)
 	if err != nil {
 		return RunHandle{}, err
 	}

@@ -179,6 +179,9 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	if call.req.Resume {
 		t.Error("expected resume=false on first call")
 	}
+	if call.req.Engine != bridge.EngineClaude {
+		t.Errorf("expected engine %q, got %q", bridge.EngineClaude, call.req.Engine)
+	}
 
 	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	if err != nil {
@@ -251,6 +254,9 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	if codexCall.req.Resume {
 		t.Error("expected codex run to start fresh on engine switch")
 	}
+	if codexCall.req.Engine != bridge.EngineCodex {
+		t.Errorf("expected codex run engine %q, got %q", bridge.EngineCodex, codexCall.req.Engine)
+	}
 	if codexCall.req.SessionID == "claude-session" {
 		t.Error("expected codex run to use a new session ID")
 	}
@@ -289,6 +295,9 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	}
 	if !claudeCalls[0].req.Resume {
 		t.Error("expected claude run to resume original claude session")
+	}
+	if claudeCalls[0].req.Engine != bridge.EngineClaude {
+		t.Errorf("expected claude run engine %q, got %q", bridge.EngineClaude, claudeCalls[0].req.Engine)
 	}
 	if claudeCalls[0].req.SessionID != "claude-session" {
 		t.Errorf("expected original claude session, got %q", claudeCalls[0].req.SessionID)

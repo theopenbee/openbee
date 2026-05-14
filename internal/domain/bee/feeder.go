@@ -171,7 +171,12 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	// Snapshot the engine once so all session-context ops key off the same engine,
 	// even if /engine fires mid-execution.
-	engineName := f.engineCfg.Get()
+	engineName, err := f.bridge.ResolveEngine("")
+	if err != nil {
+		log.Error("resolve bee engine", zap.String("sessionKey", sessionKey), zap.Error(err))
+		f.failMessages(ctx, msgs, err.Error())
+		return
+	}
 
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
 	if err != nil {
@@ -236,6 +241,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	runRes, err := f.bridge.RunBee(beeCtx, bridge.BeeRunRequest{
 		WorkDir:   f.workDir,
+		Engine:    engineName,
 		Prompt:    prompt,
 		SessionID: sessionID,
 		Resume:    resume,
