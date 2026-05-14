@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -32,6 +33,21 @@ func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai
 	return nil, ai.ErrSessionDataNotFound
 }
 
+func newTestWorkerManager(t *testing.T, ws *store.WorkerStore, es *store.ExecutionStore) *worker.Manager {
+	t.Helper()
+	br := bridge.NewService(bridge.ServiceOptions{
+		Engines:     bridge.EngineSetForTest(map[string]ai.EngineAdapter{bridge.EngineClaude: &stubEngineAdapter{}}),
+		EngineCfg:   enginecfg.NewStore(bridge.EngineClaude),
+		TokenSecret: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+	})
+	return worker.NewManager(
+		t.TempDir(),
+		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
+		ws, es,
+		br,
+	)
+}
+
 func setupServerWithMessaging(t *testing.T) *rpc.Server {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
@@ -44,12 +60,7 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
-	mgr := worker.NewManager(
-		t.TempDir(),
-		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
-		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
-	)
+	mgr := newTestWorkerManager(t, ws, es)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
 }
@@ -243,12 +254,7 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
-	mgr := worker.NewManager(
-		t.TempDir(),
-		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
-		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
-	)
+	mgr := newTestWorkerManager(t, ws, es)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
 }
@@ -525,12 +531,7 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
-	mgr := worker.NewManager(
-		t.TempDir(),
-		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
-		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
-	)
+	mgr := newTestWorkerManager(t, ws, es)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	clearer := &mockSessionClearer{}

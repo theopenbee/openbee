@@ -22,6 +22,7 @@ import (
 	_ "github.com/theopenbee/openbee/internal/ai/codex"
 	_ "github.com/theopenbee/openbee/internal/ai/kimi"
 	_ "github.com/theopenbee/openbee/internal/ai/pi"
+	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -288,7 +289,15 @@ func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) 
 }
 
 func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, engineCfg, envSvc, s.systemConfigStore)
+	workerBridge := bridge.NewService(bridge.ServiceOptions{
+		Engines:      bridge.NewEngineSet(engines),
+		EngineCfg:    engineCfg,
+		TokenSecret:  bc.RPC.TokenSecret,
+		TokenTTL:     bc.RPC.TokenTTL,
+		Env:          envSvc,
+		SystemConfig: s.systemConfigStore,
+	})
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, workerBridge)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
