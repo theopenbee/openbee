@@ -133,7 +133,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
-	mgr := buildWorkerManager(cfg.Bee, s, engines, engineCfg, envSvc)
+	aiBridge := buildBridgeFromEngines(cfg.Bee, s, engines, engineCfg, envSvc)
+	mgr := buildWorkerManager(cfg.Bee, s, aiBridge)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
@@ -141,7 +142,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, aiBridge, engineCfg)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
@@ -162,7 +163,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
 	}
 
-	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
+	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg, aiBridge)
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
@@ -288,8 +289,8 @@ func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) 
 	return result, nil
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
-	workerBridge := bridge.NewService(bridge.ServiceOptions{
+func buildBridgeFromEngines(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) bridge.Bridge {
+	return bridge.NewService(bridge.ServiceOptions{
 		Engines:      bridge.NewEngineSet(engines),
 		EngineCfg:    engineCfg,
 		TokenSecret:  bc.RPC.TokenSecret,
@@ -297,14 +298,15 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.
 		Env:          envSvc,
 		SystemConfig: s.systemConfigStore,
 	})
-	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, workerBridge)
+}
+
+func buildWorkerManager(bc config.BeeConfig, s appStores, br bridge.Bridge) *worker.Manager {
+	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, br)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
-	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
-	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
-	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
+	failureNotifier bee.FailureNotifier, br bridge.Bridge, engineCfg *enginecfg.Store) (*bee.Feeder, *task.Scheduler) {
+	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, br, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
@@ -317,8 +319,9 @@ func buildDispatcher(
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
 	engineCfg *enginecfg.Store,
+	br bridge.Bridge,
 ) *task.TaskDispatcher {
-	return task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, engineCfg,
+	return task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, engineCfg, br,
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
 	)

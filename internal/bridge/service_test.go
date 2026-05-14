@@ -10,6 +10,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/bridge"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 type fakeAdapter struct {
@@ -51,14 +52,31 @@ type fakeProcess struct{ pid int }
 func (p fakeProcess) PID() int    { return p.pid }
 func (p fakeProcess) Stop() error { return nil }
 
-type fakeEnv struct{}
+type fakeEnv struct {
+	beeScope string
+	workerID string
+}
 
-func (fakeEnv) ResolveBeeEnv(string) ([]string, error) {
+func (f *fakeEnv) ResolveBeeEnv(scopeID string) ([]string, error) {
+	f.beeScope = scopeID
 	return []string{"BEE_ENV=1"}, nil
 }
 
-func (fakeEnv) ResolveWorkerEnv(string) ([]string, error) {
+func (f *fakeEnv) ResolveWorkerEnv(workerID string) ([]string, error) {
+	f.workerID = workerID
 	return []string{"WORKER_ENV=1"}, nil
+}
+
+type fakeSystemConfig struct {
+	values map[string]string
+}
+
+func (f fakeSystemConfig) Get(_ context.Context, key string) (model.SystemConfig, bool, error) {
+	value, ok := f.values[key]
+	if !ok {
+		return model.SystemConfig{}, false, nil
+	}
+	return model.SystemConfig{Key: key, Value: value}, true, nil
 }
 
 func TestAllEnginesMatchesCanonicalOrder(t *testing.T) {
@@ -131,12 +149,13 @@ func TestServiceResolveEngineFallback(t *testing.T) {
 
 func TestRunWorkerMapsRequestAndLifecycle(t *testing.T) {
 	adapter := &fakeAdapter{outputs: []ai.Output{{Type: ai.OutputDone}}}
+	env := &fakeEnv{}
 	svc := bridge.NewService(bridge.ServiceOptions{
 		Engines:     bridge.EngineSetForTest(map[string]ai.EngineAdapter{bridge.EngineClaude: adapter}),
 		EngineCfg:   enginecfg.NewStore(bridge.EngineClaude),
 		TokenSecret: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
 		TokenTTL:    time.Minute,
-		Env:         fakeEnv{},
+		Env:         env,
 	})
 	handle, err := svc.RunWorker(context.Background(), bridge.WorkerRunRequest{
 		WorkerID:         "worker-1",
@@ -158,8 +177,56 @@ func TestRunWorkerMapsRequestAndLifecycle(t *testing.T) {
 	if adapter.runOpts.SessionID != "session-1" || adapter.runOpts.APIKey == "" {
 		t.Fatalf("opts not populated: %+v", adapter.runOpts)
 	}
+	if env.workerID != "worker-1" {
+		t.Fatalf("worker env scope=%q", env.workerID)
+	}
 	event := <-handle.Events
 	if event.Type != bridge.LifecycleDone {
+		t.Fatalf("event=%+v", event)
+	}
+}
+
+func TestRunBeeMapsRequestEnvArgsAndLifecycle(t *testing.T) {
+	adapter := &fakeAdapter{outputs: []ai.Output{{Type: ai.OutputError, Content: "boom"}}}
+	env := &fakeEnv{}
+	svc := bridge.NewService(bridge.ServiceOptions{
+		Engines:     bridge.EngineSetForTest(map[string]ai.EngineAdapter{bridge.EngineClaude: adapter}),
+		EngineCfg:   enginecfg.NewStore(bridge.EngineClaude),
+		TokenSecret: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+		TokenTTL:    time.Minute,
+		Env:         env,
+		SystemConfig: fakeSystemConfig{values: map[string]string{
+			model.SystemConfigKeyEngineArgsGlobal: `{"claude":"--global alpha"}`,
+			model.SystemConfigKeyEngineArgsBee:    `{"claude":"--bee beta"}`,
+		}},
+	})
+	handle, err := svc.RunBee(context.Background(), bridge.BeeRunRequest{
+		WorkDir:   "/tmp/bee",
+		Prompt:    "dispatch",
+		SessionID: "bee-session",
+		Resume:    true,
+		LogPath:   "/tmp/bee.log",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if handle.Engine != bridge.EngineClaude {
+		t.Fatalf("engine=%q", handle.Engine)
+	}
+	if adapter.runPrompt != "dispatch" || adapter.runLogPath != "/tmp/bee.log" {
+		t.Fatalf("run mapping failed prompt=%q log=%q", adapter.runPrompt, adapter.runLogPath)
+	}
+	if adapter.runOpts.SessionID != "bee-session" || !adapter.runOpts.Resume || adapter.runOpts.APIKey == "" {
+		t.Fatalf("opts not populated: %+v", adapter.runOpts)
+	}
+	if env.beeScope != "default" {
+		t.Fatalf("bee env scope=%q", env.beeScope)
+	}
+	assertStringSlice(t, adapter.runOpts.ExtraEnv, []string{"BEE_ENV=1"})
+	assertStringSlice(t, adapter.runOpts.ExtraArgs, []string{"--global", "alpha", "--bee", "beta"})
+
+	event := <-handle.Events
+	if event.Type != bridge.LifecycleError || event.Content != "boom" {
 		t.Fatalf("event=%+v", event)
 	}
 }
@@ -191,5 +258,17 @@ func TestCollectTokenUsageMapsNotFound(t *testing.T) {
 	_, err := svc.CollectTokenUsage(context.Background(), "missing", bridge.EngineClaude)
 	if !errors.Is(err, bridge.ErrSessionDataNotFound) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func assertStringSlice(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("len=%d want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("item[%d]=%q want %q: %v", i, got[i], want[i], got)
+		}
 	}
 }
