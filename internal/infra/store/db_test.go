@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -184,10 +185,12 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create stub bee_executions: %v", err)
 	}
-	// bee_outbound_messages is required by migration 34 (index on sent_at).
+	// bee_outbound_messages is required by migration 34 (index on sent_at)
+	// and migration 45 (index on platform, account_name).
 	if _, err := db.Exec(`CREATE TABLE bee_outbound_messages (
-		id      TEXT PRIMARY KEY,
-		sent_at INTEGER NOT NULL
+		id       TEXT PRIMARY KEY,
+		platform TEXT NOT NULL DEFAULT '',
+		sent_at  INTEGER NOT NULL
 	)`); err != nil {
 		t.Fatalf("create stub bee_outbound_messages: %v", err)
 	}
@@ -207,6 +210,19 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 		retry_count     INTEGER NOT NULL DEFAULT 0
 	)`); err != nil {
 		t.Fatalf("create stub bee_platform_messages: %v", err)
+	}
+	// bee_tasks is required by migration 45 (add account_name column).
+	if _, err := db.Exec(`CREATE TABLE bee_tasks (
+		id           TEXT PRIMARY KEY,
+		message_id   TEXT NOT NULL,
+		worker_id    TEXT NOT NULL,
+		instruction  TEXT NOT NULL,
+		type         TEXT NOT NULL,
+		status       TEXT NOT NULL DEFAULT 'pending',
+		created_at   INTEGER NOT NULL,
+		updated_at   INTEGER NOT NULL
+	)`); err != nil {
+		t.Fatalf("create stub bee_tasks: %v", err)
 	}
 	// bee_memories is required by migration 40 (rename to bee_constraints).
 	if _, err := db.Exec(`CREATE TABLE bee_memories (
@@ -258,5 +274,32 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("expected 2 per-engine rows after migration, got %d", count)
+	}
+}
+
+func TestMigration_AccountNameColumns(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Note: the design spec refers to "bee_sessions" and "bee_worker_executions",
+	// but the actual tables in this codebase are bee_session_contexts and
+	// bee_executions. Subsequent tasks (per-store CRUD changes) must adapt.
+	tables := []string{
+		"bee_platform_messages",
+		"bee_outbound_messages",
+		"bee_session_contexts",
+		"bee_tasks",
+		"bee_executions",
+	}
+	for _, tbl := range tables {
+		var name string
+		row := db.QueryRow(`SELECT name FROM pragma_table_info(?) WHERE name='account_name'`, tbl)
+		if err := row.Scan(&name); err != nil {
+			t.Fatalf("table %s missing account_name: %v", tbl, err)
+		}
 	}
 }

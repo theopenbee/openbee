@@ -406,6 +406,19 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "add_engine_args_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_args TEXT NOT NULL DEFAULT '{}'`,
 	},
+	{
+		version: 45,
+		name:    "add_account_name_to_per_account_tables",
+		sql: `
+			ALTER TABLE bee_platform_messages  ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default';
+			ALTER TABLE bee_outbound_messages  ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default';
+			ALTER TABLE bee_session_contexts   ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default';
+			ALTER TABLE bee_tasks              ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default';
+			ALTER TABLE bee_executions         ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default';
+			CREATE INDEX IF NOT EXISTS idx_messages_platform_account          ON bee_platform_messages(platform, account_name);
+			CREATE INDEX IF NOT EXISTS idx_outbound_messages_platform_account ON bee_outbound_messages(platform, account_name);
+		`,
+	},
 }
 
 type whereBuilder struct {
