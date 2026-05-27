@@ -22,7 +22,7 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 
-	exec, err := es.Create(w.ID, "test message", uuid.New().String(), "claude")
+	exec, err := es.Create(w.ID, "test message", uuid.New().String(), "default", "claude")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestExecutionStore_UpdateStatus(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "claude")
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "default", "claude")
 
 	err = es.UpdateStatus(exec.ID, model.ExecStatusRunning)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, err := es.Create(w.ID, "test", uuid.New().String(), "claude")
+	exec, err := es.Create(w.ID, "test", uuid.New().String(), "default", "claude")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test", uuid.New().String(), "claude")
+	exec, _ := es.Create(w.ID, "test", uuid.New().String(), "default", "claude")
 
 	if err := es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted); err != nil {
 		t.Fatalf("UpdateResult: %v", err)
@@ -140,7 +140,7 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "claude")
+	exec, _ := es.Create(w.ID, "test message", uuid.New().String(), "default", "claude")
 
 	got, err := es.ListBySessionID(exec.SessionID)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 
 	// Create a worker execution (should not appear)
 	db.Exec(`INSERT INTO bee_workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
-	_, err = es.Create("w1", "worker task", "session2", "claude")
+	_, err = es.Create("w1", "worker task", "session2", "default", "claude")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +413,7 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 
 	// worker execution (worker_id NOT NULL) must not count
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
-	_, _ = es.Create("w1", "task", "s2", "claude")
+	_, _ = es.Create("w1", "task", "s2", "default", "claude")
 	active, err = es.HasActiveBeeExecutions(ctx)
 	if err != nil {
 		t.Fatalf("HasActiveBeeExecutions: %v", err)
@@ -434,12 +434,12 @@ func TestExecutionStore_MarkAbandoned_OnlyUpdatesActive(t *testing.T) {
 	ctx := context.Background()
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
-	pending, _ := es.Create("w1", "p", uuid.New().String(), "claude")
-	running, _ := es.Create("w1", "r", uuid.New().String(), "claude")
+	pending, _ := es.Create("w1", "p", uuid.New().String(), "default", "claude")
+	running, _ := es.Create("w1", "r", uuid.New().String(), "default", "claude")
 	_ = es.UpdateStatus(running.ID, model.ExecStatusRunning)
-	completed, _ := es.Create("w1", "c", uuid.New().String(), "claude")
+	completed, _ := es.Create("w1", "c", uuid.New().String(), "default", "claude")
 	_ = es.UpdateResult(completed.ID, "done", model.ExecStatusCompleted)
-	failed, _ := es.Create("w1", "f", uuid.New().String(), "claude")
+	failed, _ := es.Create("w1", "f", uuid.New().String(), "default", "claude")
 	_ = es.UpdateResult(failed.ID, "boom", model.ExecStatusFailed)
 
 	ok, err := es.MarkAbandoned(ctx, pending.ID, "cancelled by user")
@@ -493,10 +493,10 @@ func TestExecutionStore_ResetRunningExecutions(t *testing.T) {
 	ctx := context.Background()
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
-	p, _ := es.Create("w1", "p", uuid.New().String(), "claude")
-	r, _ := es.Create("w1", "r", uuid.New().String(), "claude")
+	p, _ := es.Create("w1", "p", uuid.New().String(), "default", "claude")
+	r, _ := es.Create("w1", "r", uuid.New().String(), "default", "claude")
 	_ = es.UpdateStatus(r.ID, model.ExecStatusRunning)
-	c, _ := es.Create("w1", "c", uuid.New().String(), "claude")
+	c, _ := es.Create("w1", "c", uuid.New().String(), "default", "claude")
 	_ = es.UpdateResult(c.ID, "done", model.ExecStatusCompleted)
 
 	n, err := es.ResetRunningExecutions(ctx)
@@ -555,7 +555,7 @@ func TestExecutionStore_HasActiveExecutionsByWorkerID(t *testing.T) {
 	}
 
 	// create pending execution for w1
-	exec1, _ := es.Create("w1", "task", "s1", "claude")
+	exec1, _ := es.Create("w1", "task", "s1", "default", "claude")
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
 	if err != nil {
 		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)

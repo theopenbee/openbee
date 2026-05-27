@@ -121,7 +121,7 @@ func TestMessageStore_Create(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	if _, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello world", `{"text":"hello world"}`, "", 0); err != nil {
+	if _, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "hello world", `{"text":"hello world"}`, "", 0); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -138,8 +138,8 @@ func TestMessageStore_UpdateStatusBatch(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "a", "", "", 0) //nolint
-	s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "b", "", "", 0) //nolint
+	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "a", "", "", 0) //nolint
+	s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "default", "b", "", "", 0) //nolint
 
 	if err := s.UpdateStatusBatch(ctx, []string{"msg-1", "msg-2"}, "debouncing"); err != nil {
 		t.Fatalf("UpdateStatusBatch: %v", err)
@@ -227,7 +227,7 @@ func TestMessageStore_Create_Dedup_FirstInsertReturnsTrue(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	inserted, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	inserted, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "hello", "", "feishu-msg-abc", 0)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -240,8 +240,8 @@ func TestMessageStore_Create_Dedup_DuplicatePlatformMsgID(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0) //nolint
-	inserted, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "hello", "", "feishu-msg-abc", 0) //nolint
+	inserted, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "default", "hello", "", "feishu-msg-abc", 0)
 	if err != nil {
 		t.Fatalf("duplicate Create: %v", err)
 	}
@@ -254,11 +254,11 @@ func TestMessageStore_Create_Dedup_EmptyPlatformMsgIDNotDeduped(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	inserted1, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
+	inserted1, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "hello", "", "", 0)
 	if err != nil || !inserted1 {
 		t.Fatalf("first empty-id insert: err=%v inserted=%v", err, inserted1)
 	}
-	inserted2, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
+	inserted2, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "default", "hello", "", "", 0)
 	if err != nil || !inserted2 {
 		t.Fatalf("second empty-id insert: err=%v inserted=%v", err, inserted2)
 	}
@@ -268,7 +268,7 @@ func TestMessageStore_Create_ReceivedAtMillisecondPrecision(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-ms", "feishu:chat1:userA", "feishu", "hello", "", "", 0) //nolint
+	s.Create(ctx, "msg-ms", "feishu:chat1:userA", "feishu", "default", "hello", "", "", 0) //nolint
 
 	var receivedAt int64
 	err := s.db.QueryRowContext(ctx,
@@ -287,7 +287,7 @@ func TestMessageStore_Create_ReceivedAt_FromMessageTime(t *testing.T) {
 	ctx := context.Background()
 
 	const wantTime int64 = 1609073151345 // fixed past timestamp
-	inserted, err := s.Create(ctx, "msg-ts", "feishu:chat1:userA", "feishu", "hello", "", "", wantTime)
+	inserted, err := s.Create(ctx, "msg-ts", "feishu:chat1:userA", "feishu", "default", "hello", "", "", wantTime)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestMessageStore_Create_ReceivedAt_FallbackToServerTime(t *testing.T) {
 	ctx := context.Background()
 
 	before := time.Now().UnixMilli()
-	s.Create(ctx, "msg-zero", "feishu:chat1:userA", "feishu", "hello", "", "", 0) //nolint
+	s.Create(ctx, "msg-zero", "feishu:chat1:userA", "feishu", "default", "hello", "", "", 0) //nolint
 	after := time.Now().UnixMilli()
 
 	var receivedAt int64
@@ -329,7 +329,7 @@ func TestMessageStore_GetByID_ReturnsStoredFields(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", `{"raw":"data"}`, "", 0) //nolint
+	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "default", "hello", `{"raw":"data"}`, "", 0) //nolint
 
 	got, err := s.GetByID(ctx, "msg-1")
 	if err != nil {
@@ -448,7 +448,7 @@ func TestMessageStore_MarkFailed(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
+	s.Create(ctx, "m1", "feishu:c:u", "feishu", "default", "hello", "", "", 0) //nolint
 	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")              //nolint
 
 	if err := s.MarkFailed(ctx, []string{"m1"}); err != nil {

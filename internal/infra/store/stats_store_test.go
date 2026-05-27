@@ -54,7 +54,7 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	}
 
 	// One inbound message today
-	ms.Create(ctx, uuid.New().String(), "sk1", "feishu", "hello", "{}", "", todayMS)
+	ms.Create(ctx, uuid.New().String(), "sk1", "feishu", "default", "hello", "{}", "", todayMS)
 
 	// One outbound message today
 	if _, err := db.Exec(`INSERT INTO bee_outbound_messages (id,session_key,platform,content,media_path,status,platform_msg_id,source_type,source_id,inbound_msg_id,error,retry_count,sent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,

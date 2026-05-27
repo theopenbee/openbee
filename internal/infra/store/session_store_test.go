@@ -37,7 +37,7 @@ func TestSessionStore_UpsertAndGet(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "sess-abc", "claude"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "sess-abc", "default", "claude"); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	got, engine, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
@@ -56,8 +56,8 @@ func TestSessionStore_Upsert_Overwrites(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "old", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "new", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "old", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "new", "default", "claude") //nolint:errcheck
 
 	got, engine, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
 	if got != "new" {
@@ -72,8 +72,8 @@ func TestSessionStore_AgentsAreIsolated(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "worker-1", "worker-sess", "claude")    //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-sess", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "worker-1", "worker-sess", "default", "claude")    //nolint:errcheck
 
 	beeSess, _, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
 	workerSess, _, _ := ss.GetSessionContext(ctx, "k", "worker-1")
@@ -102,18 +102,18 @@ func TestSessionStore_ClearSessionContexts(t *testing.T) {
 	}
 
 	// bee: two engines.
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-codex", "default", "codex")   //nolint:errcheck
 	// worker-explicit: two engines.
-	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicit.ID, "wex-codex", "default", "codex")   //nolint:errcheck
 	// worker-fallback (engine="" in bee_workers): recorded under claude via fallback.
-	ss.UpsertSessionContext(ctx, "k", wFallback.ID, "wfb-claude", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wFallback.ID, "wfb-claude", "default", "claude") //nolint:errcheck
 	// deleted worker: orphan data for both engines.
-	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-codex", "default", "codex")   //nolint:errcheck
 	// unrelated session: must survive.
-	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "default", "claude") //nolint:errcheck
 
 	if err := ss.ClearSessionContexts(ctx, "k", "claude"); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -181,8 +181,8 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 		t.Fatalf("create worker: %v", err)
 	}
 
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", w.ID, "worker-sid", "claude")          //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", w.ID, "worker-sid", "default", "claude")          //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
 	if err != nil {
@@ -212,7 +212,7 @@ func TestSessionStore_ListSessionContexts_DeletedWorker(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", "ghost-worker-id", "sid", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "ghost-worker-id", "sid", "default", "claude") //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
 	if err != nil {
@@ -236,8 +236,8 @@ func TestSessionStore_ListSessionContexts_MultipleEngines(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "claude-sid", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "codex-sid", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "claude-sid", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "codex-sid", "default", "codex")   //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
 	if err != nil {
@@ -275,21 +275,21 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 	}
 
 	// bee under two engines.
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-codex", "default", "codex")   //nolint:errcheck
 	// explicit-claude worker: claude row matches; codex row is stale (engine mismatch).
-	ss.UpsertSessionContext(ctx, "k", wExplicitClaude.ID, "ec-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", wExplicitClaude.ID, "ec-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicitClaude.ID, "ec-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicitClaude.ID, "ec-codex", "default", "codex")   //nolint:errcheck
 	// explicit-codex worker: codex row matches; claude row is stale.
-	ss.UpsertSessionContext(ctx, "k", wExplicitCodex.ID, "ex-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", wExplicitCodex.ID, "ex-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicitCodex.ID, "ex-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wExplicitCodex.ID, "ex-codex", "default", "codex")   //nolint:errcheck
 	// fallback worker (engine=""): only the beeEngine row is active.
-	ss.UpsertSessionContext(ctx, "k", wFallback.ID, "fb-claude", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", wFallback.ID, "fb-claude", "default", "claude") //nolint:errcheck
 	// orphan worker (no bee_workers row): all rows are active.
-	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "k", "ghost-id", "ghost-codex", "default", "codex")   //nolint:errcheck
 	// unrelated session must not leak.
-	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "default", "claude") //nolint:errcheck
 
 	got, err := ss.ListActiveSessionContexts(ctx, "k", "claude")
 	if err != nil {
@@ -349,9 +349,9 @@ func TestSessionStore_DeleteWorkerSessionContext_Basic(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "claude")     //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "codex")       //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "default", "claude")     //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "default", "codex")       //nolint:errcheck
 
 	if err := ss.DeleteWorkerSessionContext(ctx, "sk", "worker-1"); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -381,8 +381,8 @@ func TestSessionStore_DeleteSessionContextForEngine_Basic(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "default", "codex")   //nolint:errcheck
 
 	if _, err := ss.DeleteSessionContextForEngine(ctx, "sk", "worker-1", "codex"); err != nil {
 		t.Fatalf("delete by engine: %v", err)
@@ -403,7 +403,7 @@ func TestSessionStore_GetSessionContextForEngine_EngineMismatch(t *testing.T) {
 	ctx := context.Background()
 
 	// Store a claude session
-	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "claude"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "default", "claude"); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -421,8 +421,8 @@ func TestSessionStore_DifferentEnginesCoexist(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()
 
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "codex-sid", "codex")   //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "default", "claude") //nolint:errcheck
+	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "codex-sid", "default", "codex")   //nolint:errcheck
 
 	claude, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "claude")
 	if err != nil {

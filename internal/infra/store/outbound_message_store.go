@@ -20,7 +20,7 @@ const (
 	SourceTypeSystem = "system"
 )
 
-const outboundMessageColumns = `id, session_key, platform, content, media_path, status, platform_msg_id,
+const outboundMessageColumns = `id, session_key, platform, account_name, content, media_path, status, platform_msg_id,
 	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at`
 
 // OutboundMessage is a row from the bee_outbound_messages table.
@@ -28,6 +28,7 @@ type OutboundMessage struct {
 	ID            string `json:"id"`
 	SessionKey    string `json:"session_key"`
 	Platform      string `json:"platform"`
+	AccountName   string `json:"account_name"`
 	Content       string `json:"content"`
 	MediaPath     string `json:"media_path"`
 	Status        string `json:"status"`
@@ -54,7 +55,7 @@ func NewOutboundMessageStore(db *sql.DB) *OutboundMessageStore {
 func scanOutboundMessage(scanner interface{ Scan(...any) error }) (OutboundMessage, error) {
 	var m OutboundMessage
 	err := scanner.Scan(
-		&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.MediaPath,
+		&m.ID, &m.SessionKey, &m.Platform, &m.AccountName, &m.Content, &m.MediaPath,
 		&m.Status, &m.PlatformMsgID, &m.SourceType, &m.SourceID,
 		&m.InboundMsgID, &m.Error, &m.RetryCount, &m.SentAt, &m.CreatedAt,
 	)
@@ -79,12 +80,15 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	if msg.SentAt == 0 {
 		msg.SentAt = now
 	}
+	if msg.AccountName == "" {
+		msg.AccountName = "default"
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO bee_outbound_messages
-		 (id, session_key, platform, content, media_path, status, platform_msg_id,
+		 (id, session_key, platform, account_name, content, media_path, status, platform_msg_id,
 		  source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		msg.ID, msg.SessionKey, msg.Platform, msg.Content, msg.MediaPath,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		msg.ID, msg.SessionKey, msg.Platform, msg.AccountName, msg.Content, msg.MediaPath,
 		msg.Status, msg.PlatformMsgID, msg.SourceType, msg.SourceID,
 		msg.InboundMsgID, msg.Error, msg.RetryCount, msg.SentAt, now,
 	)
@@ -94,13 +98,14 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 // OutboundMessageFilter holds optional filter criteria for ListFiltered.
 // Zero values are ignored.
 type OutboundMessageFilter struct {
-	SessionKey string
-	Platform   string
-	Status     string // OutboundStatusSent or OutboundStatusFailed
-	SourceType string // SourceTypeBee, SourceTypeWorker, or SourceTypeSystem
-	SourceID   string
-	SentAtFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
-	SentAtTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+	SessionKey  string
+	Platform    string
+	AccountName string
+	Status      string // OutboundStatusSent or OutboundStatusFailed
+	SourceType  string // SourceTypeBee, SourceTypeWorker, or SourceTypeSystem
+	SourceID    string
+	SentAtFrom  int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	SentAtTo    int64 // inclusive upper bound (Unix ms); 0 = no upper bound
 }
 
 // ListedOutboundMessage is a bee_outbound_messages row for admin/API listing purposes.
@@ -108,6 +113,7 @@ type ListedOutboundMessage struct {
 	ID           string `json:"id"`
 	SessionKey   string `json:"session_key"`
 	Platform     string `json:"platform"`
+	AccountName  string `json:"account_name"`
 	Content      string `json:"content"`
 	Status       string `json:"status"`
 	SourceType   string `json:"source_type"`
@@ -126,7 +132,7 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, status, source_type, source_id, inbound_msg_id, error, sent_at
+		`SELECT id, session_key, platform, account_name, content, status, source_type, source_id, inbound_msg_id, error, sent_at
 		 FROM bee_outbound_messages`+where+` ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
 		appendPaginationArgs(args, limit, offset)...,
 	)
@@ -138,7 +144,7 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 	msgs := make([]ListedOutboundMessage, 0, limit)
 	for rows.Next() {
 		var m ListedOutboundMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status,
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.AccountName, &m.Content, &m.Status,
 			&m.SourceType, &m.SourceID, &m.InboundMsgID, &m.Error, &m.SentAt); err != nil {
 			return nil, 0, err
 		}
@@ -154,6 +160,9 @@ func outboundFilterWhere(f OutboundMessageFilter) (string, []any) {
 	}
 	if f.Platform != "" {
 		b.add("platform = ?", f.Platform)
+	}
+	if f.AccountName != "" {
+		b.add("account_name = ?", f.AccountName)
 	}
 	if f.Status != "" {
 		b.add("status = ?", f.Status)

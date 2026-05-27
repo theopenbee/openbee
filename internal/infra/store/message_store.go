@@ -23,6 +23,7 @@ type BatchMsg struct {
 	ID            string
 	SessionKey    string
 	Platform      string
+	AccountName   string
 	Content       string
 	Raw           string
 	PlatformMsgID string
@@ -45,15 +46,18 @@ func NewMessageStore(db *sql.DB) *MessageStore {
 // Returns inserted=false (no error) when platform_msg_id is non-empty and already exists.
 // If platform_msg_id is empty, the insert always proceeds (no dedup).
 // messageTime is stored as received_at; pass 0 to use server time.
-func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, content, raw, platformMsgID string, messageTime int64) (bool, error) {
+func (s *MessageStore) Create(ctx context.Context, id, sessionKey, platform, account, content, raw, platformMsgID string, messageTime int64) (bool, error) {
 	if messageTime == 0 {
 		messageTime = time.Now().UnixMilli()
 	}
+	if account == "" {
+		account = "default"
+	}
 	now := time.Now().UnixMilli()
 	result, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO bee_platform_messages (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, sessionKey, platform, content, raw, platformMsgID, messageTime, now, now,
+		`INSERT OR IGNORE INTO bee_platform_messages (id, session_key, platform, account_name, content, raw, platform_msg_id, received_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sessionKey, platform, account, content, raw, platformMsgID, messageTime, now, now,
 	)
 	if err != nil {
 		return false, err
@@ -106,10 +110,11 @@ func (s *MessageStore) FetchMergedContent(ctx context.Context, primaryID string)
 
 // ClaimedMessage is a bee_platform_messages row claimed by the Feeder.
 type ClaimedMessage struct {
-	ID         string
-	SessionKey string
-	Platform   string
-	Content    string
+	ID          string
+	SessionKey  string
+	Platform    string
+	AccountName string
+	Content     string
 }
 
 // ClaimBatch atomically selects up to batchSize 'received' messages — at most one per
@@ -140,7 +145,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	}
 
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, session_key, platform, content
+		`SELECT id, session_key, platform, account_name, content
 		 FROM bee_platform_messages m
 		 WHERE status = ?
 		   AND session_key NOT IN (
@@ -160,7 +165,7 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 	var msgs []ClaimedMessage
 	for rows.Next() {
 		var m ClaimedMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.AccountName, &m.Content); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan: %w", err)
 		}
@@ -269,22 +274,26 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 	}
 
 	now := time.Now().UnixMilli()
-	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
+	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
 	placeholders = placeholders[:len(placeholders)-1]
 
-	args := make([]any, 0, len(msgs)*11)
+	args := make([]any, 0, len(msgs)*12)
 	for _, m := range msgs {
 		mt := m.MessageTime
 		if mt == 0 {
 			mt = now
 		}
-		args = append(args, m.ID, m.SessionKey, m.Platform, m.Content, m.Raw,
+		account := m.AccountName
+		if account == "" {
+			account = "default"
+		}
+		args = append(args, m.ID, m.SessionKey, m.Platform, account, m.Content, m.Raw,
 			m.PlatformMsgID, mt, m.Status, m.MergedInto, now, now)
 	}
 
 	result, err := s.db.ExecContext(ctx,
 		fmt.Sprintf(`INSERT OR IGNORE INTO bee_platform_messages
-			(id, session_key, platform, content, raw, platform_msg_id, received_at, status, merged_into, created_at, updated_at)
+			(id, session_key, platform, account_name, content, raw, platform_msg_id, received_at, status, merged_into, created_at, updated_at)
 			VALUES %s`, placeholders),
 		args...,
 	)
@@ -296,17 +305,18 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 
 // StoredMessage is the subset of bee_platform_messages fields needed by platform senders.
 type StoredMessage struct {
-	Platform   string
-	SessionKey string
-	Raw        string
+	Platform    string
+	AccountName string
+	SessionKey  string
+	Raw         string
 }
 
 // GetByID fetches the platform, session_key, and raw fields for a single message.
 func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, error) {
 	var m StoredMessage
 	err := s.db.QueryRowContext(ctx,
-		`SELECT platform, session_key, raw FROM bee_platform_messages WHERE id = ?`, id,
-	).Scan(&m.Platform, &m.SessionKey, &m.Raw)
+		`SELECT platform, account_name, session_key, raw FROM bee_platform_messages WHERE id = ?`, id,
+	).Scan(&m.Platform, &m.AccountName, &m.SessionKey, &m.Raw)
 	if err != nil {
 		return StoredMessage{}, fmt.Errorf("get message %s: %w", id, err)
 	}
@@ -322,22 +332,24 @@ type InboundMessage struct {
 
 // ListedMessage is a bee_platform_messages row for admin/API listing purposes.
 type ListedMessage struct {
-	ID         string `json:"id"`
-	SessionKey string `json:"session_key"`
-	Platform   string `json:"platform"`
-	Content    string `json:"content"`
-	Status     string `json:"status"`
-	ReceivedAt int64  `json:"received_at"`
+	ID          string `json:"id"`
+	SessionKey  string `json:"session_key"`
+	Platform    string `json:"platform"`
+	AccountName string `json:"account_name"`
+	Content     string `json:"content"`
+	Status      string `json:"status"`
+	ReceivedAt  int64  `json:"received_at"`
 }
 
 // MessageFilter holds optional filter criteria for ListFiltered.
 // Zero values are ignored (no filtering on that field).
 type MessageFilter struct {
-	SessionKey      string
-	Platform        string
-	Status          string
-	ReceivedAtFrom  int64 // inclusive lower bound (Unix ms); 0 = no lower bound
-	ReceivedAtTo    int64 // inclusive upper bound (Unix ms); 0 = no upper bound
+	SessionKey     string
+	Platform       string
+	AccountName    string
+	Status         string
+	ReceivedAtFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
+	ReceivedAtTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
 }
 
 // ListFiltered returns paginated messages matching the given filters.
@@ -350,7 +362,7 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, status, received_at
+		`SELECT id, session_key, platform, account_name, content, status, received_at
 		 FROM bee_platform_messages`+where+` ORDER BY received_at DESC LIMIT ? OFFSET ?`,
 		appendPaginationArgs(args, limit, offset)...,
 	)
@@ -362,7 +374,7 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 	var msgs []ListedMessage
 	for rows.Next() {
 		var m ListedMessage
-		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status, &m.ReceivedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.AccountName, &m.Content, &m.Status, &m.ReceivedAt); err != nil {
 			return nil, 0, err
 		}
 		msgs = append(msgs, m)
@@ -377,6 +389,9 @@ func messageFilterWhere(f MessageFilter) (string, []any) {
 	}
 	if f.Platform != "" {
 		b.add("platform = ?", f.Platform)
+	}
+	if f.AccountName != "" {
+		b.add("account_name = ?", f.AccountName)
 	}
 	if f.Status != "" {
 		b.add("status = ?", f.Status)

@@ -37,15 +37,20 @@ func normalizeSessionEngine(engine string) string {
 }
 
 // UpsertSessionContext writes or overwrites the session_id for one
-// (sessionKey, agentID, engine) tuple.
-func (s *SessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error {
+// (sessionKey, agentID, engine) tuple. The account name is persisted on the
+// row so callers can filter by account; the primary key is unchanged because
+// session_key already encodes platform+account (`<platform>:<account>:<rest>`).
+func (s *SessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, account, engine string) error {
 	engine = normalizeSessionEngine(engine)
+	if account == "" {
+		account = "default"
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, engine, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, account_name, engine, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(session_key, agent_id, engine) DO UPDATE
-		 SET session_id = excluded.session_id, updated_at = excluded.updated_at`,
-		sessionKey, agentID, sessionID, engine, time.Now().UnixMilli(),
+		 SET session_id = excluded.session_id, account_name = excluded.account_name, updated_at = excluded.updated_at`,
+		sessionKey, agentID, sessionID, account, engine, time.Now().UnixMilli(),
 	)
 	return err
 }
@@ -155,11 +160,12 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, bee
 // SessionAgent represents one agent's session context entry, enriched with
 // a human-readable name.
 type SessionAgent struct {
-	AgentID   string
-	AgentType string // "bee" or "worker"
-	Engine    string
-	Name      string // worker name, "bee", or "(deleted)"
-	UpdatedAt int64
+	AgentID     string
+	AgentType   string // "bee" or "worker"
+	Engine      string
+	AccountName string
+	Name        string // worker name, "bee", or "(deleted)"
+	UpdatedAt   int64
 }
 
 // scanSessionAgents reads all rows into a SessionAgent slice, deriving AgentType from AgentID.
@@ -167,7 +173,7 @@ func scanSessionAgents(rows *sql.Rows) ([]SessionAgent, error) {
 	var result []SessionAgent
 	for rows.Next() {
 		var a SessionAgent
-		if err := rows.Scan(&a.AgentID, &a.Engine, &a.UpdatedAt, &a.Name); err != nil {
+		if err := rows.Scan(&a.AgentID, &a.Engine, &a.AccountName, &a.UpdatedAt, &a.Name); err != nil {
 			return nil, err
 		}
 		if a.AgentID == BeeAgentID {
@@ -185,7 +191,7 @@ func scanSessionAgents(rows *sql.Rows) ([]SessionAgent, error) {
 // workers appear as "(deleted)". AgentType is derived in Go from AgentID.
 func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey string) ([]SessionAgent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT sc.agent_id, sc.engine, sc.updated_at,
+		SELECT sc.agent_id, sc.engine, sc.account_name, sc.updated_at,
 		       COALESCE(w.name, CASE WHEN sc.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
 		FROM bee_session_contexts sc
 		LEFT JOIN bee_workers w ON w.id = sc.agent_id
@@ -205,7 +211,7 @@ func (s *SessionStore) ListSessionContexts(ctx context.Context, sessionKey strin
 func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]SessionAgent, error) {
 	beeEngine = normalizeSessionEngine(beeEngine)
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT bee_session_contexts.agent_id, bee_session_contexts.engine, bee_session_contexts.updated_at,
+		SELECT bee_session_contexts.agent_id, bee_session_contexts.engine, bee_session_contexts.account_name, bee_session_contexts.updated_at,
 		       COALESCE(w.name, CASE WHEN bee_session_contexts.agent_id = 'bee' THEN 'bee' ELSE '(deleted)' END) AS name
 		FROM bee_session_contexts
 		LEFT JOIN bee_workers w ON w.id = bee_session_contexts.agent_id

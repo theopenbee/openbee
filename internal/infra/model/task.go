@@ -26,6 +26,7 @@ type Task struct {
 	CronExpr    string
 	NextRunAt   *int64 // ms; scheduled tasks only
 	ExecutionID string
+	AccountName string
 	CreatedAt   int64
 	UpdatedAt   int64
 }
@@ -34,6 +35,7 @@ type Task struct {
 // needed by the TaskScheduler to build a DispatchTask.
 type ClaimedTask struct {
 	Task
-	MessageSessionKey string
-	MessagePlatform   string
+	MessageSessionKey  string
+	MessagePlatform    string
+	MessageAccountName string
 }

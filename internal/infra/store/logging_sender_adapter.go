@@ -16,9 +16,10 @@ var senderLog = logger.With(zap.String("component", "logging_sender"))
 // LoggingPlatformSenderAdapter wraps a PlatformSenderAdapter and records every
 // outbound message to OutboundMessageStore regardless of send success or failure.
 type LoggingPlatformSenderAdapter struct {
-	inner        platform.PlatformSenderAdapter
+	inner         platform.PlatformSenderAdapter
 	outboundStore *OutboundMessageStore
-	platformID   string
+	platformID    string
+	accountName   string
 }
 
 // NewLoggingPlatformSenderAdapter constructs a LoggingPlatformSenderAdapter.
@@ -26,11 +27,16 @@ func NewLoggingPlatformSenderAdapter(
 	inner platform.PlatformSenderAdapter,
 	outboundStore *OutboundMessageStore,
 	platformID string,
+	accountName string,
 ) *LoggingPlatformSenderAdapter {
+	if accountName == "" {
+		accountName = "default"
+	}
 	return &LoggingPlatformSenderAdapter{
-		inner:        inner,
+		inner:         inner,
 		outboundStore: outboundStore,
-		platformID:   platformID,
+		platformID:    platformID,
+		accountName:   accountName,
 	}
 }
 
@@ -57,6 +63,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 		ID:           uuid.New().String(),
 		SessionKey:   sessionKey,
 		Platform:     a.platformID,
+		AccountName:  a.accountName,
 		Content:      msg.Content,
 		MediaPath:    msg.MediaPath,
 		Status:       status,
