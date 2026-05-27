@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Platform configuration under `bee.platforms` is now a list per platform. Each entry must include a unique `name`. Single-bot configurations must be migrated to list form before startup. Example: `feishu: [{name: default, enabled: true, app_id: ..., app_secret: ...}]` instead of `feishu: {enabled: true, app_id: ..., app_secret: ...}`.
+
+### Added
+
+- Support multiple accounts per IM platform. Each of `feishu`, `dingtalk`, `wecom`, `weixin`, `telegram`, `linear` can now host any number of accounts in `config.yaml`. Messages, sessions, tasks, and executions are isolated per account; workers, engine config, environment variables, and departments remain global resources shared across accounts.
+
 ### Removed
 
 - Remove `openbee claude download` and `openbee claude env` subcommands
