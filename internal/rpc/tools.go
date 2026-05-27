@@ -515,19 +515,22 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		return nil, fmt.Errorf("get message: %w", err)
 	}
 
-	sender, ok := s.senders[stored.Platform]
+	senderKey := platform.AccountKey(stored.Platform, stored.AccountName)
+	sender, ok := s.senders[senderKey]
 	if !ok {
-		return nil, fmt.Errorf("no sender registered for platform %q", stored.Platform)
+		return nil, fmt.Errorf("no sender registered for %q", senderKey)
 	}
 
 	replyTo := platform.InboundMessage{
-		Platform:   stored.Platform,
-		SessionKey: stored.SessionKey,
-		Raw:        stored.Raw,
+		Platform:    stored.Platform,
+		AccountName: stored.AccountName,
+		SessionKey:  stored.SessionKey,
+		Raw:         stored.Raw,
 	}
 
 	base := platform.OutboundMessage{
 		ReplyTo:      replyTo,
+		AccountName:  stored.AccountName,
 		SourceType:   sourceType,
 		SourceID:     sourceID,
 		InboundMsgID: params.MessageID,

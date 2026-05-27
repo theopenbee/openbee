@@ -257,7 +257,7 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 
 func TestCallTool_SendMessage_CallsSender(t *testing.T) {
 	mock := &mockSender{}
-	s, db := setupServerWithSender(t, "feishu", mock)
+	s, db := setupServerWithSender(t, "feishu:default", mock)
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
@@ -306,7 +306,7 @@ func TestCallTool_SendMessage_MissingContent(t *testing.T) {
 }
 
 func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
@@ -334,7 +334,7 @@ func TestCallTool_SendMessage_MessageNotFound(t *testing.T) {
 
 func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 	mock := &mockSender{}
-	s, db := setupServerWithSender(t, "feishu", mock)
+	s, db := setupServerWithSender(t, "feishu:default", mock)
 	ctx := context.Background()
 
 	// Create a worker and a message
@@ -375,7 +375,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 
 func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	mock := &mockSender{}
-	s, db := setupServerWithSender(t, "feishu", mock)
+	s, db := setupServerWithSender(t, "feishu:default", mock)
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
@@ -409,7 +409,7 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 
 func TestCallTool_SendMessage_LinearContentAndMediaSentTogether(t *testing.T) {
 	mock := &mockSender{}
-	s, db := setupServerWithSender(t, "linear", mock)
+	s, db := setupServerWithSender(t, "linear:default", mock)
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
@@ -444,7 +444,7 @@ func TestCallTool_SendMessage_LinearContentAndMediaSentTogether(t *testing.T) {
 // --- list_tasks session_key tests ---
 
 func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ctx := context.Background()
 	ms := store.NewMessageStore(db)
 	ms.Create(ctx, "msg-sk1", "session-X", "feishu", "default", "hi", `{}`, "", 0) //nolint
@@ -824,7 +824,7 @@ func TestCallTool_ClearWorkerSession_Idempotent(t *testing.T) {
 }
 
 func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ctx := context.Background()
 
 	// Create two workers
@@ -1197,7 +1197,7 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 }
 
 func TestResolveDepartmentID_ByID(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	dept, err := ds.Create(model.Department{Name: "Engineering"})
@@ -1220,7 +1220,7 @@ func TestResolveDepartmentID_ByID(t *testing.T) {
 }
 
 func TestResolveDepartmentID_ByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	_, err := ds.Create(model.Department{Name: "Marketing"})
@@ -1243,7 +1243,7 @@ func TestResolveDepartmentID_ByName(t *testing.T) {
 }
 
 func TestResolveDepartmentID_NotFound(t *testing.T) {
-	s, _ := setupServerWithSender(t, "feishu", &mockSender{})
+	s, _ := setupServerWithSender(t, "feishu:default", &mockSender{})
 	_, err := s.CallTool(context.Background(), "get_department",
 		mustMarshal(t, map[string]any{"id": "nonexistent"}))
 	if err == nil {
@@ -1277,7 +1277,7 @@ func TestCallTool_ListDepartments_Empty(t *testing.T) {
 }
 
 func TestCallTool_ListDepartments_Tree(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	parent, _ := ds.Create(model.Department{Name: "R&D"})
@@ -1328,7 +1328,7 @@ func TestCallTool_CreateDepartment(t *testing.T) {
 }
 
 func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	parent, _ := ds.Create(model.Department{Name: "R&D"})
 
@@ -1347,7 +1347,7 @@ func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
 }
 
 func TestCallTool_UpdateDepartment_Name(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "OldName"})
 
@@ -1366,7 +1366,7 @@ func TestCallTool_UpdateDepartment_Name(t *testing.T) {
 }
 
 func TestCallTool_DeleteDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "ToDelete"})
 
@@ -1383,7 +1383,7 @@ func TestCallTool_DeleteDepartment(t *testing.T) {
 }
 
 func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	parent, _ := ds.Create(model.Department{Name: "Parent"})
 	_, _ = ds.Create(model.Department{Name: "Child", ParentID: &parent.ID})
@@ -1396,7 +1396,7 @@ func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
 }
 
 func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1427,7 +1427,7 @@ func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
 }
 
 func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1467,7 +1467,7 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 }
 
 func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "Engineering"})
 
@@ -1491,7 +1491,7 @@ func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
 }
 
 func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1513,7 +1513,7 @@ func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
 }
 
 func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1590,7 +1590,7 @@ func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
 }
 
 func TestCallTool_ListOutboundMessages(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "feishu:default", &mockSender{})
 	ctx := context.Background()
 
 	oms := store.NewOutboundMessageStore(db)
