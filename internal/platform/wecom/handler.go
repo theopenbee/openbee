@@ -183,8 +183,9 @@ type sendReplyFn func(reqID, cmd string, body any) (WsFrame, error)
 
 // WeComPlatform implements platform.Platform for WeCom AI Bot.
 type WeComPlatform struct {
-	receiver      *WeComReceiver
-	sender        *WeComSender
+	accountName    string
+	receiver       *WeComReceiver
+	sender         *WeComSender
 	pendingStreams sync.Map // key: msgId → value: streamId
 }
 
@@ -195,7 +196,7 @@ func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platf
 		Secret: cfg.Secret,
 		URL:    cfg.WebSocketURL,
 	})
-	p := &WeComPlatform{}
+	p := &WeComPlatform{accountName: cfg.Name}
 	p.receiver = &WeComReceiver{
 		cfg:           cfg,
 		pendingStreams: &p.pendingStreams,
@@ -213,6 +214,7 @@ func NewPlatform(cfg config.WeComConfig, mediaSvc *media.Service) platform.Platf
 }
 
 func (p *WeComPlatform) ID() string                                 { return PlatformID }
+func (p *WeComPlatform) AccountName() string                        { return p.accountName }
 func (p *WeComPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *WeComPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
@@ -283,10 +285,12 @@ func (r *WeComReceiver) processMessage(frame WsFrame, dispatch func(platform.Inb
 	time.AfterFunc(10*time.Minute, func() { r.pendingStreams.Delete(body.MsgID) })
 
 	rawBytes, _ := json.Marshal(frame)
+	accountName := r.cfg.Name
 	dispatch(platform.InboundMessage{
 		Platform:          PlatformID,
+		AccountName:       accountName,
 		SenderID:          senderID,
-		SessionKey:        PlatformID + ":" + chatID + ":" + senderID,
+		SessionKey:        PlatformID + ":" + accountName + ":" + chatID + ":" + senderID,
 		Content:           content,
 		RawContent:        rawText,
 		Raw:               string(rawBytes),

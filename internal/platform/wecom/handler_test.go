@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -49,8 +50,9 @@ func buildFrame(t *testing.T, reqID string, body messageBody) WsFrame {
 func newTestReceiver(mock *mockWsConn) *WeComReceiver {
 	var ps sync.Map
 	r := &WeComReceiver{
+		cfg:            config.WeComConfig{Name: "default"},
 		pendingStreams: &ps,
-		mediaSvc:      media.NewService(),
+		mediaSvc:       media.NewService(),
 	}
 	// Inject mock send function
 	r.sendReplyFn = mock.sendReply
@@ -76,7 +78,8 @@ func TestProcessMessage_Text(t *testing.T) {
 	msg := dispatched[0]
 	assert.Equal(t, "wecom", msg.Platform)
 	assert.Equal(t, "user1", msg.SenderID)
-	assert.Equal(t, "wecom:user1:user1", msg.SessionKey)
+	assert.Equal(t, "wecom:default:user1:user1", msg.SessionKey)
+	assert.Equal(t, "default", msg.AccountName)
 	assert.Equal(t, "hello world", msg.Content)
 	assert.Equal(t, "hello world", msg.RawContent)
 	assert.Equal(t, "msg-001", msg.PlatformMessageID)
@@ -124,7 +127,7 @@ func TestProcessMessage_GroupChat(t *testing.T) {
 	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
 
 	require.Len(t, dispatched, 1)
-	assert.Equal(t, "wecom:group-chat-1:user3", dispatched[0].SessionKey)
+	assert.Equal(t, "wecom:default:group-chat-1:user3", dispatched[0].SessionKey)
 }
 
 func TestProcessMessage_EmptyText_Skipped(t *testing.T) {
@@ -161,6 +164,33 @@ func TestProcessMessage_UnsupportedMsgType_Skipped(t *testing.T) {
 	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
 
 	assert.Empty(t, dispatched)
+}
+
+func TestProcessMessage_NonDefaultAccountName(t *testing.T) {
+	mock := &mockWsConn{}
+	var ps sync.Map
+	r := &WeComReceiver{
+		cfg:            config.WeComConfig{Name: "marketing"},
+		pendingStreams: &ps,
+		mediaSvc:       media.NewService(),
+		sendReplyFn:    mock.sendReply,
+	}
+
+	frame := buildFrame(t, "req-acc", messageBody{
+		MsgID:    "msg-acc",
+		ChatType: "single",
+		From:     messageFrom{UserID: "userA"},
+		MsgType:  "text",
+		Text:     &textContent{Content: "hi"},
+	})
+
+	var dispatched []platform.InboundMessage
+	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+
+	require.Len(t, dispatched, 1)
+	assert.Equal(t, "marketing", dispatched[0].AccountName)
+	assert.Contains(t, dispatched[0].SessionKey, ":marketing:")
+	assert.Equal(t, "wecom:marketing:userA:userA", dispatched[0].SessionKey)
 }
 
 func TestProcessMessage_PendingStreams(t *testing.T) {

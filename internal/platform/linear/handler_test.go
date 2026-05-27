@@ -590,6 +590,51 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 	}
 }
 
+func TestBuildSessionKey_IncludesAccount(t *testing.T) {
+	if got := buildSessionKey("marketing", "ENG", "ENG-1"); got != "linear:marketing:ENG:ENG-1" {
+		t.Errorf("buildSessionKey() = %q, want linear:marketing:ENG:ENG-1", got)
+	}
+	if got := buildSessionKey("default", "ENG", "ENG-1"); got != "linear:default:ENG:ENG-1" {
+		t.Errorf("buildSessionKey() = %q, want linear:default:ENG:ENG-1", got)
+	}
+}
+
+func TestReceiver_TickOnce_NonDefaultAccountInDispatchedMessage(t *testing.T) {
+	issue := Issue{
+		ID: "I1", Identifier: "ENG-42", Title: "T",
+		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+	}
+	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+	r := &LinearReceiver{
+		client:       fc,
+		accountName:  "marketing",
+		seenIssues:   newFakeSeenSet(),
+		seenComments: newFakeSeenSet(),
+		labelName:    "openbee",
+		pollInterval: time.Hour,
+		projectsList: testProjects(),
+		statesList:   testStates(),
+		resolver: &resolver{
+			client:  fc,
+			media:   media.NewService(),
+			maxSize: 10 * 1024 * 1024,
+		},
+	}
+
+	var received []platform.InboundMessage
+	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
+
+	if len(received) != 1 {
+		t.Fatalf("expected 1 dispatch, got %d", len(received))
+	}
+	if received[0].AccountName != "marketing" {
+		t.Errorf("AccountName = %q, want marketing", received[0].AccountName)
+	}
+	if !strings.Contains(received[0].SessionKey, ":marketing:") {
+		t.Errorf("SessionKey %q should contain :marketing:", received[0].SessionKey)
+	}
+}
+
 func TestMergeIssueContent_WithProject(t *testing.T) {
 	proj := &Project{ID: "P1", Name: "Backend"}
 	issue := Issue{

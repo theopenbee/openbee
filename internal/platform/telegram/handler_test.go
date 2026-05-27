@@ -14,21 +14,30 @@ func TestTelegramPlatformID(t *testing.T) {
 func TestBuildSessionKey(t *testing.T) {
 	tests := []struct {
 		name     string
+		account  string
 		chatID   int64
 		senderID int64
 		want     string
 	}{
-		{"private chat", 123, 123, "telegram:123:123"},
-		{"group chat", -100456, 789, "telegram:-100456:789"},
+		{"private chat", "default", 123, 123, "telegram:default:123:123"},
+		{"group chat", "default", -100456, 789, "telegram:default:-100456:789"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildSessionKey(tt.chatID, tt.senderID)
+			got := buildSessionKey(tt.account, tt.chatID, tt.senderID)
 			if got != tt.want {
-				t.Errorf("buildSessionKey(%d, %d) = %q, want %q",
-					tt.chatID, tt.senderID, got, tt.want)
+				t.Errorf("buildSessionKey(%q, %d, %d) = %q, want %q",
+					tt.account, tt.chatID, tt.senderID, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestBuildSessionKey_IncludesNonDefaultAccount(t *testing.T) {
+	got := buildSessionKey("marketing", 123, 456)
+	want := "telegram:marketing:123:456"
+	if got != want {
+		t.Fatalf("buildSessionKey() = %q, want %q", got, want)
 	}
 }
 

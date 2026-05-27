@@ -27,13 +27,14 @@ const PlatformID = "weixin"
 // ─── Platform ────────────────────────────────────────────────────────────────
 
 type WeixinPlatform struct {
-	receiver *WeixinReceiver
-	sender   *WeixinSender
+	accountName string
+	receiver    *WeixinReceiver
+	sender      *WeixinSender
 }
 
 func NewPlatform(cfg config.WeixinConfig, mc config.MediaConfig, mediaSvc *media.Service) platform.Platform {
 	client := newAPIClient(cfg)
-	p := &WeixinPlatform{}
+	p := &WeixinPlatform{accountName: cfg.Name}
 	p.receiver = &WeixinReceiver{
 		cfg:      cfg,
 		mc:       mc,
@@ -48,6 +49,7 @@ func NewPlatform(cfg config.WeixinConfig, mc config.MediaConfig, mediaSvc *media
 }
 
 func (p *WeixinPlatform) ID() string                                 { return PlatformID }
+func (p *WeixinPlatform) AccountName() string                        { return p.accountName }
 func (p *WeixinPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *WeixinPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
@@ -60,8 +62,8 @@ type weixinRaw struct {
 	ContextToken string `json:"context_token"`
 }
 
-func buildSessionKey(userID string) string {
-	return fmt.Sprintf("weixin:%s:%s", userID, userID)
+func buildSessionKey(account, userID string) string {
+	return fmt.Sprintf("weixin:%s:%s:%s", account, userID, userID)
 }
 
 func buildPlatformMessageID(seq, messageID int64) string {
@@ -228,8 +230,9 @@ func (r *WeixinReceiver) buildInboundMessage(ctx context.Context, msg weixinMess
 
 	return &platform.InboundMessage{
 		Platform:          PlatformID,
+		AccountName:       r.cfg.Name,
 		SenderID:          msg.FromUserID,
-		SessionKey:        buildSessionKey(msg.FromUserID),
+		SessionKey:        buildSessionKey(r.cfg.Name, msg.FromUserID),
 		Content:           content,
 		RawContent:        content,
 		Raw:               string(rawBytes),

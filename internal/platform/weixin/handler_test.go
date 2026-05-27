@@ -14,7 +14,11 @@ func TestWeixinPlatformID(t *testing.T) {
 }
 
 func TestBuildSessionKey(t *testing.T) {
-	assert.Equal(t, "weixin:user123:user123", buildSessionKey("user123"))
+	assert.Equal(t, "weixin:default:user123:user123", buildSessionKey("default", "user123"))
+}
+
+func TestBuildSessionKey_IncludesNonDefaultAccount(t *testing.T) {
+	assert.Equal(t, "weixin:marketing:user42:user42", buildSessionKey("marketing", "user42"))
 }
 
 func TestBuildPlatformMessageID(t *testing.T) {

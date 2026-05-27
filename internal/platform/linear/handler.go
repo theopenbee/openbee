@@ -36,8 +36,9 @@ var log = logger.With(zap.String("component", "linear"))
 
 // LinearPlatform implements platform.Platform.
 type LinearPlatform struct {
-	receiver *LinearReceiver
-	sender   *LinearSender
+	accountName string
+	receiver    *LinearReceiver
+	sender      *LinearSender
 }
 
 // NewPlatform constructs a Linear platform from configuration. Persistent
@@ -54,8 +55,10 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 		maxSize = 50 * 1024 * 1024
 	}
 	return &LinearPlatform{
+		accountName: cfg.Name,
 		receiver: &LinearReceiver{
 			client:       client,
+			accountName:  cfg.Name,
 			seenIssues:   NewSeenSet(dir, "seen_issues.ndjson"),
 			seenComments: NewSeenSet(dir, "seen_comments.ndjson"),
 			labelName:    cfg.LabelName,
@@ -81,12 +84,14 @@ func NewPlatform(cfg config.LinearConfig, mediaSvc *media.Service) (platform.Pla
 }
 
 func (p *LinearPlatform) ID() string                                 { return PlatformID }
+func (p *LinearPlatform) AccountName() string                        { return p.accountName }
 func (p *LinearPlatform) Receiver() platform.PlatformReceiverAdapter { return p.receiver }
 func (p *LinearPlatform) Sender() platform.PlatformSenderAdapter     { return p.sender }
 
 // LinearReceiver polls Linear for issue/comment updates by workflow-state.
 type LinearReceiver struct {
 	client       Client
+	accountName  string
 	seenIssues   seenAPI
 	seenComments seenAPI
 	labelName    string
@@ -183,7 +188,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.String("issue_id", issue.ID),
 				zap.Int("non_bot_comment_count", len(nonBot)),
 			)
-			dispatch(buildInitialInbound(resolvedIssue, resolvedComments))
+			dispatch(buildInitialInbound(r.accountName, resolvedIssue, resolvedComments))
 			r.addReaction(ctx, ReactionTarget{IssueID: issue.ID})
 			newIssueIDs = append(newIssueIDs, issue.ID)
 			for _, c := range nonBot {
@@ -205,7 +210,7 @@ func (r *LinearReceiver) tickOnce(ctx context.Context, dispatch func(platform.In
 				zap.String("comment_id", c.ID),
 				zap.String("user_id", c.User.ID),
 			)
-			dispatch(buildCommentInbound(issue, rc))
+			dispatch(buildCommentInbound(r.accountName, issue, rc))
 			r.addReaction(ctx, ReactionTarget{CommentID: c.ID})
 			newCommentIDs = append(newCommentIDs, c.ID)
 		}
@@ -244,8 +249,8 @@ func nonBotComments(in []Comment) []Comment {
 	return out
 }
 
-func buildSessionKey(teamKey, identifier string) string {
-	return fmt.Sprintf("%s:%s:%s", PlatformID, teamKey, identifier)
+func buildSessionKey(account, teamKey, identifier string) string {
+	return fmt.Sprintf("%s:%s:%s:%s", PlatformID, account, teamKey, identifier)
 }
 
 // replyTarget is serialized into InboundMessage.Raw so the sender can resolve
@@ -258,7 +263,7 @@ type replyTarget struct {
 // buildInitialInbound merges title, description, and the supplied non-bot
 // comments into a single InboundMessage. The reply target is the issue itself
 // (no parent comment), so the bee's reply lands at the top level of the issue.
-func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessage {
+func buildInitialInbound(accountName string, issue Issue, comments []Comment) platform.InboundMessage {
 	raw, _ := json.Marshal(replyTarget{IssueID: issue.ID})
 	content := mergeIssueContent(issue, comments)
 	createdAt := issue.CreatedAt
@@ -271,8 +276,9 @@ func buildInitialInbound(issue Issue, comments []Comment) platform.InboundMessag
 	}
 	return platform.InboundMessage{
 		Platform:          PlatformID,
+		AccountName:       accountName,
 		SenderID:          issue.Creator.ID,
-		SessionKey:        buildSessionKey(issue.Team.Key, issue.Identifier),
+		SessionKey:        buildSessionKey(accountName, issue.Team.Key, issue.Identifier),
 		Content:           content,
 		RawContent:        content,
 		Raw:               string(raw),
@@ -310,7 +316,7 @@ func mergeIssueContent(issue Issue, comments []Comment) string {
 	return b.String()
 }
 
-func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
+func buildCommentInbound(accountName string, issue Issue, c Comment) platform.InboundMessage {
 	parent := c.ParentID
 	if parent == nil {
 		id := c.ID
@@ -319,8 +325,9 @@ func buildCommentInbound(issue Issue, c Comment) platform.InboundMessage {
 	raw, _ := json.Marshal(replyTarget{IssueID: issue.ID, ParentCommentID: parent})
 	return platform.InboundMessage{
 		Platform:          PlatformID,
+		AccountName:       accountName,
 		SenderID:          c.User.ID,
-		SessionKey:        buildSessionKey(issue.Team.Key, issue.Identifier),
+		SessionKey:        buildSessionKey(accountName, issue.Team.Key, issue.Identifier),
 		Content:           c.Body,
 		RawContent:        c.Body,
 		Raw:               string(raw),

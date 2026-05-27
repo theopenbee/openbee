@@ -42,6 +42,7 @@ const mentionPrefix = "@"
 
 // FeishuPlatform implements platform.Platform for Feishu/Lark.
 type FeishuPlatform struct {
+	accountName      string
 	receiver         *FeishuReceiver
 	sender           *FeishuSender
 	pendingReactions sync.Map
@@ -50,13 +51,14 @@ type FeishuPlatform struct {
 // NewPlatform constructs a FeishuPlatform from configuration.
 func NewPlatform(cfg config.FeishuConfig, mediaSvc *media.Service) platform.Platform {
 	larkClient := lark.NewClient(cfg.AppID, cfg.AppSecret)
-	p := &FeishuPlatform{}
+	p := &FeishuPlatform{accountName: cfg.Name}
 	p.receiver = &FeishuReceiver{larkClient: larkClient, cfg: cfg, pendingReactions: &p.pendingReactions, mediaSvc: mediaSvc}
 	p.sender = &FeishuSender{larkClient: larkClient, pendingReactions: &p.pendingReactions}
 	return p
 }
 
 func (f *FeishuPlatform) ID() string                                 { return PlatformID }
+func (f *FeishuPlatform) AccountName() string                        { return f.accountName }
 func (f *FeishuPlatform) Receiver() platform.PlatformReceiverAdapter { return f.receiver }
 func (f *FeishuPlatform) Sender() platform.PlatformSenderAdapter     { return f.sender }
 
@@ -172,10 +174,12 @@ func (r *FeishuReceiver) Start(ctx context.Context, dispatch func(platform.Inbou
 				}
 			}()
 
+			accountName := r.cfg.Name
 			dispatch(platform.InboundMessage{
 				Platform:          PlatformID,
+				AccountName:       accountName,
 				SenderID:          senderID,
-				SessionKey:        PlatformID + ":" + *msg.ChatId + ":" + senderID,
+				SessionKey:        PlatformID + ":" + accountName + ":" + *msg.ChatId + ":" + senderID,
 				Content:           textContent,
 				Raw:               string(rawBytes),
 				PlatformMessageID: utils.DerefStrOrEmpty(msg.MessageId),

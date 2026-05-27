@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/media"
 )
 
 func TestParseMediaKeys(t *testing.T) {
@@ -307,5 +310,24 @@ func TestExtractContext_InvalidRaw(t *testing.T) {
 	got := ExtractContext("not-json")
 	if got != "" {
 		t.Errorf("expected empty string for invalid raw, got %q", got)
+	}
+}
+
+func TestFeishuPlatform_AccountName(t *testing.T) {
+	cfg := config.FeishuConfig{Name: "marketing", AppID: "appid", AppSecret: "secret"}
+	p := NewPlatform(cfg, media.NewService())
+	if p.ID() != "feishu" {
+		t.Errorf("ID() = %q, want feishu", p.ID())
+	}
+	if got := p.AccountName(); got != "marketing" {
+		t.Errorf("AccountName() = %q, want marketing", got)
+	}
+}
+
+func TestFeishuPlatform_DefaultAccountName(t *testing.T) {
+	cfg := config.FeishuConfig{Name: "default", AppID: "appid", AppSecret: "secret"}
+	p := NewPlatform(cfg, media.NewService())
+	if got := p.AccountName(); got != "default" {
+		t.Errorf("AccountName() = %q, want default", got)
 	}
 }

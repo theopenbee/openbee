@@ -194,3 +194,16 @@ func TestExtractContext_InvalidDingTalkRaw(t *testing.T) {
 	got := ExtractContext("not-json")
 	assert.Empty(t, got)
 }
+
+func TestDingTalkPlatform_AccountName(t *testing.T) {
+	cfg := config.DingTalkConfig{Name: "marketing", ClientID: "cid", ClientSecret: "sec"}
+	p := NewPlatform(cfg, config.MediaConfig{}, nil)
+	assert.Equal(t, "dingtalk", p.ID())
+	assert.Equal(t, "marketing", p.AccountName())
+}
+
+func TestDingTalkPlatform_DefaultAccountName(t *testing.T) {
+	cfg := config.DingTalkConfig{Name: "default", ClientID: "cid", ClientSecret: "sec"}
+	p := NewPlatform(cfg, config.MediaConfig{}, nil)
+	assert.Equal(t, "default", p.AccountName())
+}

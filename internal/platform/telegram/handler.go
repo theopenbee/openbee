@@ -30,8 +30,9 @@ var log = logger.With(zap.String("component", "telegram"))
 // ─── Platform ─────────────────────────────────────────────────────────────────
 
 type TelegramPlatform struct {
-	receiver *TelegramReceiver
-	sender   *TelegramSender
+	accountName string
+	receiver    *TelegramReceiver
+	sender      *TelegramSender
 }
 
 func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Platform {
@@ -46,7 +47,7 @@ func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Pl
 
 	setupBotCommands(bot)
 
-	p := &TelegramPlatform{}
+	p := &TelegramPlatform{accountName: cfg.Name}
 	p.receiver = &TelegramReceiver{
 		cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore,
 		unauthReplyLast: make(map[string]time.Time),
@@ -68,13 +69,14 @@ func setupBotCommands(bot *tgbotapi.BotAPI) {
 }
 
 func (p *TelegramPlatform) ID() string                                  { return PlatformID }
+func (p *TelegramPlatform) AccountName() string                         { return p.accountName }
 func (p *TelegramPlatform) Receiver() platform.PlatformReceiverAdapter  { return p.receiver }
 func (p *TelegramPlatform) Sender() platform.PlatformSenderAdapter      { return p.sender }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-func buildSessionKey(chatID, senderID int64) string {
-	return fmt.Sprintf("telegram:%d:%d", chatID, senderID)
+func buildSessionKey(account string, chatID, senderID int64) string {
+	return fmt.Sprintf("telegram:%s:%d:%d", account, chatID, senderID)
 }
 
 func buildPlatformMessageID(updateID int, messageID int) string {
@@ -291,8 +293,9 @@ func (r *TelegramReceiver) buildInboundMessage(
 
 	return &platform.InboundMessage{
 		Platform:          PlatformID,
+		AccountName:       r.cfg.Name,
 		SenderID:          strconv.FormatInt(senderID, 10),
-		SessionKey:        buildSessionKey(m.Chat.ID, senderID),
+		SessionKey:        buildSessionKey(r.cfg.Name, m.Chat.ID, senderID),
 		Content:           content,
 		RawContent:        content,
 		Raw:               string(rawBytes),

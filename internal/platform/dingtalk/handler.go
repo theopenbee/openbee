@@ -58,6 +58,7 @@ func ExtractContext(raw string) string {
 
 // DingTalkPlatform implements platform.Platform for DingTalk.
 type DingTalkPlatform struct {
+	accountName   string
 	receiver      *DingTalkReceiver
 	sender        *DingTalkSender
 	pendingEmojis sync.Map
@@ -65,13 +66,14 @@ type DingTalkPlatform struct {
 
 // NewPlatform constructs a DingTalkPlatform from configuration.
 func NewPlatform(cfg config.DingTalkConfig, mediaCfg config.MediaConfig, mediaSvc *media.Service) platform.Platform {
-	p := &DingTalkPlatform{}
+	p := &DingTalkPlatform{accountName: cfg.Name}
 	p.receiver = &DingTalkReceiver{cfg: cfg, pendingEmojis: &p.pendingEmojis, mediaSvc: mediaSvc}
 	p.sender = &DingTalkSender{cfg: cfg, mediaCfg: mediaCfg, pendingEmojis: &p.pendingEmojis}
 	return p
 }
 
 func (d *DingTalkPlatform) ID() string                                 { return PlatformID }
+func (d *DingTalkPlatform) AccountName() string                        { return d.accountName }
 func (d *DingTalkPlatform) Receiver() platform.PlatformReceiverAdapter { return d.receiver }
 func (d *DingTalkPlatform) Sender() platform.PlatformSenderAdapter     { return d.sender }
 
@@ -142,14 +144,16 @@ func (r *DingTalkReceiver) Start(ctx context.Context, dispatch func(platform.Inb
 			return []byte(""), nil
 		}
 
+		accountName := r.cfg.Name
 		msg := platform.InboundMessage{
-			Platform:         PlatformID,
-			SenderID:         data.SenderStaffId,
-			SessionKey:       PlatformID + ":" + data.ConversationId + ":" + data.SenderStaffId,
-			Content:          textContent,
-			Raw:              string(rawBytes),
+			Platform:          PlatformID,
+			AccountName:       accountName,
+			SenderID:          data.SenderStaffId,
+			SessionKey:        PlatformID + ":" + accountName + ":" + data.ConversationId + ":" + data.SenderStaffId,
+			Content:           textContent,
+			Raw:               string(rawBytes),
 			PlatformMessageID: data.MsgId,
-			MessageTime:      data.CreateAt,
+			MessageTime:       data.CreateAt,
 		}
 		go func() {
 			addThinkingEmoji(ctx, r.cfg, data)
