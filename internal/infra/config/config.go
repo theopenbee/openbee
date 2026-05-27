@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // RPC endpoint path prefixes.
@@ -157,26 +158,35 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 }
 
 type PlatformsConfig struct {
-	Feishu   FeishuConfig   `yaml:"feishu"`
-	DingTalk DingTalkConfig `yaml:"dingtalk"`
-	WeCom    WeComConfig    `yaml:"wecom"`
-	Telegram TelegramConfig `yaml:"telegram"`
-	Weixin   WeixinConfig   `yaml:"weixin"`
-	Linear   LinearConfig   `yaml:"linear"`
+	Feishu   []FeishuConfig   `yaml:"feishu"`
+	DingTalk []DingTalkConfig `yaml:"dingtalk"`
+	WeCom    []WeComConfig    `yaml:"wecom"`
+	Telegram []TelegramConfig `yaml:"telegram"`
+	Weixin   []WeixinConfig   `yaml:"weixin"`
+	Linear   []LinearConfig   `yaml:"linear"`
 }
 
 func (p PlatformsConfig) BotNames() []string {
 	var names []string
-	for _, n := range []string{
-		p.Feishu.BotName,
-		p.DingTalk.BotName,
-		p.WeCom.BotName,
-		p.Telegram.BotName,
-		p.Weixin.BotName,
-	} {
-		if n != "" {
-			names = append(names, n)
+	add := func(s string) {
+		if s != "" {
+			names = append(names, s)
 		}
+	}
+	for _, c := range p.Feishu {
+		add(c.BotName)
+	}
+	for _, c := range p.DingTalk {
+		add(c.BotName)
+	}
+	for _, c := range p.WeCom {
+		add(c.BotName)
+	}
+	for _, c := range p.Telegram {
+		add(c.BotName)
+	}
+	for _, c := range p.Weixin {
+		add(c.BotName)
 	}
 	return names
 }
@@ -186,6 +196,7 @@ type FeederConfig struct {
 }
 
 type FeishuConfig struct {
+	Name         string `yaml:"name"`
 	Enabled      bool   `yaml:"enabled"`
 	AppID        string `yaml:"app_id"`
 	AppSecret    string `yaml:"app_secret"`
@@ -194,6 +205,7 @@ type FeishuConfig struct {
 }
 
 type DingTalkConfig struct {
+	Name         string `yaml:"name"`
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
@@ -201,6 +213,7 @@ type DingTalkConfig struct {
 }
 
 type WeComConfig struct {
+	Name         string `yaml:"name"`
 	Enabled      bool   `yaml:"enabled"`
 	BotID        string `yaml:"bot_id"`
 	Secret       string `yaml:"secret"`
@@ -209,6 +222,7 @@ type WeComConfig struct {
 }
 
 type TelegramConfig struct {
+	Name         string `yaml:"name"`
 	Enabled      bool   `yaml:"enabled"`
 	Token        string `yaml:"token"`
 	MaxMediaSize int    `yaml:"max_media_size"` // bytes; default 50MB
@@ -217,6 +231,7 @@ type TelegramConfig struct {
 }
 
 type WeixinConfig struct {
+	Name         string `yaml:"name"`
 	Enabled      bool   `yaml:"enabled"`
 	Token        string `yaml:"token"`
 	BaseURL      string `yaml:"base_url"`
@@ -228,6 +243,7 @@ type WeixinConfig struct {
 }
 
 type LinearConfig struct {
+	Name         string        `yaml:"name"`
 	Enabled      bool          `yaml:"enabled"`
 	APIKey       string        `yaml:"api_key"`        // Linear personal API key (required when enabled)
 	LabelName    string        `yaml:"label_name"`     // gating label; default "openbee"
@@ -276,7 +292,7 @@ func Load(path string) (Config, error) {
 	}
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf(`config parse error: %w; note: each platform under bee.platforms must be a YAML list, e.g. "feishu: [{name: default, ...}]"`, err)
 	}
 	if err := applyDefaults(&cfg); err != nil {
 		return Config{}, err
@@ -320,26 +336,42 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Media.FFmpegPath == "" {
 		cfg.Bee.Media.FFmpegPath = "ffmpeg"
 	}
-	if cfg.Bee.Platforms.Feishu.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Feishu.MaxMediaSize = 100 * 1024 * 1024 // 100MB
+	for i := range cfg.Bee.Platforms.Feishu {
+		if cfg.Bee.Platforms.Feishu[i].MaxMediaSize == 0 {
+			cfg.Bee.Platforms.Feishu[i].MaxMediaSize = 100 * 1024 * 1024 // 100MB
+		}
 	}
-	if cfg.Bee.Platforms.WeCom.WebSocketURL == "" {
-		cfg.Bee.Platforms.WeCom.WebSocketURL = "wss://openws.work.weixin.qq.com"
+	for i := range cfg.Bee.Platforms.WeCom {
+		if cfg.Bee.Platforms.WeCom[i].WebSocketURL == "" {
+			cfg.Bee.Platforms.WeCom[i].WebSocketURL = "wss://openws.work.weixin.qq.com"
+		}
 	}
-	if cfg.Bee.Platforms.Telegram.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Telegram.MaxMediaSize = 50 * 1024 * 1024 // 50MB
+	for i := range cfg.Bee.Platforms.Telegram {
+		if cfg.Bee.Platforms.Telegram[i].MaxMediaSize == 0 {
+			cfg.Bee.Platforms.Telegram[i].MaxMediaSize = 50 * 1024 * 1024 // 50MB
+		}
 	}
-	if cfg.Bee.Platforms.Weixin.BaseURL == "" {
-		cfg.Bee.Platforms.Weixin.BaseURL = "https://ilinkai.weixin.qq.com"
+	for i := range cfg.Bee.Platforms.Weixin {
+		if cfg.Bee.Platforms.Weixin[i].BaseURL == "" {
+			cfg.Bee.Platforms.Weixin[i].BaseURL = "https://ilinkai.weixin.qq.com"
+		}
+		if cfg.Bee.Platforms.Weixin[i].CDNBaseURL == "" {
+			cfg.Bee.Platforms.Weixin[i].CDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
+		}
+		if cfg.Bee.Platforms.Weixin[i].MaxMediaSize == 0 {
+			cfg.Bee.Platforms.Weixin[i].MaxMediaSize = 100 * 1024 * 1024 // 100MB
+		}
 	}
-	if cfg.Bee.Platforms.Weixin.CDNBaseURL == "" {
-		cfg.Bee.Platforms.Weixin.CDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-	}
-	if cfg.Bee.Platforms.Weixin.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Weixin.MaxMediaSize = 100 * 1024 * 1024 // 100MB
-	}
-	if cfg.Bee.Platforms.Linear.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Linear.MaxMediaSize = 50 * 1024 * 1024 // 50MB
+	for i := range cfg.Bee.Platforms.Linear {
+		if cfg.Bee.Platforms.Linear[i].MaxMediaSize == 0 {
+			cfg.Bee.Platforms.Linear[i].MaxMediaSize = 50 * 1024 * 1024 // 50MB
+		}
+		if cfg.Bee.Platforms.Linear[i].LabelName == "" {
+			cfg.Bee.Platforms.Linear[i].LabelName = "openbee"
+		}
+		if cfg.Bee.Platforms.Linear[i].PollInterval == 0 {
+			cfg.Bee.Platforms.Linear[i].PollInterval = 10 * time.Second
+		}
 	}
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
@@ -361,11 +393,64 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.RPC.TokenTTL == 0 {
 		cfg.Bee.RPC.TokenTTL = 2 * time.Hour
 	}
-	if cfg.Bee.Platforms.Linear.LabelName == "" {
-		cfg.Bee.Platforms.Linear.LabelName = "openbee"
+	if err := validatePlatformAccounts(cfg.Bee.Platforms); err != nil {
+		return err
 	}
-	if cfg.Bee.Platforms.Linear.PollInterval == 0 {
-		cfg.Bee.Platforms.Linear.PollInterval = 10 * time.Second
+	return nil
+}
+
+func validatePlatformAccounts(p PlatformsConfig) error {
+	check := func(platformID string, names []string) error {
+		seen := make(map[string]bool, len(names))
+		for _, n := range names {
+			if err := platform.ValidateAccountName(n); err != nil {
+				return fmt.Errorf("%s account name %q: %w", platformID, n, err)
+			}
+			if seen[n] {
+				return fmt.Errorf("%s has duplicate account name %q", platformID, n)
+			}
+			seen[n] = true
+		}
+		return nil
+	}
+	type entry struct {
+		platformID string
+		names      []string
+	}
+	pull := func(platformID string, names []string) entry {
+		return entry{platformID: platformID, names: names}
+	}
+	feishuNames := make([]string, len(p.Feishu))
+	for i, c := range p.Feishu {
+		feishuNames[i] = c.Name
+	}
+	dtNames := make([]string, len(p.DingTalk))
+	for i, c := range p.DingTalk {
+		dtNames[i] = c.Name
+	}
+	wcNames := make([]string, len(p.WeCom))
+	for i, c := range p.WeCom {
+		wcNames[i] = c.Name
+	}
+	tgNames := make([]string, len(p.Telegram))
+	for i, c := range p.Telegram {
+		tgNames[i] = c.Name
+	}
+	wxNames := make([]string, len(p.Weixin))
+	for i, c := range p.Weixin {
+		wxNames[i] = c.Name
+	}
+	lnNames := make([]string, len(p.Linear))
+	for i, c := range p.Linear {
+		lnNames[i] = c.Name
+	}
+	for _, e := range []entry{
+		pull("feishu", feishuNames), pull("dingtalk", dtNames), pull("wecom", wcNames),
+		pull("telegram", tgNames), pull("weixin", wxNames), pull("linear", lnNames),
+	} {
+		if err := check(e.platformID, e.names); err != nil {
+			return err
+		}
 	}
 	return nil
 }

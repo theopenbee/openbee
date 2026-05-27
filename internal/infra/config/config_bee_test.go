@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -79,6 +80,12 @@ func TestBeeConfig_TelegramDefaults(t *testing.T) {
 	f.WriteString(`
 server:
   port: 8080
+bee:
+  platforms:
+    telegram:
+      - name: default
+        enabled: true
+        token: "tok"
 `)
 	f.Close()
 
@@ -87,9 +94,9 @@ server:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Bee.Platforms.Telegram.MaxMediaSize != 50*1024*1024 {
+	if cfg.Bee.Platforms.Telegram[0].MaxMediaSize != 50*1024*1024 {
 		t.Errorf("Telegram.MaxMediaSize default: want %d got %d",
-			50*1024*1024, cfg.Bee.Platforms.Telegram.MaxMediaSize)
+			50*1024*1024, cfg.Bee.Platforms.Telegram[0].MaxMediaSize)
 	}
 }
 
@@ -101,9 +108,10 @@ server:
 bee:
   platforms:
     telegram:
-      enabled: true
-      token: "test-token"
-      max_media_size: 10485760
+      - name: default
+        enabled: true
+        token: "test-token"
+        max_media_size: 10485760
 `)
 	f.Close()
 
@@ -112,7 +120,7 @@ bee:
 		t.Fatalf("Load: %v", err)
 	}
 
-	tc := cfg.Bee.Platforms.Telegram
+	tc := cfg.Bee.Platforms.Telegram[0]
 	if !tc.Enabled {
 		t.Error("Telegram.Enabled: want true")
 	}
@@ -266,6 +274,12 @@ func TestBeeConfig_LinearDefaults(t *testing.T) {
 	f.WriteString(`
 server:
   port: 8080
+bee:
+  platforms:
+    linear:
+      - name: default
+        enabled: true
+        api_key: "k"
 `)
 	f.Close()
 
@@ -273,9 +287,9 @@ server:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Bee.Platforms.Linear.MaxMediaSize != 50*1024*1024 {
+	if cfg.Bee.Platforms.Linear[0].MaxMediaSize != 50*1024*1024 {
 		t.Errorf("Linear.MaxMediaSize default: want %d got %d",
-			50*1024*1024, cfg.Bee.Platforms.Linear.MaxMediaSize)
+			50*1024*1024, cfg.Bee.Platforms.Linear[0].MaxMediaSize)
 	}
 }
 
@@ -287,9 +301,10 @@ server:
 bee:
   platforms:
     linear:
-      enabled: true
-      api_key: "lin_test"
-      max_media_size: 10485760
+      - name: default
+        enabled: true
+        api_key: "lin_test"
+        max_media_size: 10485760
 `)
 	f.Close()
 
@@ -297,7 +312,7 @@ bee:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	lc := cfg.Bee.Platforms.Linear
+	lc := cfg.Bee.Platforms.Linear[0]
 	if !lc.Enabled {
 		t.Error("Linear.Enabled: want true")
 	}
@@ -351,5 +366,104 @@ bee:
 	envCodex, _ := rawCodex["env"].(map[string]string)
 	if len(envCodex) != 0 {
 		t.Errorf("codex raw[env] should be empty, got %v", envCodex)
+	}
+}
+
+func TestLoad_PlatformList(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(p, []byte(`
+bee:
+  platforms:
+    feishu:
+      - name: marketing
+        enabled: true
+        app_id: id1
+        app_secret: s1
+      - name: support
+        enabled: true
+        app_id: id2
+        app_secret: s2
+    wecom: []
+    dingtalk: []
+    telegram: []
+    weixin: []
+    linear: []
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if n := len(cfg.Bee.Platforms.Feishu); n != 2 {
+		t.Fatalf("feishu len=%d", n)
+	}
+	if cfg.Bee.Platforms.Feishu[0].Name != "marketing" {
+		t.Fatalf("name=%q", cfg.Bee.Platforms.Feishu[0].Name)
+	}
+}
+
+func TestLoad_LegacyFormatRejected(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(p, []byte(`
+bee:
+  platforms:
+    feishu:
+      enabled: true
+      app_id: id1
+      app_secret: s1
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected error for legacy map format")
+	}
+}
+
+func TestLoad_DuplicateAccountName(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(p, []byte(`
+bee:
+  platforms:
+    feishu:
+      - name: dup
+        enabled: true
+        app_id: id1
+        app_secret: s1
+      - name: dup
+        enabled: true
+        app_id: id2
+        app_secret: s2
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected duplicate-name error")
+	}
+}
+
+func TestLoad_InvalidAccountName(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(p, []byte(`
+bee:
+  platforms:
+    feishu:
+      - name: Bad.Name
+        enabled: true
+        app_id: id1
+        app_secret: s1
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected invalid-name error")
 	}
 }
