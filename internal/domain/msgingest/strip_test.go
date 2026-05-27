@@ -3,11 +3,15 @@ package msgingest
 import (
 	"regexp"
 	"testing"
+
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
+// buildREs builds the gateway's bot-name regex map keyed by the composite
+// "<platform>:<account>" key the gateway uses at lookup time.
 func buildREs(plat, name string) map[string]*regexp.Regexp {
 	g := &Gateway{}
-	WithPlatformBotNames(map[string]string{plat: name})(g)
+	WithAccountBotNames(map[string]string{platform.AccountKey(plat, "default"): name})(g)
 	return g.botNameREs
 }
 
@@ -143,7 +147,8 @@ func TestStripBotMention(t *testing.T) {
 				regPlatform = tt.platform
 			}
 			g := &Gateway{botNameREs: buildREs(regPlatform, tt.botName)}
-			got := g.stripBotMention(tt.content, tt.platform)
+			msg := platform.InboundMessage{Content: tt.content, Platform: tt.platform, AccountName: "default"}
+			got := g.stripBotMention(msg)
 			if got != tt.want {
 				t.Errorf("stripBotMention(%q, %q) = %q, want %q", tt.content, tt.platform, got, tt.want)
 			}

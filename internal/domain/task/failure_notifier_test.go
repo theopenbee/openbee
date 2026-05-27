@@ -57,7 +57,7 @@ func TestPlatformFailureNotifier_Success(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-1", "sess-1", "test", "hello", `{"raw":true}`, "", 0)
+	_, err := ms.Create(ctx, "msg-1", "sess-1", "test", "default", "hello", `{"raw":true}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestPlatformFailureNotifier_UnknownPlatform(t *testing.T) {
 	notifier, ms, _ := setupNotifier(t, "feishu")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-2", "sess-2", "dingtalk", "hi", `{}`, "", 0)
+	_, err := ms.Create(ctx, "msg-2", "sess-2", "dingtalk", "default", "hi", `{}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-3", "sess-3", "test", "hi", `{}`, "", 0)
+	_, err := ms.Create(ctx, "msg-3", "sess-3", "test", "default", "hi", `{}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestPlatformFailureNotifier_CancelSuccess(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-cancel-1", "sess-cancel", "test", "cancel me", `{"raw":true}`, "", 0)
+	_, err := ms.Create(ctx, "msg-cancel-1", "sess-cancel", "test", "default", "cancel me", `{"raw":true}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestPlatformFailureNotifier_StructuredFormat(t *testing.T) {
 	notifier, ms, sender := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-5", "sess-5", "test", "hi", `{}`, "", 0)
+	_, err := ms.Create(ctx, "msg-5", "sess-5", "test", "default", "hi", `{}`, "", 0)
 	if err != nil {
 		t.Fatalf("create message: %v", err)
 	}

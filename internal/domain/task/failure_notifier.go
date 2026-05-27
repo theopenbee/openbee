@@ -52,9 +52,15 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageI
 		return fmt.Errorf("get message for notification: %w", err)
 	}
 
-	sender, ok := n.senders[stored.Platform]
+	key := platform.AccountKey(stored.Platform, stored.AccountName)
+	sender, ok := n.senders[key]
 	if !ok {
-		return fmt.Errorf("no sender for platform %q", stored.Platform)
+		// Fall back to platform-only key for tests/legacy callers that register
+		// senders without an account suffix.
+		sender, ok = n.senders[stored.Platform]
+		if !ok {
+			return fmt.Errorf("no sender for platform %q", stored.Platform)
+		}
 	}
 
 	// 499 content runes + ellipsis = 500 visible runes, the platform ceiling.
@@ -62,11 +68,13 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageI
 	content = utils.TruncateRunes(content, maxContentRunes)
 
 	outbound := platform.OutboundMessage{
-		Content: content,
+		Content:     content,
+		AccountName: stored.AccountName,
 		ReplyTo: platform.InboundMessage{
-			Platform:   stored.Platform,
-			SessionKey: stored.SessionKey,
-			Raw:        stored.Raw,
+			Platform:    stored.Platform,
+			AccountName: stored.AccountName,
+			SessionKey:  stored.SessionKey,
+			Raw:         stored.Raw,
 		},
 		SourceType:   store.SourceTypeSystem,
 		InboundMsgID: messageID,

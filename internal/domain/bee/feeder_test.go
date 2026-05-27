@@ -150,7 +150,7 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "default", "claude"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude"); err != nil {
+	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "default", "claude"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 

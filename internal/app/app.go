@@ -136,18 +136,18 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
-	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
+	sendersByAccount := make(map[string]platform.PlatformSenderAdapter)
 
-	// sendersByPlatform is populated below; notifier holds a reference to the same map.
-	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
+	// sendersByAccount is populated below; notifier holds a reference to the same map.
+	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByAccount)
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
 	rawLocalSender := local.NewLocalSender(localHub)
-	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
-	sendersByPlatform[local.PlatformID] = localSender
+	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID, local.DefaultAccountName)
+	sendersByAccount[platform.AccountKey(local.PlatformID, local.DefaultAccountName)] = localSender
 
 	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
@@ -158,29 +158,50 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	for _, p := range platforms {
-		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
+		sendersByAccount[platform.AccountKey(p.ID(), p.AccountName())] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID(), p.AccountName())
+	}
+
+	botNames := make(map[string]string)
+	for _, c := range cfg.Bee.Platforms.Feishu {
+		if c.Enabled && c.BotName != "" {
+			botNames[platform.AccountKey(feishu.PlatformID, c.Name)] = c.BotName
+		}
+	}
+	for _, c := range cfg.Bee.Platforms.DingTalk {
+		if c.Enabled && c.BotName != "" {
+			botNames[platform.AccountKey(dingtalk.PlatformID, c.Name)] = c.BotName
+		}
+	}
+	for _, c := range cfg.Bee.Platforms.WeCom {
+		if c.Enabled && c.BotName != "" {
+			botNames[platform.AccountKey(wecom.PlatformID, c.Name)] = c.BotName
+		}
+	}
+	for _, c := range cfg.Bee.Platforms.Telegram {
+		if c.Enabled && c.BotName != "" {
+			botNames[platform.AccountKey(telegram.PlatformID, c.Name)] = c.BotName
+		}
+	}
+	for _, c := range cfg.Bee.Platforms.Weixin {
+		if c.Enabled && c.BotName != "" {
+			botNames[platform.AccountKey(weixin.PlatformID, c.Name)] = c.BotName
+		}
 	}
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
-	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
-	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform, engineCfg)
-	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
-	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg)
-	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
+	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByAccount, mgr, beeBusy, workerBusy, engineCfg)
+	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByAccount, engineCfg)
+	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByAccount)
+	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByAccount, engineCfg)
+	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByAccount)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
-		msgingest.WithPlatformBotNames(map[string]string{
-			feishu.PlatformID:   cfg.Bee.Platforms.Feishu.BotName,
-			dingtalk.PlatformID: cfg.Bee.Platforms.DingTalk.BotName,
-			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
-			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
-			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
-		}))
+		msgingest.WithAccountBotNames(botNames))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByAccount, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
@@ -316,38 +337,56 @@ func buildDispatcher(
 }
 
 func buildPlatforms(
-	fc config.FeishuConfig,
-	dc config.DingTalkConfig,
-	wc config.WeComConfig,
-	tc config.TelegramConfig,
-	wxc config.WeixinConfig,
-	lc config.LinearConfig,
+	fc []config.FeishuConfig,
+	dc []config.DingTalkConfig,
+	wc []config.WeComConfig,
+	tc []config.TelegramConfig,
+	wxc []config.WeixinConfig,
+	lc []config.LinearConfig,
 	mc config.MediaConfig,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
-	if fc.Enabled {
+	for _, c := range fc {
+		if !c.Enabled {
+			continue
+		}
 		platform.RegisterExtractor(feishu.PlatformID, feishu.ExtractContext)
-		result = append(result, feishu.NewPlatform(fc, mediaSvc))
+		result = append(result, feishu.NewPlatform(c, mediaSvc))
 	}
-	if dc.Enabled {
+	for _, c := range dc {
+		if !c.Enabled {
+			continue
+		}
 		platform.RegisterExtractor(dingtalk.PlatformID, dingtalk.ExtractContext)
-		result = append(result, dingtalk.NewPlatform(dc, mc, mediaSvc))
+		result = append(result, dingtalk.NewPlatform(c, mc, mediaSvc))
 	}
-	if wc.Enabled {
+	for _, c := range wc {
+		if !c.Enabled {
+			continue
+		}
 		platform.RegisterExtractor(wecom.PlatformID, wecom.ExtractContext)
-		result = append(result, wecom.NewPlatform(wc, mediaSvc))
+		result = append(result, wecom.NewPlatform(c, mediaSvc))
 	}
-	if tc.Enabled {
-		result = append(result, telegram.NewPlatform(tc, mediaSvc))
+	for _, c := range tc {
+		if !c.Enabled {
+			continue
+		}
+		result = append(result, telegram.NewPlatform(c, mediaSvc))
 	}
-	if wxc.Enabled {
-		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
+	for _, c := range wxc {
+		if !c.Enabled {
+			continue
+		}
+		result = append(result, weixin.NewPlatform(c, mc, mediaSvc))
 	}
-	if lc.Enabled {
-		p, err := linear.NewPlatform(lc, mediaSvc)
+	for _, c := range lc {
+		if !c.Enabled {
+			continue
+		}
+		p, err := linear.NewPlatform(c, mediaSvc)
 		if err != nil {
-			return nil, fmt.Errorf("init linear platform: %w", err)
+			return nil, fmt.Errorf("init linear platform %q: %w", c.Name, err)
 		}
 		result = append(result, p)
 	}

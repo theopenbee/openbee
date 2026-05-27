@@ -31,7 +31,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, input, sessionID, accountName string, resume bool) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -57,7 +57,7 @@ type FailureNotifier interface {
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
 type SessionStore interface {
 	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
-	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
+	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, account, engine string) error
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
 	ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error
 }
@@ -292,8 +292,9 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 			}
 		}
 		d.notifyFailure(taskCtx, task.MessageID, model.FailureInfo{
-			Reason:     err.Error(),
-			WorkerName: task.WorkerID,
+			Reason:      err.Error(),
+			WorkerName:  task.WorkerID,
+			AccountName: task.AccountName,
 		})
 		return
 	}
@@ -346,7 +347,7 @@ func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, in
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, task.AccountName, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
@@ -362,7 +363,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, task.AccountName, true)
 	if err == nil {
 		return exec, nil
 	}
@@ -414,8 +415,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				}
 			}
 			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
-				Reason:     exec.Result,
-				WorkerName: workerName(exec.WorkerName, task.WorkerID),
+				Reason:      exec.Result,
+				WorkerName:  workerName(exec.WorkerName, task.WorkerID),
+				AccountName: task.AccountName,
 			})
 			return
 		}
@@ -433,7 +435,7 @@ func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task Dispatch
 	if task.SessionKey == "" || task.WorkerID == "" || sessionID == "" {
 		return
 	}
-	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, engineName); err != nil {
+	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, task.AccountName, engineName); err != nil {
 		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
 	}
 }

@@ -26,7 +26,7 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID, _ string, resume bool) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	if resume {
 		m.resumedWithSessionID = sessionID
@@ -63,7 +63,7 @@ type quickCancelExecManager struct {
 	cancelCount *int64
 }
 
-func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	select {
 	case m.execCalled <- struct{}{}:
 	default:
@@ -134,7 +134,7 @@ func (s *mockSessionStore) GetSessionContextForEngine(_ context.Context, session
 	defer s.mu.Unlock()
 	return s.data[newMockSessionRef(sessionKey, agentID, engine)], nil
 }
-func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, engine string) error {
+func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, agentID, sessionID, _, engine string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data[newMockSessionRef(sessionKey, agentID, engine)] = sessionID
@@ -258,7 +258,7 @@ type orderedMockManager struct {
 	receivedSessID string
 }
 
-func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID, _ string, resume bool) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	m.callOrder = append(m.callOrder, "execute")
 	m.receivedResume = resume
@@ -276,11 +276,11 @@ type orderedMockSessionStore struct {
 	outer *orderedMockManager
 }
 
-func (s *orderedMockSessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error {
+func (s *orderedMockSessionStore) UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, account, engine string) error {
 	s.outer.mu.Lock()
 	s.outer.callOrder = append(s.outer.callOrder, "upsert")
 	s.outer.mu.Unlock()
-	return s.mockSessionStore.UpsertSessionContext(ctx, sessionKey, agentID, sessionID, engine)
+	return s.mockSessionStore.UpsertSessionContext(ctx, sessionKey, agentID, sessionID, account, engine)
 }
 
 func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
@@ -472,7 +472,7 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 
 func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 	ss := newMockSessionStore()
-	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "claude")
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "default", "claude")
 
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
@@ -501,7 +501,7 @@ func TestTaskDispatcher_ImmediateTask_ResumesWhenSessionExists(t *testing.T) {
 
 func TestTaskDispatcher_ImmediateTask_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	ss := newMockSessionStore()
-	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "claude")
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "default", "claude")
 
 	mgr := &mockExecManager{
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "codex-session-id"},
@@ -571,8 +571,8 @@ func TestTaskDispatcher_ImmediateTask_FreshWhenNoSession(t *testing.T) {
 
 func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T) {
 	ss := newMockSessionStore()
-	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "claude")
-	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "broken-session-id", "codex")
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "claude-session-id", "default", "claude")
+	_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "broken-session-id", "default", "codex")
 
 	mgr := &fallbackExecManager{
 		freshResult: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session"},
@@ -730,7 +730,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -743,7 +743,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -755,7 +755,7 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool) (model.WorkerExecution, error) {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, resume bool) (model.WorkerExecution, error) {
 	if resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
@@ -884,7 +884,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }
@@ -1202,7 +1202,7 @@ func TestTaskDispatcher_ResumeSession_NoSessionPrefix(t *testing.T) {
 	// Pre-populate session context so this is a resume.
 	// Engine name must match the dispatcher's engineCfg so
 	// GetSessionContextForEngine returns the stored session ID.
-	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "testengine")
+	_ = ss.UpsertSessionContext(context.Background(), "sk-1", "worker-1", "existing-sess", "default", "testengine")
 	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "testengine")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1394,7 +1394,7 @@ func TestTaskDispatcher_ResumeSession_PreflightUpsertBeforeExecute(t *testing.T)
 		execResult: model.WorkerExecution{ID: "exec-1", SessionID: "prior-session-id"},
 	}
 	baseSS := newMockSessionStore()
-	_ = baseSS.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "claude")
+	_ = baseSS.UpsertSessionContext(context.Background(), "s1", "w1", "prior-session-id", "default", "claude")
 	ss := &orderedMockSessionStore{mockSessionStore: baseSS, outer: mgr}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusCompleted}}
 

@@ -27,6 +27,7 @@ type WorkerExecution struct {
 
 // FailureInfo carries context for a task failure notification sent to the user.
 type FailureInfo struct {
-	Reason     string // raw error (exec.Result or err.Error())
-	WorkerName string // worker or bee name for identification
+	Reason      string // raw error (exec.Result or err.Error())
+	WorkerName  string // worker or bee name for identification
+	AccountName string // account this notification belongs to, used to route to the correct platform sender
 }

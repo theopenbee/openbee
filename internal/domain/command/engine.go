@@ -243,15 +243,21 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 }
 
 func sendReply(ctx context.Context, senders map[string]platform.PlatformSenderAdapter, replyTo platform.InboundMessage, text string) {
-	sender, ok := senders[replyTo.Platform]
+	key := platform.AccountKey(replyTo.Platform, replyTo.AccountName)
+	sender, ok := senders[key]
 	if !ok {
-		return
+		// Tolerate legacy callers/tests that register by platform-only key.
+		sender, ok = senders[replyTo.Platform]
+		if !ok {
+			return
+		}
 	}
 	if err := sender.Send(ctx, platform.OutboundMessage{
-		Content:    text,
-		ReplyTo:    replyTo,
-		SourceType: store.SourceTypeSystem,
+		Content:     text,
+		AccountName: replyTo.AccountName,
+		ReplyTo:     replyTo,
+		SourceType:  store.SourceTypeSystem,
 	}); err != nil {
-		log.Warn("command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
+		log.Warn("command reply failed", zap.String("platform", replyTo.Platform), zap.String("account", replyTo.AccountName), zap.Error(err))
 	}
 }

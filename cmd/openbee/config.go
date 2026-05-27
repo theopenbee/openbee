@@ -145,65 +145,84 @@ func loadExistingConfig(path string) *configValues {
 		return nil
 	}
 
-	return &configValues{
-		Language:               cfg.Language,
-		ServerPort:             strconv.Itoa(cfg.Server.Port),
-		ServerHost:             cfg.Server.Host,
-		Debug:                  cfg.Server.Debug,
-		DBPath:                 cfg.Database.Path,
-		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
-		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
-		ServerEnvSecret:        cfg.Server.EnvSecret,
-		FeishuEnabled:          cfg.Bee.Platforms.Feishu.Enabled,
-		FeishuAppID:            cfg.Bee.Platforms.Feishu.AppID,
-		FeishuAppSecret:        cfg.Bee.Platforms.Feishu.AppSecret,
-		FeishuBotName:          cfg.Bee.Platforms.Feishu.BotName,
-		DingtalkEnabled:        cfg.Bee.Platforms.DingTalk.Enabled,
-		DingtalkClientID:       cfg.Bee.Platforms.DingTalk.ClientID,
-		DingtalkClientSecret:   cfg.Bee.Platforms.DingTalk.ClientSecret,
-		DingtalkBotName:        cfg.Bee.Platforms.DingTalk.BotName,
-		WecomEnabled:           cfg.Bee.Platforms.WeCom.Enabled,
-		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
-		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
-		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
-		TelegramEnabled:        cfg.Bee.Platforms.Telegram.Enabled,
-		TelegramToken:          cfg.Bee.Platforms.Telegram.Token,
-		TelegramAuthCode:       cfg.Bee.Platforms.Telegram.AuthCode,
-		TelegramBotName:        cfg.Bee.Platforms.Telegram.BotName,
-		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
-		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
-		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
-		WeixinCDNBaseURL:       cfg.Bee.Platforms.Weixin.CDNBaseURL,
-		WeixinUserID:           cfg.Bee.Platforms.Weixin.UserID,
-		WeixinBotName:          cfg.Bee.Platforms.Weixin.BotName,
-		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
-		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
-		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
-		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
-		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
-		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
-		LinearMaxMediaSize:     strconv.Itoa(cfg.Bee.Platforms.Linear.MaxMediaSize),
-		EngineDefault:          cfg.Bee.Engine.Default,
-		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
-		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
-		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
-		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
-		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
-		KimiEnabled:            cfg.Bee.Engines.Kimi.Enabled,
-		ClaudePath:             cfg.Bee.Engines.Claude.Path,
-		CodexPath:              cfg.Bee.Engines.Codex.Path,
-		PiPath:                 cfg.Bee.Engines.Pi.Path,
-		KimiPath:               cfg.Bee.Engines.Kimi.Path,
-		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
-		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
-		FFprobePath:            cfg.Bee.Media.FFprobePath,
-		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
-		AuthUsername:           cfg.Server.Auth.Username,
-		AuthPassword:           cfg.Server.Auth.Password,
-		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
-		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
-		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),
+	v := &configValues{
+		Language:        cfg.Language,
+		ServerPort:      strconv.Itoa(cfg.Server.Port),
+		ServerHost:      cfg.Server.Host,
+		Debug:           cfg.Server.Debug,
+		DBPath:          cfg.Database.Path,
+		RPCTokenSecret:  cfg.Bee.RPC.TokenSecret,
+		RPCTokenTTL:     cfg.Bee.RPC.TokenTTL.String(),
+		ServerEnvSecret: cfg.Server.EnvSecret,
 	}
+	if len(cfg.Bee.Platforms.Feishu) > 0 {
+		c := cfg.Bee.Platforms.Feishu[0]
+		v.FeishuEnabled = c.Enabled
+		v.FeishuAppID = c.AppID
+		v.FeishuAppSecret = c.AppSecret
+		v.FeishuBotName = c.BotName
+	}
+	if len(cfg.Bee.Platforms.DingTalk) > 0 {
+		c := cfg.Bee.Platforms.DingTalk[0]
+		v.DingtalkEnabled = c.Enabled
+		v.DingtalkClientID = c.ClientID
+		v.DingtalkClientSecret = c.ClientSecret
+		v.DingtalkBotName = c.BotName
+	}
+	if len(cfg.Bee.Platforms.WeCom) > 0 {
+		c := cfg.Bee.Platforms.WeCom[0]
+		v.WecomEnabled = c.Enabled
+		v.WecomBotID = c.BotID
+		v.WecomSecret = c.Secret
+		v.WecomBotName = c.BotName
+	}
+	if len(cfg.Bee.Platforms.Telegram) > 0 {
+		c := cfg.Bee.Platforms.Telegram[0]
+		v.TelegramEnabled = c.Enabled
+		v.TelegramToken = c.Token
+		v.TelegramAuthCode = c.AuthCode
+		v.TelegramBotName = c.BotName
+	}
+	if len(cfg.Bee.Platforms.Weixin) > 0 {
+		c := cfg.Bee.Platforms.Weixin[0]
+		v.WeixinEnabled = c.Enabled
+		v.WeixinToken = c.Token
+		v.WeixinBaseURL = c.BaseURL
+		v.WeixinCDNBaseURL = c.CDNBaseURL
+		v.WeixinUserID = c.UserID
+		v.WeixinBotName = c.BotName
+	}
+	if len(cfg.Bee.Platforms.Linear) > 0 {
+		c := cfg.Bee.Platforms.Linear[0]
+		v.LinearEnabled = c.Enabled
+		v.LinearAPIKey = c.APIKey
+		v.LinearLabelName = c.LabelName
+		v.LinearPollInterval = c.PollInterval.String()
+		v.LinearProjects = strings.Join(c.Projects, ",")
+		v.LinearStates = strings.Join(c.States, ",")
+		v.LinearMaxMediaSize = strconv.Itoa(c.MaxMediaSize)
+	}
+	v.EngineDefault = cfg.Bee.Engine.Default
+	v.EngineTimeoutBee = cfg.Bee.Engine.Timeout.Bee.String()
+	v.EngineTimeoutWorker = cfg.Bee.Engine.Timeout.Worker.String()
+	v.ClaudeEnabled = cfg.Bee.Engines.Claude.Enabled
+	v.CodexEnabled = cfg.Bee.Engines.Codex.Enabled
+	v.PiEnabled = cfg.Bee.Engines.Pi.Enabled
+	v.KimiEnabled = cfg.Bee.Engines.Kimi.Enabled
+	v.ClaudePath = cfg.Bee.Engines.Claude.Path
+	v.CodexPath = cfg.Bee.Engines.Codex.Path
+	v.PiPath = cfg.Bee.Engines.Pi.Path
+	v.KimiPath = cfg.Bee.Engines.Kimi.Path
+	v.FeederMaxConcurrentBee = cfg.Bee.Feeder.MaxConcurrentBee
+	v.MessageDebounce = cfg.Bee.MessageDebounce.String()
+	v.FFprobePath = cfg.Bee.Media.FFprobePath
+	v.FFmpegPath = cfg.Bee.Media.FFmpegPath
+	v.AuthUsername = cfg.Server.Auth.Username
+	v.AuthPassword = cfg.Server.Auth.Password
+	v.AuthJWTSecret = cfg.Server.Auth.JWTSecret
+	v.AuthAccessTTL = cfg.Server.Auth.AccessTokenTTL.String()
+	v.AuthRefreshTTL = cfg.Server.Auth.RefreshTokenTTL.String()
+	return v
 }
 
 func runConfig(cmd *cobra.Command, args []string) error {

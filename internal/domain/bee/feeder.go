@@ -184,8 +184,15 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		sessionID = uuid.New().String()
 	}
 
+	// Account on this session — derived from the first message; all messages in a
+	// session share the same account because account is encoded in the session key.
+	account := ""
+	if len(msgs) > 0 {
+		account = msgs[0].AccountName
+	}
+
 	// Pre-flight: ensures the session ID is visible before the process starts.
-	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, engineName); err != nil {
+	if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, account, engineName); err != nil {
 		log.Error("pre-flight upsert bee session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 
@@ -283,7 +290,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		}
 	}
 	if upsert {
-		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, engineName); err != nil {
+		if err := f.sessionStore.UpsertSessionContext(ctx, sessionKey, store.BeeAgentID, sessionID, account, engineName); err != nil {
 			log.Error("upsert session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 		}
 	}
@@ -307,7 +314,7 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 	}
 	for _, m := range msgs {
 		log.Warn("message failed", zap.String("messageID", m.ID), zap.String("reason", reason))
-		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason, WorkerName: "bee"}); notifyErr != nil {
+		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason, WorkerName: "bee", AccountName: m.AccountName}); notifyErr != nil {
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}

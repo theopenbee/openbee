@@ -55,6 +55,7 @@ func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.Inbound
 func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage {
 	return platform.InboundMessage{
 		Platform:          "test",
+		AccountName:       "default",
 		SessionKey:        sessionKey,
 		Content:           content,
 		PlatformMessageID: platformMsgID,
@@ -411,7 +412,7 @@ func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
 func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
 	st := newMock()
 	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
-		msgingest.WithPlatformBotNames(map[string]string{"test": "OpenBee"}),
+		msgingest.WithAccountBotNames(map[string]string{platform.AccountKey("test", "default"): "OpenBee"}),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -442,7 +443,7 @@ func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
 func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
 	st := newMock()
 	g := msgingest.New(st, 150*time.Millisecond, noopHandler{},
-		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
+		msgingest.WithAccountBotNames(map[string]string{platform.AccountKey("test", "default"): "Bot"}),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

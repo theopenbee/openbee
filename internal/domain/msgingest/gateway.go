@@ -66,20 +66,22 @@ type Gateway struct {
 // Option configures a Gateway.
 type Option func(*Gateway)
 
-// WithPlatformBotNames sets a per-platform bot display name whose @mention is stripped
+// WithAccountBotNames sets a per-(platform,account) bot display name whose @mention is stripped
 // from message content before command matching, debounce accumulation, and DB storage.
-func WithPlatformBotNames(names map[string]string) Option {
+// Keys are composite "<platform>:<account>" strings produced by platform.AccountKey.
+func WithAccountBotNames(names map[string]string) Option {
 	res := make(map[string]*regexp.Regexp, len(names))
-	for platform, name := range names {
+	for key, name := range names {
 		if name != "" {
-			res[platform] = regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
+			res[key] = regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
 		}
 	}
 	return func(g *Gateway) { g.botNameREs = res }
 }
 
-func (g *Gateway) stripBotMention(content, platform string) string {
-	re, ok := g.botNameREs[platform]
+func (g *Gateway) stripBotMention(msg platform.InboundMessage) string {
+	content := msg.Content
+	re, ok := g.botNameREs[platform.AccountKey(msg.Platform, msg.AccountName)]
 	if !ok || !strings.Contains(content, "@") {
 		return content
 	}
@@ -135,7 +137,7 @@ func (g *Gateway) emit(msg IngestedMessage) {
 // Dispatch is called by a platform receiver for each inbound message.
 // All seen-map and debounce-state mutations are protected by g.mu.
 func (g *Gateway) Dispatch(msg platform.InboundMessage) {
-	stripped := g.stripBotMention(msg.Content, msg.Platform)
+	stripped := g.stripBotMention(msg)
 	g.mu.Lock()
 
 	if msg.PlatformMessageID != "" {
@@ -224,6 +226,7 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			ID:            ids[i],
 			SessionKey:    m.SessionKey,
 			Platform:      m.Platform,
+			AccountName:   m.AccountName,
 			Content:       m.Content,
 			Raw:           m.Raw,
 			PlatformMsgID: m.PlatformMessageID,

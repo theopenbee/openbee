@@ -38,7 +38,7 @@ func TestExecutionsList_IncludesTokenStats(t *testing.T) {
 	router, es, ts, cleanup := newTestServerWithExecutions(t)
 	defer cleanup()
 
-	if _, err := es.Create("worker-1", "hello", "session-abc", "claude"); err != nil {
+	if _, err := es.Create("worker-1", "hello", "session-abc", "default", "claude"); err != nil {
 		t.Fatalf("Create execution: %v", err)
 	}
 	if err := ts.Upsert(model.TokenStats{
@@ -82,7 +82,7 @@ func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
 	router, es, _, cleanup := newTestServerWithExecutions(t)
 	defer cleanup()
 
-	if _, err := es.Create("worker-1", "hello", "session-xyz", "claude"); err != nil {
+	if _, err := es.Create("worker-1", "hello", "session-xyz", "default", "claude"); err != nil {
 		t.Fatalf("Create execution: %v", err)
 	}
 
@@ -113,7 +113,7 @@ func TestGetSession_IncludesTokenStats(t *testing.T) {
 	router, es, ts, cleanup := newTestServerWithSessions(t)
 	defer cleanup()
 
-	if _, err := es.Create("worker-1", "hello", "session-abc", "claude"); err != nil {
+	if _, err := es.Create("worker-1", "hello", "session-abc", "default", "claude"); err != nil {
 		t.Fatalf("Create execution: %v", err)
 	}
 	if err := ts.Upsert(model.TokenStats{
@@ -155,7 +155,7 @@ func TestGetSession_NullTokenStats_WhenNoneExist(t *testing.T) {
 	router, es, _, cleanup := newTestServerWithSessions(t)
 	defer cleanup()
 
-	if _, err := es.Create("worker-1", "hello", "session-xyz", "claude"); err != nil {
+	if _, err := es.Create("worker-1", "hello", "session-xyz", "default", "claude"); err != nil {
 		t.Fatalf("Create execution: %v", err)
 	}
 

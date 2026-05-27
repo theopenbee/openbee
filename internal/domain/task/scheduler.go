@@ -107,10 +107,15 @@ func (s *Scheduler) poll(ctx context.Context) {
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
 			SessionKey:  sessionKey,
+			AccountName: ct.MessageAccountName,
 			Instruction: ct.Instruction,
-			ReplyTo:     platform.InboundMessage{Platform: ct.MessagePlatform, SessionKey: sessionKey},
-			TaskType:    ct.Type,
-			MessageID:   ct.MessageID,
+			ReplyTo: platform.InboundMessage{
+				Platform:    ct.MessagePlatform,
+				AccountName: ct.MessageAccountName,
+				SessionKey:  sessionKey,
+			},
+			TaskType:  ct.Type,
+			MessageID: ct.MessageID,
 		}
 		select {
 		case s.dispatchCh <- dt:

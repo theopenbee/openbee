@@ -261,7 +261,7 @@ func TestCallTool_SendMessage_CallsSender(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-send-1", "feishu:chat1:userA", "feishu", "hello", `{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0) //nolint
+	ms.Create(ctx, "msg-send-1", "feishu:chat1:userA", "feishu", "default", "hello", `{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0) //nolint
 
 	result, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-send-1",
@@ -310,7 +310,7 @@ func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-unk", "dingtalk:c1:u1", "dingtalk", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-unk", "dingtalk:c1:u1", "dingtalk", "default", "hi", `{}`, "", 0) //nolint
 
 	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-unk",
@@ -345,7 +345,7 @@ func TestCallTool_SendMessage_WorkerPrefixesContent(t *testing.T) {
 	}
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-worker-prefix", "feishu:chat1:userA", "feishu", "hello", //nolint
+	ms.Create(ctx, "msg-worker-prefix", "feishu:chat1:userA", "feishu", "default", "hello", //nolint
 		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 
 	// Call with a context that carries the worker's ID
@@ -379,7 +379,7 @@ func TestCallTool_SendMessage_WorkerDeletedFallsBackToWorkerID(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-deleted-worker", "feishu:chat1:userA", "feishu", "hello", //nolint
+	ms.Create(ctx, "msg-deleted-worker", "feishu:chat1:userA", "feishu", "default", "hello", //nolint
 		`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 
 	// Use a worker ID that does not exist in the store
@@ -413,7 +413,7 @@ func TestCallTool_SendMessage_LinearContentAndMediaSentTogether(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-linear-media", "linear:ENG:ENG-42", "linear", "hello", `{"issue_id":"I1"}`, "", 0) //nolint
+	ms.Create(ctx, "msg-linear-media", "linear:ENG:ENG-42", "linear", "default", "hello", `{"issue_id":"I1"}`, "", 0) //nolint
 
 	result, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-linear-media",
@@ -447,7 +447,7 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	s, db := setupServerWithSender(t, "feishu", &mockSender{})
 	ctx := context.Background()
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-sk1", "session-X", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-sk1", "session-X", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
@@ -563,7 +563,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-c1", "session-Y", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-c1", "session-Y", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
@@ -835,9 +835,9 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 
 	// Seed session contexts for both workers
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-claude", "claude") //nolint
-	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-codex", "codex")   //nolint
-	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "claude")        //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-claude", "default", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-codex", "default", "codex")   //nolint
+	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "default", "claude")        //nolint
 
 	// Clear only w1
 	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
@@ -874,7 +874,7 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-conf1", "session-C", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-conf1", "session-C", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	// Create two workers and seed session contexts for both.
 	workerResult1, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
@@ -883,8 +883,8 @@ func TestCallTool_ClearSession_RequiresConfirmation_TwoWorkers(t *testing.T) {
 	w2 := workerResult2.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-C", w1.ID, "sid-w1", "") //nolint
-	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-C", w1.ID, "sid-w1", "default", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-C", w2.ID, "sid-w2", "default", "") //nolint
 
 	// Call without force — should get confirmation request, NOT clear.
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
@@ -919,14 +919,14 @@ func TestCallTool_ClearSession_DedupesWorkersAcrossEngines(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-dedupe", "session-D", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-dedupe", "session-D", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
 	w1 := workerResult.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-claude", "claude") //nolint
-	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-codex", "codex")   //nolint
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-claude", "default", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-codex", "default", "codex")   //nolint
 
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-D",
@@ -954,7 +954,7 @@ func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-force1", "session-F", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-force1", "session-F", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult1, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
 	workerResult2, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W2"}))
@@ -962,8 +962,8 @@ func TestCallTool_ClearSession_ForceTrue_SkipsConfirmation(t *testing.T) {
 	w2 := workerResult2.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1", "") //nolint
-	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-F", w1.ID, "sid-w1", "default", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-F", w2.ID, "sid-w2", "default", "") //nolint
 
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-F",
@@ -989,13 +989,13 @@ func TestCallTool_ClearSession_OneWorker_NoConfirmation(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-one1", "session-O", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-one1", "session-O", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
 	ss := store.NewSessionStore(db)
-	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w", "") //nolint
+	ss.UpsertSessionContext(ctx, "session-O", w.ID, "sid-w", "default", "") //nolint
 
 	// Only 1 worker — should clear without confirmation.
 	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
@@ -1023,7 +1023,7 @@ func TestCallTool_ClearSession_RunningTaskRequiresConfirmation(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-rt1", "session-RT", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-rt1", "session-RT", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
@@ -1073,7 +1073,7 @@ func TestCallTool_ClearSession_PendingTaskRequiresConfirmation(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-pt1", "session-PT", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-pt1", "session-PT", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
@@ -1111,7 +1111,7 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-fsd1", "session-FSD", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-fsd1", "session-FSD", "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
@@ -1164,7 +1164,7 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 			ctx := context.Background()
 
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "default", "hi", `{}`, "", 0) //nolint
 
 			workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 			w := workerResult.(model.Worker)

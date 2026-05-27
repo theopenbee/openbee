@@ -19,13 +19,14 @@ server:
 bee:
   platforms:
     linear:
-      enabled: true
-      api_key: "lin_test"
-      label_name: "openbee"
-      poll_interval: 15s
-      projects: ["Backend"]
-      states: ["Todo"]
-      max_media_size: 10485760
+      - name: default
+        enabled: true
+        api_key: "lin_test"
+        label_name: "openbee"
+        poll_interval: 15s
+        projects: ["Backend"]
+        states: ["Todo"]
+        max_media_size: 10485760
 `)
 	if err != nil {
 		t.Fatal(err)
