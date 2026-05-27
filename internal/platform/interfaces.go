@@ -7,8 +7,9 @@ import (
 // InboundMessage carries a parsed message from any platform.
 type InboundMessage struct {
 	Platform          string // "feishu" | "dingtalk" | "wecom"
+	AccountName       string // per-platform account identifier (from config), e.g. "marketing-bot"
 	SenderID          string
-	SessionKey        string // platform-prefixed session key, e.g. "feishu:chatID:userID"
+	SessionKey        string // platform-prefixed session key, e.g. "feishu:marketing-bot:chatID:userID"
 	Content           string
 	RawContent        string // original message text with formatting preserved (at-tags, markup)
 	Raw               string // original platform event, used by the sender for reply metadata
@@ -19,6 +20,7 @@ type InboundMessage struct {
 // OutboundMessage carries a reply to send back on a platform.
 type OutboundMessage struct {
 	SessionKey   string
+	AccountName  string // account this message is being sent through
 	Content      string
 	ReplyTo      InboundMessage
 	MediaPath    string // optional local file path to upload and send
@@ -38,8 +40,10 @@ type PlatformSenderAdapter interface {
 }
 
 // Platform bundles a receiver and sender for a single messaging platform.
+// AccountName identifies which account on the platform this Platform instance represents.
 type Platform interface {
 	ID() string
+	AccountName() string
 	Receiver() PlatformReceiverAdapter
 	Sender() PlatformSenderAdapter
 }
