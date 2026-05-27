@@ -39,40 +39,46 @@ bee:
     token_ttl: {{.RPCTokenTTL}}
   platforms:
     feishu:
-      enabled: {{.FeishuEnabled}}
-      app_id: "{{.FeishuAppID}}"
-      app_secret: "{{.FeishuAppSecret}}"
-      bot_name: "{{.FeishuBotName}}"
+      - name: default
+        enabled: {{.FeishuEnabled}}
+        app_id: "{{.FeishuAppID}}"
+        app_secret: "{{.FeishuAppSecret}}"
+        bot_name: "{{.FeishuBotName}}"
     dingtalk:
-      enabled: {{.DingtalkEnabled}}
-      client_id: "{{.DingtalkClientID}}"
-      client_secret: "{{.DingtalkClientSecret}}"
-      bot_name: "{{.DingtalkBotName}}"
+      - name: default
+        enabled: {{.DingtalkEnabled}}
+        client_id: "{{.DingtalkClientID}}"
+        client_secret: "{{.DingtalkClientSecret}}"
+        bot_name: "{{.DingtalkBotName}}"
     wecom:
-      enabled: {{.WecomEnabled}}
-      bot_id: "{{.WecomBotID}}"
-      secret: "{{.WecomSecret}}"
-      bot_name: "{{.WecomBotName}}"
+      - name: default
+        enabled: {{.WecomEnabled}}
+        bot_id: "{{.WecomBotID}}"
+        secret: "{{.WecomSecret}}"
+        bot_name: "{{.WecomBotName}}"
     telegram:
-      enabled: {{.TelegramEnabled}}
-      token: "{{.TelegramToken}}"
-      auth_code: "{{.TelegramAuthCode}}"
-      bot_name: "{{.TelegramBotName}}"
+      - name: default
+        enabled: {{.TelegramEnabled}}
+        token: "{{.TelegramToken}}"
+        auth_code: "{{.TelegramAuthCode}}"
+        bot_name: "{{.TelegramBotName}}"
     weixin:
-      enabled: {{.WeixinEnabled}}
-      token: "{{.WeixinToken}}"
-      base_url: "{{.WeixinBaseURL}}"
-      cdn_base_url: "{{.WeixinCDNBaseURL}}"
-      user_id: "{{.WeixinUserID}}"
-      bot_name: "{{.WeixinBotName}}"
+      - name: default
+        enabled: {{.WeixinEnabled}}
+        token: "{{.WeixinToken}}"
+        base_url: "{{.WeixinBaseURL}}"
+        cdn_base_url: "{{.WeixinCDNBaseURL}}"
+        user_id: "{{.WeixinUserID}}"
+        bot_name: "{{.WeixinBotName}}"
     linear:
-      enabled: {{.LinearEnabled}}
-      api_key: "{{.LinearAPIKey}}"
-      label_name: "{{.LinearLabelName}}"
-      poll_interval: {{.LinearPollInterval}}
-      projects: [{{.LinearProjectsYAML}}]
-      states: [{{.LinearStatesYAML}}]
-      max_media_size: {{.LinearMaxMediaSize}}
+      - name: default
+        enabled: {{.LinearEnabled}}
+        api_key: "{{.LinearAPIKey}}"
+        label_name: "{{.LinearLabelName}}"
+        poll_interval: {{.LinearPollInterval}}
+        projects: [{{.LinearProjectsYAML}}]
+        states: [{{.LinearStatesYAML}}]
+        max_media_size: {{.LinearMaxMediaSize}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:
