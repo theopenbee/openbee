@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -29,11 +28,11 @@ func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 	_, err := s.db.ExecContext(ctx, `
         INSERT INTO bee_tasks
             (id, message_id, worker_id, instruction, type, status,
-             scheduled_at, cron_expr, next_run_at, execution_id,
+             scheduled_at, cron_expr, next_run_at,
              created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		id, t.MessageID, t.WorkerID, t.Instruction, t.Type, t.Status,
-		t.ScheduledAt, t.CronExpr, t.NextRunAt, "",
+		t.ScheduledAt, t.CronExpr, t.NextRunAt,
 		now, now,
 	)
 	if err != nil {
@@ -46,7 +45,7 @@ func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) {
 	row := s.db.QueryRowContext(ctx, `
         SELECT id, message_id, worker_id, instruction, type, status,
-               scheduled_at, cron_expr, next_run_at, execution_id,
+               scheduled_at, cron_expr, next_run_at,
                created_at, updated_at
         FROM bee_tasks WHERE id = ?`, id)
 	return scanTask(row)
@@ -124,7 +123,7 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 // by created_at DESC.
 func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
 	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.scheduled_at, t.cron_expr, t.next_run_at,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t`, f)
 	q += ` ORDER BY t.created_at DESC`
@@ -156,7 +155,7 @@ func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
 // status and taskType support comma-separated values (e.g., "pending,running"); empty means all.
 func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.scheduled_at, t.cron_expr, t.next_run_at,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t
 	      JOIN bee_platform_messages pm ON t.message_id = pm.id
@@ -187,7 +186,7 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 	rows, err := tx.QueryContext(ctx, `
         SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
                t.scheduled_at, t.cron_expr, t.next_run_at,
-               t.execution_id, t.created_at, t.updated_at,
+               t.created_at, t.updated_at,
                pm.session_key, pm.platform
         FROM bee_tasks t
         JOIN bee_platform_messages pm ON pm.id = t.message_id
@@ -208,7 +207,7 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 		err := rows.Scan(
 			&ct.ID, &ct.MessageID, &ct.WorkerID, &ct.Instruction,
 			&ct.Type, &ct.Status, &scheduledAt, &ct.CronExpr,
-			&nextRunAt, &ct.ExecutionID,
+			&nextRunAt,
 			&ct.CreatedAt, &ct.UpdatedAt,
 			&ct.MessageSessionKey, &ct.MessagePlatform,
 		)
@@ -259,7 +258,7 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, message_id, worker_id, instruction, type, status,
-		       scheduled_at, cron_expr, next_run_at, execution_id,
+		       scheduled_at, cron_expr, next_run_at,
 		       created_at, updated_at
 		FROM bee_tasks
 		WHERE type = 'scheduled'
@@ -272,14 +271,6 @@ func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]m
 	return scanTasks(rows)
 }
 
-// SetExecution writes execution_id and status back to a task.
-func (s *TaskStore) SetExecution(ctx context.Context, taskID, executionID, status string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET execution_id = ?, status = ?, updated_at = ? WHERE id = ?`,
-		executionID, status, time.Now().UnixMilli(), taskID)
-	return err
-}
-
 // CancelTask sets a task status to cancelled.
 func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	_, err := s.db.ExecContext(ctx,
@@ -288,8 +279,7 @@ func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	return err
 }
 
-// UpdateStatus sets only the status of a task. Unlike SetExecution, it does
-// not touch execution_id.
+// UpdateStatus sets only the status of a task.
 func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ?`,
@@ -452,24 +442,6 @@ func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 	return count, err
 }
 
-// GetTaskByExecutionID returns the task with the given execution_id, or nil if not found.
-func (s *TaskStore) GetTaskByExecutionID(ctx context.Context, executionID string) (*model.Task, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, message_id, worker_id, instruction, type, status,
-		        scheduled_at, cron_expr, next_run_at, execution_id, created_at, updated_at
-		 FROM bee_tasks WHERE execution_id = ?`,
-		executionID,
-	)
-	t, err := scanTask(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}
-
 // nullInt64Ptr converts a sql.NullInt64 to a *int64; returns nil if not valid.
 func nullInt64Ptr(n sql.NullInt64) *int64 {
 	if !n.Valid {
@@ -486,7 +458,7 @@ func scanTask(row *sql.Row) (model.Task, error) {
 	err := row.Scan(
 		&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
 		&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
-		&nextRunAt, &t.ExecutionID,
+		&nextRunAt,
 		&t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -505,7 +477,7 @@ func scanTasks(rows *sql.Rows) ([]model.Task, error) {
 		err := rows.Scan(
 			&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
 			&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
-			&nextRunAt, &t.ExecutionID,
+			&nextRunAt,
 			&t.CreatedAt, &t.UpdatedAt,
 		)
 		if err != nil {

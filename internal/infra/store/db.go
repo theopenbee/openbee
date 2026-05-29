@@ -415,6 +415,11 @@ UPDATE bee_executions
    SET task_id = (SELECT t.id FROM bee_tasks t WHERE t.execution_id = bee_executions.id)
  WHERE EXISTS (SELECT 1 FROM bee_tasks t WHERE t.execution_id = bee_executions.id);`,
 	},
+	{
+		version: 46,
+		name:    "drop_execution_id_from_tasks",
+		sql:     `ALTER TABLE bee_tasks DROP COLUMN execution_id`,
+	},
 }
 
 type whereBuilder struct {

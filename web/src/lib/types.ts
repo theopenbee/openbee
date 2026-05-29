@@ -100,7 +100,6 @@ export interface Task {
   scheduled_at: number | null
   cron_expr: string
   next_run_at: number | null
-  execution_id: string
   created_at: number
   updated_at: number
 }

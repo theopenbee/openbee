@@ -83,8 +83,9 @@ type clearFixture struct {
 }
 
 type clearFixtureOpts struct {
-	cancelled int64
-	clock     func() time.Time
+	cancelled    int64
+	clock        func() time.Time
+	runningExecs fakeRunningExecs
 }
 
 type clearFixtureOpt func(*clearFixtureOpts)
@@ -95,6 +96,10 @@ func withClearClock(now func() time.Time) clearFixtureOpt {
 
 func withClearCancelled(n int64) clearFixtureOpt {
 	return func(o *clearFixtureOpts) { o.cancelled = n }
+}
+
+func withClearRunningExecs(m fakeRunningExecs) clearFixtureOpt {
+	return func(o *clearFixtureOpts) { o.runningExecs = m }
 }
 
 func makeClearFixture(
@@ -115,7 +120,11 @@ func makeClearFixture(
 	stopper := &fakeClearExecStopper{}
 	disp := &fakeClearSessionDispatcher{}
 	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewClearCommandHandler(workers, sessions, taskStore, stopper, disp, senders, engineCfg, execIDsFromTasks(tasks))
+	runningExecs := cfg.runningExecs
+	if runningExecs == nil {
+		runningExecs = fakeRunningExecs{}
+	}
+	h := command.NewClearCommandHandler(workers, sessions, taskStore, stopper, disp, senders, engineCfg, runningExecs)
 	if cfg.clock != nil {
 		command.SetClearClockForTest(h, cfg.clock)
 	}
@@ -138,14 +147,15 @@ func TestClearCommand_ConfirmPromptListsTasksAndAgents(t *testing.T) {
 		{AgentID: "bee", AgentType: "bee", Engine: "claude", Name: "bee", UpdatedAt: nowMs - 30*1000},
 	}
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "帮我写一个排序算法", ExecutionID: "a1b2c3d4e5f6", CreatedAt: nowMs - 180*1000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
-		{ID: "t2", WorkerID: "bee", Instruction: "总结今天的会议纪要", ExecutionID: "e5f6a7b89999", CreatedAt: nowMs - 12*1000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "帮我写一个排序算法", CreatedAt: nowMs - 180*1000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t2", WorkerID: "bee", Instruction: "总结今天的会议纪要", CreatedAt: nowMs - 12*1000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{
 		"w1":  {ID: "w1", Name: "关羽"},
 		"bee": {ID: "bee", Name: "bee"},
 	}
-	fx := makeClearFixture(agents, tasks, workers, withClearClock(fixedClock(clock)))
+	fx := makeClearFixture(agents, tasks, workers, withClearClock(fixedClock(clock)),
+		withClearRunningExecs(fakeRunningExecs{"t1": "a1b2c3d4e5f6", "t2": "e5f6a7b89999"}))
 
 	handled := fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
 	if !handled {
@@ -187,10 +197,11 @@ func TestClearCommand_ConfirmedWithin30sStopsAndClears(t *testing.T) {
 		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
 	}
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do work", ExecutionID: "exec-1234abcd", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
-	fx := makeClearFixture(agents, tasks, workers, withClearClock(fixedClock(clock)), withClearCancelled(1))
+	fx := makeClearFixture(agents, tasks, workers, withClearClock(fixedClock(clock)), withClearCancelled(1),
+		withClearRunningExecs(fakeRunningExecs{"t1": "exec-1234abcd"}))
 
 	// First /clear -> confirmation prompt.
 	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
@@ -221,7 +232,7 @@ func TestClearCommand_ConfirmExpiresAfter30s(t *testing.T) {
 		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
 	}
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do work", ExecutionID: "exec-1234abcd", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
 	current := clock
@@ -255,7 +266,7 @@ func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 		{AgentID: "ghost", AgentType: "worker", Engine: "claude", Name: "ghost", UpdatedAt: nowMs - 1000},
 	}
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "ghost", Instruction: "do something", ExecutionID: "deadbeef0000", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "ghost", Instruction: "do something", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	fx := makeClearFixture(agents, tasks, nil, withClearClock(fixedClock(clock)))
 

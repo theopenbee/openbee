@@ -101,31 +101,6 @@ func TestTaskStore_ClaimDueTasks_Idempotent(t *testing.T) {
 	}
 }
 
-func TestTaskStore_SetExecution(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	now := time.Now().UnixMilli()
-	id, _ := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-
-	err := ts.SetExecution(context.Background(), id, "exec-1", model.TaskStatusCompleted)
-	if err != nil {
-		t.Fatalf("SetExecution: %v", err)
-	}
-
-	got, _ := ts.GetByID(context.Background(), id)
-	if got.ExecutionID != "exec-1" {
-		t.Errorf("execution_id: want exec-1 got %q", got.ExecutionID)
-	}
-	if got.Status != model.TaskStatusCompleted {
-		t.Errorf("status: want completed got %q", got.Status)
-	}
-}
-
 func TestTaskStore_DeleteByMessageIDs(t *testing.T) {
 	ts, cleanup := newTaskStoreForTest(t)
 	defer cleanup()
@@ -198,10 +173,6 @@ func TestTaskStore_UpdateStatus_SetsCompleted(t *testing.T) {
 	}
 	if got.Status != model.TaskStatusCompleted {
 		t.Errorf("status: want completed, got %q", got.Status)
-	}
-	// execution_id must be untouched (different from SetExecution)
-	if got.ExecutionID != "" {
-		t.Errorf("execution_id should be empty, got %q", got.ExecutionID)
 	}
 }
 
@@ -865,41 +836,6 @@ func TestTaskStore_List_Pagination(t *testing.T) {
 	}
 	if len(page2) != 2 {
 		t.Errorf("want 2, got %d", len(page2))
-	}
-}
-
-func TestTaskStore_GetTaskByExecutionID(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.SetExecution(ctx, id, "exec-123", model.TaskStatusRunning)
-
-	task, err := ts.GetTaskByExecutionID(ctx, "exec-123")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if task == nil {
-		t.Fatal("expected task, got nil")
-	}
-	if task.ID != id {
-		t.Errorf("expected task ID %s, got %s", id, task.ID)
-	}
-
-	// Non-existent
-	task2, err := ts.GetTaskByExecutionID(ctx, "nonexistent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if task2 != nil {
-		t.Error("expected nil for non-existent execution_id")
 	}
 }
 

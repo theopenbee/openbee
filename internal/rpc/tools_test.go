@@ -583,7 +583,6 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
-	ts.SetExecution(ctx, id, "exec-running-1", model.TaskStatusRunning)
 	// Insert a corresponding execution row so GetRunningByTaskID can find it.
 	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-running-1", id, w.ID, model.ExecStatusRunning) //nolint
 
@@ -1132,7 +1131,6 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
-	ts.SetExecution(ctx, taskID, "exec-fsd-1", model.TaskStatusRunning) //nolint
 	// Insert a corresponding execution row so GetRunningByTaskID can find it.
 	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-fsd-1", taskID, w.ID, model.ExecStatusRunning) //nolint
 

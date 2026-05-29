@@ -36,9 +36,10 @@ func (f *fakeStatusTaskLister) ListBySessionKey(_ context.Context, _, _, _ strin
 }
 
 type statusFixtureOpts struct {
-	sessionsErr error
-	tasksErr    error
-	now         func() time.Time
+	sessionsErr  error
+	tasksErr     error
+	now          func() time.Time
+	runningExecs fakeRunningExecs
 }
 
 type statusFixtureOpt func(*statusFixtureOpts)
@@ -53,6 +54,10 @@ func withTasksErr(e error) statusFixtureOpt {
 
 func withClock(now func() time.Time) statusFixtureOpt {
 	return func(o *statusFixtureOpts) { o.now = now }
+}
+
+func withStatusRunningExecs(m fakeRunningExecs) statusFixtureOpt {
+	return func(o *statusFixtureOpts) { o.runningExecs = m }
 }
 
 func makeStatusHandler(
@@ -71,7 +76,11 @@ func makeStatusHandler(
 	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
 	wl := &fakeWorkerByIDsLookup{byID: workers}
 	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg, execIDsFromTasks(tasks))
+	runningExecs := cfg.runningExecs
+	if runningExecs == nil {
+		runningExecs = fakeRunningExecs{}
+	}
+	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg, runningExecs)
 	if cfg.now != nil {
 		command.SetStatusClockForTest(h, cfg.now)
 	}
@@ -117,14 +126,15 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: nowMs - 18000*1000}, // 5h
 	}
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "新增 /status 指令的实现", ExecutionID: "a1b2c3d4e5f6", CreatedAt: nowMs - 83000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
-		{ID: "t2", WorkerID: "w2", Instruction: "修复登录 bug", ExecutionID: "e5f6a7b89999", CreatedAt: nowMs - 12000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "新增 /status 指令的实现", CreatedAt: nowMs - 83000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t2", WorkerID: "w2", Instruction: "修复登录 bug", CreatedAt: nowMs - 12000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{
 		"w1": {ID: "w1", Name: "貂蝉"},
 		"w2": {ID: "w2", Name: "吕布"},
 	}
-	h, sender := makeStatusHandler(agents, tasks, workers, withClock(fixedClock(clock)))
+	h, sender := makeStatusHandler(agents, tasks, workers, withClock(fixedClock(clock)),
+		withStatusRunningExecs(fakeRunningExecs{"t1": "a1b2c3d4e5f6", "t2": "e5f6a7b89999"}))
 	handled := h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	if !handled {
 		t.Fatal("expected handled=true")
@@ -153,9 +163,10 @@ func TestStatusCommand_FallsBackToWorkerIDOnLookupFailure(t *testing.T) {
 	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	nowMs := clock.UnixMilli()
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "missing", Instruction: "do thing", ExecutionID: "abc12345xx", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "missing", Instruction: "do thing", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
-	h, sender := makeStatusHandler(nil, tasks, nil, withClock(fixedClock(clock)))
+	h, sender := makeStatusHandler(nil, tasks, nil, withClock(fixedClock(clock)),
+		withStatusRunningExecs(fakeRunningExecs{"t1": "abc12345xx"}))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
 	if !strings.Contains(out, "[missing] do thing") {
@@ -206,7 +217,7 @@ func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
 func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
 	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do thing", ExecutionID: "deadbeef0000", CreatedAt: clock.UnixMilli() - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t1", WorkerID: "w1", Instruction: "do thing", CreatedAt: clock.UnixMilli() - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}
 	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)))

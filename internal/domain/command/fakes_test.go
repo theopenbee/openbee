@@ -38,14 +38,9 @@ func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []strin
 	return out, nil
 }
 
-// execIDsFromTasks builds a fakeRunningExecs from a slice of tasks using each
-// task's ExecutionID field (keyed by task ID). Tasks with empty ExecutionID are omitted.
-func execIDsFromTasks(tasks []model.Task) fakeRunningExecs {
-	m := make(fakeRunningExecs, len(tasks))
-	for _, t := range tasks {
-		if t.ExecutionID != "" {
-			m[t.ID] = t.ExecutionID
-		}
-	}
-	return m
+// execIDsFromTasks is kept for call-site compatibility; it now returns an empty map
+// since ExecutionID has been removed from model.Task. Call sites that need running-exec
+// entries should construct fakeRunningExecs directly.
+func execIDsFromTasks(_ []model.Task) fakeRunningExecs {
+	return fakeRunningExecs{}
 }
