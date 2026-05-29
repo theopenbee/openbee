@@ -27,5 +27,4 @@ const (
 	DeleteDepartment     = "delete_department"
 	ListMessages         = "list_messages"
 	ListOutboundMessages = "list_outbound_messages"
-	ListExecutions       = "list_executions"
 )

@@ -114,8 +114,6 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolListMessages(ctx, args)
 	case utils.ListOutboundMessages:
 		return s.toolListOutboundMessages(ctx, args)
-	case utils.ListExecutions:
-		return s.toolListExecutions(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1299,34 +1297,3 @@ func (s *Server) toolListOutboundMessages(ctx context.Context, args json.RawMess
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
 
-func (s *Server) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
-	var params struct {
-		WorkerID      string `json:"worker_id"`
-		SessionID     string `json:"session_id"`
-		Status        string `json:"status"`
-		StartedFrom   int64  `json:"started_at_from"`
-		StartedTo     int64  `json:"started_at_to"`
-		CompletedFrom int64  `json:"completed_at_from"`
-		CompletedTo   int64  `json:"completed_at_to"`
-		Page          int    `json:"page"`
-		PageSize      int    `json:"page_size"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	var offset int
-	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
-	execs, total, err := s.executionStore.ListFiltered(ctx, store.ExecutionFilter{
-		WorkerID:      params.WorkerID,
-		SessionID:     params.SessionID,
-		Status:        params.Status,
-		StartedFrom:   params.StartedFrom,
-		StartedTo:     params.StartedTo,
-		CompletedFrom: params.CompletedFrom,
-		CompletedTo:   params.CompletedTo,
-	}, params.PageSize, offset)
-	if err != nil {
-		return nil, fmt.Errorf("list executions: %w", err)
-	}
-	return pagedResult(execs, total, params.Page, params.PageSize), nil
-}
