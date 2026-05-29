@@ -31,7 +31,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, workerID, taskID, input, sessionID string, resume bool) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -346,7 +346,7 @@ func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, in
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, task.WorkerID, task.TaskID, prefix+instruction, sessionID, false)
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
@@ -362,7 +362,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, task.TaskID, instruction, sessionID, true)
 	if err == nil {
 		return exec, nil
 	}

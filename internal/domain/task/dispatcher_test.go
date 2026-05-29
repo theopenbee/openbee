@@ -26,7 +26,7 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, _, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	if resume {
 		m.resumedWithSessionID = sessionID
@@ -63,7 +63,7 @@ type quickCancelExecManager struct {
 	cancelCount *int64
 }
 
-func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	select {
 	case m.execCalled <- struct{}{}:
 	default:
@@ -258,7 +258,7 @@ type orderedMockManager struct {
 	receivedSessID string
 }
 
-func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	m.callOrder = append(m.callOrder, "execute")
 	m.receivedResume = resume
@@ -730,7 +730,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -743,7 +743,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -755,7 +755,7 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool) (model.WorkerExecution, error) {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, resume bool) (model.WorkerExecution, error) {
 	if resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
@@ -884,7 +884,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }

@@ -35,10 +35,11 @@ func NewExecutionStore(db *sql.DB, logsDir string) *ExecutionStore {
 	return &ExecutionStore{db: db, logsDir: logsDir}
 }
 
-func (s *ExecutionStore) Create(workerID, triggerInput, sessionID, engine string) (model.WorkerExecution, error) {
+func (s *ExecutionStore) Create(workerID, taskID, triggerInput, sessionID, engine string) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
+		TaskID:       taskID,
 		WorkerID:     &workerID,
 		SessionID:    sessionID,
 		Engine:       engine,
@@ -47,9 +48,9 @@ func (s *ExecutionStore) Create(workerID, triggerInput, sessionID, engine string
 		StartedAt:    &millis,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, ?, ?, ?, ?, ?, '', 0, ?)`,
-		exec.ID, exec.WorkerID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
+		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, '', 0, ?)`,
+		exec.ID, exec.TaskID, exec.WorkerID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("insert execution: %w", err)
@@ -69,8 +70,8 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput, engine stri
 		StartedAt:    &millis,
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, NULL, ?, ?, ?, ?, '', 0, ?)`,
+		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, '', NULL, ?, ?, ?, ?, '', 0, ?)`,
 		exec.ID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
@@ -80,14 +81,14 @@ func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput, engine stri
 }
 
 const execSelect = `
-SELECT e.id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
+SELECT e.id, e.task_id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
        e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
 FROM bee_executions e
 LEFT JOIN bee_workers w ON w.id = e.worker_id`
 
 func scanExecution(scanner interface{ Scan(...any) error }) (model.WorkerExecution, error) {
 	var e model.WorkerExecution
-	err := scanner.Scan(&e.ID, &e.WorkerID, &e.SessionID, &e.Engine, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
+	err := scanner.Scan(&e.ID, &e.TaskID, &e.WorkerID, &e.SessionID, &e.Engine, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
 	return e, err
 }
 
@@ -181,6 +182,45 @@ func (s *ExecutionStore) GetRunningByWorkerID(workerID string) (*model.WorkerExe
 		return nil, fmt.Errorf("get running execution by worker: %w", err)
 	}
 	return &e, nil
+}
+
+// GetRunningByTaskID returns the currently running execution for a task, or nil if none.
+func (s *ExecutionStore) GetRunningByTaskID(ctx context.Context, taskID string) (*model.WorkerExecution, error) {
+	row := s.db.QueryRowContext(ctx, execSelect+` WHERE e.task_id = ? AND e.status = ? LIMIT 1`, taskID, model.ExecStatusRunning)
+	e, err := scanExecution(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get running execution by task: %w", err)
+	}
+	return &e, nil
+}
+
+// ListByTaskIDs returns executions grouped by task_id, newest first within each task.
+func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string) (map[string][]model.WorkerExecution, error) {
+	out := make(map[string][]model.WorkerExecution, len(taskIDs))
+	if len(taskIDs) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(taskIDs))
+	for _, id := range taskIDs {
+		args = append(args, id)
+	}
+	q := execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.started_at DESC, e.rowid DESC`
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list executions by task ids: %w", err)
+	}
+	defer rows.Close()
+	execs, err := scanExecutions(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range execs {
+		out[e.TaskID] = append(out[e.TaskID], e)
+	}
+	return out, nil
 }
 
 // HasActiveBeeExecutions reports whether bee-owned executions (worker_id IS NULL)
