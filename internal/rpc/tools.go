@@ -486,12 +486,17 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 			stopErr = s.execStopper.StopExecution(running.ID)
 		}
 		if stopErr != nil {
+			// Process not active in this server (already exited, never started,
+			// or different instance). The execution row may be a stuck running
+			// orphan — force-finalize so future busy checks don't trip on it.
 			log.Debug("stop execution: process not active",
 				zap.String("op", "cancel_task"),
 				zap.String("executionID", running.ID),
 				zap.Error(stopErr))
 			s.finalizeCancelledExecution(ctx, running.ID)
 		}
+		// On stopErr == nil the process was alive; monitorExecution will
+		// finalize the row when its output channel closes.
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
@@ -649,7 +654,12 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
 	for _, t := range tasksToStop {
 		running, err := s.executionStore.GetRunningByTaskID(ctx, t.ID)
-		if err != nil || running == nil {
+		if err != nil {
+			log.Error("get running execution for clear_session",
+				zap.String("taskID", t.ID), zap.Error(err))
+			continue
+		}
+		if running == nil {
 			continue
 		}
 		if err := s.execStopper.StopExecution(running.ID); err != nil {

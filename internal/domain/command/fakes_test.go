@@ -28,8 +28,14 @@ func (f *fakeWorkerByIDsLookup) GetByIDs(ids []string) ([]model.Worker, error) {
 // It maps task_id -> execution_id.
 type fakeRunningExecs map[string]string
 
-func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, _ []string) (map[string]string, error) {
-	return map[string]string(f), nil
+func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if v, ok := f[id]; ok {
+			out[id] = v
+		}
+	}
+	return out, nil
 }
 
 // execIDsFromTasks builds a fakeRunningExecs from a slice of tasks using each
