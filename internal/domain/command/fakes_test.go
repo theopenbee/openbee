@@ -24,8 +24,7 @@ func (f *fakeWorkerByIDsLookup) GetByIDs(ids []string) ([]model.Worker, error) {
 	return out, nil
 }
 
-// fakeRunningExecs implements RunningExecLookup for tests.
-// It maps task_id -> execution_id.
+// fakeRunningExecs implements RunningExecLookup for tests. It maps task_id -> running execution id.
 type fakeRunningExecs map[string]string
 
 func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []string) (map[string]string, error) {
@@ -36,11 +35,4 @@ func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []strin
 		}
 	}
 	return out, nil
-}
-
-// execIDsFromTasks is kept for call-site compatibility; it now returns an empty map
-// since ExecutionID has been removed from model.Task. Call sites that need running-exec
-// entries should construct fakeRunningExecs directly.
-func execIDsFromTasks(_ []model.Task) fakeRunningExecs {
-	return fakeRunningExecs{}
 }

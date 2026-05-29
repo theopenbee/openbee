@@ -220,7 +220,7 @@ func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
 		{ID: "t1", WorkerID: "w1", Instruction: "do thing", CreatedAt: clock.UnixMilli() - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
 	}
 	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}
-	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)))
+	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)), withStatusRunningExecs(fakeRunningExecs{"t1": "deadbeef0000"}))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
 	if !strings.Contains(out, "已激活 bee（0）：") {
