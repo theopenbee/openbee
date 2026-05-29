@@ -404,6 +404,11 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 	return map[string]string{"task_id": id, "status": "pending"}, nil
 }
 
+type taskWithExecutions struct {
+	model.Task
+	Executions []model.WorkerExecution `json:"executions"`
+}
+
 func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		MessageID  string `json:"message_id"`
@@ -434,7 +439,23 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	if tasks == nil {
 		tasks = []model.Task{}
 	}
-	return tasks, nil
+	taskIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list executions for tasks: %w", err)
+	}
+	out := make([]taskWithExecutions, 0, len(tasks))
+	for _, t := range tasks {
+		execs := execsByTask[t.ID]
+		if execs == nil {
+			execs = []model.WorkerExecution{}
+		}
+		out = append(out, taskWithExecutions{Task: t, Executions: execs})
+	}
+	return out, nil
 }
 
 func (s *Server) finalizeCancelledExecution(ctx context.Context, executionID string) {

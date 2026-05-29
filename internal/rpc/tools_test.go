@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
@@ -463,7 +464,14 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_tasks by session_key: %v", err)
 	}
-	tasks := result.([]model.Task)
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var tasks []map[string]any
+	if err := json.Unmarshal(b, &tasks); err != nil {
+		t.Fatalf("unmarshal tasks: %v", err)
+	}
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 task, got %d", len(tasks))
 	}
@@ -1248,6 +1256,69 @@ func TestResolveDepartmentID_NotFound(t *testing.T) {
 		mustMarshal(t, map[string]any{"id": "nonexistent"}))
 	if err == nil {
 		t.Fatal("expected error for nonexistent department, got nil")
+	}
+}
+
+func TestToolListTasks_IncludesExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-exec1", "session-EX", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	w := workerResult.(model.Worker)
+
+	taskResult, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id":  "msg-exec1",
+		"worker_id":   w.ID,
+		"instruction": "do x",
+		"type":        "immediate",
+	}))
+	if err != nil {
+		t.Fatalf("create_task: %v", err)
+	}
+	taskID := taskResult.(map[string]string)["task_id"]
+
+	es := store.NewExecutionStore(db, t.TempDir())
+	exec, err := es.Create(w.ID, taskID, "do x", "sess-1", "claude")
+	if err != nil {
+		t.Fatalf("create execution: %v", err)
+	}
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	if err != nil {
+		t.Fatalf("list_tasks: %v", err)
+	}
+
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var tasks []map[string]any
+	if err := json.Unmarshal(b, &tasks); err != nil {
+		t.Fatalf("unmarshal tasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	raw := string(b)
+	if !strings.Contains(raw, `"executions"`) {
+		t.Errorf("response does not contain 'executions' key: %s", raw)
+	}
+	if !strings.Contains(raw, exec.ID) {
+		t.Errorf("response does not contain execution id %s: %s", exec.ID, raw)
+	}
+	execsAny, ok := tasks[0]["executions"]
+	if !ok {
+		t.Fatalf("task missing 'executions' field")
+	}
+	execsList, ok := execsAny.([]any)
+	if !ok {
+		t.Fatalf("executions is not a list, got %T", execsAny)
+	}
+	if len(execsList) != 1 {
+		t.Errorf("expected 1 execution, got %d", len(execsList))
 	}
 }
 
