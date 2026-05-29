@@ -5,6 +5,12 @@
 ### Removed
 
 - Remove `openbee claude download` and `openbee claude env` subcommands
+- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline with each task by `ctl task list`
+
+### Changed
+
+- `ctl task list` (and the `list_tasks` tool) now returns each task with its associated execution records in an `executions` array
+- Executions now reference their task via `task_id` (replacing `bee_tasks.execution_id`), so a task can carry its full execution history
 
 ## [0.0.37] - 2026-05-11
 
