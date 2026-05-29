@@ -476,27 +476,22 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 	}
 
 	// Stop running execution if any
-	task, err := s.taskStore.GetByID(ctx, params.TaskID)
+	running, err := s.executionStore.GetRunningByTaskID(ctx, params.TaskID)
 	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
+		return nil, fmt.Errorf("get running execution: %w", err)
 	}
-	if task.ExecutionID != "" {
+	if running != nil {
 		var stopErr error
 		if s.execStopper != nil {
-			stopErr = s.execStopper.StopExecution(task.ExecutionID)
+			stopErr = s.execStopper.StopExecution(running.ID)
 		}
 		if stopErr != nil {
-			// Process not active in this server (already exited, never started,
-			// or different instance). The execution row may be a stuck running
-			// orphan — force-finalize so future busy checks don't trip on it.
 			log.Debug("stop execution: process not active",
 				zap.String("op", "cancel_task"),
-				zap.String("executionID", task.ExecutionID),
+				zap.String("executionID", running.ID),
 				zap.Error(stopErr))
-			s.finalizeCancelledExecution(ctx, task.ExecutionID)
+			s.finalizeCancelledExecution(ctx, running.ID)
 		}
-		// On stopErr == nil the process was alive; monitorExecution will
-		// finalize the row when its output channel closes.
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
@@ -653,15 +648,16 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
 	for _, t := range tasksToStop {
-		if t.ExecutionID == "" {
+		running, err := s.executionStore.GetRunningByTaskID(ctx, t.ID)
+		if err != nil || running == nil {
 			continue
 		}
-		if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
+		if err := s.execStopper.StopExecution(running.ID); err != nil {
 			log.Debug("stop execution: process not active",
 				zap.String("op", "clear_session"),
-				zap.String("executionID", t.ExecutionID),
+				zap.String("executionID", running.ID),
 				zap.Error(err))
-			s.finalizeCancelledExecution(ctx, t.ExecutionID)
+			s.finalizeCancelledExecution(ctx, running.ID)
 		}
 	}
 
@@ -733,17 +729,12 @@ func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) 
 	}
 
 	if er.err == nil && er.exec != nil {
-		execInfo := map[string]any{
+		result["current_execution"] = map[string]any{
 			"id":          er.exec.ID,
-			"task_id":     nil,
+			"task_id":     er.exec.TaskID,
 			"instruction": er.exec.TriggerInput,
 			"started_at":  er.exec.StartedAt,
 		}
-		task, terr := s.taskStore.GetTaskByExecutionID(ctx, er.exec.ID)
-		if terr == nil && task != nil {
-			execInfo["task_id"] = task.ID
-		}
-		result["current_execution"] = execInfo
 	}
 
 	return result, nil

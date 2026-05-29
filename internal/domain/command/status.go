@@ -31,12 +31,13 @@ type TaskBySessionLister interface {
 }
 
 type StatusCommandHandler struct {
-	sessions  SessionContextLister
-	tasks     TaskBySessionLister
-	workers   WorkerByIDsLookup
-	senders   map[string]platform.PlatformSenderAdapter
-	engineCfg *enginecfg.Store
-	now       func() time.Time
+	sessions      SessionContextLister
+	tasks         TaskBySessionLister
+	workers       WorkerByIDsLookup
+	runningExecs  RunningExecLookup
+	senders       map[string]platform.PlatformSenderAdapter
+	engineCfg     *enginecfg.Store
+	now           func() time.Time
 }
 
 func NewStatusCommandHandler(
@@ -45,14 +46,16 @@ func NewStatusCommandHandler(
 	workers WorkerByIDsLookup,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
+	runningExecs RunningExecLookup,
 ) *StatusCommandHandler {
 	return &StatusCommandHandler{
-		sessions:  sessions,
-		tasks:     tasks,
-		workers:   workers,
-		senders:   senders,
-		engineCfg: engineCfg,
-		now:       time.Now,
+		sessions:     sessions,
+		tasks:        tasks,
+		workers:      workers,
+		runningExecs: runningExecs,
+		senders:      senders,
+		engineCfg:    engineCfg,
+		now:          time.Now,
 	}
 }
 
@@ -87,17 +90,27 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		return true
 	}
 
-	h.reply(ctx, replyTo, h.formatStatus(agents, runningTasks))
+	h.reply(ctx, replyTo, h.formatStatus(ctx, agents, runningTasks))
 	return true
 }
 
-func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
+func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
 	now := h.now()
 	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
 	workerNames := resolveWorkerNames(h.workers, tasks)
+
+	taskIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("resolve running exec ids for /status", zap.Error(err))
+		execIDs = map[string]string{}
+	}
 
 	beeBody := len(agents)
 	if beeBody == 0 {
@@ -122,7 +135,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, t := range tasks {
-			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, nowMs))
+			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, execIDs, nowMs))
 		}
 	}
 	return strings.Join(lines, "\n")

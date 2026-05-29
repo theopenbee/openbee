@@ -47,6 +47,7 @@ type ClearCommandHandler struct {
 	tasks        ClearTaskStore
 	execStopper  ClearExecStopper
 	sessionClear ClearSessionDispatcher
+	runningExecs RunningExecLookup
 	senders      map[string]platform.PlatformSenderAdapter
 	engineCfg    *enginecfg.Store
 
@@ -64,6 +65,7 @@ func NewClearCommandHandler(
 	sessionClear ClearSessionDispatcher,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
+	runningExecs RunningExecLookup,
 ) *ClearCommandHandler {
 	return &ClearCommandHandler{
 		workers:      workers,
@@ -71,6 +73,7 @@ func NewClearCommandHandler(
 		tasks:        tasks,
 		execStopper:  execStopper,
 		sessionClear: sessionClear,
+		runningExecs: runningExecs,
 		senders:      senders,
 		engineCfg:    engineCfg,
 		now:          time.Now,
@@ -125,16 +128,26 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 
 	if len(runningTasks) > 0 && !confirmed {
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatConfirmPrompt(agents, runningTasks))
+		h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, agents, runningTasks))
 		return
 	}
 
+	taskIDs := make([]string, 0, len(runningTasks))
 	for _, t := range runningTasks {
-		if t.ExecutionID == "" {
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("resolve running exec ids for /clear", zap.Error(err))
+		execIDs = map[string]string{}
+	}
+	for _, t := range runningTasks {
+		execID := execIDs[t.ID]
+		if execID == "" {
 			continue
 		}
-		if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
-			log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
+		if err := h.execStopper.StopExecution(execID); err != nil {
+			log.Error("stop execution for /clear", zap.String("executionID", execID), zap.Error(err))
 		}
 	}
 
@@ -152,10 +165,20 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 }
 
-func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, tasks []model.Task) string {
+func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.ClearCommand
 	nowMs := h.now().UnixMilli()
 	workerNames := resolveWorkerNames(h.workers, tasks)
+
+	taskIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("resolve running exec ids for /clear confirm", zap.Error(err))
+		execIDs = map[string]string{}
+	}
 
 	lines := make([]string, 0, 5+len(agents)+len(tasks))
 	lines = append(lines, m.ConfirmHeader)
@@ -165,7 +188,7 @@ func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, t
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
 	for _, t := range tasks {
-		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, execIDs, nowMs))
 	}
 	lines = append(lines, "")
 	lines = append(lines, m.ConfirmFooter)

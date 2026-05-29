@@ -42,7 +42,7 @@ type ExecutionQuerier interface {
 
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
-	SetExecution(ctx context.Context, taskID, executionID, status string) error
+	UpdateStatus(ctx context.Context, taskID, status string) error
 	CompleteTask(ctx context.Context, taskID string) error
 	FailTask(ctx context.Context, taskID string) error
 	CancelTask(ctx context.Context, taskID string) error
@@ -307,8 +307,8 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	}
 
 	if task.TaskID != "" {
-		if err := d.taskStore.SetExecution(taskCtx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
-			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
+		if err := d.taskStore.UpdateStatus(taskCtx, task.TaskID, model.TaskStatusRunning); err != nil {
+			log.Error("update task status", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
 	d.waitForResult(taskCtx, exec.ID, task, engineName)

@@ -197,6 +197,32 @@ func (s *ExecutionStore) GetRunningByTaskID(ctx context.Context, taskID string) 
 	return &e, nil
 }
 
+// RunningExecIDsByTaskIDs returns a map of task_id -> running execution id for the given tasks.
+func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error) {
+	out := make(map[string]string, len(taskIDs))
+	if len(taskIDs) == 0 {
+		return out, nil
+	}
+	args := []any{model.ExecStatusRunning}
+	for _, id := range taskIDs {
+		args = append(args, id)
+	}
+	q := `SELECT task_id, id FROM bee_executions WHERE status = ? AND task_id IN (` + inPlaceholders(len(taskIDs)) + `)`
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("running exec ids by task ids: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var taskID, execID string
+		if err := rows.Scan(&taskID, &execID); err != nil {
+			return nil, err
+		}
+		out[taskID] = execID
+	}
+	return out, rows.Err()
+}
+
 // ListByTaskIDs returns executions grouped by task_id, newest first within each task.
 // Every requested task id is present in the returned map; tasks with no executions
 // map to an empty (non-nil) slice.

@@ -115,7 +115,7 @@ func makeClearFixture(
 	stopper := &fakeClearExecStopper{}
 	disp := &fakeClearSessionDispatcher{}
 	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewClearCommandHandler(workers, sessions, taskStore, stopper, disp, senders, engineCfg)
+	h := command.NewClearCommandHandler(workers, sessions, taskStore, stopper, disp, senders, engineCfg, execIDsFromTasks(tasks))
 	if cfg.clock != nil {
 		command.SetClearClockForTest(h, cfg.clock)
 	}

@@ -82,7 +82,7 @@ type mockTaskStore struct {
 	completedTasks []string
 }
 
-func (s *mockTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
+func (s *mockTaskStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }
 func (s *mockTaskStore) FailTask(_ context.Context, taskID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

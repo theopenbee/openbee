@@ -71,7 +71,7 @@ func makeStatusHandler(
 	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
 	wl := &fakeWorkerByIDsLookup{byID: workers}
 	engineCfg := enginecfg.NewStore("claude")
-	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg)
+	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg, execIDsFromTasks(tasks))
 	if cfg.now != nil {
 		command.SetStatusClockForTest(h, cfg.now)
 	}

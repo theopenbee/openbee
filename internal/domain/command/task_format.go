@@ -1,6 +1,7 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -14,13 +15,18 @@ type WorkerByIDsLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
-func formatTaskLine(format string, t model.Task, workerNames map[string]string, nowMs int64) string {
+// RunningExecLookup resolves the running execution id for a set of tasks.
+type RunningExecLookup interface {
+	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
+}
+
+func formatTaskLine(format string, t model.Task, workerNames, execIDs map[string]string, nowMs int64) string {
 	runtimeSec := (nowMs - t.CreatedAt) / 1000
 	return fmt.Sprintf(format,
 		workerNameOrFallback(workerNames, t.WorkerID),
 		utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
 		formatRelative(runtimeSec),
-		shortExecID(t.ExecutionID),
+		shortExecID(execIDs[t.ID]),
 	)
 }
 

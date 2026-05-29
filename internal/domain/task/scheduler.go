@@ -18,7 +18,7 @@ type schedulerStore interface {
 	PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error)
 	ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.ClaimedTask, error)
 	ResetRunningToPending(ctx context.Context) (int64, error)
-	SetExecution(ctx context.Context, taskID, executionID, status string) error
+	UpdateStatus(ctx context.Context, taskID, status string) error
 }
 
 // Scheduler polls for due tasks and sends them to the TaskDispatcher.
@@ -97,7 +97,7 @@ func (s *Scheduler) poll(ctx context.Context) {
 		// Scheduled tasks with invalid cron were skipped in peek; skip dispatch too.
 		if ct.Type == model.TaskTypeScheduled && ct.CronExpr != "" {
 			if _, ok := scheduledNextRuns[ct.ID]; !ok {
-				s.taskStore.SetExecution(ctx, ct.ID, "", model.TaskStatusFailed) //nolint:errcheck
+				s.taskStore.UpdateStatus(ctx, ct.ID, model.TaskStatusFailed) //nolint:errcheck
 				continue
 			}
 		}

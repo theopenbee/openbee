@@ -576,7 +576,7 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
-	// Create a running task with execution_id
+	// Create a running task with a running execution in bee_executions
 	ts := store.NewTaskStore(db)
 	id, _ := ts.Create(ctx, model.Task{
 		MessageID: "msg-c1", WorkerID: w.ID, Instruction: "long task",
@@ -584,6 +584,8 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 	ts.SetExecution(ctx, id, "exec-running-1", model.TaskStatusRunning)
+	// Insert a corresponding execution row so GetRunningByTaskID can find it.
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-running-1", id, w.ID, model.ExecStatusRunning) //nolint
 
 	// Create a pending task
 	ts.Create(ctx, model.Task{
@@ -1131,6 +1133,8 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 		CreatedAt: 1, UpdatedAt: 1,
 	})
 	ts.SetExecution(ctx, taskID, "exec-fsd-1", model.TaskStatusRunning) //nolint
+	// Insert a corresponding execution row so GetRunningByTaskID can find it.
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-fsd-1", taskID, w.ID, model.ExecStatusRunning) //nolint
 
 	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-FSD",
