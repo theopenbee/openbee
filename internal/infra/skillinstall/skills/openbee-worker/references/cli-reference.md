@@ -59,6 +59,8 @@ openbee ctl task list --status pending         # Filter tasks by status
 openbee ctl task list --session-key <key>      # Filter tasks by session key
 ```
 
+Each task in the output includes an `executions` array — its associated execution records (runtime logs of each run), newest first.
+
 **Requires `read:messages` scope:**
 
 ```bash
@@ -93,27 +95,4 @@ openbee ctl message list-outbound --status failed
 openbee ctl message list-outbound --platform feishu --sent-from 1700000000000 --sent-to 1700086400000
 ```
 
-**Requires `read:executions` scope:**
-
-```bash
-openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
-```
-
-- `--status` accepts: `pending`, `running`, `completed`, `failed`
-- Pagination: default 50 per page, max 100; returns `items`, `total`, `page`, `page_size`
-- All filter flags can be combined freely in a single command
-
-```bash
-# Single filter
-openbee ctl execution list --worker-id abc123
-openbee ctl execution list --status running
-
-# Multiple filters combined
-openbee ctl execution list --worker-id abc123 --status completed
-openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
-openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
-
-# Pagination (default 50/page, max 100)
-openbee ctl execution list --status completed --page 2 --page-size 20
-openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
-```
+There is no standalone execution query command. Execution records are returned inline with each task by `task list` (the `executions` array on every task), so reviewing your tasks also surfaces their run history.
