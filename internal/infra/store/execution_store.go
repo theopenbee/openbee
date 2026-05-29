@@ -198,8 +198,13 @@ func (s *ExecutionStore) GetRunningByTaskID(ctx context.Context, taskID string) 
 }
 
 // ListByTaskIDs returns executions grouped by task_id, newest first within each task.
+// Every requested task id is present in the returned map; tasks with no executions
+// map to an empty (non-nil) slice.
 func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string) (map[string][]model.WorkerExecution, error) {
 	out := make(map[string][]model.WorkerExecution, len(taskIDs))
+	for _, id := range taskIDs {
+		out[id] = []model.WorkerExecution{}
+	}
 	if len(taskIDs) == 0 {
 		return out, nil
 	}

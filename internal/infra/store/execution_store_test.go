@@ -18,7 +18,9 @@ func newTestExecutionStore(t *testing.T) *ExecutionStore {
 	}
 	t.Cleanup(func() { db.Close() })
 	// Insert a worker so FK constraints are satisfied
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
+	if _, err := db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`); err != nil {
+		t.Fatalf("seed worker: %v", err)
+	}
 	return NewExecutionStore(db, t.TempDir())
 }
 
@@ -57,6 +59,16 @@ func TestExecutionStore_GetRunningByTaskID(t *testing.T) {
 	if none != nil {
 		t.Errorf("want nil for unknown task, got %+v", none)
 	}
+	// A pending (never-running) execution must not be returned.
+	pending, _ := s.Create("w1", "task-2", "in", "sess-2", "claude")
+	got2, err := s.GetRunningByTaskID(context.Background(), "task-2")
+	if err != nil {
+		t.Fatalf("GetRunningByTaskID(pending): %v", err)
+	}
+	if got2 != nil {
+		t.Errorf("want nil for task with only a pending execution, got %+v", got2)
+	}
+	_ = pending
 }
 
 func TestExecutionStore_ListByTaskIDs(t *testing.T) {
@@ -71,11 +83,21 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 	if len(m["task-1"]) != 2 {
 		t.Fatalf("task-1 want 2 execs, got %d", len(m["task-1"]))
 	}
+	// Newest-first: e2 was inserted after e1; the rowid DESC tiebreak makes this
+	// deterministic even when both rows share the same started_at millisecond.
 	if m["task-1"][0].ID != e2.ID || m["task-1"][1].ID != e1.ID {
 		t.Errorf("expected newest-first ordering; got %s,%s", m["task-1"][0].ID, m["task-1"][1].ID)
 	}
 	if len(m["task-2"]) != 1 {
 		t.Errorf("task-2 want 1 exec, got %d", len(m["task-2"]))
+	}
+	// A task with no executions returns an empty (non-nil) slice.
+	withMissing, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-none"})
+	if err != nil {
+		t.Fatalf("ListByTaskIDs(missing): %v", err)
+	}
+	if got, ok := withMissing["task-none"]; !ok || got == nil || len(got) != 0 {
+		t.Errorf("want empty non-nil slice for task-none, got %#v (present=%v)", got, ok)
 	}
 }
 
