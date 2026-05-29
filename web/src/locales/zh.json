@@ -421,10 +421,6 @@
     "readMessages": {
       "title": "查询消息",
       "description": "允许列出和查看消息记录"
-    },
-    "readExecutions": {
-      "title": "查询执行记录",
-      "description": "允许列出和查看执行记录"
     }
   },
   "envConfig": {

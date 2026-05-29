@@ -422,10 +422,6 @@
     "readMessages": {
       "title": "Read Messages",
       "description": "Allows listing and viewing message records"
-    },
-    "readExecutions": {
-      "title": "Read Executions",
-      "description": "Allows listing and viewing execution records"
     }
   },
   "envConfig": {
