@@ -132,7 +132,3 @@ openbee ctl message list --platform feishu --received-from 1700000000000 --recei
 openbee ctl message list --platform feishu --page 2 --page-size 20
 openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
 ```
-
-## Execution records
-
-There is no standalone execution query command. Each task returned by `task list` includes an `executions` array with the newest execution records for that task — the latest 10 per task by default. Use `--execution-limit <n>` to request a different bounded count, or `--task-id <id> --execution-limit 0` to inspect the full execution history for one task.
