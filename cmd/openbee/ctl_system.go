@@ -15,23 +15,7 @@ var ctlSystemOverviewCmd = &cobra.Command{
 	},
 }
 
-var executionsLimit int
-
-var ctlSystemExecutionsCmd = &cobra.Command{
-	Use:   "executions",
-	Short: "List bee execution history",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		a := map[string]any{}
-		if executionsLimit > 0 {
-			a["limit"] = executionsLimit
-		}
-		return ctlRun(utils.ListBeeExecutions, a)
-	},
-}
-
 func init() {
-	ctlSystemExecutionsCmd.Flags().IntVar(&executionsLimit, "limit", 0, "Number of records to return (0 = server default of 10)")
-
-	ctlSystemCmd.AddCommand(ctlSystemOverviewCmd, ctlSystemExecutionsCmd)
+	ctlSystemCmd.AddCommand(ctlSystemOverviewCmd)
 	ctlCmd.AddCommand(ctlSystemCmd)
 }
