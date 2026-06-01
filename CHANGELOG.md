@@ -6,6 +6,7 @@
 
 - Remove `openbee claude download` and `openbee claude env` subcommands
 - Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline with each task by `ctl task list`
+- Remove the `openbee ctl system executions` subcommand, the `list_bee_executions` tool, and the bee self-reflection skill guidance that referenced them; bee execution history is no longer exposed via CLI or MCP, though `ctl system overview` still surfaces the most recent executions inline
 
 ### Changed
 
