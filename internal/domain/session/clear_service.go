@@ -19,6 +19,10 @@ import (
 
 var log = logger.With(zap.String("component", "session"))
 
+// FinalizeReasonCancelledByUser is the standard MarkAbandoned reason used by
+// every stop-then-finalize fallback (clear_session, clear_worker, cancel_task).
+const FinalizeReasonCancelledByUser = "cancelled by user"
+
 // SessionStore is the slice of *store.SessionStore the clear service needs.
 type SessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
@@ -213,21 +217,28 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.Task, op string) {
 	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.runningExecs, tasks, op)
 	for _, t := range tasks {
-		execID := execIDs[t.ID]
-		if execID == "" {
-			continue
-		}
-		if err := s.execStopper.StopExecution(execID); err != nil {
-			log.Debug("stop execution: process not active",
-				zap.String("op", op),
-				zap.String("executionID", execID),
-				zap.Error(err))
-			if s.execFinalizer != nil {
-				if _, fErr := s.execFinalizer.MarkAbandoned(ctx, execID, "cancelled by user"); fErr != nil {
-					log.Error("finalize cancelled execution",
-						zap.String("op", op),
-						zap.String("executionID", execID), zap.Error(fErr))
-				}
+		s.StopAndFinalizeExecution(ctx, execIDs[t.ID], op)
+	}
+}
+
+// StopAndFinalizeExecution stops a running execution; when the local stop
+// reports an error (process gone, different instance), the row is
+// force-finalized so future busy checks don't trip on a stale orphan. op is a
+// log label identifying the caller (clear_session, clear_worker, cancel_task).
+func (s *ClearService) StopAndFinalizeExecution(ctx context.Context, executionID, op string) {
+	if executionID == "" {
+		return
+	}
+	if err := s.execStopper.StopExecution(executionID); err != nil {
+		log.Debug("stop execution: process not active",
+			zap.String("op", op),
+			zap.String("executionID", executionID),
+			zap.Error(err))
+		if s.execFinalizer != nil {
+			if _, fErr := s.execFinalizer.MarkAbandoned(ctx, executionID, FinalizeReasonCancelledByUser); fErr != nil {
+				log.Error("finalize cancelled execution",
+					zap.String("op", op),
+					zap.String("executionID", executionID), zap.Error(fErr))
 			}
 		}
 	}

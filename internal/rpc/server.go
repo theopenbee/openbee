@@ -27,11 +27,6 @@ const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
-// ExecutionStopper can kill a running worker process by execution ID.
-type ExecutionStopper interface {
-	StopExecution(executionID string) error
-}
-
 type TaskCanceller interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
@@ -44,7 +39,6 @@ type Server struct {
 	messageStore         *store.MessageStore
 	outboundMessageStore *store.OutboundMessageStore
 	senders              map[string]platform.PlatformSenderAdapter
-	execStopper          ExecutionStopper
 	clearSvc             *session.ClearService
 	taskCanceller        TaskCanceller
 	executionStore       *store.ExecutionStore
@@ -62,7 +56,6 @@ func NewBeeServer(
 	ms *store.MessageStore,
 	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
-	execStopper ExecutionStopper,
 	clearSvc *session.ClearService,
 	taskCanceller TaskCanceller,
 	es *store.ExecutionStore,
@@ -77,7 +70,6 @@ func NewBeeServer(
 		messageStore:         ms,
 		outboundMessageStore: oms,
 		senders:              senders,
-		execStopper:          execStopper,
 		clearSvc:             clearSvc,
 		taskCanceller:        taskCanceller,
 		executionStore:       es,

@@ -57,7 +57,7 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	clearSvc := session.NewClearService(ss, ts, &mockExecStopper{}, es, &mockClearDispatcher{}, es, engineCfg)
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -259,7 +259,7 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
 	clearSvc := session.NewClearService(ss, ts, &mockExecStopper{}, es, &mockClearDispatcher{}, es, engineCfg)
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -553,7 +553,7 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 	stopper := &mockExecStopper{}
 	disp := &mockClearDispatcher{}
 	clearSvc := session.NewClearService(ss, ts, stopper, es, disp, es, engineCfg)
-	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 	return srv, db, stopper, disp
 }
 

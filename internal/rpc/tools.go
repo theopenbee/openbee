@@ -490,12 +490,6 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	return pagedResult(out, total, page, pageSize), nil
 }
 
-func (s *Server) finalizeCancelledExecution(ctx context.Context, executionID string) {
-	if _, err := s.executionStore.MarkAbandoned(ctx, executionID, "cancelled by user"); err != nil {
-		log.Error("finalize cancelled execution", zap.String("executionID", executionID), zap.Error(err))
-	}
-}
-
 func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		TaskID string `json:"task_id"`
@@ -507,28 +501,12 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 		return nil, fmt.Errorf("task_id is required")
 	}
 
-	// Stop running execution if any
 	running, err := s.executionStore.GetRunningByTaskID(ctx, params.TaskID)
 	if err != nil {
 		return nil, fmt.Errorf("get running execution: %w", err)
 	}
 	if running != nil {
-		var stopErr error
-		if s.execStopper != nil {
-			stopErr = s.execStopper.StopExecution(running.ID)
-		}
-		if stopErr != nil {
-			// Process not active in this server (already exited, never started,
-			// or different instance). The execution row may be a stuck running
-			// orphan — force-finalize so future busy checks don't trip on it.
-			log.Debug("stop execution: process not active",
-				zap.String("op", "cancel_task"),
-				zap.String("executionID", running.ID),
-				zap.Error(stopErr))
-			s.finalizeCancelledExecution(ctx, running.ID)
-		}
-		// On stopErr == nil the process was alive; monitorExecution will
-		// finalize the row when its output channel closes.
+		s.clearSvc.StopAndFinalizeExecution(ctx, running.ID, "cancel_task")
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
