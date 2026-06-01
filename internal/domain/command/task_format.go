@@ -1,7 +1,6 @@
 package command
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -13,14 +12,6 @@ import (
 
 type WorkerByIDsLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
-}
-
-// RunningExecLookup is re-exported from utils so callers in this package can
-// satisfy the helper without importing utils directly.
-type RunningExecLookup = utils.RunningExecLookup
-
-func runningExecIDsForTasks(ctx context.Context, lookup RunningExecLookup, tasks []model.Task, op string) map[string]string {
-	return utils.RunningExecIDsForTasks(ctx, log, lookup, tasks, op)
 }
 
 func formatTaskLine(format string, t model.Task, workerNames, execIDs map[string]string, nowMs int64) string {

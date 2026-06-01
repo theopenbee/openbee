@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -48,7 +49,7 @@ type ClearCommandHandler struct {
 	tasks        ClearTaskStore
 	execStopper  ClearExecStopper
 	sessionClear ClearSessionDispatcher
-	runningExecs RunningExecLookup
+	runningExecs utils.RunningExecLookup
 	senders      map[string]platform.PlatformSenderAdapter
 	engineCfg    *enginecfg.Store
 
@@ -66,7 +67,7 @@ func NewClearCommandHandler(
 	sessionClear ClearSessionDispatcher,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
-	runningExecs RunningExecLookup,
+	runningExecs utils.RunningExecLookup,
 ) *ClearCommandHandler {
 	return &ClearCommandHandler{
 		workers:      workers,
@@ -159,7 +160,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 // stopRunningExecutions resolves the running exec ID for each task and stops it.
 // op is a short tag used only for log entries.
 func (h *ClearCommandHandler) stopRunningExecutions(ctx context.Context, tasks []model.Task, op string) {
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, op)
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, op)
 	for _, t := range tasks {
 		execID := execIDs[t.ID]
 		if execID == "" {
@@ -175,7 +176,7 @@ func (h *ClearCommandHandler) stopRunningExecutions(ctx context.Context, tasks [
 // caller-supplied header, the task list with running exec IDs, and a footer.
 func (h *ClearCommandHandler) renderConfirmPrompt(ctx context.Context, header []string, footer string, tasks []model.Task, workerNames map[string]string, op string) string {
 	nowMs := h.now().UnixMilli()
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, op)
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, op)
 
 	lines := make([]string, 0, len(header)+len(tasks)+4)
 	lines = append(lines, header...)

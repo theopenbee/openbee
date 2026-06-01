@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -34,7 +35,7 @@ type StatusCommandHandler struct {
 	sessions      SessionContextLister
 	tasks         TaskBySessionLister
 	workers       WorkerByIDsLookup
-	runningExecs  RunningExecLookup
+	runningExecs  utils.RunningExecLookup
 	senders       map[string]platform.PlatformSenderAdapter
 	engineCfg     *enginecfg.Store
 	now           func() time.Time
@@ -46,7 +47,7 @@ func NewStatusCommandHandler(
 	workers WorkerByIDsLookup,
 	senders map[string]platform.PlatformSenderAdapter,
 	engineCfg *enginecfg.Store,
-	runningExecs RunningExecLookup,
+	runningExecs utils.RunningExecLookup,
 ) *StatusCommandHandler {
 	return &StatusCommandHandler{
 		sessions:     sessions,
@@ -105,7 +106,7 @@ func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.
 	nowMs := now.UnixMilli()
 
 	workerNames := resolveWorkerNames(h.workers, tasks)
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "status")
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, "status")
 
 	beeBody := len(agents)
 	if beeBody == 0 {
