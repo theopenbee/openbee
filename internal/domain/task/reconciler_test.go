@@ -16,8 +16,7 @@ type reconTaskStore struct {
 	running       []model.Task
 	completed     []string
 	failed        []string
-	completeErr   error
-	failErr       error
+	updateErr     error
 	listCalled    int
 	listReturnErr error
 }
@@ -37,24 +36,29 @@ func (s *reconTaskStore) List(_ context.Context, f store.TaskFilter) ([]model.Ta
 	return out, nil
 }
 
-func (s *reconTaskStore) CompleteTask(_ context.Context, taskID string) error {
+func (s *reconTaskStore) UpdateStatusIfRunning(_ context.Context, taskID, next string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.completeErr != nil {
-		return s.completeErr
+	if s.updateErr != nil {
+		return false, s.updateErr
 	}
-	s.completed = append(s.completed, taskID)
-	return nil
-}
-
-func (s *reconTaskStore) FailTask(_ context.Context, taskID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.failErr != nil {
-		return s.failErr
+	for i, t := range s.running {
+		if t.ID != taskID {
+			continue
+		}
+		if t.Status != model.TaskStatusRunning {
+			return false, nil
+		}
+		s.running[i].Status = next
+		switch next {
+		case model.TaskStatusCompleted:
+			s.completed = append(s.completed, taskID)
+		case model.TaskStatusFailed:
+			s.failed = append(s.failed, taskID)
+		}
+		return true, nil
 	}
-	s.failed = append(s.failed, taskID)
-	return nil
+	return false, nil
 }
 
 type reconExecStore struct {

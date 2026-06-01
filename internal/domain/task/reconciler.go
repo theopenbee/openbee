@@ -14,8 +14,7 @@ import (
 // reconcilerTaskStore is the subset of store.TaskStore used by the Reconciler.
 type reconcilerTaskStore interface {
 	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
-	CompleteTask(ctx context.Context, taskID string) error
-	FailTask(ctx context.Context, taskID string) error
+	UpdateStatusIfRunning(ctx context.Context, taskID, next string) (bool, error)
 }
 
 // reconcilerExecStore is the subset of store.ExecutionStore used by the Reconciler.
@@ -129,19 +128,9 @@ func pickLatest(latest []model.WorkerExecution, runningID string) *model.WorkerE
 func (r *Reconciler) applyDecision(ctx context.Context, t model.Task, latest model.WorkerExecution) {
 	switch latest.Status {
 	case model.ExecStatusCompleted:
-		if err := r.taskStore.CompleteTask(ctx, t.ID); err != nil {
-			log.Error("reconciler: complete stale task", zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Error(err))
-			return
-		}
-		log.Warn("reconciler: marked stale running task completed",
-			zap.String("taskID", t.ID), zap.String("execID", latest.ID))
+		r.transition(ctx, t.ID, latest.ID, model.TaskStatusCompleted, "completed")
 	case model.ExecStatusFailed:
-		if err := r.taskStore.FailTask(ctx, t.ID); err != nil {
-			log.Error("reconciler: fail stale task", zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Error(err))
-			return
-		}
-		log.Warn("reconciler: marked stale running task failed",
-			zap.String("taskID", t.ID), zap.String("execID", latest.ID))
+		r.transition(ctx, t.ID, latest.ID, model.TaskStatusFailed, "failed")
 	case model.ExecStatusRunning:
 		// Exec also claims to be running. If its tracked PID is gone, the
 		// process died without monitorExecution finalising it — sweep it.
@@ -152,11 +141,27 @@ func (r *Reconciler) applyDecision(ctx context.Context, t model.Task, latest mod
 			log.Error("reconciler: mark exec abandoned", zap.String("execID", latest.ID), zap.Error(err))
 			return
 		}
-		if err := r.taskStore.FailTask(ctx, t.ID); err != nil {
+		changed, err := r.taskStore.UpdateStatusIfRunning(ctx, t.ID, model.TaskStatusFailed)
+		if err != nil {
 			log.Error("reconciler: fail orphaned task", zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Error(err))
 			return
 		}
-		log.Warn("reconciler: swept orphaned running task",
-			zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Int("pid", latest.AIProcessPID))
+		if changed {
+			log.Warn("reconciler: swept orphaned running task",
+				zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Int("pid", latest.AIProcessPID))
+		}
+	}
+}
+
+func (r *Reconciler) transition(ctx context.Context, taskID, execID, next, label string) {
+	changed, err := r.taskStore.UpdateStatusIfRunning(ctx, taskID, next)
+	if err != nil {
+		log.Error("reconciler: "+label+" stale task",
+			zap.String("taskID", taskID), zap.String("execID", execID), zap.Error(err))
+		return
+	}
+	if changed {
+		log.Warn("reconciler: marked stale running task "+label,
+			zap.String("taskID", taskID), zap.String("execID", execID))
 	}
 }

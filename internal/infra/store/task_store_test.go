@@ -200,6 +200,60 @@ func TestTaskStore_UpdateStatus_SetsFailed(t *testing.T) {
 	}
 }
 
+func TestTaskStore_UpdateStatusIfRunning_SkipsWhenNotRunning(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	id, err := ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "go",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	changed, err := ts.UpdateStatusIfRunning(context.Background(), id, model.TaskStatusCompleted)
+	if err != nil {
+		t.Fatalf("UpdateStatusIfRunning: %v", err)
+	}
+	if changed {
+		t.Fatal("expected no-op when current status is pending")
+	}
+	got, _ := ts.GetByID(context.Background(), id)
+	if got.Status != model.TaskStatusPending {
+		t.Errorf("status mutated: got %q", got.Status)
+	}
+}
+
+func TestTaskStore_UpdateStatusIfRunning_Transitions(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	now := time.Now().UnixMilli()
+	id, err := ts.Create(context.Background(), model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "go",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	changed, err := ts.UpdateStatusIfRunning(context.Background(), id, model.TaskStatusFailed)
+	if err != nil {
+		t.Fatalf("UpdateStatusIfRunning: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected transition from running")
+	}
+	got, _ := ts.GetByID(context.Background(), id)
+	if got.Status != model.TaskStatusFailed {
+		t.Errorf("status not updated: %q", got.Status)
+	}
+}
+
 func newTaskStoreWithTwoSessions(t *testing.T) (*TaskStore, func()) {
 	t.Helper()
 	db, err := InitDB(t.TempDir() + "/test.db")

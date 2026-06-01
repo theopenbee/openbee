@@ -295,6 +295,24 @@ func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) err
 	return err
 }
 
+// UpdateStatusIfRunning transitions a task to next only when its current status
+// is running. Returns true when the row changed. Used by the reconciler to
+// avoid bumping updated_at on tasks already moved to a terminal state by the
+// dispatcher between List and the write.
+func (s *TaskStore) UpdateStatusIfRunning(ctx context.Context, taskID, next string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ? AND status = ?`,
+		next, time.Now().UnixMilli(), taskID, model.TaskStatusRunning)
+	if err != nil {
+		return false, fmt.Errorf("update task status if running: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rows affected: %w", err)
+	}
+	return n > 0, nil
+}
+
 // CancelByWorkerID cancels all pending/running tasks for a given worker.
 func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error {
 	_, err := s.db.ExecContext(ctx,
