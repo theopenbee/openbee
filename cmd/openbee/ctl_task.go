@@ -86,7 +86,7 @@ var ctlTaskCreateCmd = &cobra.Command{
 
 var ctlTaskCancelCmd = &cobra.Command{
 	Use:   "cancel <id>",
-	Short: "Cancel a pending or scheduled task",
+	Short: "Cancel a pending or running task",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(utils.CancelTask, map[string]any{"task_id": args[0]})
