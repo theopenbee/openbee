@@ -132,15 +132,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	taskIDs := make([]string, 0, len(runningTasks))
-	for _, t := range runningTasks {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		log.Error("resolve running exec ids for /clear", zap.Error(err))
-		execIDs = map[string]string{}
-	}
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, runningTasks, "clear")
 	for _, t := range runningTasks {
 		execID := execIDs[t.ID]
 		if execID == "" {
@@ -169,16 +161,7 @@ func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []
 	m := i18n.M.Runtime.ClearCommand
 	nowMs := h.now().UnixMilli()
 	workerNames := resolveWorkerNames(h.workers, tasks)
-
-	taskIDs := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		log.Error("resolve running exec ids for /clear confirm", zap.Error(err))
-		execIDs = map[string]string{}
-	}
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "clear_confirm")
 
 	lines := make([]string, 0, 5+len(agents)+len(tasks))
 	lines = append(lines, m.ConfirmHeader)

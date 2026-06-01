@@ -101,16 +101,7 @@ func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.
 	nowMs := now.UnixMilli()
 
 	workerNames := resolveWorkerNames(h.workers, tasks)
-
-	taskIDs := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execIDs, err := h.runningExecs.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		log.Error("resolve running exec ids for /status", zap.Error(err))
-		execIDs = map[string]string{}
-	}
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "status")
 
 	beeBody := len(agents)
 	if beeBody == 0 {

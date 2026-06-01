@@ -433,10 +433,6 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	}
 
 	page, pageSize, offset := normalizePage(params.Page, params.PageSize, maxTaskPageSize)
-	if params.PageSize < 1 {
-		pageSize = defaultTaskPageSize
-		offset = (page - 1) * pageSize
-	}
 
 	filter := store.TaskFilter{
 		TaskID:     params.TaskID,
@@ -473,11 +469,7 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	}
 	out := make([]taskWithExecutions, 0, len(tasks))
 	for _, t := range tasks {
-		execs := execsByTask[t.ID]
-		if execs == nil {
-			execs = []model.WorkerExecution{}
-		}
-		out = append(out, taskWithExecutions{Task: t, Executions: execs})
+		out = append(out, taskWithExecutions{Task: t, Executions: execsByTask[t.ID]})
 	}
 	return pagedResult(out, total, page, pageSize), nil
 }
@@ -676,22 +668,26 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 	}
 
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
+	taskIDs := make([]string, 0, len(tasksToStop))
 	for _, t := range tasksToStop {
-		running, err := s.executionStore.GetRunningByTaskID(ctx, t.ID)
-		if err != nil {
-			log.Error("get running execution for clear_session",
-				zap.String("taskID", t.ID), zap.Error(err))
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execIDs, err := s.executionStore.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("get running executions for clear_session", zap.Error(err))
+		execIDs = map[string]string{}
+	}
+	for _, t := range tasksToStop {
+		execID := execIDs[t.ID]
+		if execID == "" {
 			continue
 		}
-		if running == nil {
-			continue
-		}
-		if err := s.execStopper.StopExecution(running.ID); err != nil {
+		if err := s.execStopper.StopExecution(execID); err != nil {
 			log.Debug("stop execution: process not active",
 				zap.String("op", "clear_session"),
-				zap.String("executionID", running.ID),
+				zap.String("executionID", execID),
 				zap.Error(err))
-			s.finalizeCancelledExecution(ctx, running.ID)
+			s.finalizeCancelledExecution(ctx, execID)
 		}
 	}
 
@@ -1241,7 +1237,6 @@ func (s *Server) listWorkersRecursive(idOrName string) ([]string, error) {
 }
 
 const (
-	defaultTaskPageSize       = 50
 	maxTaskPageSize           = 100
 	defaultTaskExecutionLimit = 10
 	maxTaskExecutionLimit     = 100

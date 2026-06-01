@@ -20,6 +20,25 @@ type RunningExecLookup interface {
 	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
 }
 
+// runningExecIDsForTasks resolves running exec ids for the given tasks. On
+// lookup error it logs with the supplied op name and returns an empty map so
+// callers can keep formatting without an exec id column.
+func runningExecIDsForTasks(ctx context.Context, lookup RunningExecLookup, tasks []model.Task, op string) map[string]string {
+	if len(tasks) == 0 {
+		return map[string]string{}
+	}
+	taskIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+	execIDs, err := lookup.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("resolve running exec ids", zap.String("op", op), zap.Error(err))
+		return map[string]string{}
+	}
+	return execIDs
+}
+
 func formatTaskLine(format string, t model.Task, workerNames, execIDs map[string]string, nowMs int64) string {
 	runtimeSec := (nowMs - t.CreatedAt) / 1000
 	return fmt.Sprintf(format,

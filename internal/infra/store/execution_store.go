@@ -203,10 +203,7 @@ func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []
 	if len(taskIDs) == 0 {
 		return out, nil
 	}
-	args := []any{model.ExecStatusRunning}
-	for _, id := range taskIDs {
-		args = append(args, id)
-	}
+	args := append([]any{model.ExecStatusRunning}, stringsToArgs(taskIDs)...)
 	q := `SELECT task_id, id FROM bee_executions WHERE status = ? AND task_id IN (` + inPlaceholders(len(taskIDs)) + `)`
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -216,7 +213,7 @@ func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []
 	for rows.Next() {
 		var taskID, execID string
 		if err := rows.Scan(&taskID, &execID); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan running exec row: %w", err)
 		}
 		out[taskID] = execID
 	}
@@ -236,10 +233,7 @@ func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, li
 	if len(taskIDs) == 0 {
 		return out, nil
 	}
-	args := make([]any, 0, len(taskIDs)+1)
-	for _, id := range taskIDs {
-		args = append(args, id)
-	}
+	args := stringsToArgs(taskIDs)
 
 	var q string
 	if limitPerTask <= 0 {
