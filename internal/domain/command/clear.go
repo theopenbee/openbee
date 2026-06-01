@@ -137,16 +137,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, runningTasks, "clear")
-	for _, t := range runningTasks {
-		execID := execIDs[t.ID]
-		if execID == "" {
-			continue
-		}
-		if err := h.execStopper.StopExecution(execID); err != nil {
-			log.Error("stop execution for /clear", zap.String("executionID", execID), zap.Error(err))
-		}
-	}
+	h.stopRunningExecutions(ctx, runningTasks, "clear")
 
 	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -165,25 +156,47 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 }
 
-func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
-	m := i18n.M.Runtime.ClearCommand
-	nowMs := h.now().UnixMilli()
-	workerNames := resolveWorkerNames(h.workers, tasks)
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "clear_confirm")
-
-	lines := make([]string, 0, 5+len(agents)+len(tasks))
-	lines = append(lines, m.ConfirmHeader)
-	for _, a := range agents {
-		lines = append(lines, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
+// stopRunningExecutions resolves the running exec ID for each task and stops it.
+// op is a short tag used only for log entries.
+func (h *ClearCommandHandler) stopRunningExecutions(ctx context.Context, tasks []model.Task, op string) {
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, op)
+	for _, t := range tasks {
+		execID := execIDs[t.ID]
+		if execID == "" {
+			continue
+		}
+		if err := h.execStopper.StopExecution(execID); err != nil {
+			log.Error("stop execution for "+op, zap.String("executionID", execID), zap.Error(err))
+		}
 	}
+}
+
+// renderConfirmPrompt builds the shared body of /clear confirmation prompts: a
+// caller-supplied header, the task list with running exec IDs, and a footer.
+func (h *ClearCommandHandler) renderConfirmPrompt(ctx context.Context, header []string, footer string, tasks []model.Task, workerNames map[string]string, op string) string {
+	nowMs := h.now().UnixMilli()
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, op)
+
+	lines := make([]string, 0, len(header)+len(tasks)+4)
+	lines = append(lines, header...)
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
+	lines = append(lines, fmt.Sprintf(i18n.M.Runtime.ClearCommand.ConfirmTasksHeader, len(tasks)))
 	for _, t := range tasks {
 		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, execIDs, nowMs))
 	}
 	lines = append(lines, "")
-	lines = append(lines, m.ConfirmFooter)
+	lines = append(lines, footer)
 	return strings.Join(lines, "\n")
+}
+
+func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	header := make([]string, 0, 1+len(agents))
+	header = append(header, m.ConfirmHeader)
+	for _, a := range agents {
+		header = append(header, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
+	}
+	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks), "clear_confirm")
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
@@ -232,16 +245,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		return
 	}
 
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, runningTasks, "clear_worker")
-	for _, t := range runningTasks {
-		execID := execIDs[t.ID]
-		if execID == "" {
-			continue
-		}
-		if err := h.execStopper.StopExecution(execID); err != nil {
-			log.Error("stop execution for /clear worker", zap.String("executionID", execID), zap.Error(err))
-		}
-	}
+	h.stopRunningExecutions(ctx, runningTasks, "clear_worker")
 
 	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -277,20 +281,9 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 
 func (h *ClearCommandHandler) formatWorkerConfirmPrompt(ctx context.Context, w model.Worker, engine string, tasks []model.Task) string {
 	m := i18n.M.Runtime.ClearCommand
-	nowMs := h.now().UnixMilli()
-	workerNames := map[string]string{w.ID: w.Name}
-	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "clear_worker_confirm")
-
-	lines := make([]string, 0, 5+len(tasks))
-	lines = append(lines, fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine))
-	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
-	for _, t := range tasks {
-		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, execIDs, nowMs))
-	}
-	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf(m.WorkerConfirmFooter, w.Name))
-	return strings.Join(lines, "\n")
+	header := []string{fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine)}
+	footer := fmt.Sprintf(m.WorkerConfirmFooter, w.Name)
+	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name}, "clear_worker_confirm")
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
