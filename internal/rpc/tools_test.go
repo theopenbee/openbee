@@ -666,19 +666,6 @@ func TestCallTool_GetSystemOverview(t *testing.T) {
 	}
 }
 
-func TestCallTool_ListBeeExecutions(t *testing.T) {
-	s := setupServerWithMessaging(t)
-
-	result, err := s.CallTool(context.Background(), utils.ListBeeExecutions, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	execs := result.([]map[string]any)
-	if len(execs) != 0 {
-		t.Errorf("expected empty list, got %d", len(execs))
-	}
-}
-
 func TestCallTool_SaveConstraint(t *testing.T) {
 	s := setupServerWithMessaging(t)
 

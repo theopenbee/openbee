@@ -88,8 +88,6 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolGetWorkerStatus(ctx, args)
 	case utils.GetSystemOverview:
 		return s.toolGetSystemOverview(ctx)
-	case utils.ListBeeExecutions:
-		return s.toolListBeeExecutions(args)
 	case utils.SaveConstraint:
 		return s.toolSaveConstraint(args)
 	case utils.GetConstraint:
@@ -828,45 +826,6 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 		},
 		"recent_executions": recentList,
 	}, nil
-}
-
-func (s *Server) toolListBeeExecutions(args json.RawMessage) (any, error) {
-	var p struct {
-		Limit int `json:"limit"`
-	}
-	if args != nil {
-		json.Unmarshal(args, &p) //nolint
-	}
-	if p.Limit <= 0 {
-		p.Limit = 10
-	}
-
-	execs, err := s.executionStore.ListBeeExecutions(p.Limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list bee executions: %w", err)
-	}
-
-	results := make([]map[string]any, 0, len(execs))
-	for _, e := range execs {
-		triggerInput := e.TriggerInput
-		if len(triggerInput) > 200 {
-			triggerInput = triggerInput[:200]
-		}
-		result := e.Result
-		if len(result) > 200 {
-			result = result[:200]
-		}
-		results = append(results, map[string]any{
-			"id":            e.ID,
-			"trigger_input": triggerInput,
-			"status":        string(e.Status),
-			"started_at":    e.StartedAt,
-			"completed_at":  e.CompletedAt,
-			"result":        result,
-		})
-	}
-
-	return results, nil
 }
 
 func (s *Server) toolSaveConstraint(args json.RawMessage) (any, error) {
