@@ -5,19 +5,18 @@
 ### Removed
 
 - Remove the `recent_executions` field from `ctl system overview` / `get_system_overview`; use the `executions` array on `ctl task list` for per-task history.
-- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline with each task by `ctl task list`
-- Remove the `openbee ctl system executions` subcommand, the `list_bee_executions` tool, and the bee self-reflection skill guidance that referenced them; bee execution history is no longer exposed via CLI or MCP, though `ctl system overview` still surfaces the most recent executions inline
+- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline by `ctl task list`.
+- Remove the `openbee ctl system executions` subcommand and the `list_bee_executions` tool; bee execution history is no longer exposed via CLI or MCP.
+
+### Changed
+
+- `ctl task list` / `list_tasks` now returns each task with its execution records in an `executions` array, paginated with a per-task history limit.
+- Executions reference their task via `task_id` (replacing `bee_tasks.execution_id`).
 
 ### Fixed
 
 - Fix `/clear <worker>` leaving the worker's running tasks in `running` state; the per-worker clear now stops live executions and drains the worker's queue.
 - Fix `/status` reporting tasks as `running` after they finished; a periodic reconciler now syncs task state with the underlying execution and sweeps orphaned rows.
-
-### Changed
-
-- `ctl task list` (and the `list_tasks` tool) now returns each task with its associated execution records in an `executions` array
-- Executions now reference their task via `task_id` (replacing `bee_tasks.execution_id`), so a task can carry its full execution history
-- Bound `ctl task list` / `list_tasks` output with task pagination and a per-task execution history limit to avoid oversized responses on long-running installations
 
 ## [0.0.38] - 2026-05-31
 
