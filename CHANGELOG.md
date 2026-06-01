@@ -11,6 +11,7 @@
 
 - `ctl task list` (and the `list_tasks` tool) now returns each task with its associated execution records in an `executions` array
 - Executions now reference their task via `task_id` (replacing `bee_tasks.execution_id`), so a task can carry its full execution history
+- Bound `ctl task list` / `list_tasks` output with task pagination and a per-task execution history limit to avoid oversized responses on long-running installations
 
 ## [0.0.37] - 2026-05-11
 

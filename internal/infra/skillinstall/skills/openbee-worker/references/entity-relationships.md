@@ -44,7 +44,7 @@ External Platform
 ## Key Relationships at a Glance
 
 - **Task → Message**: every Task you receive traces back to a user Message; the `session_key` in that message scopes the conversation
-- **Task → Execution**: each Task has one or more Execution records; they are returned inline in the `executions` array of each task from `openbee ctl task list`
+- **Task → Execution**: each Task has one or more Execution records; the newest ones are returned inline in the `executions` array of each task from `openbee ctl task list` (default: latest 10 per task; use `--task-id <id> --execution-limit 0` for the full history of one task)
 - **Worker ↔ Department**: you may belong to multiple Departments; departments are used for grouping and filtering only
 - **Outbound Message → Message**: every reply you send via `openbee ctl message send` is recorded as an Outbound Message linked to the original inbound Message
 - **Session**: your conversation context is isolated per `session_key`; each new session_key starts fresh with no prior conversation history; constraints are re-injected from your worker config at the start of every session
@@ -53,5 +53,5 @@ External Platform
 
 - The `message_id` in your task metadata is the inbound Message ID — use it for all `openbee ctl message send` calls
 - If you have `read:messages` scope, use `openbee ctl message list` to look up the original message content or conversation history by `session_key`
-- If you have `read:tasks` scope, use `openbee ctl task list --worker-id <your-id>` to see tasks assigned to you, along with each task's `executions` (its run history)
+- If you have `read:tasks` scope, use `openbee ctl task list --worker-id <your-id>` to see tasks assigned to you, along with each task's newest `executions` (default 10 per task); add `--task-id <id> --execution-limit 0` to read the full run history of a single task
 - Your Session is automatically maintained across tasks in the same session; you do not need to manage it manually

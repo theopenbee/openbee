@@ -60,12 +60,12 @@ openbee ctl department delete <id|name>
 ## task subcommand
 
 ```bash
-openbee ctl task list [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>]
+openbee ctl task list [--task-id <id>] [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>] [--page <n>] [--page-size <n>] [--execution-limit <n>]
 openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type <immediate|countdown|scheduled> [--scheduled-at <unix milliseconds>] [--cron <cron expression>]
 openbee ctl task cancel <id>
 ```
 
-Each task returned by `task list` includes an `executions` array — its associated execution records (runtime logs of each run), newest first.
+Each task returned by `task list` includes an `executions` array with the newest execution records for that task. The default is the latest 10 executions per task. Use `--execution-limit <n>` to request a different bounded count, or `--task-id <id> --execution-limit 0` to inspect the full execution history for one task. Task results are paginated (default 50 per page, max 100); the response contains `items`, `total`, `page`, `page_size`.
 
 ## constraint subcommand
 
@@ -136,4 +136,4 @@ openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size
 
 ## Execution records
 
-There is no standalone execution query command. Execution records (the runtime logs of each task run) are returned inline with each task by `task list` — see the `executions` array on every task in its output.
+There is no standalone execution query command. Each task returned by `task list` includes an `executions` array with the newest execution records for that task — the latest 10 per task by default. Use `--execution-limit <n>` to request a different bounded count, or `--task-id <id> --execution-limit 0` to inspect the full execution history for one task.
