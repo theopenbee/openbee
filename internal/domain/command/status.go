@@ -108,15 +108,7 @@ func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.
 	workerNames := resolveWorkerNames(h.workers, tasks)
 	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, "status")
 
-	beeBody := len(agents)
-	if beeBody == 0 {
-		beeBody = 1
-	}
-	taskBody := len(tasks)
-	if taskBody == 0 {
-		taskBody = 1
-	}
-	lines := make([]string, 0, 2+beeBody+taskBody)
+	lines := make([]string, 0, 2+max(1, len(agents))+max(1, len(tasks)))
 	lines = append(lines, m.Header)
 	lines = append(lines, fmt.Sprintf(m.SectionBees, len(agents)))
 	if len(agents) == 0 {
