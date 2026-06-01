@@ -1264,7 +1264,7 @@ func TestToolListTasks_IncludesExecutions(t *testing.T) {
 	taskID := taskResult.(map[string]string)["task_id"]
 
 	es := store.NewExecutionStore(db, t.TempDir())
-	exec, err := es.Create(w.ID, taskID, "do x", "sess-1", "claude")
+	exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: "do x", SessionID: "sess-1", Engine: "claude"})
 	if err != nil {
 		t.Fatalf("create execution: %v", err)
 	}
@@ -1347,7 +1347,7 @@ func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
 			t.Fatalf("Create task %d: %v", i, err)
 		}
 		for j := 0; j < 3; j++ {
-			exec, err := es.Create(w.ID, taskID, fmt.Sprintf("run-%d-%d", i, j), fmt.Sprintf("sess-%d-%d", i, j), "claude")
+			exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: fmt.Sprintf("run-%d-%d", i, j), SessionID: fmt.Sprintf("sess-%d-%d", i, j), Engine: "claude"})
 			if err != nil {
 				t.Fatalf("Create execution %d/%d: %v", i, j, err)
 			}

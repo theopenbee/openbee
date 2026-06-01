@@ -35,22 +35,33 @@ func NewExecutionStore(db *sql.DB, logsDir string) *ExecutionStore {
 	return &ExecutionStore{db: db, logsDir: logsDir}
 }
 
-// Create inserts a new execution. An empty workerID inserts NULL for worker_id
+// ExecutionCreate carries the inputs for ExecutionStore.Create.
+// WorkerID is empty for bee-owned executions; TaskID is empty for raw exec rows
+// not driven by a task.
+type ExecutionCreate struct {
+	WorkerID     string
+	TaskID       string
+	TriggerInput string
+	SessionID    string
+	Engine       string
+}
+
+// Create inserts a new execution. An empty WorkerID inserts NULL for worker_id
 // and marks the row as bee-owned; otherwise the execution is attributed to that
-// worker. taskID may be empty for bee-owned executions.
-func (s *ExecutionStore) Create(workerID, taskID, triggerInput, sessionID, engine string) (model.WorkerExecution, error) {
+// worker. TaskID may be empty for bee-owned executions.
+func (s *ExecutionStore) Create(c ExecutionCreate) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
-		TaskID:       taskID,
-		SessionID:    sessionID,
-		Engine:       engine,
-		TriggerInput: triggerInput,
+		TaskID:       c.TaskID,
+		SessionID:    c.SessionID,
+		Engine:       c.Engine,
+		TriggerInput: c.TriggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,
 	}
-	if workerID != "" {
-		wid := workerID
+	if c.WorkerID != "" {
+		wid := c.WorkerID
 		exec.WorkerID = &wid
 	}
 	_, err := s.db.Exec(

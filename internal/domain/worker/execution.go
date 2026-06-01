@@ -8,6 +8,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"go.uber.org/zap"
 )
@@ -23,7 +24,13 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, taskID, triggerIn
 
 	engineName, engine := m.resolveEngine(worker)
 
-	exec, err := m.executionStore.Create(workerID, taskID, triggerInput, sessionID, engineName)
+	exec, err := m.executionStore.Create(store.ExecutionCreate{
+		WorkerID:     workerID,
+		TaskID:       taskID,
+		TriggerInput: triggerInput,
+		SessionID:    sessionID,
+		Engine:       engineName,
+	})
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}

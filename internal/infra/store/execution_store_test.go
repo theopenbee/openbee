@@ -26,7 +26,7 @@ func newTestExecutionStore(t *testing.T) *ExecutionStore {
 
 func TestExecutionStore_CreateWritesTaskID(t *testing.T) {
 	s := newTestExecutionStore(t)
-	exec, err := s.Create("w1", "task-1", "trigger", "sess-1", "claude")
+	exec, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "trigger", SessionID: "sess-1", Engine: "claude"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestExecutionStore_CreateWritesTaskID(t *testing.T) {
 
 func TestExecutionStore_GetRunningByTaskID(t *testing.T) {
 	s := newTestExecutionStore(t)
-	running, _ := s.Create("w1", "task-1", "in", "sess-1", "claude")
+	running, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "in", SessionID: "sess-1", Engine: "claude"})
 	if err := s.UpdateStatus(running.ID, model.ExecStatusRunning); err != nil {
 		t.Fatalf("UpdateStatus: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestExecutionStore_GetRunningByTaskID(t *testing.T) {
 		t.Errorf("want nil for unknown task, got %+v", none)
 	}
 	// A pending (never-running) execution must not be returned.
-	pending, _ := s.Create("w1", "task-2", "in", "sess-2", "claude")
+	pending, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "in", SessionID: "sess-2", Engine: "claude"})
 	got2, err := s.GetRunningByTaskID(context.Background(), "task-2")
 	if err != nil {
 		t.Fatalf("GetRunningByTaskID(pending): %v", err)
@@ -73,9 +73,9 @@ func TestExecutionStore_GetRunningByTaskID(t *testing.T) {
 
 func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 	s := newTestExecutionStore(t)
-	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
-	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
-	_, _ = s.Create("w1", "task-2", "other", "sess-3", "claude")
+	e1, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"})
+	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "second", SessionID: "sess-2", Engine: "claude"})
+	_, _ = s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "other", SessionID: "sess-3", Engine: "claude"})
 	m, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"}, 0)
 	if err != nil {
 		t.Fatalf("ListByTaskIDs: %v", err)
@@ -103,12 +103,12 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 
 func TestExecutionStore_ListByTaskIDs_LimitsExecutionsPerTask(t *testing.T) {
 	s := newTestExecutionStore(t)
-	if _, err := s.Create("w1", "task-1", "first", "sess-1", "claude"); err != nil {
+	if _, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"}); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
-	e3, _ := s.Create("w1", "task-1", "third", "sess-3", "claude")
-	if _, err := s.Create("w1", "task-2", "other", "sess-4", "claude"); err != nil {
+	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "second", SessionID: "sess-2", Engine: "claude"})
+	e3, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "third", SessionID: "sess-3", Engine: "claude"})
+	if _, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "other", SessionID: "sess-4", Engine: "claude"}); err != nil {
 		t.Fatalf("Create task-2 execution: %v", err)
 	}
 
@@ -129,9 +129,9 @@ func TestExecutionStore_ListByTaskIDs_LimitsExecutionsPerTask(t *testing.T) {
 
 func TestExecutionStore_ListByTaskIDs_ZeroLimitReturnsAll(t *testing.T) {
 	s := newTestExecutionStore(t)
-	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
-	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
-	e3, _ := s.Create("w1", "task-1", "third", "sess-3", "claude")
+	e1, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"})
+	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "second", SessionID: "sess-2", Engine: "claude"})
+	e3, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "third", SessionID: "sess-3", Engine: "claude"})
 
 	got, err := s.ListByTaskIDs(context.Background(), []string{"task-1"}, 0)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestExecutionStore_CreateAndGet(t *testing.T) {
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 
-	exec, err := es.Create(w.ID, "", "test message", uuid.New().String(), "claude")
+	exec, err := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestExecutionStore_UpdateStatus(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "", "test message", uuid.New().String(), "claude")
+	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
 
 	err = es.UpdateStatus(exec.ID, model.ExecStatusRunning)
 	if err != nil {
@@ -218,7 +218,7 @@ func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, err := es.Create(w.ID, "", "test", uuid.New().String(), "claude")
+	exec, err := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "", "test", uuid.New().String(), "claude")
+	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
 
 	if err := es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted); err != nil {
 		t.Fatalf("UpdateResult: %v", err)
@@ -275,7 +275,7 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(w.ID, "", "test message", uuid.New().String(), "claude")
+	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
 
 	got, err := es.ListBySessionID(exec.SessionID)
 	if err != nil {
@@ -299,7 +299,7 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	sessionID := uuid.New().String()
-	exec, err := es.Create("", "", "test prompt", sessionID, "claude-sonnet-4-5")
+	exec, err := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: sessionID, Engine: "claude-sonnet-4-5"})
 	if err != nil {
 		t.Fatalf("Create bee execution: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestExecutionStore_ReadLogSince(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.Create("", "", "test prompt", "session1", "")
+	exec, _ := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: "session1"})
 
 	// No log path yet → zero slice, no error.
 	slice, err := es.ReadLogSince(exec.ID, 0)
@@ -440,7 +440,7 @@ func TestExecutionStore_PrepareLogPath(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.Create("", "", "test prompt", "session1", "")
+	exec, _ := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: "session1"})
 
 	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
@@ -485,7 +485,7 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 	}
 
 	// create a bee execution (worker_id IS NULL), status pending
-	bee, _ := es.Create("", "", "prompt", "s1", "claude")
+	bee, _ := es.Create(ExecutionCreate{TriggerInput: "prompt", SessionID: "s1", Engine: "claude"})
 	active, err = es.HasActiveBeeExecutions(ctx)
 	if err != nil {
 		t.Fatalf("HasActiveBeeExecutions: %v", err)
@@ -516,7 +516,7 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 
 	// worker execution (worker_id NOT NULL) must not count
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
-	_, _ = es.Create("w1", "", "task", "s2", "claude")
+	_, _ = es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "task", SessionID: "s2", Engine: "claude"})
 	active, err = es.HasActiveBeeExecutions(ctx)
 	if err != nil {
 		t.Fatalf("HasActiveBeeExecutions: %v", err)
@@ -537,12 +537,12 @@ func TestExecutionStore_MarkAbandoned_OnlyUpdatesActive(t *testing.T) {
 	ctx := context.Background()
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
-	pending, _ := es.Create("w1", "", "p", uuid.New().String(), "claude")
-	running, _ := es.Create("w1", "", "r", uuid.New().String(), "claude")
+	pending, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "p", SessionID: uuid.New().String(), Engine: "claude"})
+	running, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "r", SessionID: uuid.New().String(), Engine: "claude"})
 	_ = es.UpdateStatus(running.ID, model.ExecStatusRunning)
-	completed, _ := es.Create("w1", "", "c", uuid.New().String(), "claude")
+	completed, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "c", SessionID: uuid.New().String(), Engine: "claude"})
 	_ = es.UpdateResult(completed.ID, "done", model.ExecStatusCompleted)
-	failed, _ := es.Create("w1", "", "f", uuid.New().String(), "claude")
+	failed, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "f", SessionID: uuid.New().String(), Engine: "claude"})
 	_ = es.UpdateResult(failed.ID, "boom", model.ExecStatusFailed)
 
 	ok, err := es.MarkAbandoned(ctx, pending.ID, "cancelled by user")
@@ -596,10 +596,10 @@ func TestExecutionStore_ResetRunningExecutions(t *testing.T) {
 	ctx := context.Background()
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
-	p, _ := es.Create("w1", "", "p", uuid.New().String(), "claude")
-	r, _ := es.Create("w1", "", "r", uuid.New().String(), "claude")
+	p, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "p", SessionID: uuid.New().String(), Engine: "claude"})
+	r, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "r", SessionID: uuid.New().String(), Engine: "claude"})
 	_ = es.UpdateStatus(r.ID, model.ExecStatusRunning)
-	c, _ := es.Create("w1", "", "c", uuid.New().String(), "claude")
+	c, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "c", SessionID: uuid.New().String(), Engine: "claude"})
 	_ = es.UpdateResult(c.ID, "done", model.ExecStatusCompleted)
 
 	n, err := es.ResetRunningExecutions(ctx)
@@ -658,7 +658,7 @@ func TestExecutionStore_HasActiveExecutionsByWorkerID(t *testing.T) {
 	}
 
 	// create pending execution for w1
-	exec1, _ := es.Create("w1", "", "task", "s1", "claude")
+	exec1, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "task", SessionID: "s1", Engine: "claude"})
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
 	if err != nil {
 		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)

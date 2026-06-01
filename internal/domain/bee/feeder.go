@@ -208,7 +208,11 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	// Create execution record first — we need exec.ID before launching the process
 	// so we can prepare the log path (which is based on the ID).
-	exec, err := f.execStore.Create("", "", prompt, sessionID, engineName)
+	exec, err := f.execStore.Create(store.ExecutionCreate{
+		TriggerInput: prompt,
+		SessionID:    sessionID,
+		Engine:       engineName,
+	})
 	if err != nil {
 		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.failMessages(ctx, msgs, err.Error())
