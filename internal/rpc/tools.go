@@ -26,7 +26,6 @@ func (s *Server) CallTool(ctx context.Context, name string, args json.RawMessage
 }
 
 // workerDisplayName returns the worker's configured name, falling back to the raw ID.
-// Results are cached for the server's lifetime to avoid a DB round-trip on every send_message call.
 func (s *Server) workerDisplayName(workerID string) string {
 	if v, ok := s.workerNameCache.Load(workerID); ok {
 		return v.(string)

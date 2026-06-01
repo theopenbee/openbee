@@ -20,9 +20,8 @@ type RunningExecLookup interface {
 	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
 }
 
-// runningExecIDsForTasks resolves running exec ids for the given tasks. On
-// lookup error it logs with the supplied op name and returns an empty map so
-// callers can keep formatting without an exec id column.
+// runningExecIDsForTasks returns an empty map on lookup error so callers can
+// keep formatting without an exec id column.
 func runningExecIDsForTasks(ctx context.Context, lookup RunningExecLookup, tasks []model.Task, op string) map[string]string {
 	if len(tasks) == 0 {
 		return map[string]string{}
