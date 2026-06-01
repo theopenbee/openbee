@@ -179,6 +179,6 @@ Read these sub-documents on demand when the scenario arises — they are not nee
 | Full CLI command syntax, all parameters and examples | `references/cli-reference.md` |
 | Handling session clear / context reset operations | `references/session-management.md` |
 | Reading or saving constraints across sessions | `references/constraint-management.md` |
-| Viewing system status, worker load, or execution history | `references/system-status.md` |
+| Viewing system status or worker load | `references/system-status.md` |
 | Understanding entity relationships (Message / Task / Execution / Worker) | `references/entity-relationships.md` |
 | Creating scheduled / countdown tasks, or filtering tasks by type | `references/task-scheduling.md` |
