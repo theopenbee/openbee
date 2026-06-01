@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.38] - 2026-05-31
 
 ### Removed
 
