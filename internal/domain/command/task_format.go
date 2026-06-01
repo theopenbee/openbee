@@ -15,27 +15,12 @@ type WorkerByIDsLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
-// RunningExecLookup resolves the running execution id for a set of tasks.
-type RunningExecLookup interface {
-	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
-}
+// RunningExecLookup is re-exported from utils so callers in this package can
+// satisfy the helper without importing utils directly.
+type RunningExecLookup = utils.RunningExecLookup
 
-// runningExecIDsForTasks returns an empty map on lookup error so callers can
-// keep formatting without an exec id column.
 func runningExecIDsForTasks(ctx context.Context, lookup RunningExecLookup, tasks []model.Task, op string) map[string]string {
-	if len(tasks) == 0 {
-		return map[string]string{}
-	}
-	taskIDs := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execIDs, err := lookup.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		log.Error("resolve running exec ids", zap.String("op", op), zap.Error(err))
-		return map[string]string{}
-	}
-	return execIDs
+	return utils.RunningExecIDsForTasks(ctx, log, lookup, tasks, op)
 }
 
 func formatTaskLine(format string, t model.Task, workerNames, execIDs map[string]string, nowMs int64) string {

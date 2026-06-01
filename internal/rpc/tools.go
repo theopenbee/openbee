@@ -668,15 +668,7 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 	}
 
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
-	taskIDs := make([]string, 0, len(tasksToStop))
-	for _, t := range tasksToStop {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execIDs, err := s.executionStore.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		log.Error("get running executions for clear_session", zap.Error(err))
-		execIDs = map[string]string{}
-	}
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.executionStore, tasksToStop, "clear_session")
 	for _, t := range tasksToStop {
 		execID := execIDs[t.ID]
 		if execID == "" {
