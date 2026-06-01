@@ -121,6 +121,7 @@ const (
 	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
 	linearPlatformID           = "linear"
+	clearSessionOp             = "clear_session"
 )
 
 type workerBrief struct {
@@ -690,7 +691,7 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 	}
 
 	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
-	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.executionStore, tasksToStop, "clear_session")
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.executionStore, tasksToStop, clearSessionOp)
 	for _, t := range tasksToStop {
 		execID := execIDs[t.ID]
 		if execID == "" {
@@ -698,7 +699,7 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 		if err := s.execStopper.StopExecution(execID); err != nil {
 			log.Debug("stop execution: process not active",
-				zap.String("op", "clear_session"),
+				zap.String("op", clearSessionOp),
 				zap.String("executionID", execID),
 				zap.Error(err))
 			s.finalizeCancelledExecution(ctx, execID)

@@ -19,6 +19,13 @@ import (
 
 const clearConfirmTimeout = 30 * time.Second
 
+const (
+	clearOpAll           = "clear"
+	clearOpAllConfirm    = "clear_confirm"
+	clearOpWorker        = "clear_worker"
+	clearOpWorkerConfirm = "clear_worker_confirm"
+)
+
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
 	GetByIDs(ids []string) ([]model.Worker, error)
@@ -138,7 +145,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	h.stopRunningExecutions(ctx, runningTasks, "clear")
+	h.stopRunningExecutions(ctx, runningTasks, clearOpAll)
 
 	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -197,7 +204,7 @@ func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []
 	for _, a := range agents {
 		header = append(header, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
 	}
-	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks), "clear_confirm")
+	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks), clearOpAllConfirm)
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
@@ -246,7 +253,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		return
 	}
 
-	h.stopRunningExecutions(ctx, runningTasks, "clear_worker")
+	h.stopRunningExecutions(ctx, runningTasks, clearOpWorker)
 
 	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -282,7 +289,7 @@ func (h *ClearCommandHandler) formatWorkerConfirmPrompt(ctx context.Context, w m
 	m := i18n.M.Runtime.ClearCommand
 	header := []string{fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine)}
 	footer := fmt.Sprintf(m.WorkerConfirmFooter, w.Name)
-	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name}, "clear_worker_confirm")
+	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name}, clearOpWorkerConfirm)
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
