@@ -109,25 +109,45 @@ func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 	return scanExecutions(rows)
 }
 
-// CountSessions returns the total number of distinct sessions.
-func (s *ExecutionStore) CountSessions() (int, error) {
+// CountSessions returns the total number of distinct sessions. workerID
+// scopes the count to one worker; empty workerID counts across all workers.
+func (s *ExecutionStore) CountSessions(workerID string) (int, error) {
+	q := `SELECT COUNT(DISTINCT session_id) FROM bee_executions`
+	var args []any
+	if workerID != "" {
+		q += ` WHERE worker_id = ?`
+		args = append(args, workerID)
+	}
 	var count int
-	err := s.db.QueryRow(`SELECT COUNT(DISTINCT session_id) FROM bee_executions`).Scan(&count)
-	if err != nil {
+	if err := s.db.QueryRow(q, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count sessions: %w", err)
 	}
 	return count, nil
 }
 
-// ListPaginated returns executions grouped by session with pagination at the session level.
-func (s *ExecutionStore) ListPaginated(limit, offset int) ([]model.WorkerExecution, error) {
-	query := execSelect + ` WHERE e.session_id IN (
-		SELECT session_id FROM bee_executions
-		GROUP BY session_id
-		ORDER BY MAX(started_at) DESC
-		LIMIT ? OFFSET ?
-	) ORDER BY e.started_at DESC`
-	rows, err := s.db.Query(query, limit, offset)
+// ListPaginatedSessions returns executions grouped by session with pagination
+// at the session level. workerID empty paginates across all workers.
+func (s *ExecutionStore) ListPaginatedSessions(workerID string, limit, offset int) ([]model.WorkerExecution, error) {
+	var query string
+	var args []any
+	if workerID == "" {
+		query = execSelect + ` WHERE e.session_id IN (
+			SELECT session_id FROM bee_executions
+			GROUP BY session_id
+			ORDER BY MAX(started_at) DESC
+			LIMIT ? OFFSET ?
+		) ORDER BY e.started_at DESC`
+		args = []any{limit, offset}
+	} else {
+		query = execSelect + ` WHERE e.worker_id = ? AND e.session_id IN (
+			SELECT session_id FROM bee_executions WHERE worker_id = ?
+			GROUP BY session_id
+			ORDER BY MAX(started_at) DESC
+			LIMIT ? OFFSET ?
+		) ORDER BY e.started_at DESC`
+		args = []any{workerID, workerID, limit, offset}
+	}
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list paginated executions: %w", err)
 	}
@@ -139,32 +159,6 @@ func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecut
 	rows, err := s.db.Query(execSelect+` WHERE e.session_id = ? ORDER BY e.started_at ASC`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("list executions by session: %w", err)
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}
-
-// CountSessionsByWorkerID returns the total number of distinct sessions for a worker.
-func (s *ExecutionStore) CountSessionsByWorkerID(workerID string) (int, error) {
-	var count int
-	err := s.db.QueryRow(`SELECT COUNT(DISTINCT session_id) FROM bee_executions WHERE worker_id = ?`, workerID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("count sessions by worker: %w", err)
-	}
-	return count, nil
-}
-
-// ListPaginatedByWorkerID returns executions for a worker grouped by session with pagination at the session level.
-func (s *ExecutionStore) ListPaginatedByWorkerID(workerID string, limit, offset int) ([]model.WorkerExecution, error) {
-	query := execSelect + ` WHERE e.worker_id = ? AND e.session_id IN (
-		SELECT session_id FROM bee_executions WHERE worker_id = ?
-		GROUP BY session_id
-		ORDER BY MAX(started_at) DESC
-		LIMIT ? OFFSET ?
-	) ORDER BY e.started_at DESC`
-	rows, err := s.db.Query(query, workerID, workerID, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("list paginated executions by worker: %w", err)
 	}
 	defer rows.Close()
 	return scanExecutions(rows)

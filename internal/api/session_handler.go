@@ -55,23 +55,14 @@ func (h *ExecutionHandler) List(c *gin.Context) {
 	hasOtherFilters := f.SessionID != "" || f.Status != "" || f.StartedFrom > 0 || f.StartedTo > 0 || f.CompletedFrom > 0 || f.CompletedTo > 0
 
 	switch {
-	case f == (store.ExecutionFilter{}):
-		// No filters: paginate at session level for consistent page counts.
-		if total, err = h.executions.CountSessions(); err != nil {
+	case f == (store.ExecutionFilter{}) || (workerID != "" && !hasOtherFilters):
+		// No filters (or worker_id only): paginate at session level for
+		// consistent page counts. Empty workerID counts across all workers.
+		if total, err = h.executions.CountSessions(workerID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		if execs, err = h.executions.ListPaginated(pageSize, offset); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	case workerID != "" && !hasOtherFilters:
-		// worker_id only: paginate at session level within the worker.
-		if total, err = h.executions.CountSessionsByWorkerID(workerID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if execs, err = h.executions.ListPaginatedByWorkerID(workerID, pageSize, offset); err != nil {
+		if execs, err = h.executions.ListPaginatedSessions(workerID, pageSize, offset); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
