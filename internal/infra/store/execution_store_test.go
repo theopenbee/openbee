@@ -299,7 +299,7 @@ func TestExecutionStore_ListBeeExecutions(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	// Create a bee execution (worker_id = NULL)
-	bee1, err := es.CreateBeeExecution("session1", "user said hello", "")
+	bee1, err := es.Create("", "", "user said hello", "session1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,9 +331,9 @@ func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	es := NewExecutionStore(db, t.TempDir())
 
 	sessionID := uuid.New().String()
-	exec, err := es.CreateBeeExecution(sessionID, "test prompt", "claude-sonnet-4-5")
+	exec, err := es.Create("", "", "test prompt", sessionID, "claude-sonnet-4-5")
 	if err != nil {
-		t.Fatalf("CreateBeeExecution: %v", err)
+		t.Fatalf("Create bee execution: %v", err)
 	}
 	if exec.ID == "" {
 		t.Error("expected non-empty ID")
@@ -374,7 +374,7 @@ func TestExecutionStore_ReadLogSince(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.CreateBeeExecution("session1", "test prompt", "")
+	exec, _ := es.Create("", "", "test prompt", "session1", "")
 
 	// No log path yet → zero slice, no error.
 	slice, err := es.ReadLogSince(exec.ID, 0)
@@ -472,7 +472,7 @@ func TestExecutionStore_PrepareLogPath(t *testing.T) {
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
-	exec, _ := es.CreateBeeExecution("session1", "test prompt", "")
+	exec, _ := es.Create("", "", "test prompt", "session1", "")
 
 	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
@@ -517,7 +517,7 @@ func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
 	}
 
 	// create a bee execution (worker_id IS NULL), status pending
-	bee, _ := es.CreateBeeExecution("s1", "prompt", "claude")
+	bee, _ := es.Create("", "", "prompt", "s1", "claude")
 	active, err = es.HasActiveBeeExecutions(ctx)
 	if err != nil {
 		t.Fatalf("HasActiveBeeExecutions: %v", err)

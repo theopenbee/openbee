@@ -35,17 +35,23 @@ func NewExecutionStore(db *sql.DB, logsDir string) *ExecutionStore {
 	return &ExecutionStore{db: db, logsDir: logsDir}
 }
 
+// Create inserts a new execution. An empty workerID inserts NULL for worker_id
+// and marks the row as bee-owned; otherwise the execution is attributed to that
+// worker. taskID may be empty for bee-owned executions.
 func (s *ExecutionStore) Create(workerID, taskID, triggerInput, sessionID, engine string) (model.WorkerExecution, error) {
 	millis := time.Now().UnixMilli()
 	exec := model.WorkerExecution{
 		ID:           uuid.New().String(),
 		TaskID:       taskID,
-		WorkerID:     &workerID,
 		SessionID:    sessionID,
 		Engine:       engine,
 		TriggerInput: triggerInput,
 		Status:       model.ExecStatusPending,
 		StartedAt:    &millis,
+	}
+	if workerID != "" {
+		wid := workerID
+		exec.WorkerID = &wid
 	}
 	_, err := s.db.Exec(
 		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
@@ -54,28 +60,6 @@ func (s *ExecutionStore) Create(workerID, taskID, triggerInput, sessionID, engin
 	)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("insert execution: %w", err)
-	}
-	return exec, nil
-}
-
-func (s *ExecutionStore) CreateBeeExecution(sessionID, triggerInput, engine string) (model.WorkerExecution, error) {
-	millis := time.Now().UnixMilli()
-	exec := model.WorkerExecution{
-		ID:           uuid.New().String(),
-		WorkerID:     nil, // bee execution — no worker
-		SessionID:    sessionID,
-		Engine:       engine,
-		TriggerInput: triggerInput,
-		Status:       model.ExecStatusPending,
-		StartedAt:    &millis,
-	}
-	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, '', NULL, ?, ?, ?, ?, '', 0, ?)`,
-		exec.ID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
-	)
-	if err != nil {
-		return model.WorkerExecution{}, fmt.Errorf("insert bee execution: %w", err)
 	}
 	return exec, nil
 }
