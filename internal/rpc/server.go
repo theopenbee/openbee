@@ -8,10 +8,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 var log = logger.With(zap.String("component", "rpc"))
@@ -31,11 +32,6 @@ type ExecutionStopper interface {
 	StopExecution(executionID string) error
 }
 
-// SessionClearer clears dispatcher queues and session contexts for a session.
-type SessionClearer interface {
-	ClearSession(sessionKey string)
-}
-
 type TaskCanceller interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
@@ -49,7 +45,7 @@ type Server struct {
 	outboundMessageStore *store.OutboundMessageStore
 	senders              map[string]platform.PlatformSenderAdapter
 	execStopper          ExecutionStopper
-	sessionClearer       SessionClearer
+	clearSvc             *session.ClearService
 	taskCanceller        TaskCanceller
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
@@ -67,7 +63,7 @@ func NewBeeServer(
 	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
 	execStopper ExecutionStopper,
-	sessionClearer SessionClearer,
+	clearSvc *session.ClearService,
 	taskCanceller TaskCanceller,
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,
@@ -82,7 +78,7 @@ func NewBeeServer(
 		outboundMessageStore: oms,
 		senders:              senders,
 		execStopper:          execStopper,
-		sessionClearer:       sessionClearer,
+		clearSvc:             clearSvc,
 		taskCanceller:        taskCanceller,
 		executionStore:       es,
 		constraintStore:      constraintStore,

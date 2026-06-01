@@ -120,8 +120,8 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 const (
 	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
+	ClearReasonNoContext       = "no_context"
 	linearPlatformID           = "linear"
-	clearSessionOp             = "clear_session"
 )
 
 type workerBrief struct {
@@ -627,101 +627,77 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		return nil, fmt.Errorf("session_key is required")
 	}
 
-	var tasksToStop []model.Task
+	// Multi-worker safety net is RPC-specific — IM users can't easily span
+	// multiple workers in a single chat, so /clear doesn't gate on it.
 	if !params.Force {
-		activeTasks, err := s.taskStore.List(ctx, store.TaskFilter{
-			SessionKey: params.SessionKey,
-			Status:     model.TaskStatusActive,
-			Type:       model.TaskTypeImmediate,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list active tasks: %w", err)
-		}
-		if len(activeTasks) > 0 {
-			summaries := make([]ActiveTaskSummary, 0, len(activeTasks))
-			for _, t := range activeTasks {
-				summaries = append(summaries, ActiveTaskSummary{
-					TaskID:      t.ID,
-					Instruction: t.Instruction,
-					Status:      t.Status,
-				})
-			}
-			return map[string]any{
-				"requires_confirmation": true,
-				"reason":                ClearReasonActiveTasks,
-				"running_tasks":         summaries,
-				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(activeTasks)),
-			}, nil
-		}
-
-		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
-		if err != nil {
-			return nil, fmt.Errorf("list session contexts: %w", err)
-		}
-		var workers []LinkedWorkerSummary
-		seenWorkers := make(map[string]struct{})
-		for _, a := range agents {
-			if a.AgentType == store.WorkerAgentType {
-				if _, exists := seenWorkers[a.AgentID]; exists {
-					continue
-				}
-				seenWorkers[a.AgentID] = struct{}{}
-				workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
-			}
-		}
-		if len(workers) > 1 {
+		if linked, err := s.linkedWorkersForSession(ctx, params.SessionKey); err != nil {
+			return nil, err
+		} else if len(linked) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
 				"reason":                ClearReasonMultipleWorkers,
-				"worker_count":          len(workers),
-				"linked_workers":        workers,
-				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(workers)),
+				"worker_count":          len(linked),
+				"linked_workers":        linked,
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(linked)),
 			}, nil
 		}
-	} else {
-		var err error
-		tasksToStop, err = s.taskStore.List(ctx, store.TaskFilter{
-			SessionKey: params.SessionKey,
-			Status:     model.TaskStatusRunning,
-			Type:       model.TaskTypeImmediate,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list running tasks: %w", err)
-		}
 	}
 
-	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
-	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.executionStore, tasksToStop, clearSessionOp)
-	for _, t := range tasksToStop {
-		execID := execIDs[t.ID]
-		if execID == "" {
-			continue
-		}
-		if err := s.execStopper.StopExecution(execID); err != nil {
-			log.Debug("stop execution: process not active",
-				zap.String("op", clearSessionOp),
-				zap.String("executionID", execID),
-				zap.Error(err))
-			s.finalizeCancelledExecution(ctx, execID)
-		}
-	}
-
-	cancelled, err := s.taskStore.Cancel(ctx, store.CancelFilter{
-		SessionKey: params.SessionKey,
-		Type:       model.TaskTypeImmediate,
-	})
+	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey, params.Force)
 	if err != nil {
-		return nil, fmt.Errorf("cancel tasks: %w", err)
+		return nil, err
 	}
 
-	if s.sessionClearer != nil {
-		s.sessionClearer.ClearSession(params.SessionKey)
+	if !result.Cleared && len(result.ActiveTasks) > 0 {
+		summaries := make([]ActiveTaskSummary, 0, len(result.ActiveTasks))
+		for _, t := range result.ActiveTasks {
+			summaries = append(summaries, ActiveTaskSummary{
+				TaskID:      t.ID,
+				Instruction: t.Instruction,
+				Status:      t.Status,
+			})
+		}
+		return map[string]any{
+			"requires_confirmation": true,
+			"reason":                ClearReasonActiveTasks,
+			"running_tasks":         summaries,
+			"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
+		}, nil
+	}
+
+	if !result.Cleared {
+		return map[string]any{
+			"cleared": false,
+			"reason":  ClearReasonNoContext,
+		}, nil
 	}
 
 	return map[string]any{
-		"cancelled_tasks": cancelled,
+		"cancelled_tasks": result.CancelledTasks,
 		"cleared":         true,
 	}, nil
+}
+
+// linkedWorkersForSession returns the unique workers whose session contexts
+// would be cleared by ClearSession (scoped to the active engine).
+func (s *Server) linkedWorkersForSession(ctx context.Context, sessionKey string) ([]LinkedWorkerSummary, error) {
+	agents, err := s.sessionStore.ListSessionContexts(ctx, sessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("list session contexts: %w", err)
+	}
+	var workers []LinkedWorkerSummary
+	seen := make(map[string]struct{})
+	for _, a := range agents {
+		if a.AgentType != store.WorkerAgentType {
+			continue
+		}
+		if _, exists := seen[a.AgentID]; exists {
+			continue
+		}
+		seen[a.AgentID] = struct{}{}
+		workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
+	}
+	return workers, nil
 }
 
 func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) (any, error) {
@@ -909,6 +885,7 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 	var params struct {
 		SessionKey string `json:"session_key"`
 		WorkerID   string `json:"worker_id"`
+		Force      bool   `json:"force"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -923,16 +900,43 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 		return nil, fmt.Errorf("cannot clear bee session context with this tool, use clear_session instead")
 	}
 
-	workerName := s.workerDisplayName(params.WorkerID)
+	// Look up the worker so the service can resolve its engine; fall back to a
+	// stub when the row is missing so we can still drain dispatcher state and
+	// the (absent) session row for an orphaned worker.
+	w, err := s.workerStore.GetByID(params.WorkerID)
+	if err != nil {
+		w = model.Worker{ID: params.WorkerID}
+	}
 
-	if err := s.sessionStore.DeleteWorkerSessionContext(ctx, params.SessionKey, params.WorkerID); err != nil {
-		return nil, fmt.Errorf("delete worker session context: %w", err)
+	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w, params.Force)
+	if err != nil {
+		return nil, err
+	}
+
+	if !result.Cleared && len(result.ActiveTasks) > 0 {
+		summaries := make([]ActiveTaskSummary, 0, len(result.ActiveTasks))
+		for _, t := range result.ActiveTasks {
+			summaries = append(summaries, ActiveTaskSummary{
+				TaskID:      t.ID,
+				Instruction: t.Instruction,
+				Status:      t.Status,
+			})
+		}
+		return map[string]any{
+			"requires_confirmation": true,
+			"reason":                ClearReasonActiveTasks,
+			"running_tasks":         summaries,
+			"worker_id":             params.WorkerID,
+			"worker_name":           s.workerDisplayName(params.WorkerID),
+			"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
+		}, nil
 	}
 
 	return map[string]any{
-		"cleared":     true,
-		"worker_id":   params.WorkerID,
-		"worker_name": workerName,
+		"cleared":         true,
+		"cancelled_tasks": result.CancelledTasks,
+		"worker_id":       params.WorkerID,
+		"worker_name":     s.workerDisplayName(params.WorkerID),
 	}, nil
 }
 
