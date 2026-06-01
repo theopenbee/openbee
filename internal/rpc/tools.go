@@ -10,6 +10,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -444,13 +445,29 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 		Limit:      pageSize,
 		Offset:     offset,
 	}
-	total, err := s.taskStore.CountTasks(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("count tasks: %w", err)
-	}
-	tasks, err := s.taskStore.List(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("list tasks: %w", err)
+	var (
+		total int
+		tasks []model.Task
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		t, err := s.taskStore.CountTasks(gctx, filter)
+		if err != nil {
+			return fmt.Errorf("count tasks: %w", err)
+		}
+		total = t
+		return nil
+	})
+	g.Go(func() error {
+		ts, err := s.taskStore.List(gctx, filter)
+		if err != nil {
+			return fmt.Errorf("list tasks: %w", err)
+		}
+		tasks = ts
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	if tasks == nil {
 		tasks = []model.Task{}
