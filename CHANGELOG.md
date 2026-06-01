@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Fix `/status` reporting tasks as running long after they finished. Three causes were addressed: the dispatcher's 30-minute poll deadline that abandoned tasks in `running` when the worker outlived it; `launchRuntime` creating the worker process context from `context.Background()`, which prevented dispatcher-side cancellation from killing the process; and the absence of any in-flight reconciliation between server restarts. A periodic reconciler now syncs `running` tasks with their execution's terminal state and sweeps orphaned rows whose tracked PID is gone
+
 ## [0.0.38] - 2026-05-31
 
 ### Removed

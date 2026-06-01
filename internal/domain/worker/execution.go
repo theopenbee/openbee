@@ -57,12 +57,16 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		return fmt.Errorf("generate worker token: %w", err)
 	}
 
+	// execCtx inherits the caller's context so dispatcher-side cancellation
+	// (task cancel, /clear, shutdown) actually kills the worker process.
+	// Without this link, the worker kept running after its dispatcher exited
+	// and left tasks stuck in `running` until the next server restart.
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		execCtx, cancel = context.WithTimeout(context.Background(), timeout)
+		execCtx, cancel = context.WithTimeout(ctx, timeout)
 	} else {
-		execCtx, cancel = context.WithCancel(context.Background())
+		execCtx, cancel = context.WithCancel(ctx)
 	}
 
 	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)

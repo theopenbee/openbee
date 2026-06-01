@@ -26,7 +26,6 @@ type taskMeta struct {
 
 const (
 	pollInterval = 2 * time.Second
-	pollTimeout  = 30 * time.Minute
 )
 
 // ExecutionManager manages worker executions.
@@ -375,12 +374,15 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 	return d.executeFresh(ctx, task, instruction, engineName, worker)
 }
 
+// waitForResult polls the execution until it reaches a terminal state or ctx
+// is cancelled. Process-level timeouts are enforced by launchRuntime via
+// workerTimeout; this loop must not impose its own deadline, or it would exit
+// while the worker keeps running and leave the task row stuck in `running`.
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {
-	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-	for time.Now().Before(deadline) {
+	for {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
