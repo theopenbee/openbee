@@ -84,6 +84,7 @@ func splitTrimmed(s string) []string {
 // TaskFilter specifies filtering criteria for List and CountTasks.
 // message_id and session_key are mutually exclusive.
 type TaskFilter struct {
+	TaskID     string
 	MessageID  string
 	SessionKey string
 	WorkerID   string
@@ -101,6 +102,10 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 	}
 	q += ` WHERE 1=1`
 	var args []any
+	if f.TaskID != "" {
+		q += ` AND t.id = ?`
+		args = append(args, f.TaskID)
+	}
 	if f.MessageID != "" {
 		q += ` AND t.message_id = ?`
 		args = append(args, f.MessageID)

@@ -960,6 +960,49 @@ func TestTaskStore_CompleteTask_Scheduled_Cancelled_NoChange(t *testing.T) {
 	}
 }
 
+func TestTaskStore_List_ByTaskID(t *testing.T) {
+	ts, cleanup := newTaskStoreForTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	now := time.Now().UnixMilli()
+
+	id1, err := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "target",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Create target: %v", err)
+	}
+	if _, err := ts.Create(ctx, model.Task{
+		MessageID: "m1", WorkerID: "w1", Instruction: "other",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("Create other: %v", err)
+	}
+
+	tasks, err := ts.List(ctx, TaskFilter{TaskID: id1})
+	if err != nil {
+		t.Fatalf("List by task_id: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].ID != id1 || tasks[0].Instruction != "target" {
+		t.Fatalf("unexpected task: %+v", tasks[0])
+	}
+
+	total, err := ts.CountTasks(ctx, TaskFilter{TaskID: id1})
+	if err != nil {
+		t.Fatalf("CountTasks by task_id: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("expected total 1, got %d", total)
+	}
+}
+
 func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {
