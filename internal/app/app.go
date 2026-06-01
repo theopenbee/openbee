@@ -192,6 +192,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
+	reconciler := task.NewReconciler(s.taskStore, s.execStore, 0)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -203,6 +204,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { feeder.Run(ctx) },
 		func(ctx context.Context) { sched.Run(ctx) },
 		func(ctx context.Context) { disp.Run(ctx) },
+		func(ctx context.Context) { reconciler.Run(ctx) },
 		func(ctx context.Context) { tokenSyncer.Run(ctx) },
 	}
 	for _, p := range platforms {

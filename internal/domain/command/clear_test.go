@@ -292,7 +292,7 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{})
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
@@ -324,7 +324,6 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 		"w1": {{
 			ID: "t1", WorkerID: "w1", Instruction: "do something",
 			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
-			ExecutionID: "exec-w1-task1",
 		}},
 	}
 	fx.tasks.workerCancelled = map[string]int64{"w1": 1}
@@ -334,7 +333,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{"t1": "exec-w1-task1"})
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	// First /clear 徐晃 → confirm prompt; no destructive action yet.
@@ -387,12 +386,10 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 		"w1": {{
 			ID: "t1", WorkerID: "w1", Instruction: "a",
 			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
-			ExecutionID: "exec-w1",
 		}},
 		"w2": {{
 			ID: "t2", WorkerID: "w2", Instruction: "b",
 			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
-			ExecutionID: "exec-w2",
 		}},
 	}
 	fx.tasks.workerCancelled = map[string]int64{"w1": 1, "w2": 1}
@@ -405,7 +402,7 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"})
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	// First call → confirm prompt

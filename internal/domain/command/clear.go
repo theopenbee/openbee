@@ -218,16 +218,18 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	confirmed := h.consumePending(pendingKey)
 	if len(runningTasks) > 0 && !confirmed {
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(w, activeEngine, runningTasks))
+		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, activeEngine, runningTasks))
 		return
 	}
 
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, runningTasks, "clear_worker")
 	for _, t := range runningTasks {
-		if t.ExecutionID == "" {
+		execID := execIDs[t.ID]
+		if execID == "" {
 			continue
 		}
-		if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
-			log.Error("stop execution for /clear worker", zap.String("executionID", t.ExecutionID), zap.Error(err))
+		if err := h.execStopper.StopExecution(execID); err != nil {
+			log.Error("stop execution for /clear worker", zap.String("executionID", execID), zap.Error(err))
 		}
 	}
 
@@ -259,17 +261,18 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	}
 }
 
-func (h *ClearCommandHandler) formatWorkerConfirmPrompt(w model.Worker, engine string, tasks []model.Task) string {
+func (h *ClearCommandHandler) formatWorkerConfirmPrompt(ctx context.Context, w model.Worker, engine string, tasks []model.Task) string {
 	m := i18n.M.Runtime.ClearCommand
 	nowMs := h.now().UnixMilli()
 	workerNames := map[string]string{w.ID: w.Name}
+	execIDs := runningExecIDsForTasks(ctx, h.runningExecs, tasks, "clear_worker_confirm")
 
 	lines := make([]string, 0, 5+len(tasks))
 	lines = append(lines, fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine))
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
 	for _, t := range tasks {
-		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, execIDs, nowMs))
 	}
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf(m.WorkerConfirmFooter, w.Name))

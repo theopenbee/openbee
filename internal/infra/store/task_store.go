@@ -163,7 +163,7 @@ func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, ta
 // status and taskType support comma-separated values; empty means all.
 func (s *TaskStore) ListBySessionAndWorker(ctx context.Context, sessionKey, workerID, status, taskType string) ([]model.Task, error) {
 	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at, t.execution_id,
+	             t.scheduled_at, t.cron_expr, t.next_run_at,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t
 	      JOIN bee_platform_messages pm ON t.message_id = pm.id
