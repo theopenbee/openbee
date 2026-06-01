@@ -23,6 +23,13 @@ var log = logger.With(zap.String("component", "session"))
 // every stop-then-finalize fallback (clear_session, clear_worker, cancel_task).
 const FinalizeReasonCancelledByUser = "cancelled by user"
 
+// Op log labels identifying the caller of stop-then-finalize.
+const (
+	OpClearSession = "clear_session"
+	OpClearWorker  = "clear_worker"
+	OpCancelTask   = "cancel_task"
+)
+
 // SessionStore is the slice of *store.SessionStore the clear service needs.
 type SessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
@@ -132,7 +139,7 @@ func (s *ClearService) ClearSession(ctx context.Context, sessionKey string, forc
 		return ClearSessionResult{Agents: agents, ActiveTasks: activeTasks}, nil
 	}
 
-	s.stopRunningExecutions(ctx, activeTasks, "clear_session")
+	s.stopRunningExecutions(ctx, activeTasks, OpClearSession)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -183,7 +190,7 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		return ClearWorkerResult{Worker: w, Engine: engine, ActiveTasks: activeTasks}, nil
 	}
 
-	s.stopRunningExecutions(ctx, activeTasks, "clear_worker")
+	s.stopRunningExecutions(ctx, activeTasks, OpClearWorker)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,

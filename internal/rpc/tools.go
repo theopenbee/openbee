@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -531,7 +532,7 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 		return nil, fmt.Errorf("get running execution: %w", err)
 	}
 	if running != nil {
-		s.clearSvc.StopAndFinalizeExecution(ctx, running.ID, "cancel_task")
+		s.clearSvc.StopAndFinalizeExecution(ctx, running.ID, session.OpCancelTask)
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
