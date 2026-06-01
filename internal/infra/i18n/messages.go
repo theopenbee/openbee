@@ -18,37 +18,37 @@ type CmdEntry struct {
 
 // CmdMessages maps to all cobra command Short/Long descriptions.
 type CmdMessages struct {
-	Root           CmdEntry `yaml:"root"`
-	Config         CmdEntry `yaml:"config"`
-	Server         CmdEntry `yaml:"server"`
-	Stop           CmdEntry `yaml:"stop"`
-	Restart        CmdEntry `yaml:"restart"`
-	Status         CmdEntry `yaml:"status"`
-	Upgrade        CmdEntry `yaml:"upgrade"`
-	Backup         CmdEntry `yaml:"backup"`
-	Restore        CmdEntry `yaml:"restore"`
-	Ctl            CmdEntry `yaml:"ctl"`
-	CtlWorker      CmdEntry `yaml:"ctl_worker"`
-	CtlTask        CmdEntry `yaml:"ctl_task"`
-	CtlConstraint  CmdEntry `yaml:"ctl_constraint"`
-	CtlSession     CmdEntry `yaml:"ctl_session"`
-	CtlSystem      CmdEntry `yaml:"ctl_system"`
-	CtlMessage     CmdEntry `yaml:"ctl_message"`
+	Root          CmdEntry `yaml:"root"`
+	Config        CmdEntry `yaml:"config"`
+	Server        CmdEntry `yaml:"server"`
+	Stop          CmdEntry `yaml:"stop"`
+	Restart       CmdEntry `yaml:"restart"`
+	Status        CmdEntry `yaml:"status"`
+	Upgrade       CmdEntry `yaml:"upgrade"`
+	Backup        CmdEntry `yaml:"backup"`
+	Restore       CmdEntry `yaml:"restore"`
+	Ctl           CmdEntry `yaml:"ctl"`
+	CtlWorker     CmdEntry `yaml:"ctl_worker"`
+	CtlTask       CmdEntry `yaml:"ctl_task"`
+	CtlConstraint CmdEntry `yaml:"ctl_constraint"`
+	CtlSession    CmdEntry `yaml:"ctl_session"`
+	CtlSystem     CmdEntry `yaml:"ctl_system"`
+	CtlMessage    CmdEntry `yaml:"ctl_message"`
 }
 
 // PromptMessages maps to all survey prompt Message fields.
 type PromptMessages struct {
 	// Engine selection
-	EngineSelect       string `yaml:"engine_select"`
-	EngineDefault      string `yaml:"engine_default"`
+	EngineSelect        string `yaml:"engine_select"`
+	EngineDefault       string `yaml:"engine_default"`
 	EngineTimeoutBee    string `yaml:"engine_timeout_bee"`
 	EngineTimeoutWorker string `yaml:"engine_timeout_worker"`
-	OptionEngineClaude string `yaml:"option_engine_claude"`
-	OptionEngineCodex  string `yaml:"option_engine_codex"`
-	OptionEnginePi     string `yaml:"option_engine_pi"`
-	OptionEngineKimi   string `yaml:"option_engine_kimi"`
+	OptionEngineClaude  string `yaml:"option_engine_claude"`
+	OptionEngineCodex   string `yaml:"option_engine_codex"`
+	OptionEnginePi      string `yaml:"option_engine_pi"`
+	OptionEngineKimi    string `yaml:"option_engine_kimi"`
 	// Claude setup
-	ClaudePath     string `yaml:"claude_path"`
+	ClaudePath string `yaml:"claude_path"`
 	// Codex setup
 	CodexPath string `yaml:"codex_path"`
 	// Pi setup
@@ -81,31 +81,31 @@ type PromptMessages struct {
 	LinearLabelName      string `yaml:"linear_label_name"`
 	LinearProjects       string `yaml:"linear_projects"`
 	LinearProjectsHelp   string `yaml:"linear_projects_help"`
-	LinearStates       string `yaml:"linear_states"`
-	LinearStatesHelp   string `yaml:"linear_states_help"`
+	LinearStates         string `yaml:"linear_states"`
+	LinearStatesHelp     string `yaml:"linear_states_help"`
 	BotName              string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`
 	PasswordSetup         string `yaml:"password_setup"`
 	Password              string `yaml:"password"`
-	JWTRegenConfirm          string `yaml:"jwt_regen_confirm"`
-	RPCTokenRegenConfirm     string `yaml:"rpc_token_regen_confirm"`
+	JWTRegenConfirm       string `yaml:"jwt_regen_confirm"`
+	RPCTokenRegenConfirm  string `yaml:"rpc_token_regen_confirm"`
 	// Advanced
-	AdvancedConfirm     string `yaml:"advanced_confirm"`
-	ServerPort          string `yaml:"server_port"`
-	ServerHost          string `yaml:"server_host"`
-	DebugMode           string `yaml:"debug_mode"`
-	DBPath              string `yaml:"db_path"`
-	MaxConcurrentBee    string `yaml:"max_concurrent_bee"`
-	MessageDebounce     string `yaml:"message_debounce"`
-	FFprobePath         string `yaml:"ffprobe_path"`
-	FFmpegPath          string `yaml:"ffmpeg_path"`
+	AdvancedConfirm  string `yaml:"advanced_confirm"`
+	ServerPort       string `yaml:"server_port"`
+	ServerHost       string `yaml:"server_host"`
+	DebugMode        string `yaml:"debug_mode"`
+	DBPath           string `yaml:"db_path"`
+	MaxConcurrentBee string `yaml:"max_concurrent_bee"`
+	MessageDebounce  string `yaml:"message_debounce"`
+	FFprobePath      string `yaml:"ffprobe_path"`
+	FFmpegPath       string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
 	// Survey options (used in both Options slice and switch cases)
-	OptionEnterManually     string `yaml:"option_enter_manually"`
-	OptionGenerateRandom    string `yaml:"option_generate_random"`
+	OptionEnterManually  string `yaml:"option_enter_manually"`
+	OptionGenerateRandom string `yaml:"option_generate_random"`
 	// Telegram help text
 	TelegramTokenHelp    string `yaml:"telegram_token_help"`
 	TelegramAuthCodeHelp string `yaml:"telegram_auth_code_help"`
@@ -115,15 +115,15 @@ type PromptMessages struct {
 
 // FlagMessages maps to all cobra flag Usage descriptions.
 type FlagMessages struct {
-	ConfigPath             string `yaml:"config_path"`
-	ServerDaemon           string `yaml:"server_daemon"`
-	ConfigOutput           string `yaml:"config_output"`
-	BackupPassword         string `yaml:"backup_password"`
-	RestorePassword        string `yaml:"restore_password"`
-	RestoreForce           string `yaml:"restore_force"`
-	UpgradeCheck           string `yaml:"upgrade_check"`
-	UpgradeCDNURL          string `yaml:"upgrade_cdn_url"`
-	UpgradeCN              string `yaml:"upgrade_cn"`
+	ConfigPath      string `yaml:"config_path"`
+	ServerDaemon    string `yaml:"server_daemon"`
+	ConfigOutput    string `yaml:"config_output"`
+	BackupPassword  string `yaml:"backup_password"`
+	RestorePassword string `yaml:"restore_password"`
+	RestoreForce    string `yaml:"restore_force"`
+	UpgradeCheck    string `yaml:"upgrade_check"`
+	UpgradeCDNURL   string `yaml:"upgrade_cdn_url"`
+	UpgradeCN       string `yaml:"upgrade_cn"`
 }
 
 // ValidateMessages maps to interactive input validation error messages.
@@ -165,11 +165,11 @@ type StatusOutput struct {
 
 // UpgradeOutput maps to upgrade command runtime output.
 type UpgradeOutput struct {
-	CurrentVersion  string `yaml:"current_version"`  // contains %s
+	CurrentVersion  string `yaml:"current_version"` // contains %s
 	Checking        string `yaml:"checking"`
-	LatestVersion   string `yaml:"latest_version"`   // contains %s
+	LatestVersion   string `yaml:"latest_version"` // contains %s
 	UpToDate        string `yaml:"up_to_date"`
-	NewVersion      string `yaml:"new_version"`      // contains %s
+	NewVersion      string `yaml:"new_version"` // contains %s
 	RunCmd          string `yaml:"run_cmd"`
 	Downloading     string `yaml:"downloading"`      // contains %s
 	ChecksumWarning string `yaml:"checksum_warning"` // contains %v
@@ -192,45 +192,45 @@ type RestoreOutput struct {
 
 // ConfigOutput maps to config and config_claude runtime output.
 type ConfigOutput struct {
-	FoundExisting           string `yaml:"found_existing"`           // contains %s
-	SectionEngine           string `yaml:"section_engine"`
-	SectionPlatform         string `yaml:"section_platform"`
-	SectionAuth             string `yaml:"section_auth"`
-	SectionAdvanced         string `yaml:"section_advanced"`
-	SectionWrite            string `yaml:"section_write"`
-	OutputFile              string `yaml:"output_file"`              // contains %s
-	WriteCancelled          string `yaml:"write_cancelled"`
-	Written                 string `yaml:"written"`                  // contains %s
-	JWTRegenerated          string `yaml:"jwt_regenerated"`
-	JWTGenerated            string `yaml:"jwt_generated"`
-	RPCTokenSecretGenerated    string `yaml:"rpc_token_secret_generated"`    // contains %s
-	RPCTokenSecretRegenerated  string `yaml:"rpc_token_secret_regenerated"`
-	PasswordGenerated       string `yaml:"password_generated"`       // contains %s
-	WeixinQRLogin           string `yaml:"weixin_qr_login"`
-	FetchingQR              string `yaml:"fetching_qr"`
-	QRFailed                string `yaml:"qr_failed"`                // contains %v
-	QRFallback              string `yaml:"qr_fallback"`
-	WeixinSuccess           string `yaml:"weixin_success"`
-	ClaudeFound             string `yaml:"claude_found"`             // contains %s
-	ClaudeManualEntry       string `yaml:"claude_manual_entry"`
-	CodexFound              string `yaml:"codex_found"`              // contains %s
-	CodexManualEntry        string `yaml:"codex_manual_entry"`
-	PiFound                 string `yaml:"pi_found"`                 // contains %s
-	PiManualEntry           string `yaml:"pi_manual_entry"`
-	KimiFound               string `yaml:"kimi_found"`               // contains %s
-	KimiManualEntry         string `yaml:"kimi_manual_entry"`
-	SkillInstalled          string `yaml:"skill_installed"`          // contains %s
-	SkillUpdated            string `yaml:"skill_updated"`            // contains %s
-	SkillUpToDate           string `yaml:"skill_up_to_date"`         // contains %s
-	SkillsInstallWarning    string `yaml:"skills_install_warning"`   // contains %v
+	FoundExisting             string `yaml:"found_existing"` // contains %s
+	SectionEngine             string `yaml:"section_engine"`
+	SectionPlatform           string `yaml:"section_platform"`
+	SectionAuth               string `yaml:"section_auth"`
+	SectionAdvanced           string `yaml:"section_advanced"`
+	SectionWrite              string `yaml:"section_write"`
+	OutputFile                string `yaml:"output_file"` // contains %s
+	WriteCancelled            string `yaml:"write_cancelled"`
+	Written                   string `yaml:"written"` // contains %s
+	JWTRegenerated            string `yaml:"jwt_regenerated"`
+	JWTGenerated              string `yaml:"jwt_generated"`
+	RPCTokenSecretGenerated   string `yaml:"rpc_token_secret_generated"` // contains %s
+	RPCTokenSecretRegenerated string `yaml:"rpc_token_secret_regenerated"`
+	PasswordGenerated         string `yaml:"password_generated"` // contains %s
+	WeixinQRLogin             string `yaml:"weixin_qr_login"`
+	FetchingQR                string `yaml:"fetching_qr"`
+	QRFailed                  string `yaml:"qr_failed"` // contains %v
+	QRFallback                string `yaml:"qr_fallback"`
+	WeixinSuccess             string `yaml:"weixin_success"`
+	ClaudeFound               string `yaml:"claude_found"` // contains %s
+	ClaudeManualEntry         string `yaml:"claude_manual_entry"`
+	CodexFound                string `yaml:"codex_found"` // contains %s
+	CodexManualEntry          string `yaml:"codex_manual_entry"`
+	PiFound                   string `yaml:"pi_found"` // contains %s
+	PiManualEntry             string `yaml:"pi_manual_entry"`
+	KimiFound                 string `yaml:"kimi_found"` // contains %s
+	KimiManualEntry           string `yaml:"kimi_manual_entry"`
+	SkillInstalled            string `yaml:"skill_installed"`        // contains %s
+	SkillUpdated              string `yaml:"skill_updated"`          // contains %s
+	SkillUpToDate             string `yaml:"skill_up_to_date"`       // contains %s
+	SkillsInstallWarning      string `yaml:"skills_install_warning"` // contains %v
 }
 
 // WeixinOutput maps to Weixin QR-code login flow output.
 type WeixinOutput struct {
 	ScanQR       string `yaml:"scan_qr"`
 	Waiting      string `yaml:"waiting"`
-	PollFailed   string `yaml:"poll_failed"`   // contains %d, %v
-	PollInvalid  string `yaml:"poll_invalid"`  // contains %d, %v
+	PollFailed   string `yaml:"poll_failed"`  // contains %d, %v
+	PollInvalid  string `yaml:"poll_invalid"` // contains %d, %v
 	Scanned      string `yaml:"scanned"`
 	StillWaiting string `yaml:"still_waiting"`
 	QRExpired    string `yaml:"qr_expired"`
@@ -273,17 +273,17 @@ type EngineCommandMessages struct {
 
 // ClearCommandMessages holds text sent to IM users by the /clear command handler.
 type ClearCommandMessages struct {
-	Usage               string `yaml:"usage"`
-	WorkerNotFound      string `yaml:"worker_not_found"`        // contains %s (worker name)
-	WorkerDuplicate     string `yaml:"worker_duplicate"`        // contains %s, %s (name, id list)
-	NoContext           string `yaml:"no_context"`
-	LookupFailed        string `yaml:"lookup_failed"`
-	ConfirmHeader       string `yaml:"confirm_header"`
-	ConfirmAgentLine    string `yaml:"confirm_agent_line"`      // contains %s, %s (name, engine)
-	ConfirmTasksHeader  string `yaml:"confirm_tasks_header"`    // contains %d (task count)
-	ConfirmFooter       string `yaml:"confirm_footer"`
-	Cleared             string `yaml:"cleared"`                 // contains %s (agent/engine list)
-	ClearedWithTasks    string `yaml:"cleared_with_tasks"`      // contains %s, %d (list, cancelled count)
+	Usage                  string `yaml:"usage"`
+	WorkerNotFound         string `yaml:"worker_not_found"` // contains %s (worker name)
+	WorkerDuplicate        string `yaml:"worker_duplicate"` // contains %s, %s (name, id list)
+	NoContext              string `yaml:"no_context"`
+	LookupFailed           string `yaml:"lookup_failed"`
+	ConfirmHeader          string `yaml:"confirm_header"`
+	ConfirmAgentLine       string `yaml:"confirm_agent_line"`   // contains %s, %s (name, engine)
+	ConfirmTasksHeader     string `yaml:"confirm_tasks_header"` // contains %d (task count)
+	ConfirmFooter          string `yaml:"confirm_footer"`
+	Cleared                string `yaml:"cleared"`                   // contains %s (agent/engine list)
+	ClearedWithTasks       string `yaml:"cleared_with_tasks"`        // contains %s, %d (list, cancelled count)
 	WorkerCleared          string `yaml:"worker_cleared"`            // contains %s, %s (worker name, engine)
 	WorkerClearedWithTasks string `yaml:"worker_cleared_with_tasks"` // contains %s, %s, %d (name, engine, cancelled count)
 	WorkerConfirmHeader    string `yaml:"worker_confirm_header"`     // contains %s, %s (name, engine)
