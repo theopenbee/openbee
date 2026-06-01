@@ -75,6 +75,10 @@ func (s *ExecutionStore) Create(c ExecutionCreate) (model.WorkerExecution, error
 	return exec, nil
 }
 
+// inListChunkSize bounds how many ids we pack into a single IN (?,?,…) —
+// SQLite's default SQLITE_MAX_VARIABLE_NUMBER is 999.
+const inListChunkSize = 500
+
 const execSelect = `
 SELECT e.id, e.task_id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
        e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
@@ -195,24 +199,35 @@ func (s *ExecutionStore) GetRunningByTaskID(ctx context.Context, taskID string) 
 // RunningExecIDsByTaskIDs returns a map of task_id -> running execution id for the given tasks.
 func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error) {
 	out := make(map[string]string, len(taskIDs))
-	if len(taskIDs) == 0 {
-		return out, nil
+	for start := 0; start < len(taskIDs); start += inListChunkSize {
+		end := start + inListChunkSize
+		if end > len(taskIDs) {
+			end = len(taskIDs)
+		}
+		chunk := taskIDs[start:end]
+		args := append([]any{model.ExecStatusRunning}, stringsToArgs(chunk)...)
+		q := `SELECT task_id, id FROM bee_executions WHERE status = ? AND task_id IN (` + inPlaceholders(len(chunk)) + `)`
+		if err := s.scanRunningExecIDs(ctx, q, args, out); err != nil {
+			return nil, err
+		}
 	}
-	args := append([]any{model.ExecStatusRunning}, stringsToArgs(taskIDs)...)
-	q := `SELECT task_id, id FROM bee_executions WHERE status = ? AND task_id IN (` + inPlaceholders(len(taskIDs)) + `)`
+	return out, nil
+}
+
+func (s *ExecutionStore) scanRunningExecIDs(ctx context.Context, q string, args []any, out map[string]string) error {
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("running exec ids by task ids: %w", err)
+		return fmt.Errorf("running exec ids by task ids: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var taskID, execID string
 		if err := rows.Scan(&taskID, &execID); err != nil {
-			return nil, fmt.Errorf("scan running exec row: %w", err)
+			return fmt.Errorf("scan running exec row: %w", err)
 		}
 		out[taskID] = execID
 	}
-	return out, rows.Err()
+	return rows.Err()
 }
 
 // ListByTaskIDs returns executions grouped by task_id, newest first within each
@@ -220,12 +235,21 @@ func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []
 // limitPerTask > 0, at most that many executions are returned per task;
 // limitPerTask <= 0 returns all executions.
 func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error) {
-	if len(taskIDs) == 0 {
-		return map[string][]model.WorkerExecution{}, nil
-	}
 	out := make(map[string][]model.WorkerExecution, len(taskIDs))
-	args := stringsToArgs(taskIDs)
+	for start := 0; start < len(taskIDs); start += inListChunkSize {
+		end := start + inListChunkSize
+		if end > len(taskIDs) {
+			end = len(taskIDs)
+		}
+		if err := s.listByTaskIDsChunk(ctx, taskIDs[start:end], limitPerTask, out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
 
+func (s *ExecutionStore) listByTaskIDsChunk(ctx context.Context, taskIDs []string, limitPerTask int, out map[string][]model.WorkerExecution) error {
+	args := stringsToArgs(taskIDs)
 	var q string
 	if limitPerTask <= 0 {
 		q = execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.started_at DESC, e.rowid DESC`
@@ -247,17 +271,17 @@ func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, li
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list executions by task ids: %w", err)
+		return fmt.Errorf("list executions by task ids: %w", err)
 	}
 	defer rows.Close()
 	execs, err := scanExecutions(rows)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, e := range execs {
 		out[e.TaskID] = append(out[e.TaskID], e)
 	}
-	return out, nil
+	return nil
 }
 
 // HasActiveBeeExecutions reports whether bee-owned executions (worker_id IS NULL)

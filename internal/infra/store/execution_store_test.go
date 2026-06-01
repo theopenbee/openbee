@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -142,6 +143,62 @@ func TestExecutionStore_ListByTaskIDs_ZeroLimitReturnsAll(t *testing.T) {
 	}
 	if got["task-1"][0].ID != e3.ID || got["task-1"][1].ID != e2.ID || got["task-1"][2].ID != e1.ID {
 		t.Fatalf("unexpected newest-first order: %+v", got["task-1"])
+	}
+}
+
+func TestExecutionStore_RunningExecIDsByTaskIDs_ChunksLargeInput(t *testing.T) {
+	s := newTestExecutionStore(t)
+	ctx := context.Background()
+
+	const n = inListChunkSize*3 + 17
+	taskIDs := make([]string, n)
+	for i := range taskIDs {
+		taskIDs[i] = fmt.Sprintf("task-%05d", i)
+	}
+
+	hitA, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[1], TriggerInput: "a", SessionID: "sess-a", Engine: "claude"})
+	if err := s.UpdateStatus(hitA.ID, model.ExecStatusRunning); err != nil {
+		t.Fatalf("UpdateStatus: %v", err)
+	}
+	hitB, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[n-2], TriggerInput: "b", SessionID: "sess-b", Engine: "claude"})
+	if err := s.UpdateStatus(hitB.ID, model.ExecStatusRunning); err != nil {
+		t.Fatalf("UpdateStatus: %v", err)
+	}
+
+	got, err := s.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		t.Fatalf("RunningExecIDsByTaskIDs: %v", err)
+	}
+	if got[taskIDs[1]] != hitA.ID {
+		t.Errorf("expected hit for %s = %s, got %q", taskIDs[1], hitA.ID, got[taskIDs[1]])
+	}
+	if got[taskIDs[n-2]] != hitB.ID {
+		t.Errorf("expected hit for %s = %s, got %q", taskIDs[n-2], hitB.ID, got[taskIDs[n-2]])
+	}
+}
+
+func TestExecutionStore_ListByTaskIDs_ChunksLargeInput(t *testing.T) {
+	s := newTestExecutionStore(t)
+	ctx := context.Background()
+
+	const n = inListChunkSize*2 + 5
+	taskIDs := make([]string, n)
+	for i := range taskIDs {
+		taskIDs[i] = fmt.Sprintf("task-%05d", i)
+	}
+
+	e1, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[0], TriggerInput: "first", SessionID: "sess-1", Engine: "claude"})
+	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[n-1], TriggerInput: "last", SessionID: "sess-2", Engine: "claude"})
+
+	got, err := s.ListByTaskIDs(ctx, taskIDs, 5)
+	if err != nil {
+		t.Fatalf("ListByTaskIDs: %v", err)
+	}
+	if len(got[taskIDs[0]]) != 1 || got[taskIDs[0]][0].ID != e1.ID {
+		t.Errorf("expected %s -> %s, got %+v", taskIDs[0], e1.ID, got[taskIDs[0]])
+	}
+	if len(got[taskIDs[n-1]]) != 1 || got[taskIDs[n-1]][0].ID != e2.ID {
+		t.Errorf("expected %s -> %s, got %+v", taskIDs[n-1], e2.ID, got[taskIDs[n-1]])
 	}
 }
 
