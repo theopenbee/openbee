@@ -48,7 +48,7 @@ var ctlTaskListCmd = &cobra.Command{
 		if taskListPageSize > 0 {
 			a["page_size"] = taskListPageSize
 		}
-		if taskListExecutionLimit >= 0 {
+		if cmd.Flags().Changed("execution-limit") {
 			a["execution_limit"] = taskListExecutionLimit
 		}
 		return ctlRun(utils.ListTasks, a)
@@ -102,7 +102,7 @@ func init() {
 	ctlTaskListCmd.Flags().StringVar(&taskListTaskID, "task-id", "", "Filter by exact task ID")
 	ctlTaskListCmd.Flags().IntVar(&taskListPage, "page", 0, "Page number (default: 1)")
 	ctlTaskListCmd.Flags().IntVar(&taskListPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
-	ctlTaskListCmd.Flags().IntVar(&taskListExecutionLimit, "execution-limit", -1, "Executions per task (default: 10, max: 100; 0 = all for one task)")
+	ctlTaskListCmd.Flags().IntVar(&taskListExecutionLimit, "execution-limit", 0, "Executions per task (default: 10, max: 100; 0 = all for one matching task)")
 
 	ctlTaskCreateCmd.Flags().StringVar(&taskCreateMessageID, "message-id", "", "ID of the originating platform message (required)")
 	ctlTaskCreateCmd.Flags().StringVar(&taskCreateWorkerID, "worker-id", "", "Worker ID to assign (required)")
