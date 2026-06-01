@@ -257,32 +257,13 @@ func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
 	return nil
 }
 
-// clearWorkerQueue drops queued (not-yet-executing) tasks for the (sessionKey, workerID)
-// pair from the worker's queue. Tasks already running keep going — the command layer
-// stops their executions and cancels them in the database separately.
-func (d *TaskDispatcher) clearWorkerQueue(sessionKey, workerID string) {
-	key := queueKey(sessionKey, workerID)
-	state, ok := d.queues[key]
-	if !ok {
-		return
-	}
-	var remaining []DispatchTask
-	for _, t := range state.pendingTasks {
-		if t.SessionKey != sessionKey || t.WorkerID != workerID {
-			remaining = append(remaining, t)
-		}
-	}
-	state.pendingTasks = remaining
-	if !state.executing && len(state.pendingTasks) == 0 {
-		delete(d.queues, key)
-	}
-}
-
-func (d *TaskDispatcher) clearQueues(sessionKey string) {
+// dropQueued removes pending tasks for which keep(task) is false from every queue.
+// Empty, idle queues are deleted from d.queues.
+func (d *TaskDispatcher) dropQueued(keep func(DispatchTask) bool) {
 	for key, state := range d.queues {
 		var remaining []DispatchTask
 		for _, t := range state.pendingTasks {
-			if t.SessionKey != sessionKey {
+			if keep(t) {
 				remaining = append(remaining, t)
 			}
 		}
@@ -291,6 +272,19 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 			delete(d.queues, key)
 		}
 	}
+}
+
+// clearWorkerQueue drops queued (not-yet-executing) tasks for the (sessionKey, workerID)
+// pair. Tasks already running keep going — the command layer stops their executions
+// and cancels them in the database separately.
+func (d *TaskDispatcher) clearWorkerQueue(sessionKey, workerID string) {
+	d.dropQueued(func(t DispatchTask) bool {
+		return t.SessionKey != sessionKey || t.WorkerID != workerID
+	})
+}
+
+func (d *TaskDispatcher) clearQueues(sessionKey string) {
+	d.dropQueued(func(t DispatchTask) bool { return t.SessionKey != sessionKey })
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
