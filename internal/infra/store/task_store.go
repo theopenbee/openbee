@@ -371,34 +371,37 @@ func (s *TaskStore) CompleteScheduledTask(ctx context.Context, taskID string) (b
 	return n > 0, nil
 }
 
+// finalize transitions a task to terminal, except scheduled-cron tasks which
+// reset to pending so they re-fire on the next cron tick. Cancelled rows are
+// preserved.
+func (s *TaskStore) finalize(ctx context.Context, taskID, terminal string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE bee_tasks
+		SET status = CASE
+				WHEN type = ? AND cron_expr <> '' THEN ?
+				ELSE ?
+			END,
+			updated_at = ?
+		WHERE id = ? AND status != ?`,
+		model.TaskTypeScheduled, model.TaskStatusPending,
+		terminal, time.Now().UnixMilli(),
+		taskID, model.TaskStatusCancelled,
+	)
+	return err
+}
+
 // FailTask marks a task as failed. For scheduled tasks with a cron expression,
 // it resets to pending instead so the task retries on the next scheduled run.
 // Called by the dispatcher when a worker process exits abnormally.
 func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
-	task, err := s.GetByID(ctx, taskID)
-	if err != nil {
-		return fmt.Errorf("get task: %w", err)
-	}
-	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
-		_, err := s.CompleteScheduledTask(ctx, taskID)
-		return err
-	}
-	return s.UpdateStatus(ctx, taskID, model.TaskStatusFailed)
+	return s.finalize(ctx, taskID, model.TaskStatusFailed)
 }
 
-// CompleteTask marks a task as completed on successful worker exit.
-// For scheduled tasks with a cron expression, it resets to pending instead
-// so the task is picked up again on the next scheduled run.
+// CompleteTask marks a task as completed on successful worker exit. For
+// scheduled tasks with a cron expression, it resets to pending instead so the
+// task is picked up again on the next scheduled run.
 func (s *TaskStore) CompleteTask(ctx context.Context, taskID string) error {
-	task, err := s.GetByID(ctx, taskID)
-	if err != nil {
-		return fmt.Errorf("get task: %w", err)
-	}
-	if task.Type == model.TaskTypeScheduled && task.CronExpr != "" {
-		_, err := s.CompleteScheduledTask(ctx, taskID)
-		return err
-	}
-	return s.UpdateStatus(ctx, taskID, model.TaskStatusCompleted)
+	return s.finalize(ctx, taskID, model.TaskStatusCompleted)
 }
 
 // CountPendingByWorkerID returns the number of pending tasks for a given worker.
