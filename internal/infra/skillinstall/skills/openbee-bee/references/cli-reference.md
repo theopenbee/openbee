@@ -87,7 +87,6 @@ openbee ctl session clear-worker --session-key <key> --worker-id <id>
 
 ```bash
 openbee ctl system overview
-openbee ctl system executions [--limit <count>]
 ```
 
 ## message subcommand
