@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // TaskStore handles persistence for bee tasks.
@@ -51,34 +51,16 @@ func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) 
 	return scanTask(row)
 }
 
-// appendCSVFilter appends an IN clause for a comma-separated filter on the given column.
-// If value is empty, nothing is appended.
 func appendCSVFilter(q string, args []any, column, value string) (string, []any) {
 	if value == "" {
 		return q, args
 	}
-	values := splitTrimmed(value)
+	values := utils.SplitAndTrim(value)
 	q += " AND t." + column + " IN (" + inPlaceholders(len(values)) + ")"
 	for _, v := range values {
 		args = append(args, v)
 	}
 	return q, args
-}
-
-// splitTrimmed splits a comma-separated string and trims whitespace from each element.
-func splitTrimmed(s string) []string {
-	parts := make([]string, 0)
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == ',' {
-			v := strings.TrimSpace(s[start:i])
-			if v != "" {
-				parts = append(parts, v)
-			}
-			start = i + 1
-		}
-	}
-	return parts
 }
 
 // TaskFilter specifies filtering criteria for List and CountTasks.
