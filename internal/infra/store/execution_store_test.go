@@ -289,38 +289,6 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	}
 }
 
-func TestExecutionStore_ListBeeExecutions(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	es := NewExecutionStore(db, t.TempDir())
-
-	// Create a bee execution (worker_id = NULL)
-	bee1, err := es.Create("", "", "user said hello", "session1", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = bee1
-
-	// Create a worker execution (should not appear)
-	db.Exec(`INSERT INTO bee_workers (id, name, work_dir, status, created_at, updated_at) VALUES ('w1','test','/tmp','idle',0,0)`)
-	_, err = es.Create("w1", "", "worker task", "session2", "claude")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	results, err := es.ListBeeExecutions(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != 1 {
-		t.Errorf("expected 1 bee execution, got %d", len(results))
-	}
-}
-
 func TestExecutionStore_CreateBeeExecution(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {

@@ -469,19 +469,6 @@ func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {
 	return execs, rows.Err()
 }
 
-// ListBeeExecutions returns the bee's own execution history (worker_id IS NULL).
-func (s *ExecutionStore) ListBeeExecutions(limit int) ([]model.WorkerExecution, error) {
-	rows, err := s.db.Query(
-		execSelect+` WHERE e.worker_id IS NULL ORDER BY e.started_at DESC LIMIT ?`,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}
-
 // ListRecent returns the most recent executions (all types).
 func (s *ExecutionStore) ListRecent(limit int) ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(
