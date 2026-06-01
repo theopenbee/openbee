@@ -159,15 +159,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 	}
 }
 
-func queueKey(_, workerID string) string {
-	return workerID
-}
-
-// ExportedQueueKey is exported for testing only.
-var ExportedQueueKey = queueKey
-
 func (d *TaskDispatcher) handleInbound(task DispatchTask) {
-	key := queueKey(task.SessionKey, task.WorkerID)
+	key := task.WorkerID
 	state, ok := d.queues[key]
 	if !ok {
 		state = &queueState{}
