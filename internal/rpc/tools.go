@@ -42,6 +42,12 @@ func (s *Server) workerDisplayName(workerID string) string {
 	return name
 }
 
+// forgetWorkerName drops a cached display name so the next lookup re-reads
+// from the store. Called by update/delete paths to keep the cache fresh.
+func (s *Server) forgetWorkerName(workerID string) {
+	s.workerNameCache.Delete(workerID)
+}
+
 // checkWorkerScope enforces per-tool scope restrictions for worker tokens.
 // Bee tokens carry no workerID and are always fully trusted — only worker tokens are scope-restricted.
 func (s *Server) checkWorkerScope(ctx context.Context, toolName string) error {
@@ -315,6 +321,7 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.forgetWorkerName(params.WorkerID)
 	if params.DepartmentIDs != nil {
 		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
 			return nil, err
@@ -337,6 +344,7 @@ func (s *Server) toolDeleteWorker(args json.RawMessage) (any, error) {
 	if err := s.manager.DeleteWorker(params.WorkerID, params.DeleteWorkDir); err != nil {
 		return nil, err
 	}
+	s.forgetWorkerName(params.WorkerID)
 	return map[string]string{"status": "deleted"}, nil
 }
 
