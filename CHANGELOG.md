@@ -17,6 +17,8 @@
 
 - Fix `/clear <worker>` leaving the worker's running tasks in `running` state; the per-worker clear now stops live executions and drains the worker's queue.
 - Fix `/status` reporting tasks as `running` after they finished; a periodic reconciler now syncs task state with the underlying execution and sweeps orphaned rows.
+- Fix `/clear` and `clear_session` falsely reporting success when the task-cancel DB write failed; the error now surfaces to the caller and the dispatcher is not signalled.
+- Fix worker name shown in confirmation prompts and inbound message tagging staying stale after `update_worker` / `delete_worker`; the display-name cache is now invalidated on those mutations.
 
 ## [0.0.38] - 2026-05-31
 
