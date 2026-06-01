@@ -284,6 +284,33 @@ func (s *ExecutionStore) listByTaskIDsChunk(ctx context.Context, taskIDs []strin
 	return nil
 }
 
+// ListByIDs returns executions whose id is in ids. Order is unspecified.
+func (s *ExecutionStore) ListByIDs(ctx context.Context, ids []string) ([]model.WorkerExecution, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	out := make([]model.WorkerExecution, 0, len(ids))
+	for start := 0; start < len(ids); start += inListChunkSize {
+		end := start + inListChunkSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[start:end]
+		q := execSelect + ` WHERE e.id IN (` + inPlaceholders(len(chunk)) + `)`
+		rows, err := s.db.QueryContext(ctx, q, stringsToArgs(chunk)...)
+		if err != nil {
+			return nil, fmt.Errorf("list executions by ids: %w", err)
+		}
+		execs, err := scanExecutions(rows)
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, execs...)
+	}
+	return out, nil
+}
+
 // HasActiveBeeExecutions reports whether bee-owned executions (worker_id IS NULL)
 // with status pending or running exist.
 func (s *ExecutionStore) HasActiveBeeExecutions(ctx context.Context) (bool, error) {

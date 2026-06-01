@@ -20,6 +20,7 @@ type reconcilerTaskStore interface {
 // reconcilerExecStore is the subset of store.ExecutionStore used by the Reconciler.
 type reconcilerExecStore interface {
 	ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error)
+	ListByIDs(ctx context.Context, ids []string) ([]model.WorkerExecution, error)
 	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
 	MarkAbandoned(ctx context.Context, id, result string) (bool, error)
 }
@@ -80,43 +81,54 @@ func (r *Reconciler) reconcile(ctx context.Context) {
 		log.Error("reconciler: running exec ids", zap.Error(err))
 		return
 	}
-	latestByTask, err := r.execStore.ListByTaskIDs(ctx, taskIDs, 1)
-	if err != nil {
-		log.Error("reconciler: list executions", zap.Error(err))
-		return
+
+	uncovered := make([]string, 0, len(taskIDs))
+	runningExecIDs := make([]string, 0, len(runningIDs))
+	for _, id := range taskIDs {
+		if execID := runningIDs[id]; execID != "" {
+			runningExecIDs = append(runningExecIDs, execID)
+		} else {
+			uncovered = append(uncovered, id)
+		}
 	}
+
+	var latestByTask map[string][]model.WorkerExecution
+	if len(uncovered) > 0 {
+		latestByTask, err = r.execStore.ListByTaskIDs(ctx, uncovered, 1)
+		if err != nil {
+			log.Error("reconciler: list executions", zap.Error(err))
+			return
+		}
+	}
+
+	runningByTask := make(map[string]model.WorkerExecution, len(runningExecIDs))
+	if len(runningExecIDs) > 0 {
+		rows, err := r.execStore.ListByIDs(ctx, runningExecIDs)
+		if err != nil {
+			log.Error("reconciler: list running execs", zap.Error(err))
+			return
+		}
+		for _, e := range rows {
+			runningByTask[e.TaskID] = e
+		}
+	}
+
 	for _, t := range tasks {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
-		latest := pickLatest(latestByTask[t.ID], runningIDs[t.ID])
-		if latest == nil {
+		if exec, ok := runningByTask[t.ID]; ok {
+			r.applyDecision(ctx, t, exec)
 			continue
 		}
-		r.applyDecision(ctx, t, *latest)
-	}
-}
-
-// pickLatest selects the execution row the reconciler should act on. When a
-// running exec ID is known, the matching row is returned so liveness probing
-// targets the currently-claimed PID; otherwise the most recent row wins.
-func pickLatest(latest []model.WorkerExecution, runningID string) *model.WorkerExecution {
-	if runningID != "" {
-		for i := range latest {
-			if latest[i].ID == runningID {
-				return &latest[i]
-			}
+		latest := latestByTask[t.ID]
+		if len(latest) == 0 {
+			continue
 		}
-		// Running row exists but isn't in the latest snapshot (race with
-		// concurrent insert). Skip this tick; the next will catch it.
-		return nil
+		r.applyDecision(ctx, t, latest[0])
 	}
-	if len(latest) == 0 {
-		return nil
-	}
-	return &latest[0]
 }
 
 func (r *Reconciler) applyDecision(ctx context.Context, t model.Task, latest model.WorkerExecution) {

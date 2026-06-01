@@ -83,6 +83,21 @@ func (s *reconExecStore) ListByTaskIDs(_ context.Context, taskIDs []string, _ in
 	return out, nil
 }
 
+func (s *reconExecStore) ListByIDs(_ context.Context, ids []string) ([]model.WorkerExecution, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]model.WorkerExecution, 0, len(ids))
+	for _, id := range ids {
+		for _, e := range s.byTask {
+			if e.ID == id {
+				out = append(out, e)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 func (s *reconExecStore) RunningExecIDsByTaskIDs(_ context.Context, taskIDs []string) (map[string]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -195,6 +210,25 @@ func TestReconciler_SkipsTaskWithoutExecution(t *testing.T) {
 	if len(tasks.completed) != 0 || len(tasks.failed) != 0 {
 		t.Fatalf("expected no changes for unstarted task, got completed=%v failed=%v",
 			tasks.completed, tasks.failed)
+	}
+}
+
+func TestReconciler_SkipsListByTaskIDsWhenAllRunningKnown(t *testing.T) {
+	tasks := &reconTaskStore{
+		running: []model.Task{
+			{ID: "t1", Status: model.TaskStatusRunning},
+			{ID: "t2", Status: model.TaskStatusRunning},
+		},
+	}
+	execs := &reconExecStore{byTask: map[string]model.WorkerExecution{
+		"t1": {ID: "e1", TaskID: "t1", Status: model.ExecStatusRunning, AIProcessPID: 1234},
+		"t2": {ID: "e2", TaskID: "t2", Status: model.ExecStatusRunning, AIProcessPID: 5678},
+	}}
+	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return true })
+	task.ReconcileForTest(r, context.Background())
+
+	if execs.listByTaskIDsCalls != 0 {
+		t.Fatalf("expected 0 ListByTaskIDs calls when every task has a known running exec, got %d", execs.listByTaskIDsCalls)
 	}
 }
 
