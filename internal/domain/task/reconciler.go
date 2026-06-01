@@ -2,14 +2,13 @@ package task
 
 import (
 	"context"
-	"os"
-	"syscall"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // reconcilerTaskStore is the subset of store.TaskStore used by the Reconciler.
@@ -52,7 +51,7 @@ func NewReconciler(taskStore reconcilerTaskStore, execStore reconcilerExecStore,
 		taskStore:    taskStore,
 		execStore:    execStore,
 		interval:     interval,
-		processAlive: defaultProcessAlive,
+		processAlive: utils.IsProcessAlive,
 	}
 }
 
@@ -151,18 +150,3 @@ func (r *Reconciler) latestExecution(ctx context.Context, taskID string) (*model
 	return &latest, nil
 }
 
-// defaultProcessAlive reports whether a process with the given PID is alive,
-// using a 0-signal probe (POSIX) that returns ESRCH for dead PIDs.
-func defaultProcessAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	if err := p.Signal(syscall.Signal(0)); err != nil {
-		return false
-	}
-	return true
-}

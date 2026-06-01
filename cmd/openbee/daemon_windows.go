@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // spawnDaemon starts exe with args as a detached background process on Windows.
@@ -45,21 +47,6 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 // are not implemented for the Windows process model.
 func isPIDForeign(_ int) bool { return false }
 
-// isAlive reports whether a process with the given PID is running on Windows.
-func isAlive(pid int) bool {
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
-	if err != nil {
-		return false
-	}
-	defer windows.CloseHandle(h)
-	var code uint32
-	if err := windows.GetExitCodeProcess(h, &code); err != nil {
-		return false
-	}
-	const stillActive = 259 // STILL_ACTIVE / STATUS_PENDING
-	return code == stillActive
-}
-
 // stopProcess sends CTRL_BREAK_EVENT to pid for graceful shutdown, then force-kills after 15 s.
 func stopProcess(pid int) error {
 	if err := windows.GenerateConsoleCtrlEvent(windows.CTRL_BREAK_EVENT, uint32(pid)); err != nil {
@@ -73,7 +60,7 @@ func stopProcess(pid int) error {
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(200 * time.Millisecond)
-		if !isAlive(pid) {
+		if !utils.IsProcessAlive(pid) {
 			return nil
 		}
 	}

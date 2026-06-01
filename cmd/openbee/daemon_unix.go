@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // spawnDaemon starts exe with args as a detached background process, redirecting
@@ -41,16 +43,6 @@ func isPIDForeign(pid int) bool {
 	return syscall.Kill(pid, 0) == syscall.EPERM
 }
 
-// isAlive reports whether a process with the given PID is running.
-// Uses kill(pid, 0) — the zero-signal POSIX liveness probe.
-// Note: EPERM means the process exists but is owned by another user. This can
-// happen if the daemon PID was recycled by a foreign process after the daemon died.
-// Treating EPERM as "not alive" is the conservative choice — we will never signal
-// a process we do not own, so returning false is correct here.
-func isAlive(pid int) bool {
-	return syscall.Kill(pid, 0) == nil
-}
-
 // stopProcess sends SIGTERM to pid, waits up to 15 s, then force-kills with SIGKILL.
 func stopProcess(pid int) error {
 	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
@@ -59,7 +51,7 @@ func stopProcess(pid int) error {
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(200 * time.Millisecond)
-		if !isAlive(pid) {
+		if !utils.IsProcessAlive(pid) {
 			return nil
 		}
 	}
