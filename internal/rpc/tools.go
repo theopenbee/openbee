@@ -137,6 +137,31 @@ type ActiveTaskSummary struct {
 	Status      string `json:"status"`
 }
 
+// buildActiveTasksConfirmation packages the shared confirmation payload that
+// clear_session and clear_worker_session return when active tasks block the
+// clear. extras are merged into the returned map (e.g. worker_id for the
+// worker-scoped variant).
+func buildActiveTasksConfirmation(tasks []model.Task, message string, extras map[string]any) map[string]any {
+	summaries := make([]ActiveTaskSummary, 0, len(tasks))
+	for _, t := range tasks {
+		summaries = append(summaries, ActiveTaskSummary{
+			TaskID:      t.ID,
+			Instruction: t.Instruction,
+			Status:      t.Status,
+		})
+	}
+	out := map[string]any{
+		"requires_confirmation": true,
+		"reason":                ClearReasonActiveTasks,
+		"running_tasks":         summaries,
+		"message":               message,
+	}
+	for k, v := range extras {
+		out[k] = v
+	}
+	return out
+}
+
 type LinkedWorkerSummary struct {
 	WorkerID string `json:"worker_id"`
 	Name     string `json:"name"`
@@ -627,20 +652,11 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 	}
 
 	if !result.Cleared && len(result.ActiveTasks) > 0 {
-		summaries := make([]ActiveTaskSummary, 0, len(result.ActiveTasks))
-		for _, t := range result.ActiveTasks {
-			summaries = append(summaries, ActiveTaskSummary{
-				TaskID:      t.ID,
-				Instruction: t.Instruction,
-				Status:      t.Status,
-			})
-		}
-		return map[string]any{
-			"requires_confirmation": true,
-			"reason":                ClearReasonActiveTasks,
-			"running_tasks":         summaries,
-			"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
-		}, nil
+		return buildActiveTasksConfirmation(
+			result.ActiveTasks,
+			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
+			nil,
+		), nil
 	}
 
 	if !result.Cleared {
@@ -892,22 +908,14 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 	}
 
 	if !result.Cleared && len(result.ActiveTasks) > 0 {
-		summaries := make([]ActiveTaskSummary, 0, len(result.ActiveTasks))
-		for _, t := range result.ActiveTasks {
-			summaries = append(summaries, ActiveTaskSummary{
-				TaskID:      t.ID,
-				Instruction: t.Instruction,
-				Status:      t.Status,
-			})
-		}
-		return map[string]any{
-			"requires_confirmation": true,
-			"reason":                ClearReasonActiveTasks,
-			"running_tasks":         summaries,
-			"worker_id":             params.WorkerID,
-			"worker_name":           s.workerDisplayName(params.WorkerID),
-			"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
-		}, nil
+		return buildActiveTasksConfirmation(
+			result.ActiveTasks,
+			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
+			map[string]any{
+				"worker_id":   params.WorkerID,
+				"worker_name": s.workerDisplayName(params.WorkerID),
+			},
+		), nil
 	}
 
 	return map[string]any{
