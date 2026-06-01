@@ -123,8 +123,8 @@ var configOutputPath string
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactively generate a config file",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := runConfig(cmd, args)
+	RunE: func(_ *cobra.Command, _ []string) error {
+		err := runConfig()
 		if errors.Is(err, errInterrupted) {
 			return nil
 		}
@@ -206,7 +206,7 @@ func loadExistingConfig(path string) *configValues {
 	}
 }
 
-func runConfig(cmd *cobra.Command, args []string) error {
+func runConfig() error {
 	vals := configValues{
 		ServerPort:             "8080",
 		ServerHost:             "localhost",
