@@ -109,8 +109,7 @@ func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 	return scanExecutions(rows)
 }
 
-// CountSessions returns the total number of distinct sessions. workerID
-// scopes the count to one worker; empty workerID counts across all workers.
+// CountSessions returns the count of distinct sessions; empty workerID spans all workers.
 func (s *ExecutionStore) CountSessions(workerID string) (int, error) {
 	q := `SELECT COUNT(DISTINCT session_id) FROM bee_executions`
 	var args []any

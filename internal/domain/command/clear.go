@@ -206,7 +206,6 @@ func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 	return sessionKey + "::" + cmd
 }
 
-// consumePending atomically retrieves and removes a valid (non-expired) pending entry.
 func (h *ClearCommandHandler) consumePending(key string) bool {
 	now := h.now()
 	h.mu.Lock()
@@ -219,8 +218,8 @@ func (h *ClearCommandHandler) consumePending(key string) bool {
 	return true
 }
 
-// storePending records a confirmation deadline and opportunistically reaps any
-// other expired entries — the only path that grows the map, so it bounds size.
+// storePending opportunistically reaps expired entries — the only path that
+// grows the map, so it bounds size.
 func (h *ClearCommandHandler) storePending(key string) {
 	now := h.now()
 	h.mu.Lock()

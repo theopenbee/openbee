@@ -760,7 +760,6 @@ func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) 
 }
 
 func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
-	// Worker counts
 	workerCounts, err := s.workerStore.CountByStatus()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worker counts: %w", err)
@@ -770,7 +769,6 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 		total += c
 	}
 
-	// Task counts
 	taskCounts, err := s.taskStore.CountAllByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task counts: %w", err)

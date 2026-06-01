@@ -83,21 +83,21 @@ type clearWorkerRequest struct {
 
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx             context.Context               // injected by Run; controls the dispatcher lifecycle
-	manager         ExecutionManager              // launches worker executions
-	taskStore       TaskStore                     // persists task-to-execution mapping and state
-	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
-	execStore       ExecutionQuerier              // queries execution state by ID
-	engineCfg       *enginecfg.Store              // resolves the current default engine
-	failureNotifier FailureNotifier               // sends failure notifications (optional)
-	workerLookup    WorkerLookup                  // optional; if nil, no persona is injected
-	inCh            <-chan DispatchTask           // inbound task channel
-	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
-	queues          map[string]*queueState        // per-workerID serial queues
-	clearCh         chan string                   // receives sessionKey signals that need to be cleaned up
-	clearWorkerCh   chan clearWorkerRequest       // receives (sessionKey, workerID) signals to clear a single worker's queue
-	cancelFuncs     map[string]context.CancelFunc // taskID → cancel func; owned by Run loop
-	cancelCh        chan string                   // receives taskID cancel requests
+	ctx             context.Context
+	manager         ExecutionManager
+	taskStore       TaskStore
+	sessionStore    SessionStore
+	execStore       ExecutionQuerier
+	engineCfg       *enginecfg.Store
+	failureNotifier FailureNotifier
+	workerLookup    WorkerLookup // nil disables persona injection
+	inCh            <-chan DispatchTask
+	resultsCh       chan internalResult
+	queues          map[string]*queueState // per-workerID serial queues
+	clearCh         chan string
+	clearWorkerCh   chan clearWorkerRequest
+	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
+	cancelCh        chan string
 }
 
 // New constructs a TaskDispatcher.

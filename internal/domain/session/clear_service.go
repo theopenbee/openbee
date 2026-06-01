@@ -31,13 +31,11 @@ const (
 	OpCancelTask   = "cancel_task"
 )
 
-// SessionStore is the slice of *store.SessionStore the clear service needs.
 type SessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
 }
 
-// TaskStore is the slice of *store.TaskStore the clear service needs.
 type TaskStore interface {
 	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
 	Cancel(ctx context.Context, f store.CancelFilter) (int64, error)

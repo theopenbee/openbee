@@ -11,13 +11,11 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-// reconcilerTaskStore is the subset of store.TaskStore used by the Reconciler.
 type reconcilerTaskStore interface {
 	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
 	UpdateStatusIfRunning(ctx context.Context, taskID, next string) (bool, error)
 }
 
-// reconcilerExecStore is the subset of store.ExecutionStore used by the Reconciler.
 type reconcilerExecStore interface {
 	ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error)
 	ListByIDs(ctx context.Context, ids []string) ([]model.WorkerExecution, error)
