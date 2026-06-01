@@ -409,39 +409,65 @@ type taskWithExecutions struct {
 
 func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		MessageID  string `json:"message_id"`
-		SessionKey string `json:"session_key"`
-		WorkerID   string `json:"worker_id"`
-		Status     string `json:"status"`
-		Type       string `json:"type"`
+		TaskID         string `json:"task_id"`
+		MessageID      string `json:"message_id"`
+		SessionKey     string `json:"session_key"`
+		WorkerID       string `json:"worker_id"`
+		Status         string `json:"status"`
+		Type           string `json:"type"`
+		Page           int    `json:"page"`
+		PageSize       int    `json:"page_size"`
+		ExecutionLimit *int   `json:"execution_limit"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
+	if params.TaskID != "" && (params.MessageID != "" || params.SessionKey != "" || params.WorkerID != "") {
+		return nil, fmt.Errorf("task_id cannot be combined with message_id, session_key, or worker_id")
+	}
 	if params.MessageID != "" && params.SessionKey != "" {
 		return nil, fmt.Errorf("message_id and session_key are mutually exclusive")
 	}
-	if params.MessageID == "" && params.SessionKey == "" && params.WorkerID == "" {
-		return nil, fmt.Errorf("at least one of message_id, session_key, or worker_id is required")
+	if params.TaskID == "" && params.MessageID == "" && params.SessionKey == "" && params.WorkerID == "" {
+		return nil, fmt.Errorf("at least one of task_id, message_id, session_key, or worker_id is required")
 	}
-	tasks, err := s.taskStore.List(ctx, store.TaskFilter{
+
+	page, pageSize, offset := normalizePage(params.Page, params.PageSize, maxTaskPageSize)
+	if params.PageSize < 1 {
+		pageSize = defaultTaskPageSize
+		offset = (page - 1) * pageSize
+	}
+
+	filter := store.TaskFilter{
+		TaskID:     params.TaskID,
 		MessageID:  params.MessageID,
 		SessionKey: params.SessionKey,
 		WorkerID:   params.WorkerID,
 		Status:     params.Status,
 		Type:       params.Type,
-	})
+		Limit:      pageSize,
+		Offset:     offset,
+	}
+	total, err := s.taskStore.CountTasks(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("count tasks: %w", err)
+	}
+	tasks, err := s.taskStore.List(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 	if tasks == nil {
 		tasks = []model.Task{}
 	}
+	executionLimit, err := normalizeTaskExecutionLimit(params.ExecutionLimit, len(tasks))
+	if err != nil {
+		return nil, err
+	}
 	taskIDs := make([]string, 0, len(tasks))
 	for _, t := range tasks {
 		taskIDs = append(taskIDs, t.ID)
 	}
-	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs, 0)
+	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs, executionLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list executions for tasks: %w", err)
 	}
@@ -453,7 +479,7 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 		}
 		out = append(out, taskWithExecutions{Task: t, Executions: execs})
 	}
-	return out, nil
+	return pagedResult(out, total, page, pageSize), nil
 }
 
 func (s *Server) finalizeCancelledExecution(ctx context.Context, executionID string) {
@@ -1212,6 +1238,32 @@ func (s *Server) listWorkersRecursive(idOrName string) ([]string, error) {
 		return nil, fmt.Errorf("get department workers: %w", err)
 	}
 	return workerIDs, nil
+}
+
+const (
+	defaultTaskPageSize       = 50
+	maxTaskPageSize           = 100
+	defaultTaskExecutionLimit = 10
+	maxTaskExecutionLimit     = 100
+)
+
+func normalizeTaskExecutionLimit(raw *int, matchedTasks int) (int, error) {
+	if raw == nil {
+		return defaultTaskExecutionLimit, nil
+	}
+	if *raw == 0 {
+		if matchedTasks != 1 {
+			return 0, fmt.Errorf("execution_limit=0 requires exactly one matching task; use task_id to select one task")
+		}
+		return 0, nil
+	}
+	if *raw < 0 {
+		return 0, fmt.Errorf("execution_limit must be >= 0")
+	}
+	if *raw > maxTaskExecutionLimit {
+		return maxTaskExecutionLimit, nil
+	}
+	return *raw, nil
 }
 
 func pagedResult(items any, total, page, pageSize int) map[string]any {

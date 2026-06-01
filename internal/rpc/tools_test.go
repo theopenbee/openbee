@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -464,14 +465,7 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_tasks by session_key: %v", err)
 	}
-	b, err := json.Marshal(result)
-	if err != nil {
-		t.Fatalf("marshal result: %v", err)
-	}
-	var tasks []map[string]any
-	if err := json.Unmarshal(b, &tasks); err != nil {
-		t.Fatalf("unmarshal tasks: %v", err)
-	}
+	tasks, _ := decodePagedTaskItems(t, result)
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 task, got %d", len(tasks))
 	}
@@ -1293,23 +1287,17 @@ func TestToolListTasks_IncludesExecutions(t *testing.T) {
 		t.Fatalf("list_tasks: %v", err)
 	}
 
-	b, err := json.Marshal(result)
-	if err != nil {
-		t.Fatalf("marshal result: %v", err)
-	}
-	var tasks []map[string]any
-	if err := json.Unmarshal(b, &tasks); err != nil {
-		t.Fatalf("unmarshal tasks: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected 1 task, got %d", len(tasks))
-	}
+	b, _ := json.Marshal(result)
 	raw := string(b)
 	if !strings.Contains(raw, `"executions"`) {
 		t.Errorf("response does not contain 'executions' key: %s", raw)
 	}
 	if !strings.Contains(raw, exec.ID) {
 		t.Errorf("response does not contain execution id %s: %s", exec.ID, raw)
+	}
+	tasks, _ := decodePagedTaskItems(t, result)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
 	}
 	execsAny, ok := tasks[0]["executions"]
 	if !ok {
@@ -1321,6 +1309,90 @@ func TestToolListTasks_IncludesExecutions(t *testing.T) {
 	}
 	if len(execsList) != 1 {
 		t.Errorf("expected 1 execution, got %d", len(execsList))
+	}
+}
+
+func decodePagedTaskItems(t *testing.T, result any) ([]map[string]any, map[string]any) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var page map[string]any
+	if err := json.Unmarshal(b, &page); err != nil {
+		t.Fatalf("unmarshal page: %v", err)
+	}
+	rawItems, ok := page["items"].([]any)
+	if !ok {
+		t.Fatalf("items missing or not array: %T", page["items"])
+	}
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("item is not object: %T", raw)
+		}
+		items = append(items, item)
+	}
+	return items, page
+}
+
+func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-page", "session-PAGE", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	w := workerResult.(model.Worker)
+	ts := store.NewTaskStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
+
+	var newestExecForFirstTask string
+	for i := 0; i < 3; i++ {
+		taskID, err := ts.Create(ctx, model.Task{
+			MessageID: "msg-page", WorkerID: w.ID, Instruction: fmt.Sprintf("task-%d", i),
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+			CreatedAt: int64(i + 1), UpdatedAt: int64(i + 1),
+		})
+		if err != nil {
+			t.Fatalf("Create task %d: %v", i, err)
+		}
+		for j := 0; j < 3; j++ {
+			exec, err := es.Create(w.ID, taskID, fmt.Sprintf("run-%d-%d", i, j), fmt.Sprintf("sess-%d-%d", i, j), "claude")
+			if err != nil {
+				t.Fatalf("Create execution %d/%d: %v", i, j, err)
+			}
+			if i == 2 && j == 2 {
+				newestExecForFirstTask = exec.ID
+			}
+		}
+	}
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{
+		"worker_id":       w.ID,
+		"page":            1,
+		"page_size":       2,
+		"execution_limit": 1,
+	}))
+	if err != nil {
+		t.Fatalf("list_tasks: %v", err)
+	}
+	items, page := decodePagedTaskItems(t, result)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 paged items, got %d", len(items))
+	}
+	if int(page["total"].(float64)) != 3 {
+		t.Fatalf("expected total 3, got %v", page["total"])
+	}
+	execs, ok := items[0]["executions"].([]any)
+	if !ok || len(execs) != 1 {
+		t.Fatalf("expected first item to include exactly 1 execution, got %#v", items[0]["executions"])
+	}
+	firstExec := execs[0].(map[string]any)
+	if firstExec["id"] != newestExecForFirstTask {
+		t.Fatalf("expected newest execution %s, got %v", newestExecForFirstTask, firstExec["id"])
 	}
 }
 
