@@ -103,10 +103,11 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 
 func TestExecutionStore_ListByTaskIDs_LimitsExecutionsPerTask(t *testing.T) {
 	s := newTestExecutionStore(t)
-	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
+	if _, err := s.Create("w1", "task-1", "first", "sess-1", "claude"); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
 	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
 	e3, _ := s.Create("w1", "task-1", "third", "sess-3", "claude")
-	_, _, _ = e1, e2, e3
 	if _, err := s.Create("w1", "task-2", "other", "sess-4", "claude"); err != nil {
 		t.Fatalf("Create task-2 execution: %v", err)
 	}
