@@ -5,6 +5,8 @@
 ### Removed
 
 - Remove the `recent_executions` field from `ctl system overview` / `get_system_overview`; the overview now returns only worker status distribution and task stats. Per-task execution history is still available via the `executions` array on `ctl task list`.
+- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline with each task by `ctl task list`
+- Remove the `openbee ctl system executions` subcommand, the `list_bee_executions` tool, and the bee self-reflection skill guidance that referenced them; bee execution history is no longer exposed via CLI or MCP, though `ctl system overview` still surfaces the most recent executions inline
 
 ### Fixed
 
@@ -12,19 +14,17 @@
 - Fix `/clear <worker>` leaving the worker's running tasks in `running` state. The per-worker clear now stops the live executions, cancels the worker's pending/running immediate tasks, and drains the dispatcher queue for that worker (with a 30s confirm prompt when running tasks would be terminated).
 - Fix `/status` reporting tasks as running long after they finished. Three causes were addressed: the dispatcher's 30-minute poll deadline that abandoned tasks in `running` when the worker outlived it; `launchRuntime` creating the worker process context from `context.Background()`, which prevented dispatcher-side cancellation from killing the process; and the absence of any in-flight reconciliation between server restarts. A periodic reconciler now syncs `running` tasks with their execution's terminal state and sweeps orphaned rows whose tracked PID is gone
 
-## [0.0.38] - 2026-05-31
-
-### Removed
-
-- Remove `openbee claude download` and `openbee claude env` subcommands
-- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline with each task by `ctl task list`
-- Remove the `openbee ctl system executions` subcommand, the `list_bee_executions` tool, and the bee self-reflection skill guidance that referenced them; bee execution history is no longer exposed via CLI or MCP, though `ctl system overview` still surfaces the most recent executions inline
-
 ### Changed
 
 - `ctl task list` (and the `list_tasks` tool) now returns each task with its associated execution records in an `executions` array
 - Executions now reference their task via `task_id` (replacing `bee_tasks.execution_id`), so a task can carry its full execution history
 - Bound `ctl task list` / `list_tasks` output with task pagination and a per-task execution history limit to avoid oversized responses on long-running installations
+
+## [0.0.38] - 2026-05-31
+
+### Removed
+
+- Remove `openbee claude download` and `openbee claude env` subcommands
 
 ## [0.0.37] - 2026-05-11
 
