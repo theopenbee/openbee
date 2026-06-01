@@ -77,6 +77,11 @@ type internalResult struct {
 	task     DispatchTask
 }
 
+type clearWorkerRequest struct {
+	sessionKey string
+	workerID   string
+}
+
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
 	ctx             context.Context               // injected by Run; controls the dispatcher lifecycle
@@ -91,6 +96,7 @@ type TaskDispatcher struct {
 	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
 	queues          map[string]*queueState        // per-workerID serial queues
 	clearCh         chan string                   // receives sessionKey signals that need to be cleaned up
+	clearWorkerCh   chan clearWorkerRequest       // receives (sessionKey, workerID) signals to clear a single worker's queue
 	cancelFuncs     map[string]context.CancelFunc // taskID → cancel func; owned by Run loop
 	cancelCh        chan string                   // receives taskID cancel requests
 }
@@ -106,9 +112,10 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
-		clearCh:      make(chan string, 8),
-		cancelFuncs:  make(map[string]context.CancelFunc),
-		cancelCh:     make(chan string, 16),
+		clearCh:       make(chan string, 8),
+		clearWorkerCh: make(chan clearWorkerRequest, 16),
+		cancelFuncs:   make(map[string]context.CancelFunc),
+		cancelCh:      make(chan string, 16),
 	}
 	for _, o := range opts {
 		o(d)
@@ -143,6 +150,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 			d.handleResult(res)
 		case sessionKey := <-d.clearCh:
 			d.clearQueues(sessionKey)
+		case req := <-d.clearWorkerCh:
+			d.clearWorkerQueue(req.sessionKey, req.workerID)
 		case taskID := <-d.cancelCh:
 			d.handleCancel(taskID)
 		case <-ctx.Done():
@@ -180,6 +189,22 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 		d.cancelFuncs[task.TaskID] = cancel
 	}
 	go d.executeAsync(taskCtx, cancel, key, task)
+}
+
+// ClearWorker removes queued tasks for the given (sessionKey, workerID) pair from the
+// dispatcher's in-memory queues. Safe to call from any goroutine.
+//
+// The caller is responsible for stopping any currently executing worker via
+// StopExecution and marking tasks cancelled in the database; this method only
+// drains the pending tail of the queue so no future tasks fire for that pair.
+func (d *TaskDispatcher) ClearWorker(sessionKey, workerID string) {
+	select {
+	case d.clearWorkerCh <- clearWorkerRequest{sessionKey: sessionKey, workerID: workerID}:
+	default:
+		log.Warn("clearWorkerCh full, dropping clear",
+			zap.String("sessionKey", sessionKey),
+			zap.String("workerID", workerID))
+	}
 }
 
 // ClearSession removes all queued tasks for the given session and clears session contexts.
@@ -231,6 +256,27 @@ func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
 		log.Warn("cancelCh full, in-memory cancel dropped", zap.String("taskID", taskID))
 	}
 	return nil
+}
+
+// clearWorkerQueue drops queued (not-yet-executing) tasks for the (sessionKey, workerID)
+// pair from the worker's queue. Tasks already running keep going — the command layer
+// stops their executions and cancels them in the database separately.
+func (d *TaskDispatcher) clearWorkerQueue(sessionKey, workerID string) {
+	key := queueKey(sessionKey, workerID)
+	state, ok := d.queues[key]
+	if !ok {
+		return
+	}
+	var remaining []DispatchTask
+	for _, t := range state.pendingTasks {
+		if t.SessionKey != sessionKey || t.WorkerID != workerID {
+			remaining = append(remaining, t)
+		}
+	}
+	state.pendingTasks = remaining
+	if !state.executing && len(state.pendingTasks) == 0 {
+		delete(d.queues, key)
+	}
 }
 
 func (d *TaskDispatcher) clearQueues(sessionKey string) {

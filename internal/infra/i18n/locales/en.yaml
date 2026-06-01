@@ -224,6 +224,9 @@ runtime:
     cleared: "✅ Cleared: %s"
     cleared_with_tasks: "✅ Cleared: %s. Cancelled %d task(s)."
     worker_cleared: "✅ Cleared %s (engine: %s)."
+    worker_cleared_with_tasks: "✅ Cleared %s (engine: %s). Cancelled %d task(s)."
+    worker_confirm_header: "⚠️ Will clear session context for %s (engine: %s)."
+    worker_confirm_footer: "Send /clear %s again within 30s to confirm."
   stop_command:
     stopped: "✅ Stopped bee execution"
     stopped_with_messages: "✅ Stopped bee execution and cancelled %d pending message(s)"

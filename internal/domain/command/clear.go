@@ -31,6 +31,8 @@ type ClearSessionStore interface {
 type ClearTaskStore interface {
 	TaskBySessionLister
 	CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error)
+	ListBySessionAndWorker(ctx context.Context, sessionKey, workerID, status, taskType string) ([]model.Task, error)
+	CancelBySessionAndWorker(ctx context.Context, sessionKey, workerID, taskType string) (int64, error)
 }
 
 type ClearExecStopper interface {
@@ -39,6 +41,7 @@ type ClearExecStopper interface {
 
 type ClearSessionDispatcher interface {
 	ClearSession(sessionKey string)
+	ClearWorker(sessionKey, workerID string)
 }
 
 type ClearCommandHandler struct {
@@ -204,17 +207,73 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	w := workers[0]
 	activeEngine := h.engineCfg.Resolve(w.Engine)
 
+	runningTasks, err := h.tasks.ListBySessionAndWorker(ctx, sessionKey, w.ID, model.TaskStatusRunning, model.TaskTypeImmediate)
+	if err != nil {
+		log.Error("list running tasks for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
+		return
+	}
+
+	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
+	confirmed := h.consumePending(pendingKey)
+	if len(runningTasks) > 0 && !confirmed {
+		h.storePending(pendingKey)
+		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(w, activeEngine, runningTasks))
+		return
+	}
+
+	for _, t := range runningTasks {
+		if t.ExecutionID == "" {
+			continue
+		}
+		if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
+			log.Error("stop execution for /clear worker", zap.String("executionID", t.ExecutionID), zap.Error(err))
+		}
+	}
+
+	cancelled, err := h.tasks.CancelBySessionAndWorker(ctx, sessionKey, w.ID, model.TaskTypeImmediate)
+	if err != nil {
+		log.Error("cancel tasks for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
+	}
+
 	deleted, err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
 	if err != nil {
 		log.Error("delete worker session context", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
-	if !deleted {
+
+	h.sessionClear.ClearWorker(sessionKey, w.ID)
+
+	// When the worker had no active session context AND no running tasks were cancelled,
+	// there was nothing to clear; tell the user instead of pretending we did something.
+	if !deleted && cancelled == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
-	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, activeEngine))
+
+	if cancelled > 0 {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerClearedWithTasks, w.Name, activeEngine, cancelled))
+	} else {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, activeEngine))
+	}
+}
+
+func (h *ClearCommandHandler) formatWorkerConfirmPrompt(w model.Worker, engine string, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	nowMs := h.now().UnixMilli()
+	workerNames := map[string]string{w.ID: w.Name}
+
+	lines := make([]string, 0, 5+len(tasks))
+	lines = append(lines, fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine))
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
+	for _, t := range tasks {
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
+	}
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf(m.WorkerConfirmFooter, w.Name))
+	return strings.Join(lines, "\n")
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
