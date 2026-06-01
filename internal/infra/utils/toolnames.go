@@ -14,7 +14,6 @@ const (
 	ClearSession         = "clear_session"
 	GetWorkerStatus      = "get_worker_status"
 	GetSystemOverview    = "get_system_overview"
-	ListBeeExecutions    = "list_bee_executions"
 	SaveConstraint       = "save_constraint"
 	GetConstraint        = "get_constraint"
 	DeleteConstraint     = "delete_constraint"
