@@ -9,7 +9,7 @@ var ctlSystemCmd = &cobra.Command{Use: "system", Short: ""}
 
 var ctlSystemOverviewCmd = &cobra.Command{
 	Use:   "overview",
-	Short: "Show system overview: worker status distribution, task stats, recent executions",
+	Short: "Show system overview: worker status distribution, task stats",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(utils.GetSystemOverview, nil)
 	},

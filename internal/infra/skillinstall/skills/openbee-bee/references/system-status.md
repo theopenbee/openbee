@@ -6,7 +6,7 @@ You can view the system's running state to make better decisions.
 # View worker current status
 openbee ctl worker status <id>
 
-# View overall system overview (worker distribution, task stats, recent executions)
+# View overall system overview (worker distribution, task stats)
 openbee ctl system overview
 ```
 

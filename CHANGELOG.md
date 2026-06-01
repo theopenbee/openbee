@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- Remove the `recent_executions` field from `ctl system overview` / `get_system_overview`; the overview now returns only worker status distribution and task stats. Per-task execution history is still available via the `executions` array on `ctl task list`.
+
 ### Fixed
 
 - Fix `/clear <worker>` leaving the worker's running tasks in `running` state. The per-worker clear now stops the live executions, cancels the worker's pending/running immediate tasks, and drains the dispatcher queue for that worker (with a 30s confirm prompt when running tasks would be terminated).

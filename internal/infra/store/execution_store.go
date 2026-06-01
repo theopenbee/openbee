@@ -479,16 +479,3 @@ func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {
 	}
 	return execs, rows.Err()
 }
-
-// ListRecent returns the most recent executions (all types).
-func (s *ExecutionStore) ListRecent(limit int) ([]model.WorkerExecution, error) {
-	rows, err := s.db.Query(
-		execSelect+` ORDER BY e.started_at DESC LIMIT ?`,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}

@@ -807,19 +807,6 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 
 	scheduledActive, _ := s.taskStore.CountScheduledActive(ctx)
 
-	recentExecs, _ := s.executionStore.ListRecent(5)
-
-	recentList := make([]map[string]any, 0, len(recentExecs))
-	for _, e := range recentExecs {
-		recentList = append(recentList, map[string]any{
-			"id":           e.ID,
-			"worker_name":  e.WorkerName,
-			"status":       string(e.Status),
-			"started_at":   e.StartedAt,
-			"completed_at": e.CompletedAt,
-		})
-	}
-
 	return map[string]any{
 		"workers": map[string]any{
 			"total":   total,
@@ -835,7 +822,6 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 			"cancelled":        taskCounts[model.TaskStatusCancelled],
 			"scheduled_active": scheduledActive,
 		},
-		"recent_executions": recentList,
 	}, nil
 }
 
