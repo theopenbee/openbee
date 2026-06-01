@@ -156,12 +156,17 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
                pm.session_key, pm.platform
         FROM bee_tasks t
         JOIN bee_platform_messages pm ON pm.id = t.message_id
-        WHERE t.status = 'pending'
+        WHERE t.status = ?
           AND (
-            t.type = 'immediate'
-            OR (t.type = 'countdown' AND t.scheduled_at <= ?)
-            OR (t.type = 'scheduled' AND (t.next_run_at IS NULL OR t.next_run_at <= ?))
-          )`, nowMS, nowMS)
+            t.type = ?
+            OR (t.type = ? AND t.scheduled_at <= ?)
+            OR (t.type = ? AND (t.next_run_at IS NULL OR t.next_run_at <= ?))
+          )`,
+		model.TaskStatusPending,
+		model.TaskTypeImmediate,
+		model.TaskTypeCountdown, nowMS,
+		model.TaskTypeScheduled, nowMS,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("query due tasks: %w", err)
 	}
@@ -203,8 +208,8 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 				nextRun, now, ct.ID)
 		} else {
 			_, err = tx.ExecContext(ctx,
-				`UPDATE bee_tasks SET status = 'running', updated_at = ? WHERE id = ?`,
-				now, ct.ID)
+				`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ?`,
+				model.TaskStatusRunning, now, ct.ID)
 			claimed[i].Status = model.TaskStatusRunning
 		}
 		if err != nil {
@@ -227,9 +232,10 @@ func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]m
 		       scheduled_at, cron_expr, next_run_at,
 		       created_at, updated_at
 		FROM bee_tasks
-		WHERE type = 'scheduled'
-		  AND status = 'pending'
-		  AND (next_run_at IS NULL OR next_run_at <= ?)`, nowMS)
+		WHERE type = ?
+		  AND status = ?
+		  AND (next_run_at IS NULL OR next_run_at <= ?)`,
+		model.TaskTypeScheduled, model.TaskStatusPending, nowMS)
 	if err != nil {
 		return nil, fmt.Errorf("peek due scheduled tasks: %w", err)
 	}
@@ -240,8 +246,9 @@ func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]m
 // CancelTask sets a task status to cancelled.
 func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'running')`,
-		time.Now().UnixMilli(), taskID)
+		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ? AND status IN (?, ?)`,
+		model.TaskStatusCancelled, time.Now().UnixMilli(), taskID,
+		model.TaskStatusPending, model.TaskStatusRunning)
 	return err
 }
 
@@ -274,9 +281,10 @@ func (s *TaskStore) UpdateStatusIfRunning(ctx context.Context, taskID, next stri
 // CancelByWorkerID cancels all pending/running tasks for a given worker.
 func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
-         WHERE worker_id = ? AND status IN ('pending','running')`,
-		time.Now().UnixMilli(), workerID)
+		`UPDATE bee_tasks SET status = ?, updated_at = ?
+         WHERE worker_id = ? AND status IN (?, ?)`,
+		model.TaskStatusCancelled, time.Now().UnixMilli(), workerID,
+		model.TaskStatusPending, model.TaskStatusRunning)
 	return err
 }
 
@@ -293,9 +301,10 @@ func (s *TaskStore) Cancel(ctx context.Context, f CancelFilter) (int64, error) {
 	if f.SessionKey == "" && f.WorkerID == "" {
 		return 0, fmt.Errorf("cancel: SessionKey or WorkerID required")
 	}
-	q := `UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
-	      WHERE status IN ('pending', 'running')`
-	args := []any{time.Now().UnixMilli()}
+	q := `UPDATE bee_tasks SET status = ?, updated_at = ?
+	      WHERE status IN (?, ?)`
+	args := []any{model.TaskStatusCancelled, time.Now().UnixMilli(),
+		model.TaskStatusPending, model.TaskStatusRunning}
 	if f.SessionKey != "" {
 		q += " AND message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)"
 		args = append(args, f.SessionKey)
@@ -320,30 +329,28 @@ func (s *TaskStore) DeletePendingByMessageIDs(ctx context.Context, messageIDs []
 	if len(messageIDs) == 0 {
 		return nil
 	}
-	args := make([]any, len(messageIDs))
-	for i, id := range messageIDs {
-		args[i] = id
+	args := make([]any, 0, len(messageIDs)+1)
+	for _, id := range messageIDs {
+		args = append(args, id)
 	}
+	args = append(args, model.TaskStatusPending)
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_tasks WHERE message_id IN (`+inPlaceholders(len(messageIDs))+`) AND status = 'pending'`,
+		`DELETE FROM bee_tasks WHERE message_id IN (`+inPlaceholders(len(messageIDs))+`) AND status = ?`,
 		args...)
 	return err
 }
 
-// ResetRunningToPending resets all running tasks back to pending.
+// ResetRunningToPending resets all running tasks back to pending. Scheduled
+// tasks also have next_run_at cleared so the scheduler recomputes via cron.
 func (s *TaskStore) ResetRunningToPending(ctx context.Context) (int64, error) {
-	now := time.Now().UnixMilli()
-	// Scheduled tasks: clear next_run_at so scheduler recomputes via cron
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'pending', next_run_at = NULL, updated_at = ?
-         WHERE status = 'running' AND type = 'scheduled'`, now)
-	if err != nil {
-		return 0, err
-	}
-	// Immediate / countdown tasks: just reset status
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'pending', updated_at = ?
-         WHERE status = 'running' AND type IN ('immediate','countdown')`, now)
+		`UPDATE bee_tasks
+		 SET status = ?,
+		     next_run_at = CASE WHEN type = ? THEN NULL ELSE next_run_at END,
+		     updated_at = ?
+		 WHERE status = ?`,
+		model.TaskStatusPending, model.TaskTypeScheduled,
+		time.Now().UnixMilli(), model.TaskStatusRunning)
 	if err != nil {
 		return 0, err
 	}
@@ -355,8 +362,8 @@ func (s *TaskStore) ResetRunningToPending(ctx context.Context) (int64, error) {
 // status is preserved and the method returns false.
 func (s *TaskStore) CompleteScheduledTask(ctx context.Context, taskID string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = 'pending', updated_at = ? WHERE id = ? AND status != 'cancelled'`,
-		time.Now().UnixMilli(), taskID)
+		`UPDATE bee_tasks SET status = ?, updated_at = ? WHERE id = ? AND status != ?`,
+		model.TaskStatusPending, time.Now().UnixMilli(), taskID, model.TaskStatusCancelled)
 	if err != nil {
 		return false, err
 	}
@@ -398,8 +405,8 @@ func (s *TaskStore) CompleteTask(ctx context.Context, taskID string) error {
 func (s *TaskStore) CountPendingByWorkerID(ctx context.Context, workerID string) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM bee_tasks WHERE worker_id = ? AND status = 'pending'`,
-		workerID,
+		`SELECT COUNT(*) FROM bee_tasks WHERE worker_id = ? AND status = ?`,
+		workerID, model.TaskStatusPending,
 	).Scan(&count)
 	return count, err
 }
@@ -439,7 +446,8 @@ func (s *TaskStore) HasActiveImmediateTasksByWorkerID(ctx context.Context, worke
 func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM bee_tasks WHERE type = 'scheduled' AND status = 'pending'`,
+		`SELECT COUNT(*) FROM bee_tasks WHERE type = ? AND status = ?`,
+		model.TaskTypeScheduled, model.TaskStatusPending,
 	).Scan(&count)
 	return count, err
 }
