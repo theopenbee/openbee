@@ -224,13 +224,3 @@ func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey
 	return scanSessionAgents(rows)
 }
 
-// DeleteWorkerSessionContext removes all session context rows for one worker
-// under a sessionKey across engines.
-// Deleting a non-existent row is not an error.
-func (s *SessionStore) DeleteWorkerSessionContext(ctx context.Context, sessionKey, workerID string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM bee_session_contexts WHERE session_key = ? AND agent_id = ?`,
-		sessionKey, workerID,
-	)
-	return err
-}

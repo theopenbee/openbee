@@ -27,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -165,7 +166,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
-	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform, engineCfg, s.execStore)
+	clearSvc := session.NewClearService(s.sessionStore, s.taskStore, mgr, s.execStore, disp, s.execStore, engineCfg)
+	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, clearSvc, sendersByPlatform, s.execStore)
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
 	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg, s.execStore)
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
@@ -180,7 +182,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, clearSvc, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())

@@ -8,6 +8,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -141,7 +142,8 @@ func makeClearFixture(
 	if runningExecs == nil {
 		runningExecs = fakeRunningExecs{}
 	}
-	h := command.NewClearCommandHandler(workers, sessions, taskStore, stopper, disp, senders, engineCfg, runningExecs)
+	svc := session.NewClearService(sessions, taskStore, stopper, nil, disp, runningExecs, engineCfg)
+	h := command.NewClearCommandHandler(workers, svc, senders, runningExecs)
 	if cfg.clock != nil {
 		command.SetClearClockForTest(h, cfg.clock)
 	}
@@ -288,7 +290,9 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{})
+	execs := fakeRunningExecs{}
+	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
@@ -329,7 +333,9 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{"t1": "exec-w1-task1"})
+	execs := fakeRunningExecs{"t1": "exec-w1-task1"}
+	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	// First /clear 徐晃 → confirm prompt; no destructive action yet.
@@ -398,7 +404,9 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 	}
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
-	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg, fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"})
+	execs := fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"}
+	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
 	// First call → confirm prompt

@@ -21,8 +21,8 @@ When the user sends a message indicating they want to clear/reset the entire con
 
 When the user wants to reset only one worker's conversation memory (e.g., "reset XX's context", "make XX forget the previous conversation"):
 
-```bash
-openbee ctl session clear-worker --session-key <key> --worker-id <id>
-```
+1. Run `openbee ctl session clear-worker --session-key <key> --worker-id <id>` (without `--force` by default):
+   - If it returns `requires_confirmation=true` with `reason=active_tasks`: per notification spec (item 5 — active tasks found before clearing), via `openbee ctl message send`, show the user the running task list and ask: "Worker XX has N tasks currently active (Tasks: [list of instructions]). Clearing the context will terminate these tasks. Do you confirm continuing?" After user confirms, re-run with `--force`.
+   - If it returns `cleared=true`: per notification spec (item 5 — single worker context reset completes), inform the user that this worker's context has been reset and the next interaction will start from a fresh state.
 
-Per notification spec (item 5 — single worker context reset completes), inform the user that this worker's context has been reset and the next interaction will start from a fresh state.
+Only the worker's session context for the currently active engine is removed — contexts on other engines are preserved.

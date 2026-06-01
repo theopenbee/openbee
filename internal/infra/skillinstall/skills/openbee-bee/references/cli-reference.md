@@ -80,7 +80,7 @@ openbee ctl constraint delete --scope <global|session_key> --key <key>
 ```bash
 openbee ctl session list --session-key <key>
 openbee ctl session clear --session-key <key> [--force]
-openbee ctl session clear-worker --session-key <key> --worker-id <id>
+openbee ctl session clear-worker --session-key <key> --worker-id <id> [--force]
 ```
 
 ## system subcommand
