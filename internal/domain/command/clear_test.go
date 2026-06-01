@@ -33,10 +33,16 @@ func (f *fakeClearSessionStore) DeleteSessionContextForEngine(_ context.Context,
 }
 
 type fakeClearTaskStore struct {
-	tasks     []model.Task
-	listErr   error
-	cancelled int64
-	cancelErr error
+	tasks             []model.Task
+	listErr           error
+	cancelled         int64
+	cancelErr         error
+	workerTasks       map[string][]model.Task // workerID → running tasks scoped to that worker
+	workerListErr     error
+	workerCancelled   map[string]int64 // workerID → rows cancelled
+	workerCancelErr   error
+	workerListCalls   []string // captured (sessionKey+"::"+workerID)
+	workerCancelCalls []string // captured (sessionKey+"::"+workerID)
 }
 
 func (f *fakeClearTaskStore) ListBySessionKey(_ context.Context, _, _, _ string) ([]model.Task, error) {
@@ -45,6 +51,16 @@ func (f *fakeClearTaskStore) ListBySessionKey(_ context.Context, _, _, _ string)
 
 func (f *fakeClearTaskStore) CancelBySessionKey(_ context.Context, _, _ string) (int64, error) {
 	return f.cancelled, f.cancelErr
+}
+
+func (f *fakeClearTaskStore) ListBySessionAndWorker(_ context.Context, sessionKey, workerID, _, _ string) ([]model.Task, error) {
+	f.workerListCalls = append(f.workerListCalls, sessionKey+"::"+workerID)
+	return f.workerTasks[workerID], f.workerListErr
+}
+
+func (f *fakeClearTaskStore) CancelBySessionAndWorker(_ context.Context, sessionKey, workerID, _ string) (int64, error) {
+	f.workerCancelCalls = append(f.workerCancelCalls, sessionKey+"::"+workerID)
+	return f.workerCancelled[workerID], f.workerCancelErr
 }
 
 type fakeClearWorkerLookup struct {
@@ -66,11 +82,16 @@ func (f *fakeClearExecStopper) StopExecution(executionID string) error {
 }
 
 type fakeClearSessionDispatcher struct {
-	cleared []string
+	cleared        []string
+	clearedWorkers []string // captured (sessionKey+"::"+workerID)
 }
 
 func (f *fakeClearSessionDispatcher) ClearSession(sessionKey string) {
 	f.cleared = append(f.cleared, sessionKey)
+}
+
+func (f *fakeClearSessionDispatcher) ClearWorker(sessionKey, workerID string) {
+	f.clearedWorkers = append(f.clearedWorkers, sessionKey+"::"+workerID)
 }
 
 type clearFixture struct {
@@ -245,6 +266,155 @@ func TestClearCommand_ConfirmExpiresAfter30s(t *testing.T) {
 	}
 	if !strings.Contains(fx.sender.sent[1], "30s 内再发一次 /clear 确认。") {
 		t.Errorf("expected new confirm prompt after expiry, got: %s", fx.sender.sent[1])
+	}
+}
+
+func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	fx := makeClearFixture(nil, nil, nil, withClearClock(fixedClock(clock)))
+	fx.tasks.workerTasks = map[string][]model.Task{}
+	fx.sessions.deleted = true
+	worker := model.Worker{ID: "w1", Name: "徐晃", Engine: "claude"}
+	workers := &fakeClearWorkerLookup{
+		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": worker}},
+		byName:                map[string][]model.Worker{"徐晃": {worker}},
+	}
+	engineCfg := enginecfg.NewStore("claude")
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	command.SetClearClockForTest(fx.handler, fixedClock(clock))
+
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
+
+	if len(fx.sender.sent) != 1 {
+		t.Fatalf("expected 1 reply, got %d", len(fx.sender.sent))
+	}
+	if !strings.Contains(fx.sender.sent[0], "✅ 已清除 徐晃") {
+		t.Errorf("expected worker_cleared message, got: %s", fx.sender.sent[0])
+	}
+	if len(fx.stopper.stopped) != 0 {
+		t.Errorf("expected no executions stopped when no running tasks, got %v", fx.stopper.stopped)
+	}
+	if got := fx.disp.clearedWorkers; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
+		t.Errorf("expected ClearWorker(session, w1), got %v", got)
+	}
+	if got := fx.tasks.workerCancelCalls; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
+		t.Errorf("expected CancelBySessionAndWorker(session, w1), got %v", got)
+	}
+}
+
+func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	fx := makeClearFixture(nil, nil, nil, withClearClock(fixedClock(clock)))
+	fx.sessions.deleted = true
+	worker := model.Worker{ID: "w1", Name: "徐晃", Engine: "claude"}
+	fx.tasks.workerTasks = map[string][]model.Task{
+		"w1": {{
+			ID: "t1", WorkerID: "w1", Instruction: "do something",
+			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
+			ExecutionID: "exec-w1-task1",
+		}},
+	}
+	fx.tasks.workerCancelled = map[string]int64{"w1": 1}
+	workers := &fakeClearWorkerLookup{
+		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": worker}},
+		byName:                map[string][]model.Worker{"徐晃": {worker}},
+	}
+	engineCfg := enginecfg.NewStore("claude")
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	command.SetClearClockForTest(fx.handler, fixedClock(clock))
+
+	// First /clear 徐晃 → confirm prompt; no destructive action yet.
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
+	if len(fx.sender.sent) != 1 {
+		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
+	}
+	first := fx.sender.sent[0]
+	for _, want := range []string{
+		"⚠️ 将清除 徐晃",
+		"同时将终止 1 个运行中任务",
+		"[徐晃] do something",
+		"30s 内再发一次 /clear 徐晃 确认。",
+	} {
+		if !strings.Contains(first, want) {
+			t.Errorf("confirm prompt missing %q, got:\n%s", want, first)
+		}
+	}
+	if len(fx.stopper.stopped) != 0 {
+		t.Errorf("expected no executions stopped on first /clear, got %v", fx.stopper.stopped)
+	}
+	if len(fx.disp.clearedWorkers) != 0 {
+		t.Errorf("expected ClearWorker not yet called, got %v", fx.disp.clearedWorkers)
+	}
+
+	// Second /clear 徐晃 within 30s → execute the clear.
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
+	if len(fx.sender.sent) != 2 {
+		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
+	}
+	if got, want := fx.stopper.stopped, []string{"exec-w1-task1"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("expected stopped=%v, got %v", want, got)
+	}
+	if got := fx.disp.clearedWorkers; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
+		t.Errorf("expected ClearWorker(session, w1) once, got %v", got)
+	}
+	if !strings.Contains(fx.sender.sent[1], "✅ 已清除 徐晃") || !strings.Contains(fx.sender.sent[1], "取消了 1 个任务") {
+		t.Errorf("expected worker_cleared_with_tasks message, got: %s", fx.sender.sent[1])
+	}
+}
+
+func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	fx := makeClearFixture(nil, nil, nil, withClearClock(fixedClock(clock)))
+	fx.sessions.deleted = true
+	xuhuang := model.Worker{ID: "w1", Name: "徐晃", Engine: "claude"}
+	diaochan := model.Worker{ID: "w2", Name: "貂蝉", Engine: "claude"}
+	fx.tasks.workerTasks = map[string][]model.Task{
+		"w1": {{
+			ID: "t1", WorkerID: "w1", Instruction: "a",
+			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
+			ExecutionID: "exec-w1",
+		}},
+		"w2": {{
+			ID: "t2", WorkerID: "w2", Instruction: "b",
+			CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
+			ExecutionID: "exec-w2",
+		}},
+	}
+	fx.tasks.workerCancelled = map[string]int64{"w1": 1, "w2": 1}
+	workers := &fakeClearWorkerLookup{
+		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": xuhuang, "w2": diaochan}},
+		byName: map[string][]model.Worker{
+			"徐晃": {xuhuang},
+			"貂蝉": {diaochan},
+		},
+	}
+	engineCfg := enginecfg.NewStore("claude")
+	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	fx.handler = command.NewClearCommandHandler(workers, fx.sessions, fx.tasks, fx.stopper, fx.disp, senders, engineCfg)
+	command.SetClearClockForTest(fx.handler, fixedClock(clock))
+
+	// First call → confirm prompt
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
+	// Second call → real clear
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
+
+	// Only 徐晃's exec should have been stopped — 貂蝉's must be untouched.
+	if got, want := fx.stopper.stopped, []string{"exec-w1"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("expected only exec-w1 stopped, got %v", got)
+	}
+	for _, call := range fx.tasks.workerCancelCalls {
+		if call == "feishu:chat1:user1::w2" {
+			t.Errorf("貂蝉 must not have tasks cancelled, got cancel call %s", call)
+		}
+	}
+	for _, call := range fx.disp.clearedWorkers {
+		if call == "feishu:chat1:user1::w2" {
+			t.Errorf("貂蝉 queue must not be cleared, got %s", call)
+		}
 	}
 }
 

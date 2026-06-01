@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Fix `/clear <worker>` leaving the worker's running tasks in `running` state. The per-worker clear now stops the live executions, cancels the worker's pending/running immediate tasks, and drains the dispatcher queue for that worker (with a 30s confirm prompt when running tasks would be terminated).
+
 ## [0.0.38] - 2026-05-31
 
 ### Removed
