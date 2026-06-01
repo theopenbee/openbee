@@ -58,32 +58,35 @@ func (s *reconTaskStore) FailTask(_ context.Context, taskID string) error {
 }
 
 type reconExecStore struct {
-	mu        sync.Mutex
+	mu sync.Mutex
 	// byTask holds the latest execution recorded for each taskID.
-	byTask    map[string]model.WorkerExecution
-	abandoned []string
-}
-
-func (s *reconExecStore) GetRunningByTaskID(_ context.Context, taskID string) (*model.WorkerExecution, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	e, ok := s.byTask[taskID]
-	if !ok {
-		return nil, nil
-	}
-	if e.Status != model.ExecStatusRunning {
-		return nil, nil
-	}
-	return &e, nil
+	byTask                  map[string]model.WorkerExecution
+	abandoned               []string
+	listByTaskIDsCalls      int
+	runningExecIDsCalls     int
 }
 
 func (s *reconExecStore) ListByTaskIDs(_ context.Context, taskIDs []string, _ int) (map[string][]model.WorkerExecution, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.listByTaskIDsCalls++
 	out := make(map[string][]model.WorkerExecution, len(taskIDs))
 	for _, id := range taskIDs {
 		if e, ok := s.byTask[id]; ok {
 			out[id] = []model.WorkerExecution{e}
+		}
+	}
+	return out, nil
+}
+
+func (s *reconExecStore) RunningExecIDsByTaskIDs(_ context.Context, taskIDs []string) (map[string]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runningExecIDsCalls++
+	out := make(map[string]string, len(taskIDs))
+	for _, id := range taskIDs {
+		if e, ok := s.byTask[id]; ok && e.Status == model.ExecStatusRunning {
+			out[id] = e.ID
 		}
 	}
 	return out, nil
@@ -188,5 +191,29 @@ func TestReconciler_SkipsTaskWithoutExecution(t *testing.T) {
 	if len(tasks.completed) != 0 || len(tasks.failed) != 0 {
 		t.Fatalf("expected no changes for unstarted task, got completed=%v failed=%v",
 			tasks.completed, tasks.failed)
+	}
+}
+
+func TestReconciler_BatchesExecStoreCalls(t *testing.T) {
+	tasks := &reconTaskStore{
+		running: []model.Task{
+			{ID: "t1", Status: model.TaskStatusRunning},
+			{ID: "t2", Status: model.TaskStatusRunning},
+			{ID: "t3", Status: model.TaskStatusRunning},
+		},
+	}
+	execs := &reconExecStore{byTask: map[string]model.WorkerExecution{
+		"t1": {ID: "e1", TaskID: "t1", Status: model.ExecStatusCompleted},
+		"t2": {ID: "e2", TaskID: "t2", Status: model.ExecStatusFailed},
+		"t3": {ID: "e3", TaskID: "t3", Status: model.ExecStatusRunning, AIProcessPID: 12345},
+	}}
+	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return true })
+	task.ReconcileForTest(r, context.Background())
+
+	if execs.listByTaskIDsCalls != 1 {
+		t.Fatalf("expected 1 ListByTaskIDs call, got %d", execs.listByTaskIDsCalls)
+	}
+	if execs.runningExecIDsCalls != 1 {
+		t.Fatalf("expected 1 RunningExecIDsByTaskIDs call, got %d", execs.runningExecIDsCalls)
 	}
 }

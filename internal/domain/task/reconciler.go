@@ -20,8 +20,8 @@ type reconcilerTaskStore interface {
 
 // reconcilerExecStore is the subset of store.ExecutionStore used by the Reconciler.
 type reconcilerExecStore interface {
-	GetRunningByTaskID(ctx context.Context, taskID string) (*model.WorkerExecution, error)
 	ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error)
+	RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]string, error)
 	MarkAbandoned(ctx context.Context, id, result string) (bool, error)
 }
 
@@ -75,23 +75,58 @@ func (r *Reconciler) reconcile(ctx context.Context) {
 		log.Error("reconciler: list running tasks", zap.Error(err))
 		return
 	}
+	if len(tasks) == 0 {
+		return
+	}
+	taskIDs := make([]string, len(tasks))
+	for i, t := range tasks {
+		taskIDs[i] = t.ID
+	}
+	runningIDs, err := r.execStore.RunningExecIDsByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		log.Error("reconciler: running exec ids", zap.Error(err))
+		return
+	}
+	latestByTask, err := r.execStore.ListByTaskIDs(ctx, taskIDs, 1)
+	if err != nil {
+		log.Error("reconciler: list executions", zap.Error(err))
+		return
+	}
 	for _, t := range tasks {
-		r.reconcileOne(ctx, t)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		latest := pickLatest(latestByTask[t.ID], runningIDs[t.ID])
+		if latest == nil {
+			continue
+		}
+		r.applyDecision(ctx, t, *latest)
 	}
 }
 
-func (r *Reconciler) reconcileOne(ctx context.Context, t model.Task) {
-	latest, err := r.latestExecution(ctx, t.ID)
-	if err != nil {
-		log.Error("reconciler: get execution",
-			zap.String("taskID", t.ID), zap.Error(err))
-		return
+// pickLatest selects the execution row the reconciler should act on. When a
+// running exec ID is known, the matching row is returned so liveness probing
+// targets the currently-claimed PID; otherwise the most recent row wins.
+func pickLatest(latest []model.WorkerExecution, runningID string) *model.WorkerExecution {
+	if runningID != "" {
+		for i := range latest {
+			if latest[i].ID == runningID {
+				return &latest[i]
+			}
+		}
+		// Running row exists but isn't in the latest snapshot (race with
+		// concurrent insert). Skip this tick; the next will catch it.
+		return nil
 	}
-	if latest == nil {
-		// No execution row recorded yet. The dispatcher may not have launched
-		// this task — leave it alone, the scheduler/dispatcher owns it.
-		return
+	if len(latest) == 0 {
+		return nil
 	}
+	return &latest[0]
+}
+
+func (r *Reconciler) applyDecision(ctx context.Context, t model.Task, latest model.WorkerExecution) {
 	switch latest.Status {
 	case model.ExecStatusCompleted:
 		if err := r.taskStore.CompleteTask(ctx, t.ID); err != nil {
@@ -110,10 +145,7 @@ func (r *Reconciler) reconcileOne(ctx context.Context, t model.Task) {
 	case model.ExecStatusRunning:
 		// Exec also claims to be running. If its tracked PID is gone, the
 		// process died without monitorExecution finalising it — sweep it.
-		if latest.AIProcessPID <= 0 {
-			return
-		}
-		if r.processAlive(latest.AIProcessPID) {
+		if latest.AIProcessPID <= 0 || r.processAlive(latest.AIProcessPID) {
 			return
 		}
 		if _, err := r.execStore.MarkAbandoned(ctx, latest.ID, "abandoned: process exited without completion signal"); err != nil {
@@ -128,25 +160,3 @@ func (r *Reconciler) reconcileOne(ctx context.Context, t model.Task) {
 			zap.String("taskID", t.ID), zap.String("execID", latest.ID), zap.Int("pid", latest.AIProcessPID))
 	}
 }
-
-// latestExecution returns the most recent execution row for a task: the running
-// one if present, otherwise the newest by start time. Returns (nil, nil) when
-// the task has no executions yet.
-func (r *Reconciler) latestExecution(ctx context.Context, taskID string) (*model.WorkerExecution, error) {
-	if running, err := r.execStore.GetRunningByTaskID(ctx, taskID); err != nil {
-		return nil, err
-	} else if running != nil {
-		return running, nil
-	}
-	byTask, err := r.execStore.ListByTaskIDs(ctx, []string{taskID}, 1)
-	if err != nil {
-		return nil, err
-	}
-	execs := byTask[taskID]
-	if len(execs) == 0 {
-		return nil, nil
-	}
-	latest := execs[0]
-	return &latest, nil
-}
-
