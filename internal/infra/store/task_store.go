@@ -138,48 +138,6 @@ func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
 	return count, err
 }
 
-// ListBySessionKey returns tasks whose originating message belongs to the given session.
-// status and taskType support comma-separated values (e.g., "pending,running"); empty means all.
-func (s *TaskStore) ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error) {
-	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t
-	      JOIN bee_platform_messages pm ON t.message_id = pm.id
-	      WHERE pm.session_key = ?`
-	args := []any{sessionKey}
-	q, args = appendCSVFilter(q, args, "status", status)
-	q, args = appendCSVFilter(q, args, "type", taskType)
-	q += " ORDER BY t.created_at DESC"
-	rows, err := s.db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list tasks by session key: %w", err)
-	}
-	defer rows.Close()
-	return scanTasks(rows)
-}
-
-// ListBySessionAndWorker returns tasks for the given session scoped to a single worker.
-// status and taskType support comma-separated values; empty means all.
-func (s *TaskStore) ListBySessionAndWorker(ctx context.Context, sessionKey, workerID, status, taskType string) ([]model.Task, error) {
-	q := `SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t
-	      JOIN bee_platform_messages pm ON t.message_id = pm.id
-	      WHERE pm.session_key = ? AND t.worker_id = ?`
-	args := []any{sessionKey, workerID}
-	q, args = appendCSVFilter(q, args, "status", status)
-	q, args = appendCSVFilter(q, args, "type", taskType)
-	q += " ORDER BY t.created_at DESC"
-	rows, err := s.db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list tasks by session and worker: %w", err)
-	}
-	defer rows.Close()
-	return scanTasks(rows)
-}
-
 // ClaimDueTasks atomically selects all pending tasks that are due at or before nowMS,
 // marks immediate/countdown tasks as running, and sets scheduled tasks' next_run_at
 // to the pre-computed value from scheduledNextRuns (keyed by task ID).
@@ -322,38 +280,37 @@ func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error
 	return err
 }
 
-// CancelBySessionKey cancels pending/running tasks for a session; empty taskType matches all types.
-func (s *TaskStore) CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error) {
-	q := `UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
-	      WHERE message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)
-	        AND status IN ('pending', 'running')`
-	args := []any{time.Now().UnixMilli(), sessionKey}
-	if taskType != "" {
-		q += " AND type = ?"
-		args = append(args, taskType)
-	}
-	res, err := s.db.ExecContext(ctx, q, args...)
-	if err != nil {
-		return 0, fmt.Errorf("cancel tasks by session key: %w", err)
-	}
-	return res.RowsAffected()
+// CancelFilter selects pending/running tasks for Cancel to mark cancelled.
+// At least one of SessionKey or WorkerID must be set. Empty Type matches all types.
+type CancelFilter struct {
+	SessionKey string
+	WorkerID   string
+	Type       string
 }
 
-// CancelBySessionAndWorker cancels pending/running tasks for the given session scoped to a single worker.
-// Empty taskType matches all types.
-func (s *TaskStore) CancelBySessionAndWorker(ctx context.Context, sessionKey, workerID, taskType string) (int64, error) {
+// Cancel marks tasks selected by f as cancelled. Returns the number of rows updated.
+func (s *TaskStore) Cancel(ctx context.Context, f CancelFilter) (int64, error) {
+	if f.SessionKey == "" && f.WorkerID == "" {
+		return 0, fmt.Errorf("cancel: SessionKey or WorkerID required")
+	}
 	q := `UPDATE bee_tasks SET status = 'cancelled', updated_at = ?
-	      WHERE worker_id = ?
-	        AND message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)
-	        AND status IN ('pending', 'running')`
-	args := []any{time.Now().UnixMilli(), workerID, sessionKey}
-	if taskType != "" {
+	      WHERE status IN ('pending', 'running')`
+	args := []any{time.Now().UnixMilli()}
+	if f.SessionKey != "" {
+		q += " AND message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)"
+		args = append(args, f.SessionKey)
+	}
+	if f.WorkerID != "" {
+		q += " AND worker_id = ?"
+		args = append(args, f.WorkerID)
+	}
+	if f.Type != "" {
 		q += " AND type = ?"
-		args = append(args, taskType)
+		args = append(args, f.Type)
 	}
 	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
-		return 0, fmt.Errorf("cancel tasks by session and worker: %w", err)
+		return 0, fmt.Errorf("cancel tasks: %w", err)
 	}
 	return res.RowsAffected()
 }

@@ -45,22 +45,20 @@ type fakeClearTaskStore struct {
 	workerCancelCalls []string // captured (sessionKey+"::"+workerID)
 }
 
-func (f *fakeClearTaskStore) ListBySessionKey(_ context.Context, _, _, _ string) ([]model.Task, error) {
+func (f *fakeClearTaskStore) List(_ context.Context, fl store.TaskFilter) ([]model.Task, error) {
+	if fl.WorkerID != "" {
+		f.workerListCalls = append(f.workerListCalls, fl.SessionKey+"::"+fl.WorkerID)
+		return f.workerTasks[fl.WorkerID], f.workerListErr
+	}
 	return f.tasks, f.listErr
 }
 
-func (f *fakeClearTaskStore) CancelBySessionKey(_ context.Context, _, _ string) (int64, error) {
+func (f *fakeClearTaskStore) Cancel(_ context.Context, fl store.CancelFilter) (int64, error) {
+	if fl.WorkerID != "" {
+		f.workerCancelCalls = append(f.workerCancelCalls, fl.SessionKey+"::"+fl.WorkerID)
+		return f.workerCancelled[fl.WorkerID], f.workerCancelErr
+	}
 	return f.cancelled, f.cancelErr
-}
-
-func (f *fakeClearTaskStore) ListBySessionAndWorker(_ context.Context, sessionKey, workerID, _, _ string) ([]model.Task, error) {
-	f.workerListCalls = append(f.workerListCalls, sessionKey+"::"+workerID)
-	return f.workerTasks[workerID], f.workerListErr
-}
-
-func (f *fakeClearTaskStore) CancelBySessionAndWorker(_ context.Context, sessionKey, workerID, _ string) (int64, error) {
-	f.workerCancelCalls = append(f.workerCancelCalls, sessionKey+"::"+workerID)
-	return f.workerCancelled[workerID], f.workerCancelErr
 }
 
 type fakeClearWorkerLookup struct {

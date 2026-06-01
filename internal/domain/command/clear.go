@@ -30,9 +30,7 @@ type ClearSessionStore interface {
 
 type ClearTaskStore interface {
 	TaskBySessionLister
-	CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error)
-	ListBySessionAndWorker(ctx context.Context, sessionKey, workerID, status, taskType string) ([]model.Task, error)
-	CancelBySessionAndWorker(ctx context.Context, sessionKey, workerID, taskType string) (int64, error)
+	Cancel(ctx context.Context, f store.CancelFilter) (int64, error)
 }
 
 type ClearExecStopper interface {
@@ -122,7 +120,11 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		return
 	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	runningTasks, err := h.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		Status:     model.TaskStatusRunning,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("list running tasks for /clear", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
@@ -146,7 +148,10 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 		}
 	}
 
-	cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey, model.TaskTypeImmediate)
+	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
+		SessionKey: sessionKey,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("cancel tasks for /clear exec", zap.Error(err))
 	}
@@ -207,7 +212,12 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	w := workers[0]
 	activeEngine := h.engineCfg.Resolve(w.Engine)
 
-	runningTasks, err := h.tasks.ListBySessionAndWorker(ctx, sessionKey, w.ID, model.TaskStatusRunning, model.TaskTypeImmediate)
+	runningTasks, err := h.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		WorkerID:   w.ID,
+		Status:     model.TaskStatusRunning,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("list running tasks for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
@@ -233,7 +243,11 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 		}
 	}
 
-	cancelled, err := h.tasks.CancelBySessionAndWorker(ctx, sessionKey, w.ID, model.TaskTypeImmediate)
+	cancelled, err := h.tasks.Cancel(ctx, store.CancelFilter{
+		SessionKey: sessionKey,
+		WorkerID:   w.ID,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("cancel tasks for /clear worker", zap.String("workerID", w.ID), zap.Error(err))
 	}

@@ -31,7 +31,7 @@ type fakeStatusTaskLister struct {
 	err   error
 }
 
-func (f *fakeStatusTaskLister) ListBySessionKey(_ context.Context, _, _, _ string) ([]model.Task, error) {
+func (f *fakeStatusTaskLister) List(_ context.Context, _ store.TaskFilter) ([]model.Task, error) {
 	return f.tasks, f.err
 }
 

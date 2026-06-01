@@ -628,8 +628,11 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 
 	var tasksToStop []model.Task
 	if !params.Force {
-		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
-			model.TaskStatusActive, model.TaskTypeImmediate)
+		activeTasks, err := s.taskStore.List(ctx, store.TaskFilter{
+			SessionKey: params.SessionKey,
+			Status:     model.TaskStatusActive,
+			Type:       model.TaskTypeImmediate,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("list active tasks: %w", err)
 		}
@@ -676,7 +679,11 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 	} else {
 		var err error
-		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+		tasksToStop, err = s.taskStore.List(ctx, store.TaskFilter{
+			SessionKey: params.SessionKey,
+			Status:     model.TaskStatusRunning,
+			Type:       model.TaskTypeImmediate,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("list running tasks: %w", err)
 		}
@@ -698,7 +705,10 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 	}
 
-	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey, model.TaskTypeImmediate)
+	cancelled, err := s.taskStore.Cancel(ctx, store.CancelFilter{
+		SessionKey: params.SessionKey,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("cancel tasks: %w", err)
 	}

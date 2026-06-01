@@ -380,36 +380,36 @@ func TestTaskStore_ListBySessionKey(t *testing.T) {
 	})
 
 	// List all tasks for session-A
-	tasks, err := ts.ListBySessionKey(ctx, "session-A", "", "")
+	tasks, err := ts.List(ctx, TaskFilter{SessionKey: "session-A"})
 	if err != nil {
-		t.Fatalf("ListBySessionKey: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 tasks for session-A, got %d", len(tasks))
 	}
 
 	// List only pending tasks for session-A
-	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending", "")
+	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending"})
 	if err != nil {
-		t.Fatalf("ListBySessionKey (pending): %v", err)
+		t.Fatalf("List (pending): %v", err)
 	}
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 pending task for session-A, got %d", len(tasks))
 	}
 
 	// List with comma-separated status
-	tasks, err = ts.ListBySessionKey(ctx, "session-A", "pending,running", "")
+	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending,running"})
 	if err != nil {
-		t.Fatalf("ListBySessionKey (pending,running): %v", err)
+		t.Fatalf("List (pending,running): %v", err)
 	}
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 tasks for session-A with pending,running, got %d", len(tasks))
 	}
 
 	// List for session-B
-	tasks, err = ts.ListBySessionKey(ctx, "session-B", "", "")
+	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-B"})
 	if err != nil {
-		t.Fatalf("ListBySessionKey session-B: %v", err)
+		t.Fatalf("List session-B: %v", err)
 	}
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 task for session-B, got %d", len(tasks))
@@ -476,28 +476,28 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	n, err := ts.CancelBySessionKey(ctx, "session-A", "")
+	n, err := ts.Cancel(ctx, CancelFilter{SessionKey: "session-A"})
 	if err != nil {
-		t.Fatalf("CancelBySessionKey: %v", err)
+		t.Fatalf("Cancel: %v", err)
 	}
 	if n != 2 {
 		t.Errorf("expected 2 cancelled (pending+running), got %d", n)
 	}
 
 	// Verify: session-A completed task untouched
-	tasksA, _ := ts.ListBySessionKey(ctx, "session-A", "completed", "")
+	tasksA, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "completed"})
 	if len(tasksA) != 1 {
 		t.Errorf("completed task should be untouched, got %d", len(tasksA))
 	}
 
 	// Verify: session-A cancelled tasks
-	cancelledA, _ := ts.ListBySessionKey(ctx, "session-A", "cancelled", "")
+	cancelledA, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "cancelled"})
 	if len(cancelledA) != 2 {
 		t.Errorf("expected 2 cancelled tasks, got %d", len(cancelledA))
 	}
 
 	// Verify: session-B unaffected
-	tasksB, _ := ts.ListBySessionKey(ctx, "session-B", "pending", "")
+	tasksB, _ := ts.List(ctx, TaskFilter{SessionKey: "session-B", Status: "pending"})
 	if len(tasksB) != 1 {
 		t.Errorf("session-B task should be unaffected, got %d", len(tasksB))
 	}
@@ -532,17 +532,20 @@ func TestTaskStore_ListBySessionAndWorker(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	tasks, err := ts.ListBySessionAndWorker(ctx, "session-A", "w1", model.TaskStatusRunning, model.TaskTypeImmediate)
+	tasks, err := ts.List(ctx, TaskFilter{
+		SessionKey: "session-A", WorkerID: "w1",
+		Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
+	})
 	if err != nil {
-		t.Fatalf("ListBySessionAndWorker: %v", err)
+		t.Fatalf("List session+worker: %v", err)
 	}
 	if len(tasks) != 1 || tasks[0].Instruction != "b" {
 		t.Errorf("expected only session-A/w1 running task 'b', got %+v", tasks)
 	}
 
-	all, err := ts.ListBySessionAndWorker(ctx, "session-A", "w1", "", "")
+	all, err := ts.List(ctx, TaskFilter{SessionKey: "session-A", WorkerID: "w1"})
 	if err != nil {
-		t.Fatalf("ListBySessionAndWorker (all): %v", err)
+		t.Fatalf("List session+worker (all): %v", err)
 	}
 	if len(all) != 2 {
 		t.Errorf("expected 2 tasks for session-A/w1, got %d", len(all))
@@ -584,21 +587,23 @@ func TestTaskStore_CancelBySessionAndWorker(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	n, err := ts.CancelBySessionAndWorker(ctx, "session-A", "w1", model.TaskTypeImmediate)
+	n, err := ts.Cancel(ctx, CancelFilter{
+		SessionKey: "session-A", WorkerID: "w1", Type: model.TaskTypeImmediate,
+	})
 	if err != nil {
-		t.Fatalf("CancelBySessionAndWorker: %v", err)
+		t.Fatalf("Cancel session+worker: %v", err)
 	}
 	if n != 2 {
 		t.Errorf("expected 2 cancelled (pending+running for session-A/w1), got %d", n)
 	}
 
 	// session-A/w2 untouched
-	w2, _ := ts.ListBySessionAndWorker(ctx, "session-A", "w2", model.TaskStatusRunning, "")
+	w2, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", WorkerID: "w2", Status: model.TaskStatusRunning})
 	if len(w2) != 1 {
 		t.Errorf("session-A/w2 running task should be untouched, got %d", len(w2))
 	}
 	// session-B/w1 untouched
-	sb, _ := ts.ListBySessionAndWorker(ctx, "session-B", "w1", model.TaskStatusRunning, "")
+	sb, _ := ts.List(ctx, TaskFilter{SessionKey: "session-B", WorkerID: "w1", Status: model.TaskStatusRunning})
 	if len(sb) != 1 {
 		t.Errorf("session-B/w1 running task should be untouched, got %d", len(sb))
 	}
@@ -634,16 +639,16 @@ func TestTaskStore_CancelBySessionKey_ImmediateOnly(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	n, err := ts.CancelBySessionKey(ctx, "session-A", model.TaskTypeImmediate)
+	n, err := ts.Cancel(ctx, CancelFilter{SessionKey: "session-A", Type: model.TaskTypeImmediate})
 	if err != nil {
-		t.Fatalf("CancelBySessionKey: %v", err)
+		t.Fatalf("Cancel: %v", err)
 	}
 	if n != 2 {
 		t.Errorf("expected 2 cancelled (immediate only), got %d", n)
 	}
 
 	// countdown and scheduled tasks must still be pending
-	surviving, _ := ts.ListBySessionKey(ctx, "session-A", "pending", "")
+	surviving, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending"})
 	if len(surviving) != 2 {
 		t.Errorf("expected 2 surviving pending tasks (countdown+scheduled), got %d", len(surviving))
 	}

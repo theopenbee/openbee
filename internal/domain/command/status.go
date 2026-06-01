@@ -27,7 +27,7 @@ type SessionContextLister interface {
 
 // TaskBySessionLister is shared by /status and /clear.
 type TaskBySessionLister interface {
-	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
+	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
 }
 
 type StatusCommandHandler struct {
@@ -83,7 +83,11 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		return true
 	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	runningTasks, err := h.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		Status:     model.TaskStatusRunning,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("list tasks for /status", zap.String("sessionKey", sessionKey), zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
