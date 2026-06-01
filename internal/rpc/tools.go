@@ -20,6 +20,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/linear"
 )
 
 // CallTool is exported for testing only.
@@ -128,7 +129,6 @@ const (
 	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
 	ClearReasonNoContext       = "no_context"
-	linearPlatformID           = "linear"
 )
 
 type workerBrief struct {
@@ -598,7 +598,7 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		InboundMsgID: params.MessageID,
 	}
 
-	if stored.Platform == linearPlatformID && params.Content != "" && params.MediaPath != "" {
+	if stored.Platform == linear.PlatformID && params.Content != "" && params.MediaPath != "" {
 		outbound := base
 		outbound.Content = params.Content
 		outbound.MediaPath = params.MediaPath
