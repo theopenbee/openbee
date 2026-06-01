@@ -91,13 +91,13 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 	if len(m["task-2"]) != 1 {
 		t.Errorf("task-2 want 1 exec, got %d", len(m["task-2"]))
 	}
-	// A task with no executions returns an empty (non-nil) slice.
+	// Task ids with no executions are absent from the returned map.
 	withMissing, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-none"}, 0)
 	if err != nil {
 		t.Fatalf("ListByTaskIDs(missing): %v", err)
 	}
-	if got, ok := withMissing["task-none"]; !ok || got == nil || len(got) != 0 {
-		t.Errorf("want empty non-nil slice for task-none, got %#v (present=%v)", got, ok)
+	if got, ok := withMissing["task-none"]; ok {
+		t.Errorf("want task-none absent, got %#v", got)
 	}
 }
 

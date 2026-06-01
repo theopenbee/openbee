@@ -220,24 +220,20 @@ func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []
 	return out, rows.Err()
 }
 
-// ListByTaskIDs returns executions grouped by task_id, newest first within each task.
-// Every requested task id is present in the returned map; tasks with no executions
-// map to an empty (non-nil) slice.
-// When limitPerTask > 0, at most that many executions are returned per task.
-// When limitPerTask <= 0, all executions are returned.
+// ListByTaskIDs returns executions grouped by task_id, newest first within each
+// task. Task ids with no executions are omitted from the result. When
+// limitPerTask > 0, at most that many executions are returned per task;
+// limitPerTask <= 0 returns all executions.
 func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error) {
-	out := make(map[string][]model.WorkerExecution, len(taskIDs))
-	for _, id := range taskIDs {
-		out[id] = []model.WorkerExecution{}
-	}
 	if len(taskIDs) == 0 {
-		return out, nil
+		return map[string][]model.WorkerExecution{}, nil
 	}
+	out := make(map[string][]model.WorkerExecution, len(taskIDs))
 	args := stringsToArgs(taskIDs)
 
 	var q string
 	if limitPerTask <= 0 {
-		q = execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.task_id ASC, e.started_at DESC, e.rowid DESC`
+		q = execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.started_at DESC, e.rowid DESC`
 	} else {
 		q = `WITH ranked AS (
 		SELECT e.rowid AS exec_rowid,
@@ -251,7 +247,7 @@ func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, li
 	JOIN bee_executions e ON e.rowid = r.exec_rowid
 	LEFT JOIN bee_workers w ON w.id = e.worker_id
 	WHERE r.rn <= ?
-	ORDER BY e.task_id ASC, e.started_at DESC, e.rowid DESC`
+	ORDER BY e.started_at DESC, e.rowid DESC`
 		args = append(args, limitPerTask)
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
