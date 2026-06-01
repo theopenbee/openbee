@@ -314,22 +314,20 @@ func (s *ExecutionStore) ListByIDs(ctx context.Context, ids []string) ([]model.W
 // HasActiveBeeExecutions reports whether bee-owned executions (worker_id IS NULL)
 // with status pending or running exist.
 func (s *ExecutionStore) HasActiveBeeExecutions(ctx context.Context) (bool, error) {
-	var exists int
-	err := s.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM bee_executions WHERE worker_id IS NULL AND status IN (?, ?))`,
-		model.ExecStatusPending, model.ExecStatusRunning,
-	).Scan(&exists)
-	return exists == 1, err
+	return s.hasActiveExecutions(ctx, "worker_id IS NULL")
 }
 
 // HasActiveExecutionsByWorkerID reports whether the given worker has any
 // pending or running executions.
 func (s *ExecutionStore) HasActiveExecutionsByWorkerID(ctx context.Context, workerID string) (bool, error) {
+	return s.hasActiveExecutions(ctx, "worker_id = ?", workerID)
+}
+
+func (s *ExecutionStore) hasActiveExecutions(ctx context.Context, ownerWhere string, ownerArgs ...any) (bool, error) {
+	args := append(ownerArgs, model.ExecStatusPending, model.ExecStatusRunning)
+	q := `SELECT EXISTS(SELECT 1 FROM bee_executions WHERE ` + ownerWhere + ` AND status IN (?, ?))`
 	var exists int
-	err := s.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM bee_executions WHERE worker_id = ? AND status IN (?, ?))`,
-		workerID, model.ExecStatusPending, model.ExecStatusRunning,
-	).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(&exists)
 	return exists == 1, err
 }
 
