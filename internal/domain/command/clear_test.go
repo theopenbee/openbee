@@ -142,7 +142,14 @@ func makeClearFixture(
 	if runningExecs == nil {
 		runningExecs = fakeRunningExecs{}
 	}
-	svc := session.NewClearService(sessions, taskStore, stopper, nil, disp, runningExecs, engineCfg)
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     sessions,
+		Tasks:        taskStore,
+		ExecStopper:  stopper,
+		Dispatcher:   disp,
+		RunningExecs: runningExecs,
+		EngineCfg:    engineCfg,
+	})
 	h := command.NewClearCommandHandler(workers, svc, senders, runningExecs)
 	if cfg.clock != nil {
 		command.SetClearClockForTest(h, cfg.clock)
@@ -291,7 +298,14 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
 	execs := fakeRunningExecs{}
-	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     fx.sessions,
+		Tasks:        fx.tasks,
+		ExecStopper:  fx.stopper,
+		Dispatcher:   fx.disp,
+		RunningExecs: execs,
+		EngineCfg:    engineCfg,
+	})
 	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
@@ -334,7 +348,14 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1-task1"}
-	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     fx.sessions,
+		Tasks:        fx.tasks,
+		ExecStopper:  fx.stopper,
+		Dispatcher:   fx.disp,
+		RunningExecs: execs,
+		EngineCfg:    engineCfg,
+	})
 	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 
@@ -405,7 +426,14 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 	engineCfg := enginecfg.NewStore("claude")
 	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"}
-	svc := session.NewClearService(fx.sessions, fx.tasks, fx.stopper, nil, fx.disp, execs, engineCfg)
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     fx.sessions,
+		Tasks:        fx.tasks,
+		ExecStopper:  fx.stopper,
+		Dispatcher:   fx.disp,
+		RunningExecs: execs,
+		EngineCfg:    engineCfg,
+	})
 	fx.handler = command.NewClearCommandHandler(workers, svc, senders, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))
 

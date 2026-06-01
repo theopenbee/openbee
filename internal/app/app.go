@@ -166,7 +166,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
-	clearSvc := session.NewClearService(s.sessionStore, s.taskStore, mgr, s.execStore, disp, s.execStore, engineCfg)
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      s.sessionStore,
+		Tasks:         s.taskStore,
+		ExecStopper:   mgr,
+		ExecFinalizer: s.execStore,
+		Dispatcher:    disp,
+		RunningExecs:  s.execStore,
+		EngineCfg:     engineCfg,
+	})
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, clearSvc, sendersByPlatform, s.execStore)
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
 	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg, s.execStore)

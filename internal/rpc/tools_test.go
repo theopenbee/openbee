@@ -56,7 +56,15 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	clearSvc := session.NewClearService(ss, ts, &mockExecStopper{}, es, &mockClearDispatcher{}, es, engineCfg)
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   &mockExecStopper{},
+		ExecFinalizer: es,
+		Dispatcher:    &mockClearDispatcher{},
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 }
 
@@ -258,7 +266,15 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	clearSvc := session.NewClearService(ss, ts, &mockExecStopper{}, es, &mockClearDispatcher{}, es, engineCfg)
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   &mockExecStopper{},
+		ExecFinalizer: es,
+		Dispatcher:    &mockClearDispatcher{},
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
 	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
 }
 
@@ -552,7 +568,15 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
 	disp := &mockClearDispatcher{}
-	clearSvc := session.NewClearService(ss, ts, stopper, es, disp, es, engineCfg)
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   stopper,
+		ExecFinalizer: es,
+		Dispatcher:    disp,
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
 	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 	return srv, db, stopper, disp
 }

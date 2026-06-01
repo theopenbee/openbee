@@ -113,7 +113,15 @@ func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []strin
 
 func newSvc(t *testing.T, sessions *fakeSessionStore, tasks *fakeTaskStore, stopper *fakeExecStopper, finalizer *fakeExecFinalizer, disp *fakeDispatcher, execs fakeRunningExecs) *session.ClearService {
 	t.Helper()
-	return session.NewClearService(sessions, tasks, stopper, finalizer, disp, execs, enginecfg.NewStore("claude"))
+	return session.NewClearService(session.ClearServiceDeps{
+		Sessions:      sessions,
+		Tasks:         tasks,
+		ExecStopper:   stopper,
+		ExecFinalizer: finalizer,
+		Dispatcher:    disp,
+		RunningExecs:  execs,
+		EngineCfg:     enginecfg.NewStore("claude"),
+	})
 }
 
 func TestClearSession_EmptySession_NoOp(t *testing.T) {

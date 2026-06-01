@@ -67,32 +67,35 @@ type Dispatcher interface {
 // the service exposes a `force` parameter and returns running tasks so the
 // caller can decide whether to gate execution.
 type ClearService struct {
-	sessions       SessionStore
-	tasks          TaskStore
-	execStopper    ExecutionStopper
-	execFinalizer  ExecutionFinalizer
-	dispatcher     Dispatcher
-	runningExecs   utils.RunningExecLookup
-	engineCfg      *enginecfg.Store
+	sessions      SessionStore
+	tasks         TaskStore
+	execStopper   ExecutionStopper
+	execFinalizer ExecutionFinalizer
+	dispatcher    Dispatcher
+	runningExecs  utils.RunningExecLookup
+	engineCfg     *enginecfg.Store
 }
 
-func NewClearService(
-	sessions SessionStore,
-	tasks TaskStore,
-	execStopper ExecutionStopper,
-	execFinalizer ExecutionFinalizer,
-	dispatcher Dispatcher,
-	runningExecs utils.RunningExecLookup,
-	engineCfg *enginecfg.Store,
-) *ClearService {
+// ClearServiceDeps bundles the collaborators NewClearService needs.
+type ClearServiceDeps struct {
+	Sessions      SessionStore
+	Tasks         TaskStore
+	ExecStopper   ExecutionStopper
+	ExecFinalizer ExecutionFinalizer
+	Dispatcher    Dispatcher
+	RunningExecs  utils.RunningExecLookup
+	EngineCfg     *enginecfg.Store
+}
+
+func NewClearService(deps ClearServiceDeps) *ClearService {
 	return &ClearService{
-		sessions:      sessions,
-		tasks:         tasks,
-		execStopper:   execStopper,
-		execFinalizer: execFinalizer,
-		dispatcher:    dispatcher,
-		runningExecs:  runningExecs,
-		engineCfg:     engineCfg,
+		sessions:      deps.Sessions,
+		tasks:         deps.Tasks,
+		execStopper:   deps.ExecStopper,
+		execFinalizer: deps.ExecFinalizer,
+		dispatcher:    deps.Dispatcher,
+		runningExecs:  deps.RunningExecs,
+		engineCfg:     deps.EngineCfg,
 	}
 }
 
