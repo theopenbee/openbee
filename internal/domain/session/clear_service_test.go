@@ -2,6 +2,7 @@ package session_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -202,6 +203,51 @@ func TestClearSession_StopFails_FinalizesExecution(t *testing.T) {
 	}
 	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
 		t.Fatalf("expected MarkAbandoned(exec-1), got %v", fin.abandoned)
+	}
+}
+
+func TestClearSession_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
+	sessions := &fakeSessionStore{agents: []store.SessionAgent{{AgentID: "w1"}}}
+	tasks := &fakeTaskStore{
+		tasks:     []model.Task{{ID: "t1"}},
+		cancelErr: errors.New("db down"),
+	}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	result, err := svc.ClearSession(context.Background(), "sess-1", true)
+	if err == nil {
+		t.Fatalf("expected error when cancel fails, got nil; result=%+v", result)
+	}
+	if result.Cleared {
+		t.Fatalf("Cleared must be false when cancel failed, got %+v", result)
+	}
+	if len(disp.sessions) != 0 {
+		t.Fatalf("dispatcher.ClearSession must not run after cancel failure, got %v", disp.sessions)
+	}
+}
+
+func TestClearWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
+	sessions := &fakeSessionStore{deleted: true}
+	tasks := &fakeTaskStore{
+		tasks:     []model.Task{{ID: "t1", WorkerID: "w1"}},
+		cancelErr: errors.New("db down"),
+	}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	result, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, true)
+	if err == nil {
+		t.Fatalf("expected error when cancel fails, got nil; result=%+v", result)
+	}
+	if result.Cleared {
+		t.Fatalf("Cleared must be false when cancel failed, got %+v", result)
+	}
+	if len(disp.workers) != 0 {
+		t.Fatalf("dispatcher.ClearWorker must not run after cancel failure, got %v", disp.workers)
+	}
+	if len(sessions.deletedCalls) != 0 {
+		t.Fatalf("DeleteSessionContextForEngine must not run after cancel failure, got %v", sessions.deletedCalls)
 	}
 }
 

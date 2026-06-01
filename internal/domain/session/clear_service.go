@@ -6,6 +6,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 
@@ -134,7 +135,8 @@ func (s *ClearService) ClearSession(ctx context.Context, sessionKey string, forc
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		log.Error("cancel tasks for clear_session", zap.Error(err))
+		return ClearSessionResult{Agents: agents, ActiveTasks: activeTasks},
+			fmt.Errorf("cancel tasks for clear_session: %w", err)
 	}
 
 	s.dispatcher.ClearSession(sessionKey)
@@ -185,8 +187,8 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		log.Error("cancel tasks for clear_worker",
-			zap.String("workerID", w.ID), zap.Error(err))
+		return ClearWorkerResult{Worker: w, Engine: engine, ActiveTasks: activeTasks},
+			fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
 	}
 
 	deleted, err := s.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, engine)
