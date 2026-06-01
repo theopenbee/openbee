@@ -66,8 +66,6 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 
 	// execCtx inherits the caller's context so dispatcher-side cancellation
 	// (task cancel, /clear, shutdown) actually kills the worker process.
-	// Without this link, the worker kept running after its dispatcher exited
-	// and left tasks stuck in `running` until the next server restart.
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {

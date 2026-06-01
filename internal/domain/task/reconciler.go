@@ -24,15 +24,9 @@ type reconcilerExecStore interface {
 	MarkAbandoned(ctx context.Context, id, result string) (bool, error)
 }
 
-// Reconciler runs in the background and repairs tasks whose status drifted
-// out of sync with their underlying execution row. Drift can happen when:
-//   - dispatcher's waitForResult exits before the exec reaches a terminal state
-//     (no longer the default behavior, but a safety net for in-flight tasks),
-//   - monitorExecution misses the output channel close (engine adapter bug),
-//   - the worker process is killed by the OS without the runtime noticing.
-//
-// Without this loop, /status keeps reporting stale "Running tasks" until the
-// next server restart, when ResetRunningExecutions sweeps the DB.
+// Reconciler periodically repairs tasks whose status drifted out of sync with
+// their underlying execution row (engine adapter bugs, OS-killed workers, etc.)
+// so /status reflects the actual state without waiting for a server restart.
 type Reconciler struct {
 	taskStore reconcilerTaskStore
 	execStore reconcilerExecStore

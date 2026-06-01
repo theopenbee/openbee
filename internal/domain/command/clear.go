@@ -266,8 +266,6 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 
 	h.sessionClear.ClearWorker(sessionKey, w.ID)
 
-	// When the worker had no active session context AND no running tasks were cancelled,
-	// there was nothing to clear; tell the user instead of pretending we did something.
 	if !deleted && cancelled == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
 		return
