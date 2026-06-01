@@ -38,17 +38,15 @@ type fakeClearTaskStore struct {
 	cancelled         int64
 	cancelErr         error
 	workerTasks       map[string][]model.Task // workerID → running tasks scoped to that worker
-	workerListErr     error
-	workerCancelled   map[string]int64 // workerID → rows cancelled
-	workerCancelErr   error
-	workerListCalls   []string // captured (sessionKey+"::"+workerID)
-	workerCancelCalls []string // captured (sessionKey+"::"+workerID)
+	workerCancelled   map[string]int64        // workerID → rows cancelled
+	workerListCalls   []string                // captured (sessionKey+"::"+workerID)
+	workerCancelCalls []string                // captured (sessionKey+"::"+workerID)
 }
 
 func (f *fakeClearTaskStore) List(_ context.Context, fl store.TaskFilter) ([]model.Task, error) {
 	if fl.WorkerID != "" {
 		f.workerListCalls = append(f.workerListCalls, fl.SessionKey+"::"+fl.WorkerID)
-		return f.workerTasks[fl.WorkerID], f.workerListErr
+		return f.workerTasks[fl.WorkerID], f.listErr
 	}
 	return f.tasks, f.listErr
 }
@@ -56,7 +54,7 @@ func (f *fakeClearTaskStore) List(_ context.Context, fl store.TaskFilter) ([]mod
 func (f *fakeClearTaskStore) Cancel(_ context.Context, fl store.CancelFilter) (int64, error) {
 	if fl.WorkerID != "" {
 		f.workerCancelCalls = append(f.workerCancelCalls, fl.SessionKey+"::"+fl.WorkerID)
-		return f.workerCancelled[fl.WorkerID], f.workerCancelErr
+		return f.workerCancelled[fl.WorkerID], f.cancelErr
 	}
 	return f.cancelled, f.cancelErr
 }

@@ -289,7 +289,7 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	}
 }
 
-func TestExecutionStore_CreateBeeExecution(t *testing.T) {
+func TestExecutionStore_Create_EmptyWorkerID(t *testing.T) {
 	db, err := InitDB(t.TempDir() + "/test.db")
 	if err != nil {
 		t.Fatal(err)
