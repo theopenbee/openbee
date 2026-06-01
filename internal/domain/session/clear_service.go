@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"go.uber.org/zap"
 
@@ -220,12 +221,23 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 
 // stopRunningExecutions resolves the running exec ID for each task and stops
 // it. When stop fails the row is force-finalized so future busy checks don't
-// trip on a stale running row.
+// trip on a stale running row. Stops run concurrently so total clear latency
+// scales with the slowest worker, not the sum.
 func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.Task, op string) {
 	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.runningExecs, tasks, op)
+	var wg sync.WaitGroup
 	for _, t := range tasks {
-		s.StopAndFinalizeExecution(ctx, execIDs[t.ID], op)
+		execID := execIDs[t.ID]
+		if execID == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			s.StopAndFinalizeExecution(ctx, id, op)
+		}(execID)
 	}
+	wg.Wait()
 }
 
 // StopAndFinalizeExecution stops a running execution; when the local stop

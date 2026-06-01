@@ -3,6 +3,8 @@ package session_test
 import (
 	"context"
 	"errors"
+	"sort"
+	"sync"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -59,20 +61,30 @@ func (f *fakeTaskStore) Cancel(_ context.Context, fl store.CancelFilter) (int64,
 }
 
 type fakeExecStopper struct {
+	mu      sync.Mutex
 	stopped []string
 	err     error
+	delay   <-chan struct{}
 }
 
 func (f *fakeExecStopper) StopExecution(id string) error {
+	if f.delay != nil {
+		<-f.delay
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.stopped = append(f.stopped, id)
 	return f.err
 }
 
 type fakeExecFinalizer struct {
+	mu        sync.Mutex
 	abandoned []string
 }
 
 func (f *fakeExecFinalizer) MarkAbandoned(_ context.Context, id, _ string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.abandoned = append(f.abandoned, id)
 	return true, nil
 }
@@ -203,6 +215,37 @@ func TestClearSession_StopFails_FinalizesExecution(t *testing.T) {
 	}
 	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
 		t.Fatalf("expected MarkAbandoned(exec-1), got %v", fin.abandoned)
+	}
+}
+
+func TestClearSession_StopsConcurrently(t *testing.T) {
+	sessions := &fakeSessionStore{agents: []store.SessionAgent{{AgentID: "w1"}}}
+	tasks := &fakeTaskStore{
+		tasks:     []model.Task{{ID: "t1"}, {ID: "t2"}, {ID: "t3"}},
+		cancelled: 3,
+	}
+	disp := &fakeDispatcher{}
+	release := make(chan struct{})
+	stopper := &fakeExecStopper{delay: release}
+	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{
+		"t1": "exec-1", "t2": "exec-2", "t3": "exec-3",
+	})
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = svc.ClearSession(context.Background(), "sess-1", true)
+		close(done)
+	}()
+
+	// Concurrent: all three goroutines should block on the channel before we
+	// release it. Sequential: only one would be blocked.
+	close(release)
+	<-done
+
+	got := append([]string(nil), stopper.stopped...)
+	sort.Strings(got)
+	if want := []string{"exec-1", "exec-2", "exec-3"}; len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("expected all three execs stopped, got %v", got)
 	}
 }
 
