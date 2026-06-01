@@ -1214,19 +1214,20 @@ func normalizeTaskExecutionLimit(raw *int, matchedTasks int) (int, error) {
 	if raw == nil {
 		return defaultTaskExecutionLimit, nil
 	}
-	if *raw == 0 {
+	v := *raw
+	if v == 0 {
 		if matchedTasks != 1 {
 			return 0, fmt.Errorf("execution_limit=0 requires exactly one matching task; use task_id to select one task")
 		}
 		return 0, nil
 	}
-	if *raw < 0 {
-		return 0, fmt.Errorf("execution_limit must be >= 0")
+	if v < 0 {
+		return 0, nil
 	}
-	if *raw > maxTaskExecutionLimit {
+	if v > maxTaskExecutionLimit {
 		return maxTaskExecutionLimit, nil
 	}
-	return *raw, nil
+	return v, nil
 }
 
 func pagedResult(items any, total, page, pageSize int) map[string]any {
