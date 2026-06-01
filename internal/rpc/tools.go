@@ -336,29 +336,30 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 		return nil, fmt.Errorf("instruction is required")
 	}
 	switch params.Type {
-	case "immediate", "countdown", "scheduled":
+	case model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled:
 	default:
-		return nil, fmt.Errorf("type must be immediate, countdown, or scheduled")
+		return nil, fmt.Errorf("type must be %s, %s, or %s",
+			model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled)
 	}
 
 	nowMS := time.Now().UnixMilli()
 
 	switch params.Type {
-	case "countdown":
+	case model.TaskTypeCountdown:
 		if params.ScheduledAt == nil {
 			return nil, fmt.Errorf("scheduled_at is required for countdown tasks")
 		}
 		if *params.ScheduledAt < nowMS+5000 {
 			return nil, fmt.Errorf("scheduled_at must be at least 5 seconds in the future")
 		}
-	case "scheduled":
+	case model.TaskTypeScheduled:
 		if params.CronExpr == "" {
 			return nil, fmt.Errorf("cron_expr is required for scheduled tasks")
 		}
 	}
 
 	var nextRunAt *int64
-	if params.Type == "scheduled" {
+	if params.Type == model.TaskTypeScheduled {
 		sched, err := cron.ParseStandard(params.CronExpr)
 		if err != nil {
 			task := model.Task{
@@ -809,11 +810,11 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 			"error":   workerCounts[string(model.WorkerStatusError)],
 		},
 		"tasks": map[string]any{
-			"pending":          taskCounts["pending"],
-			"running":          taskCounts["running"],
-			"completed":        taskCounts["completed"],
-			"failed":           taskCounts["failed"],
-			"cancelled":        taskCounts["cancelled"],
+			"pending":          taskCounts[model.TaskStatusPending],
+			"running":          taskCounts[model.TaskStatusRunning],
+			"completed":        taskCounts[model.TaskStatusCompleted],
+			"failed":           taskCounts[model.TaskStatusFailed],
+			"cancelled":        taskCounts[model.TaskStatusCancelled],
 			"scheduled_active": scheduledActive,
 		},
 		"recent_executions": recentList,
