@@ -29,7 +29,7 @@ cmd:
   ctl_session:
     short: "Manage session contexts"
   ctl_system:
-    short: "View system status and executions"
+    short: "View system status overview"
   ctl_message:
     short: "Send messages to platform users"
 prompt:

@@ -29,7 +29,7 @@ cmd:
   ctl_session:
     short: "管理会话上下文"
   ctl_system:
-    short: "查看系统状态和执行记录"
+    short: "查看系统状态概览"
   ctl_message:
     short: "向平台用户发送消息"
 prompt:
