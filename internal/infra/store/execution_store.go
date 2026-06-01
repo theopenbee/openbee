@@ -226,7 +226,9 @@ func (s *ExecutionStore) RunningExecIDsByTaskIDs(ctx context.Context, taskIDs []
 // ListByTaskIDs returns executions grouped by task_id, newest first within each task.
 // Every requested task id is present in the returned map; tasks with no executions
 // map to an empty (non-nil) slice.
-func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string) (map[string][]model.WorkerExecution, error) {
+// When limitPerTask > 0, at most that many executions are returned per task.
+// When limitPerTask <= 0, all executions are returned.
+func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error) {
 	out := make(map[string][]model.WorkerExecution, len(taskIDs))
 	for _, id := range taskIDs {
 		out[id] = []model.WorkerExecution{}
@@ -234,11 +236,30 @@ func (s *ExecutionStore) ListByTaskIDs(ctx context.Context, taskIDs []string) (m
 	if len(taskIDs) == 0 {
 		return out, nil
 	}
-	args := make([]any, 0, len(taskIDs))
+	args := make([]any, 0, len(taskIDs)+1)
 	for _, id := range taskIDs {
 		args = append(args, id)
 	}
-	q := execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.started_at DESC, e.rowid DESC`
+
+	var q string
+	if limitPerTask <= 0 {
+		q = execSelect + ` WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `) ORDER BY e.task_id ASC, e.started_at DESC, e.rowid DESC`
+	} else {
+		q = `WITH ranked AS (
+		SELECT e.rowid AS exec_rowid,
+		       ROW_NUMBER() OVER (PARTITION BY e.task_id ORDER BY e.started_at DESC, e.rowid DESC) AS rn
+		FROM bee_executions e
+		WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `)
+	)
+	SELECT e.id, e.task_id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
+	       e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
+	FROM ranked r
+	JOIN bee_executions e ON e.rowid = r.exec_rowid
+	LEFT JOIN bee_workers w ON w.id = e.worker_id
+	WHERE r.rn <= ?
+	ORDER BY e.task_id ASC, e.started_at DESC, e.rowid DESC`
+		args = append(args, limitPerTask)
+	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list executions by task ids: %w", err)

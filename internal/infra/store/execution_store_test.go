@@ -76,7 +76,7 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
 	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
 	_, _ = s.Create("w1", "task-2", "other", "sess-3", "claude")
-	m, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"})
+	m, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"}, 0)
 	if err != nil {
 		t.Fatalf("ListByTaskIDs: %v", err)
 	}
@@ -92,12 +92,55 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 		t.Errorf("task-2 want 1 exec, got %d", len(m["task-2"]))
 	}
 	// A task with no executions returns an empty (non-nil) slice.
-	withMissing, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-none"})
+	withMissing, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-none"}, 0)
 	if err != nil {
 		t.Fatalf("ListByTaskIDs(missing): %v", err)
 	}
 	if got, ok := withMissing["task-none"]; !ok || got == nil || len(got) != 0 {
 		t.Errorf("want empty non-nil slice for task-none, got %#v (present=%v)", got, ok)
+	}
+}
+
+func TestExecutionStore_ListByTaskIDs_LimitsExecutionsPerTask(t *testing.T) {
+	s := newTestExecutionStore(t)
+	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
+	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
+	e3, _ := s.Create("w1", "task-1", "third", "sess-3", "claude")
+	_, _, _ = e1, e2, e3
+	if _, err := s.Create("w1", "task-2", "other", "sess-4", "claude"); err != nil {
+		t.Fatalf("Create task-2 execution: %v", err)
+	}
+
+	got, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"}, 2)
+	if err != nil {
+		t.Fatalf("ListByTaskIDs: %v", err)
+	}
+	if len(got["task-1"]) != 2 {
+		t.Fatalf("task-1 expected 2 executions, got %d", len(got["task-1"]))
+	}
+	if got["task-1"][0].ID != e3.ID || got["task-1"][1].ID != e2.ID {
+		t.Fatalf("expected newest two executions %s,%s; got %+v", e3.ID, e2.ID, got["task-1"])
+	}
+	if len(got["task-2"]) != 1 {
+		t.Fatalf("task-2 expected 1 execution, got %d", len(got["task-2"]))
+	}
+}
+
+func TestExecutionStore_ListByTaskIDs_ZeroLimitReturnsAll(t *testing.T) {
+	s := newTestExecutionStore(t)
+	e1, _ := s.Create("w1", "task-1", "first", "sess-1", "claude")
+	e2, _ := s.Create("w1", "task-1", "second", "sess-2", "claude")
+	e3, _ := s.Create("w1", "task-1", "third", "sess-3", "claude")
+
+	got, err := s.ListByTaskIDs(context.Background(), []string{"task-1"}, 0)
+	if err != nil {
+		t.Fatalf("ListByTaskIDs: %v", err)
+	}
+	if len(got["task-1"]) != 3 {
+		t.Fatalf("expected all 3 executions, got %d", len(got["task-1"]))
+	}
+	if got["task-1"][0].ID != e3.ID || got["task-1"][1].ID != e2.ID || got["task-1"][2].ID != e1.ID {
+		t.Fatalf("unexpected newest-first order: %+v", got["task-1"])
 	}
 }
 

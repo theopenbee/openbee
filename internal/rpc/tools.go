@@ -441,7 +441,7 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	for _, t := range tasks {
 		taskIDs = append(taskIDs, t.ID)
 	}
-	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs)
+	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs, 0)
 	if err != nil {
 		return nil, fmt.Errorf("list executions for tasks: %w", err)
 	}
