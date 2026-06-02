@@ -10,18 +10,18 @@ import (
 )
 
 // NewStopCommand returns the "stop" cobra command.
-func NewStopCommand(exitCode ExitCodeFunc) *cobra.Command {
+func NewStopCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: i18n.M.Cmd.Stop.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return doStop(daemonPIDFile())
+			return DoStop(DaemonPIDFile())
 		},
 	}
 }
 
-// doStop is the testable core of the stop command. pidFile is injected for hermetic testing.
-func doStop(pidFile string) error {
+// DoStop is the testable core of the stop command. pidFile is injected for hermetic testing.
+func DoStop(pidFile string) error {
 	pid, _, err := readPIDFileFrom(pidFile)
 	if err != nil {
 		// No PID file — daemon is not running.

@@ -11,20 +11,18 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-var (
-	cfgPath        string
-	backupPassword string
-)
-
-// NewBackupCommand constructs the `backup` command. appVersion is the build-time
-// version string used in archive metadata.
+// NewBackupCommand constructs the `backup` command. appVersion is used in archive metadata.
 func NewBackupCommand(appVersion string) *cobra.Command {
+	var (
+		cfgPath        string
+		backupPassword string
+	)
 	cmd := &cobra.Command{
 		Use:   "backup [output-dir]",
 		Short: i18n.M.Cmd.Backup.Short,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBackup(args, appVersion)
+			return runBackup(args, appVersion, cfgPath, backupPassword)
 		},
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
@@ -32,7 +30,7 @@ func NewBackupCommand(appVersion string) *cobra.Command {
 	return cmd
 }
 
-func runBackup(args []string, appVersion string) error {
+func runBackup(args []string, appVersion, cfgPath, password string) error {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -52,7 +50,7 @@ func runBackup(args []string, appVersion string) error {
 		StateDir:   daemoncmd.OpenbeeStateDir(),
 		OutputDir:  outputDir,
 		AppVersion: appVersion,
-		Password:   backupPassword,
+		Password:   password,
 	})
 	if err != nil {
 		return err

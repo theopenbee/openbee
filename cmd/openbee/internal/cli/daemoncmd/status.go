@@ -10,13 +10,14 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-// NewStatusCommand returns the "status" cobra command.
+// NewStatusCommand returns the "status" cobra command. exitCode is invoked to
+// signal a non-zero process exit when the daemon is not running.
 func NewStatusCommand(exitCode ExitCodeFunc) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: i18n.M.Cmd.Status.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			running, msg := daemonStatus(daemonPIDFile())
+			running, msg := daemonStatus(DaemonPIDFile())
 			fmt.Println(msg)
 			if !running {
 				return exitCode(1)

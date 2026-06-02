@@ -6,14 +6,14 @@ import (
 )
 
 // NewRestartCommand returns the "restart" cobra command.
-func NewRestartCommand(exitCode ExitCodeFunc) *cobra.Command {
+func NewRestartCommand() *cobra.Command {
 	var restartCfgPath string
 	cmd := &cobra.Command{
 		Use:   "restart",
 		Short: i18n.M.Cmd.Restart.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Stop the existing daemon (tolerates not-running).
-			if err := doStop(daemonPIDFile()); err != nil {
+			if err := DoStop(DaemonPIDFile()); err != nil {
 				return err
 			}
 			// Spawn a fresh daemon with the given config.

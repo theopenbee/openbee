@@ -10,20 +10,20 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-var (
-	restorePassword string
-	restoreForce    bool
-)
-
-// NewRestoreCommand constructs the `restore` command. appVersion is the build-time
-// version string used to validate backup compatibility.
+// NewRestoreCommand constructs the `restore` command. appVersion is used to validate
+// backup compatibility.
 func NewRestoreCommand(appVersion string) *cobra.Command {
+	var (
+		cfgPath         string
+		restorePassword string
+		restoreForce    bool
+	)
 	cmd := &cobra.Command{
 		Use:   "restore <backup-file>",
 		Short: i18n.M.Cmd.Restore.Short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRestore(args, appVersion)
+			return runRestore(args, appVersion, cfgPath, restorePassword, restoreForce)
 		},
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
@@ -32,7 +32,7 @@ func NewRestoreCommand(appVersion string) *cobra.Command {
 	return cmd
 }
 
-func runRestore(args []string, appVersion string) error {
+func runRestore(args []string, appVersion, cfgPath, password string, force bool) error {
 	archivePath := args[0]
 
 	cfg, err := config.Load(cfgPath)
@@ -51,8 +51,8 @@ func runRestore(args []string, appVersion string) error {
 		ConfigPath:  cfgPath,
 		StateDir:    daemoncmd.OpenbeeStateDir(),
 		AppVersion:  appVersion,
-		Force:       restoreForce,
-		Password:    restorePassword,
+		Force:       force,
+		Password:    password,
 	}); err != nil {
 		return err
 	}

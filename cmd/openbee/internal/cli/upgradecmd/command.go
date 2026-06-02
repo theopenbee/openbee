@@ -206,10 +206,7 @@ func doUpgrade(newVersion string, cdnURL string) error {
 		fmt.Println(i18n.M.Output.Upgrade.Verified)
 	}
 
-	// Locate the current executable.
-	// resolveExecutable is duplicated here to avoid an import cycle with the cli
-	// package (cli imports upgradecmd via NewRoot). This matches daemoncmd's pattern.
-	execPath, err := resolveExecutable()
+	execPath, err := utils.ResolveExecutable()
 	if err != nil {
 		return err
 	}
@@ -237,21 +234,6 @@ func doUpgrade(newVersion string, cdnURL string) error {
 
 	fmt.Printf(i18n.M.Output.Upgrade.Success+"\n", newVersion)
 	return nil
-}
-
-// resolveExecutable returns the real path of the running binary, following symlinks.
-// Also defined in daemoncmd; kept local in each leaf package to avoid an import
-// cycle with the cli package (cli imports upgradecmd via NewRoot).
-func resolveExecutable() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("resolve executable: %w", err)
-	}
-	exe, err = filepath.EvalSymlinks(exe)
-	if err != nil {
-		return "", fmt.Errorf("eval symlinks: %w", err)
-	}
-	return exe, nil
 }
 
 func extractBinary(archivePath string, dest *os.File) error {

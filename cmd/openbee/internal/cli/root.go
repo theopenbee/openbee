@@ -34,8 +34,8 @@ func NewRoot(info BuildInfo) *cobra.Command {
 	exitCode := func(code int) error { return &ExitCodeError{Code: code} }
 	root.AddCommand(
 		daemoncmd.NewServerCommand(),
-		daemoncmd.NewStopCommand(exitCode),
-		daemoncmd.NewRestartCommand(exitCode),
+		daemoncmd.NewStopCommand(),
+		daemoncmd.NewRestartCommand(),
 		daemoncmd.NewStatusCommand(exitCode),
 		backupcmd.NewBackupCommand(info.Version),
 		backupcmd.NewRestoreCommand(info.Version),
