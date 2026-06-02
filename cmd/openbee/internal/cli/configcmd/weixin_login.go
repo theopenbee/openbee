@@ -75,7 +75,7 @@ func runWeixinQRLogin() (token, userID, baseURL string, err error) {
 			return statusResp.BotToken, statusResp.ILinkUserID, statusResp.BaseURL, nil
 		case "scaned":
 			fmt.Println(i18n.M.Output.Weixin.Scanned)
-			attempt--           // don't count scanned as a failed attempt
+			attempt--               // don't count scanned as a failed attempt
 			time.Sleep(time.Second) // prevent tight loop if server responds instantly
 		case "expired":
 			return "", "", "", errors.New(i18n.M.Output.Weixin.QRExpired)

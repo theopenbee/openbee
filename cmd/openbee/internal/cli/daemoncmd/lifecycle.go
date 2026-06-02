@@ -16,7 +16,8 @@ import (
 const daemonEnvKey = "OPENBEE_DAEMON"
 
 // resolveExecutable returns the real path of the running binary, following symlinks.
-// Duplicated from the cli package to avoid an import cycle (cli imports daemoncmd).
+// Also defined in upgradecmd; kept local in each leaf package to avoid an import
+// cycle with the cli package (cli imports daemoncmd via NewRoot).
 func resolveExecutable() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
