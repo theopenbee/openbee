@@ -7,6 +7,7 @@
 - Remove the `recent_executions` field from `ctl system overview` / `get_system_overview`; use the `executions` array on `ctl task list` for per-task history.
 - Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline by `ctl task list`.
 - Remove the `openbee ctl system executions` subcommand and the `list_bee_executions` tool; bee execution history is no longer exposed via CLI or MCP.
+- Remove the Kimi engine entirely, including the `internal/ai/kimi` package, `config_kimi` subcommand, Kimi engine constant and registry, web log-viewer Kimi parser, and related i18n strings, README mentions, and tests.
 
 ### Changed
 
