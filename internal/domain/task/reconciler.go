@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -90,25 +91,36 @@ func (r *Reconciler) reconcile(ctx context.Context) {
 		}
 	}
 
-	var latestByTask map[string][]model.WorkerExecution
+	var (
+		latestByTask  map[string][]model.WorkerExecution
+		runningByTask = make(map[string]model.WorkerExecution, len(runningExecIDs))
+	)
+	g, gctx := errgroup.WithContext(ctx)
 	if len(uncovered) > 0 {
-		latestByTask, err = r.execStore.ListByTaskIDs(ctx, uncovered, 1)
-		if err != nil {
-			log.Error("reconciler: list executions", zap.Error(err))
-			return
-		}
+		g.Go(func() error {
+			m, err := r.execStore.ListByTaskIDs(gctx, uncovered, 1)
+			if err != nil {
+				return err
+			}
+			latestByTask = m
+			return nil
+		})
 	}
-
-	runningByTask := make(map[string]model.WorkerExecution, len(runningExecIDs))
 	if len(runningExecIDs) > 0 {
-		rows, err := r.execStore.ListByIDs(ctx, runningExecIDs)
-		if err != nil {
-			log.Error("reconciler: list running execs", zap.Error(err))
-			return
-		}
-		for _, e := range rows {
-			runningByTask[e.TaskID] = e
-		}
+		g.Go(func() error {
+			rows, err := r.execStore.ListByIDs(gctx, runningExecIDs)
+			if err != nil {
+				return err
+			}
+			for _, e := range rows {
+				runningByTask[e.TaskID] = e
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		log.Error("reconciler: load executions", zap.Error(err))
+		return
 	}
 
 	for _, t := range tasks {
