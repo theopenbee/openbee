@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
@@ -26,5 +27,6 @@ func NewRoot(info BuildInfo) *cobra.Command {
 		SilenceUsage:  true,
 	}
 	root.SetVersionTemplate(fmt.Sprintf("openbee %s (commit: %s, built: %s)\n", info.Version, info.Commit, info.Date))
+	root.AddCommand(ctlcmd.NewCommand())
 	return root
 }

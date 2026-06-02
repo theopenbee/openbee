@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
@@ -60,6 +61,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "warning: i18n load failed: %v\n", err)
 	}
 	applyTranslations()
+	rootCmd.AddCommand(ctlcmd.NewCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		var ece *exitCodeError
@@ -97,6 +99,4 @@ func applyTranslations() {
 	restoreCmd.Flags().Lookup("force").Usage = m.Flag.RestoreForce
 	restartCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
 	upgradeCmd.Flags().Lookup("check").Usage = m.Flag.UpgradeCheck
-
-	applyCtlTranslations()
 }
