@@ -50,6 +50,12 @@ type Dispatcher interface {
 	ClearWorker(sessionKey, workerID string)
 }
 
+// TaskCanceller marks a single task cancelled in the DB and (for in-process
+// implementations) drains it from the dispatcher's in-memory queue.
+type TaskCanceller interface {
+	CancelTask(ctx context.Context, taskID string) error
+}
+
 // ClearService performs the shared destructive operations behind /clear and
 // ctl session clear*. Evaluate* methods are read-only previews; Clear* methods
 // always execute. Callers gate the destructive path on their own UX.
@@ -59,6 +65,7 @@ type ClearService struct {
 	execStopper   ExecutionStopper
 	execFinalizer ExecutionFinalizer
 	dispatcher    Dispatcher
+	taskCanceller TaskCanceller
 	runningExecs  utils.RunningExecLookup
 	engineCfg     *enginecfg.Store
 }
@@ -70,6 +77,7 @@ type ClearServiceDeps struct {
 	ExecStopper   ExecutionStopper
 	ExecFinalizer ExecutionFinalizer
 	Dispatcher    Dispatcher
+	TaskCanceller TaskCanceller
 	RunningExecs  utils.RunningExecLookup
 	EngineCfg     *enginecfg.Store
 }
@@ -81,6 +89,7 @@ func NewClearService(deps ClearServiceDeps) *ClearService {
 		execStopper:   deps.ExecStopper,
 		execFinalizer: deps.ExecFinalizer,
 		dispatcher:    deps.Dispatcher,
+		taskCanceller: deps.TaskCanceller,
 		runningExecs:  deps.RunningExecs,
 		engineCfg:     deps.EngineCfg,
 	}
@@ -221,10 +230,12 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 	}, nil
 }
 
-// CancelTask stops a single running execution and finalizes it. Used by the
-// cancel_task RPC tool.
-func (s *ClearService) CancelTask(ctx context.Context, executionID string) {
-	s.stopAndFinalizeExecution(ctx, executionID)
+// CancelTask resolves the running execution for taskID, stops and finalizes
+// it (if any), then marks the task cancelled via the TaskCanceller.
+func (s *ClearService) CancelTask(ctx context.Context, taskID string) error {
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.runningExecs, []model.Task{{ID: taskID}})
+	s.stopAndFinalizeExecution(ctx, execIDs[taskID])
+	return s.taskCanceller.CancelTask(ctx, taskID)
 }
 
 // stopRunningExecutions resolves the running exec ID for each task and stops

@@ -527,16 +527,7 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 	if params.TaskID == "" {
 		return nil, fmt.Errorf("task_id is required")
 	}
-
-	running, err := s.executionStore.GetRunningByTaskID(ctx, params.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("get running execution: %w", err)
-	}
-	if running != nil {
-		s.clearSvc.CancelTask(ctx, running.ID)
-	}
-
-	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
+	if err := s.clearSvc.CancelTask(ctx, params.TaskID); err != nil {
 		return nil, fmt.Errorf("cancel task: %w", err)
 	}
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil

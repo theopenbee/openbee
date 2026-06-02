@@ -26,10 +26,6 @@ const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
-type TaskCanceller interface {
-	CancelTask(ctx context.Context, taskID string) error
-}
-
 // Server dispatches tool calls.
 type Server struct {
 	workerStore          *store.WorkerStore
@@ -39,7 +35,6 @@ type Server struct {
 	outboundMessageStore *store.OutboundMessageStore
 	senders              map[string]platform.PlatformSenderAdapter
 	clearSvc             *session.ClearService
-	taskCanceller        TaskCanceller
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
@@ -54,7 +49,6 @@ func NewBeeServer(
 	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
 	clearSvc *session.ClearService,
-	taskCanceller TaskCanceller,
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
@@ -68,7 +62,6 @@ func NewBeeServer(
 		outboundMessageStore: oms,
 		senders:              senders,
 		clearSvc:             clearSvc,
-		taskCanceller:        taskCanceller,
 		executionStore:       es,
 		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,

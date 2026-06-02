@@ -99,6 +99,16 @@ func (f *fakeDispatcher) ClearWorker(sk, wid string) {
 	f.workers = append(f.workers, sk+"::"+wid)
 }
 
+type fakeTaskCanceller struct {
+	called []string
+	err    error
+}
+
+func (f *fakeTaskCanceller) CancelTask(_ context.Context, taskID string) error {
+	f.called = append(f.called, taskID)
+	return f.err
+}
+
 type fakeRunningExecs map[string]string
 
 func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []string) (map[string]string, error) {
@@ -119,6 +129,21 @@ func newSvc(t *testing.T, sessions *fakeSessionStore, tasks *fakeTaskStore, stop
 		ExecStopper:   stopper,
 		ExecFinalizer: finalizer,
 		Dispatcher:    disp,
+		TaskCanceller: &fakeTaskCanceller{},
+		RunningExecs:  execs,
+		EngineCfg:     enginecfg.NewStore("claude"),
+	})
+}
+
+func newSvcWithCanceller(t *testing.T, sessions *fakeSessionStore, tasks *fakeTaskStore, stopper *fakeExecStopper, finalizer *fakeExecFinalizer, disp *fakeDispatcher, execs fakeRunningExecs, canceller *fakeTaskCanceller) *session.ClearService {
+	t.Helper()
+	return session.NewClearService(session.ClearServiceDeps{
+		Sessions:      sessions,
+		Tasks:         tasks,
+		ExecStopper:   stopper,
+		ExecFinalizer: finalizer,
+		Dispatcher:    disp,
+		TaskCanceller: canceller,
 		RunningExecs:  execs,
 		EngineCfg:     enginecfg.NewStore("claude"),
 	})
@@ -330,15 +355,43 @@ func TestClearWorker_NoActiveTasks_StillDeletesContextAndClearsQueue(t *testing.
 func TestCancelTask_StopsAndFinalizesOnError(t *testing.T) {
 	stopper := &fakeExecStopper{err: errStopFailed}
 	fin := &fakeExecFinalizer{}
-	svc := newSvc(t, &fakeSessionStore{}, &fakeTaskStore{}, stopper, fin, &fakeDispatcher{}, nil)
+	canceller := &fakeTaskCanceller{}
+	execs := fakeRunningExecs{"task-1": "exec-1"}
+	svc := newSvcWithCanceller(t, &fakeSessionStore{}, &fakeTaskStore{}, stopper, fin, &fakeDispatcher{}, execs, canceller)
 
-	svc.CancelTask(context.Background(), "exec-1")
+	if err := svc.CancelTask(context.Background(), "task-1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-1" {
 		t.Fatalf("expected stop exec-1, got %v", stopper.stopped)
 	}
 	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
 		t.Fatalf("expected MarkAbandoned(exec-1), got %v", fin.abandoned)
+	}
+	if len(canceller.called) != 1 || canceller.called[0] != "task-1" {
+		t.Fatalf("expected canceller(task-1), got %v", canceller.called)
+	}
+}
+
+func TestCancelTask_NoRunningExecutionStillCancels(t *testing.T) {
+	stopper := &fakeExecStopper{}
+	fin := &fakeExecFinalizer{}
+	canceller := &fakeTaskCanceller{}
+	svc := newSvcWithCanceller(t, &fakeSessionStore{}, &fakeTaskStore{}, stopper, fin, &fakeDispatcher{}, nil, canceller)
+
+	if err := svc.CancelTask(context.Background(), "task-1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(stopper.stopped) != 0 {
+		t.Fatalf("expected no stop calls, got %v", stopper.stopped)
+	}
+	if len(fin.abandoned) != 0 {
+		t.Fatalf("expected no finalize calls, got %v", fin.abandoned)
+	}
+	if len(canceller.called) != 1 || canceller.called[0] != "task-1" {
+		t.Fatalf("expected canceller(task-1), got %v", canceller.called)
 	}
 }
 

@@ -65,7 +65,7 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 		RunningExecs:  es,
 		EngineCfg:     engineCfg,
 	})
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -275,7 +275,7 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 		RunningExecs:  es,
 		EngineCfg:     engineCfg,
 	})
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -577,7 +577,7 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 		RunningExecs:  es,
 		EngineCfg:     engineCfg,
 	})
-	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, nil, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 	return srv, db, stopper, disp
 }
 

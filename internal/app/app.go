@@ -172,6 +172,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		ExecStopper:   mgr,
 		ExecFinalizer: s.execStore,
 		Dispatcher:    disp,
+		TaskCanceller: disp,
 		RunningExecs:  s.execStore,
 		EngineCfg:     engineCfg,
 	})
@@ -197,7 +198,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
