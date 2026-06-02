@@ -100,11 +100,9 @@ type configValues struct {
 	ClaudeEnabled       bool
 	CodexEnabled        bool
 	PiEnabled           bool
-	KimiEnabled         bool
 	ClaudePath          string
 	CodexPath           string
 	PiPath              string
-	KimiPath            string
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
@@ -189,11 +187,9 @@ func loadExistingConfig(path string) *configValues {
 		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
 		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
 		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
-		KimiEnabled:            cfg.Bee.Engines.Kimi.Enabled,
 		ClaudePath:             cfg.Bee.Engines.Claude.Path,
 		CodexPath:              cfg.Bee.Engines.Codex.Path,
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
-		KimiPath:               cfg.Bee.Engines.Kimi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
 		FFprobePath:            cfg.Bee.Media.FFprobePath,
@@ -218,7 +214,6 @@ func runConfig() error {
 		ClaudePath:             "claude",
 		CodexPath:              "codex",
 		PiPath:                 "pi",
-		KimiPath:               "kimi",
 		RPCTokenTTL:            "2h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
@@ -257,7 +252,6 @@ func runConfig() error {
 		ai.EngineClaude: vals.ClaudeEnabled,
 		ai.EngineCodex:  vals.CodexEnabled,
 		ai.EnginePi:     vals.PiEnabled,
-		ai.EngineKimi:   vals.KimiEnabled,
 	}
 	var defaultEngines []string
 	for _, name := range ai.AllEngines() {
@@ -292,7 +286,6 @@ func runConfig() error {
 	vals.ClaudeEnabled = false
 	vals.CodexEnabled = false
 	vals.PiEnabled = false
-	vals.KimiEnabled = false
 
 	for _, e := range selectedEngines {
 		switch engineName(e) {
@@ -309,11 +302,6 @@ func runConfig() error {
 		case ai.EnginePi:
 			vals.PiEnabled = true
 			if err := configurePiExecutable(&vals); err != nil {
-				return err
-			}
-		case ai.EngineKimi:
-			vals.KimiEnabled = true
-			if err := configureKimiExecutable(&vals); err != nil {
 				return err
 			}
 		}
@@ -862,7 +850,6 @@ func engineMappings() []engineMapping {
 		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
 		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
 		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
-		{ai.EngineKimi, i18n.M.Prompt.OptionEngineKimi},
 	}
 }
 

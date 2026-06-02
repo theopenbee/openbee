@@ -35,26 +35,4 @@ describe("detectEngine", () => {
   it("returns 'claude' for an empty array", () => {
     expect(detectEngine([])).toBe("claude")
   })
-
-  it("returns 'kimi' when first line has role but no type", () => {
-    const line = JSON.stringify({ role: "user", content: "hello" })
-    expect(detectEngine([line])).toBe("kimi")
-  })
-
-  it("returns 'kimi' when assistant role line appears first", () => {
-    const line = JSON.stringify({ role: "assistant", content: "hi" })
-    expect(detectEngine([line])).toBe("kimi")
-  })
-
-  it("does not mistake Claude assistant event for kimi", () => {
-    // Claude lines have a top-level "type" field
-    const line = JSON.stringify({ type: "assistant", message: { content: [] } })
-    expect(detectEngine([line])).toBe("claude")
-  })
-
-  it("returns 'kimi' when kimi line appears after an unknown line", () => {
-    const unknown = "not json"
-    const kimiLine = JSON.stringify({ role: "user", content: "hello" })
-    expect(detectEngine([unknown, kimiLine])).toBe("kimi")
-  })
 })

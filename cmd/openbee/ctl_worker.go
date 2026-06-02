@@ -176,12 +176,12 @@ func init() {
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateDescription, "description", "", "Worker description")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateConstraints, "constraints", "", "Worker constraints content")
 	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateWorkDir, "work-dir", "", "Working directory path")
-	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi, kimi); leave empty for server default")
+	ctlWorkerCreateCmd.Flags().StringVar(&workerCreateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty for server default")
 
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateName, "name", "", "New name")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateDescription, "description", "", "New description")
 	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateConstraints, "constraints", "", "New constraints content")
-	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi, kimi); leave empty to keep unchanged")
+	ctlWorkerUpdateCmd.Flags().StringVar(&workerUpdateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty to keep unchanged")
 
 	ctlWorkerDeleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
 

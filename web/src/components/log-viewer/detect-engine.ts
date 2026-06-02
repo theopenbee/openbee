@@ -7,7 +7,6 @@ export function detectEngine(lines: string[]): Engine {
     if (!obj) continue
     if (obj.type === "thread.started") return "codex"
     if (obj.type === "agent_start") return "pi"
-    if (typeof obj.role === "string" && obj.type === undefined) return "kimi"
   }
   return "claude"
 }

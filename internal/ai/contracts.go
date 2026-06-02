@@ -48,10 +48,9 @@ const (
 	EngineClaude = "claude"
 	EngineCodex  = "codex"
 	EnginePi     = "pi"
-	EngineKimi   = "kimi"
 )
 
-var allEngines = []string{EngineClaude, EngineCodex, EnginePi, EngineKimi}
+var allEngines = []string{EngineClaude, EngineCodex, EnginePi}
 
 // AllEngines returns a snapshot of the canonical engine name list in registration order.
 func AllEngines() []string {

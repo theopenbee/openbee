@@ -234,8 +234,6 @@ bee:
       path: pi
       env:
         PI_VAR: pi_value
-    kimi:
-      path: kimi
     codex:
       path: codex
 `)
@@ -256,8 +254,8 @@ bee:
 	if got := cfg.Bee.Engines.Pi.Env["PI_VAR"]; got != "pi_value" {
 		t.Errorf("Pi.Env[PI_VAR]: want pi_value got %q", got)
 	}
-	if cfg.Bee.Engines.Kimi.Env != nil {
-		t.Errorf("Kimi.Env should be nil when not set, got %v", cfg.Bee.Engines.Kimi.Env)
+	if cfg.Bee.Engines.Codex.Env != nil {
+		t.Errorf("Codex.Env should be nil when not set, got %v", cfg.Bee.Engines.Codex.Env)
 	}
 }
 

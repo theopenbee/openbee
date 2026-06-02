@@ -182,7 +182,7 @@ func TestEngineCommand_InvalidEngine(t *testing.T) {
 	if len(sender.sent) != 1 {
 		t.Fatal("expected one reply")
 	}
-	want := "未知的 engine: xyz，支持的 engine：claude / codex / pi / kimi"
+	want := "未知的 engine: xyz，支持的 engine：claude / codex / pi"
 	if sender.sent[0] != want {
 		t.Errorf("unexpected reply:\ngot  %s\nwant %s", sender.sent[0], want)
 	}

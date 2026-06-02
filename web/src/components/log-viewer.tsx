@@ -12,7 +12,6 @@ import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
 import { CodexParser } from "./log-viewer/codex-parser"
 import { PiParser } from "./log-viewer/pi-parser"
-import { KimiParser } from "./log-viewer/kimi-parser"
 
 type LogFilter = "all" | "text" | "tool" | "raw"
 type LogViewerVariant = "standalone" | "embedded"
@@ -22,7 +21,6 @@ const FILTER_ALIAS: Partial<Record<string, LogFilter>> = { "codex-command": "too
 const PARSER_FACTORY: Record<string, () => StreamParser> = {
   codex: () => new CodexParser(),
   pi: () => new PiParser(),
-  kimi: () => new KimiParser(),
 }
 
 interface LogViewerProps {

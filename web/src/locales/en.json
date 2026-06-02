@@ -129,8 +129,7 @@
     "engines": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "pi": "Pi",
-      "kimi": "Kimi"
+      "pi": "Pi"
     }
   },
   "sessions": {
