@@ -27,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -165,9 +166,26 @@ func BuildApp(cfg config.Config) (*App, error) {
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
-	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, s.sessionStore, s.taskStore, mgr, disp, sendersByPlatform, engineCfg)
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      s.sessionStore,
+		Tasks:         s.taskStore,
+		ExecStopper:   mgr,
+		ExecFinalizer: s.execStore,
+		Dispatcher:    disp,
+		TaskCanceller: disp,
+		RunningExecs:  s.execStore,
+		EngineCfg:     engineCfg,
+	})
+	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, clearSvc, sendersByPlatform, s.execStore)
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
-	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg)
+	statusCmdHandler := command.NewStatusCommandHandler(command.StatusCommandDeps{
+		Sessions:     s.sessionStore,
+		Tasks:        s.taskStore,
+		Workers:      s.workerStore,
+		Senders:      sendersByPlatform,
+		EngineCfg:    engineCfg,
+		RunningExecs: s.execStore,
+	})
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
@@ -180,7 +198,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, mgr, disp, disp, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
@@ -192,6 +210,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 
 	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
+	reconciler := task.NewReconciler(s.taskStore, s.execStore, 0)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
 		func(ctx context.Context) { localIngest.Run(ctx) },
@@ -203,6 +222,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { feeder.Run(ctx) },
 		func(ctx context.Context) { sched.Run(ctx) },
 		func(ctx context.Context) { disp.Run(ctx) },
+		func(ctx context.Context) { reconciler.Run(ctx) },
 		func(ctx context.Context) { tokenSyncer.Run(ctx) },
 	}
 	for _, p := range platforms {

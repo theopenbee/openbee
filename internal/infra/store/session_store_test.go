@@ -345,38 +345,6 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 	}
 }
 
-func TestSessionStore_DeleteWorkerSessionContext_Basic(t *testing.T) {
-	_, ss := setupSessionDB(t)
-	ctx := context.Background()
-
-	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "claude")     //nolint:errcheck
-	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "codex")       //nolint:errcheck
-
-	if err := ss.DeleteWorkerSessionContext(ctx, "sk", "worker-1"); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-
-	w1Claude, _ := ss.GetSessionContextForEngine(ctx, "sk", "worker-1", "claude")
-	w1Codex, _ := ss.GetSessionContextForEngine(ctx, "sk", "worker-1", "codex")
-	if w1Claude != "" || w1Codex != "" {
-		t.Errorf("expected worker-1 cleared across engines, got claude=%q codex=%q", w1Claude, w1Codex)
-	}
-	bee, _ := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "claude")
-	if bee != "bee-sid" {
-		t.Errorf("expected bee unaffected, got %q", bee)
-	}
-}
-
-func TestSessionStore_DeleteWorkerSessionContext_Idempotent(t *testing.T) {
-	_, ss := setupSessionDB(t)
-	ctx := context.Background()
-
-	if err := ss.DeleteWorkerSessionContext(ctx, "sk", "nobody"); err != nil {
-		t.Errorf("expected no error on missing row, got %v", err)
-	}
-}
-
 func TestSessionStore_DeleteSessionContextForEngine_Basic(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	ctx := context.Background()

@@ -14,6 +14,14 @@ const (
 	TaskStatusActive = TaskStatusPending + "," + TaskStatusRunning
 )
 
+var TaskStatuses = []string{
+	TaskStatusPending,
+	TaskStatusRunning,
+	TaskStatusCompleted,
+	TaskStatusFailed,
+	TaskStatusCancelled,
+}
+
 // Task represents a unit of work created by bee and dispatched to a worker.
 type Task struct {
 	ID          string
@@ -25,7 +33,6 @@ type Task struct {
 	ScheduledAt *int64 // ms; countdown: absolute trigger time
 	CronExpr    string
 	NextRunAt   *int64 // ms; scheduled tasks only
-	ExecutionID string
 	CreatedAt   int64
 	UpdatedAt   int64
 }

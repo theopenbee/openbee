@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -18,6 +21,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/linear"
 )
 
 // CallTool is exported for testing only.
@@ -26,19 +30,13 @@ func (s *Server) CallTool(ctx context.Context, name string, args json.RawMessage
 }
 
 // workerDisplayName returns the worker's configured name, falling back to the raw ID.
-// Results are cached for the server's lifetime to avoid a DB round-trip on every send_message call.
 func (s *Server) workerDisplayName(workerID string) string {
-	if v, ok := s.workerNameCache.Load(workerID); ok {
-		return v.(string)
-	}
-	name := workerID
-	if w, err := s.workerStore.GetByID(workerID); err == nil {
-		name = w.Name
-	} else {
+	w, err := s.workerStore.GetByID(workerID)
+	if err != nil {
 		log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
+		return workerID
 	}
-	s.workerNameCache.Store(workerID, name)
-	return name
+	return w.Name
 }
 
 // checkWorkerScope enforces per-tool scope restrictions for worker tokens.
@@ -88,8 +86,6 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolGetWorkerStatus(ctx, args)
 	case utils.GetSystemOverview:
 		return s.toolGetSystemOverview(ctx)
-	case utils.ListBeeExecutions:
-		return s.toolListBeeExecutions(args)
 	case utils.SaveConstraint:
 		return s.toolSaveConstraint(args)
 	case utils.GetConstraint:
@@ -114,8 +110,6 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolListMessages(ctx, args)
 	case utils.ListOutboundMessages:
 		return s.toolListOutboundMessages(ctx, args)
-	case utils.ListExecutions:
-		return s.toolListExecutions(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -124,7 +118,7 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 const (
 	ClearReasonActiveTasks     = "active_tasks"
 	ClearReasonMultipleWorkers = "multiple_workers"
-	linearPlatformID           = "linear"
+	ClearReasonNoContext       = "no_context"
 )
 
 type workerBrief struct {
@@ -138,6 +132,31 @@ type ActiveTaskSummary struct {
 	TaskID      string `json:"task_id"`
 	Instruction string `json:"instruction"`
 	Status      string `json:"status"`
+}
+
+// buildActiveTasksConfirmation packages the shared confirmation payload that
+// clear_session and clear_worker_session return when active tasks block the
+// clear. extras are merged into the returned map (e.g. worker_id for the
+// worker-scoped variant).
+func buildActiveTasksConfirmation(tasks []model.Task, message string, extras map[string]any) map[string]any {
+	summaries := make([]ActiveTaskSummary, 0, len(tasks))
+	for _, t := range tasks {
+		summaries = append(summaries, ActiveTaskSummary{
+			TaskID:      t.ID,
+			Instruction: t.Instruction,
+			Status:      t.Status,
+		})
+	}
+	out := map[string]any{
+		"requires_confirmation": true,
+		"reason":                ClearReasonActiveTasks,
+		"running_tasks":         summaries,
+		"message":               message,
+	}
+	for k, v := range extras {
+		out[k] = v
+	}
+	return out
 }
 
 type LinkedWorkerSummary struct {
@@ -339,29 +358,30 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 		return nil, fmt.Errorf("instruction is required")
 	}
 	switch params.Type {
-	case "immediate", "countdown", "scheduled":
+	case model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled:
 	default:
-		return nil, fmt.Errorf("type must be immediate, countdown, or scheduled")
+		return nil, fmt.Errorf("type must be %s, %s, or %s",
+			model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled)
 	}
 
 	nowMS := time.Now().UnixMilli()
 
 	switch params.Type {
-	case "countdown":
+	case model.TaskTypeCountdown:
 		if params.ScheduledAt == nil {
 			return nil, fmt.Errorf("scheduled_at is required for countdown tasks")
 		}
 		if *params.ScheduledAt < nowMS+5000 {
 			return nil, fmt.Errorf("scheduled_at must be at least 5 seconds in the future")
 		}
-	case "scheduled":
+	case model.TaskTypeScheduled:
 		if params.CronExpr == "" {
 			return nil, fmt.Errorf("cron_expr is required for scheduled tasks")
 		}
 	}
 
 	var nextRunAt *int64
-	if params.Type == "scheduled" {
+	if params.Type == model.TaskTypeScheduled {
 		sched, err := cron.ParseStandard(params.CronExpr)
 		if err != nil {
 			task := model.Task{
@@ -404,43 +424,97 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 	return map[string]string{"task_id": id, "status": "pending"}, nil
 }
 
+type taskWithExecutions struct {
+	model.Task
+	Executions []model.WorkerExecution `json:"executions"`
+}
+
 func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		MessageID  string `json:"message_id"`
-		SessionKey string `json:"session_key"`
-		WorkerID   string `json:"worker_id"`
-		Status     string `json:"status"`
-		Type       string `json:"type"`
+		TaskID         string `json:"task_id"`
+		MessageID      string `json:"message_id"`
+		SessionKey     string `json:"session_key"`
+		WorkerID       string `json:"worker_id"`
+		Status         string `json:"status"`
+		Type           string `json:"type"`
+		Page           int    `json:"page"`
+		PageSize       int    `json:"page_size"`
+		ExecutionLimit *int   `json:"execution_limit"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
+	if params.TaskID != "" && (params.MessageID != "" || params.SessionKey != "" || params.WorkerID != "") {
+		return nil, fmt.Errorf("task_id cannot be combined with message_id, session_key, or worker_id")
+	}
 	if params.MessageID != "" && params.SessionKey != "" {
 		return nil, fmt.Errorf("message_id and session_key are mutually exclusive")
 	}
-	if params.MessageID == "" && params.SessionKey == "" && params.WorkerID == "" {
-		return nil, fmt.Errorf("at least one of message_id, session_key, or worker_id is required")
+	if params.TaskID == "" && params.MessageID == "" && params.SessionKey == "" && params.WorkerID == "" {
+		return nil, fmt.Errorf("at least one of task_id, message_id, session_key, or worker_id is required")
 	}
-	tasks, err := s.taskStore.List(ctx, store.TaskFilter{
+
+	page, pageSize, offset := normalizePage(params.Page, params.PageSize, maxTaskPageSize)
+
+	filter := store.TaskFilter{
+		TaskID:     params.TaskID,
 		MessageID:  params.MessageID,
 		SessionKey: params.SessionKey,
 		WorkerID:   params.WorkerID,
 		Status:     params.Status,
 		Type:       params.Type,
+		Limit:      pageSize,
+		Offset:     offset,
+	}
+	var (
+		total       int
+		tasks       []model.Task
+		execsByTask map[string][]model.WorkerExecution
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		t, err := s.taskStore.CountTasks(gctx, filter)
+		if err != nil {
+			return fmt.Errorf("count tasks: %w", err)
+		}
+		total = t
+		return nil
 	})
-	if err != nil {
-		return nil, fmt.Errorf("list tasks: %w", err)
+	g.Go(func() error {
+		ts, err := s.taskStore.List(gctx, filter)
+		if err != nil {
+			return fmt.Errorf("list tasks: %w", err)
+		}
+		tasks = ts
+		if len(ts) == 0 {
+			return nil
+		}
+		executionLimit, err := normalizeTaskExecutionLimit(params.ExecutionLimit, len(ts))
+		if err != nil {
+			return err
+		}
+		taskIDs := make([]string, 0, len(ts))
+		for _, t := range ts {
+			taskIDs = append(taskIDs, t.ID)
+		}
+		em, err := s.executionStore.ListByTaskIDs(gctx, taskIDs, executionLimit)
+		if err != nil {
+			return fmt.Errorf("list executions for tasks: %w", err)
+		}
+		execsByTask = em
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	if tasks == nil {
 		tasks = []model.Task{}
 	}
-	return tasks, nil
-}
-
-func (s *Server) finalizeCancelledExecution(ctx context.Context, executionID string) {
-	if _, err := s.executionStore.MarkAbandoned(ctx, executionID, "cancelled by user"); err != nil {
-		log.Error("finalize cancelled execution", zap.String("executionID", executionID), zap.Error(err))
+	out := make([]taskWithExecutions, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, taskWithExecutions{Task: t, Executions: execsByTask[t.ID]})
 	}
+	return pagedResult(out, total, page, pageSize), nil
 }
 
 func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any, error) {
@@ -453,32 +527,7 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 	if params.TaskID == "" {
 		return nil, fmt.Errorf("task_id is required")
 	}
-
-	// Stop running execution if any
-	task, err := s.taskStore.GetByID(ctx, params.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-	if task.ExecutionID != "" {
-		var stopErr error
-		if s.execStopper != nil {
-			stopErr = s.execStopper.StopExecution(task.ExecutionID)
-		}
-		if stopErr != nil {
-			// Process not active in this server (already exited, never started,
-			// or different instance). The execution row may be a stuck running
-			// orphan — force-finalize so future busy checks don't trip on it.
-			log.Debug("stop execution: process not active",
-				zap.String("op", "cancel_task"),
-				zap.String("executionID", task.ExecutionID),
-				zap.Error(stopErr))
-			s.finalizeCancelledExecution(ctx, task.ExecutionID)
-		}
-		// On stopErr == nil the process was alive; monitorExecution will
-		// finalize the row when its output channel closes.
-	}
-
-	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
+	if err := s.clearSvc.CancelTask(ctx, params.TaskID); err != nil {
 		return nil, fmt.Errorf("cancel task: %w", err)
 	}
 	return map[string]string{"task_id": params.TaskID, "status": "cancelled"}, nil
@@ -533,7 +582,7 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		InboundMsgID: params.MessageID,
 	}
 
-	if stored.Platform == linearPlatformID && params.Content != "" && params.MediaPath != "" {
+	if stored.Platform == linear.PlatformID && params.Content != "" && params.MediaPath != "" {
 		outbound := base
 		outbound.Content = params.Content
 		outbound.MediaPath = params.MediaPath
@@ -574,89 +623,72 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		return nil, fmt.Errorf("session_key is required")
 	}
 
-	var tasksToStop []model.Task
+	// Multi-worker safety net is RPC-specific — IM users can't easily span
+	// multiple workers in a single chat, so /clear doesn't gate on it.
 	if !params.Force {
-		activeTasks, err := s.taskStore.ListBySessionKey(ctx, params.SessionKey,
-			model.TaskStatusActive, model.TaskTypeImmediate)
-		if err != nil {
-			return nil, fmt.Errorf("list active tasks: %w", err)
-		}
-		if len(activeTasks) > 0 {
-			summaries := make([]ActiveTaskSummary, 0, len(activeTasks))
-			for _, t := range activeTasks {
-				summaries = append(summaries, ActiveTaskSummary{
-					TaskID:      t.ID,
-					Instruction: t.Instruction,
-					Status:      t.Status,
-				})
-			}
-			return map[string]any{
-				"requires_confirmation": true,
-				"reason":                ClearReasonActiveTasks,
-				"running_tasks":         summaries,
-				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(activeTasks)),
-			}, nil
-		}
-
-		agents, err := s.sessionStore.ListSessionContexts(ctx, params.SessionKey)
-		if err != nil {
-			return nil, fmt.Errorf("list session contexts: %w", err)
-		}
-		var workers []LinkedWorkerSummary
-		seenWorkers := make(map[string]struct{})
-		for _, a := range agents {
-			if a.AgentType == store.WorkerAgentType {
-				if _, exists := seenWorkers[a.AgentID]; exists {
-					continue
-				}
-				seenWorkers[a.AgentID] = struct{}{}
-				workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
-			}
-		}
-		if len(workers) > 1 {
+		if linked, err := s.linkedWorkersForSession(ctx, params.SessionKey); err != nil {
+			return nil, err
+		} else if len(linked) > 1 {
 			return map[string]any{
 				"requires_confirmation": true,
 				"reason":                ClearReasonMultipleWorkers,
-				"worker_count":          len(workers),
-				"linked_workers":        workers,
-				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(workers)),
+				"worker_count":          len(linked),
+				"linked_workers":        linked,
+				"message":               fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionConfirm, len(linked)),
 			}, nil
 		}
-	} else {
-		var err error
-		tasksToStop, err = s.taskStore.ListBySessionKey(ctx, params.SessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
-		if err != nil {
-			return nil, fmt.Errorf("list running tasks: %w", err)
-		}
 	}
 
-	// Stop processes before cancelling DB records so workers don't pick up new work after cancellation.
-	for _, t := range tasksToStop {
-		if t.ExecutionID == "" {
-			continue
-		}
-		if err := s.execStopper.StopExecution(t.ExecutionID); err != nil {
-			log.Debug("stop execution: process not active",
-				zap.String("op", "clear_session"),
-				zap.String("executionID", t.ExecutionID),
-				zap.Error(err))
-			s.finalizeCancelledExecution(ctx, t.ExecutionID)
-		}
-	}
-
-	cancelled, err := s.taskStore.CancelBySessionKey(ctx, params.SessionKey, model.TaskTypeImmediate)
+	preview, err := s.clearSvc.EvaluateClearSession(ctx, params.SessionKey)
 	if err != nil {
-		return nil, fmt.Errorf("cancel tasks: %w", err)
+		return nil, err
+	}
+	if !params.Force {
+		if len(preview.Agents) == 0 && len(preview.ActiveTasks) == 0 {
+			return map[string]any{
+				"cleared": false,
+				"reason":  ClearReasonNoContext,
+			}, nil
+		}
+		if len(preview.ActiveTasks) > 0 {
+			return buildActiveTasksConfirmation(
+				preview.ActiveTasks,
+				fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
+				nil,
+			), nil
+		}
 	}
 
-	if s.sessionClearer != nil {
-		s.sessionClearer.ClearSession(params.SessionKey)
+	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey, preview)
+	if err != nil {
+		return nil, err
 	}
-
 	return map[string]any{
-		"cancelled_tasks": cancelled,
+		"cancelled_tasks": result.CancelledTasks,
 		"cleared":         true,
 	}, nil
+}
+
+// linkedWorkersForSession returns the unique workers whose session contexts
+// would be cleared by ClearSession (scoped to the active engine).
+func (s *Server) linkedWorkersForSession(ctx context.Context, sessionKey string) ([]LinkedWorkerSummary, error) {
+	agents, err := s.sessionStore.ListSessionContexts(ctx, sessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("list session contexts: %w", err)
+	}
+	var workers []LinkedWorkerSummary
+	seen := make(map[string]struct{})
+	for _, a := range agents {
+		if a.AgentType != store.WorkerAgentType {
+			continue
+		}
+		if _, exists := seen[a.AgentID]; exists {
+			continue
+		}
+		seen[a.AgentID] = struct{}{}
+		workers = append(workers, LinkedWorkerSummary{WorkerID: a.AgentID, Name: a.Name})
+	}
+	return workers, nil
 }
 
 func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) (any, error) {
@@ -712,24 +744,18 @@ func (s *Server) toolGetWorkerStatus(ctx context.Context, args json.RawMessage) 
 	}
 
 	if er.err == nil && er.exec != nil {
-		execInfo := map[string]any{
+		result["current_execution"] = map[string]any{
 			"id":          er.exec.ID,
-			"task_id":     nil,
+			"task_id":     er.exec.TaskID,
 			"instruction": er.exec.TriggerInput,
 			"started_at":  er.exec.StartedAt,
 		}
-		task, terr := s.taskStore.GetTaskByExecutionID(ctx, er.exec.ID)
-		if terr == nil && task != nil {
-			execInfo["task_id"] = task.ID
-		}
-		result["current_execution"] = execInfo
 	}
 
 	return result, nil
 }
 
 func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
-	// Worker counts
 	workerCounts, err := s.workerStore.CountByStatus()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worker counts: %w", err)
@@ -739,7 +765,6 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 		total += c
 	}
 
-	// Task counts
 	taskCounts, err := s.taskStore.CountAllByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task counts: %w", err)
@@ -747,18 +772,11 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 
 	scheduledActive, _ := s.taskStore.CountScheduledActive(ctx)
 
-	recentExecs, _ := s.executionStore.ListRecent(5)
-
-	recentList := make([]map[string]any, 0, len(recentExecs))
-	for _, e := range recentExecs {
-		recentList = append(recentList, map[string]any{
-			"id":           e.ID,
-			"worker_name":  e.WorkerName,
-			"status":       string(e.Status),
-			"started_at":   e.StartedAt,
-			"completed_at": e.CompletedAt,
-		})
+	tasks := make(map[string]any, len(model.TaskStatuses)+1)
+	for _, status := range model.TaskStatuses {
+		tasks[status] = taskCounts[status]
 	}
+	tasks["scheduled_active"] = scheduledActive
 
 	return map[string]any{
 		"workers": map[string]any{
@@ -767,55 +785,8 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 			"working": workerCounts[string(model.WorkerStatusWorking)],
 			"error":   workerCounts[string(model.WorkerStatusError)],
 		},
-		"tasks": map[string]any{
-			"pending":          taskCounts["pending"],
-			"running":          taskCounts["running"],
-			"completed":        taskCounts["completed"],
-			"failed":           taskCounts["failed"],
-			"cancelled":        taskCounts["cancelled"],
-			"scheduled_active": scheduledActive,
-		},
-		"recent_executions": recentList,
+		"tasks": tasks,
 	}, nil
-}
-
-func (s *Server) toolListBeeExecutions(args json.RawMessage) (any, error) {
-	var p struct {
-		Limit int `json:"limit"`
-	}
-	if args != nil {
-		json.Unmarshal(args, &p) //nolint
-	}
-	if p.Limit <= 0 {
-		p.Limit = 10
-	}
-
-	execs, err := s.executionStore.ListBeeExecutions(p.Limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list bee executions: %w", err)
-	}
-
-	results := make([]map[string]any, 0, len(execs))
-	for _, e := range execs {
-		triggerInput := e.TriggerInput
-		if len(triggerInput) > 200 {
-			triggerInput = triggerInput[:200]
-		}
-		result := e.Result
-		if len(result) > 200 {
-			result = result[:200]
-		}
-		results = append(results, map[string]any{
-			"id":            e.ID,
-			"trigger_input": triggerInput,
-			"status":        string(e.Status),
-			"started_at":    e.StartedAt,
-			"completed_at":  e.CompletedAt,
-			"result":        result,
-		})
-	}
-
-	return results, nil
 }
 
 func (s *Server) toolSaveConstraint(args json.RawMessage) (any, error) {
@@ -902,6 +873,7 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 	var params struct {
 		SessionKey string `json:"session_key"`
 		WorkerID   string `json:"worker_id"`
+		Force      bool   `json:"force"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -916,16 +888,43 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 		return nil, fmt.Errorf("cannot clear bee session context with this tool, use clear_session instead")
 	}
 
-	workerName := s.workerDisplayName(params.WorkerID)
+	// Look up the worker so the service can resolve its engine; fall back to a
+	// stub when the row is missing so we can still drain dispatcher state and
+	// the (absent) session row for an orphaned worker. Other DB errors are
+	// surfaced rather than masked.
+	w, err := s.workerStore.GetByID(params.WorkerID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("get worker: %w", err)
+		}
+		w = model.Worker{ID: params.WorkerID}
+	}
 
-	if err := s.sessionStore.DeleteWorkerSessionContext(ctx, params.SessionKey, params.WorkerID); err != nil {
-		return nil, fmt.Errorf("delete worker session context: %w", err)
+	preview, err := s.clearSvc.EvaluateClearWorker(ctx, params.SessionKey, w)
+	if err != nil {
+		return nil, err
+	}
+	if !params.Force && len(preview.ActiveTasks) > 0 {
+		return buildActiveTasksConfirmation(
+			preview.ActiveTasks,
+			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
+			map[string]any{
+				"worker_id":   params.WorkerID,
+				"worker_name": s.workerDisplayName(params.WorkerID),
+			},
+		), nil
+	}
+
+	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w, preview)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]any{
-		"cleared":     true,
-		"worker_id":   params.WorkerID,
-		"worker_name": workerName,
+		"cleared":         true,
+		"cancelled_tasks": result.CancelledTasks,
+		"worker_id":       params.WorkerID,
+		"worker_name":     s.workerDisplayName(params.WorkerID),
 	}, nil
 }
 
@@ -1194,6 +1193,32 @@ func (s *Server) listWorkersRecursive(idOrName string) ([]string, error) {
 	return workerIDs, nil
 }
 
+const (
+	maxTaskPageSize           = 100
+	defaultTaskExecutionLimit = 10
+	maxTaskExecutionLimit     = 100
+)
+
+func normalizeTaskExecutionLimit(raw *int, matchedTasks int) (int, error) {
+	if raw == nil {
+		return defaultTaskExecutionLimit, nil
+	}
+	v := *raw
+	if v == 0 {
+		if matchedTasks != 1 {
+			return 0, fmt.Errorf("execution_limit=0 requires exactly one matching task; use task_id to select one task")
+		}
+		return 0, nil
+	}
+	if v < 0 {
+		return 0, nil
+	}
+	if v > maxTaskExecutionLimit {
+		return maxTaskExecutionLimit, nil
+	}
+	return v, nil
+}
+
 func pagedResult(items any, total, page, pageSize int) map[string]any {
 	return map[string]any{
 		"items":     items,
@@ -1275,36 +1300,4 @@ func (s *Server) toolListOutboundMessages(ctx context.Context, args json.RawMess
 		return nil, fmt.Errorf("list outbound messages: %w", err)
 	}
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
-}
-
-func (s *Server) toolListExecutions(ctx context.Context, args json.RawMessage) (any, error) {
-	var params struct {
-		WorkerID      string `json:"worker_id"`
-		SessionID     string `json:"session_id"`
-		Status        string `json:"status"`
-		StartedFrom   int64  `json:"started_at_from"`
-		StartedTo     int64  `json:"started_at_to"`
-		CompletedFrom int64  `json:"completed_at_from"`
-		CompletedTo   int64  `json:"completed_at_to"`
-		Page          int    `json:"page"`
-		PageSize      int    `json:"page_size"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	var offset int
-	params.Page, params.PageSize, offset = normalizePage(params.Page, params.PageSize, 100)
-	execs, total, err := s.executionStore.ListFiltered(ctx, store.ExecutionFilter{
-		WorkerID:      params.WorkerID,
-		SessionID:     params.SessionID,
-		Status:        params.Status,
-		StartedFrom:   params.StartedFrom,
-		StartedTo:     params.StartedTo,
-		CompletedFrom: params.CompletedFrom,
-		CompletedTo:   params.CompletedTo,
-	}, params.PageSize, offset)
-	if err != nil {
-		return nil, fmt.Errorf("list executions: %w", err)
-	}
-	return pagedResult(execs, total, params.Page, params.PageSize), nil
 }

@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"go.uber.org/zap"
 )
 
 var log = logger.With(zap.String("component", "rpc"))
@@ -26,20 +26,6 @@ const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
-// ExecutionStopper can kill a running worker process by execution ID.
-type ExecutionStopper interface {
-	StopExecution(executionID string) error
-}
-
-// SessionClearer clears dispatcher queues and session contexts for a session.
-type SessionClearer interface {
-	ClearSession(sessionKey string)
-}
-
-type TaskCanceller interface {
-	CancelTask(ctx context.Context, taskID string) error
-}
-
 // Server dispatches tool calls.
 type Server struct {
 	workerStore          *store.WorkerStore
@@ -48,15 +34,11 @@ type Server struct {
 	messageStore         *store.MessageStore
 	outboundMessageStore *store.OutboundMessageStore
 	senders              map[string]platform.PlatformSenderAdapter
-	execStopper          ExecutionStopper
-	sessionClearer       SessionClearer
-	taskCanceller        TaskCanceller
+	clearSvc             *session.ClearService
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
-
-	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
 
 func NewBeeServer(
@@ -66,9 +48,7 @@ func NewBeeServer(
 	ms *store.MessageStore,
 	oms *store.OutboundMessageStore,
 	senders map[string]platform.PlatformSenderAdapter,
-	execStopper ExecutionStopper,
-	sessionClearer SessionClearer,
-	taskCanceller TaskCanceller,
+	clearSvc *session.ClearService,
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
@@ -81,9 +61,7 @@ func NewBeeServer(
 		messageStore:         ms,
 		outboundMessageStore: oms,
 		senders:              senders,
-		execStopper:          execStopper,
-		sessionClearer:       sessionClearer,
-		taskCanceller:        taskCanceller,
+		clearSvc:             clearSvc,
 		executionStore:       es,
 		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,

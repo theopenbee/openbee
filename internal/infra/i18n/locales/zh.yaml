@@ -29,7 +29,7 @@ cmd:
   ctl_session:
     short: "管理会话上下文"
   ctl_system:
-    short: "查看系统状态和执行记录"
+    short: "查看系统状态概览"
   ctl_message:
     short: "向平台用户发送消息"
 prompt:
@@ -224,6 +224,9 @@ runtime:
     cleared: "✅ 已清除：%s"
     cleared_with_tasks: "✅ 已清除：%s，取消了 %d 个任务。"
     worker_cleared: "✅ 已清除 %s（engine：%s）的会话上下文。"
+    worker_cleared_with_tasks: "✅ 已清除 %s（engine：%s），取消了 %d 个任务。"
+    worker_confirm_header: "⚠️ 将清除 %s（engine：%s）的会话上下文。"
+    worker_confirm_footer: "30s 内再发一次 /clear %s 确认。"
   stop_command:
     stopped: "✅ 已停止 bee 执行"
     stopped_with_messages: "✅ 已停止 bee 执行，取消了 %d 条待处理消息"

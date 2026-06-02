@@ -13,6 +13,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -26,12 +27,12 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
 	m.mu.Lock()
-	if resume {
-		m.resumedWithSessionID = sessionID
+	if req.Resume {
+		m.resumedWithSessionID = req.SessionID
 	}
-	m.executedInstructions = append(m.executedInstructions, instruction)
+	m.executedInstructions = append(m.executedInstructions, req.TriggerInput)
 	m.mu.Unlock()
 	return m.execResult, nil
 }
@@ -63,7 +64,7 @@ type quickCancelExecManager struct {
 	cancelCount *int64
 }
 
-func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	select {
 	case m.execCalled <- struct{}{}:
 	default:
@@ -82,7 +83,7 @@ type mockTaskStore struct {
 	completedTasks []string
 }
 
-func (s *mockTaskStore) SetExecution(_ context.Context, _, _, _ string) error { return nil }
+func (s *mockTaskStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }
 func (s *mockTaskStore) FailTask(_ context.Context, taskID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -258,11 +259,11 @@ type orderedMockManager struct {
 	receivedSessID string
 }
 
-func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	m.callOrder = append(m.callOrder, "execute")
-	m.receivedResume = resume
-	m.receivedSessID = sessionID
+	m.receivedResume = req.Resume
+	m.receivedSessID = req.SessionID
 	m.mu.Unlock()
 	m.executed.Add(1)
 	return m.execResult, nil
@@ -709,19 +710,6 @@ func TestTaskDispatcher_CrossSession_SameWorker_Serialized(t *testing.T) {
 	}
 }
 
-func TestQueueKey_IgnoresSessionKey(t *testing.T) {
-	// Same workerID, different sessionKeys must produce the same key.
-	// This is the contract that prevents cross-session concurrent execution.
-	k1 := task.ExportedQueueKey("session-a", "worker-1")
-	k2 := task.ExportedQueueKey("session-b", "worker-1")
-	if k1 != k2 {
-		t.Errorf("expected same key for different sessions, got %q and %q", k1, k2)
-	}
-	if k1 != "worker-1" {
-		t.Errorf("expected key to equal workerID, got %q", k1)
-	}
-}
-
 // --- Helper managers ---
 
 type blockingExecManager struct {
@@ -730,7 +718,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -743,7 +731,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -755,8 +743,8 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _ string, resume bool) (model.WorkerExecution, error) {
-	if resume {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
+	if req.Resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
 	atomic.AddInt64(&m.freshCount, 1)
@@ -884,7 +872,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }

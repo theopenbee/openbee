@@ -8,11 +8,12 @@ import (
 var ctlSessionCmd = &cobra.Command{Use: "session", Short: ""}
 
 var (
-	sessionListKey        string
-	sessionClearKey       string
-	sessionClearForce     bool
-	sessionClearWorkerKey string
-	sessionClearWorkerID  string
+	sessionListKey          string
+	sessionClearKey         string
+	sessionClearForce       bool
+	sessionClearWorkerKey   string
+	sessionClearWorkerID    string
+	sessionClearWorkerForce bool
 )
 
 var ctlSessionListCmd = &cobra.Command{
@@ -36,11 +37,12 @@ var ctlSessionClearCmd = &cobra.Command{
 
 var ctlSessionClearWorkerCmd = &cobra.Command{
 	Use:   "clear-worker",
-	Short: "Reset one worker's session context within a session",
+	Short: "Cancel one worker's active tasks and reset its session context within a session",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(utils.ClearWorkerSession, map[string]any{
 			"session_key": sessionClearWorkerKey,
 			"worker_id":   sessionClearWorkerID,
+			"force":       sessionClearWorkerForce,
 		})
 	},
 }
@@ -55,6 +57,7 @@ func init() {
 
 	ctlSessionClearWorkerCmd.Flags().StringVar(&sessionClearWorkerKey, "session-key", "", "Session key (required)")
 	ctlSessionClearWorkerCmd.Flags().StringVar(&sessionClearWorkerID, "worker-id", "", "Worker ID whose session context to delete (required)")
+	ctlSessionClearWorkerCmd.Flags().BoolVar(&sessionClearWorkerForce, "force", false, "Skip confirmation when the worker has active tasks")
 	ctlSessionClearWorkerCmd.MarkFlagRequired("session-key")
 	ctlSessionClearWorkerCmd.MarkFlagRequired("worker-id")
 

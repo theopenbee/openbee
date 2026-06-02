@@ -12,7 +12,6 @@ const (
 	ScopeReadDepartments = "read:departments"
 	ScopeReadTasks       = "read:tasks"
 	ScopeReadMessages    = "read:messages"
-	ScopeReadExecutions  = "read:executions"
 )
 
 var AllScopes = []string{
@@ -20,7 +19,6 @@ var AllScopes = []string{
 	ScopeReadDepartments,
 	ScopeReadTasks,
 	ScopeReadMessages,
-	ScopeReadExecutions,
 }
 
 var validScopeSet = func() map[string]struct{} {
@@ -63,7 +61,6 @@ var toolScopeMap = map[string]string{
 	utils.ListTasks:            ScopeReadTasks,
 	utils.ListMessages:         ScopeReadMessages,
 	utils.ListOutboundMessages: ScopeReadMessages,
-	utils.ListExecutions:       ScopeReadExecutions,
 }
 
 // ScopeForTool returns the permission scope required to call the named tool,

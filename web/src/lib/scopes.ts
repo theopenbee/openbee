@@ -2,7 +2,6 @@ export const SCOPE_READ_WORKERS = "read:workers"
 export const SCOPE_READ_DEPARTMENTS = "read:departments"
 export const SCOPE_READ_TASKS = "read:tasks"
 export const SCOPE_READ_MESSAGES = "read:messages"
-export const SCOPE_READ_EXECUTIONS = "read:executions"
 
 export interface ScopeDef {
   id: string
@@ -30,11 +29,6 @@ export const KNOWN_SCOPES: ScopeDef[] = [
     id: SCOPE_READ_MESSAGES,
     titleKey: "scopes.readMessages.title",
     descriptionKey: "scopes.readMessages.description",
-  },
-  {
-    id: SCOPE_READ_EXECUTIONS,
-    titleKey: "scopes.readExecutions.title",
-    descriptionKey: "scopes.readExecutions.description",
   },
 ]
 

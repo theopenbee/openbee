@@ -8,22 +8,38 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"go.uber.org/zap"
 )
 
-// ExecuteWorker runs a worker. When resume is true, the AI engine will attempt
-// to resume the session identified by sessionID; otherwise it starts a fresh session.
-// sessionID must always be non-empty; callers are responsible for generating it.
-func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, sessionID string, resume bool) (model.WorkerExecution, error) {
-	worker, err := m.workerStore.GetByID(workerID)
+// ExecuteRequest bundles the inputs for ExecuteWorker. SessionID must always
+// be non-empty; callers generate it. Resume tells the AI engine to resume the
+// session identified by SessionID instead of starting fresh.
+type ExecuteRequest struct {
+	WorkerID     string
+	TaskID       string
+	TriggerInput string
+	SessionID    string
+	Resume       bool
+}
+
+// ExecuteWorker runs a worker against req.
+func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.WorkerExecution, error) {
+	worker, err := m.workerStore.GetByID(req.WorkerID)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
 	engineName, engine := m.resolveEngine(worker)
 
-	exec, err := m.executionStore.Create(workerID, triggerInput, sessionID, engineName)
+	exec, err := m.executionStore.Create(store.ExecutionCreate{
+		WorkerID:     req.WorkerID,
+		TaskID:       req.TaskID,
+		TriggerInput: req.TriggerInput,
+		SessionID:    req.SessionID,
+		Engine:       engineName,
+	})
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}
@@ -37,7 +53,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, workerID, triggerInput, ses
 	}
 	timeout := m.workerTimeout
 
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, triggerInput, resume); err != nil {
+	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, req.TriggerInput, req.Resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
@@ -57,12 +73,14 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		return fmt.Errorf("generate worker token: %w", err)
 	}
 
+	// execCtx inherits the caller's context so dispatcher-side cancellation
+	// (task cancel, /clear, shutdown) actually kills the worker process.
 	var execCtx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		execCtx, cancel = context.WithTimeout(context.Background(), timeout)
+		execCtx, cancel = context.WithTimeout(ctx, timeout)
 	} else {
-		execCtx, cancel = context.WithCancel(context.Background())
+		execCtx, cancel = context.WithCancel(ctx)
 	}
 
 	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)

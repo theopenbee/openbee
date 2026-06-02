@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // daemonEnvKey is the env var set on the daemon child to distinguish it from the parent.
@@ -98,7 +99,7 @@ func daemonize(cfgPath string) error {
 
 	// Check for an existing live daemon.
 	if pid, _, err := readPIDFileFrom(pidFile); err == nil {
-		if isAlive(pid) {
+		if utils.IsProcessAlive(pid) {
 			return fmt.Errorf(i18n.M.Output.Daemon.AlreadyRunning, pid)
 		}
 		// Stale file — clean up before spawning.
@@ -127,7 +128,7 @@ func daemonize(cfgPath string) error {
 
 	// Wait briefly, then verify the child is still alive (catches immediate crashes).
 	time.Sleep(100 * time.Millisecond)
-	if !isAlive(pid) {
+	if !utils.IsProcessAlive(pid) {
 		return fmt.Errorf("daemon process exited immediately (check %s for details)", logFile)
 	}
 

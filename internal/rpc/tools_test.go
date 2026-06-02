@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -44,14 +47,25 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
+	ss := store.NewSessionStore(db)
+	engineCfg := enginecfg.NewStore("claude")
 	mgr := worker.NewManager(
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db))
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   &mockExecStopper{},
+		ExecFinalizer: es,
+		Dispatcher:    &mockClearDispatcher{},
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
 }
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
@@ -243,14 +257,25 @@ func setupServerWithSender(t *testing.T, senderID string, sender platform.Platfo
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
+	ss := store.NewSessionStore(db)
+	engineCfg := enginecfg.NewStore("claude")
 	mgr := worker.NewManager(
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
 	)
 	senders := map[string]platform.PlatformSenderAdapter{senderID: sender}
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, nil, nil, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   &mockExecStopper{},
+		ExecFinalizer: es,
+		Dispatcher:    &mockClearDispatcher{},
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
+	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db)), db
 }
 
 // --- send_message ---
@@ -463,7 +488,7 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_tasks by session_key: %v", err)
 	}
-	tasks := result.([]model.Task)
+	tasks, _ := decodePagedTaskItems(t, result)
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 task, got %d", len(tasks))
 	}
@@ -502,18 +527,25 @@ func (m *mockExecStopper) StopExecution(executionID string) error {
 	return nil
 }
 
-type mockSessionClearer struct {
-	mu      sync.Mutex
-	cleared []string
+type mockClearDispatcher struct {
+	mu             sync.Mutex
+	cleared        []string
+	clearedWorkers []string // sessionKey + "::" + workerID
 }
 
-func (m *mockSessionClearer) ClearSession(sessionKey string) {
+func (m *mockClearDispatcher) ClearSession(sessionKey string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleared = append(m.cleared, sessionKey)
 }
 
-func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper, *mockSessionClearer) {
+func (m *mockClearDispatcher) ClearWorker(sessionKey, workerID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clearedWorkers = append(m.clearedWorkers, sessionKey+"::"+workerID)
+}
+
+func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -525,22 +557,40 @@ func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper,
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ms := store.NewMessageStore(db)
+	ss := store.NewSessionStore(db)
+	engineCfg := enginecfg.NewStore("claude")
 	mgr := worker.NewManager(
 		t.TempDir(),
 		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
 		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, enginecfg.NewStore("claude"), nil, nil,
+		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
 	)
 	senders := make(map[string]platform.PlatformSenderAdapter)
 	stopper := &mockExecStopper{}
-	clearer := &mockSessionClearer{}
-	return rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, stopper, clearer, nil, es, store.NewConstraintStore(db), store.NewSessionStore(db), store.NewDepartmentStore(db)), db, stopper, clearer
+	disp := &mockClearDispatcher{}
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   stopper,
+		ExecFinalizer: es,
+		Dispatcher:    disp,
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	return srv, db, stopper, disp
 }
 
 func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
-	s, _, _, clearer := setupServerWithClear(t)
+	s, db, _, clearer := setupServerWithClear(t)
+	ctx := context.Background()
 
-	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-X", w.ID, "sid-w", "") //nolint
+
+	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-X",
 	}))
 	if err != nil {
@@ -558,6 +608,28 @@ func TestCallTool_ClearSession_NoActiveTasks(t *testing.T) {
 	}
 }
 
+func TestCallTool_ClearSession_EmptySession_ReturnsNoContext(t *testing.T) {
+	s, _, _, clearer := setupServerWithClear(t)
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-empty",
+	}))
+	if err != nil {
+		t.Fatalf("clear_session: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != false {
+		t.Errorf("expected cleared=false for empty session, got %v", m["cleared"])
+	}
+	if m["reason"] != rpc.ClearReasonNoContext {
+		t.Errorf("expected reason=no_context, got %v", m["reason"])
+	}
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	if len(clearer.cleared) != 0 {
+		t.Errorf("ClearSession must not be called when session is empty, got %v", clearer.cleared)
+	}
+}
+
 func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	s, db, stopper, clearer := setupServerWithClear(t)
 	ctx := context.Background()
@@ -568,14 +640,15 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	workerResult, _ := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 	w := workerResult.(model.Worker)
 
-	// Create a running task with execution_id
+	// Create a running task with a running execution in bee_executions
 	ts := store.NewTaskStore(db)
 	id, _ := ts.Create(ctx, model.Task{
 		MessageID: "msg-c1", WorkerID: w.ID, Instruction: "long task",
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
-	ts.SetExecution(ctx, id, "exec-running-1", model.TaskStatusRunning)
+	// Insert a corresponding execution row so GetRunningByTaskID can find it.
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-running-1", id, w.ID, model.ExecStatusRunning) //nolint
 
 	// Create a pending task
 	ts.Create(ctx, model.Task{
@@ -660,19 +733,6 @@ func TestCallTool_GetSystemOverview(t *testing.T) {
 	}
 	if m["tasks"] == nil {
 		t.Error("expected tasks section")
-	}
-}
-
-func TestCallTool_ListBeeExecutions(t *testing.T) {
-	s := setupServerWithMessaging(t)
-
-	result, err := s.CallTool(context.Background(), utils.ListBeeExecutions, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	execs := result.([]map[string]any)
-	if len(execs) != 0 {
-		t.Errorf("expected empty list, got %d", len(execs))
 	}
 }
 
@@ -823,6 +883,92 @@ func TestCallTool_ClearWorkerSession_Idempotent(t *testing.T) {
 	}
 }
 
+func TestCallTool_ClearWorkerSession_RunningTask_RequiresConfirmation(t *testing.T) {
+	s, db, _, disp := setupServerWithClear(t)
+	ctx := context.Background()
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-cw1", "session-CW", "feishu", "hi", `{}`, "", 0) //nolint
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-cw1", WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "session-CW",
+		"worker_id":   w.ID,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["requires_confirmation"] != true {
+		t.Errorf("expected requires_confirmation=true, got %v", m)
+	}
+	if m["reason"] != rpc.ClearReasonActiveTasks {
+		t.Errorf("expected reason=active_tasks, got %v", m["reason"])
+	}
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	if len(disp.clearedWorkers) != 0 {
+		t.Errorf("ClearWorker must not be called on confirmation prompt, got %v", disp.clearedWorkers)
+	}
+}
+
+func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
+	s, db, stopper, disp := setupServerWithClear(t)
+	ctx := context.Background()
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
+	w := workerResult.(model.Worker)
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-cw2", "session-CW2", "feishu", "hi", `{}`, "", 0) //nolint
+
+	ts := store.NewTaskStore(db)
+	taskID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-cw2", WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-cw-1", taskID, w.ID, model.ExecStatusRunning) //nolint
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "session-CW2",
+		"worker_id":   w.ID,
+		"force":       true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := result.(map[string]any)
+	if m["cleared"] != true {
+		t.Errorf("expected cleared=true with force=true, got %v", m)
+	}
+	if c, _ := m["cancelled_tasks"].(int64); c < 1 {
+		t.Errorf("expected cancelled_tasks >= 1, got %v", m["cancelled_tasks"])
+	}
+
+	stopper.mu.Lock()
+	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-cw-1" {
+		t.Errorf("expected StopExecution(exec-cw-1), got %v", stopper.stopped)
+	}
+	stopper.mu.Unlock()
+
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	want := "session-CW2::" + w.ID
+	if len(disp.clearedWorkers) != 1 || disp.clearedWorkers[0] != want {
+		t.Errorf("expected ClearWorker(%s), got %v", want, disp.clearedWorkers)
+	}
+}
+
 func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 	s, db := setupServerWithSender(t, "feishu", &mockSender{})
 	ctx := context.Background()
@@ -855,12 +1001,17 @@ func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
 		t.Errorf("expected worker_name=W1, got %v", m["worker_name"])
 	}
 
-	// w1 context should be gone across engines; w2 should remain
+	// w1 context should be gone only on the active engine (claude); its codex
+	// row stays untouched, matching /clear's active-engine semantics. w2 is
+	// untouched entirely.
 	w1Claude, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "claude")
 	w1Codex, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "codex")
 	w2sid, _ := ss.GetSessionContextForEngine(ctx, "sk", w2.ID, "claude")
-	if w1Claude != "" || w1Codex != "" {
-		t.Errorf("expected w1 context cleared across engines, got claude=%q codex=%q", w1Claude, w1Codex)
+	if w1Claude != "" {
+		t.Errorf("expected w1 claude context cleared, got %q", w1Claude)
+	}
+	if w1Codex != "sid-w1-codex" {
+		t.Errorf("expected w1 codex context intact (active-engine scope), got %q", w1Codex)
 	}
 	if w2sid != "sid-w2" {
 		t.Errorf("expected w2 context intact, got %q", w2sid)
@@ -1122,7 +1273,8 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
-	ts.SetExecution(ctx, taskID, "exec-fsd-1", model.TaskStatusRunning) //nolint
+	// Insert a corresponding execution row so GetRunningByTaskID can find it.
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-fsd-1", taskID, w.ID, model.ExecStatusRunning) //nolint
 
 	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
 		"session_key": "session-FSD",
@@ -1168,6 +1320,11 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 
 			workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W"}))
 			w := workerResult.(model.Worker)
+
+			// Seed a session context so the clear has something to act on; the
+			// test's intent is that non-immediate pending tasks don't gate.
+			ss := store.NewSessionStore(db)
+			ss.UpsertSessionContext(ctx, tc.sessionKey, w.ID, "sid-w", "") //nolint
 
 			ts := store.NewTaskStore(db)
 			ts.Create(ctx, model.Task{ //nolint
@@ -1248,6 +1405,147 @@ func TestResolveDepartmentID_NotFound(t *testing.T) {
 		mustMarshal(t, map[string]any{"id": "nonexistent"}))
 	if err == nil {
 		t.Fatal("expected error for nonexistent department, got nil")
+	}
+}
+
+func TestToolListTasks_IncludesExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-exec1", "session-EX", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	w := workerResult.(model.Worker)
+
+	taskResult, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id":  "msg-exec1",
+		"worker_id":   w.ID,
+		"instruction": "do x",
+		"type":        "immediate",
+	}))
+	if err != nil {
+		t.Fatalf("create_task: %v", err)
+	}
+	taskID := taskResult.(map[string]string)["task_id"]
+
+	es := store.NewExecutionStore(db, t.TempDir())
+	exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: "do x", SessionID: "sess-1", Engine: "claude"})
+	if err != nil {
+		t.Fatalf("create execution: %v", err)
+	}
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	if err != nil {
+		t.Fatalf("list_tasks: %v", err)
+	}
+
+	b, _ := json.Marshal(result)
+	raw := string(b)
+	if !strings.Contains(raw, `"executions"`) {
+		t.Errorf("response does not contain 'executions' key: %s", raw)
+	}
+	if !strings.Contains(raw, exec.ID) {
+		t.Errorf("response does not contain execution id %s: %s", exec.ID, raw)
+	}
+	tasks, _ := decodePagedTaskItems(t, result)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	execsAny, ok := tasks[0]["executions"]
+	if !ok {
+		t.Fatalf("task missing 'executions' field")
+	}
+	execsList, ok := execsAny.([]any)
+	if !ok {
+		t.Fatalf("executions is not a list, got %T", execsAny)
+	}
+	if len(execsList) != 1 {
+		t.Errorf("expected 1 execution, got %d", len(execsList))
+	}
+}
+
+func decodePagedTaskItems(t *testing.T, result any) ([]map[string]any, map[string]any) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var page map[string]any
+	if err := json.Unmarshal(b, &page); err != nil {
+		t.Fatalf("unmarshal page: %v", err)
+	}
+	rawItems, ok := page["items"].([]any)
+	if !ok {
+		t.Fatalf("items missing or not array: %T", page["items"])
+	}
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("item is not object: %T", raw)
+		}
+		items = append(items, item)
+	}
+	return items, page
+}
+
+func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-page", "session-PAGE", "feishu", "hi", `{}`, "", 0) //nolint
+
+	workerResult, _ := s.CallTool(ctx, "create_worker", mustMarshal(t, map[string]any{"name": "W1"}))
+	w := workerResult.(model.Worker)
+	ts := store.NewTaskStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
+
+	var newestExecForFirstTask string
+	for i := 0; i < 3; i++ {
+		taskID, err := ts.Create(ctx, model.Task{
+			MessageID: "msg-page", WorkerID: w.ID, Instruction: fmt.Sprintf("task-%d", i),
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+			CreatedAt: int64(i + 1), UpdatedAt: int64(i + 1),
+		})
+		if err != nil {
+			t.Fatalf("Create task %d: %v", i, err)
+		}
+		for j := 0; j < 3; j++ {
+			exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: fmt.Sprintf("run-%d-%d", i, j), SessionID: fmt.Sprintf("sess-%d-%d", i, j), Engine: "claude"})
+			if err != nil {
+				t.Fatalf("Create execution %d/%d: %v", i, j, err)
+			}
+			if i == 2 && j == 2 {
+				newestExecForFirstTask = exec.ID
+			}
+		}
+	}
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{
+		"worker_id":       w.ID,
+		"page":            1,
+		"page_size":       2,
+		"execution_limit": 1,
+	}))
+	if err != nil {
+		t.Fatalf("list_tasks: %v", err)
+	}
+	items, page := decodePagedTaskItems(t, result)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 paged items, got %d", len(items))
+	}
+	if int(page["total"].(float64)) != 3 {
+		t.Fatalf("expected total 3, got %v", page["total"])
+	}
+	execs, ok := items[0]["executions"].([]any)
+	if !ok || len(execs) != 1 {
+		t.Fatalf("expected first item to include exactly 1 execution, got %#v", items[0]["executions"])
+	}
+	firstExec := execs[0].(map[string]any)
+	if firstExec["id"] != newestExecForFirstTask {
+		t.Fatalf("expected newest execution %s, got %v", newestExecForFirstTask, firstExec["id"])
 	}
 }
 

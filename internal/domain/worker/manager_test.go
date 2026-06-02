@@ -192,7 +192,11 @@ func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
 		t.Fatalf("CreateWorker: %v", err)
 	}
 
-	exec, err := mgr.ExecuteWorker(context.Background(), w.ID, "test", "session-1", false)
+	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{
+		WorkerID:     w.ID,
+		TriggerInput: "test",
+		SessionID:    "session-1",
+	})
 	if err != nil {
 		t.Fatalf("ExecuteWorker: %v", err)
 	}

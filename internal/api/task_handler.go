@@ -22,7 +22,6 @@ type taskResponse struct {
 	ScheduledAt *int64 `json:"scheduled_at"`
 	CronExpr    string `json:"cron_expr"`
 	NextRunAt   *int64 `json:"next_run_at"`
-	ExecutionID string `json:"execution_id"`
 	CreatedAt   int64  `json:"created_at"`
 	UpdatedAt   int64  `json:"updated_at"`
 }
@@ -109,7 +108,6 @@ func (h *TaskHandler) List(c *gin.Context) {
 			ScheduledAt: t.ScheduledAt,
 			CronExpr:    t.CronExpr,
 			NextRunAt:   t.NextRunAt,
-			ExecutionID: t.ExecutionID,
 			CreatedAt:   t.CreatedAt,
 			UpdatedAt:   t.UpdatedAt,
 		}

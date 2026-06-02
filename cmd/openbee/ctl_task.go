@@ -8,11 +8,15 @@ import (
 var ctlTaskCmd = &cobra.Command{Use: "task", Short: ""}
 
 var (
-	taskListSessionKey string
-	taskListMessageID  string
-	taskListWorkerID   string
-	taskListStatus     string
-	taskListType       string
+	taskListSessionKey     string
+	taskListMessageID      string
+	taskListWorkerID       string
+	taskListStatus         string
+	taskListType           string
+	taskListTaskID         string
+	taskListPage           int
+	taskListPageSize       int
+	taskListExecutionLimit int
 )
 
 var ctlTaskListCmd = &cobra.Command{
@@ -34,6 +38,18 @@ var ctlTaskListCmd = &cobra.Command{
 		}
 		if taskListType != "" {
 			a["type"] = taskListType
+		}
+		if taskListTaskID != "" {
+			a["task_id"] = taskListTaskID
+		}
+		if taskListPage > 0 {
+			a["page"] = taskListPage
+		}
+		if taskListPageSize > 0 {
+			a["page_size"] = taskListPageSize
+		}
+		if cmd.Flags().Changed("execution-limit") {
+			a["execution_limit"] = taskListExecutionLimit
 		}
 		return ctlRun(utils.ListTasks, a)
 	},
@@ -70,7 +86,7 @@ var ctlTaskCreateCmd = &cobra.Command{
 
 var ctlTaskCancelCmd = &cobra.Command{
 	Use:   "cancel <id>",
-	Short: "Cancel a pending or scheduled task",
+	Short: "Cancel a pending or running task",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ctlRun(utils.CancelTask, map[string]any{"task_id": args[0]})
@@ -83,6 +99,10 @@ func init() {
 	ctlTaskListCmd.Flags().StringVar(&taskListWorkerID, "worker-id", "", "Filter by worker ID")
 	ctlTaskListCmd.Flags().StringVar(&taskListStatus, "status", "", "Filter by status (comma-separated)")
 	ctlTaskListCmd.Flags().StringVar(&taskListType, "type", "", "Filter by type (comma-separated)")
+	ctlTaskListCmd.Flags().StringVar(&taskListTaskID, "task-id", "", "Filter by exact task ID")
+	ctlTaskListCmd.Flags().IntVar(&taskListPage, "page", 0, "Page number (default: 1)")
+	ctlTaskListCmd.Flags().IntVar(&taskListPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
+	ctlTaskListCmd.Flags().IntVar(&taskListExecutionLimit, "execution-limit", 0, "Executions per task (default: 10, max: 100; 0 = all for one matching task)")
 
 	ctlTaskCreateCmd.Flags().StringVar(&taskCreateMessageID, "message-id", "", "ID of the originating platform message (required)")
 	ctlTaskCreateCmd.Flags().StringVar(&taskCreateWorkerID, "worker-id", "", "Worker ID to assign (required)")

@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -27,32 +28,38 @@ type SessionContextLister interface {
 
 // TaskBySessionLister is shared by /status and /clear.
 type TaskBySessionLister interface {
-	ListBySessionKey(ctx context.Context, sessionKey, status, taskType string) ([]model.Task, error)
+	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
 }
 
 type StatusCommandHandler struct {
-	sessions  SessionContextLister
-	tasks     TaskBySessionLister
-	workers   WorkerByIDsLookup
-	senders   map[string]platform.PlatformSenderAdapter
-	engineCfg *enginecfg.Store
-	now       func() time.Time
+	sessions     SessionContextLister
+	tasks        TaskBySessionLister
+	workers      WorkerByIDsLookup
+	runningExecs utils.RunningExecLookup
+	senders      map[string]platform.PlatformSenderAdapter
+	engineCfg    *enginecfg.Store
+	now          func() time.Time
 }
 
-func NewStatusCommandHandler(
-	sessions SessionContextLister,
-	tasks TaskBySessionLister,
-	workers WorkerByIDsLookup,
-	senders map[string]platform.PlatformSenderAdapter,
-	engineCfg *enginecfg.Store,
-) *StatusCommandHandler {
+// StatusCommandDeps bundles the collaborators NewStatusCommandHandler needs.
+type StatusCommandDeps struct {
+	Sessions     SessionContextLister
+	Tasks        TaskBySessionLister
+	Workers      WorkerByIDsLookup
+	Senders      map[string]platform.PlatformSenderAdapter
+	EngineCfg    *enginecfg.Store
+	RunningExecs utils.RunningExecLookup
+}
+
+func NewStatusCommandHandler(deps StatusCommandDeps) *StatusCommandHandler {
 	return &StatusCommandHandler{
-		sessions:  sessions,
-		tasks:     tasks,
-		workers:   workers,
-		senders:   senders,
-		engineCfg: engineCfg,
-		now:       time.Now,
+		sessions:     deps.Sessions,
+		tasks:        deps.Tasks,
+		workers:      deps.Workers,
+		runningExecs: deps.RunningExecs,
+		senders:      deps.Senders,
+		engineCfg:    deps.EngineCfg,
+		now:          time.Now,
 	}
 }
 
@@ -80,34 +87,31 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		return true
 	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	runningTasks, err := h.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		Status:     model.TaskStatusRunning,
+		Type:       model.TaskTypeImmediate,
+	})
 	if err != nil {
 		log.Error("list tasks for /status", zap.String("sessionKey", sessionKey), zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
 		return true
 	}
 
-	h.reply(ctx, replyTo, h.formatStatus(agents, runningTasks))
+	h.reply(ctx, replyTo, h.formatStatus(ctx, agents, runningTasks))
 	return true
 }
 
-func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks []model.Task) string {
+func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
 	m := i18n.M.Runtime.StatusCommand
 	now := h.now()
 	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
 	workerNames := resolveWorkerNames(h.workers, tasks)
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks)
 
-	beeBody := len(agents)
-	if beeBody == 0 {
-		beeBody = 1
-	}
-	taskBody := len(tasks)
-	if taskBody == 0 {
-		taskBody = 1
-	}
-	lines := make([]string, 0, 2+beeBody+taskBody)
+	lines := make([]string, 0, 2+max(1, len(agents))+max(1, len(tasks)))
 	lines = append(lines, m.Header)
 	lines = append(lines, fmt.Sprintf(m.SectionBees, len(agents)))
 	if len(agents) == 0 {
@@ -122,7 +126,7 @@ func (h *StatusCommandHandler) formatStatus(agents []store.SessionAgent, tasks [
 		lines = append(lines, m.EmptyMarker)
 	} else {
 		for _, t := range tasks {
-			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, nowMs))
+			lines = append(lines, formatTaskLine(m.TaskLine, t, workerNames, execIDs, nowMs))
 		}
 	}
 	return strings.Join(lines, "\n")

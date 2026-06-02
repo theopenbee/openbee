@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var statusCmd = &cobra.Command{
@@ -30,7 +31,7 @@ func daemonStatus(pidFilePath string) (running bool, msg string) {
 		return false, i18n.M.Output.Status.NotRunning
 	}
 
-	if !isAlive(pid) {
+	if !utils.IsProcessAlive(pid) {
 		_ = os.Remove(pidFilePath) // clean up stale file
 		return false, i18n.M.Output.Status.NotRunningStale
 	}

@@ -406,6 +406,20 @@ ALTER TABLE bee_session_contexts_new RENAME TO bee_session_contexts;`, ai.Engine
 		name:    "add_engine_args_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_args TEXT NOT NULL DEFAULT '{}'`,
 	},
+	{
+		version: 45,
+		name:    "add_task_id_to_executions_and_backfill",
+		sql: `ALTER TABLE bee_executions ADD COLUMN task_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_executions_task_id ON bee_executions(task_id);
+UPDATE bee_executions
+   SET task_id = (SELECT t.id FROM bee_tasks t WHERE t.execution_id = bee_executions.id)
+ WHERE EXISTS (SELECT 1 FROM bee_tasks t WHERE t.execution_id = bee_executions.id);`,
+	},
+	{
+		version: 46,
+		name:    "drop_execution_id_from_tasks",
+		sql:     `ALTER TABLE bee_tasks DROP COLUMN execution_id`,
+	},
 }
 
 type whereBuilder struct {

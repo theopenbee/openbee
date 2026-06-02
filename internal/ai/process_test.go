@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func TestConfigureCmd_SetsPgid(t *testing.T) {
@@ -61,8 +62,7 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	// kill -0 returns nil if the process still exists.
-	if err := syscall.Kill(childPID, 0); err == nil {
+	if utils.IsProcessAlive(childPID) {
 		t.Errorf("child process %d still alive after Stop() — process group kill failed", childPID)
 	}
 }

@@ -11,6 +11,7 @@ const (
 
 type WorkerExecution struct {
 	ID           string          `json:"id" db:"id"`
+	TaskID       string          `json:"task_id,omitempty" db:"task_id"`
 	WorkerID     *string         `json:"worker_id,omitempty" db:"worker_id"`
 	WorkerName   string          `json:"worker_name,omitempty" db:"-"`
 	SessionID    string          `json:"session_id" db:"session_id"`

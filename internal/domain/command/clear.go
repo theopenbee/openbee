@@ -9,10 +9,11 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -23,32 +24,20 @@ type WorkerNameLookup interface {
 	GetByIDs(ids []string) ([]model.Worker, error)
 }
 
-type ClearSessionStore interface {
-	SessionContextLister
-	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
-}
-
-type ClearTaskStore interface {
-	TaskBySessionLister
-	CancelBySessionKey(ctx context.Context, sessionKey, taskType string) (int64, error)
-}
-
-type ClearExecStopper interface {
-	StopExecution(executionID string) error
-}
-
-type ClearSessionDispatcher interface {
-	ClearSession(sessionKey string)
+// ClearService is the destructive-ops surface used by the /clear handler.
+// Implemented by *session.ClearService.
+type ClearService interface {
+	EvaluateClearSession(ctx context.Context, sessionKey string) (session.ClearSessionPreview, error)
+	ClearSession(ctx context.Context, sessionKey string, preview session.ClearSessionPreview) (session.ClearSessionResult, error)
+	EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (session.ClearWorkerPreview, error)
+	ClearWorker(ctx context.Context, sessionKey string, w model.Worker, preview session.ClearWorkerPreview) (session.ClearWorkerResult, error)
 }
 
 type ClearCommandHandler struct {
 	workers      WorkerNameLookup
-	sessions     ClearSessionStore
-	tasks        ClearTaskStore
-	execStopper  ClearExecStopper
-	sessionClear ClearSessionDispatcher
+	svc          ClearService
+	runningExecs utils.RunningExecLookup
 	senders      map[string]platform.PlatformSenderAdapter
-	engineCfg    *enginecfg.Store
 
 	now func() time.Time
 
@@ -58,21 +47,15 @@ type ClearCommandHandler struct {
 
 func NewClearCommandHandler(
 	workers WorkerNameLookup,
-	sessions ClearSessionStore,
-	tasks ClearTaskStore,
-	execStopper ClearExecStopper,
-	sessionClear ClearSessionDispatcher,
+	svc ClearService,
 	senders map[string]platform.PlatformSenderAdapter,
-	engineCfg *enginecfg.Store,
+	runningExecs utils.RunningExecLookup,
 ) *ClearCommandHandler {
 	return &ClearCommandHandler{
 		workers:      workers,
-		sessions:     sessions,
-		tasks:        tasks,
-		execStopper:  execStopper,
-		sessionClear: sessionClear,
+		svc:          svc,
+		runningExecs: runningExecs,
 		senders:      senders,
-		engineCfg:    engineCfg,
 		now:          time.Now,
 		pending:      make(map[string]time.Time),
 	}
@@ -105,71 +88,35 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	pendingKey := h.pendingKey(sessionKey, CmdClear)
 	confirmed := h.consumePending(pendingKey)
 
-	agents, err := h.sessions.ListActiveSessionContexts(ctx, sessionKey, h.engineCfg.Get())
+	preview, err := h.svc.EvaluateClearSession(ctx, sessionKey)
 	if err != nil {
-		log.Error("list session contexts for /clear", zap.Error(err))
+		log.Error("evaluate clear session", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
 		return
 	}
-	if len(agents) == 0 {
+	if len(preview.Agents) == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
+	if !confirmed && len(preview.ActiveTasks) > 0 {
+		h.storePending(pendingKey)
+		h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks))
+		return
+	}
 
-	runningTasks, err := h.tasks.ListBySessionKey(ctx, sessionKey, model.TaskStatusRunning, model.TaskTypeImmediate)
+	result, err := h.svc.ClearSession(ctx, sessionKey, preview)
 	if err != nil {
-		log.Error("list running tasks for /clear", zap.Error(err))
+		log.Error("clear session", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
 		return
 	}
 
-	if len(runningTasks) > 0 && !confirmed {
-		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatConfirmPrompt(agents, runningTasks))
-		return
-	}
-
-	for _, t := range runningTasks {
-		if t.ExecutionID == "" {
-			continue
-		}
-		if err := h.execStopper.StopExecution(t.ExecutionID); err != nil {
-			log.Error("stop execution for /clear", zap.String("executionID", t.ExecutionID), zap.Error(err))
-		}
-	}
-
-	cancelled, err := h.tasks.CancelBySessionKey(ctx, sessionKey, model.TaskTypeImmediate)
-	if err != nil {
-		log.Error("cancel tasks for /clear exec", zap.Error(err))
-	}
-	h.sessionClear.ClearSession(sessionKey)
-
-	list := formatAgentList(agents)
-	if cancelled > 0 {
-		h.reply(ctx, replyTo, fmt.Sprintf(m.ClearedWithTasks, list, cancelled))
+	list := formatAgentList(result.Agents)
+	if result.CancelledTasks > 0 {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.ClearedWithTasks, list, result.CancelledTasks))
 	} else {
 		h.reply(ctx, replyTo, fmt.Sprintf(m.Cleared, list))
 	}
-}
-
-func (h *ClearCommandHandler) formatConfirmPrompt(agents []store.SessionAgent, tasks []model.Task) string {
-	m := i18n.M.Runtime.ClearCommand
-	nowMs := h.now().UnixMilli()
-	workerNames := resolveWorkerNames(h.workers, tasks)
-
-	lines := make([]string, 0, 5+len(agents)+len(tasks))
-	lines = append(lines, m.ConfirmHeader)
-	for _, a := range agents {
-		lines = append(lines, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
-	}
-	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf(m.ConfirmTasksHeader, len(tasks)))
-	for _, t := range tasks {
-		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, nowMs))
-	}
-	lines = append(lines, "")
-	lines = append(lines, m.ConfirmFooter)
-	return strings.Join(lines, "\n")
 }
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
@@ -196,26 +143,79 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	}
 
 	w := workers[0]
-	activeEngine := h.engineCfg.Resolve(w.Engine)
+	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
+	confirmed := h.consumePending(pendingKey)
 
-	deleted, err := h.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, activeEngine)
+	preview, err := h.svc.EvaluateClearWorker(ctx, sessionKey, w)
 	if err != nil {
-		log.Error("delete worker session context", zap.String("workerID", w.ID), zap.Error(err))
+		log.Error("evaluate clear worker session", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
-	if !deleted {
+	if !confirmed && len(preview.ActiveTasks) > 0 {
+		h.storePending(pendingKey)
+		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks))
+		return
+	}
+
+	result, err := h.svc.ClearWorker(ctx, sessionKey, w, preview)
+	if err != nil {
+		log.Error("clear worker session", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)
 		return
 	}
-	h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, activeEngine))
+
+	if !result.DeletedContext && result.CancelledTasks == 0 {
+		h.reply(ctx, replyTo, m.NoContext)
+		return
+	}
+
+	if result.CancelledTasks > 0 {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerClearedWithTasks, w.Name, result.Engine, result.CancelledTasks))
+	} else {
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, result.Engine))
+	}
+}
+
+// renderConfirmPrompt builds the shared body of /clear confirmation prompts: a
+// caller-supplied header, the task list with running exec IDs, and a footer.
+func (h *ClearCommandHandler) renderConfirmPrompt(ctx context.Context, header []string, footer string, tasks []model.Task, workerNames map[string]string) string {
+	nowMs := h.now().UnixMilli()
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks)
+
+	lines := make([]string, 0, len(header)+len(tasks)+4)
+	lines = append(lines, header...)
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf(i18n.M.Runtime.ClearCommand.ConfirmTasksHeader, len(tasks)))
+	for _, t := range tasks {
+		lines = append(lines, formatTaskLine(i18n.M.Runtime.StatusCommand.TaskLine, t, workerNames, execIDs, nowMs))
+	}
+	lines = append(lines, "")
+	lines = append(lines, footer)
+	return strings.Join(lines, "\n")
+}
+
+func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	header := make([]string, 0, 1+len(agents))
+	header = append(header, m.ConfirmHeader)
+	for _, a := range agents {
+		header = append(header, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
+	}
+	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks))
+}
+
+func (h *ClearCommandHandler) formatWorkerConfirmPrompt(ctx context.Context, w model.Worker, engine string, tasks []model.Task) string {
+	m := i18n.M.Runtime.ClearCommand
+	header := []string{fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine)}
+	footer := fmt.Sprintf(m.WorkerConfirmFooter, w.Name)
+	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name})
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {
 	return sessionKey + "::" + cmd
 }
 
-// consumePending atomically retrieves and removes a valid (non-expired) pending entry.
 func (h *ClearCommandHandler) consumePending(key string) bool {
 	now := h.now()
 	h.mu.Lock()
@@ -228,8 +228,8 @@ func (h *ClearCommandHandler) consumePending(key string) bool {
 	return true
 }
 
-// storePending records a confirmation deadline and opportunistically reaps any
-// other expired entries — the only path that grows the map, so it bounds size.
+// storePending opportunistically reaps expired entries — the only path that
+// grows the map, so it bounds size.
 func (h *ClearCommandHandler) storePending(key string) {
 	now := h.now()
 	h.mu.Lock()

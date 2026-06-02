@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- Remove the `recent_executions` field from `ctl system overview` / `get_system_overview`; use the `executions` array on `ctl task list` for per-task history.
+- Remove the `openbee ctl execution` subcommand, the `list_executions` tool, and the `read:executions` scope; execution records are now returned inline by `ctl task list`.
+- Remove the `openbee ctl system executions` subcommand and the `list_bee_executions` tool; bee execution history is no longer exposed via CLI or MCP.
+
+### Changed
+
+- `ctl task list` / `list_tasks` now returns each task with its execution records in an `executions` array, paginated with a per-task history limit.
+- Executions reference their task via `task_id` (replacing `bee_tasks.execution_id`).
+
+### Fixed
+
+- Fix `/clear <worker>` leaving the worker's running tasks in `running` state; the per-worker clear now stops live executions and drains the worker's queue.
+- Fix `/status` reporting tasks as `running` after they finished; a periodic reconciler now syncs task state with the underlying execution and sweeps orphaned rows.
+- Fix `/clear` and `clear_session` falsely reporting success when the task-cancel DB write failed; the error now surfaces to the caller and the dispatcher is not signalled.
+- Fix worker name shown in confirmation prompts and inbound message tagging staying stale after `update_worker` / `delete_worker`; the display-name cache is now invalidated on those mutations.
+
 ## [0.0.38] - 2026-05-31
 
 ### Removed

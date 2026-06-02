@@ -33,7 +33,6 @@ Available scopes:
 | `read:departments` | `list_departments`, `get_department` |
 | `read:tasks` | `list_tasks` |
 | `read:messages` | `list_messages`, `list_outbound_messages` |
-| `read:executions` | `list_executions` |
 
 If a worker token calls a tool without the required scope, the call returns: `permission denied: scope <scope> required`.
 
@@ -42,7 +41,7 @@ If a worker token calls a tool without the required scope, the call returns: `pe
 openbee ctl worker update <id> --scopes read:workers,read:tasks
 
 # Grant all read scopes
-openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks,read:messages,read:executions
+openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks,read:messages
 
 # Clear all scopes
 openbee ctl worker update <id> --scopes ""
@@ -61,10 +60,12 @@ openbee ctl department delete <id|name>
 ## task subcommand
 
 ```bash
-openbee ctl task list [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>]
+openbee ctl task list [--task-id <id>] [--session-key <key>] [--message-id <id>] [--worker-id <id>] [--status <status>] [--type <type>] [--page <n>] [--page-size <n>] [--execution-limit <n>]
 openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type <immediate|countdown|scheduled> [--scheduled-at <unix milliseconds>] [--cron <cron expression>]
 openbee ctl task cancel <id>
 ```
+
+Each task returned by `task list` includes an `executions` array with the newest execution records for that task. The default is the latest 10 executions per task. Use `--execution-limit <n>` to request a different bounded count, or `--task-id <id> --execution-limit 0` to inspect the full execution history for one task. Task results are paginated (default 50 per page, max 100); the response contains `items`, `total`, `page`, `page_size`.
 
 ## constraint subcommand
 
@@ -79,14 +80,13 @@ openbee ctl constraint delete --scope <global|session_key> --key <key>
 ```bash
 openbee ctl session list --session-key <key>
 openbee ctl session clear --session-key <key> [--force]
-openbee ctl session clear-worker --session-key <key> --worker-id <id>
+openbee ctl session clear-worker --session-key <key> --worker-id <id> [--force]
 ```
 
 ## system subcommand
 
 ```bash
 openbee ctl system overview
-openbee ctl system executions [--limit <count>]
 ```
 
 ## message subcommand
@@ -131,31 +131,4 @@ openbee ctl message list --platform feishu --received-from 1700000000000 --recei
 # Scenario 7: Pagination (default 50 per page, max 100)
 openbee ctl message list --platform feishu --page 2 --page-size 20
 openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
-```
-
-## execution subcommand
-
-```bash
-openbee ctl execution list [--worker-id <id>] [--session-id <id>] [--status <status>] [--started-from <unix ms>] [--started-to <unix ms>] [--completed-from <unix ms>] [--completed-to <unix ms>] [--page <n>] [--page-size <n>]
-```
-
-- `--status` accepts: `pending`, `running`, `completed`, `failed`
-- All timestamp flags use Unix milliseconds
-- Pagination: default 50 per page, max 100; use `--page` and `--page-size` to paginate
-- Returns paginated results with `items`, `total`, `page`, `page_size` fields
-- All filter flags can be combined freely in a single command
-
-```bash
-# Single filter
-openbee ctl execution list --worker-id abc123
-openbee ctl execution list --status running
-
-# Multiple filters combined
-openbee ctl execution list --worker-id abc123 --status completed
-openbee ctl execution list --session-id sess_xxx --status failed --started-from 1700000000000
-openbee ctl execution list --worker-id abc123 --started-from 1700000000000 --started-to 1700086400000
-
-# Pagination
-openbee ctl execution list --status completed --page 2 --page-size 20
-openbee ctl execution list --worker-id abc123 --page 1 --page-size 100
 ```

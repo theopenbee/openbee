@@ -11,6 +11,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -26,12 +27,11 @@ type taskMeta struct {
 
 const (
 	pollInterval = 2 * time.Second
-	pollTimeout  = 30 * time.Minute
 )
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -42,7 +42,7 @@ type ExecutionQuerier interface {
 
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
-	SetExecution(ctx context.Context, taskID, executionID, status string) error
+	UpdateStatus(ctx context.Context, taskID, status string) error
 	CompleteTask(ctx context.Context, taskID string) error
 	FailTask(ctx context.Context, taskID string) error
 	CancelTask(ctx context.Context, taskID string) error
@@ -77,22 +77,30 @@ type internalResult struct {
 	task     DispatchTask
 }
 
+// clearRequest signals the Run loop to drain queued tasks for a session.
+// An empty workerID drains every queued task in sessionKey; a non-empty
+// workerID restricts the drain to that (sessionKey, workerID) pair.
+type clearRequest struct {
+	sessionKey string
+	workerID   string
+}
+
 // TaskDispatcher serializes worker executions per WorkerID.
 type TaskDispatcher struct {
-	ctx             context.Context               // injected by Run; controls the dispatcher lifecycle
-	manager         ExecutionManager              // launches worker executions
-	taskStore       TaskStore                     // persists task-to-execution mapping and state
-	sessionStore    SessionStore                  // reads, writes, and cleans up session contexts
-	execStore       ExecutionQuerier              // queries execution state by ID
-	engineCfg       *enginecfg.Store              // resolves the current default engine
-	failureNotifier FailureNotifier               // sends failure notifications (optional)
-	workerLookup    WorkerLookup                  // optional; if nil, no persona is injected
-	inCh            <-chan DispatchTask           // inbound task channel
-	resultsCh       chan internalResult           // internal completion signal channel; drives queue scheduling
-	queues          map[string]*queueState        // per-workerID serial queues
-	clearCh         chan string                   // receives sessionKey signals that need to be cleaned up
-	cancelFuncs     map[string]context.CancelFunc // taskID → cancel func; owned by Run loop
-	cancelCh        chan string                   // receives taskID cancel requests
+	ctx             context.Context
+	manager         ExecutionManager
+	taskStore       TaskStore
+	sessionStore    SessionStore
+	execStore       ExecutionQuerier
+	engineCfg       *enginecfg.Store
+	failureNotifier FailureNotifier
+	workerLookup    WorkerLookup // nil disables persona injection
+	inCh            <-chan DispatchTask
+	resultsCh       chan internalResult
+	queues          map[string]*queueState // per-workerID serial queues
+	clearCh         chan clearRequest
+	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
+	cancelCh        chan string
 }
 
 // New constructs a TaskDispatcher.
@@ -106,7 +114,7 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
-		clearCh:      make(chan string, 8),
+		clearCh:      make(chan clearRequest, 16),
 		cancelFuncs:  make(map[string]context.CancelFunc),
 		cancelCh:     make(chan string, 16),
 	}
@@ -141,8 +149,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 			d.handleInbound(task)
 		case res := <-d.resultsCh:
 			d.handleResult(res)
-		case sessionKey := <-d.clearCh:
-			d.clearQueues(sessionKey)
+		case req := <-d.clearCh:
+			d.handleClear(req)
 		case taskID := <-d.cancelCh:
 			d.handleCancel(taskID)
 		case <-ctx.Done():
@@ -151,15 +159,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 	}
 }
 
-func queueKey(_, workerID string) string {
-	return workerID
-}
-
-// ExportedQueueKey is exported for testing only.
-var ExportedQueueKey = queueKey
-
 func (d *TaskDispatcher) handleInbound(task DispatchTask) {
-	key := queueKey(task.SessionKey, task.WorkerID)
+	key := task.WorkerID
 	state, ok := d.queues[key]
 	if !ok {
 		state = &queueState{}
@@ -182,6 +183,16 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 	go d.executeAsync(taskCtx, cancel, key, task)
 }
 
+// ClearWorker removes queued tasks for the given (sessionKey, workerID) pair from the
+// dispatcher's in-memory queues. Safe to call from any goroutine.
+//
+// The caller is responsible for stopping any currently executing worker via
+// StopExecution and marking tasks cancelled in the database; this method only
+// drains the pending tail of the queue so no future tasks fire for that pair.
+func (d *TaskDispatcher) ClearWorker(sessionKey, workerID string) {
+	d.sendClear(clearRequest{sessionKey: sessionKey, workerID: workerID})
+}
+
 // ClearSession removes all queued tasks for the given session and clears session contexts.
 // Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
 func (d *TaskDispatcher) ClearSession(sessionKey string) {
@@ -189,11 +200,16 @@ func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineCfg.Get()); err != nil {
 		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
-	// Signal Run loop to clear in-memory queues.
+	d.sendClear(clearRequest{sessionKey: sessionKey})
+}
+
+func (d *TaskDispatcher) sendClear(req clearRequest) {
 	select {
-	case d.clearCh <- sessionKey:
+	case d.clearCh <- req:
 	default:
-		log.Warn("clearCh full, dropping clear", zap.String("sessionKey", sessionKey))
+		log.Warn("clearCh full, dropping clear",
+			zap.String("sessionKey", req.sessionKey),
+			zap.String("workerID", req.workerID))
 	}
 }
 
@@ -233,11 +249,13 @@ func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
 	return nil
 }
 
-func (d *TaskDispatcher) clearQueues(sessionKey string) {
+// dropQueued removes pending tasks for which keep(task) is false from every queue.
+// Empty, idle queues are deleted from d.queues.
+func (d *TaskDispatcher) dropQueued(keep func(DispatchTask) bool) {
 	for key, state := range d.queues {
 		var remaining []DispatchTask
 		for _, t := range state.pendingTasks {
-			if t.SessionKey != sessionKey {
+			if keep(t) {
 				remaining = append(remaining, t)
 			}
 		}
@@ -246,6 +264,19 @@ func (d *TaskDispatcher) clearQueues(sessionKey string) {
 			delete(d.queues, key)
 		}
 	}
+}
+
+// handleClear drops queued (not-yet-executing) tasks matching req. An empty
+// workerID matches every task in req.sessionKey. Tasks already running keep
+// going — the command layer stops their executions and cancels them in the
+// database separately.
+func (d *TaskDispatcher) handleClear(req clearRequest) {
+	d.dropQueued(func(t DispatchTask) bool {
+		if t.SessionKey != req.sessionKey {
+			return true
+		}
+		return req.workerID != "" && t.WorkerID != req.workerID
+	})
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
@@ -307,8 +338,8 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	}
 
 	if task.TaskID != "" {
-		if err := d.taskStore.SetExecution(taskCtx, task.TaskID, exec.ID, model.TaskStatusRunning); err != nil {
-			log.Error("set execution", zap.String("taskID", task.TaskID), zap.Error(err))
+		if err := d.taskStore.UpdateStatus(taskCtx, task.TaskID, model.TaskStatusRunning); err != nil {
+			log.Error("update task status", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
 	d.waitForResult(taskCtx, exec.ID, task, engineName)
@@ -331,38 +362,49 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 }
 
 // executeFresh builds the session prefix (Step 1 + persona) and starts a fresh
-// execution. worker is the pre-fetched record from resolveWorkerEngine; if
-// workerLookup is configured but worker is nil, the lookup failed and the task
+// execution. w is the pre-fetched record from resolveWorkerEngine; if
+// workerLookup is configured but w is nil, the lookup failed and the task
 // is aborted.
-func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
 	persona := ""
 	if d.workerLookup != nil {
-		if worker == nil {
+		if w == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
+		persona = ai.WorkerPersona(w.Name, w.Description, w.Constraints)
 	}
 	prefix := ai.BuildWorkerSessionPrefix(persona)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, prefix+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: prefix + instruction,
+		SessionID:    sessionID,
+	})
 }
 
-func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		return d.executeFresh(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, w)
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		return d.executeFresh(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, w)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, instruction, sessionID, true)
+	exec, err := d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: instruction,
+		SessionID:    sessionID,
+		Resume:       true,
+	})
 	if err == nil {
 		return exec, nil
 	}
@@ -372,15 +414,18 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}
-	return d.executeFresh(ctx, task, instruction, engineName, worker)
+	return d.executeFresh(ctx, task, instruction, engineName, w)
 }
 
+// waitForResult polls the execution until it reaches a terminal state or ctx
+// is cancelled. Process-level timeouts are enforced by launchRuntime via
+// workerTimeout; this loop must not impose its own deadline, or it would exit
+// while the worker keeps running and leave the task row stuck in `running`.
 func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {
-	deadline := time.Now().Add(pollTimeout)
 	lastStatus := ""
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-	for time.Now().Before(deadline) {
+	for {
 		exec, err := d.execStore.GetByID(executionID)
 		if err != nil {
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))

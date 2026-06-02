@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 var stopCmd = &cobra.Command{
@@ -25,7 +26,7 @@ func doStop(pidFile string) error {
 		return nil
 	}
 
-	if !isAlive(pid) {
+	if !utils.IsProcessAlive(pid) {
 		if isPIDForeign(pid) {
 			fmt.Fprintf(os.Stderr, i18n.M.Output.Stop.ForeignPID+"\n", pid)
 		} else {

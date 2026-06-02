@@ -1,6 +1,8 @@
 package command_test
 
 import (
+	"context"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -17,6 +19,19 @@ func (f *fakeWorkerByIDsLookup) GetByIDs(ids []string) ([]model.Worker, error) {
 	for _, id := range ids {
 		if w, ok := f.byID[id]; ok {
 			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+
+// fakeRunningExecs implements RunningExecLookup for tests. It maps task_id -> running execution id.
+type fakeRunningExecs map[string]string
+
+func (f fakeRunningExecs) RunningExecIDsByTaskIDs(_ context.Context, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if v, ok := f[id]; ok {
+			out[id] = v
 		}
 	}
 	return out, nil
