@@ -124,83 +124,52 @@ func newSvc(t *testing.T, sessions *fakeSessionStore, tasks *fakeTaskStore, stop
 	})
 }
 
-func TestClearSession_EmptySession_NoOp(t *testing.T) {
+func TestEvaluateClearSession_EmptySession(t *testing.T) {
 	sessions := &fakeSessionStore{agents: nil}
 	tasks := &fakeTaskStore{tasks: nil}
-	disp := &fakeDispatcher{}
-	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, &fakeDispatcher{}, nil)
 
-	got, err := svc.ClearSession(context.Background(), "sess-1", false)
+	got, err := svc.EvaluateClearSession(context.Background(), "sess-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Cleared || len(got.Agents) != 0 || len(got.ActiveTasks) != 0 {
-		t.Fatalf("expected no-op empty result, got %+v", got)
-	}
-	if len(disp.sessions) != 0 {
-		t.Fatalf("dispatcher must not be signalled for empty session, got %v", disp.sessions)
+	if len(got.Agents) != 0 || len(got.ActiveTasks) != 0 {
+		t.Fatalf("expected empty preview, got %+v", got)
 	}
 }
 
-func TestClearSession_TasksWithoutAgents_GatesThenCleansOnForce(t *testing.T) {
-	sessions := &fakeSessionStore{agents: nil}
-	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1"}}, cancelled: 1}
-	disp := &fakeDispatcher{}
-	stopper := &fakeExecStopper{}
-	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
-
-	gated, err := svc.ClearSession(context.Background(), "sess-1", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if gated.Cleared || len(gated.ActiveTasks) != 1 {
-		t.Fatalf("expected gating on tasks even without agents, got %+v", gated)
-	}
-
-	cleared, err := svc.ClearSession(context.Background(), "sess-1", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !cleared.Cleared || cleared.CancelledTasks != 1 {
-		t.Fatalf("expected force to clean tasks without agents, got %+v", cleared)
-	}
-	if len(disp.sessions) != 1 || disp.sessions[0] != "sess-1" {
-		t.Fatalf("expected ClearSession dispatcher call, got %v", disp.sessions)
-	}
-}
-
-func TestClearSession_ActiveTasks_GatesWhenNotForced(t *testing.T) {
+func TestEvaluateClearSession_ReturnsAgentsAndTasks(t *testing.T) {
 	sessions := &fakeSessionStore{agents: []store.SessionAgent{{AgentID: "w1", Engine: "claude"}}}
-	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate}}, cancelled: 1}
-	disp := &fakeDispatcher{}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate}}}
 	stopper := &fakeExecStopper{}
+	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	got, err := svc.ClearSession(context.Background(), "sess-1", false)
+	got, err := svc.EvaluateClearSession(context.Background(), "sess-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Cleared || len(got.ActiveTasks) != 1 {
-		t.Fatalf("expected gated result, got %+v", got)
+	if len(got.Agents) != 1 || len(got.ActiveTasks) != 1 {
+		t.Fatalf("expected preview with one agent and one task, got %+v", got)
 	}
 	if len(stopper.stopped) != 0 || len(disp.sessions) != 0 || len(tasks.cancelCall) != 0 {
-		t.Fatal("destructive ops must not run when gated")
+		t.Fatal("Evaluate must not run destructive ops")
 	}
 }
 
-func TestClearSession_Force_StopsAndClears(t *testing.T) {
+func TestClearSession_StopsAndClears(t *testing.T) {
 	sessions := &fakeSessionStore{agents: []store.SessionAgent{{AgentID: "w1", Engine: "claude"}}}
 	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1"}}, cancelled: 1}
 	disp := &fakeDispatcher{}
 	stopper := &fakeExecStopper{}
 	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	got, err := svc.ClearSession(context.Background(), "sess-1", true)
+	got, err := svc.ClearSession(context.Background(), "sess-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !got.Cleared || got.CancelledTasks != 1 {
-		t.Fatalf("expected cleared result, got %+v", got)
+	if got.CancelledTasks != 1 || len(got.Agents) != 1 {
+		t.Fatalf("expected one cancelled task and one agent, got %+v", got)
 	}
 	if got, want := stopper.stopped, []string{"exec-1"}; len(got) != 1 || got[0] != want[0] {
 		t.Fatalf("expected stop exec-1, got %v", got)
@@ -218,7 +187,7 @@ func TestClearSession_StopFails_FinalizesExecution(t *testing.T) {
 	fin := &fakeExecFinalizer{}
 	svc := newSvc(t, sessions, tasks, stopper, fin, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	if _, err := svc.ClearSession(context.Background(), "sess-1", true); err != nil {
+	if _, err := svc.ClearSession(context.Background(), "sess-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
@@ -241,7 +210,7 @@ func TestClearSession_StopsConcurrently(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_, _ = svc.ClearSession(context.Background(), "sess-1", true)
+		_, _ = svc.ClearSession(context.Background(), "sess-1")
 		close(done)
 	}()
 
@@ -266,15 +235,31 @@ func TestClearSession_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	result, err := svc.ClearSession(context.Background(), "sess-1", true)
+	_, err := svc.ClearSession(context.Background(), "sess-1")
 	if err == nil {
-		t.Fatalf("expected error when cancel fails, got nil; result=%+v", result)
-	}
-	if result.Cleared {
-		t.Fatalf("Cleared must be false when cancel failed, got %+v", result)
+		t.Fatalf("expected error when cancel fails, got nil")
 	}
 	if len(disp.sessions) != 0 {
 		t.Fatalf("dispatcher.ClearSession must not run after cancel failure, got %v", disp.sessions)
+	}
+}
+
+func TestEvaluateClearWorker_ReturnsEngineAndTasks(t *testing.T) {
+	sessions := &fakeSessionStore{}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}}
+	stopper := &fakeExecStopper{}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	got, err := svc.EvaluateClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Engine != "claude" || len(got.ActiveTasks) != 1 {
+		t.Fatalf("expected preview with engine and one task, got %+v", got)
+	}
+	if len(disp.workers) != 0 || len(sessions.deletedCalls) != 0 || len(stopper.stopped) != 0 {
+		t.Fatal("Evaluate must not run destructive ops")
 	}
 }
 
@@ -287,12 +272,9 @@ func TestClearWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	result, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, true)
+	_, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
 	if err == nil {
-		t.Fatalf("expected error when cancel fails, got nil; result=%+v", result)
-	}
-	if result.Cleared {
-		t.Fatalf("Cleared must be false when cancel failed, got %+v", result)
+		t.Fatalf("expected error when cancel fails, got nil")
 	}
 	if len(disp.workers) != 0 {
 		t.Fatalf("dispatcher.ClearWorker must not run after cancel failure, got %v", disp.workers)
@@ -302,37 +284,18 @@ func TestClearWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	}
 }
 
-func TestClearWorker_GatesOnActiveTasks(t *testing.T) {
-	sessions := &fakeSessionStore{}
-	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}}
-	disp := &fakeDispatcher{}
-	stopper := &fakeExecStopper{}
-	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
-
-	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Cleared || len(got.ActiveTasks) != 1 {
-		t.Fatalf("expected gated result, got %+v", got)
-	}
-	if len(disp.workers) != 0 || len(sessions.deletedCalls) != 0 {
-		t.Fatal("destructive ops must not run when gated")
-	}
-}
-
-func TestClearWorker_Force_PerformsFullCleanup(t *testing.T) {
+func TestClearWorker_PerformsFullCleanup(t *testing.T) {
 	sessions := &fakeSessionStore{deleted: true}
 	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}, cancelled: 1}
 	disp := &fakeDispatcher{}
 	stopper := &fakeExecStopper{}
 	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, true)
+	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !got.Cleared || got.CancelledTasks != 1 || !got.DeletedContext {
+	if got.CancelledTasks != 1 || !got.DeletedContext || got.Engine != "claude" {
 		t.Fatalf("expected full cleanup, got %+v", got)
 	}
 	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-1" {
@@ -352,15 +315,30 @@ func TestClearWorker_NoActiveTasks_StillDeletesContextAndClearsQueue(t *testing.
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
 
-	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1"}, false)
+	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !got.Cleared {
-		t.Fatalf("expected cleared, got %+v", got)
+	if !got.DeletedContext {
+		t.Fatalf("expected DeletedContext=true, got %+v", got)
 	}
 	if len(disp.workers) != 1 {
 		t.Fatalf("expected ClearWorker called once, got %v", disp.workers)
+	}
+}
+
+func TestCancelTask_StopsAndFinalizesOnError(t *testing.T) {
+	stopper := &fakeExecStopper{err: errStopFailed}
+	fin := &fakeExecFinalizer{}
+	svc := newSvc(t, &fakeSessionStore{}, &fakeTaskStore{}, stopper, fin, &fakeDispatcher{}, nil)
+
+	svc.CancelTask(context.Background(), "exec-1")
+
+	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-1" {
+		t.Fatalf("expected stop exec-1, got %v", stopper.stopped)
+	}
+	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
+		t.Fatalf("expected MarkAbandoned(exec-1), got %v", fin.abandoned)
 	}
 }
 

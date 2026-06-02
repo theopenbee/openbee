@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,7 +14,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -532,7 +533,7 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 		return nil, fmt.Errorf("get running execution: %w", err)
 	}
 	if running != nil {
-		s.clearSvc.StopAndFinalizeExecution(ctx, running.ID, session.OpCancelTask)
+		s.clearSvc.CancelTask(ctx, running.ID)
 	}
 
 	if err := s.taskCanceller.CancelTask(ctx, params.TaskID); err != nil {
@@ -647,26 +648,30 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 	}
 
-	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey, params.Force)
+	if !params.Force {
+		preview, err := s.clearSvc.EvaluateClearSession(ctx, params.SessionKey)
+		if err != nil {
+			return nil, err
+		}
+		if len(preview.Agents) == 0 && len(preview.ActiveTasks) == 0 {
+			return map[string]any{
+				"cleared": false,
+				"reason":  ClearReasonNoContext,
+			}, nil
+		}
+		if len(preview.ActiveTasks) > 0 {
+			return buildActiveTasksConfirmation(
+				preview.ActiveTasks,
+				fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
+				nil,
+			), nil
+		}
+	}
+
+	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey)
 	if err != nil {
 		return nil, err
 	}
-
-	if !result.Cleared && len(result.ActiveTasks) > 0 {
-		return buildActiveTasksConfirmation(
-			result.ActiveTasks,
-			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
-			nil,
-		), nil
-	}
-
-	if !result.Cleared {
-		return map[string]any{
-			"cleared": false,
-			"reason":  ClearReasonNoContext,
-		}, nil
-	}
-
 	return map[string]any{
 		"cancelled_tasks": result.CancelledTasks,
 		"cleared":         true,
@@ -895,26 +900,36 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 
 	// Look up the worker so the service can resolve its engine; fall back to a
 	// stub when the row is missing so we can still drain dispatcher state and
-	// the (absent) session row for an orphaned worker.
+	// the (absent) session row for an orphaned worker. Other DB errors are
+	// surfaced rather than masked.
 	w, err := s.workerStore.GetByID(params.WorkerID)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("get worker: %w", err)
+		}
 		w = model.Worker{ID: params.WorkerID}
 	}
 
-	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w, params.Force)
-	if err != nil {
-		return nil, err
+	if !params.Force {
+		preview, err := s.clearSvc.EvaluateClearWorker(ctx, params.SessionKey, w)
+		if err != nil {
+			return nil, err
+		}
+		if len(preview.ActiveTasks) > 0 {
+			return buildActiveTasksConfirmation(
+				preview.ActiveTasks,
+				fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
+				map[string]any{
+					"worker_id":   params.WorkerID,
+					"worker_name": s.workerDisplayName(params.WorkerID),
+				},
+			), nil
+		}
 	}
 
-	if !result.Cleared && len(result.ActiveTasks) > 0 {
-		return buildActiveTasksConfirmation(
-			result.ActiveTasks,
-			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(result.ActiveTasks)),
-			map[string]any{
-				"worker_id":   params.WorkerID,
-				"worker_name": s.workerDisplayName(params.WorkerID),
-			},
-		), nil
+	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]any{

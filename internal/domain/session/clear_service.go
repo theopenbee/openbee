@@ -1,7 +1,6 @@
-// Package session contains domain operations on bee sessions that are reused
-// by both IM slash-command handlers (/clear, /clear <worker>) and the RPC tool
-// layer (clear_session, clear_worker_session). Keeping the destructive
-// logic here ensures the two entry points stay in lock-step.
+// Package session contains domain operations on bee sessions reused by the
+// IM slash-command handlers (/clear, /clear <worker>) and the RPC tool layer
+// (clear_session, clear_worker_session, cancel_task).
 package session
 
 import (
@@ -20,16 +19,21 @@ import (
 
 var log = logger.With(zap.String("component", "session"))
 
-// FinalizeReasonCancelledByUser is the standard MarkAbandoned reason used by
-// every stop-then-finalize fallback (clear_session, clear_worker, cancel_task).
-const FinalizeReasonCancelledByUser = "cancelled by user"
+const finalizeReasonCancelledByUser = "cancelled by user"
 
-// Op log labels identifying the caller of stop-then-finalize.
+// Op log labels for stop-then-finalize. Unexported so callers can't pick the
+// wrong one — each public method passes the right label internally.
 const (
-	OpClearSession = "clear_session"
-	OpClearWorker  = "clear_worker"
-	OpCancelTask   = "cancel_task"
+	opClearSession = "clear_session"
+	opClearWorker  = "clear_worker"
+	opCancelTask   = "cancel_task"
+	opStatus       = "status"
 )
+
+// OpStatus is exposed for read-only callers (e.g. /status) that need to look
+// up running execution IDs through utils.RunningExecIDsForTasks without
+// performing a clear.
+const OpStatus = opStatus
 
 type SessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
@@ -61,9 +65,8 @@ type Dispatcher interface {
 }
 
 // ClearService performs the shared destructive operations behind /clear and
-// ctl session clear*. Callers are responsible for their own confirmation UX —
-// the service exposes a `force` parameter and returns running tasks so the
-// caller can decide whether to gate execution.
+// ctl session clear*. Evaluate* methods are read-only previews; Clear* methods
+// always execute. Callers gate the destructive path on their own UX.
 type ClearService struct {
 	sessions      SessionStore
 	tasks         TaskStore
@@ -97,33 +100,47 @@ func NewClearService(deps ClearServiceDeps) *ClearService {
 	}
 }
 
-// ClearSessionResult describes the outcome (or pending state) of a session clear.
-type ClearSessionResult struct {
-	// Agents are the session contexts that would be (or were) cleared, scoped
-	// to the currently active engine. Empty when the session has no contexts.
-	Agents []store.SessionAgent
-	// ActiveTasks holds the immediate pending+running tasks that share the
-	// session. When Force=false and len(ActiveTasks)>0 the service stops here
-	// without doing anything destructive, leaving the caller to gate.
+// ClearSessionPreview is what EvaluateClearSession would touch. When both
+// fields are empty the session has nothing to clear.
+type ClearSessionPreview struct {
+	Agents      []store.SessionAgent
 	ActiveTasks []model.Task
-	// CancelledTasks counts how many task rows transitioned to cancelled.
-	CancelledTasks int64
-	// Cleared is true when the destructive path actually ran.
-	Cleared bool
 }
 
-// ClearSession evaluates and (when allowed) clears all session contexts for
-// sessionKey scoped to the currently active engine. When force is false and
-// active tasks exist, ClearSession returns them in ActiveTasks without
-// touching anything, so the caller can show a confirmation. When the session
-// has neither contexts nor tasks the call is a no-op.
-func (s *ClearService) ClearSession(ctx context.Context, sessionKey string, force bool) (ClearSessionResult, error) {
+// EvaluateClearSession is a read-only lookup of what a ClearSession call
+// would clear. The destructive path is ClearSession.
+func (s *ClearService) EvaluateClearSession(ctx context.Context, sessionKey string) (ClearSessionPreview, error) {
+	beeEngine := s.engineCfg.Get()
+	agents, err := s.sessions.ListActiveSessionContexts(ctx, sessionKey, beeEngine)
+	if err != nil {
+		return ClearSessionPreview{}, err
+	}
+	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		Status:     model.TaskStatusActive,
+		Type:       model.TaskTypeImmediate,
+	})
+	if err != nil {
+		return ClearSessionPreview{}, err
+	}
+	return ClearSessionPreview{Agents: agents, ActiveTasks: activeTasks}, nil
+}
+
+// ClearSessionResult is the outcome of a ClearSession execution.
+type ClearSessionResult struct {
+	Agents         []store.SessionAgent
+	CancelledTasks int64
+}
+
+// ClearSession stops the running executions, cancels immediate tasks, and
+// drains the dispatcher queues for sessionKey. Always executes; callers are
+// responsible for any confirmation UX.
+func (s *ClearService) ClearSession(ctx context.Context, sessionKey string) (ClearSessionResult, error) {
 	beeEngine := s.engineCfg.Get()
 	agents, err := s.sessions.ListActiveSessionContexts(ctx, sessionKey, beeEngine)
 	if err != nil {
 		return ClearSessionResult{}, err
 	}
-
 	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
 		SessionKey: sessionKey,
 		Status:     model.TaskStatusActive,
@@ -133,49 +150,54 @@ func (s *ClearService) ClearSession(ctx context.Context, sessionKey string, forc
 		return ClearSessionResult{}, err
 	}
 
-	if len(agents) == 0 && len(activeTasks) == 0 {
-		return ClearSessionResult{}, nil
-	}
-
-	if !force && len(activeTasks) > 0 {
-		return ClearSessionResult{Agents: agents, ActiveTasks: activeTasks}, nil
-	}
-
-	s.stopRunningExecutions(ctx, activeTasks, OpClearSession)
+	s.stopRunningExecutions(ctx, activeTasks, opClearSession)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		return ClearSessionResult{Agents: agents, ActiveTasks: activeTasks},
-			fmt.Errorf("cancel tasks for clear_session: %w", err)
+		return ClearSessionResult{Agents: agents}, fmt.Errorf("cancel tasks for clear_session: %w", err)
 	}
 
 	s.dispatcher.ClearSession(sessionKey)
 
-	return ClearSessionResult{
-		Agents:         agents,
-		CancelledTasks: cancelled,
-		Cleared:        true,
-	}, nil
+	return ClearSessionResult{Agents: agents, CancelledTasks: cancelled}, nil
 }
 
-// ClearWorkerResult describes the outcome (or pending state) of a worker-scoped clear.
+// ClearWorkerPreview is what EvaluateClearWorker would touch.
+type ClearWorkerPreview struct {
+	Engine      string
+	ActiveTasks []model.Task
+}
+
+// EvaluateClearWorker is a read-only lookup of what a ClearWorker call would
+// touch for one worker in sessionKey.
+func (s *ClearService) EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerPreview, error) {
+	engine := s.engineCfg.Resolve(w.Engine)
+	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		WorkerID:   w.ID,
+		Status:     model.TaskStatusActive,
+		Type:       model.TaskTypeImmediate,
+	})
+	if err != nil {
+		return ClearWorkerPreview{}, err
+	}
+	return ClearWorkerPreview{Engine: engine, ActiveTasks: activeTasks}, nil
+}
+
+// ClearWorkerResult is the outcome of a ClearWorker execution.
 type ClearWorkerResult struct {
-	Worker         model.Worker
 	Engine         string
-	ActiveTasks    []model.Task
 	CancelledTasks int64
 	DeletedContext bool
-	Cleared        bool
 }
 
-// ClearWorker evaluates and (when allowed) clears one worker's session context
-// for the worker's active engine, cancels the worker's immediate tasks in the
-// session, and drains the dispatcher's in-memory queue for the pair. As with
-// ClearSession, an active-tasks check gates execution unless force is set.
-func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker, force bool) (ClearWorkerResult, error) {
+// ClearWorker stops the running executions, cancels the worker's immediate
+// tasks, deletes the session context for the worker's engine, and drains the
+// dispatcher queue for the pair. Always executes.
+func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerResult, error) {
 	engine := s.engineCfg.Resolve(w.Engine)
 
 	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
@@ -188,11 +210,7 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		return ClearWorkerResult{}, err
 	}
 
-	if !force && len(activeTasks) > 0 {
-		return ClearWorkerResult{Worker: w, Engine: engine, ActiveTasks: activeTasks}, nil
-	}
-
-	s.stopRunningExecutions(ctx, activeTasks, OpClearWorker)
+	s.stopRunningExecutions(ctx, activeTasks, opClearWorker)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -200,24 +218,27 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		return ClearWorkerResult{Worker: w, Engine: engine, ActiveTasks: activeTasks},
-			fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
+		return ClearWorkerResult{Engine: engine}, fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
 	}
 
 	deleted, err := s.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, engine)
 	if err != nil {
-		return ClearWorkerResult{}, err
+		return ClearWorkerResult{Engine: engine}, err
 	}
 
 	s.dispatcher.ClearWorker(sessionKey, w.ID)
 
 	return ClearWorkerResult{
-		Worker:         w,
 		Engine:         engine,
 		CancelledTasks: cancelled,
 		DeletedContext: deleted,
-		Cleared:        true,
 	}, nil
+}
+
+// CancelTask stops a single running execution and finalizes it. Used by the
+// cancel_task RPC tool; the op label is hard-coded internally.
+func (s *ClearService) CancelTask(ctx context.Context, executionID string) {
+	s.stopAndFinalizeExecution(ctx, executionID, opCancelTask)
 }
 
 // stopRunningExecutions resolves the running exec ID for each task and stops
@@ -235,17 +256,16 @@ func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			s.StopAndFinalizeExecution(ctx, id, op)
+			s.stopAndFinalizeExecution(ctx, id, op)
 		}(execID)
 	}
 	wg.Wait()
 }
 
-// StopAndFinalizeExecution stops a running execution; when the local stop
+// stopAndFinalizeExecution stops a running execution; when the local stop
 // reports an error (process gone, different instance), the row is
-// force-finalized so future busy checks don't trip on a stale orphan. op is a
-// log label identifying the caller (clear_session, clear_worker, cancel_task).
-func (s *ClearService) StopAndFinalizeExecution(ctx context.Context, executionID, op string) {
+// force-finalized so future busy checks don't trip on a stale orphan.
+func (s *ClearService) stopAndFinalizeExecution(ctx context.Context, executionID, op string) {
 	if executionID == "" {
 		return
 	}
@@ -255,7 +275,7 @@ func (s *ClearService) StopAndFinalizeExecution(ctx context.Context, executionID
 			zap.String("executionID", executionID),
 			zap.Error(err))
 		if s.execFinalizer != nil {
-			if _, fErr := s.execFinalizer.MarkAbandoned(ctx, executionID, FinalizeReasonCancelledByUser); fErr != nil {
+			if _, fErr := s.execFinalizer.MarkAbandoned(ctx, executionID, finalizeReasonCancelledByUser); fErr != nil {
 				log.Error("finalize cancelled execution",
 					zap.String("op", op),
 					zap.String("executionID", executionID), zap.Error(fErr))

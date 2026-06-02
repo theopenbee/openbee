@@ -32,8 +32,10 @@ type WorkerNameLookup interface {
 // ClearService is the destructive-ops surface used by the /clear handler.
 // Implemented by *session.ClearService.
 type ClearService interface {
-	ClearSession(ctx context.Context, sessionKey string, force bool) (session.ClearSessionResult, error)
-	ClearWorker(ctx context.Context, sessionKey string, w model.Worker, force bool) (session.ClearWorkerResult, error)
+	EvaluateClearSession(ctx context.Context, sessionKey string) (session.ClearSessionPreview, error)
+	ClearSession(ctx context.Context, sessionKey string) (session.ClearSessionResult, error)
+	EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (session.ClearWorkerPreview, error)
+	ClearWorker(ctx context.Context, sessionKey string, w model.Worker) (session.ClearWorkerResult, error)
 }
 
 type ClearCommandHandler struct {
@@ -91,7 +93,25 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	pendingKey := h.pendingKey(sessionKey, CmdClear)
 	confirmed := h.consumePending(pendingKey)
 
-	result, err := h.svc.ClearSession(ctx, sessionKey, confirmed)
+	if !confirmed {
+		preview, err := h.svc.EvaluateClearSession(ctx, sessionKey)
+		if err != nil {
+			log.Error("evaluate clear session", zap.Error(err))
+			h.reply(ctx, replyTo, m.LookupFailed)
+			return
+		}
+		if len(preview.Agents) == 0 {
+			h.reply(ctx, replyTo, m.NoContext)
+			return
+		}
+		if len(preview.ActiveTasks) > 0 {
+			h.storePending(pendingKey)
+			h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks))
+			return
+		}
+	}
+
+	result, err := h.svc.ClearSession(ctx, sessionKey)
 	if err != nil {
 		log.Error("clear session", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
@@ -99,11 +119,6 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 	if len(result.Agents) == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
-		return
-	}
-	if !result.Cleared {
-		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, result.Agents, result.ActiveTasks))
 		return
 	}
 
@@ -142,16 +157,24 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
 	confirmed := h.consumePending(pendingKey)
 
-	result, err := h.svc.ClearWorker(ctx, sessionKey, w, confirmed)
+	if !confirmed {
+		preview, err := h.svc.EvaluateClearWorker(ctx, sessionKey, w)
+		if err != nil {
+			log.Error("evaluate clear worker session", zap.String("workerID", w.ID), zap.Error(err))
+			h.reply(ctx, replyTo, m.NoContext)
+			return
+		}
+		if len(preview.ActiveTasks) > 0 {
+			h.storePending(pendingKey)
+			h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks))
+			return
+		}
+	}
+
+	result, err := h.svc.ClearWorker(ctx, sessionKey, w)
 	if err != nil {
 		log.Error("clear worker session", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)
-		return
-	}
-
-	if !result.Cleared {
-		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, result.Worker, result.Engine, result.ActiveTasks))
 		return
 	}
 
@@ -161,9 +184,9 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	}
 
 	if result.CancelledTasks > 0 {
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerClearedWithTasks, result.Worker.Name, result.Engine, result.CancelledTasks))
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerClearedWithTasks, w.Name, result.Engine, result.CancelledTasks))
 	} else {
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, result.Worker.Name, result.Engine))
+		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerCleared, w.Name, result.Engine))
 	}
 }
 
