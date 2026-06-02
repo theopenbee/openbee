@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
@@ -54,7 +55,7 @@ func resolveExecutable() (string, error) {
 func main() {
 	// Detect and load language before Execute() so cobra Short/Long fields
 	// (set in init()) can be overridden by applyTranslations().
-	lang := detectLang()
+	lang := cli.DetectLang()
 	if err := i18n.Load(lang); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: i18n load failed: %v\n", err)
 	}
