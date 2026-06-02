@@ -2,8 +2,6 @@ package configcmd
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -194,219 +192,8 @@ func runConfig() error {
 	// Step 2 — Platform config
 	fmt.Println(i18n.M.Output.Config.SectionPlatform)
 
-	// Build default selections from existing config
-	var defaultPlatforms []string
-	if vals.FeishuEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformFeishu)
-	}
-	if vals.DingtalkEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformDingTalk)
-	}
-	if vals.WecomEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeCom)
-	}
-	if vals.TelegramEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformTelegram)
-	}
-	if vals.WeixinEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformWeixin)
-	}
-	if vals.LinearEnabled {
-		defaultPlatforms = append(defaultPlatforms, i18n.M.Prompt.PlatformLinear)
-	}
-
-	var selectedPlatforms []string
-	if err := survey.AskOne(&survey.MultiSelect{
-		Message: i18n.M.Prompt.PlatformSelect,
-		Options: []string{
-			i18n.M.Prompt.PlatformFeishu,
-			i18n.M.Prompt.PlatformDingTalk,
-			i18n.M.Prompt.PlatformWeCom,
-			i18n.M.Prompt.PlatformTelegram,
-			i18n.M.Prompt.PlatformWeixin,
-			i18n.M.Prompt.PlatformLinear,
-		},
-		Default: defaultPlatforms,
-	}, &selectedPlatforms); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	// Reset platform flags — they'll be re-enabled based on selection
-	vals.FeishuEnabled = false
-	vals.DingtalkEnabled = false
-	vals.WecomEnabled = false
-	vals.TelegramEnabled = false
-	vals.WeixinEnabled = false
-	vals.LinearEnabled = false
-
-	for _, p := range selectedPlatforms {
-		switch p {
-		case i18n.M.Prompt.PlatformFeishu:
-			vals.FeishuEnabled = true
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.FeishuAppID,
-				Default: vals.FeishuAppID,
-			}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.FeishuAppSecret,
-				Default: vals.FeishuAppSecret,
-			}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := promptBotName(&vals.FeishuBotName); err != nil {
-				return err
-			}
-		case i18n.M.Prompt.PlatformDingTalk:
-			vals.DingtalkEnabled = true
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.DingtalkClientID,
-				Default: vals.DingtalkClientID,
-			}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.DingtalkClientSecret,
-				Default: vals.DingtalkClientSecret,
-			}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := promptBotName(&vals.DingtalkBotName); err != nil {
-				return err
-			}
-		case i18n.M.Prompt.PlatformWeCom:
-			vals.WecomEnabled = true
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.WecomBotID,
-				Default: vals.WecomBotID,
-			}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.WecomSecret,
-				Default: vals.WecomSecret,
-			}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := promptBotName(&vals.WecomBotName); err != nil {
-				return err
-			}
-		case i18n.M.Prompt.PlatformTelegram:
-			vals.TelegramEnabled = true
-			if err := survey.AskOne(&survey.Password{
-				Message: i18n.M.Prompt.TelegramToken,
-				Help:    i18n.M.Prompt.TelegramTokenHelp,
-			}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			authCodeDefault := vals.TelegramAuthCode
-			if authCodeDefault == "" {
-				b := make([]byte, 8)
-				rand.Read(b)
-				authCodeDefault = hex.EncodeToString(b)
-			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.TelegramAuthCode,
-				Default: authCodeDefault,
-				Help:    i18n.M.Prompt.TelegramAuthCodeHelp,
-			}, &vals.TelegramAuthCode); err != nil {
-				return handleSurveyErr(err)
-			}
-			if err := promptBotName(&vals.TelegramBotName); err != nil {
-				return err
-			}
-		case i18n.M.Prompt.PlatformWeixin:
-			vals.WeixinEnabled = true
-
-			needQRLogin := true
-			if vals.WeixinToken != "" {
-				masked := vals.WeixinToken
-				if len(masked) > 6 {
-					masked = masked[:6] + "***"
-				}
-				var reacquire bool
-				if err := survey.AskOne(&survey.Confirm{
-					Message: fmt.Sprintf(i18n.M.Prompt.WeixinReacquire, masked),
-					Default: false,
-				}, &reacquire); err != nil {
-					return handleSurveyErr(err)
-				}
-				needQRLogin = reacquire
-			}
-
-			if needQRLogin {
-				fmt.Println(i18n.M.Output.Config.WeixinQRLogin)
-				fmt.Println(i18n.M.Output.Config.FetchingQR)
-
-				token, userID, baseURL, err := runWeixinQRLogin()
-				if err != nil {
-					fmt.Printf(i18n.M.Output.Config.QRFailed+"\n", err)
-					fmt.Println(i18n.M.Output.Config.QRFallback)
-					if err := survey.AskOne(&survey.Password{
-						Message: i18n.M.Prompt.WeixinBotToken,
-					}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
-						return handleSurveyErr(err)
-					}
-					if err := survey.AskOne(&survey.Input{
-						Message: i18n.M.Prompt.WeixinUserID,
-						Default: vals.WeixinUserID,
-					}, &vals.WeixinUserID, survey.WithValidator(survey.Required)); err != nil {
-						return handleSurveyErr(err)
-					}
-				} else {
-					vals.WeixinToken = token
-					vals.WeixinUserID = userID
-					if baseURL != "" {
-						vals.WeixinBaseURL = baseURL
-					}
-					fmt.Println(i18n.M.Output.Config.WeixinSuccess)
-				}
-			}
-			if vals.WeixinBaseURL == "" {
-				vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
-			}
-			vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-			if err := promptBotName(&vals.WeixinBotName); err != nil {
-				return err
-			}
-		case i18n.M.Prompt.PlatformLinear:
-			vals.LinearEnabled = true
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.LinearAPIKey,
-				Help:    i18n.M.Prompt.LinearAPIKeyHelp,
-				Default: vals.LinearAPIKey,
-			}, &vals.LinearAPIKey, survey.WithValidator(survey.Required)); err != nil {
-				return handleSurveyErr(err)
-			}
-			labelDefault := vals.LinearLabelName
-			if labelDefault == "" {
-				labelDefault = "openbee"
-			}
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.LinearLabelName,
-				Default: labelDefault,
-			}, &vals.LinearLabelName); err != nil {
-				return handleSurveyErr(err)
-			}
-			if vals.LinearPollInterval == "" {
-				vals.LinearPollInterval = "10s"
-			}
-			fmt.Println(i18n.M.Prompt.LinearProjectsHelp)
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.LinearProjects,
-				Default: vals.LinearProjects,
-			}, &vals.LinearProjects); err != nil {
-				return handleSurveyErr(err)
-			}
-			fmt.Println(i18n.M.Prompt.LinearStatesHelp)
-			if err := survey.AskOne(&survey.Input{
-				Message: i18n.M.Prompt.LinearStates,
-				Default: vals.LinearStates,
-			}, &vals.LinearStates); err != nil {
-				return handleSurveyErr(err)
-			}
-		}
+	if err := runPlatformStep(&vals); err != nil {
+		return err
 	}
 
 	// Step 3 — Web Authentication
@@ -450,113 +237,10 @@ func runConfig() error {
 	}
 
 	if customAdvanced {
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.ServerPort,
-			Default: vals.ServerPort,
-		}, &vals.ServerPort, survey.WithValidator(func(val interface{}) error {
-			s, _ := val.(string)
-			if _, err := strconv.Atoi(s); err != nil {
-				return errors.New(i18n.M.Validate.PortInteger)
-			}
-			return nil
-		})); err != nil {
-			return handleSurveyErr(err)
+		if err := runAdvancedPrompts(&vals); err != nil {
+			return err
 		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.ServerHost,
-			Default: vals.ServerHost,
-		}, &vals.ServerHost); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Confirm{
-			Message: i18n.M.Prompt.DebugMode,
-			Default: vals.Debug,
-		}, &vals.Debug); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.DBPath,
-			Default: vals.DBPath,
-		}, &vals.DBPath); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		var concurrentBeeStr string
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.MaxConcurrentBee,
-			Default: strconv.Itoa(vals.FeederMaxConcurrentBee),
-		}, &concurrentBeeStr, survey.WithValidator(func(ans interface{}) error {
-			s, _ := ans.(string)
-			n, err := strconv.Atoi(s)
-			if err != nil || n <= 0 {
-				return errors.New(i18n.M.Validate.PositiveInteger)
-			}
-			return nil
-		})); err != nil {
-			return handleSurveyErr(err)
-		}
-		vals.FeederMaxConcurrentBee, _ = strconv.Atoi(concurrentBeeStr)
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.MessageDebounce,
-			Default: vals.MessageDebounce,
-		}, &vals.MessageDebounce); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.FFprobePath,
-			Default: vals.FFprobePath,
-		}, &vals.FFprobePath); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if err := survey.AskOne(&survey.Input{
-			Message: i18n.M.Prompt.FFmpegPath,
-			Default: vals.FFmpegPath,
-		}, &vals.FFmpegPath); err != nil {
-			return handleSurveyErr(err)
-		}
-
-		if vals.AuthJWTSecret != "" {
-			var regenerate bool
-			if err := survey.AskOne(&survey.Confirm{
-				Message: i18n.M.Prompt.JWTRegenConfirm,
-				Default: false,
-			}, &regenerate); err != nil {
-				return handleSurveyErr(err)
-			}
-			if regenerate {
-				vals.AuthJWTSecret = config.GenerateRandomSecret()
-				fmt.Println(i18n.M.Output.Config.JWTRegenerated)
-			}
-		} else {
-			vals.AuthJWTSecret = config.GenerateRandomSecret()
-			fmt.Println(i18n.M.Output.Config.JWTGenerated)
-		}
-
-		if vals.RPCTokenSecret != "" {
-			var regenerate bool
-			if err := survey.AskOne(&survey.Confirm{
-				Message: i18n.M.Prompt.RPCTokenRegenConfirm,
-				Default: false,
-			}, &regenerate); err != nil {
-				return handleSurveyErr(err)
-			}
-			if regenerate {
-				vals.RPCTokenSecret = config.GenerateRandomSecret()
-				fmt.Println(i18n.M.Output.Config.RPCTokenSecretRegenerated)
-			}
-		} else {
-			vals.RPCTokenSecret = config.GenerateRandomSecret()
-			fmt.Printf(i18n.M.Output.Config.RPCTokenSecretGenerated+"\n", vals.RPCTokenSecret)
-		}
-	}
-
-	if !customAdvanced {
+	} else {
 		if vals.AuthJWTSecret == "" {
 			vals.AuthJWTSecret = config.GenerateRandomSecret()
 		}
@@ -584,16 +268,18 @@ func runConfig() error {
 		return nil
 	}
 
-	vals.LinearProjectsYAML = renderInlineYAMLList(vals.LinearProjects)
-	vals.LinearStatesYAML = renderInlineYAMLList(vals.LinearStates)
-
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, vals); err != nil {
+	render := configRenderData{
+		configValues:       vals,
+		LinearProjectsYAML: renderInlineYAMLList(vals.LinearProjects),
+		LinearStatesYAML:   renderInlineYAMLList(vals.LinearStates),
+	}
+	if err := tmpl.Execute(&buf, render); err != nil {
 		return fmt.Errorf("render template: %w", err)
 	}
 

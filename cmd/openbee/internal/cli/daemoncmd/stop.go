@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -15,7 +16,11 @@ func NewStopCommand() *cobra.Command {
 		Use:   "stop",
 		Short: i18n.M.Cmd.Stop.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return DoStop(DaemonPIDFile())
+			pidFile, err := config.DaemonPIDFile()
+			if err != nil {
+				return err
+			}
+			return DoStop(pidFile)
 		},
 	}
 }

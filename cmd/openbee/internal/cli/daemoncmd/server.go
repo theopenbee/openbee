@@ -11,11 +11,12 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
 
-var cfgPath string
-var daemonMode bool
-
 // NewServerCommand returns the "server" cobra command.
 func NewServerCommand() *cobra.Command {
+	var (
+		cfgPath    string
+		daemonMode bool
+	)
 	cmd := &cobra.Command{
 		Use:   "server",
 		Short: i18n.M.Cmd.Server.Short,
@@ -28,13 +29,21 @@ func NewServerCommand() *cobra.Command {
 			}
 
 			if child {
+				logFile, err := config.DaemonLogFile()
+				if err != nil {
+					return err
+				}
 				// Child: redirect stdout+stderr to log file before logger.Init,
 				// so that zap's os.Stderr sink writes to the log file.
-				if err := redirectStdio(daemonLogFile()); err != nil {
+				if err := redirectStdio(logFile); err != nil {
 					return fmt.Errorf("redirect stdio: %w", err)
 				}
+				pidFile, err := config.DaemonPIDFile()
+				if err != nil {
+					return err
+				}
 				// Clean up PID file on shutdown.
-				defer func() { _ = removePIDFile() }()
+				defer func() { _ = removePIDFile(pidFile) }()
 			}
 
 			// --- Normal server startup ---

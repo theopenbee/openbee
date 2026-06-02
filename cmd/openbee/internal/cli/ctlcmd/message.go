@@ -9,23 +9,32 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-func newMessageCommand() *cobra.Command {
+func newMessageCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlMessage
 	cmd := &cobra.Command{
 		Use:   "message",
-		Short: i18n.M.Cmd.CtlMessage.Short,
+		Short: subs.Short,
 	}
-
-	var (
-		msgSendMessageID string
-		msgSendStdin     bool
-		msgSendMediaPath string
+	cmd.AddCommand(
+		newMessageSendCommand(run, subs.Sub("send")),
+		newMessageListCommand(run, subs.Sub("list"), false),
+		newMessageListCommand(run, subs.Sub("list-outbound"), true),
 	)
-	sendCmd := &cobra.Command{
+	return cmd
+}
+
+func newMessageSendCommand(run Runner, short string) *cobra.Command {
+	var (
+		messageID string
+		fromStdin bool
+		mediaPath string
+	)
+	cmd := &cobra.Command{
 		Use:   "send",
-		Short: "Send a message to the user on the originating platform",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{"message_id": msgSendMessageID}
-			if msgSendStdin {
+			a := map[string]any{"message_id": messageID}
+			if fromStdin {
 				b, err := io.ReadAll(os.Stdin)
 				if err != nil {
 					return err
@@ -34,119 +43,80 @@ func newMessageCommand() *cobra.Command {
 					a["content"] = string(b)
 				}
 			}
-			if msgSendMediaPath != "" {
-				a["media_path"] = msgSendMediaPath
-			}
-			return ctlRun(utils.SendMessage, a)
+			setIfNonEmpty(a, "media_path", mediaPath)
+			return run(utils.SendMessage, a)
 		},
 	}
-	sendCmd.Flags().StringVar(&msgSendMessageID, "message-id", "", "ID of the originating platform message (required)")
-	sendCmd.Flags().BoolVar(&msgSendStdin, "stdin", false, "Read text content from stdin (use with heredoc)")
-	sendCmd.Flags().StringVar(&msgSendMediaPath, "media-path", "", "Local file path to upload and send as media")
-	sendCmd.MarkFlagRequired("message-id")
+	cmd.Flags().StringVar(&messageID, "message-id", "", "ID of the originating platform message (required)")
+	cmd.Flags().BoolVar(&fromStdin, "stdin", false, "Read text content from stdin (use with heredoc)")
+	cmd.Flags().StringVar(&mediaPath, "media-path", "", "Local file path to upload and send as media")
+	cmd.MarkFlagRequired("message-id")
+	return cmd
+}
 
+// newMessageListCommand builds either the inbound `list` or outbound `list-outbound`
+// subcommand; the two share most filters but differ in the time-field flags
+// (received_at vs sent_at) and a couple of outbound-only filters.
+func newMessageListCommand(run Runner, short string, outbound bool) *cobra.Command {
 	var (
-		msgListSessionKey   string
-		msgListPlatform     string
-		msgListStatus       string
-		msgListReceivedFrom int64
-		msgListReceivedTo   int64
-		msgListPage         int
-		msgListPageSize     int
+		sessionKey string
+		platform   string
+		status     string
+		sourceType string
+		sourceID   string
+		timeFrom   int64
+		timeTo     int64
+		page       int
+		pageSize   int
 	)
-	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List platform messages with optional filters",
+
+	use := "list"
+	tool := utils.ListMessages
+	fromFlag, toFlag := "received-from", "received-to"
+	fromUsage := "Filter received_at >= value (Unix ms)"
+	toUsage := "Filter received_at <= value (Unix ms)"
+	fromKey, toKey := "received_at_from", "received_at_to"
+	statusUsage := "Filter by status (received, feeding, bee_processed, merged, failed)"
+
+	if outbound {
+		use = "list-outbound"
+		tool = utils.ListOutboundMessages
+		fromFlag, toFlag = "sent-from", "sent-to"
+		fromUsage = "Filter sent_at >= value (Unix ms)"
+		toUsage = "Filter sent_at <= value (Unix ms)"
+		fromKey, toKey = "sent_at_from", "sent_at_to"
+		statusUsage = "Filter by status (sent, failed)"
+	}
+
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
 			a := map[string]any{}
-			if msgListSessionKey != "" {
-				a["session_key"] = msgListSessionKey
+			setIfNonEmpty(a, "session_key", sessionKey)
+			setIfNonEmpty(a, "platform", platform)
+			setIfNonEmpty(a, "status", status)
+			if outbound {
+				setIfNonEmpty(a, "source_type", sourceType)
+				setIfNonEmpty(a, "source_id", sourceID)
 			}
-			if msgListPlatform != "" {
-				a["platform"] = msgListPlatform
-			}
-			if msgListStatus != "" {
-				a["status"] = msgListStatus
-			}
-			if msgListReceivedFrom > 0 {
-				a["received_at_from"] = msgListReceivedFrom
-			}
-			if msgListReceivedTo > 0 {
-				a["received_at_to"] = msgListReceivedTo
-			}
-			if msgListPage > 0 {
-				a["page"] = msgListPage
-			}
-			if msgListPageSize > 0 {
-				a["page_size"] = msgListPageSize
-			}
-			return ctlRun(utils.ListMessages, a)
+			setIfPositiveInt64(a, fromKey, timeFrom)
+			setIfPositiveInt64(a, toKey, timeTo)
+			setIfPositive(a, "page", page)
+			setIfPositive(a, "page_size", pageSize)
+			return run(tool, a)
 		},
 	}
-	listCmd.Flags().StringVar(&msgListSessionKey, "session-key", "", "Filter by session key")
-	listCmd.Flags().StringVar(&msgListPlatform, "platform", "", "Filter by platform (e.g. feishu, local)")
-	listCmd.Flags().StringVar(&msgListStatus, "status", "", "Filter by status (received, feeding, bee_processed, merged, failed)")
-	listCmd.Flags().Int64Var(&msgListReceivedFrom, "received-from", 0, "Filter received_at >= value (Unix ms)")
-	listCmd.Flags().Int64Var(&msgListReceivedTo, "received-to", 0, "Filter received_at <= value (Unix ms)")
-	listCmd.Flags().IntVar(&msgListPage, "page", 0, "Page number (default: 1)")
-	listCmd.Flags().IntVar(&msgListPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
-
-	var (
-		msgListOutSessionKey string
-		msgListOutPlatform   string
-		msgListOutStatus     string
-		msgListOutSourceType string
-		msgListOutSourceID   string
-		msgListOutSentFrom   int64
-		msgListOutSentTo     int64
-		msgListOutPage       int
-		msgListOutPageSize   int
-	)
-	listOutboundCmd := &cobra.Command{
-		Use:   "list-outbound",
-		Short: "List outbound (sent) messages with optional filters",
-		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{}
-			if msgListOutSessionKey != "" {
-				a["session_key"] = msgListOutSessionKey
-			}
-			if msgListOutPlatform != "" {
-				a["platform"] = msgListOutPlatform
-			}
-			if msgListOutStatus != "" {
-				a["status"] = msgListOutStatus
-			}
-			if msgListOutSourceType != "" {
-				a["source_type"] = msgListOutSourceType
-			}
-			if msgListOutSourceID != "" {
-				a["source_id"] = msgListOutSourceID
-			}
-			if msgListOutSentFrom > 0 {
-				a["sent_at_from"] = msgListOutSentFrom
-			}
-			if msgListOutSentTo > 0 {
-				a["sent_at_to"] = msgListOutSentTo
-			}
-			if msgListOutPage > 0 {
-				a["page"] = msgListOutPage
-			}
-			if msgListOutPageSize > 0 {
-				a["page_size"] = msgListOutPageSize
-			}
-			return ctlRun(utils.ListOutboundMessages, a)
-		},
+	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Filter by session key")
+	cmd.Flags().StringVar(&platform, "platform", "", "Filter by platform (e.g. feishu, local)")
+	cmd.Flags().StringVar(&status, "status", "", statusUsage)
+	if outbound {
+		cmd.Flags().StringVar(&sourceType, "source-type", "", "Filter by source type (bee, worker, system)")
+		cmd.Flags().StringVar(&sourceID, "source-id", "", "Filter by source ID")
 	}
-	listOutboundCmd.Flags().StringVar(&msgListOutSessionKey, "session-key", "", "Filter by session key")
-	listOutboundCmd.Flags().StringVar(&msgListOutPlatform, "platform", "", "Filter by platform (e.g. feishu, local)")
-	listOutboundCmd.Flags().StringVar(&msgListOutStatus, "status", "", "Filter by status (sent, failed)")
-	listOutboundCmd.Flags().StringVar(&msgListOutSourceType, "source-type", "", "Filter by source type (bee, worker, system)")
-	listOutboundCmd.Flags().StringVar(&msgListOutSourceID, "source-id", "", "Filter by source ID")
-	listOutboundCmd.Flags().Int64Var(&msgListOutSentFrom, "sent-from", 0, "Filter sent_at >= value (Unix ms)")
-	listOutboundCmd.Flags().Int64Var(&msgListOutSentTo, "sent-to", 0, "Filter sent_at <= value (Unix ms)")
-	listOutboundCmd.Flags().IntVar(&msgListOutPage, "page", 0, "Page number (default: 1)")
-	listOutboundCmd.Flags().IntVar(&msgListOutPageSize, "page-size", 0, "Page size (default: 50, max: 100)")
-
-	cmd.AddCommand(sendCmd, listCmd, listOutboundCmd)
+	cmd.Flags().Int64Var(&timeFrom, fromFlag, 0, fromUsage)
+	cmd.Flags().Int64Var(&timeTo, toFlag, 0, toUsage)
+	cmd.Flags().IntVar(&page, "page", 0, "Page number (default: 1)")
+	cmd.Flags().IntVar(&pageSize, "page-size", 0, "Page size (default: 50, max: 100)")
 	return cmd
 }

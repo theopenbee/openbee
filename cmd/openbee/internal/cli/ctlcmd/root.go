@@ -10,34 +10,38 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-var ctlCfgPath string
+// Runner invokes a ctl tool against the server identified by the persistent --config flag.
+type Runner func(toolName string, args any) error
 
-func newRootCommand() *cobra.Command {
+// NewCommand constructs the wired-up ctl command with all subcommands registered.
+func NewCommand() *cobra.Command {
+	var cfgPath string
 	cmd := &cobra.Command{
 		Use:   "ctl",
 		Short: i18n.M.Cmd.Ctl.Short,
 	}
-	cmd.PersistentFlags().StringVarP(&ctlCfgPath, "config", "c", "config.yaml", "path to config file")
-	return cmd
-}
+	cmd.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
 
-// NewCommand constructs the wired-up ctl command with all subcommands registered.
-func NewCommand() *cobra.Command {
-	cmd := newRootCommand()
+	run := func(toolName string, args any) error {
+		return doCtlRun(cfgPath, toolName, args)
+	}
+
 	cmd.AddCommand(
-		newWorkerCommand(),
-		newTaskCommand(),
-		newConstraintCommand(),
-		newSessionCommand(),
-		newSystemCommand(),
-		newMessageCommand(),
-		newDepartmentCommand(),
+		newWorkerCommand(run),
+		newTaskCommand(run),
+		newConstraintCommand(run),
+		newSessionCommand(run),
+		newSystemCommand(run),
+		newMessageCommand(run),
+		newDepartmentCommand(run),
 	)
 	return cmd
 }
 
-func ctlRun(toolName string, args any) error {
-	c, err := ctlclient.NewClient(ctlCfgPath)
+// doCtlRun calls the named tool, pretty-prints JSON output, and falls back to
+// raw output if the response cannot be re-indented.
+func doCtlRun(cfgPath, toolName string, args any) error {
+	c, err := ctlclient.NewClient(cfgPath)
 	if err != nil {
 		return err
 	}

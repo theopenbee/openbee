@@ -11,191 +11,182 @@ import (
 
 const engineArgsFlagName = "engine-args"
 
-func newWorkerCommand() *cobra.Command {
+func newWorkerCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlWorker
 	cmd := &cobra.Command{
 		Use:   "worker",
-		Short: i18n.M.Cmd.CtlWorker.Short,
+		Short: subs.Short,
 	}
 
-	var (
-		workerListDepartment   string
-		workerListNoRecursive  bool
-		workerListName         string
-		workerListID           string
-		workerListPage         int
-		workerListPageSize     int
-		workerCreateDepartment string
-		workerUpdateDepartment string
+	cmd.AddCommand(
+		newWorkerListCommand(run, subs.Sub("list")),
+		newWorkerGetCommand(run, subs.Sub("get")),
+		newWorkerStatusCommand(run, subs.Sub("status")),
+		newWorkerCreateCommand(run, subs.Sub("create")),
+		newWorkerUpdateCommand(run, subs.Sub("update")),
+		newWorkerDeleteCommand(run, subs.Sub("delete")),
 	)
+	return cmd
+}
 
-	listCmd := &cobra.Command{
+func newWorkerListCommand(run Runner, short string) *cobra.Command {
+	var (
+		department  string
+		noRecursive bool
+		name        string
+		id          string
+		page        int
+		pageSize    int
+	)
+	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all workers",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
 			a := map[string]any{}
-			if workerListDepartment != "" {
-				a["department_id"] = workerListDepartment
-				if workerListNoRecursive {
+			if department != "" {
+				a["department_id"] = department
+				if noRecursive {
 					a["recursive"] = false
 				}
 			}
-			if workerListName != "" {
-				a["name"] = workerListName
-			}
-			if workerListID != "" {
-				a["id"] = workerListID
-			}
-			if workerListPage > 0 {
-				a["page"] = workerListPage
-			}
-			if workerListPageSize > 0 {
-				a["page_size"] = workerListPageSize
-			}
-			return ctlRun(utils.ListWorkers, a)
+			setIfNonEmpty(a, "name", name)
+			setIfNonEmpty(a, "id", id)
+			setIfPositive(a, "page", page)
+			setIfPositive(a, "page_size", pageSize)
+			return run(utils.ListWorkers, a)
 		},
 	}
-	listCmd.Flags().StringVar(&workerListDepartment, "department", "", "Filter by department ID or name")
-	listCmd.Flags().BoolVar(&workerListNoRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
-	listCmd.Flags().StringVar(&workerListName, "name", "", "Filter by name (case-insensitive partial match)")
-	listCmd.Flags().StringVar(&workerListID, "id", "", "Filter by exact worker ID")
-	listCmd.Flags().IntVar(&workerListPage, "page", 0, "Page number (default: 1)")
-	listCmd.Flags().IntVar(&workerListPageSize, "page-size", 0, "Page size (default: 50, max: 200)")
+	cmd.Flags().StringVar(&department, "department", "", "Filter by department ID or name")
+	cmd.Flags().BoolVar(&noRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
+	cmd.Flags().StringVar(&name, "name", "", "Filter by name (case-insensitive partial match)")
+	cmd.Flags().StringVar(&id, "id", "", "Filter by exact worker ID")
+	cmd.Flags().IntVar(&page, "page", 0, "Page number (default: 1)")
+	cmd.Flags().IntVar(&pageSize, "page-size", 0, "Page size (default: 50, max: 200)")
+	return cmd
+}
 
-	getCmd := &cobra.Command{
+func newWorkerGetCommand(run Runner, short string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "get <id>",
-		Short: "Get a worker by ID",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.GetWorker, map[string]any{"worker_id": args[0]})
+			return run(utils.GetWorker, map[string]any{"worker_id": args[0]})
 		},
 	}
+}
 
-	statusCmd := &cobra.Command{
+func newWorkerStatusCommand(run Runner, short string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "status <id>",
-		Short: "Get current status of a worker",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.GetWorkerStatus, map[string]any{"worker_id": args[0]})
+			return run(utils.GetWorkerStatus, map[string]any{"worker_id": args[0]})
 		},
 	}
+}
 
+func newWorkerCreateCommand(run Runner, short string) *cobra.Command {
 	var (
-		workerCreateName        string
-		workerCreateDescription string
-		workerCreateConstraints string
-		workerCreateWorkDir     string
-		workerCreateEngine      string
-		workerCreateScopes      string
-		workerCreateEngineArgs  []string
+		name        string
+		description string
+		constraints string
+		workDir     string
+		engine      string
+		department  string
+		scopes      string
+		engineArgs  []string
 	)
-	createCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new worker",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{"name": workerCreateName}
-			if workerCreateDescription != "" {
-				a["description"] = workerCreateDescription
-			}
-			if workerCreateConstraints != "" {
-				a["constraints"] = workerCreateConstraints
-			}
-			if workerCreateWorkDir != "" {
-				a["work_dir"] = workerCreateWorkDir
-			}
-			if workerCreateEngine != "" {
-				a["engine"] = workerCreateEngine
-			}
-			if workerCreateDepartment != "" {
-				a["department_ids"] = workerCreateDepartment
-			}
-			if workerCreateScopes != "" {
-				a["permission_scopes"] = workerCreateScopes
-			}
-			if len(workerCreateEngineArgs) > 0 {
-				parsed, err := parseEngineArgsFlag(workerCreateEngineArgs)
+			a := map[string]any{"name": name}
+			setIfNonEmpty(a, "description", description)
+			setIfNonEmpty(a, "constraints", constraints)
+			setIfNonEmpty(a, "work_dir", workDir)
+			setIfNonEmpty(a, "engine", engine)
+			setIfNonEmpty(a, "department_ids", department)
+			setIfNonEmpty(a, "permission_scopes", scopes)
+			if len(engineArgs) > 0 {
+				parsed, err := parseEngineArgsFlag(engineArgs)
 				if err != nil {
 					return err
 				}
 				a["engine_args"] = parsed
 			}
-			return ctlRun(utils.CreateWorker, a)
+			return run(utils.CreateWorker, a)
 		},
 	}
-	createCmd.Flags().StringVarP(&workerCreateName, "name", "n", "", "Worker name (required)")
-	createCmd.MarkFlagRequired("name")
-	createCmd.Flags().StringVar(&workerCreateDescription, "description", "", "Worker description")
-	createCmd.Flags().StringVar(&workerCreateConstraints, "constraints", "", "Worker constraints content")
-	createCmd.Flags().StringVar(&workerCreateWorkDir, "work-dir", "", "Working directory path")
-	createCmd.Flags().StringVar(&workerCreateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty for server default")
-	createCmd.Flags().StringVar(&workerCreateDepartment, "department", "", "Department ID or name (comma-separated for multiple)")
-	createCmd.Flags().StringVar(&workerCreateScopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
-	createCmd.Flags().StringArrayVar(&workerCreateEngineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Worker name (required)")
+	cmd.MarkFlagRequired("name")
+	cmd.Flags().StringVar(&description, "description", "", "Worker description")
+	cmd.Flags().StringVar(&constraints, "constraints", "", "Worker constraints content")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "Working directory path")
+	cmd.Flags().StringVar(&engine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty for server default")
+	cmd.Flags().StringVar(&department, "department", "", "Department ID or name (comma-separated for multiple)")
+	cmd.Flags().StringVar(&scopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
+	cmd.Flags().StringArrayVar(&engineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
+	return cmd
+}
 
+func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 	var (
-		workerUpdateName        string
-		workerUpdateDescription string
-		workerUpdateConstraints string
-		workerUpdateEngine      string
-		workerUpdateScopes      string
-		workerUpdateEngineArgs  []string
+		name        string
+		description string
+		constraints string
+		engine      string
+		department  string
+		scopes      string
+		engineArgs  []string
 	)
-	updateCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "update <id>",
-		Short: "Update a worker (patch: omitted fields unchanged)",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			a := map[string]any{"worker_id": args[0]}
-			if c.Flags().Changed("name") {
-				a["name"] = workerUpdateName
-			}
-			if c.Flags().Changed("description") {
-				a["description"] = workerUpdateDescription
-			}
-			if c.Flags().Changed("constraints") {
-				a["constraints"] = workerUpdateConstraints
-			}
-			if c.Flags().Changed("engine") {
-				a["engine"] = workerUpdateEngine
-			}
-			if c.Flags().Changed("department") {
-				a["department_ids"] = workerUpdateDepartment
-			}
-			if c.Flags().Changed("scopes") {
-				a["permission_scopes"] = workerUpdateScopes
-			}
+			setIfFlagChanged(c, a, "name", "name", name)
+			setIfFlagChanged(c, a, "description", "description", description)
+			setIfFlagChanged(c, a, "constraints", "constraints", constraints)
+			setIfFlagChanged(c, a, "engine", "engine", engine)
+			setIfFlagChanged(c, a, "department", "department_ids", department)
+			setIfFlagChanged(c, a, "scopes", "permission_scopes", scopes)
 			if c.Flags().Changed(engineArgsFlagName) {
-				parsed, err := parseEngineArgsFlag(workerUpdateEngineArgs)
+				parsed, err := parseEngineArgsFlag(engineArgs)
 				if err != nil {
 					return err
 				}
 				a["engine_args"] = parsed
 			}
-			return ctlRun(utils.UpdateWorker, a)
+			return run(utils.UpdateWorker, a)
 		},
 	}
-	updateCmd.Flags().StringVar(&workerUpdateName, "name", "", "New name")
-	updateCmd.Flags().StringVar(&workerUpdateDescription, "description", "", "New description")
-	updateCmd.Flags().StringVar(&workerUpdateConstraints, "constraints", "", "New constraints content")
-	updateCmd.Flags().StringVar(&workerUpdateEngine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty to keep unchanged")
-	updateCmd.Flags().StringVar(&workerUpdateDepartment, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
-	updateCmd.Flags().StringVar(&workerUpdateScopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
-	updateCmd.Flags().StringArrayVar(&workerUpdateEngineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
+	cmd.Flags().StringVar(&name, "name", "", "New name")
+	cmd.Flags().StringVar(&description, "description", "", "New description")
+	cmd.Flags().StringVar(&constraints, "constraints", "", "New constraints content")
+	cmd.Flags().StringVar(&engine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty to keep unchanged")
+	cmd.Flags().StringVar(&department, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
+	cmd.Flags().StringVar(&scopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
+	cmd.Flags().StringArrayVar(&engineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
+	return cmd
+}
 
-	var workerDeleteWorkDir bool
-	deleteCmd := &cobra.Command{
+func newWorkerDeleteCommand(run Runner, short string) *cobra.Command {
+	var deleteWorkDir bool
+	cmd := &cobra.Command{
 		Use:   "delete <id>",
-		Short: "Delete a worker",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.DeleteWorker, map[string]any{
+			return run(utils.DeleteWorker, map[string]any{
 				"worker_id":       args[0],
-				"delete_work_dir": workerDeleteWorkDir,
+				"delete_work_dir": deleteWorkDir,
 			})
 		},
 	}
-	deleteCmd.Flags().BoolVar(&workerDeleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
-
-	cmd.AddCommand(listCmd, getCmd, statusCmd, createCmd, updateCmd, deleteCmd)
+	cmd.Flags().BoolVar(&deleteWorkDir, "delete-work-dir", false, "Also delete the worker's working directory from disk")
 	return cmd
 }
 

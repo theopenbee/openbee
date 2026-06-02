@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -17,7 +18,11 @@ func NewStatusCommand(exitCode ExitCodeFunc) *cobra.Command {
 		Use:   "status",
 		Short: i18n.M.Cmd.Status.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			running, msg := daemonStatus(DaemonPIDFile())
+			pidFile, err := config.DaemonPIDFile()
+			if err != nil {
+				return err
+			}
+			running, msg := daemonStatus(pidFile)
 			fmt.Println(msg)
 			if !running {
 				return exitCode(1)

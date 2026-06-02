@@ -21,25 +21,18 @@ import (
 )
 
 const (
-	githubAPILatest = "https://api.github.com/repos/theopenbee/openbee/releases/latest"
-	githubRelBase   = "https://github.com/theopenbee/openbee/releases/download"
-
-	defaultCDNBaseURL = "https://dl.theopenbee.cn"
-
+	githubAPILatest      = "https://api.github.com/repos/theopenbee/openbee/releases/latest"
+	githubRelBase        = "https://github.com/theopenbee/openbee/releases/download"
+	defaultCDNBaseURL    = "https://dl.theopenbee.cn"
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
-	executablePerm       = 0o755
 )
+
+const executablePerm = 0o755
 
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
-
-var (
-	upgradeCheckOnly bool
-	upgradeCDNURL    string
-	upgradeCN        bool
-)
 
 func resolveCDNURL(cdnURL string, useCN bool) string {
 	if cdnURL == "" && useCN {
@@ -48,20 +41,23 @@ func resolveCDNURL(cdnURL string, useCN bool) string {
 	return cdnURL
 }
 
-// NewCommand returns the "upgrade" cobra command.
-// currentVersion is the version string injected at build time.
+// NewCommand returns the "upgrade" cobra command. currentVersion is injected at build time.
 func NewCommand(currentVersion string) *cobra.Command {
+	var (
+		checkOnly bool
+		cdnURL    string
+		useCN     bool
+	)
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: i18n.M.Cmd.Upgrade.Short,
-		Long:  i18n.M.Cmd.Upgrade.Long,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpgrade(currentVersion, upgradeCheckOnly, resolveCDNURL(upgradeCDNURL, upgradeCN))
+			return runUpgrade(currentVersion, checkOnly, resolveCDNURL(cdnURL, useCN))
 		},
 	}
-	cmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, i18n.M.Flag.UpgradeCheck)
-	cmd.Flags().StringVar(&upgradeCDNURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
-	cmd.Flags().BoolVar(&upgradeCN, "cn", false, i18n.M.Flag.UpgradeCN)
+	cmd.Flags().BoolVar(&checkOnly, "check", false, i18n.M.Flag.UpgradeCheck)
+	cmd.Flags().StringVar(&cdnURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
+	cmd.Flags().BoolVar(&useCN, "cn", false, i18n.M.Flag.UpgradeCN)
 	return cmd
 }
 

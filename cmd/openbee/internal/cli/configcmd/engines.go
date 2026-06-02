@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/AlecAivazis/survey/v2"
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -13,12 +14,22 @@ import (
 
 type engineMapping struct{ name, label string }
 
+var (
+	engineMappingsOnce  sync.Once
+	engineMappingsCache []engineMapping
+)
+
+// engineMappings returns the (name, label) table for all known engines, computed
+// once after i18n has been loaded.
 func engineMappings() []engineMapping {
-	return []engineMapping{
-		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
-		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
-		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
-	}
+	engineMappingsOnce.Do(func() {
+		engineMappingsCache = []engineMapping{
+			{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
+			{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
+			{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
+		}
+	})
+	return engineMappingsCache
 }
 
 func engineLabel(name string) string {

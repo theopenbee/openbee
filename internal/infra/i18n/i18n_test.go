@@ -31,6 +31,12 @@ func TestLoad_en(t *testing.T) {
 	if i18n.M.Prompt.ServerPort != "Server port:" {
 		t.Errorf("Prompt.ServerPort: got %q, want %q", i18n.M.Prompt.ServerPort, "Server port:")
 	}
+	if got := i18n.M.Cmd.CtlWorker.Sub("list"); got != "List all workers" {
+		t.Errorf("CtlWorker.Sub(list): got %q, want %q", got, "List all workers")
+	}
+	if i18n.M.Cmd.CtlDepartment.Short != "Manage departments" {
+		t.Errorf("CtlDepartment.Short: got %q, want %q", i18n.M.Cmd.CtlDepartment.Short, "Manage departments")
+	}
 }
 
 func TestLoad_unsupported_fallbacks_to_zh(t *testing.T) {

@@ -10,11 +10,16 @@ type Messages struct {
 	Runtime  RuntimeMessages  `yaml:"runtime"`
 }
 
-// CmdEntry holds the Short and optional Long description for a cobra command.
+// CmdEntry holds the Short and optional Long description for a cobra command,
+// plus a Subs map keyed by subcommand `Use` name for nested Short descriptions.
 type CmdEntry struct {
-	Short string `yaml:"short"`
-	Long  string `yaml:"long"`
+	Short string            `yaml:"short"`
+	Long  string            `yaml:"long"`
+	Subs  map[string]string `yaml:"subs"`
 }
+
+// Sub returns the Short text for a subcommand by name, or empty string.
+func (e CmdEntry) Sub(name string) string { return e.Subs[name] }
 
 // CmdMessages maps to all cobra command Short/Long descriptions.
 type CmdMessages struct {
@@ -34,6 +39,7 @@ type CmdMessages struct {
 	CtlSession    CmdEntry `yaml:"ctl_session"`
 	CtlSystem     CmdEntry `yaml:"ctl_system"`
 	CtlMessage    CmdEntry `yaml:"ctl_message"`
+	CtlDepartment CmdEntry `yaml:"ctl_department"`
 }
 
 // PromptMessages maps to all survey prompt Message fields.

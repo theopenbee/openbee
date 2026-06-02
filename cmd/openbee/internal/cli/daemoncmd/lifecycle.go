@@ -3,50 +3,34 @@ package daemoncmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-// daemonEnvKey is the env var set on the daemon child to distinguish it from the parent.
-const daemonEnvKey = "OPENBEE_DAEMON"
+const (
+	daemonEnvKey   = "OPENBEE_DAEMON"
+	daemonEnvValue = "1"
+)
 
 // ExitCodeFunc is a function that converts an integer exit code into an error
 // value that the CLI runner recognises and converts to os.Exit(code).
 type ExitCodeFunc func(int) error
 
-// OpenbeeStateDir returns ~/.openbee, calling os.Exit(1) on failure.
-func OpenbeeStateDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "fatal: cannot determine home directory: %v\n", err)
-		os.Exit(1)
-	}
-	return filepath.Join(home, ".openbee")
-}
-
-// DaemonPIDFile returns the path to the PID file.
-func DaemonPIDFile() string { return filepath.Join(OpenbeeStateDir(), "openbee.pid") }
-
-// daemonLogFile returns the path to the daemon log file.
-func daemonLogFile() string { return filepath.Join(OpenbeeStateDir(), "openbee.log") }
-
 // isDaemonChild reports whether this process was launched as a daemon child.
 func isDaemonChild() bool {
-	return os.Getenv(daemonEnvKey) == "1"
+	return os.Getenv(daemonEnvKey) == daemonEnvValue
 }
 
-// writePIDFileTo writes pid and start timestamp to the given path.
 func writePIDFileTo(path string, pid int, startTS int64) error {
 	content := fmt.Sprintf("%d\n%d\n", pid, startTS)
 	return os.WriteFile(path, []byte(content), 0600)
 }
 
-// readPIDFileFrom reads pid and start timestamp from the given path.
 func readPIDFileFrom(path string) (pid int, startTS int64, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -67,9 +51,8 @@ func readPIDFileFrom(path string) (pid int, startTS int64, err error) {
 	return int(pid64), ts, nil
 }
 
-// removePIDFile deletes the PID file, ignoring "not found" errors.
-func removePIDFile() error {
-	err := os.Remove(DaemonPIDFile())
+func removePIDFile(path string) error {
+	err := os.Remove(path)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -97,9 +80,18 @@ func formatUptime(secs int64) string {
 // daemonize re-executes the current binary as a background daemon with the given config path.
 // The caller should return immediately after daemonize returns nil.
 func daemonize(cfgPath string) error {
-	stateDir := OpenbeeStateDir()
-	pidFile := DaemonPIDFile()
-	logFile := daemonLogFile()
+	stateDir, err := config.OpenbeeHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve state dir: %w", err)
+	}
+	pidFile, err := config.DaemonPIDFile()
+	if err != nil {
+		return err
+	}
+	logFile, err := config.DaemonLogFile()
+	if err != nil {
+		return err
+	}
 
 	// Check for an existing live daemon.
 	if pid, _, err := readPIDFileFrom(pidFile); err == nil {

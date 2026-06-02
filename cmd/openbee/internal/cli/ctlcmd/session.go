@@ -6,63 +6,76 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-func newSessionCommand() *cobra.Command {
+func newSessionCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlSession
 	cmd := &cobra.Command{
 		Use:   "session",
-		Short: i18n.M.Cmd.CtlSession.Short,
+		Short: subs.Short,
 	}
+	cmd.AddCommand(
+		newSessionListCommand(run, subs.Sub("list")),
+		newSessionClearCommand(run, subs.Sub("clear")),
+		newSessionClearWorkerCommand(run, subs.Sub("clear-worker")),
+	)
+	return cmd
+}
 
-	var sessionListKey string
-	listCmd := &cobra.Command{
+func newSessionListCommand(run Runner, short string) *cobra.Command {
+	var sessionKey string
+	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all agents with active session contexts for a session key",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.ListSessionContexts, map[string]any{"session_key": sessionListKey})
+			return run(utils.ListSessionContexts, map[string]any{"session_key": sessionKey})
 		},
 	}
-	listCmd.Flags().StringVar(&sessionListKey, "session-key", "", "Session key to query (required)")
-	listCmd.MarkFlagRequired("session-key")
+	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Session key to query (required)")
+	cmd.MarkFlagRequired("session-key")
+	return cmd
+}
 
+func newSessionClearCommand(run Runner, short string) *cobra.Command {
 	var (
-		sessionClearKey   string
-		sessionClearForce bool
+		sessionKey string
+		force      bool
 	)
-	clearCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "clear",
-		Short: "Cancel all active tasks and clear all session contexts for a session key",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.ClearSession, map[string]any{
-				"session_key": sessionClearKey,
-				"force":       sessionClearForce,
+			return run(utils.ClearSession, map[string]any{
+				"session_key": sessionKey,
+				"force":       force,
 			})
 		},
 	}
-	clearCmd.Flags().StringVar(&sessionClearKey, "session-key", "", "Session key to clear (required)")
-	clearCmd.Flags().BoolVar(&sessionClearForce, "force", false, "Skip confirmation when multiple workers are linked")
-	clearCmd.MarkFlagRequired("session-key")
+	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Session key to clear (required)")
+	cmd.Flags().BoolVar(&force, "force", false, "Skip confirmation when multiple workers are linked")
+	cmd.MarkFlagRequired("session-key")
+	return cmd
+}
 
+func newSessionClearWorkerCommand(run Runner, short string) *cobra.Command {
 	var (
-		sessionClearWorkerKey   string
-		sessionClearWorkerID    string
-		sessionClearWorkerForce bool
+		sessionKey string
+		workerID   string
+		force      bool
 	)
-	clearWorkerCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "clear-worker",
-		Short: "Cancel one worker's active tasks and reset its session context within a session",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.ClearWorkerSession, map[string]any{
-				"session_key": sessionClearWorkerKey,
-				"worker_id":   sessionClearWorkerID,
-				"force":       sessionClearWorkerForce,
+			return run(utils.ClearWorkerSession, map[string]any{
+				"session_key": sessionKey,
+				"worker_id":   workerID,
+				"force":       force,
 			})
 		},
 	}
-	clearWorkerCmd.Flags().StringVar(&sessionClearWorkerKey, "session-key", "", "Session key (required)")
-	clearWorkerCmd.Flags().StringVar(&sessionClearWorkerID, "worker-id", "", "Worker ID whose session context to delete (required)")
-	clearWorkerCmd.Flags().BoolVar(&sessionClearWorkerForce, "force", false, "Skip confirmation when the worker has active tasks")
-	clearWorkerCmd.MarkFlagRequired("session-key")
-	clearWorkerCmd.MarkFlagRequired("worker-id")
-
-	cmd.AddCommand(listCmd, clearCmd, clearWorkerCmd)
+	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Session key (required)")
+	cmd.Flags().StringVar(&workerID, "worker-id", "", "Worker ID whose session context to delete (required)")
+	cmd.Flags().BoolVar(&force, "force", false, "Skip confirmation when the worker has active tasks")
+	cmd.MarkFlagRequired("session-key")
+	cmd.MarkFlagRequired("worker-id")
 	return cmd
 }

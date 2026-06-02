@@ -48,10 +48,8 @@ type configValues struct {
 	LinearAPIKey       string
 	LinearLabelName    string
 	LinearPollInterval string
-	LinearProjects     string // comma-separated user input
-	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
-	LinearStates       string // comma-separated user input
-	LinearStatesYAML   string // rendered into the YAML inline list
+	LinearProjects     string
+	LinearStates       string
 	LinearMaxMediaSize string
 
 	EngineDefault       string
@@ -76,8 +74,14 @@ type configValues struct {
 	AuthRefreshTTL string
 }
 
-// loadExistingConfig tries to load an existing config file and convert it to configValues
-// for use as defaults in the interactive prompts.
+// configRenderData wraps configValues with fields derived solely for template rendering.
+type configRenderData struct {
+	configValues
+	LinearProjectsYAML string
+	LinearStatesYAML   string
+}
+
+// loadExistingConfig returns nil if no usable config file exists at path.
 func loadExistingConfig(path string) *configValues {
 	cfg, err := config.Load(path)
 	if err != nil {

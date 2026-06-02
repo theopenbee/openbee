@@ -31,27 +31,32 @@ func applySurveyTemplates() {
 	)
 }
 
+const (
+	langOptEnglish = "English"
+	langOptChinese = "Chinese"
+)
+
 // runLanguageStep shows a bilingual language-selection prompt and reloads i18n
 // with the chosen language. existingLang should be "" or a previously saved
-// language code ("en" or "zh"); it determines the default selection.
+// language code (i18n.LangEN or i18n.LangZH); it determines the default selection.
 func runLanguageStep(existingLang string) (string, error) {
-	defaultOpt := "English"
-	if existingLang == "zh" {
-		defaultOpt = "Chinese"
+	defaultOpt := langOptEnglish
+	if existingLang == i18n.LangZH {
+		defaultOpt = langOptChinese
 	}
 
 	var selected string
 	if err := survey.AskOne(&survey.Select{
 		Message: "Select language",
-		Options: []string{"English", "Chinese"},
+		Options: []string{langOptEnglish, langOptChinese},
 		Default: defaultOpt,
 	}, &selected); err != nil {
 		return "", handleSurveyErr(err)
 	}
 
-	lang := "en"
-	if selected == "Chinese" {
-		lang = "zh"
+	lang := i18n.LangEN
+	if selected == langOptChinese {
+		lang = i18n.LangZH
 	}
 
 	if err := i18n.Load(lang); err != nil {
@@ -77,12 +82,17 @@ func promptPassword(vals *configValues) error {
 			return handleSurveyErr(err)
 		}
 	case i18n.M.Prompt.OptionGenerateRandom:
-		b := make([]byte, 16)
-		rand.Read(b)
-		vals.AuthPassword = hex.EncodeToString(b)
+		vals.AuthPassword = randomHex(16)
 		fmt.Printf(i18n.M.Output.Config.PasswordGenerated+"\n", vals.AuthPassword)
 	}
 	return nil
+}
+
+// randomHex returns a hex-encoded random string with n bytes of entropy.
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func promptBotName(fieldPtr *string) error {

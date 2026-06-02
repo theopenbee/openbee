@@ -6,73 +6,84 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-func newConstraintCommand() *cobra.Command {
+func newConstraintCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlConstraint
 	cmd := &cobra.Command{
 		Use:   "constraint",
-		Short: i18n.M.Cmd.CtlConstraint.Short,
+		Short: subs.Short,
 	}
-
-	var (
-		constraintGetScope string
-		constraintGetKey   string
+	cmd.AddCommand(
+		newConstraintGetCommand(run, subs.Sub("get")),
+		newConstraintSaveCommand(run, subs.Sub("save")),
+		newConstraintDeleteCommand(run, subs.Sub("delete")),
 	)
-	getCmd := &cobra.Command{
+	return cmd
+}
+
+func newConstraintGetCommand(run Runner, short string) *cobra.Command {
+	var (
+		scope string
+		key   string
+	)
+	cmd := &cobra.Command{
 		Use:   "get",
-		Short: "Read constraint entries (omit --key to list all in scope)",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{"scope": constraintGetScope}
-			if constraintGetKey != "" {
-				a["key"] = constraintGetKey
-			}
-			return ctlRun(utils.GetConstraint, a)
+			a := map[string]any{"scope": scope}
+			setIfNonEmpty(a, "key", key)
+			return run(utils.GetConstraint, a)
 		},
 	}
-	getCmd.Flags().StringVar(&constraintGetScope, "scope", "", "Constraint scope: 'global' or session_key (required)")
-	getCmd.Flags().StringVar(&constraintGetKey, "key", "", "Constraint key (omit to list all in scope)")
-	getCmd.MarkFlagRequired("scope")
+	cmd.Flags().StringVar(&scope, "scope", "", "Constraint scope: 'global' or session_key (required)")
+	cmd.Flags().StringVar(&key, "key", "", "Constraint key (omit to list all in scope)")
+	cmd.MarkFlagRequired("scope")
+	return cmd
+}
 
+func newConstraintSaveCommand(run Runner, short string) *cobra.Command {
 	var (
-		constraintSaveScope string
-		constraintSaveKey   string
-		constraintSaveValue string
+		scope string
+		key   string
+		value string
 	)
-	saveCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "save",
-		Short: "Save or update a constraint entry",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.SaveConstraint, map[string]any{
-				"scope": constraintSaveScope,
-				"key":   constraintSaveKey,
-				"value": constraintSaveValue,
+			return run(utils.SaveConstraint, map[string]any{
+				"scope": scope,
+				"key":   key,
+				"value": value,
 			})
 		},
 	}
-	saveCmd.Flags().StringVar(&constraintSaveScope, "scope", "", "Constraint scope: 'global' or session_key (required)")
-	saveCmd.Flags().StringVar(&constraintSaveKey, "key", "", "Constraint key (required)")
-	saveCmd.Flags().StringVar(&constraintSaveValue, "value", "", "Constraint value (required)")
-	saveCmd.MarkFlagRequired("scope")
-	saveCmd.MarkFlagRequired("key")
-	saveCmd.MarkFlagRequired("value")
+	cmd.Flags().StringVar(&scope, "scope", "", "Constraint scope: 'global' or session_key (required)")
+	cmd.Flags().StringVar(&key, "key", "", "Constraint key (required)")
+	cmd.Flags().StringVar(&value, "value", "", "Constraint value (required)")
+	cmd.MarkFlagRequired("scope")
+	cmd.MarkFlagRequired("key")
+	cmd.MarkFlagRequired("value")
+	return cmd
+}
 
+func newConstraintDeleteCommand(run Runner, short string) *cobra.Command {
 	var (
-		constraintDeleteScope string
-		constraintDeleteKey   string
+		scope string
+		key   string
 	)
-	deleteCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete a constraint entry",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.DeleteConstraint, map[string]any{
-				"scope": constraintDeleteScope,
-				"key":   constraintDeleteKey,
+			return run(utils.DeleteConstraint, map[string]any{
+				"scope": scope,
+				"key":   key,
 			})
 		},
 	}
-	deleteCmd.Flags().StringVar(&constraintDeleteScope, "scope", "", "Constraint scope: 'global' or session_key (required)")
-	deleteCmd.Flags().StringVar(&constraintDeleteKey, "key", "", "Constraint key (required)")
-	deleteCmd.MarkFlagRequired("scope")
-	deleteCmd.MarkFlagRequired("key")
-
-	cmd.AddCommand(getCmd, saveCmd, deleteCmd)
+	cmd.Flags().StringVar(&scope, "scope", "", "Constraint scope: 'global' or session_key (required)")
+	cmd.Flags().StringVar(&key, "key", "", "Constraint key (required)")
+	cmd.MarkFlagRequired("scope")
+	cmd.MarkFlagRequired("key")
 	return cmd
 }

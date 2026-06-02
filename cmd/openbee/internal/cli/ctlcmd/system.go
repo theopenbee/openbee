@@ -6,19 +6,18 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-func newSystemCommand() *cobra.Command {
+func newSystemCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlSystem
 	cmd := &cobra.Command{
 		Use:   "system",
-		Short: i18n.M.Cmd.CtlSystem.Short,
+		Short: subs.Short,
 	}
-
-	overviewCmd := &cobra.Command{
+	cmd.AddCommand(&cobra.Command{
 		Use:   "overview",
-		Short: "Show system overview: worker status distribution, task stats",
+		Short: subs.Sub("overview"),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.GetSystemOverview, nil)
+			return run(utils.GetSystemOverview, nil)
 		},
-	}
-	cmd.AddCommand(overviewCmd)
+	})
 	return cmd
 }

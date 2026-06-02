@@ -22,7 +22,7 @@ func spawnDaemon(exe string, args []string, logFile string) (int, error) {
 	}
 	defer lf.Close()
 
-	env := append(os.Environ(), daemonEnvKey+"=1")
+	env := append(os.Environ(), daemonEnvKey+"="+daemonEnvValue)
 	cmd := exec.Command(exe, args...)
 	cmd.Env = env
 	cmd.Stdout = lf

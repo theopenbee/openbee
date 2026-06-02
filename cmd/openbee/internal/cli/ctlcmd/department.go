@@ -2,92 +2,101 @@ package ctlcmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-func newDepartmentCommand() *cobra.Command {
+func newDepartmentCommand(run Runner) *cobra.Command {
+	subs := i18n.M.Cmd.CtlDepartment
 	cmd := &cobra.Command{
 		Use:   "department",
-		Short: "Manage departments",
+		Short: subs.Short,
 	}
+	cmd.AddCommand(
+		newDepartmentListCommand(run, subs.Sub("list")),
+		newDepartmentGetCommand(run, subs.Sub("get")),
+		newDepartmentCreateCommand(run, subs.Sub("create")),
+		newDepartmentUpdateCommand(run, subs.Sub("update")),
+		newDepartmentDeleteCommand(run, subs.Sub("delete")),
+	)
+	return cmd
+}
 
-	listCmd := &cobra.Command{
+func newDepartmentListCommand(run Runner, short string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "list",
-		Short: "List all departments (tree structure)",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.ListDepartments, nil)
+			return run(utils.ListDepartments, nil)
 		},
 	}
+}
 
-	getCmd := &cobra.Command{
+func newDepartmentGetCommand(run Runner, short string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "get <id|name>",
-		Short: "Get a department by ID or name",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.GetDepartment, map[string]any{"id": args[0]})
+			return run(utils.GetDepartment, map[string]any{"id": args[0]})
 		},
 	}
+}
 
+func newDepartmentCreateCommand(run Runner, short string) *cobra.Command {
 	var (
-		departmentCreateName      string
-		departmentCreateParent    string
-		departmentCreateSortOrder int
+		name      string
+		parent    string
+		sortOrder int
 	)
-	createCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new department",
+		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{"name": departmentCreateName}
-			if departmentCreateParent != "" {
-				a["parent_id"] = departmentCreateParent
-			}
-			if c.Flags().Changed("sort-order") {
-				a["sort_order"] = departmentCreateSortOrder
-			}
-			return ctlRun(utils.CreateDepartment, a)
+			a := map[string]any{"name": name}
+			setIfNonEmpty(a, "parent_id", parent)
+			setIfFlagChanged(c, a, "sort-order", "sort_order", sortOrder)
+			return run(utils.CreateDepartment, a)
 		},
 	}
-	createCmd.Flags().StringVarP(&departmentCreateName, "name", "n", "", "Department name (required)")
-	createCmd.MarkFlagRequired("name")
-	createCmd.Flags().StringVar(&departmentCreateParent, "parent", "", "Parent department ID or name")
-	createCmd.Flags().IntVar(&departmentCreateSortOrder, "sort-order", 0, "Display sort order")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Department name (required)")
+	cmd.MarkFlagRequired("name")
+	cmd.Flags().StringVar(&parent, "parent", "", "Parent department ID or name")
+	cmd.Flags().IntVar(&sortOrder, "sort-order", 0, "Display sort order")
+	return cmd
+}
 
+func newDepartmentUpdateCommand(run Runner, short string) *cobra.Command {
 	var (
-		departmentUpdateName      string
-		departmentUpdateParent    string
-		departmentUpdateSortOrder int
+		name      string
+		parent    string
+		sortOrder int
 	)
-	updateCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "update <id|name>",
-		Short: "Update a department (patch: omitted fields unchanged)",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			a := map[string]any{"id": args[0]}
-			if c.Flags().Changed("name") {
-				a["name"] = departmentUpdateName
-			}
-			if c.Flags().Changed("parent") {
-				a["parent_id"] = departmentUpdateParent
-			}
-			if c.Flags().Changed("sort-order") {
-				a["sort_order"] = departmentUpdateSortOrder
-			}
-			return ctlRun(utils.UpdateDepartment, a)
+			setIfFlagChanged(c, a, "name", "name", name)
+			setIfFlagChanged(c, a, "parent", "parent_id", parent)
+			setIfFlagChanged(c, a, "sort-order", "sort_order", sortOrder)
+			return run(utils.UpdateDepartment, a)
 		},
 	}
-	updateCmd.Flags().StringVar(&departmentUpdateName, "name", "", "New name")
-	updateCmd.Flags().StringVar(&departmentUpdateParent, "parent", "", "New parent department ID or name")
-	updateCmd.Flags().IntVar(&departmentUpdateSortOrder, "sort-order", 0, "New sort order")
+	cmd.Flags().StringVar(&name, "name", "", "New name")
+	cmd.Flags().StringVar(&parent, "parent", "", "New parent department ID or name")
+	cmd.Flags().IntVar(&sortOrder, "sort-order", 0, "New sort order")
+	return cmd
+}
 
-	deleteCmd := &cobra.Command{
+func newDepartmentDeleteCommand(run Runner, short string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "delete <id|name>",
-		Short: "Delete a department",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			return ctlRun(utils.DeleteDepartment, map[string]any{"id": args[0]})
+			return run(utils.DeleteDepartment, map[string]any{"id": args[0]})
 		},
 	}
-
-	cmd.AddCommand(listCmd, getCmd, createCmd, updateCmd, deleteCmd)
-	return cmd
 }

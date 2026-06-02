@@ -5,13 +5,11 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
 	"github.com/theopenbee/openbee/internal/infra/backup"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-// NewBackupCommand constructs the `backup` command. appVersion is used in archive metadata.
 func NewBackupCommand(appVersion string) *cobra.Command {
 	var (
 		cfgPath        string
@@ -36,6 +34,11 @@ func runBackup(args []string, appVersion, cfgPath, password string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	stateDir, err := config.OpenbeeHomeDir()
+	if err != nil {
+		return err
+	}
+
 	outputDir := "."
 	if len(args) == 1 {
 		outputDir = args[0]
@@ -47,7 +50,7 @@ func runBackup(args []string, appVersion, cfgPath, password string) error {
 	archivePath, err := backup.Backup(backup.BackupOptions{
 		DBPath:     cfg.Database.Path,
 		ConfigPath: cfgPath,
-		StateDir:   daemoncmd.OpenbeeStateDir(),
+		StateDir:   stateDir,
 		OutputDir:  outputDir,
 		AppVersion: appVersion,
 		Password:   password,

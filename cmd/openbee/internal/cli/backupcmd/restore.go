@@ -10,8 +10,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-// NewRestoreCommand constructs the `restore` command. appVersion is used to validate
-// backup compatibility.
 func NewRestoreCommand(appVersion string) *cobra.Command {
 	var (
 		cfgPath         string
@@ -40,8 +38,17 @@ func runRestore(args []string, appVersion, cfgPath, password string, force bool)
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	stateDir, err := config.OpenbeeHomeDir()
+	if err != nil {
+		return err
+	}
+	pidFile, err := config.DaemonPIDFile()
+	if err != nil {
+		return err
+	}
+
 	// Stop daemon if running before overwriting data.
-	if err := daemoncmd.DoStop(daemoncmd.DaemonPIDFile()); err != nil {
+	if err := daemoncmd.DoStop(pidFile); err != nil {
 		return fmt.Errorf("stop daemon before restore: %w", err)
 	}
 
@@ -49,7 +56,7 @@ func runRestore(args []string, appVersion, cfgPath, password string, force bool)
 		ArchivePath: archivePath,
 		DBPath:      cfg.Database.Path,
 		ConfigPath:  cfgPath,
-		StateDir:    daemoncmd.OpenbeeStateDir(),
+		StateDir:    stateDir,
 		AppVersion:  appVersion,
 		Force:       force,
 		Password:    password,

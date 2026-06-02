@@ -22,16 +22,49 @@ cmd:
     short: "控制运行中的 openbee 服务器"
   ctl_worker:
     short: "管理员工"
+    subs:
+      list: "列出全部员工"
+      get: "根据 ID 查询员工"
+      status: "查看员工当前状态"
+      create: "创建新员工"
+      update: "更新员工（补丁式：未指定的字段保持不变）"
+      delete: "删除员工"
   ctl_task:
     short: "管理任务"
+    subs:
+      list: "列出任务（需指定 --session-key / --message-id / --worker-id）"
+      create: "创建任务"
+      cancel: "取消待执行或运行中的任务"
   ctl_constraint:
     short: "管理约束条目"
+    subs:
+      get: "查询约束条目（不指定 --key 时列出整个 scope）"
+      save: "保存或更新约束条目"
+      delete: "删除约束条目"
   ctl_session:
     short: "管理会话上下文"
+    subs:
+      list: "列出指定会话下所有拥有活跃上下文的员工"
+      clear: "取消会话内所有活跃任务并清空所有会话上下文"
+      clear-worker: "取消单个员工在会话内的活跃任务并重置其会话上下文"
   ctl_system:
     short: "查看系统状态概览"
+    subs:
+      overview: "查看系统概览：员工状态分布、任务统计"
   ctl_message:
     short: "向平台用户发送消息"
+    subs:
+      send: "在原始平台向用户发送消息"
+      list: "按条件列出收到的平台消息"
+      list-outbound: "按条件列出已发送的出站消息"
+  ctl_department:
+    short: "管理部门"
+    subs:
+      list: "列出全部部门（树形结构）"
+      get: "根据 ID 或名称查询部门"
+      create: "创建新部门"
+      update: "更新部门（补丁式：未指定的字段保持不变）"
+      delete: "删除部门"
 prompt:
   engine_select: "选择 AI 引擎："
   engine_default: "默认引擎："

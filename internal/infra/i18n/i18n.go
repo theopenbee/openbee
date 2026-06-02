@@ -10,12 +10,18 @@ import (
 //go:embed locales/*.yaml
 var localesFS embed.FS
 
+// Language codes used throughout the CLI.
+const (
+	LangEN = "en"
+	LangZH = "zh"
+)
+
 // M is the global translation instance. Initialized (once) by Load() at the
 // earliest point in main(); read-only after that.
 var M = &Messages{}
 
 // SupportedLangs lists all supported language codes.
-var SupportedLangs = []string{"zh", "en"}
+var SupportedLangs = []string{LangZH, LangEN}
 
 // Load loads the translation file for the given language and sets M.
 // If the language is not supported (file not found), it silently falls back to zh.
