@@ -51,12 +51,6 @@ func DefaultPiSessionsDir() string {
 	return filepath.Join(home, ".openbee", ".pi", "sessions")
 }
 
-// DefaultKimiSessionsDir returns the kimi sessions directory: ~/.kimi/sessions
-func DefaultKimiSessionsDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".kimi", "sessions")
-}
-
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
@@ -88,7 +82,6 @@ type EnginesConfig struct {
 	Claude EngineItemConfig `yaml:"claude"`
 	Codex  EngineItemConfig `yaml:"codex"`
 	Pi     EngineItemConfig `yaml:"pi"`
-	Kimi   EngineItemConfig `yaml:"kimi"`
 }
 
 func (e EnginesConfig) itemFor(name string) EngineItemConfig {
@@ -99,8 +92,6 @@ func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 		return e.Codex
 	case ai.EnginePi:
 		return e.Pi
-	case ai.EngineKimi:
-		return e.Kimi
 	}
 	return EngineItemConfig{}
 }
@@ -310,9 +301,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Engines.Pi.Path == "" {
 		cfg.Bee.Engines.Pi.Path = "pi"
-	}
-	if cfg.Bee.Engines.Kimi.Path == "" {
-		cfg.Bee.Engines.Kimi.Path = "kimi"
 	}
 	if cfg.Bee.Media.FFprobePath == "" {
 		cfg.Bee.Media.FFprobePath = "ffprobe"

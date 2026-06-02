@@ -1427,8 +1427,8 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 	lookup := &mockWorkerLookup{
 		worker: model.Worker{ID: "w1", Engine: "pi"},
 	}
-	// System default is "kimi", but the worker is configured with "pi".
-	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "kimi",
+	// System default is "codex", but the worker is configured with "pi".
+	d, in, _ := newTaskDispatcherWithEngine(mgr, eq, ss, "codex",
 		task.WithWorkerLookup(lookup),
 	)
 
@@ -1442,12 +1442,12 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 		t.Fatal("timeout waiting for execution")
 	}
 
-	// Session context must be stored under the worker's engine ("pi"), not the system default ("kimi").
+	// Session context must be stored under the worker's engine ("pi"), not the system default ("codex").
 	if got := ss.sessionID("sk-1", "w1", "pi"); got == "" {
 		t.Error("expected session context stored under engine 'pi', got nothing")
 	}
-	if got := ss.sessionID("sk-1", "w1", "kimi"); got != "" {
-		t.Errorf("session context must not be stored under system-default engine 'kimi', got %q", got)
+	if got := ss.sessionID("sk-1", "w1", "codex"); got != "" {
+		t.Errorf("session context must not be stored under system-default engine 'codex', got %q", got)
 	}
 }
 

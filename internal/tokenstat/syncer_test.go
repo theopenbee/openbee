@@ -189,14 +189,13 @@ func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	notFound := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
 		return nil, ai.ErrSessionDataNotFound
 	}}
-	kimiHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-		return []ai.TokenUsage{{Model: "kimi", InputTokens: 200}}, nil
+	piHit := &fakeAdapter{collect: func(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+		return []ai.TokenUsage{{Model: "pi", InputTokens: 200}}, nil
 	}}
 	adapters := map[string]ai.EngineAdapter{
 		ai.EngineClaude: notFound,
 		ai.EngineCodex:  notFound,
-		ai.EnginePi:     notFound,
-		ai.EngineKimi:   kimiHit,
+		ai.EnginePi:     piHit,
 	}
 	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
@@ -211,8 +210,8 @@ func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 	if stats[0].InputTokens != 200 {
 		t.Errorf("InputTokens: want 200, got %d", stats[0].InputTokens)
 	}
-	if stats[0].AgentType != "kimi" {
-		t.Errorf("AgentType: want kimi, got %s", stats[0].AgentType)
+	if stats[0].AgentType != "pi" {
+		t.Errorf("AgentType: want pi, got %s", stats[0].AgentType)
 	}
 }
 
@@ -231,7 +230,6 @@ func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 		ai.EngineClaude: notFound,
 		ai.EngineCodex:  notFound,
 		ai.EnginePi:     notFound,
-		ai.EngineKimi:   notFound,
 	}
 	syncer := tokenstat.NewSyncer(db, tokenStore, adapters, ai.AllEngines())
 	syncer.SyncOnce(context.Background())
