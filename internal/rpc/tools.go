@@ -479,8 +479,9 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 		Offset:     offset,
 	}
 	var (
-		total int
-		tasks []model.Task
+		total       int
+		tasks       []model.Task
+		execsByTask map[string][]model.WorkerExecution
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
@@ -497,6 +498,22 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 			return fmt.Errorf("list tasks: %w", err)
 		}
 		tasks = ts
+		if len(ts) == 0 {
+			return nil
+		}
+		executionLimit, err := normalizeTaskExecutionLimit(params.ExecutionLimit, len(ts))
+		if err != nil {
+			return err
+		}
+		taskIDs := make([]string, 0, len(ts))
+		for _, t := range ts {
+			taskIDs = append(taskIDs, t.ID)
+		}
+		em, err := s.executionStore.ListByTaskIDs(gctx, taskIDs, executionLimit)
+		if err != nil {
+			return fmt.Errorf("list executions for tasks: %w", err)
+		}
+		execsByTask = em
 		return nil
 	})
 	if err := g.Wait(); err != nil {
@@ -504,18 +521,6 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 	}
 	if tasks == nil {
 		tasks = []model.Task{}
-	}
-	executionLimit, err := normalizeTaskExecutionLimit(params.ExecutionLimit, len(tasks))
-	if err != nil {
-		return nil, err
-	}
-	taskIDs := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		taskIDs = append(taskIDs, t.ID)
-	}
-	execsByTask, err := s.executionStore.ListByTaskIDs(ctx, taskIDs, executionLimit)
-	if err != nil {
-		return nil, fmt.Errorf("list executions for tasks: %w", err)
 	}
 	out := make([]taskWithExecutions, 0, len(tasks))
 	for _, t := range tasks {
