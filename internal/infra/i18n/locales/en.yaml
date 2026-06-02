@@ -22,16 +22,49 @@ cmd:
     short: "Control the running openbee server"
   ctl_worker:
     short: "Manage workers"
+    subs:
+      list: "List all workers"
+      get: "Get a worker by ID"
+      status: "Get current status of a worker"
+      create: "Create a new worker"
+      update: "Update a worker (patch: omitted fields unchanged)"
+      delete: "Delete a worker"
   ctl_task:
     short: "Manage tasks"
+    subs:
+      list: "List tasks (requires --session-key, --message-id, or --worker-id)"
+      create: "Create a task"
+      cancel: "Cancel a pending or running task"
   ctl_constraint:
     short: "Manage constraint entries"
+    subs:
+      get: "Read constraint entries (omit --key to list all in scope)"
+      save: "Save or update a constraint entry"
+      delete: "Delete a constraint entry"
   ctl_session:
     short: "Manage session contexts"
+    subs:
+      list: "List all agents with active session contexts for a session key"
+      clear: "Cancel all active tasks and clear all session contexts for a session key"
+      clear-worker: "Cancel one worker's active tasks and reset its session context within a session"
   ctl_system:
     short: "View system status overview"
+    subs:
+      overview: "Show system overview: worker status distribution, task stats"
   ctl_message:
     short: "Send messages to platform users"
+    subs:
+      send: "Send a message to the user on the originating platform"
+      list: "List platform messages with optional filters"
+      list-outbound: "List outbound (sent) messages with optional filters"
+  ctl_department:
+    short: "Manage departments"
+    subs:
+      list: "List all departments (tree structure)"
+      get: "Get a department by ID or name"
+      create: "Create a new department"
+      update: "Update a department (patch: omitted fields unchanged)"
+      delete: "Delete a department"
 prompt:
   engine_select: "Select AI engine:"
   engine_default: "Default engine:"
