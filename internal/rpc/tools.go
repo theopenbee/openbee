@@ -781,6 +781,12 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 
 	scheduledActive, _ := s.taskStore.CountScheduledActive(ctx)
 
+	tasks := make(map[string]any, len(model.TaskStatuses)+1)
+	for _, status := range model.TaskStatuses {
+		tasks[status] = taskCounts[status]
+	}
+	tasks["scheduled_active"] = scheduledActive
+
 	return map[string]any{
 		"workers": map[string]any{
 			"total":   total,
@@ -788,14 +794,7 @@ func (s *Server) toolGetSystemOverview(ctx context.Context) (any, error) {
 			"working": workerCounts[string(model.WorkerStatusWorking)],
 			"error":   workerCounts[string(model.WorkerStatusError)],
 		},
-		"tasks": map[string]any{
-			"pending":          taskCounts[model.TaskStatusPending],
-			"running":          taskCounts[model.TaskStatusRunning],
-			"completed":        taskCounts[model.TaskStatusCompleted],
-			"failed":           taskCounts[model.TaskStatusFailed],
-			"cancelled":        taskCounts[model.TaskStatusCancelled],
-			"scheduled_active": scheduledActive,
-		},
+		"tasks": tasks,
 	}, nil
 }
 

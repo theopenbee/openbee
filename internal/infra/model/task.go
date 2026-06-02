@@ -14,6 +14,14 @@ const (
 	TaskStatusActive = TaskStatusPending + "," + TaskStatusRunning
 )
 
+var TaskStatuses = []string{
+	TaskStatusPending,
+	TaskStatusRunning,
+	TaskStatusCompleted,
+	TaskStatusFailed,
+	TaskStatusCancelled,
+}
+
 // Task represents a unit of work created by bee and dispatched to a worker.
 type Task struct {
 	ID          string
