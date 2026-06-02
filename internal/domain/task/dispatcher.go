@@ -77,7 +77,10 @@ type internalResult struct {
 	task     DispatchTask
 }
 
-type clearWorkerRequest struct {
+// clearRequest signals the Run loop to drain queued tasks for a session.
+// An empty workerID drains every queued task in sessionKey; a non-empty
+// workerID restricts the drain to that (sessionKey, workerID) pair.
+type clearRequest struct {
 	sessionKey string
 	workerID   string
 }
@@ -95,8 +98,7 @@ type TaskDispatcher struct {
 	inCh            <-chan DispatchTask
 	resultsCh       chan internalResult
 	queues          map[string]*queueState // per-workerID serial queues
-	clearCh         chan string
-	clearWorkerCh   chan clearWorkerRequest
+	clearCh         chan clearRequest
 	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
 	cancelCh        chan string
 }
@@ -112,10 +114,9 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
-		clearCh:       make(chan string, 8),
-		clearWorkerCh: make(chan clearWorkerRequest, 16),
-		cancelFuncs:   make(map[string]context.CancelFunc),
-		cancelCh:      make(chan string, 16),
+		clearCh:     make(chan clearRequest, 16),
+		cancelFuncs: make(map[string]context.CancelFunc),
+		cancelCh:    make(chan string, 16),
 	}
 	for _, o := range opts {
 		o(d)
@@ -148,10 +149,8 @@ func (d *TaskDispatcher) Run(ctx context.Context) {
 			d.handleInbound(task)
 		case res := <-d.resultsCh:
 			d.handleResult(res)
-		case sessionKey := <-d.clearCh:
-			d.clearQueues(sessionKey)
-		case req := <-d.clearWorkerCh:
-			d.clearWorkerQueue(req.sessionKey, req.workerID)
+		case req := <-d.clearCh:
+			d.handleClear(req)
 		case taskID := <-d.cancelCh:
 			d.handleCancel(taskID)
 		case <-ctx.Done():
@@ -191,13 +190,7 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 // StopExecution and marking tasks cancelled in the database; this method only
 // drains the pending tail of the queue so no future tasks fire for that pair.
 func (d *TaskDispatcher) ClearWorker(sessionKey, workerID string) {
-	select {
-	case d.clearWorkerCh <- clearWorkerRequest{sessionKey: sessionKey, workerID: workerID}:
-	default:
-		log.Warn("clearWorkerCh full, dropping clear",
-			zap.String("sessionKey", sessionKey),
-			zap.String("workerID", workerID))
-	}
+	d.sendClear(clearRequest{sessionKey: sessionKey, workerID: workerID})
 }
 
 // ClearSession removes all queued tasks for the given session and clears session contexts.
@@ -207,11 +200,16 @@ func (d *TaskDispatcher) ClearSession(sessionKey string) {
 	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineCfg.Get()); err != nil {
 		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
-	// Signal Run loop to clear in-memory queues.
+	d.sendClear(clearRequest{sessionKey: sessionKey})
+}
+
+func (d *TaskDispatcher) sendClear(req clearRequest) {
 	select {
-	case d.clearCh <- sessionKey:
+	case d.clearCh <- req:
 	default:
-		log.Warn("clearCh full, dropping clear", zap.String("sessionKey", sessionKey))
+		log.Warn("clearCh full, dropping clear",
+			zap.String("sessionKey", req.sessionKey),
+			zap.String("workerID", req.workerID))
 	}
 }
 
@@ -268,17 +266,17 @@ func (d *TaskDispatcher) dropQueued(keep func(DispatchTask) bool) {
 	}
 }
 
-// clearWorkerQueue drops queued (not-yet-executing) tasks for the (sessionKey, workerID)
-// pair. Tasks already running keep going — the command layer stops their executions
-// and cancels them in the database separately.
-func (d *TaskDispatcher) clearWorkerQueue(sessionKey, workerID string) {
+// handleClear drops queued (not-yet-executing) tasks matching req. An empty
+// workerID matches every task in req.sessionKey. Tasks already running keep
+// going — the command layer stops their executions and cancels them in the
+// database separately.
+func (d *TaskDispatcher) handleClear(req clearRequest) {
 	d.dropQueued(func(t DispatchTask) bool {
-		return t.SessionKey != sessionKey || t.WorkerID != workerID
+		if t.SessionKey != req.sessionKey {
+			return true
+		}
+		return req.workerID != "" && t.WorkerID != req.workerID
 	})
-}
-
-func (d *TaskDispatcher) clearQueues(sessionKey string) {
-	d.dropQueued(func(t DispatchTask) bool { return t.SessionKey != sessionKey })
 }
 
 // buildInstruction prepends task metadata to the instruction so workers
