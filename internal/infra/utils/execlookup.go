@@ -21,7 +21,7 @@ type ErrorLogger interface {
 
 // RunningExecIDsForTasks returns an empty map on lookup error so callers can
 // keep going without an exec id column.
-func RunningExecIDsForTasks(ctx context.Context, logger ErrorLogger, lookup RunningExecLookup, tasks []model.Task, op string) map[string]string {
+func RunningExecIDsForTasks(ctx context.Context, logger ErrorLogger, lookup RunningExecLookup, tasks []model.Task) map[string]string {
 	if len(tasks) == 0 {
 		return map[string]string{}
 	}
@@ -31,7 +31,7 @@ func RunningExecIDsForTasks(ctx context.Context, logger ErrorLogger, lookup Runn
 	}
 	execIDs, err := lookup.RunningExecIDsByTaskIDs(ctx, taskIDs)
 	if err != nil {
-		logger.Error("resolve running exec ids", zap.String("op", op), zap.Error(err))
+		logger.Error("resolve running exec ids", zap.Error(err))
 		return map[string]string{}
 	}
 	return execIDs

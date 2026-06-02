@@ -19,11 +19,6 @@ import (
 
 const clearConfirmTimeout = 30 * time.Second
 
-const (
-	clearOpAllConfirm    = "clear_confirm"
-	clearOpWorkerConfirm = "clear_worker_confirm"
-)
-
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
 	GetByIDs(ids []string) ([]model.Worker, error)
@@ -192,9 +187,9 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 
 // renderConfirmPrompt builds the shared body of /clear confirmation prompts: a
 // caller-supplied header, the task list with running exec IDs, and a footer.
-func (h *ClearCommandHandler) renderConfirmPrompt(ctx context.Context, header []string, footer string, tasks []model.Task, workerNames map[string]string, op string) string {
+func (h *ClearCommandHandler) renderConfirmPrompt(ctx context.Context, header []string, footer string, tasks []model.Task, workerNames map[string]string) string {
 	nowMs := h.now().UnixMilli()
-	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, op)
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks)
 
 	lines := make([]string, 0, len(header)+len(tasks)+4)
 	lines = append(lines, header...)
@@ -215,14 +210,14 @@ func (h *ClearCommandHandler) formatConfirmPrompt(ctx context.Context, agents []
 	for _, a := range agents {
 		header = append(header, fmt.Sprintf(m.ConfirmAgentLine, a.Name, a.Engine))
 	}
-	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks), clearOpAllConfirm)
+	return h.renderConfirmPrompt(ctx, header, m.ConfirmFooter, tasks, resolveWorkerNames(h.workers, tasks))
 }
 
 func (h *ClearCommandHandler) formatWorkerConfirmPrompt(ctx context.Context, w model.Worker, engine string, tasks []model.Task) string {
 	m := i18n.M.Runtime.ClearCommand
 	header := []string{fmt.Sprintf(m.WorkerConfirmHeader, w.Name, engine)}
 	footer := fmt.Sprintf(m.WorkerConfirmFooter, w.Name)
-	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name}, clearOpWorkerConfirm)
+	return h.renderConfirmPrompt(ctx, header, footer, tasks, map[string]string{w.ID: w.Name})
 }
 
 func (h *ClearCommandHandler) pendingKey(sessionKey, cmd string) string {

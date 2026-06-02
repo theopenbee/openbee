@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
-	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -110,7 +109,7 @@ func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.
 	nowMs := now.UnixMilli()
 
 	workerNames := resolveWorkerNames(h.workers, tasks)
-	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks, session.OpStatus)
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks)
 
 	lines := make([]string, 0, 2+max(1, len(agents))+max(1, len(tasks)))
 	lines = append(lines, m.Header)

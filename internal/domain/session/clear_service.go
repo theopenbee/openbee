@@ -21,20 +21,6 @@ var log = logger.With(zap.String("component", "session"))
 
 const finalizeReasonCancelledByUser = "cancelled by user"
 
-// Op log labels for stop-then-finalize. Unexported so callers can't pick the
-// wrong one — each public method passes the right label internally.
-const (
-	opClearSession = "clear_session"
-	opClearWorker  = "clear_worker"
-	opCancelTask   = "cancel_task"
-	opStatus       = "status"
-)
-
-// OpStatus is exposed for read-only callers (e.g. /status) that need to look
-// up running execution IDs through utils.RunningExecIDsForTasks without
-// performing a clear.
-const OpStatus = opStatus
-
 type SessionStore interface {
 	ListActiveSessionContexts(ctx context.Context, sessionKey, beeEngine string) ([]store.SessionAgent, error)
 	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
@@ -150,7 +136,7 @@ func (s *ClearService) ClearSession(ctx context.Context, sessionKey string) (Cle
 		return ClearSessionResult{}, err
 	}
 
-	s.stopRunningExecutions(ctx, activeTasks, opClearSession)
+	s.stopRunningExecutions(ctx, activeTasks)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -210,7 +196,7 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		return ClearWorkerResult{}, err
 	}
 
-	s.stopRunningExecutions(ctx, activeTasks, opClearWorker)
+	s.stopRunningExecutions(ctx, activeTasks)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -236,17 +222,17 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 }
 
 // CancelTask stops a single running execution and finalizes it. Used by the
-// cancel_task RPC tool; the op label is hard-coded internally.
+// cancel_task RPC tool.
 func (s *ClearService) CancelTask(ctx context.Context, executionID string) {
-	s.stopAndFinalizeExecution(ctx, executionID, opCancelTask)
+	s.stopAndFinalizeExecution(ctx, executionID)
 }
 
 // stopRunningExecutions resolves the running exec ID for each task and stops
 // it. When stop fails the row is force-finalized so future busy checks don't
 // trip on a stale running row. Stops run concurrently so total clear latency
 // scales with the slowest worker, not the sum.
-func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.Task, op string) {
-	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.runningExecs, tasks, op)
+func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.Task) {
+	execIDs := utils.RunningExecIDsForTasks(ctx, log, s.runningExecs, tasks)
 	var wg sync.WaitGroup
 	for _, t := range tasks {
 		execID := execIDs[t.ID]
@@ -256,7 +242,7 @@ func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			s.stopAndFinalizeExecution(ctx, id, op)
+			s.stopAndFinalizeExecution(ctx, id)
 		}(execID)
 	}
 	wg.Wait()
@@ -265,19 +251,17 @@ func (s *ClearService) stopRunningExecutions(ctx context.Context, tasks []model.
 // stopAndFinalizeExecution stops a running execution; when the local stop
 // reports an error (process gone, different instance), the row is
 // force-finalized so future busy checks don't trip on a stale orphan.
-func (s *ClearService) stopAndFinalizeExecution(ctx context.Context, executionID, op string) {
+func (s *ClearService) stopAndFinalizeExecution(ctx context.Context, executionID string) {
 	if executionID == "" {
 		return
 	}
 	if err := s.execStopper.StopExecution(executionID); err != nil {
 		log.Debug("stop execution: process not active",
-			zap.String("op", op),
 			zap.String("executionID", executionID),
 			zap.Error(err))
 		if s.execFinalizer != nil {
 			if _, fErr := s.execFinalizer.MarkAbandoned(ctx, executionID, finalizeReasonCancelledByUser); fErr != nil {
 				log.Error("finalize cancelled execution",
-					zap.String("op", op),
 					zap.String("executionID", executionID), zap.Error(fErr))
 			}
 		}
