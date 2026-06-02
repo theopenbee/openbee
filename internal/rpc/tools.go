@@ -639,11 +639,11 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 	}
 
+	preview, err := s.clearSvc.EvaluateClearSession(ctx, params.SessionKey)
+	if err != nil {
+		return nil, err
+	}
 	if !params.Force {
-		preview, err := s.clearSvc.EvaluateClearSession(ctx, params.SessionKey)
-		if err != nil {
-			return nil, err
-		}
 		if len(preview.Agents) == 0 && len(preview.ActiveTasks) == 0 {
 			return map[string]any{
 				"cleared": false,
@@ -659,7 +659,7 @@ func (s *Server) toolClearSession(ctx context.Context, args json.RawMessage) (an
 		}
 	}
 
-	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey)
+	result, err := s.clearSvc.ClearSession(ctx, params.SessionKey, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -900,24 +900,22 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 		w = model.Worker{ID: params.WorkerID}
 	}
 
-	if !params.Force {
-		preview, err := s.clearSvc.EvaluateClearWorker(ctx, params.SessionKey, w)
-		if err != nil {
-			return nil, err
-		}
-		if len(preview.ActiveTasks) > 0 {
-			return buildActiveTasksConfirmation(
-				preview.ActiveTasks,
-				fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
-				map[string]any{
-					"worker_id":   params.WorkerID,
-					"worker_name": s.workerDisplayName(params.WorkerID),
-				},
-			), nil
-		}
+	preview, err := s.clearSvc.EvaluateClearWorker(ctx, params.SessionKey, w)
+	if err != nil {
+		return nil, err
+	}
+	if !params.Force && len(preview.ActiveTasks) > 0 {
+		return buildActiveTasksConfirmation(
+			preview.ActiveTasks,
+			fmt.Sprintf(i18n.M.Runtime.RPC.ClearSessionTasksConfirm, len(preview.ActiveTasks)),
+			map[string]any{
+				"worker_id":   params.WorkerID,
+				"worker_name": s.workerDisplayName(params.WorkerID),
+			},
+		), nil
 	}
 
-	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w)
+	result, err := s.clearSvc.ClearWorker(ctx, params.SessionKey, w, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -1303,4 +1301,3 @@ func (s *Server) toolListOutboundMessages(ctx context.Context, args json.RawMess
 	}
 	return pagedResult(msgs, total, params.Page, params.PageSize), nil
 }
-

@@ -32,13 +32,13 @@ type TaskBySessionLister interface {
 }
 
 type StatusCommandHandler struct {
-	sessions      SessionContextLister
-	tasks         TaskBySessionLister
-	workers       WorkerByIDsLookup
-	runningExecs  utils.RunningExecLookup
-	senders       map[string]platform.PlatformSenderAdapter
-	engineCfg     *enginecfg.Store
-	now           func() time.Time
+	sessions     SessionContextLister
+	tasks        TaskBySessionLister
+	workers      WorkerByIDsLookup
+	runningExecs utils.RunningExecLookup
+	senders      map[string]platform.PlatformSenderAdapter
+	engineCfg    *enginecfg.Store
+	now          func() time.Time
 }
 
 // StatusCommandDeps bundles the collaborators NewStatusCommandHandler needs.

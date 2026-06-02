@@ -114,9 +114,9 @@ func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStor
 		inCh:         in,
 		resultsCh:    make(chan internalResult, 64),
 		queues:       make(map[string]*queueState),
-		clearCh:     make(chan clearRequest, 16),
-		cancelFuncs: make(map[string]context.CancelFunc),
-		cancelCh:    make(chan string, 16),
+		clearCh:      make(chan clearRequest, 16),
+		cancelFuncs:  make(map[string]context.CancelFunc),
+		cancelCh:     make(chan string, 16),
 	}
 	for _, o := range opts {
 		o(d)

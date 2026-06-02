@@ -189,7 +189,11 @@ func TestClearSession_StopsAndClears(t *testing.T) {
 	stopper := &fakeExecStopper{}
 	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	got, err := svc.ClearSession(context.Background(), "sess-1")
+	preview := session.ClearSessionPreview{
+		Agents:      []store.SessionAgent{{AgentID: "w1", Engine: "claude"}},
+		ActiveTasks: []model.Task{{ID: "t1"}},
+	}
+	got, err := svc.ClearSession(context.Background(), "sess-1", preview)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -212,7 +216,11 @@ func TestClearSession_StopFails_FinalizesExecution(t *testing.T) {
 	fin := &fakeExecFinalizer{}
 	svc := newSvc(t, sessions, tasks, stopper, fin, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	if _, err := svc.ClearSession(context.Background(), "sess-1"); err != nil {
+	preview := session.ClearSessionPreview{
+		Agents:      []store.SessionAgent{{AgentID: "w1"}},
+		ActiveTasks: []model.Task{{ID: "t1"}},
+	}
+	if _, err := svc.ClearSession(context.Background(), "sess-1", preview); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(fin.abandoned) != 1 || fin.abandoned[0] != "exec-1" {
@@ -233,9 +241,13 @@ func TestClearSession_StopsConcurrently(t *testing.T) {
 		"t1": "exec-1", "t2": "exec-2", "t3": "exec-3",
 	})
 
+	preview := session.ClearSessionPreview{
+		Agents:      []store.SessionAgent{{AgentID: "w1"}},
+		ActiveTasks: []model.Task{{ID: "t1"}, {ID: "t2"}, {ID: "t3"}},
+	}
 	done := make(chan struct{})
 	go func() {
-		_, _ = svc.ClearSession(context.Background(), "sess-1")
+		_, _ = svc.ClearSession(context.Background(), "sess-1", preview)
 		close(done)
 	}()
 
@@ -260,7 +272,11 @@ func TestClearSession_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	_, err := svc.ClearSession(context.Background(), "sess-1")
+	preview := session.ClearSessionPreview{
+		Agents:      []store.SessionAgent{{AgentID: "w1"}},
+		ActiveTasks: []model.Task{{ID: "t1"}},
+	}
+	_, err := svc.ClearSession(context.Background(), "sess-1", preview)
 	if err == nil {
 		t.Fatalf("expected error when cancel fails, got nil")
 	}
@@ -297,7 +313,8 @@ func TestClearWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	_, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
+	preview := session.ClearWorkerPreview{Engine: "claude", ActiveTasks: []model.Task{{ID: "t1", WorkerID: "w1"}}}
+	_, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, preview)
 	if err == nil {
 		t.Fatalf("expected error when cancel fails, got nil")
 	}
@@ -316,7 +333,8 @@ func TestClearWorker_PerformsFullCleanup(t *testing.T) {
 	stopper := &fakeExecStopper{}
 	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
 
-	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
+	preview := session.ClearWorkerPreview{Engine: "claude", ActiveTasks: []model.Task{{ID: "t1", WorkerID: "w1"}}}
+	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"}, preview)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -340,7 +358,7 @@ func TestClearWorker_NoActiveTasks_StillDeletesContextAndClearsQueue(t *testing.
 	disp := &fakeDispatcher{}
 	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
 
-	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1"})
+	got, err := svc.ClearWorker(context.Background(), "sess-1", model.Worker{ID: "w1"}, session.ClearWorkerPreview{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

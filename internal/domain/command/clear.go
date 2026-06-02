@@ -28,9 +28,9 @@ type WorkerNameLookup interface {
 // Implemented by *session.ClearService.
 type ClearService interface {
 	EvaluateClearSession(ctx context.Context, sessionKey string) (session.ClearSessionPreview, error)
-	ClearSession(ctx context.Context, sessionKey string) (session.ClearSessionResult, error)
+	ClearSession(ctx context.Context, sessionKey string, preview session.ClearSessionPreview) (session.ClearSessionResult, error)
 	EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (session.ClearWorkerPreview, error)
-	ClearWorker(ctx context.Context, sessionKey string, w model.Worker) (session.ClearWorkerResult, error)
+	ClearWorker(ctx context.Context, sessionKey string, w model.Worker, preview session.ClearWorkerPreview) (session.ClearWorkerResult, error)
 }
 
 type ClearCommandHandler struct {
@@ -88,32 +88,26 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	pendingKey := h.pendingKey(sessionKey, CmdClear)
 	confirmed := h.consumePending(pendingKey)
 
-	if !confirmed {
-		preview, err := h.svc.EvaluateClearSession(ctx, sessionKey)
-		if err != nil {
-			log.Error("evaluate clear session", zap.Error(err))
-			h.reply(ctx, replyTo, m.LookupFailed)
-			return
-		}
-		if len(preview.Agents) == 0 {
-			h.reply(ctx, replyTo, m.NoContext)
-			return
-		}
-		if len(preview.ActiveTasks) > 0 {
-			h.storePending(pendingKey)
-			h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks))
-			return
-		}
-	}
-
-	result, err := h.svc.ClearSession(ctx, sessionKey)
+	preview, err := h.svc.EvaluateClearSession(ctx, sessionKey)
 	if err != nil {
-		log.Error("clear session", zap.Error(err))
+		log.Error("evaluate clear session", zap.Error(err))
 		h.reply(ctx, replyTo, m.LookupFailed)
 		return
 	}
-	if len(result.Agents) == 0 {
+	if len(preview.Agents) == 0 {
 		h.reply(ctx, replyTo, m.NoContext)
+		return
+	}
+	if !confirmed && len(preview.ActiveTasks) > 0 {
+		h.storePending(pendingKey)
+		h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks))
+		return
+	}
+
+	result, err := h.svc.ClearSession(ctx, sessionKey, preview)
+	if err != nil {
+		log.Error("clear session", zap.Error(err))
+		h.reply(ctx, replyTo, m.LookupFailed)
 		return
 	}
 
@@ -152,21 +146,19 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
 	confirmed := h.consumePending(pendingKey)
 
-	if !confirmed {
-		preview, err := h.svc.EvaluateClearWorker(ctx, sessionKey, w)
-		if err != nil {
-			log.Error("evaluate clear worker session", zap.String("workerID", w.ID), zap.Error(err))
-			h.reply(ctx, replyTo, m.NoContext)
-			return
-		}
-		if len(preview.ActiveTasks) > 0 {
-			h.storePending(pendingKey)
-			h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks))
-			return
-		}
+	preview, err := h.svc.EvaluateClearWorker(ctx, sessionKey, w)
+	if err != nil {
+		log.Error("evaluate clear worker session", zap.String("workerID", w.ID), zap.Error(err))
+		h.reply(ctx, replyTo, m.NoContext)
+		return
+	}
+	if !confirmed && len(preview.ActiveTasks) > 0 {
+		h.storePending(pendingKey)
+		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks))
+		return
 	}
 
-	result, err := h.svc.ClearWorker(ctx, sessionKey, w)
+	result, err := h.svc.ClearWorker(ctx, sessionKey, w, preview)
 	if err != nil {
 		log.Error("clear worker session", zap.String("workerID", w.ID), zap.Error(err))
 		h.reply(ctx, replyTo, m.NoContext)

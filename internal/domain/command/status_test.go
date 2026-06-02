@@ -129,7 +129,7 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	nowMs := clock.UnixMilli()
 	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: nowMs - 120*1000},   // 2m
+		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "貂蝉", UpdatedAt: nowMs - 120*1000},  // 2m
 		{AgentID: "w2", AgentType: "worker", Engine: "codex", Name: "吕布", UpdatedAt: nowMs - 18000*1000}, // 5h
 	}
 	tasks := []model.Task{

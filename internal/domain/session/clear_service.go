@@ -128,36 +128,23 @@ type ClearSessionResult struct {
 }
 
 // ClearSession stops the running executions, cancels immediate tasks, and
-// drains the dispatcher queues for sessionKey. Always executes; callers are
-// responsible for any confirmation UX.
-func (s *ClearService) ClearSession(ctx context.Context, sessionKey string) (ClearSessionResult, error) {
-	beeEngine := s.engineCfg.Get()
-	agents, err := s.sessions.ListActiveSessionContexts(ctx, sessionKey, beeEngine)
-	if err != nil {
-		return ClearSessionResult{}, err
-	}
-	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
-		SessionKey: sessionKey,
-		Status:     model.TaskStatusActive,
-		Type:       model.TaskTypeImmediate,
-	})
-	if err != nil {
-		return ClearSessionResult{}, err
-	}
-
-	s.stopRunningExecutions(ctx, activeTasks)
+// drains the dispatcher queues for sessionKey. Always executes; callers pass
+// the preview returned by EvaluateClearSession so this method doesn't repeat
+// the lookups.
+func (s *ClearService) ClearSession(ctx context.Context, sessionKey string, preview ClearSessionPreview) (ClearSessionResult, error) {
+	s.stopRunningExecutions(ctx, preview.ActiveTasks)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		return ClearSessionResult{Agents: agents}, fmt.Errorf("cancel tasks for clear_session: %w", err)
+		return ClearSessionResult{Agents: preview.Agents}, fmt.Errorf("cancel tasks for clear_session: %w", err)
 	}
 
 	s.dispatcher.ClearSession(sessionKey)
 
-	return ClearSessionResult{Agents: agents, CancelledTasks: cancelled}, nil
+	return ClearSessionResult{Agents: preview.Agents, CancelledTasks: cancelled}, nil
 }
 
 // ClearWorkerPreview is what EvaluateClearWorker would touch.
@@ -191,21 +178,10 @@ type ClearWorkerResult struct {
 
 // ClearWorker stops the running executions, cancels the worker's immediate
 // tasks, deletes the session context for the worker's engine, and drains the
-// dispatcher queue for the pair. Always executes.
-func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerResult, error) {
-	engine := s.engineCfg.Resolve(w.Engine)
-
-	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
-		SessionKey: sessionKey,
-		WorkerID:   w.ID,
-		Status:     model.TaskStatusActive,
-		Type:       model.TaskTypeImmediate,
-	})
-	if err != nil {
-		return ClearWorkerResult{}, err
-	}
-
-	s.stopRunningExecutions(ctx, activeTasks)
+// dispatcher queue for the pair. Always executes; callers pass the preview
+// returned by EvaluateClearWorker so this method doesn't repeat the lookups.
+func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker, preview ClearWorkerPreview) (ClearWorkerResult, error) {
+	s.stopRunningExecutions(ctx, preview.ActiveTasks)
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -213,18 +189,18 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		Type:       model.TaskTypeImmediate,
 	})
 	if err != nil {
-		return ClearWorkerResult{Engine: engine}, fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
+		return ClearWorkerResult{Engine: preview.Engine}, fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
 	}
 
-	deleted, err := s.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, engine)
+	deleted, err := s.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, preview.Engine)
 	if err != nil {
-		return ClearWorkerResult{Engine: engine}, err
+		return ClearWorkerResult{Engine: preview.Engine}, err
 	}
 
 	s.dispatcher.ClearWorker(sessionKey, w.ID)
 
 	return ClearWorkerResult{
-		Engine:         engine,
+		Engine:         preview.Engine,
 		CancelledTasks: cancelled,
 		DeletedContext: deleted,
 	}, nil
