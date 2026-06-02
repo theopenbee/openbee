@@ -13,6 +13,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -26,12 +27,12 @@ type mockExecManager struct {
 	executedInstructions []string
 }
 
-func (m *mockExecManager) ExecuteWorker(_ context.Context, _, _, instruction, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *mockExecManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
 	m.mu.Lock()
-	if resume {
-		m.resumedWithSessionID = sessionID
+	if req.Resume {
+		m.resumedWithSessionID = req.SessionID
 	}
-	m.executedInstructions = append(m.executedInstructions, instruction)
+	m.executedInstructions = append(m.executedInstructions, req.TriggerInput)
 	m.mu.Unlock()
 	return m.execResult, nil
 }
@@ -63,7 +64,7 @@ type quickCancelExecManager struct {
 	cancelCount *int64
 }
 
-func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *quickCancelExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	select {
 	case m.execCalled <- struct{}{}:
 	default:
@@ -258,11 +259,11 @@ type orderedMockManager struct {
 	receivedSessID string
 }
 
-func (m *orderedMockManager) ExecuteWorker(_ context.Context, _, _, _, sessionID string, resume bool) (model.WorkerExecution, error) {
+func (m *orderedMockManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
 	m.mu.Lock()
 	m.callOrder = append(m.callOrder, "execute")
-	m.receivedResume = resume
-	m.receivedSessID = sessionID
+	m.receivedResume = req.Resume
+	m.receivedSessID = req.SessionID
 	m.mu.Unlock()
 	m.executed.Add(1)
 	return m.execResult, nil
@@ -717,7 +718,7 @@ type blockingExecManager struct {
 	completed int64
 }
 
-func (m *blockingExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *blockingExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.started, 1)
 	<-m.blocker
 	atomic.AddInt64(&m.completed, 1)
@@ -730,7 +731,7 @@ type alwaysFailExecManager struct {
 	called int64
 }
 
-func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *alwaysFailExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	atomic.AddInt64(&m.called, 1)
 	return model.WorkerExecution{}, fmt.Errorf("exec: \"claude\": executable file not found in $PATH")
 }
@@ -742,8 +743,8 @@ type fallbackExecManager struct {
 	freshCount  int64
 }
 
-func (m *fallbackExecManager) ExecuteWorker(_ context.Context, _, _, _, _ string, resume bool) (model.WorkerExecution, error) {
-	if resume {
+func (m *fallbackExecManager) ExecuteWorker(_ context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
+	if req.Resume {
 		return model.WorkerExecution{}, fmt.Errorf("session broken")
 	}
 	atomic.AddInt64(&m.freshCount, 1)
@@ -871,7 +872,7 @@ type cancelTrackingExecManager struct {
 	cancelCount *int64
 }
 
-func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _, _, _, _ string, _ bool) (model.WorkerExecution, error) {
+func (m *cancelTrackingExecManager) ExecuteWorker(ctx context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	<-ctx.Done()
 	return model.WorkerExecution{ID: "exec-tracked"}, nil
 }

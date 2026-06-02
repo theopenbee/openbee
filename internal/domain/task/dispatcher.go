@@ -11,6 +11,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -30,7 +31,7 @@ const (
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
-	ExecuteWorker(ctx context.Context, workerID, taskID, input, sessionID string, resume bool) (model.WorkerExecution, error)
+	ExecuteWorker(ctx context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error)
 	CancelExecution(ctx context.Context, executionID string) error
 }
 
@@ -363,38 +364,49 @@ func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Wo
 }
 
 // executeFresh builds the session prefix (Step 1 + persona) and starts a fresh
-// execution. worker is the pre-fetched record from resolveWorkerEngine; if
-// workerLookup is configured but worker is nil, the lookup failed and the task
+// execution. w is the pre-fetched record from resolveWorkerEngine; if
+// workerLookup is configured but w is nil, the lookup failed and the task
 // is aborted.
-func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
 	persona := ""
 	if d.workerLookup != nil {
-		if worker == nil {
+		if w == nil {
 			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
 		}
-		persona = ai.WorkerPersona(worker.Name, worker.Description, worker.Constraints)
+		persona = ai.WorkerPersona(w.Name, w.Description, w.Constraints)
 	}
 	prefix := ai.BuildWorkerSessionPrefix(persona)
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, task.WorkerID, task.TaskID, prefix+instruction, sessionID, false)
+	return d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: prefix + instruction,
+		SessionID:    sessionID,
+	})
 }
 
-func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, worker *model.Worker) (model.WorkerExecution, error) {
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
 	if task.TaskType != model.TaskTypeImmediate {
-		return d.executeFresh(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, w)
 	}
 	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.Error(err))
 	}
 	if sessionID == "" {
-		return d.executeFresh(ctx, task, instruction, engineName, worker)
+		return d.executeFresh(ctx, task, instruction, engineName, w)
 	}
 	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
-	exec, err := d.manager.ExecuteWorker(ctx, task.WorkerID, task.TaskID, instruction, sessionID, true)
+	exec, err := d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: instruction,
+		SessionID:    sessionID,
+		Resume:       true,
+	})
 	if err == nil {
 		return exec, nil
 	}
@@ -404,7 +416,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
 		}
 	}
-	return d.executeFresh(ctx, task, instruction, engineName, worker)
+	return d.executeFresh(ctx, task, instruction, engineName, w)
 }
 
 // waitForResult polls the execution until it reaches a terminal state or ctx
