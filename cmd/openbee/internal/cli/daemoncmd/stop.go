@@ -1,4 +1,4 @@
-package main
+package daemoncmd
 
 import (
 	"fmt"
@@ -9,15 +9,18 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-var stopCmd = &cobra.Command{
-	Use:   "stop",
-	Short: "Stop the running OpenBee daemon",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return doStop(daemonPIDFile())
-	},
+// NewStopCommand returns the "stop" cobra command.
+func NewStopCommand(exitCode ExitCodeFunc) *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: i18n.M.Cmd.Stop.Short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return doStop(daemonPIDFile())
+		},
+	}
 }
 
-// doStop is the testable core of stopCmd. pidFile is injected for hermetic testing.
+// doStop is the testable core of the stop command. pidFile is injected for hermetic testing.
 func doStop(pidFile string) error {
 	pid, _, err := readPIDFileFrom(pidFile)
 	if err != nil {
@@ -44,8 +47,4 @@ func doStop(pidFile string) error {
 	_ = os.Remove(pidFile)
 	fmt.Println(i18n.M.Output.Stop.Stopped)
 	return nil
-}
-
-func init() {
-	rootCmd.AddCommand(stopCmd)
 }

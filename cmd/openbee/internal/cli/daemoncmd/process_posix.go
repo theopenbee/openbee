@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package main
+package daemoncmd
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package main
+package daemoncmd
 
 import (
 	"fmt"
@@ -14,6 +14,24 @@ import (
 
 // daemonEnvKey is the env var set on the daemon child to distinguish it from the parent.
 const daemonEnvKey = "OPENBEE_DAEMON"
+
+// resolveExecutable returns the real path of the running binary, following symlinks.
+// Duplicated from the cli package to avoid an import cycle (cli imports daemoncmd).
+func resolveExecutable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable: %w", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("eval symlinks: %w", err)
+	}
+	return exe, nil
+}
+
+// ExitCodeFunc is a function that converts an integer exit code into an error
+// value that the CLI runner recognises and converts to os.Exit(code).
+type ExitCodeFunc func(int) error
 
 // openbeeStateDir returns ~/.openbee, calling os.Exit(1) on failure.
 func openbeeStateDir() string {
