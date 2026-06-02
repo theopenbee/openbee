@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/backupcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/upgradecmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
@@ -54,6 +55,7 @@ func main() {
 		backupcmd.NewBackupCommand(version),
 		backupcmd.NewRestoreCommand(version),
 	)
+	rootCmd.AddCommand(upgradecmd.NewCommand(version))
 
 	if err := rootCmd.Execute(); err != nil {
 		var ece *cli.ExitCodeError
@@ -72,9 +74,6 @@ func applyTranslations() {
 	m := i18n.M
 	rootCmd.Short = m.Cmd.Root.Short
 	configCmd.Short = m.Cmd.Config.Short
-	upgradeCmd.Short = m.Cmd.Upgrade.Short
-	upgradeCmd.Long = m.Cmd.Upgrade.Long
 	// Flag descriptions
 	configCmd.Flags().Lookup("output").Usage = m.Flag.ConfigOutput
-	upgradeCmd.Flags().Lookup("check").Usage = m.Flag.UpgradeCheck
 }

@@ -1,4 +1,4 @@
-package main
+package upgradecmd
 
 import (
 	"archive/tar"
@@ -28,7 +28,7 @@ const (
 
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
-	executablePerm = 0o755
+	executablePerm       = 0o755
 )
 
 type githubRelease struct {
@@ -48,25 +48,24 @@ func resolveCDNURL(cdnURL string, useCN bool) string {
 	return cdnURL
 }
 
-var upgradeCmd = &cobra.Command{
-	Use:   "upgrade",
-	Short: "Upgrade openbee to the latest version",
-	Long:  "Check for a new version and replace the current binary if one is available.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runUpgrade(upgradeCheckOnly, resolveCDNURL(upgradeCDNURL, upgradeCN))
-	},
+// NewCommand returns the "upgrade" cobra command.
+// currentVersion is the version string injected at build time.
+func NewCommand(currentVersion string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "upgrade",
+		Short: i18n.M.Cmd.Upgrade.Short,
+		Long:  i18n.M.Cmd.Upgrade.Long,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUpgrade(currentVersion, upgradeCheckOnly, resolveCDNURL(upgradeCDNURL, upgradeCN))
+		},
+	}
+	cmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, i18n.M.Flag.UpgradeCheck)
+	cmd.Flags().StringVar(&upgradeCDNURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
+	cmd.Flags().BoolVar(&upgradeCN, "cn", false, i18n.M.Flag.UpgradeCN)
+	return cmd
 }
 
-func init() {
-	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, i18n.M.Flag.UpgradeCheck)
-	upgradeCmd.Flags().StringVar(&upgradeCDNURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
-	upgradeCmd.Flags().BoolVar(&upgradeCN, "cn", false, i18n.M.Flag.UpgradeCN)
-	rootCmd.AddCommand(upgradeCmd)
-}
-
-func runUpgrade(checkOnly bool, cdnURL string) error {
-	current := version
-
+func runUpgrade(current string, checkOnly bool, cdnURL string) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
 
 	if cdnURL != "" {
@@ -208,6 +207,8 @@ func doUpgrade(newVersion string, cdnURL string) error {
 	}
 
 	// Locate the current executable.
+	// resolveExecutable is duplicated here to avoid an import cycle with the cli
+	// package (cli imports upgradecmd via NewRoot). This matches daemoncmd's pattern.
 	execPath, err := resolveExecutable()
 	if err != nil {
 		return err
@@ -238,6 +239,20 @@ func doUpgrade(newVersion string, cdnURL string) error {
 	return nil
 }
 
+// resolveExecutable returns the real path of the running binary, following symlinks.
+// Duplicated from cli.ResolveExecutable to avoid an import cycle with the cli package
+// (cli imports upgradecmd via NewRoot). Matches daemoncmd's pattern.
+func resolveExecutable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable: %w", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("eval symlinks: %w", err)
+	}
+	return exe, nil
+}
 
 func extractBinary(archivePath string, dest *os.File) error {
 	f, err := os.Open(archivePath)
