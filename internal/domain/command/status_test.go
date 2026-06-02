@@ -80,7 +80,14 @@ func makeStatusHandler(
 	if runningExecs == nil {
 		runningExecs = fakeRunningExecs{}
 	}
-	h := command.NewStatusCommandHandler(sessions, taskList, wl, senders, engineCfg, runningExecs)
+	h := command.NewStatusCommandHandler(command.StatusCommandDeps{
+		Sessions:     sessions,
+		Tasks:        taskList,
+		Workers:      wl,
+		Senders:      senders,
+		EngineCfg:    engineCfg,
+		RunningExecs: runningExecs,
+	})
 	if cfg.now != nil {
 		command.SetStatusClockForTest(h, cfg.now)
 	}

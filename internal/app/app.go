@@ -177,7 +177,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	})
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, clearSvc, sendersByPlatform, s.execStore)
 	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
-	statusCmdHandler := command.NewStatusCommandHandler(s.sessionStore, s.taskStore, s.workerStore, sendersByPlatform, engineCfg, s.execStore)
+	statusCmdHandler := command.NewStatusCommandHandler(command.StatusCommandDeps{
+		Sessions:     s.sessionStore,
+		Tasks:        s.taskStore,
+		Workers:      s.workerStore,
+		Senders:      sendersByPlatform,
+		EngineCfg:    engineCfg,
+		RunningExecs: s.execStore,
+	})
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,

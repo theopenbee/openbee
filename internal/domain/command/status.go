@@ -42,21 +42,24 @@ type StatusCommandHandler struct {
 	now           func() time.Time
 }
 
-func NewStatusCommandHandler(
-	sessions SessionContextLister,
-	tasks TaskBySessionLister,
-	workers WorkerByIDsLookup,
-	senders map[string]platform.PlatformSenderAdapter,
-	engineCfg *enginecfg.Store,
-	runningExecs utils.RunningExecLookup,
-) *StatusCommandHandler {
+// StatusCommandDeps bundles the collaborators NewStatusCommandHandler needs.
+type StatusCommandDeps struct {
+	Sessions     SessionContextLister
+	Tasks        TaskBySessionLister
+	Workers      WorkerByIDsLookup
+	Senders      map[string]platform.PlatformSenderAdapter
+	EngineCfg    *enginecfg.Store
+	RunningExecs utils.RunningExecLookup
+}
+
+func NewStatusCommandHandler(deps StatusCommandDeps) *StatusCommandHandler {
 	return &StatusCommandHandler{
-		sessions:     sessions,
-		tasks:        tasks,
-		workers:      workers,
-		runningExecs: runningExecs,
-		senders:      senders,
-		engineCfg:    engineCfg,
+		sessions:     deps.Sessions,
+		tasks:        deps.Tasks,
+		workers:      deps.Workers,
+		runningExecs: deps.RunningExecs,
+		senders:      deps.Senders,
+		engineCfg:    deps.EngineCfg,
 		now:          time.Now,
 	}
 }
