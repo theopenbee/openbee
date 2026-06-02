@@ -4,7 +4,7 @@ import "testing"
 
 func TestNewRootCommandIncludesTopLevelCommands(t *testing.T) {
 	cmd := NewRoot(BuildInfo{Version: "test", Commit: "abc", Date: "2026-06-01"})
-	want := []string{"server", "stop", "restart", "status", "ctl"}
+	want := []string{"server", "stop", "restart", "status", "backup", "restore", "ctl"}
 	for _, name := range want {
 		if _, _, err := cmd.Find([]string{name}); err != nil {
 			t.Fatalf("expected top-level command %q: %v", name, err)

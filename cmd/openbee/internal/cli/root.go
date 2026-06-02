@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/backupcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -34,6 +35,8 @@ func NewRoot(info BuildInfo) *cobra.Command {
 		daemoncmd.NewStopCommand(exitCode),
 		daemoncmd.NewRestartCommand(exitCode),
 		daemoncmd.NewStatusCommand(exitCode),
+		backupcmd.NewBackupCommand(info.Version),
+		backupcmd.NewRestoreCommand(info.Version),
 	)
 	root.AddCommand(ctlcmd.NewCommand())
 	return root

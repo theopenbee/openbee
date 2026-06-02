@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/backupcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -49,6 +50,10 @@ func main() {
 		daemoncmd.NewStatusCommand(exitCode),
 	)
 	rootCmd.AddCommand(ctlcmd.NewCommand())
+	rootCmd.AddCommand(
+		backupcmd.NewBackupCommand(version),
+		backupcmd.NewRestoreCommand(version),
+	)
 
 	if err := rootCmd.Execute(); err != nil {
 		var ece *cli.ExitCodeError
@@ -69,14 +74,7 @@ func applyTranslations() {
 	configCmd.Short = m.Cmd.Config.Short
 	upgradeCmd.Short = m.Cmd.Upgrade.Short
 	upgradeCmd.Long = m.Cmd.Upgrade.Long
-	backupCmd.Short = m.Cmd.Backup.Short
-	restoreCmd.Short = m.Cmd.Restore.Short
 	// Flag descriptions
 	configCmd.Flags().Lookup("output").Usage = m.Flag.ConfigOutput
-	backupCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
-	backupCmd.Flags().Lookup("password").Usage = m.Flag.BackupPassword
-	restoreCmd.Flags().Lookup("config").Usage = m.Flag.ConfigPath
-	restoreCmd.Flags().Lookup("password").Usage = m.Flag.RestorePassword
-	restoreCmd.Flags().Lookup("force").Usage = m.Flag.RestoreForce
 	upgradeCmd.Flags().Lookup("check").Usage = m.Flag.UpgradeCheck
 }
