@@ -30,23 +30,12 @@ func (s *Server) CallTool(ctx context.Context, name string, args json.RawMessage
 
 // workerDisplayName returns the worker's configured name, falling back to the raw ID.
 func (s *Server) workerDisplayName(workerID string) string {
-	if v, ok := s.workerNameCache.Load(workerID); ok {
-		return v.(string)
-	}
-	name := workerID
-	if w, err := s.workerStore.GetByID(workerID); err == nil {
-		name = w.Name
-	} else {
+	w, err := s.workerStore.GetByID(workerID)
+	if err != nil {
 		log.Debug("workerDisplayName: store lookup failed, falling back to ID", zap.String("workerID", workerID), zap.Error(err))
+		return workerID
 	}
-	s.workerNameCache.Store(workerID, name)
-	return name
-}
-
-// forgetWorkerName drops a cached display name so the next lookup re-reads
-// from the store. Called by update/delete paths to keep the cache fresh.
-func (s *Server) forgetWorkerName(workerID string) {
-	s.workerNameCache.Delete(workerID)
+	return w.Name
 }
 
 // checkWorkerScope enforces per-tool scope restrictions for worker tokens.
@@ -321,7 +310,6 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.forgetWorkerName(params.WorkerID)
 	if params.DepartmentIDs != nil {
 		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
 			return nil, err
@@ -344,7 +332,6 @@ func (s *Server) toolDeleteWorker(args json.RawMessage) (any, error) {
 	if err := s.manager.DeleteWorker(params.WorkerID, params.DeleteWorkDir); err != nil {
 		return nil, err
 	}
-	s.forgetWorkerName(params.WorkerID)
 	return map[string]string{"status": "deleted"}, nil
 }
 

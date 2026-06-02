@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -45,8 +44,6 @@ type Server struct {
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
-
-	workerNameCache sync.Map // workerID -> display name; lazily populated
 }
 
 func NewBeeServer(
