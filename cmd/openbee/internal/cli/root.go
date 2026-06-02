@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/backupcmd"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/configcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/upgradecmd"
@@ -41,5 +42,6 @@ func NewRoot(info BuildInfo) *cobra.Command {
 	)
 	root.AddCommand(ctlcmd.NewCommand())
 	root.AddCommand(upgradecmd.NewCommand(info.Version))
+	root.AddCommand(configcmd.NewCommand())
 	return root
 }

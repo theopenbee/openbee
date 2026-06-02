@@ -1,4 +1,4 @@
-package main
+package configcmd
 
 import (
 	"bytes"
@@ -7,19 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/spf13/cobra"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
-	"github.com/theopenbee/openbee/internal/infra/skillinstall"
-	"github.com/theopenbee/openbee/internal/infra/utils"
+
+	"github.com/spf13/cobra"
 )
 
 // errInterrupted is returned when a survey prompt is cancelled (Ctrl+C).
@@ -29,177 +25,23 @@ var errInterrupted = errors.New("interrupted")
 
 var configTemplate = config.ConfigTemplate
 
-// originalMultiSelectTemplate holds the unmodified survey template so we can
-// replace the hint text cleanly after each language selection.
-var originalMultiSelectTemplate = survey.MultiSelectQuestionTemplate
-
-// multiSelectHintOld is the exact hint fragment to replace inside the template.
-const multiSelectHintOld = `[Use arrows to move, space to select,{{- if not .Config.RemoveSelectAll }} <right> to all,{{end}}{{- if not .Config.RemoveSelectNone }} <left> to none,{{end}} type to filter{{- if and .Help (not .ShowHelp)}}, {{ .Config.HelpInput }} for more help{{end}}]`
-
-// applySurveyTemplates patches the survey MultiSelect hint text to use the
-// currently loaded i18n locale. Must be called after i18n.Load().
-func applySurveyTemplates() {
-	survey.MultiSelectQuestionTemplate = strings.Replace(
-		originalMultiSelectTemplate,
-		multiSelectHintOld,
-		i18n.M.Prompt.MultiSelectHint,
-		1,
-	)
-}
-
-type configValues struct {
-	Language        string
-	ServerPort      string
-	ServerHost      string
-	Debug           bool
-	DBPath          string
-	RPCTokenSecret  string
-	RPCTokenTTL     string
-	ServerEnvSecret string
-
-	FeishuEnabled   bool
-	FeishuAppID     string
-	FeishuAppSecret string
-	FeishuBotName   string
-
-	DingtalkEnabled      bool
-	DingtalkClientID     string
-	DingtalkClientSecret string
-	DingtalkBotName      string
-
-	WecomEnabled bool
-	WecomBotID   string
-	WecomSecret  string
-	WecomBotName string
-
-	TelegramEnabled  bool
-	TelegramToken    string
-	TelegramAuthCode string
-	TelegramBotName  string
-
-	WeixinEnabled    bool
-	WeixinToken      string
-	WeixinBaseURL    string
-	WeixinCDNBaseURL string
-	WeixinUserID     string
-	WeixinBotName    string
-
-	LinearEnabled      bool
-	LinearAPIKey       string
-	LinearLabelName    string
-	LinearPollInterval string
-	LinearProjects     string // comma-separated user input
-	LinearProjectsYAML string // rendered into the YAML inline list, e.g. `"a", "b"`
-	LinearStates       string // comma-separated user input
-	LinearStatesYAML   string // rendered into the YAML inline list
-	LinearMaxMediaSize string
-
-	EngineDefault       string
-	EngineTimeoutBee    string
-	EngineTimeoutWorker string
-	ClaudeEnabled       bool
-	CodexEnabled        bool
-	PiEnabled           bool
-	ClaudePath          string
-	CodexPath           string
-	PiPath              string
-
-	FeederMaxConcurrentBee int
-	MessageDebounce        string
-	FFprobePath            string
-	FFmpegPath             string
-
-	AuthUsername   string
-	AuthPassword   string
-	AuthJWTSecret  string
-	AuthAccessTTL  string
-	AuthRefreshTTL string
-}
-
 var configOutputPath string
 
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Interactively generate a config file",
-	RunE: func(_ *cobra.Command, _ []string) error {
-		err := runConfig()
-		if errors.Is(err, errInterrupted) {
-			return nil
-		}
-		return err
-	},
-}
-
-func init() {
-	configCmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", "output config file path")
-	rootCmd.AddCommand(configCmd)
-}
-
-// loadExistingConfig tries to load an existing config file and convert it to configValues
-// for use as defaults in the interactive prompts.
-func loadExistingConfig(path string) *configValues {
-	cfg, err := config.Load(path)
-	if err != nil {
-		return nil
+// NewCommand constructs the `config` cobra command. i18n must already be loaded.
+func NewCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: i18n.M.Cmd.Config.Short,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			err := runConfig()
+			if errors.Is(err, errInterrupted) {
+				return nil
+			}
+			return err
+		},
 	}
-
-	return &configValues{
-		Language:               cfg.Language,
-		ServerPort:             strconv.Itoa(cfg.Server.Port),
-		ServerHost:             cfg.Server.Host,
-		Debug:                  cfg.Server.Debug,
-		DBPath:                 cfg.Database.Path,
-		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
-		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
-		ServerEnvSecret:        cfg.Server.EnvSecret,
-		FeishuEnabled:          cfg.Bee.Platforms.Feishu.Enabled,
-		FeishuAppID:            cfg.Bee.Platforms.Feishu.AppID,
-		FeishuAppSecret:        cfg.Bee.Platforms.Feishu.AppSecret,
-		FeishuBotName:          cfg.Bee.Platforms.Feishu.BotName,
-		DingtalkEnabled:        cfg.Bee.Platforms.DingTalk.Enabled,
-		DingtalkClientID:       cfg.Bee.Platforms.DingTalk.ClientID,
-		DingtalkClientSecret:   cfg.Bee.Platforms.DingTalk.ClientSecret,
-		DingtalkBotName:        cfg.Bee.Platforms.DingTalk.BotName,
-		WecomEnabled:           cfg.Bee.Platforms.WeCom.Enabled,
-		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
-		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
-		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
-		TelegramEnabled:        cfg.Bee.Platforms.Telegram.Enabled,
-		TelegramToken:          cfg.Bee.Platforms.Telegram.Token,
-		TelegramAuthCode:       cfg.Bee.Platforms.Telegram.AuthCode,
-		TelegramBotName:        cfg.Bee.Platforms.Telegram.BotName,
-		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
-		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
-		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
-		WeixinCDNBaseURL:       cfg.Bee.Platforms.Weixin.CDNBaseURL,
-		WeixinUserID:           cfg.Bee.Platforms.Weixin.UserID,
-		WeixinBotName:          cfg.Bee.Platforms.Weixin.BotName,
-		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
-		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
-		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
-		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
-		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
-		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
-		LinearMaxMediaSize:     strconv.Itoa(cfg.Bee.Platforms.Linear.MaxMediaSize),
-		EngineDefault:          cfg.Bee.Engine.Default,
-		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
-		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
-		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
-		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
-		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
-		ClaudePath:             cfg.Bee.Engines.Claude.Path,
-		CodexPath:              cfg.Bee.Engines.Codex.Path,
-		PiPath:                 cfg.Bee.Engines.Pi.Path,
-		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
-		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
-		FFprobePath:            cfg.Bee.Media.FFprobePath,
-		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
-		AuthUsername:           cfg.Server.Auth.Username,
-		AuthPassword:           cfg.Server.Auth.Password,
-		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
-		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
-		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),
-	}
+	cmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", i18n.M.Flag.ConfigOutput)
+	return cmd
 }
 
 func runConfig() error {
@@ -761,161 +603,4 @@ func runConfig() error {
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
 	return nil
-}
-
-// runLanguageStep shows a bilingual language-selection prompt and reloads i18n
-// with the chosen language. existingLang should be "" or a previously saved
-// language code ("en" or "zh"); it determines the default selection.
-func runLanguageStep(existingLang string) (string, error) {
-	defaultOpt := "English"
-	if existingLang == "zh" {
-		defaultOpt = "Chinese"
-	}
-
-	var selected string
-	if err := survey.AskOne(&survey.Select{
-		Message: "Select language",
-		Options: []string{"English", "Chinese"},
-		Default: defaultOpt,
-	}, &selected); err != nil {
-		return "", handleSurveyErr(err)
-	}
-
-	lang := "en"
-	if selected == "Chinese" {
-		lang = "zh"
-	}
-
-	if err := i18n.Load(lang); err != nil {
-		return "", fmt.Errorf("load i18n: %w", err)
-	}
-	applySurveyTemplates()
-	return lang, nil
-}
-
-func promptPassword(vals *configValues) error {
-	var method string
-	if err := survey.AskOne(&survey.Select{
-		Message: i18n.M.Prompt.PasswordSetup,
-		Options: []string{i18n.M.Prompt.OptionEnterManually, i18n.M.Prompt.OptionGenerateRandom},
-	}, &method); err != nil {
-		return handleSurveyErr(err)
-	}
-	switch method {
-	case i18n.M.Prompt.OptionEnterManually:
-		if err := survey.AskOne(&survey.Password{
-			Message: i18n.M.Prompt.Password,
-		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-	case i18n.M.Prompt.OptionGenerateRandom:
-		b := make([]byte, 16)
-		rand.Read(b)
-		vals.AuthPassword = hex.EncodeToString(b)
-		fmt.Printf(i18n.M.Output.Config.PasswordGenerated+"\n", vals.AuthPassword)
-	}
-	return nil
-}
-
-func handleSurveyErr(err error) error {
-	if errors.Is(err, terminal.InterruptErr) {
-		fmt.Println(i18n.M.Prompt.Cancelled)
-		return errInterrupted
-	}
-	return err
-}
-
-// renderInlineYAMLList formats a comma-separated string into an inline YAML
-// array body, e.g. `"a", "b"`. Empty input returns "".
-func renderInlineYAMLList(csv string) string {
-	parts := utils.SplitAndTrim(csv)
-	out := make([]string, len(parts))
-	for i, p := range parts {
-		out[i] = fmt.Sprintf("%q", p)
-	}
-	return strings.Join(out, ", ")
-}
-
-func promptBotName(fieldPtr *string) error {
-	return handleSurveyErr(survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.BotName,
-		Default: *fieldPtr,
-	}, fieldPtr, survey.WithValidator(survey.Required)))
-}
-
-type engineMapping struct{ name, label string }
-
-func engineMappings() []engineMapping {
-	return []engineMapping{
-		{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
-		{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
-		{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
-	}
-}
-
-func engineLabel(name string) string {
-	for _, m := range engineMappings() {
-		if m.name == name {
-			return m.label
-		}
-	}
-	return ""
-}
-
-func engineName(label string) string {
-	for _, m := range engineMappings() {
-		if m.label == label {
-			return m.name
-		}
-	}
-	return ""
-}
-
-func configureEngineExecutable(binaryName, foundMsg, manualMsg, pathMsg string, pathDst *string) error {
-	if found, err := exec.LookPath(binaryName); err == nil {
-		fmt.Printf(foundMsg+"\n", found)
-		*pathDst = found
-	} else {
-		fmt.Println(manualMsg)
-		if err := survey.AskOne(&survey.Input{
-			Message: pathMsg,
-			Default: *pathDst,
-		}, pathDst, survey.WithValidator(executablePathValidator)); err != nil {
-			return handleSurveyErr(err)
-		}
-	}
-	return nil
-}
-
-func executablePathValidator(val any) error {
-	path, _ := val.(string)
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
-	}
-	if info.IsDir() {
-		return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
-	}
-	if info.Mode()&0111 == 0 {
-		return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
-	}
-	return nil
-}
-
-func installBuiltinSkills() {
-	results, err := skillinstall.InstallSkillsToDefaults()
-	if err != nil {
-		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
-		return
-	}
-	for _, r := range results {
-		switch r.Action {
-		case skillinstall.ActionInstalled:
-			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
-		case skillinstall.ActionUpdated:
-			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
-		case skillinstall.ActionUpToDate:
-			fmt.Printf(i18n.M.Output.Config.SkillUpToDate+"\n", r.Name)
-		}
-	}
 }

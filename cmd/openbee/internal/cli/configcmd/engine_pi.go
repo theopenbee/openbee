@@ -1,4 +1,4 @@
-package main
+package configcmd
 
 import (
 	ai "github.com/theopenbee/openbee/internal/ai"
