@@ -31,3 +31,16 @@ func TestRenderSchtaskXML(t *testing.T) {
 		}
 	}
 }
+
+func TestEncodeUTF16LE_HasBOM(t *testing.T) {
+	got := encodeUTF16LE("A")
+	if len(got) != 4 {
+		t.Fatalf("want 4 bytes, got %d", len(got))
+	}
+	if got[0] != 0xFF || got[1] != 0xFE {
+		t.Errorf("missing BOM: %x %x", got[0], got[1])
+	}
+	if got[2] != 'A' || got[3] != 0 {
+		t.Errorf("wrong encoding: %x %x", got[2], got[3])
+	}
+}
