@@ -106,13 +106,21 @@ openbee config
 openbee config -o /path/to/config.yaml
 ```
 
-### 第三步：启动服务
+### 第 3 步（可选）：开机自启动
+
+```bash
+openbee service install
+```
+
+此命令会把 `openbee server` 注册到 macOS / Linux / Windows 的用户登录自启动。详见 [docs/service-autostart.md](docs/service-autostart.md)。
+
+### 第四步：启动服务
 
 ```bash
 openbee server -d
 ```
 
-### 第四步：开始使用
+### 第五步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 - 在已配置的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
