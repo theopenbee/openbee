@@ -9,6 +9,7 @@ import (
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/configcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/servicecmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/upgradecmd"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
@@ -43,5 +44,6 @@ func NewRoot(info BuildInfo) *cobra.Command {
 	root.AddCommand(ctlcmd.NewCommand())
 	root.AddCommand(upgradecmd.NewCommand(info.Version))
 	root.AddCommand(configcmd.NewCommand())
+	root.AddCommand(servicecmd.NewCommand())
 	return root
 }
