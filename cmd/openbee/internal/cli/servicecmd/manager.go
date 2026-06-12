@@ -1,6 +1,15 @@
 package servicecmd
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/utils"
+)
 
 // RunState reports the service manager's view of the underlying process.
 type RunState int
@@ -51,3 +60,43 @@ type Manager interface {
 	Stop(ctx context.Context) error
 	Status(ctx context.Context) (Status, error)
 }
+
+// resolveInstallOptions builds InstallOptions from raw CLI flag values.
+// configFlag is the value of --config (empty string means "use default").
+func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptions, error) {
+	exe, err := utils.ResolveExecutable()
+	if err != nil {
+		return InstallOptions{}, fmt.Errorf("resolve executable: %w", err)
+	}
+
+	cfgPath := configFlag
+	if cfgPath == "" {
+		home, err := config.OpenbeeHomeDir()
+		if err != nil {
+			return InstallOptions{}, fmt.Errorf("resolve home dir: %w", err)
+		}
+		cfgPath = home + string(os.PathSeparator) + "config.yaml"
+	}
+	if _, err := os.Stat(cfgPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return InstallOptions{}, fmt.Errorf(i18n.M.Output.Service.ConfigMissing, cfgPath)
+		}
+		return InstallOptions{}, fmt.Errorf("stat config: %w", err)
+	}
+
+	logPath, err := config.DaemonLogFile()
+	if err != nil {
+		return InstallOptions{}, fmt.Errorf("resolve log path: %w", err)
+	}
+
+	return InstallOptions{
+		ExePath:    exe,
+		ConfigPath: cfgPath,
+		LogPath:    logPath,
+		AutoStart:  !noStart,
+		Force:      force,
+	}, nil
+}
+
+// newManager is an indirection point so tests can inject a fake.
+var newManager = NewManager
