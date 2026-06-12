@@ -23,23 +23,34 @@ func (e CmdEntry) Sub(name string) string { return e.Subs[name] }
 
 // CmdMessages maps to all cobra command Short/Long descriptions.
 type CmdMessages struct {
-	Root          CmdEntry `yaml:"root"`
-	Config        CmdEntry `yaml:"config"`
-	Server        CmdEntry `yaml:"server"`
-	Stop          CmdEntry `yaml:"stop"`
-	Restart       CmdEntry `yaml:"restart"`
-	Status        CmdEntry `yaml:"status"`
-	Upgrade       CmdEntry `yaml:"upgrade"`
-	Backup        CmdEntry `yaml:"backup"`
-	Restore       CmdEntry `yaml:"restore"`
-	Ctl           CmdEntry `yaml:"ctl"`
-	CtlWorker     CmdEntry `yaml:"ctl_worker"`
-	CtlTask       CmdEntry `yaml:"ctl_task"`
-	CtlConstraint CmdEntry `yaml:"ctl_constraint"`
-	CtlSession    CmdEntry `yaml:"ctl_session"`
-	CtlSystem     CmdEntry `yaml:"ctl_system"`
-	CtlMessage    CmdEntry `yaml:"ctl_message"`
-	CtlDepartment CmdEntry `yaml:"ctl_department"`
+	Root          CmdEntry   `yaml:"root"`
+	Config        CmdEntry   `yaml:"config"`
+	Server        CmdEntry   `yaml:"server"`
+	Stop          CmdEntry   `yaml:"stop"`
+	Restart       CmdEntry   `yaml:"restart"`
+	Status        CmdEntry   `yaml:"status"`
+	Upgrade       CmdEntry   `yaml:"upgrade"`
+	Backup        CmdEntry   `yaml:"backup"`
+	Restore       CmdEntry   `yaml:"restore"`
+	Ctl           CmdEntry   `yaml:"ctl"`
+	CtlWorker     CmdEntry   `yaml:"ctl_worker"`
+	CtlTask       CmdEntry   `yaml:"ctl_task"`
+	CtlConstraint CmdEntry   `yaml:"ctl_constraint"`
+	CtlSession    CmdEntry   `yaml:"ctl_session"`
+	CtlSystem     CmdEntry   `yaml:"ctl_system"`
+	CtlMessage    CmdEntry   `yaml:"ctl_message"`
+	CtlDepartment CmdEntry   `yaml:"ctl_department"`
+	Service       ServiceCmd `yaml:"service"`
+}
+
+// ServiceCmd holds Short descriptions for the service command group.
+type ServiceCmd struct {
+	Short     string `yaml:"short"`
+	Install   string `yaml:"install"`
+	Uninstall string `yaml:"uninstall"`
+	Start     string `yaml:"start"`
+	Stop      string `yaml:"stop"`
+	StatusS   string `yaml:"status"`
 }
 
 // PromptMessages maps to all survey prompt Message fields.
@@ -127,6 +138,9 @@ type FlagMessages struct {
 	UpgradeCheck    string `yaml:"upgrade_check"`
 	UpgradeCDNURL   string `yaml:"upgrade_cdn_url"`
 	UpgradeCN       string `yaml:"upgrade_cn"`
+	ServiceConfig   string `yaml:"service_config"`
+	ServiceNoStart  string `yaml:"service_no_start"`
+	ServiceForce    string `yaml:"service_force"`
 }
 
 // ValidateMessages maps to interactive input validation error messages.
@@ -148,6 +162,22 @@ type OutputMessages struct {
 	Config  ConfigOutput  `yaml:"config"`
 	Weixin  WeixinOutput  `yaml:"weixin"`
 	Daemon  DaemonOutput  `yaml:"daemon"`
+	Service ServiceOutput `yaml:"service"`
+}
+
+// ServiceOutput maps to service command runtime output.
+type ServiceOutput struct {
+	Installed        string `yaml:"installed"`
+	Uninstalled      string `yaml:"uninstalled"`
+	Started          string `yaml:"started"`
+	Stopped          string `yaml:"stopped"`
+	AlreadyInstalled string `yaml:"already_installed"`
+	NotInstalled     string `yaml:"not_installed"`
+	ConfigMissing    string `yaml:"config_missing"`
+	SystemdUnavail   string `yaml:"systemd_unavailable"`
+	StatusInstalled  string `yaml:"status_installed"`
+	StatusRunState   string `yaml:"status_run_state"`
+	StatusPIDUptime  string `yaml:"status_pid_uptime"`
 }
 
 // StopOutput maps to stop command runtime output.

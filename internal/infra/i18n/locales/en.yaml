@@ -65,6 +65,13 @@ cmd:
       create: "Create a new department"
       update: "Update a department (patch: omitted fields unchanged)"
       delete: "Delete a department"
+  service:
+    short: "Manage openbee user-level autostart"
+    install: "Install autostart and (by default) start the service immediately"
+    uninstall: "Uninstall autostart"
+    start: "Start the service via the OS service manager"
+    stop: "Stop the service via the OS service manager"
+    status: "Show autostart installation and run state"
 prompt:
   engine_select: "Select AI engine:"
   engine_default: "Default engine:"
@@ -134,6 +141,9 @@ flag:
   upgrade_check: "check for updates only, do not upgrade"
   upgrade_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
   upgrade_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
+  service_config: "Path to openbee config file (defaults to ~/.openbee/config.yaml)"
+  service_no_start: "Only register autostart, do not start the service"
+  service_force: "Overwrite existing installation"
 output:
   stop:
     not_running: "openbee is not running"
@@ -205,6 +215,18 @@ output:
   daemon:
     started: "Daemon started (PID: %d)"
     already_running: "daemon already running (PID: %d)"
+  service:
+    installed: "service installed at %s"
+    uninstalled: "service uninstalled"
+    started: "service started"
+    stopped: "service stopped"
+    already_installed: "service already installed; pass --force to overwrite or run 'openbee service uninstall' first"
+    not_installed: "service not installed"
+    config_missing: "config file not found at %s, run 'openbee config' first"
+    systemd_unavailable: "systemd user session unavailable; see docs/service-autostart.md for prerequisites"
+    status_installed: "Installed: %s"
+    status_run_state: "State:     %s"
+    status_pid_uptime: "PID:       %d (uptime %s)"
 validate:
   port_integer: "port must be an integer"
   positive_integer: "must be a positive integer"
