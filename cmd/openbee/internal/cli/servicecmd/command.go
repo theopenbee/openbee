@@ -22,8 +22,3 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
-func newInstallCommand() *cobra.Command   { return &cobra.Command{Use: "install"} }
-func newUninstallCommand() *cobra.Command { return &cobra.Command{Use: "uninstall"} }
-func newStartCommand() *cobra.Command     { return &cobra.Command{Use: "start"} }
-func newStopCommand() *cobra.Command      { return &cobra.Command{Use: "stop"} }
-func newStatusCommand() *cobra.Command    { return &cobra.Command{Use: "status"} }
