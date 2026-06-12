@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenBee Worker Daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart={{.ExePath}} server -c {{.ConfigPath}}
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:{{.LogPath}}
+StandardError=append:{{.LogPath}}
+Environment=HOME={{.Home}}
+
+[Install]
+WantedBy=default.target
