@@ -59,24 +59,6 @@ func removePIDFile(path string) error {
 	return err
 }
 
-// formatUptime formats elapsed seconds as "Xh Ym", "Xm Ys", or "Xs".
-func formatUptime(secs int64) string {
-	if secs < 0 {
-		return "0s"
-	}
-	if secs < 60 {
-		return fmt.Sprintf("%ds", secs)
-	}
-	if secs < 3600 {
-		m := secs / 60
-		s := secs % 60
-		return fmt.Sprintf("%dm %ds", m, s)
-	}
-	h := secs / 3600
-	m := (secs % 3600) / 60
-	return fmt.Sprintf("%dh %dm", h, m)
-}
-
 // daemonize re-executes the current binary as a background daemon with the given config path.
 // The caller should return immediately after daemonize returns nil.
 func daemonize(cfgPath string) error {

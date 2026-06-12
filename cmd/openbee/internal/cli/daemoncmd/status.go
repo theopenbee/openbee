@@ -46,5 +46,5 @@ func daemonStatus(pidFilePath string) (running bool, msg string) {
 	}
 
 	uptime := time.Now().Unix() - startTS
-	return true, fmt.Sprintf(i18n.M.Output.Status.Running, pid, formatUptime(uptime))
+	return true, fmt.Sprintf(i18n.M.Output.Status.Running, pid, utils.FormatUptime(uptime))
 }

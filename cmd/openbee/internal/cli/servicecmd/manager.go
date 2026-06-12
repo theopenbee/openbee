@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -34,7 +35,6 @@ func (s RunState) String() string {
 	}
 }
 
-// Status is the result of Manager.Status.
 type Status struct {
 	Installed  bool
 	RunState   RunState
@@ -42,8 +42,6 @@ type Status struct {
 	UptimeSecs int64
 }
 
-// InstallOptions captures everything Manager.Install needs to render and
-// register a platform-specific autostart artifact.
 type InstallOptions struct {
 	ExePath    string
 	ConfigPath string
@@ -61,8 +59,6 @@ type Manager interface {
 	Status(ctx context.Context) (Status, error)
 }
 
-// resolveInstallOptions builds InstallOptions from raw CLI flag values.
-// configFlag is the value of --config (empty string means "use default").
 func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptions, error) {
 	exe, err := utils.ResolveExecutable()
 	if err != nil {
@@ -75,7 +71,7 @@ func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptio
 		if err != nil {
 			return InstallOptions{}, fmt.Errorf("resolve home dir: %w", err)
 		}
-		cfgPath = home + string(os.PathSeparator) + "config.yaml"
+		cfgPath = filepath.Join(home, "config.yaml")
 	}
 	if _, err := os.Stat(cfgPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -98,5 +94,5 @@ func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptio
 	}, nil
 }
 
-// newManager is an indirection point so tests can inject a fake.
+// newManager is the package-level factory; tests override it to inject a fake.
 var newManager = NewManager

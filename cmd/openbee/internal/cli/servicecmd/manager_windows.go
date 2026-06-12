@@ -6,14 +6,11 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
@@ -23,12 +20,7 @@ var windowsTemplatesFS embed.FS
 
 const schtaskName = "OpenBee"
 
-var runCommand = defaultRunCommand
-
-func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	return cmd.CombinedOutput()
-}
+var schtaskTmpl = parseTemplate(windowsTemplatesFS, "templates/schtask.xml.tmpl", "schtask")
 
 type schtaskTemplateData struct {
 	UserId     string
@@ -38,19 +30,7 @@ type schtaskTemplateData struct {
 }
 
 func renderSchtaskXML(d schtaskTemplateData) (string, error) {
-	b, err := windowsTemplatesFS.ReadFile("templates/schtask.xml.tmpl")
-	if err != nil {
-		return "", err
-	}
-	tmpl, err := template.New("schtask").Parse(string(b))
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, d); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return executeTemplate(schtaskTmpl, d)
 }
 
 type windowsManager struct{}
@@ -65,15 +45,7 @@ func currentUserID() (string, error) {
 	return u.Username, nil
 }
 
-func (windowsManager) taskExists(ctx context.Context) bool {
-	_, err := runCommand(ctx, "schtasks", "/Query", "/TN", schtaskName)
-	return err == nil
-}
-
-func (m windowsManager) Install(ctx context.Context, opts InstallOptions) error {
-	if m.taskExists(ctx) && !opts.Force {
-		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
-	}
+func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 	uid, err := currentUserID()
 	if err != nil {
 		return err
@@ -97,8 +69,14 @@ func (m windowsManager) Install(ctx context.Context, opts InstallOptions) error 
 	}
 	tmp.Close()
 
-	args := []string{"/Create", "/XML", tmp.Name(), "/TN", schtaskName, "/F"}
+	args := []string{"/Create", "/XML", tmp.Name(), "/TN", schtaskName}
+	if opts.Force {
+		args = append(args, "/F")
+	}
 	if out, err := runCommand(ctx, "schtasks", args...); err != nil {
+		if !opts.Force && taskAlreadyExists(out) {
+			return fmt.Errorf("%s", i18n.M.Output.Service.AlreadyInstalled)
+		}
 		return fmt.Errorf("schtasks /Create: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	if !opts.AutoStart {
@@ -135,25 +113,18 @@ func (windowsManager) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m windowsManager) Status(ctx context.Context) (Status, error) {
+func (windowsManager) Status(ctx context.Context) (Status, error) {
 	st := Status{}
-	if !m.taskExists(ctx) {
+	out, err := runCommand(ctx, "schtasks", "/Query", "/TN", schtaskName, "/V", "/FO", "LIST")
+	if err != nil {
 		return st, nil
 	}
 	st.Installed = true
-	out, err := runCommand(ctx, "schtasks", "/Query", "/TN", schtaskName, "/V", "/FO", "LIST")
-	if err != nil {
-		st.RunState = RunStateUnknown
-		return st, nil
-	}
-	status := parseSchtasksField(string(out), "Status:")
-	switch strings.TrimSpace(status) {
+	switch strings.TrimSpace(parseSchtasksField(string(out), "Status:")) {
 	case "Running":
 		st.RunState = RunStateRunning
 	case "Ready":
 		st.RunState = RunStateStopped
-	default:
-		st.RunState = RunStateUnknown
 	}
 	if st.RunState == RunStateRunning {
 		if pid := lookupOpenbeePID(ctx); pid > 0 {
@@ -161,6 +132,11 @@ func (m windowsManager) Status(ctx context.Context) (Status, error) {
 		}
 	}
 	return st, nil
+}
+
+func taskAlreadyExists(out []byte) bool {
+	lower := strings.ToLower(string(out))
+	return strings.Contains(lower, "already exists")
 }
 
 func parseSchtasksField(s, key string) string {

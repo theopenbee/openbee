@@ -3,17 +3,14 @@
 package servicecmd
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
@@ -23,15 +20,7 @@ var linuxTemplatesFS embed.FS
 
 const systemdUnitName = "openbee.service"
 
-var (
-	execLookPath = exec.LookPath
-	runCommand   = defaultRunCommand
-)
-
-func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	return cmd.CombinedOutput()
-}
+var systemdTmpl = parseTemplate(linuxTemplatesFS, "templates/systemd.service.tmpl", "systemd")
 
 type systemdTemplateData struct {
 	ExePath    string
@@ -41,19 +30,7 @@ type systemdTemplateData struct {
 }
 
 func renderSystemdUnit(d systemdTemplateData) (string, error) {
-	b, err := linuxTemplatesFS.ReadFile("templates/systemd.service.tmpl")
-	if err != nil {
-		return "", err
-	}
-	tmpl, err := template.New("systemd").Parse(string(b))
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, d); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return executeTemplate(systemdTmpl, d)
 }
 
 type linuxManager struct{}
@@ -65,8 +42,6 @@ func NewManager() (Manager, error) {
 	return linuxManager{}, nil
 }
 
-// xdgConfigHome returns the XDG_CONFIG_HOME directory, falling back to
-// $HOME/.config if the env var is unset or empty.
 func xdgConfigHome() (string, error) {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir, nil
@@ -115,7 +90,7 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	}
 	enableArgs := []string{"--user", "enable", systemdUnitName}
 	if opts.AutoStart {
-		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
+		enableArgs = append(enableArgs[:2], "--now", systemdUnitName)
 	}
 	if out, err := runCommand(ctx, "systemctl", enableArgs...); err != nil {
 		return fmt.Errorf("systemctl enable: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -191,15 +166,4 @@ func parseSystemctlShow(s string) map[string]string {
 		}
 	}
 	return out
-}
-
-func readUptime(pid int) int64 {
-	out, err := exec.Command("ps", "-o", "etimes=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil {
-		return 0
-	}
-	if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
-		return v
-	}
-	return 0
 }

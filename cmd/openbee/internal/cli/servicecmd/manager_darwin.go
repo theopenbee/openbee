@@ -3,19 +3,16 @@
 package servicecmd
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
@@ -25,16 +22,7 @@ var darwinTemplatesFS embed.FS
 
 const launchdLabel = "com.theopenbee.openbee"
 
-// Indirections for tests.
-var (
-	execLookPath = exec.LookPath
-	runCommand   = defaultRunCommand
-)
-
-func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	return cmd.CombinedOutput()
-}
+var launchdTmpl = parseTemplate(darwinTemplatesFS, "templates/launchd.plist.tmpl", "launchd")
 
 type launchdTemplateData struct {
 	ExePath    string
@@ -45,24 +33,11 @@ type launchdTemplateData struct {
 }
 
 func renderLaunchdPlist(d launchdTemplateData) (string, error) {
-	b, err := darwinTemplatesFS.ReadFile("templates/launchd.plist.tmpl")
-	if err != nil {
-		return "", err
-	}
-	tmpl, err := template.New("launchd").Parse(string(b))
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, d); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return executeTemplate(launchdTmpl, d)
 }
 
 type darwinManager struct{}
 
-// NewManager returns the macOS launchd-based service manager.
 func NewManager() (Manager, error) { return darwinManager{}, nil }
 
 func (darwinManager) plistPath() (string, error) {
@@ -97,9 +72,6 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	}
 	if err := os.WriteFile(pp, []byte(plist), 0o644); err != nil {
 		return err
-	}
-	if _, err := execLookPath("launchctl"); err != nil {
-		return fmt.Errorf("launchctl not found: %w", err)
 	}
 	if out, err := runCommand(ctx, "launchctl", "bootstrap", guiTarget(), pp); err != nil {
 		return fmt.Errorf("launchctl bootstrap: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -176,17 +148,6 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 		}
 	}
 	return st, nil
-}
-
-func readUptime(pid int) int64 {
-	out, err := exec.Command("ps", "-o", "etimes=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil {
-		return 0
-	}
-	if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
-		return v
-	}
-	return 0
 }
 
 func guiTarget() string {

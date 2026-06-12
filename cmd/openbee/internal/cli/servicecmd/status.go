@@ -2,11 +2,11 @@ package servicecmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newStatusCommand() *cobra.Command {
@@ -26,7 +26,7 @@ func newStatusCommand() *cobra.Command {
 			fmt.Fprintf(out, i18n.M.Output.Service.StatusInstalled+"\n", boolYesNo(st.Installed))
 			fmt.Fprintf(out, i18n.M.Output.Service.StatusRunState+"\n", st.RunState.String())
 			if st.RunState == RunStateRunning && st.PID > 0 {
-				fmt.Fprintf(out, i18n.M.Output.Service.StatusPIDUptime+"\n", st.PID, formatUptime(time.Duration(st.UptimeSecs)*time.Second))
+				fmt.Fprintf(out, i18n.M.Output.Service.StatusPIDUptime+"\n", st.PID, utils.FormatUptime(st.UptimeSecs))
 			}
 			return nil
 		},
@@ -38,15 +38,4 @@ func boolYesNo(b bool) string {
 		return "yes"
 	}
 	return "no"
-}
-
-func formatUptime(d time.Duration) string {
-	secs := int64(d.Seconds())
-	if secs < 60 {
-		return fmt.Sprintf("%ds", secs)
-	}
-	if secs < 3600 {
-		return fmt.Sprintf("%dm %ds", secs/60, secs%60)
-	}
-	return fmt.Sprintf("%dh %dm", secs/3600, (secs%3600)/60)
 }
