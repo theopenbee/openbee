@@ -6,7 +6,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -40,16 +39,16 @@ type darwinManager struct{}
 
 func NewManager() (Manager, error) { return darwinManager{}, nil }
 
-func (darwinManager) plistPath() (string, error) {
-	home, err := os.UserHomeDir()
+func (darwinManager) plistPath() (home, plistPath string, err error) {
+	home, err = os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist"), nil
+	return home, filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist"), nil
 }
 
 func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
-	pp, err := m.plistPath()
+	home, pp, err := m.plistPath()
 	if err != nil {
 		return err
 	}
@@ -59,7 +58,6 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.MkdirAll(filepath.Dir(pp), 0o755); err != nil {
 		return err
 	}
-	home, _ := os.UserHomeDir()
 	plist, err := renderLaunchdPlist(launchdTemplateData{
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
@@ -73,20 +71,20 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(pp, []byte(plist), 0o644); err != nil {
 		return err
 	}
-	if out, err := runCommand(ctx, "launchctl", "bootstrap", guiTarget(), pp); err != nil {
-		return fmt.Errorf("launchctl bootstrap: %w (%s)", err, strings.TrimSpace(string(out)))
+	if _, err := runOrWrap(ctx, "launchctl bootstrap", "launchctl", "bootstrap", guiTarget(), pp); err != nil {
+		return err
 	}
 	if !opts.AutoStart {
 		return nil
 	}
-	if out, err := runCommand(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
-		return fmt.Errorf("launchctl kickstart: %w (%s)", err, strings.TrimSpace(string(out)))
+	if _, err := runOrWrap(ctx, "launchctl kickstart", "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (m darwinManager) Uninstall(ctx context.Context) error {
-	pp, err := m.plistPath()
+	_, pp, err := m.plistPath()
 	if err != nil {
 		return err
 	}
@@ -98,17 +96,13 @@ func (m darwinManager) Uninstall(ctx context.Context) error {
 }
 
 func (darwinManager) Start(ctx context.Context) error {
-	if out, err := runCommand(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
-		return fmt.Errorf("launchctl kickstart: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "launchctl kickstart", "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
+	return err
 }
 
 func (darwinManager) Stop(ctx context.Context) error {
-	if out, err := runCommand(ctx, "launchctl", "kill", "SIGTERM", guiTarget()+"/"+launchdLabel); err != nil {
-		return fmt.Errorf("launchctl kill: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "launchctl kill", "launchctl", "kill", "SIGTERM", guiTarget()+"/"+launchdLabel)
+	return err
 }
 
 var (
@@ -117,7 +111,7 @@ var (
 )
 
 func (m darwinManager) Status(ctx context.Context) (Status, error) {
-	pp, err := m.plistPath()
+	_, pp, err := m.plistPath()
 	if err != nil {
 		return Status{}, err
 	}
@@ -144,7 +138,7 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 	if m := launchdPIDRe.FindStringSubmatch(text); len(m) == 2 {
 		if pid, err := strconv.Atoi(m[1]); err == nil {
 			st.PID = pid
-			st.UptimeSecs = readUptime(pid)
+			st.UptimeSecs = readUptime(ctx, pid)
 		}
 	}
 	return st, nil

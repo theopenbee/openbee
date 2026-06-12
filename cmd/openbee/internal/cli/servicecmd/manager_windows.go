@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"fmt"
+	"errors"
 	"os"
 	"os/user"
 	"strconv"
@@ -37,7 +37,7 @@ type windowsManager struct{}
 
 func NewManager() (Manager, error) { return windowsManager{}, nil }
 
-func currentUserID() (string, error) {
+func currentUsername() (string, error) {
 	u, err := user.Current()
 	if err != nil {
 		return "", err
@@ -46,12 +46,12 @@ func currentUserID() (string, error) {
 }
 
 func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
-	uid, err := currentUserID()
+	username, err := currentUsername()
 	if err != nil {
 		return err
 	}
 	xml, err := renderSchtaskXML(schtaskTemplateData{
-		UserId:     uid,
+		UserId:     username,
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
@@ -73,44 +73,42 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 	if opts.Force {
 		args = append(args, "/F")
 	}
-	if out, err := runCommand(ctx, "schtasks", args...); err != nil {
+	out, err := runCommand(ctx, "schtasks", args...)
+	if err != nil {
 		if !opts.Force && taskAlreadyExists(out) {
-			return fmt.Errorf("%s", i18n.M.Output.Service.AlreadyInstalled)
+			return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 		}
-		return fmt.Errorf("schtasks /Create: %w (%s)", err, strings.TrimSpace(string(out)))
+		return wrapRunErr("schtasks /Create", err, out)
 	}
 	if !opts.AutoStart {
 		return nil
 	}
-	if out, err := runCommand(ctx, "schtasks", "/Run", "/TN", schtaskName); err != nil {
-		return fmt.Errorf("schtasks /Run: %w (%s)", err, strings.TrimSpace(string(out)))
+	if _, err := runOrWrap(ctx, "schtasks /Run", "schtasks", "/Run", "/TN", schtaskName); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (windowsManager) Uninstall(ctx context.Context) error {
 	_, _ = runCommand(ctx, "schtasks", "/End", "/TN", schtaskName)
-	if out, err := runCommand(ctx, "schtasks", "/Delete", "/TN", schtaskName, "/F"); err != nil {
+	out, err := runCommand(ctx, "schtasks", "/Delete", "/TN", schtaskName, "/F")
+	if err != nil {
 		if strings.Contains(strings.ToLower(string(out)), "cannot find") {
 			return nil
 		}
-		return fmt.Errorf("schtasks /Delete: %w (%s)", err, strings.TrimSpace(string(out)))
+		return wrapRunErr("schtasks /Delete", err, out)
 	}
 	return nil
 }
 
 func (windowsManager) Start(ctx context.Context) error {
-	if out, err := runCommand(ctx, "schtasks", "/Run", "/TN", schtaskName); err != nil {
-		return fmt.Errorf("schtasks /Run: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "schtasks /Run", "schtasks", "/Run", "/TN", schtaskName)
+	return err
 }
 
 func (windowsManager) Stop(ctx context.Context) error {
-	if out, err := runCommand(ctx, "schtasks", "/End", "/TN", schtaskName); err != nil {
-		return fmt.Errorf("schtasks /End: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "schtasks /End", "schtasks", "/End", "/TN", schtaskName)
+	return err
 }
 
 func (windowsManager) Status(ctx context.Context) (Status, error) {

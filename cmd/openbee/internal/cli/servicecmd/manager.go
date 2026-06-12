@@ -13,6 +13,10 @@ import (
 )
 
 // RunState reports the service manager's view of the underlying process.
+//
+// RunStateFailed is currently only produced by the linux (systemd) backend,
+// which surfaces a distinct "failed" ActiveState; launchd and Task Scheduler
+// collapse failure into RunStateStopped.
 type RunState int
 
 const (

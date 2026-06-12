@@ -3,6 +3,7 @@
 package servicecmd
 
 import (
+	"context"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -10,8 +11,8 @@ import (
 
 var execLookPath = exec.LookPath
 
-func readUptime(pid int) int64 {
-	out, err := exec.Command("ps", "-o", "etimes=", "-p", strconv.Itoa(pid)).Output()
+func readUptime(ctx context.Context, pid int) int64 {
+	out, err := runCommand(ctx, "ps", "-o", "etimes=", "-p", strconv.Itoa(pid))
 	if err != nil {
 		return 0
 	}

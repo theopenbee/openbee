@@ -6,7 +6,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -85,15 +84,15 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
 		return err
 	}
-	if out, err := runCommand(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
-		return fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(string(out)))
+	if _, err := runOrWrap(ctx, "daemon-reload", "systemctl", "--user", "daemon-reload"); err != nil {
+		return err
 	}
 	enableArgs := []string{"--user", "enable", systemdUnitName}
 	if opts.AutoStart {
-		enableArgs = append(enableArgs[:2], "--now", systemdUnitName)
+		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
 	}
-	if out, err := runCommand(ctx, "systemctl", enableArgs...); err != nil {
-		return fmt.Errorf("systemctl enable: %w (%s)", err, strings.TrimSpace(string(out)))
+	if _, err := runOrWrap(ctx, "systemctl enable", "systemctl", enableArgs...); err != nil {
+		return err
 	}
 	return nil
 }
@@ -112,17 +111,13 @@ func (m linuxManager) Uninstall(ctx context.Context) error {
 }
 
 func (linuxManager) Start(ctx context.Context) error {
-	if out, err := runCommand(ctx, "systemctl", "--user", "start", systemdUnitName); err != nil {
-		return fmt.Errorf("systemctl start: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "systemctl start", "systemctl", "--user", "start", systemdUnitName)
+	return err
 }
 
 func (linuxManager) Stop(ctx context.Context) error {
-	if out, err := runCommand(ctx, "systemctl", "--user", "stop", systemdUnitName); err != nil {
-		return fmt.Errorf("systemctl stop: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
+	_, err := runOrWrap(ctx, "systemctl stop", "systemctl", "--user", "stop", systemdUnitName)
+	return err
 }
 
 func (m linuxManager) Status(ctx context.Context) (Status, error) {
@@ -153,7 +148,7 @@ func (m linuxManager) Status(ctx context.Context) (Status, error) {
 	}
 	if pid, err := strconv.Atoi(props["MainPID"]); err == nil && pid > 0 {
 		st.PID = pid
-		st.UptimeSecs = readUptime(pid)
+		st.UptimeSecs = readUptime(ctx, pid)
 	}
 	return st, nil
 }
