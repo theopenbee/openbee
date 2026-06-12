@@ -7,13 +7,31 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"text/template"
+
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 //go:embed templates/systemd.service.tmpl
 var linuxTemplatesFS embed.FS
 
 const systemdUnitName = "openbee.service"
+
+var (
+	execLookPath = exec.LookPath
+	runCommand   = defaultRunCommand
+)
+
+func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	return cmd.CombinedOutput()
+}
 
 type systemdTemplateData struct {
 	ExePath    string
@@ -38,14 +56,150 @@ func renderSystemdUnit(d systemdTemplateData) (string, error) {
 	return buf.String(), nil
 }
 
-var errLinuxNotImplemented = errors.New("openbee service: systemd support not yet wired")
-
 type linuxManager struct{}
 
-func NewManager() (Manager, error) { return linuxManager{}, nil }
+func NewManager() (Manager, error) {
+	if _, err := execLookPath("systemctl"); err != nil {
+		return nil, errors.New(i18n.M.Output.Service.SystemdUnavail)
+	}
+	return linuxManager{}, nil
+}
 
-func (linuxManager) Install(context.Context, InstallOptions) error { return errLinuxNotImplemented }
-func (linuxManager) Uninstall(context.Context) error               { return errLinuxNotImplemented }
-func (linuxManager) Start(context.Context) error                   { return errLinuxNotImplemented }
-func (linuxManager) Stop(context.Context) error                    { return errLinuxNotImplemented }
-func (linuxManager) Status(context.Context) (Status, error)        { return Status{}, errLinuxNotImplemented }
+// xdgConfigHome returns the XDG_CONFIG_HOME directory, falling back to
+// $HOME/.config if the env var is unset or empty.
+func xdgConfigHome() (string, error) {
+	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config"), nil
+}
+
+func (linuxManager) unitPath() (string, error) {
+	cfgHome, err := xdgConfigHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cfgHome, "systemd", "user", systemdUnitName), nil
+}
+
+func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
+	up, err := m.unitPath()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(up); err == nil && !opts.Force {
+		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
+	}
+	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
+		return err
+	}
+	home, _ := os.UserHomeDir()
+	unit, err := renderSystemdUnit(systemdTemplateData{
+		ExePath:    opts.ExePath,
+		ConfigPath: opts.ConfigPath,
+		LogPath:    opts.LogPath,
+		Home:       home,
+	})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
+		return err
+	}
+	if out, err := runCommand(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
+		return fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	enableArgs := []string{"--user", "enable", systemdUnitName}
+	if opts.AutoStart {
+		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
+	}
+	if out, err := runCommand(ctx, "systemctl", enableArgs...); err != nil {
+		return fmt.Errorf("systemctl enable: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (m linuxManager) Uninstall(ctx context.Context) error {
+	up, err := m.unitPath()
+	if err != nil {
+		return err
+	}
+	_, _ = runCommand(ctx, "systemctl", "--user", "disable", "--now", systemdUnitName)
+	if err := os.Remove(up); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	_, _ = runCommand(ctx, "systemctl", "--user", "daemon-reload")
+	return nil
+}
+
+func (linuxManager) Start(ctx context.Context) error {
+	if out, err := runCommand(ctx, "systemctl", "--user", "start", systemdUnitName); err != nil {
+		return fmt.Errorf("systemctl start: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (linuxManager) Stop(ctx context.Context) error {
+	if out, err := runCommand(ctx, "systemctl", "--user", "stop", systemdUnitName); err != nil {
+		return fmt.Errorf("systemctl stop: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (m linuxManager) Status(ctx context.Context) (Status, error) {
+	up, err := m.unitPath()
+	if err != nil {
+		return Status{}, err
+	}
+	st := Status{}
+	if _, err := os.Stat(up); err == nil {
+		st.Installed = true
+	}
+	out, err := runCommand(ctx, "systemctl", "--user", "show", "-p", "ActiveState,SubState,MainPID,ExecMainStartTimestamp", systemdUnitName)
+	if err != nil {
+		if !st.Installed {
+			return st, nil
+		}
+		st.RunState = RunStateStopped
+		return st, nil
+	}
+	props := parseSystemctlShow(string(out))
+	switch props["ActiveState"] {
+	case "active":
+		st.RunState = RunStateRunning
+	case "failed":
+		st.RunState = RunStateFailed
+	default:
+		st.RunState = RunStateStopped
+	}
+	if pid, err := strconv.Atoi(props["MainPID"]); err == nil && pid > 0 {
+		st.PID = pid
+		st.UptimeSecs = readUptime(pid)
+	}
+	return st, nil
+}
+
+func parseSystemctlShow(s string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		if i := strings.Index(line, "="); i > 0 {
+			out[line[:i]] = line[i+1:]
+		}
+	}
+	return out
+}
+
+func readUptime(pid int) int64 {
+	out, err := exec.Command("ps", "-o", "etimes=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return 0
+	}
+	if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
+		return v
+	}
+	return 0
+}
