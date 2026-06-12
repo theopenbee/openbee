@@ -23,10 +23,7 @@ var windowsTemplatesFS embed.FS
 
 const schtaskName = "OpenBee"
 
-var (
-	execLookPath = exec.LookPath
-	runCommand   = defaultRunCommand
-)
+var runCommand = defaultRunCommand
 
 func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
