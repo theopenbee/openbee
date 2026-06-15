@@ -39,19 +39,20 @@ type darwinManager struct{}
 
 func NewManager() (Manager, error) { return darwinManager{}, nil }
 
-func (darwinManager) plistPath() (home, plistPath string, err error) {
-	home, err = os.UserHomeDir()
+func (darwinManager) plistPath() (string, error) {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	return home, filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist"), nil
+	return filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist"), nil
 }
 
 func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
-	home, pp, err := m.plistPath()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
+	pp := filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist")
 	if _, err := os.Stat(pp); err == nil && !opts.Force {
 		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 	}
@@ -84,7 +85,7 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 }
 
 func (m darwinManager) Uninstall(ctx context.Context) error {
-	_, pp, err := m.plistPath()
+	pp, err := m.plistPath()
 	if err != nil {
 		return err
 	}
@@ -111,7 +112,7 @@ var (
 )
 
 func (m darwinManager) Status(ctx context.Context) (Status, error) {
-	_, pp, err := m.plistPath()
+	pp, err := m.plistPath()
 	if err != nil {
 		return Status{}, err
 	}

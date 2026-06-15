@@ -12,11 +12,9 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-// RunState reports the service manager's view of the underlying process.
-//
-// RunStateFailed is currently only produced by the linux (systemd) backend,
-// which surfaces a distinct "failed" ActiveState; launchd and Task Scheduler
-// collapse failure into RunStateStopped.
+// RunStateFailed is only produced by the linux (systemd) backend, which
+// surfaces a distinct "failed" ActiveState; launchd and Task Scheduler collapse
+// failure into RunStateStopped.
 type RunState int
 
 const (
@@ -54,7 +52,6 @@ type InstallOptions struct {
 	Force      bool
 }
 
-// Manager is the platform-neutral autostart abstraction.
 type Manager interface {
 	Install(ctx context.Context, opts InstallOptions) error
 	Uninstall(ctx context.Context) error
@@ -98,5 +95,4 @@ func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptio
 	}, nil
 }
 
-// newManager is the package-level factory; tests override it to inject a fake.
 var newManager = NewManager

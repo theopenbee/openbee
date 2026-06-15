@@ -6,7 +6,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-// NewCommand returns the "service" cobra command group.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",

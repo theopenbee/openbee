@@ -3,14 +3,15 @@
 package servicecmd
 
 import (
-	"bytes"
 	"context"
 	"embed"
+	"encoding/binary"
 	"errors"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
@@ -64,10 +65,13 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 		return err
 	}
 	defer os.Remove(tmp.Name())
+	defer tmp.Close()
 	if _, err := tmp.Write(encodeUTF16LE(xml)); err != nil {
 		return err
 	}
-	tmp.Close()
+	if err := tmp.Close(); err != nil {
+		return err
+	}
 
 	args := []string{"/Create", "/XML", tmp.Name(), "/TN", schtaskName}
 	if opts.Force {
@@ -75,7 +79,7 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 	}
 	out, err := runCommand(ctx, "schtasks", args...)
 	if err != nil {
-		if !opts.Force && taskAlreadyExists(out) {
+		if !opts.Force && strings.Contains(strings.ToLower(string(out)), "already exists") {
 			return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 		}
 		return wrapRunErr("schtasks /Create", err, out)
@@ -132,11 +136,6 @@ func (windowsManager) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
-func taskAlreadyExists(out []byte) bool {
-	lower := strings.ToLower(string(out))
-	return strings.Contains(lower, "already exists")
-}
-
 func parseSchtasksField(s, key string) string {
 	for _, line := range strings.Split(s, "\n") {
 		if i := strings.Index(line, key); i >= 0 {
@@ -164,21 +163,11 @@ func lookupOpenbeePID(ctx context.Context) int {
 }
 
 func encodeUTF16LE(s string) []byte {
-	var buf bytes.Buffer
-	buf.Write([]byte{0xFF, 0xFE})
-	for _, r := range s {
-		if r > 0xFFFF {
-			r -= 0x10000
-			hi := uint16(0xD800 + (r >> 10))
-			lo := uint16(0xDC00 + (r & 0x3FF))
-			buf.WriteByte(byte(hi))
-			buf.WriteByte(byte(hi >> 8))
-			buf.WriteByte(byte(lo))
-			buf.WriteByte(byte(lo >> 8))
-		} else {
-			buf.WriteByte(byte(r))
-			buf.WriteByte(byte(r >> 8))
-		}
+	units := utf16.Encode([]rune(s))
+	buf := make([]byte, 2+2*len(units))
+	buf[0], buf[1] = 0xFF, 0xFE
+	for i, u := range units {
+		binary.LittleEndian.PutUint16(buf[2+2*i:], u)
 	}
-	return buf.Bytes()
+	return buf
 }
