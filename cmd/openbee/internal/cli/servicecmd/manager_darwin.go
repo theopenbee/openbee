@@ -99,14 +99,31 @@ func (m darwinManager) Uninstall(ctx context.Context) error {
 	return nil
 }
 
-func (darwinManager) Start(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
+func (m darwinManager) Start(ctx context.Context) error {
+	if m.isLoaded(ctx) {
+		_, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
+		return err
+	}
+	pp, err := m.plistPath()
+	if err != nil {
+		return err
+	}
+	if _, err := runOrWrap(ctx, "launchctl", "bootstrap", guiTarget(), pp); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Stop unloads the launchd job rather than just killing the process; the plist
+// has KeepAlive=true, so a plain SIGTERM would be respawned immediately.
+func (darwinManager) Stop(ctx context.Context) error {
+	_, err := runOrWrap(ctx, "launchctl", "bootout", guiTarget()+"/"+launchdLabel)
 	return err
 }
 
-func (darwinManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "launchctl", "kill", "SIGTERM", guiTarget()+"/"+launchdLabel)
-	return err
+func (darwinManager) isLoaded(ctx context.Context) bool {
+	_, err := runCommand(ctx, "launchctl", "print", guiTarget()+"/"+launchdLabel)
+	return err == nil
 }
 
 var (

@@ -4,6 +4,7 @@ package servicecmd
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,6 +82,85 @@ func TestRenderLaunchdPlist(t *testing.T) {
 			t.Errorf("rendered plist missing %q\nfull:\n%s", want, got)
 		}
 	}
+}
+
+func TestDarwinStop_UnloadsViaBootout(t *testing.T) {
+	var got []string
+	prevRun := runCommand
+	runCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		got = append([]string{name}, args...)
+		return nil, nil
+	}
+	t.Cleanup(func() { runCommand = prevRun })
+
+	if err := (darwinManager{}).Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"launchctl", "bootout", guiTarget() + "/" + launchdLabel}
+	if !equalStrings(got, want) {
+		t.Errorf("Stop invoked %v, want %v", got, want)
+	}
+}
+
+func TestDarwinStart_KickstartsWhenLoaded(t *testing.T) {
+	var calls [][]string
+	prevRun := runCommand
+	runCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		return nil, nil // print succeeds => loaded
+	}
+	t.Cleanup(func() { runCommand = prevRun })
+
+	if err := (darwinManager{}).Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %v, want 2 (print + kickstart)", calls)
+	}
+	wantKickstart := []string{"launchctl", "kickstart", guiTarget() + "/" + launchdLabel}
+	if !equalStrings(calls[1], wantKickstart) {
+		t.Errorf("second call = %v, want %v", calls[1], wantKickstart)
+	}
+}
+
+func TestDarwinStart_BootstrapsWhenNotLoaded(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	var calls [][]string
+	prevRun := runCommand
+	runCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		if len(args) > 0 && args[0] == "print" {
+			return nil, errors.New("not loaded")
+		}
+		return nil, nil
+	}
+	t.Cleanup(func() { runCommand = prevRun })
+
+	if err := (darwinManager{}).Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %v, want 2 (print + bootstrap)", calls)
+	}
+	plistPath := filepath.Join(tmp, "Library", "LaunchAgents", launchdLabel+".plist")
+	wantBootstrap := []string{"launchctl", "bootstrap", guiTarget(), plistPath}
+	if !equalStrings(calls[1], wantBootstrap) {
+		t.Errorf("second call = %v, want %v", calls[1], wantBootstrap)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestDarwinInstall_WritesPlist(t *testing.T) {
