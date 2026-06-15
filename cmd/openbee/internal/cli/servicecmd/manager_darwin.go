@@ -144,7 +144,6 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 	if m := launchdPIDRe.FindStringSubmatch(text); len(m) == 2 {
 		if pid, err := strconv.Atoi(m[1]); err == nil {
 			st.PID = pid
-			st.UptimeSecs = readUptime(ctx, pid)
 		}
 	}
 	if m := launchdLastExitCodeRe.FindStringSubmatch(text); len(m) == 2 {

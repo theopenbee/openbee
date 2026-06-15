@@ -178,7 +178,7 @@ type ServiceOutput struct {
 	SystemdUnavail       string `yaml:"systemd_unavailable"`
 	StatusInstalled      string `yaml:"status_installed"`
 	StatusRunState       string `yaml:"status_run_state"`
-	StatusPIDUptime      string `yaml:"status_pid_uptime"`
+	StatusPID            string `yaml:"status_pid"`
 	StatusYes            string `yaml:"status_yes"`
 	StatusNo             string `yaml:"status_no"`
 	StatusLastExitCode   string `yaml:"status_last_exit_code"`

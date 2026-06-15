@@ -41,7 +41,6 @@ type Status struct {
 	Installed      bool
 	RunState       RunState
 	PID            int
-	UptimeSecs     int64
 	LastExitCode   string
 	LastExitReason string
 }

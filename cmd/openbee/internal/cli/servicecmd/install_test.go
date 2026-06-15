@@ -107,7 +107,7 @@ func TestInstall_VerifyFailsWhenNotRunning(t *testing.T) {
 
 func TestStart_SuccessWhenRunning(t *testing.T) {
 	withFastVerify(t)
-	fm := &fakeManager{status: Status{RunState: RunStateRunning, PID: 4242, UptimeSecs: 3}}
+	fm := &fakeManager{status: Status{RunState: RunStateRunning, PID: 4242}}
 	withFake(t, fm)
 
 	cmd := NewCommand()

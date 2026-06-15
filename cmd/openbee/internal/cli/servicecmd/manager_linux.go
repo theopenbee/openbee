@@ -139,7 +139,6 @@ func (m linuxManager) Status(ctx context.Context) (Status, error) {
 	}
 	if pid, err := strconv.Atoi(props["MainPID"]); err == nil && pid > 0 {
 		st.PID = pid
-		st.UptimeSecs = readUptime(ctx, pid)
 	}
 	return st, nil
 }

@@ -227,7 +227,7 @@ output:
     systemd_unavailable: "systemd 用户会话不可用；请确认 'systemctl --user' 可用（已启动 logind 会话或已启用用户级 systemd）"
     status_installed: "已安装：    %s"
     status_run_state: "运行状态：  %s"
-    status_pid_uptime: "进程：      PID %d (已运行 %s)"
+    status_pid: "进程：      PID %d"
     status_yes: "是"
     status_no: "否"
     status_last_exit_code: "上次退出码：    %s"

@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newStatusCommand() *cobra.Command {
@@ -26,7 +25,7 @@ func newStatusCommand() *cobra.Command {
 			fmt.Fprintf(out, i18n.M.Output.Service.StatusInstalled+"\n", boolYesNo(st.Installed))
 			fmt.Fprintf(out, i18n.M.Output.Service.StatusRunState+"\n", st.RunState.String())
 			if st.RunState == RunStateRunning && st.PID > 0 {
-				fmt.Fprintf(out, i18n.M.Output.Service.StatusPIDUptime+"\n", st.PID, utils.FormatUptime(st.UptimeSecs))
+				fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
 			}
 			if st.Installed && st.RunState != RunStateRunning {
 				printStartFailureDetails(out, st)

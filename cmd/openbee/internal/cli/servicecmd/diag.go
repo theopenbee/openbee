@@ -11,7 +11,6 @@ import (
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // verifyRunningTimeout bounds how long reportRunStateAfterStart waits for the
@@ -33,7 +32,7 @@ func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer) e
 	if st.RunState == RunStateRunning {
 		fmt.Fprintln(out, i18n.M.Output.Service.Started)
 		if st.PID > 0 {
-			fmt.Fprintf(out, i18n.M.Output.Service.StatusPIDUptime+"\n", st.PID, utils.FormatUptime(st.UptimeSecs))
+			fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
 		}
 		return nil
 	}
