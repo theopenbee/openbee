@@ -8,13 +8,11 @@ Type=simple
 User={{.RunAsUser}}
 Group={{.RunAsGroup}}
 WorkingDirectory={{.WorkingDir}}
-ExecStart={{.ExePath}} server -c {{.ConfigPath}}
+ExecStart=/bin/bash -lc 'exec {{.ExePath}} server -c {{.ConfigPath}}'
 Restart=on-failure
 RestartSec=10
 StandardOutput=append:{{.LogPath}}
 StandardError=append:{{.LogPath}}
-Environment=HOME={{.Home}}
-Environment=PATH={{.EnvPath}}
 
 [Install]
 WantedBy=multi-user.target

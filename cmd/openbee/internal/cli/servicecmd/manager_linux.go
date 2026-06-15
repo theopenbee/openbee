@@ -44,15 +44,18 @@ func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, erro
 //   - node not on PATH at all       → env reports "No such file or directory"
 //   - node on PATH but not exec'able → env reports "Permission denied"
 //
-// We run the same lookup dance `env` does, as the run-as user with the exact
-// PATH the unit will embed, so a green check here means chat will succeed.
-func linuxVerifyNodeForRunAsUser(ctx context.Context, username, envPath string) nodeCheckResult {
+// The unit runs the daemon via `/bin/bash -lc`, so we probe with the same login
+// shell as the run-as user: a green check here uses the exact PATH the daemon
+// will see at runtime, including nvm/conda scripts sourced from the profile.
+// envPath is ignored — it is only retained on the signature so the common-mode
+// stub can share the type.
+func linuxVerifyNodeForRunAsUser(ctx context.Context, username, _ string) nodeCheckResult {
 	if username == "" {
 		return nodeCheckUnknown
 	}
 	// exit 1 = missing on PATH; exit 2 = found but not executable.
 	script := `p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0`
-	code, err := runWithExitCode(ctx, "runuser", "-u", username, "--", "/usr/bin/env", "-i", "PATH="+envPath, "/bin/sh", "-c", script)
+	code, err := runWithExitCode(ctx, "runuser", "-l", username, "-c", script)
 	if err != nil {
 		return nodeCheckUnknown
 	}
@@ -82,13 +85,15 @@ var euid = os.Geteuid
 
 var systemdTmpl = parseTemplate(linuxTemplatesFS, "templates/systemd.service.tmpl", "systemd")
 
+// systemdTemplateData drives templates/systemd.service.tmpl. PATH/HOME are
+// intentionally not baked into the unit — the daemon is launched via
+// `/bin/bash -lc`, so it inherits the run-as user's live login-shell
+// environment (nvm, conda, custom PATH) instead of an install-time snapshot.
 type systemdTemplateData struct {
 	ExePath    string
 	ConfigPath string
 	LogPath    string
 	WorkingDir string
-	Home       string
-	EnvPath    string
 	RunAsUser  string
 	RunAsGroup string
 }
@@ -138,8 +143,6 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
 		WorkingDir: opts.WorkingDir,
-		Home:       opts.Home,
-		EnvPath:    opts.EnvPath,
 		RunAsUser:  opts.RunAsUser,
 		RunAsGroup: opts.RunAsGroup,
 	})

@@ -60,12 +60,15 @@ type InstallOptions struct {
 	ConfigPath string
 	LogPath    string
 	WorkingDir string
-	// EnvPath is the PATH value that should be embedded into the service unit
-	// (launchd plist / systemd unit). launchd and systemd start jobs with a
-	// minimal default PATH that excludes `/usr/local/bin`, `/opt/homebrew/bin`,
-	// nvm directories, etc., so node-based CLIs (claude, codex) fail with
-	// `env: node: No such file or directory` unless we explicitly forward
-	// the install-time PATH.
+	// EnvPath is the PATH value embedded into the launchd plist. launchd starts
+	// jobs with a minimal default PATH that excludes `/usr/local/bin`,
+	// `/opt/homebrew/bin`, nvm directories, etc., so node-based CLIs (claude,
+	// codex) fail with `env: node: No such file or directory` unless we
+	// forward the install-time PATH. The Linux backend does NOT bake this into
+	// the unit — it wraps ExecStart in `/bin/bash -lc` and reads PATH from the
+	// run-as user's profile at start time. EnvPath is still computed on Linux
+	// so install-time warnings (node missing / not executable) have a value to
+	// display.
 	EnvPath   string
 	AutoStart bool
 	Force     bool

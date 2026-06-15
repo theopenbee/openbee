@@ -66,8 +66,6 @@ func TestRenderSystemdUnit(t *testing.T) {
 		ConfigPath: "/home/me/.openbee/config.yaml",
 		LogPath:    "/home/me/.openbee/daemon.log",
 		WorkingDir: "/home/me/.openbee",
-		Home:       "/home/me",
-		EnvPath:    "/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
 		RunAsUser:  "me",
 		RunAsGroup: "me",
 	})
@@ -75,19 +73,31 @@ func TestRenderSystemdUnit(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"ExecStart=/usr/local/bin/openbee server -c /home/me/.openbee/config.yaml",
+		// ExecStart goes through `bash -lc` so the daemon inherits the run-as
+		// user's login-shell PATH (nvm, conda, …) at start time. `exec` avoids
+		// the extra bash process so systemd still tracks the server PID.
+		"ExecStart=/bin/bash -lc 'exec /usr/local/bin/openbee server -c /home/me/.openbee/config.yaml'",
 		"WorkingDirectory=/home/me/.openbee",
 		"Restart=on-failure",
 		"RestartSec=10",
 		"StandardOutput=append:/home/me/.openbee/daemon.log",
 		"WantedBy=multi-user.target",
 		"After=network-online.target",
-		"Environment=PATH=/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
 		"User=me",
 		"Group=me",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("unit missing %q\nfull:\n%s", want, got)
+		}
+	}
+	// PATH/HOME must NOT be frozen into the unit — that defeats the bash -lc
+	// design and brings back the install-time snapshot bugs.
+	for _, forbidden := range []string{
+		"Environment=PATH=",
+		"Environment=HOME=",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("unit must not bake %q into the unit (use bash -lc instead)\nfull:\n%s", forbidden, got)
 		}
 	}
 }
@@ -394,5 +404,27 @@ func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestLinuxVerifyNodeForRunAsUser_UsesLoginShell pins the argv shape: the probe
+// must invoke `runuser -l <user> -c <script>` so it reads PATH from the same
+// login-shell profile the daemon will use at runtime. The earlier
+// `runuser -u <user> -- /usr/bin/env -i PATH=<snapshot>` form bypassed the
+// profile and was inconsistent with the new `bash -lc` ExecStart.
+func TestLinuxVerifyNodeForRunAsUser_UsesLoginShell(t *testing.T) {
+	prev := runWithExitCode
+	var got []string
+	runWithExitCode = func(_ context.Context, name string, args ...string) (int, error) {
+		got = append([]string{name}, args...)
+		return 0, nil
+	}
+	t.Cleanup(func() { runWithExitCode = prev })
+
+	if r := linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/ignored"); r != nodeCheckOK {
+		t.Fatalf("unexpected result: %v", r)
+	}
+	if len(got) < 4 || got[0] != "runuser" || got[1] != "-l" || got[2] != "openbee" || got[3] != "-c" {
+		t.Errorf("expected `runuser -l openbee -c <script>`, got %v", got)
 	}
 }
