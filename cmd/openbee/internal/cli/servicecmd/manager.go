@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"runtime"
 
-	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
@@ -63,6 +64,16 @@ type InstallOptions struct {
 	EnvPath   string
 	AutoStart bool
 	Force     bool
+	// RunAsUser / RunAsGroup are only consumed by the Linux backend, where the
+	// system-wide systemd unit needs explicit User=/Group= directives so the
+	// daemon does not inherit root from the installing sudo invocation. Empty
+	// on darwin/windows.
+	RunAsUser  string
+	RunAsGroup string
+	// Home is the HOME the daemon should see. On Linux this is the RunAsUser's
+	// home (so the daemon does not inherit /root from sudo); on darwin/windows
+	// it is the installing user's home.
+	Home string
 }
 
 type Manager interface {
@@ -73,19 +84,25 @@ type Manager interface {
 	Status(ctx context.Context) (Status, error)
 }
 
-func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force bool) (InstallOptions, []string, error) {
+// userLookup is overridden in tests.
+var userLookup = user.Lookup
+
+func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart, force bool) (InstallOptions, []string, error) {
 	exe, err := utils.ResolveExecutable()
 	if err != nil {
 		return InstallOptions{}, nil, fmt.Errorf("resolve executable: %w", err)
 	}
 
+	runAsUser, runAsGroup, targetHome, err := resolveRunAs(runAsFlag)
+	if err != nil {
+		return InstallOptions{}, nil, err
+	}
+
+	openbeeHome := filepath.Join(targetHome, ".openbee")
+
 	cfgPath := configFlag
 	if cfgPath == "" {
-		home, err := config.OpenbeeHomeDir()
-		if err != nil {
-			return InstallOptions{}, nil, fmt.Errorf("resolve home dir: %w", err)
-		}
-		cfgPath = filepath.Join(home, "config.yaml")
+		cfgPath = filepath.Join(openbeeHome, "config.yaml")
 	}
 	cfgInfo, err := os.Stat(cfgPath)
 	if err != nil {
@@ -102,17 +119,11 @@ func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force boo
 		)
 	}
 
-	logPath, err := config.DaemonLogFile()
-	if err != nil {
-		return InstallOptions{}, nil, fmt.Errorf("resolve log path: %w", err)
-	}
+	logPath := filepath.Join(openbeeHome, "openbee.log")
 
 	workingDir := workingDirFlag
 	if workingDir == "" {
-		workingDir, err = config.OpenbeeHomeDir()
-		if err != nil {
-			return InstallOptions{}, nil, fmt.Errorf("resolve working dir: %w", err)
-		}
+		workingDir = openbeeHome
 	}
 	if !filepath.IsAbs(workingDir) {
 		abs, err := filepath.Abs(workingDir)
@@ -139,7 +150,42 @@ func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force boo
 		EnvPath:    envPath,
 		AutoStart:  !noStart,
 		Force:      force,
+		RunAsUser:  runAsUser,
+		RunAsGroup: runAsGroup,
+		Home:       targetHome,
 	}, warnings, nil
+}
+
+// resolveRunAs picks the user the daemon will run as. On non-Linux platforms
+// run-as is meaningless (launchd / Task Scheduler bind to the calling user
+// anyway), so we just resolve the current user's home for default-path
+// computation and leave RunAsUser/Group empty.
+func resolveRunAs(runAsFlag string) (string, string, string, error) {
+	if runtime.GOOS != "linux" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", "", "", fmt.Errorf("resolve home dir: %w", err)
+		}
+		return "", "", home, nil
+	}
+	name := runAsFlag
+	if name == "" {
+		name = os.Getenv("SUDO_USER")
+	}
+	if name == "" {
+		return "", "", "", errors.New(i18n.M.Output.Service.RunAsRequired)
+	}
+	u, err := userLookup(name)
+	if err != nil {
+		return "", "", "", fmt.Errorf(i18n.M.Output.Service.RunAsUserUnknown, name)
+	}
+	g, err := user.LookupGroupId(u.Gid)
+	if err != nil {
+		// Group name lookup can fail in minimal containers where /etc/group is
+		// sparse but a valid GID still works in systemd unit Group= directive.
+		return u.Username, u.Gid, u.HomeDir, nil
+	}
+	return u.Username, g.Name, u.HomeDir, nil
 }
 
 var newManager = NewManager

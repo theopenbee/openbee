@@ -142,6 +142,7 @@ type FlagMessages struct {
 	ServiceWorkingDir string `yaml:"service_working_dir"`
 	ServiceNoStart    string `yaml:"service_no_start"`
 	ServiceForce      string `yaml:"service_force"`
+	ServiceRunAs      string `yaml:"service_run_as"`
 }
 
 // ValidateMessages maps to interactive input validation error messages.
@@ -177,7 +178,9 @@ type ServiceOutput struct {
 	ConfigMissing        string `yaml:"config_missing"`
 	ConfigPathIsDir      string `yaml:"config_path_is_dir"`
 	SystemdUnavail       string `yaml:"systemd_unavailable"`
-	UserBusUnavail       string `yaml:"user_bus_unavailable"`
+	MustBeRoot           string `yaml:"must_be_root"`
+	RunAsRequired        string `yaml:"run_as_required"`
+	RunAsUserUnknown     string `yaml:"run_as_user_unknown"`
 	StatusInstalled      string `yaml:"status_installed"`
 	StatusRunState       string `yaml:"status_run_state"`
 	StatusPID            string `yaml:"status_pid"`

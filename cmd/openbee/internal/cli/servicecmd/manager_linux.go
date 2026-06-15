@@ -6,8 +6,8 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +20,13 @@ var linuxTemplatesFS embed.FS
 
 const systemdUnitName = "openbee.service"
 
+// systemdUnitDir is the directory the unit is written to. Overridden in tests.
+var systemdUnitDir = "/etc/systemd/system"
+
+// euid is overridden in tests so we can exercise the root preflight without
+// actually being root.
+var euid = os.Geteuid
+
 var systemdTmpl = parseTemplate(linuxTemplatesFS, "templates/systemd.service.tmpl", "systemd")
 
 type systemdTemplateData struct {
@@ -29,6 +36,8 @@ type systemdTemplateData struct {
 	WorkingDir string
 	Home       string
 	EnvPath    string
+	RunAsUser  string
+	RunAsGroup string
 }
 
 func renderSystemdUnit(d systemdTemplateData) (string, error) {
@@ -44,38 +53,42 @@ func NewManager() (Manager, error) {
 	return linuxManager{}, nil
 }
 
-func (linuxManager) unitPath() (string, error) {
-	cfgHome, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
+func (linuxManager) unitPath() string {
+	return filepath.Join(systemdUnitDir, systemdUnitName)
+}
+
+// preflightRoot guards every state-changing entry point. The system-wide unit
+// directory and `systemctl daemon-reload` both require root; failing here lets
+// the user see one actionable error instead of a partial half-installed state.
+func preflightRoot() error {
+	if euid() != 0 {
+		return errors.New(i18n.M.Output.Service.MustBeRoot)
 	}
-	return filepath.Join(cfgHome, "systemd", "user", systemdUnitName), nil
+	return nil
 }
 
 func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
-	up, err := m.unitPath()
-	if err != nil {
+	if err := preflightRoot(); err != nil {
 		return err
 	}
+	up := m.unitPath()
 	_, statErr := os.Stat(up)
 	existed := statErr == nil
 	if existed && !opts.Force {
 		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 	}
-	if err := preflightUserBus(ctx); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
 		return err
 	}
-	home, _ := os.UserHomeDir()
 	unit, err := renderSystemdUnit(systemdTemplateData{
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
 		WorkingDir: opts.WorkingDir,
-		Home:       home,
+		Home:       opts.Home,
 		EnvPath:    opts.EnvPath,
+		RunAsUser:  opts.RunAsUser,
+		RunAsGroup: opts.RunAsGroup,
 	})
 	if err != nil {
 		return err
@@ -83,22 +96,28 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
 		return err
 	}
-	// rollback removes the unit file we just created so a retry won't hit the
-	// "already installed" guard. Skip when we were asked to overwrite an
-	// existing unit (the caller accepted the loss already), so we don't go past
-	// "restore prior state".
+	// Make WorkingDir owned by RunAsUser so the daemon (which drops to that
+	// user) can write logs into it even when the directory was just created by
+	// root inside resolveInstallOptions.
+	if err := chownWorkingDir(opts); err != nil {
+		_ = os.Remove(up)
+		return err
+	}
+	// Roll back the unit on systemctl failure so a retry won't hit the
+	// already-installed guard. Skip on Force overwrite (caller accepted the
+	// loss of the prior unit) — there's no "prior state" to restore.
 	rollback := func(opErr error) error {
 		if !existed {
 			_ = os.Remove(up)
 		}
-		return translateBusError(opErr)
+		return opErr
 	}
-	if _, err := runOrWrap(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
+	if _, err := runOrWrap(ctx, "systemctl", "daemon-reload"); err != nil {
 		return rollback(err)
 	}
-	enableArgs := []string{"--user", "enable", systemdUnitName}
+	enableArgs := []string{"enable", systemdUnitName}
 	if opts.AutoStart {
-		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
+		enableArgs = []string{"enable", "--now", systemdUnitName}
 	}
 	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
 		return rollback(err)
@@ -106,75 +125,57 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	return nil
 }
 
-// preflightUserBus probes the systemd user bus before we touch the unit file,
-// so the bus-permission failure surfaces as an actionable error instead of
-// leaving a half-installed unit behind.
-func preflightUserBus(ctx context.Context) error {
-	out, err := runCommand(ctx, "systemctl", "--user", "show-environment")
-	if err == nil {
+// chownWorkingDir is a no-op if RunAsUser is empty (tests) or the lookup
+// fails. We deliberately do not recurse — the unit only writes logs at the
+// directory root, and a recursive chown could clobber permissions on user
+// data the operator already placed there.
+var chownWorkingDir = func(opts InstallOptions) error {
+	if opts.RunAsUser == "" || opts.WorkingDir == "" {
 		return nil
 	}
-	if looksLikeBusPermissionDenied(string(out) + " " + err.Error()) {
-		return userBusUnavailableErr()
-	}
-	return nil
-}
-
-func translateBusError(err error) error {
-	if err == nil {
+	uid, gid, err := lookupUIDGID(opts.RunAsUser, opts.RunAsGroup)
+	if err != nil {
 		return nil
 	}
-	if looksLikeBusPermissionDenied(err.Error()) {
-		return userBusUnavailableErr()
-	}
-	return err
-}
-
-func looksLikeBusPermissionDenied(s string) bool {
-	return strings.Contains(s, "Failed to connect to bus") && strings.Contains(s, "Permission denied")
-}
-
-func userBusUnavailableErr() error {
-	user := os.Getenv("USER")
-	if user == "" {
-		user = "$USER"
-	}
-	return fmt.Errorf(i18n.M.Output.Service.UserBusUnavail, user, user)
+	return os.Chown(opts.WorkingDir, uid, gid)
 }
 
 func (m linuxManager) Uninstall(ctx context.Context) error {
-	up, err := m.unitPath()
-	if err != nil {
+	if err := preflightRoot(); err != nil {
 		return err
 	}
-	_, _ = runCommand(ctx, "systemctl", "--user", "disable", "--now", systemdUnitName)
+	up := m.unitPath()
+	_, _ = runCommand(ctx, "systemctl", "disable", "--now", systemdUnitName)
 	if err := os.Remove(up); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	_, _ = runCommand(ctx, "systemctl", "--user", "daemon-reload")
+	_, _ = runCommand(ctx, "systemctl", "daemon-reload")
 	return nil
 }
 
 func (linuxManager) Start(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "systemctl", "--user", "start", systemdUnitName)
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	_, err := runOrWrap(ctx, "systemctl", "start", systemdUnitName)
 	return err
 }
 
 func (linuxManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "systemctl", "--user", "stop", systemdUnitName)
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	_, err := runOrWrap(ctx, "systemctl", "stop", systemdUnitName)
 	return err
 }
 
 func (m linuxManager) Status(ctx context.Context) (Status, error) {
-	up, err := m.unitPath()
-	if err != nil {
-		return Status{}, err
-	}
+	up := m.unitPath()
 	st := Status{}
 	if _, err := os.Stat(up); err == nil {
 		st.Installed = true
 	}
-	out, err := runCommand(ctx, "systemctl", "--user", "show", "-p", "ActiveState,SubState,MainPID,ExecMainStartTimestamp", systemdUnitName)
+	out, err := runCommand(ctx, "systemctl", "show", "-p", "ActiveState,SubState,MainPID,ExecMainStartTimestamp", systemdUnitName)
 	if err != nil {
 		if !st.Installed {
 			return st, nil
@@ -195,6 +196,28 @@ func (m linuxManager) Status(ctx context.Context) (Status, error) {
 		st.PID = pid
 	}
 	return st, nil
+}
+
+func lookupUIDGID(username, groupname string) (int, int, error) {
+	u, err := user.Lookup(username)
+	if err != nil {
+		return 0, 0, err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, err
+	}
+	gidStr := u.Gid
+	if groupname != "" {
+		if g, err := user.LookupGroup(groupname); err == nil {
+			gidStr = g.Gid
+		}
+	}
+	gid, err := strconv.Atoi(gidStr)
+	if err != nil {
+		return 0, 0, err
+	}
+	return uid, gid, nil
 }
 
 func parseSystemctlShow(s string) map[string]string {

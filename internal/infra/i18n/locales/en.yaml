@@ -145,6 +145,7 @@ flag:
   service_working_dir: "Working directory the service runs in (defaults to ~/.openbee)"
   service_no_start: "Only register autostart, do not start the service"
   service_force: "Overwrite existing installation"
+  service_run_as: "Linux: user the systemd service runs as (defaults to $SUDO_USER)"
 output:
   stop:
     not_running: "openbee is not running"
@@ -225,8 +226,10 @@ output:
     not_installed: "service not installed"
     config_missing: "config file not found at %s, run 'openbee config' first"
     config_path_is_dir: "--config must point to a config file, not a directory: %s (try %s)"
-    systemd_unavailable: "systemd user session unavailable; ensure 'systemctl --user' works (start a logind session or enable user services)"
-    user_bus_unavailable: "cannot connect to the systemd user bus (Failed to connect to bus: Permission denied). This usually means the current user has no persistent login session. Try one of:\n  1. As root, run 'sudo loginctl enable-linger %s' to enable linger, then log in again;\n  2. Open a full user session via 'machinectl shell %s@' or a console login;\n  3. Ensure XDG_RUNTIME_DIR=/run/user/$(id -u) is set in the environment."
+    systemd_unavailable: "systemctl not found on this system; install systemd or use a distro that ships it"
+    must_be_root: "this command writes to /etc/systemd/system and must run as root; re-run with sudo"
+    run_as_required: "could not determine which user should run the daemon; pass --run-as <user> (or run via 'sudo' so SUDO_USER is set)"
+    run_as_user_unknown: "user %q does not exist on this system; pass an existing username via --run-as"
     status_installed: "Installed: %s"
     status_run_state: "State:     %s"
     status_pid: "PID:       %d"

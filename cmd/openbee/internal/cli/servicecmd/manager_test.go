@@ -2,10 +2,22 @@ package servicecmd
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// currentUsername returns the user the test process runs as. Used to populate
+// --run-as on Linux where resolveInstallOptions refuses to default.
+func currentUsername(t *testing.T) string {
+	t.Helper()
+	u, err := user.Current()
+	if err != nil {
+		t.Fatalf("user.Current: %v", err)
+	}
+	return u.Username
+}
 
 func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 	tmp := t.TempDir()
@@ -14,7 +26,7 @@ func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	opts, _, err := resolveInstallOptions(cfg, "", false, false)
+	opts, _, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -60,7 +72,7 @@ func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
 	}
 	t.Cleanup(func() { execLookPath = prev })
 
-	_, warnings, err := resolveInstallOptions(cfg, "", false, false)
+	_, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -70,7 +82,7 @@ func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
 }
 
 func TestResolveInstallOptions_MissingConfig(t *testing.T) {
-	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", false, false)
+	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", currentUsername(t), false, false)
 	if err == nil {
 		t.Fatal("expected error for missing config")
 	}
@@ -80,7 +92,7 @@ func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 // previously silently proceeded because os.Stat treats dirs as existing files.
 func TestResolveInstallOptions_ConfigIsDirectory(t *testing.T) {
 	tmp := t.TempDir()
-	_, _, err := resolveInstallOptions(tmp, "", false, false)
+	_, _, err := resolveInstallOptions(tmp, "", currentUsername(t), false, false)
 	if err == nil {
 		t.Fatal("expected error for directory passed as config")
 	}
@@ -101,7 +113,7 @@ func TestResolveInstallOptions_ExplicitWorkingDir(t *testing.T) {
 	}
 	wd := filepath.Join(tmp, "run")
 
-	opts, _, err := resolveInstallOptions(cfg, wd, false, false)
+	opts, _, err := resolveInstallOptions(cfg, wd, currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

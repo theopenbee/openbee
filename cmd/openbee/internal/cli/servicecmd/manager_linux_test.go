@@ -11,6 +11,36 @@ import (
 	"testing"
 )
 
+// stubRoot pretends the process runs as root so preflightRoot lets the call
+// through; tests still execute as the invoking developer's UID.
+func stubRoot(t *testing.T) {
+	t.Helper()
+	prev := euid
+	euid = func() int { return 0 }
+	t.Cleanup(func() { euid = prev })
+}
+
+// stubChown defangs chownWorkingDir — we never want a test to chown a tmp
+// directory to a real UID/GID on the developer machine.
+func stubChown(t *testing.T) {
+	t.Helper()
+	prev := chownWorkingDir
+	chownWorkingDir = func(InstallOptions) error { return nil }
+	t.Cleanup(func() { chownWorkingDir = prev })
+}
+
+// stubUnitDir redirects the system unit file into a tempdir so tests don't
+// require write access to /etc/systemd/system.
+func stubUnitDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prev := systemdUnitDir
+	systemdUnitDir = dir
+	t.Cleanup(func() { systemdUnitDir = prev })
+}
+
 func TestRenderSystemdUnit(t *testing.T) {
 	got, err := renderSystemdUnit(systemdTemplateData{
 		ExePath:    "/usr/local/bin/openbee",
@@ -19,6 +49,8 @@ func TestRenderSystemdUnit(t *testing.T) {
 		WorkingDir: "/home/me/.openbee",
 		Home:       "/home/me",
 		EnvPath:    "/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
+		RunAsUser:  "me",
+		RunAsGroup: "me",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -29,8 +61,11 @@ func TestRenderSystemdUnit(t *testing.T) {
 		"Restart=on-failure",
 		"RestartSec=10",
 		"StandardOutput=append:/home/me/.openbee/daemon.log",
-		"WantedBy=default.target",
+		"WantedBy=multi-user.target",
+		"After=network-online.target",
 		"Environment=PATH=/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
+		"User=me",
+		"Group=me",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("unit missing %q\nfull:\n%s", want, got)
@@ -38,15 +73,20 @@ func TestRenderSystemdUnit(t *testing.T) {
 	}
 }
 
-func TestLinuxInstall_WritesUnit(t *testing.T) {
+func TestLinuxInstall_WritesSystemUnit(t *testing.T) {
+	stubRoot(t)
+	stubChown(t)
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
+	stubUnitDir(t, filepath.Join(tmp, "systemd"))
 
 	prevLook := execLookPath
 	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
 	prevRun := runCommand
-	runCommand = func(_ context.Context, _ string, _ ...string) ([]byte, error) { return nil, nil }
+	var seen [][]string
+	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		seen = append(seen, args)
+		return nil, nil
+	}
 	t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
 
 	mgr, err := NewManager()
@@ -60,12 +100,16 @@ func TestLinuxInstall_WritesUnit(t *testing.T) {
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: cfg,
 		LogPath:    filepath.Join(tmp, "daemon.log"),
+		WorkingDir: tmp,
 		EnvPath:    "/opt/homebrew/bin:/usr/bin:/bin",
+		Home:       tmp,
+		RunAsUser:  "openbee",
+		RunAsGroup: "openbee",
 		AutoStart:  false,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	unitPath := filepath.Join(tmp, ".config", "systemd", "user", "openbee.service")
+	unitPath := filepath.Join(tmp, "systemd", "openbee.service")
 	data, err := os.ReadFile(unitPath)
 	if err != nil {
 		t.Fatalf("unit not written: %v", err)
@@ -73,32 +117,60 @@ func TestLinuxInstall_WritesUnit(t *testing.T) {
 	if !strings.Contains(string(data), cfg) {
 		t.Errorf("unit missing config path")
 	}
-	if !strings.Contains(string(data), "Environment=PATH=/opt/homebrew/bin:/usr/bin:/bin") {
-		t.Errorf("unit missing PATH from EnvPath")
+	if !strings.Contains(string(data), "User=openbee") {
+		t.Errorf("unit missing User= directive")
+	}
+	// Sanity check that we never passed --user to systemctl.
+	for _, args := range seen {
+		for _, a := range args {
+			if a == "--user" {
+				t.Errorf("unexpected --user in systemctl call: %v", args)
+			}
+		}
 	}
 }
 
-// busPermDeniedOut is the exact stderr systemd prints when the user has no
-// reachable D-Bus session (e.g. SSH without linger). The runtime wraps the
-// CombinedOutput into the returned error message via runOrWrap, so the
-// permission-denied detector has to match against both the output bytes and
-// the error string.
-const busPermDeniedOut = "Failed to connect to bus: Permission denied"
+func TestLinuxInstall_RefusesWithoutRoot(t *testing.T) {
+	prevEuid := euid
+	euid = func() int { return 1000 }
+	t.Cleanup(func() { euid = prevEuid })
+
+	prevLook := execLookPath
+	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
+	t.Cleanup(func() { execLookPath = prevLook })
+
+	mgr, err := NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = mgr.Install(context.Background(), InstallOptions{
+		ExePath:    "/usr/local/bin/openbee",
+		ConfigPath: "/tmp/config.yaml",
+		LogPath:    "/tmp/daemon.log",
+		WorkingDir: "/tmp",
+		RunAsUser:  "openbee",
+		RunAsGroup: "openbee",
+	})
+	if err == nil {
+		t.Fatal("expected refusal when not root")
+	}
+	if !strings.Contains(err.Error(), "root") {
+		t.Errorf("expected root-required error, got %v", err)
+	}
+}
 
 func TestLinuxInstall_RollbackOnDaemonReloadFailure(t *testing.T) {
+	stubRoot(t)
+	stubChown(t)
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
+	stubUnitDir(t, filepath.Join(tmp, "systemd"))
 
 	prevLook := execLookPath
 	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
 	prevRun := runCommand
 	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		if len(args) >= 2 && args[0] == "--user" && args[1] == "show-environment" {
-			return []byte("PATH=/usr/bin\n"), nil
-		}
-		if len(args) >= 2 && args[0] == "--user" && args[1] == "daemon-reload" {
-			return []byte(busPermDeniedOut), errors.New("exit status 1")
+		if len(args) >= 1 && args[0] == "daemon-reload" {
+			return []byte("boom"), errors.New("exit status 1")
 		}
 		return nil, nil
 	}
@@ -108,76 +180,29 @@ func TestLinuxInstall_RollbackOnDaemonReloadFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := filepath.Join(tmp, "config.yaml")
-	_ = os.WriteFile(cfg, []byte("{}"), 0o600)
-
 	err = mgr.Install(context.Background(), InstallOptions{
 		ExePath:    "/usr/local/bin/openbee",
-		ConfigPath: cfg,
+		ConfigPath: filepath.Join(tmp, "config.yaml"),
 		LogPath:    filepath.Join(tmp, "daemon.log"),
+		WorkingDir: tmp,
+		RunAsUser:  "openbee",
+		RunAsGroup: "openbee",
 	})
 	if err == nil {
 		t.Fatal("expected error when daemon-reload fails")
 	}
-	if !strings.Contains(err.Error(), "systemd user bus") {
-		t.Errorf("error should be the friendly user-bus message, got: %v", err)
-	}
-	unitPath := filepath.Join(tmp, ".config", "systemd", "user", "openbee.service")
+	unitPath := filepath.Join(tmp, "systemd", "openbee.service")
 	if _, err := os.Stat(unitPath); !os.IsNotExist(err) {
 		t.Errorf("unit file should be rolled back; stat err = %v", err)
 	}
 }
 
-func TestLinuxInstall_PreflightBusFailureKeepsNoUnit(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
-
-	prevLook := execLookPath
-	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
-	prevRun := runCommand
-	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		if len(args) >= 2 && args[0] == "--user" && args[1] == "show-environment" {
-			return []byte(busPermDeniedOut), errors.New("exit status 1")
-		}
-		t.Fatalf("unexpected command after preflight failure: %v", args)
-		return nil, nil
-	}
-	t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
-
-	mgr, err := NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg := filepath.Join(tmp, "config.yaml")
-	_ = os.WriteFile(cfg, []byte("{}"), 0o600)
-
-	err = mgr.Install(context.Background(), InstallOptions{
-		ExePath:    "/usr/local/bin/openbee",
-		ConfigPath: cfg,
-		LogPath:    filepath.Join(tmp, "daemon.log"),
-	})
-	if err == nil {
-		t.Fatal("expected preflight failure")
-	}
-	if !strings.Contains(err.Error(), "systemd user bus") {
-		t.Errorf("error should be the friendly user-bus message, got: %v", err)
-	}
-	unitPath := filepath.Join(tmp, ".config", "systemd", "user", "openbee.service")
-	if _, err := os.Stat(unitPath); !os.IsNotExist(err) {
-		t.Errorf("unit file should not exist when preflight fails; stat err = %v", err)
-	}
-}
-
 func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
+	stubRoot(t)
+	stubChown(t)
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
-
-	unitDir := filepath.Join(tmp, ".config", "systemd", "user")
-	if err := os.MkdirAll(unitDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	unitDir := filepath.Join(tmp, "systemd")
+	stubUnitDir(t, unitDir)
 	unitPath := filepath.Join(unitDir, "openbee.service")
 	if err := os.WriteFile(unitPath, []byte("# preexisting\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -187,11 +212,8 @@ func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
 	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
 	prevRun := runCommand
 	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		if len(args) >= 2 && args[0] == "--user" && args[1] == "show-environment" {
-			return []byte("PATH=/usr/bin\n"), nil
-		}
-		if len(args) >= 2 && args[0] == "--user" && args[1] == "daemon-reload" {
-			return []byte(busPermDeniedOut), errors.New("exit status 1")
+		if len(args) >= 1 && args[0] == "daemon-reload" {
+			return []byte("boom"), errors.New("exit status 1")
 		}
 		return nil, nil
 	}
@@ -201,13 +223,13 @@ func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := filepath.Join(tmp, "config.yaml")
-	_ = os.WriteFile(cfg, []byte("{}"), 0o600)
-
 	err = mgr.Install(context.Background(), InstallOptions{
 		ExePath:    "/usr/local/bin/openbee",
-		ConfigPath: cfg,
+		ConfigPath: filepath.Join(tmp, "config.yaml"),
 		LogPath:    filepath.Join(tmp, "daemon.log"),
+		WorkingDir: tmp,
+		RunAsUser:  "openbee",
+		RunAsGroup: "openbee",
 		Force:      true,
 	})
 	if err == nil {

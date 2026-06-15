@@ -1,9 +1,12 @@
 [Unit]
 Description=OpenBee Worker Daemon
-After=default.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+User={{.RunAsUser}}
+Group={{.RunAsGroup}}
 WorkingDirectory={{.WorkingDir}}
 ExecStart={{.ExePath}} server -c {{.ConfigPath}}
 Restart=on-failure
@@ -14,4 +17,4 @@ Environment=HOME={{.Home}}
 Environment=PATH={{.EnvPath}}
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

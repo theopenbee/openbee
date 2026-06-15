@@ -145,6 +145,7 @@ flag:
   service_working_dir: "服务运行时的工作目录（默认 ~/.openbee）"
   service_no_start: "仅注册自启动，不立即启动"
   service_force: "覆盖已有安装"
+  service_run_as: "Linux：systemd 服务的运行用户（默认取 $SUDO_USER）"
 output:
   stop:
     not_running: "openbee 未运行"
@@ -225,8 +226,10 @@ output:
     not_installed: "服务未安装"
     config_missing: "配置文件不存在：%s，请先运行 'openbee config'"
     config_path_is_dir: "--config 必须指向配置文件，而不是目录：%s（试试 %s）"
-    systemd_unavailable: "systemd 用户会话不可用；请确认 'systemctl --user' 可用（已启动 logind 会话或已启用用户级 systemd）"
-    user_bus_unavailable: "无法连接到 systemd 用户总线（Failed to connect to bus: Permission denied）。常见原因：当前用户没有持续的登录会话。可尝试：\n  1. 以 root 执行 'sudo loginctl enable-linger %s' 启用 linger，然后重新登录；\n  2. 通过 'machinectl shell %s@' 或在本机控制台登录获取完整 user session；\n  3. 确认环境变量 XDG_RUNTIME_DIR=/run/user/$(id -u) 存在。"
+    systemd_unavailable: "未找到 systemctl；请安装 systemd 或换用自带 systemd 的发行版"
+    must_be_root: "该命令需要写入 /etc/systemd/system，必须以 root 身份执行；请用 sudo 重试"
+    run_as_required: "无法判断守护进程应以哪个用户运行；请通过 --run-as <user> 指定，或使用 'sudo' 以便自动读取 SUDO_USER"
+    run_as_user_unknown: "系统中不存在用户 %q；请通过 --run-as 指定一个已存在的用户"
     status_installed: "已安装：    %s"
     status_run_state: "运行状态：  %s"
     status_pid: "进程：      PID %d"

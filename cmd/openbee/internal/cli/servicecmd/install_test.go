@@ -68,7 +68,7 @@ func TestInstall_DefaultAutoStart(t *testing.T) {
 	cmd := NewCommand()
 	cmd.SetOut(new(bytes.Buffer))
 	cmd.SetErr(new(bytes.Buffer))
-	cmd.SetArgs([]string{"install", "--config", cfg})
+	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestInstall_VerifyFailsWhenNotRunning(t *testing.T) {
 	cmd.SetErr(new(bytes.Buffer))
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"install", "--config", cfg})
+	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error when post-install verification fails")
 	}
@@ -151,7 +151,7 @@ func TestInstall_NoStart(t *testing.T) {
 	cmd := NewCommand()
 	cmd.SetOut(new(bytes.Buffer))
 	cmd.SetErr(new(bytes.Buffer))
-	cmd.SetArgs([]string{"install", "--config", cfg, "--no-start"})
+	cmd.SetArgs([]string{"install", "--config", cfg, "--no-start", "--run-as", currentUsername(t)})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestInstall_ManagerError(t *testing.T) {
 	cmd.SetErr(new(bytes.Buffer))
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"install", "--config", cfg})
+	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error")
 	}
