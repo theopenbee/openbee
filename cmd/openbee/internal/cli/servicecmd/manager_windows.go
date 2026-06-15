@@ -114,20 +114,35 @@ func (windowsManager) Stop(ctx context.Context) error {
 	return err
 }
 
+// Status reports installation and run state without parsing locale-sensitive
+// text. `schtasks /Query /V /FO LIST` would have worked on English Windows but
+// localizes both the field name ("Status:" → "状态:") and the value
+// ("Running" → "正在运行") on non-English systems, which historically pinned
+// RunState to Unknown and made `service install` falsely report failure.
 func (windowsManager) Status(ctx context.Context) (Status, error) {
 	st := Status{}
-	out, err := runCommand(ctx, "schtasks", "/Query", "/TN", schtaskName, "/V", "/FO", "LIST")
-	if err != nil {
+	if _, err := runCommand(ctx, "schtasks", "/Query", "/TN", schtaskName); err != nil {
 		return st, nil
 	}
 	st.Installed = true
-	switch strings.TrimSpace(parseSchtasksField(string(out), "Status:")) {
+
+	switch queryScheduledTaskState(ctx) {
 	case "Running":
 		st.RunState = RunStateRunning
-	case "Ready":
+	case "Ready", "Disabled":
 		st.RunState = RunStateStopped
+	default:
+		// PowerShell unavailable or returned an unexpected value: infer running
+		// state from a live openbee.exe process. We cannot distinguish "task
+		// stopped" from "PowerShell broken" in this branch, so we only flip to
+		// Running when we actually see a process; otherwise RunState stays
+		// Unknown rather than misreporting Stopped.
+		if pid := lookupOpenbeePID(ctx); pid > 0 {
+			st.RunState = RunStateRunning
+			st.PID = pid
+		}
 	}
-	if st.RunState == RunStateRunning {
+	if st.RunState == RunStateRunning && st.PID == 0 {
 		if pid := lookupOpenbeePID(ctx); pid > 0 {
 			st.PID = pid
 		}
@@ -135,13 +150,19 @@ func (windowsManager) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
-func parseSchtasksField(s, key string) string {
-	for _, line := range strings.Split(s, "\n") {
-		if i := strings.Index(line, key); i >= 0 {
-			return strings.TrimSpace(line[i+len(key):])
-		}
+// queryScheduledTaskState returns the Task Scheduler state for the OpenBee
+// task — "Ready", "Running", "Disabled", or similar — via PowerShell's
+// Get-ScheduledTask, whose enum output is in stable English regardless of the
+// system display language. Returns "" when PowerShell is unavailable or the
+// call fails so callers can fall back.
+func queryScheduledTaskState(ctx context.Context) string {
+	out, err := runCommand(ctx, "powershell",
+		"-NoProfile", "-NonInteractive",
+		"-Command", "(Get-ScheduledTask -TaskName '"+schtaskName+"' -ErrorAction Stop).State")
+	if err != nil {
+		return ""
 	}
-	return ""
+	return strings.TrimSpace(string(out))
 }
 
 func lookupOpenbeePID(ctx context.Context) int {
