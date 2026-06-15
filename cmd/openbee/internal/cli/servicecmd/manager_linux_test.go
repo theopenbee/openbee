@@ -6,10 +6,41 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// stubLookupRunAsEnvPath swaps in a deterministic PATH resolver so tests can
+// exercise the success / failure paths without depending on a real `runuser`.
+func stubLookupRunAsEnvPath(t *testing.T, fn func(ctx context.Context, username string) (string, error)) {
+	t.Helper()
+	prev := lookupRunAsEnvPath
+	lookupRunAsEnvPath = fn
+	t.Cleanup(func() { lookupRunAsEnvPath = prev })
+}
+
+// stubVerifyNode swaps in a deterministic node-availability check so we can
+// fire each warning branch (missing / not-executable / ok / unknown) without
+// shelling out.
+func stubVerifyNode(t *testing.T, fn func(ctx context.Context, username, envPath string) nodeCheckResult) {
+	t.Helper()
+	prev := verifyNodeForRunAsUser
+	verifyNodeForRunAsUser = fn
+	t.Cleanup(func() { verifyNodeForRunAsUser = prev })
+}
+
+// currentLinuxUsername mirrors currentUsername from manager_test.go but is
+// kept local so this file stays self-contained.
+func currentLinuxUsername(t *testing.T) string {
+	t.Helper()
+	u, err := user.Current()
+	if err != nil {
+		t.Fatalf("user.Current: %v", err)
+	}
+	return u.Username
+}
 
 // stubRoot pretends the process runs as root so preflightRoot lets the call
 // through; tests still execute as the invoking developer's UID.
@@ -239,5 +270,141 @@ func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
 	// unit (which would otherwise be more surprising than the failure itself).
 	if _, err := os.Stat(unitPath); err != nil {
 		t.Errorf("unit file should remain after force-overwrite failure; got %v", err)
+	}
+}
+
+// TestResolveInstallOptions_UsesRunAsUserPath is the core regression for the
+// `/usr/bin/env: 'node': Permission denied` chat-time failure: we must embed
+// the run-as user's PATH into the unit, not the installer's, otherwise sudo's
+// secure_path or /root/.nvm leaks through and the daemon user can't exec node.
+func TestResolveInstallOptions_UsesRunAsUserPath(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "config.yaml")
+	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const userPath = "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin"
+	stubLookupRunAsEnvPath(t, func(_ context.Context, _ string) (string, error) {
+		return userPath, nil
+	})
+	stubVerifyNode(t, func(context.Context, string, string) nodeCheckResult {
+		return nodeCheckOK
+	})
+
+	opts, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	if err != nil {
+		t.Fatalf("resolveInstallOptions: %v", err)
+	}
+	if opts.EnvPath != userPath {
+		t.Errorf("EnvPath = %q, want run-as user path %q", opts.EnvPath, userPath)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings when lookup + verify succeed, got %v", warnings)
+	}
+}
+
+func TestResolveInstallOptions_FallsBackOnLookupFailure(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "config.yaml")
+	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stubLookupRunAsEnvPath(t, func(context.Context, string) (string, error) {
+		return "", errors.New("runuser missing")
+	})
+	stubVerifyNode(t, func(context.Context, string, string) nodeCheckResult {
+		return nodeCheckOK
+	})
+
+	opts, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	if err != nil {
+		t.Fatalf("resolveInstallOptions: %v", err)
+	}
+	if opts.EnvPath != os.Getenv("PATH") {
+		t.Errorf("EnvPath = %q, want installer PATH fallback %q", opts.EnvPath, os.Getenv("PATH"))
+	}
+	if len(warnings) == 0 || !strings.Contains(warnings[0], "runuser missing") {
+		t.Errorf("expected RunAsPathResolveFailed warning, got %v", warnings)
+	}
+}
+
+func TestResolveInstallOptions_NotExecutableWarning(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "config.yaml")
+	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stubLookupRunAsEnvPath(t, func(context.Context, string) (string, error) {
+		return "/root/.nvm/versions/node/v20.0.0/bin:/usr/bin", nil
+	})
+	stubVerifyNode(t, func(context.Context, string, string) nodeCheckResult {
+		return nodeCheckNotExecutable
+	})
+
+	_, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	if err != nil {
+		t.Fatalf("resolveInstallOptions: %v", err)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected NodeNotExecutableWarning")
+	}
+	// The warning must point at the Permission-denied fix path (per-user node),
+	// not the "install Node.js" path that NodeMissingWarning suggests.
+	if !strings.Contains(warnings[0], "Permission denied") && !strings.Contains(warnings[0], "无权执行") {
+		t.Errorf("warning should mention Permission denied, got %q", warnings[0])
+	}
+}
+
+// TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser verifies the production helper
+// invokes runuser with the expected argv and trims the PATH it prints.
+func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
+	prev := runCommand
+	var got []string
+	runCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		got = append([]string{name}, args...)
+		return []byte("/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin\n"), nil
+	}
+	t.Cleanup(func() { runCommand = prev })
+
+	p, err := linuxLookupRunAsEnvPath(context.Background(), "openbee")
+	if err != nil {
+		t.Fatalf("linuxLookupRunAsEnvPath: %v", err)
+	}
+	want := "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin"
+	if p != want {
+		t.Errorf("PATH = %q, want %q", p, want)
+	}
+	wantArgs := []string{"runuser", "-u", "openbee", "--", "/bin/sh", "-lc", `printf %s "$PATH"`}
+	if strings.Join(got, " ") != strings.Join(wantArgs, " ") {
+		t.Errorf("runuser argv = %v, want %v", got, wantArgs)
+	}
+}
+
+func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {
+	cases := []struct {
+		name string
+		code int
+		err  error
+		want nodeCheckResult
+	}{
+		{"executable", 0, nil, nodeCheckOK},
+		{"missing", 1, nil, nodeCheckMissing},
+		{"not_executable", 2, nil, nodeCheckNotExecutable},
+		{"other_code", 99, nil, nodeCheckUnknown},
+		{"runuser_missing", -1, errors.New("runuser: not found"), nodeCheckUnknown},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := runWithExitCode
+			runWithExitCode = func(context.Context, string, ...string) (int, error) {
+				return tc.code, tc.err
+			}
+			t.Cleanup(func() { runWithExitCode = prev })
+
+			got := linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/usr/bin")
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

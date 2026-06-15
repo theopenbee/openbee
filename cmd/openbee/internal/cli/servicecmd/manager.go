@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
@@ -136,11 +137,12 @@ func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart
 		return InstallOptions{}, nil, fmt.Errorf("create working dir: %w", err)
 	}
 
-	envPath := os.Getenv("PATH")
+	envPath, pathWarning := resolveEnvPath(runAsUser)
 	var warnings []string
-	if _, err := execLookPath("node"); err != nil {
-		warnings = append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
+	if pathWarning != "" {
+		warnings = append(warnings, pathWarning)
 	}
+	warnings = appendNodeWarning(warnings, runAsUser, envPath)
 
 	return InstallOptions{
 		ExePath:    exe,
@@ -189,3 +191,54 @@ func resolveRunAs(runAsFlag string) (string, string, string, error) {
 }
 
 var newManager = NewManager
+
+// resolveEnvPath decides which PATH to bake into the service unit. When the
+// daemon runs as a different user than the installer (Linux + RunAsUser), the
+// installer's PATH is the wrong answer — it often points at /root/.nvm or
+// sudo's secure_path, both of which the daemon user cannot use. We prefer the
+// run-as user's own login PATH and only fall back when we can't reach it.
+func resolveEnvPath(runAsUser string) (string, string) {
+	installerPath := os.Getenv("PATH")
+	if runAsUser == "" {
+		return installerPath, ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), runAsLookupTimeout)
+	defer cancel()
+	userPath, err := lookupRunAsEnvPath(ctx, runAsUser)
+	switch {
+	case err != nil:
+		return installerPath, fmt.Sprintf(i18n.M.Output.Service.RunAsPathResolveFailed, runAsUser, err)
+	case userPath == "":
+		// Helper not implemented on this platform (defaults to "", nil) — keep
+		// the legacy behaviour without any warning.
+		return installerPath, ""
+	default:
+		return userPath, ""
+	}
+}
+
+// appendNodeWarning runs the node-availability check the daemon would face at
+// runtime and appends the right warning. We split missing vs not-executable
+// because the fix differs: install node vs. install it for a *different* user
+// (or chmod +x). When verification can't run (non-linux, helper stubbed) we
+// fall back to the cheap execLookPath probe so behaviour stays at parity.
+func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), runAsLookupTimeout)
+	defer cancel()
+	switch verifyNodeForRunAsUser(ctx, runAsUser, envPath) {
+	case nodeCheckOK:
+		return warnings
+	case nodeCheckMissing:
+		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
+	case nodeCheckNotExecutable:
+		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeNotExecutableWarning, runAsUser, envPath))
+	}
+	if _, err := execLookPath("node"); err != nil {
+		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
+	}
+	return warnings
+}
+
+// runAsLookupTimeout bounds the runuser calls so a stuck profile script can't
+// hang `service install`. 5s is generous for a login shell + printf.
+var runAsLookupTimeout = 5 * time.Second

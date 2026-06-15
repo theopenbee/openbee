@@ -15,6 +15,65 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
+func init() {
+	lookupRunAsEnvPath = linuxLookupRunAsEnvPath
+	verifyNodeForRunAsUser = linuxVerifyNodeForRunAsUser
+}
+
+// linuxLookupRunAsEnvPath returns the login-shell PATH for username. We need
+// the *daemon's* PATH baked into the unit, not the installer's: when sudo runs
+// install, os.Getenv("PATH") is root's PATH (or sudo's secure_path), which
+// often points at /root/.nvm/.../bin/node — a node binary the daemon user
+// cannot exec, surfacing as "/usr/bin/env: 'node': Permission denied".
+//
+// `runuser -u <user> -- /bin/sh -lc 'printf %s "$PATH"'` runs as preflightRoot
+// guarantees root; -lc loads the user's profile so nvm-installed paths show up.
+func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
+	if username == "" {
+		return "", nil
+	}
+	out, err := runCommand(ctx, "runuser", "-u", username, "--", "/bin/sh", "-lc", `printf %s "$PATH"`)
+	if err != nil {
+		return "", wrapRunErr("runuser", []string{"-u", username}, err, out)
+	}
+	p := strings.TrimSpace(string(out))
+	if p == "" {
+		return "", errors.New("runuser returned an empty PATH")
+	}
+	return p, nil
+}
+
+// linuxVerifyNodeForRunAsUser distinguishes the two failure modes the daemon
+// will see at runtime:
+//   - node not on PATH at all       → env reports "No such file or directory"
+//   - node on PATH but not exec'able → env reports "Permission denied"
+//
+// We run the same lookup dance `env` does, as the run-as user with the exact
+// PATH the unit will embed, so a green check here means chat will succeed.
+func linuxVerifyNodeForRunAsUser(ctx context.Context, username, envPath string) nodeCheckResult {
+	if username == "" {
+		return nodeCheckUnknown
+	}
+	// Inside the shell: command -v finds node via PATH, then test -x verifies
+	// the resolved binary is executable. Two distinct exits let us tell the
+	// modes apart: 1 → missing, 2 → found-but-not-executable.
+	script := `p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0`
+	code, err := runWithExitCode(ctx, "runuser", "-u", username, "--", "/usr/bin/env", "-i", "PATH="+envPath, "/bin/sh", "-c", script)
+	if err != nil {
+		return nodeCheckUnknown
+	}
+	switch code {
+	case 0:
+		return nodeCheckOK
+	case 1:
+		return nodeCheckMissing
+	case 2:
+		return nodeCheckNotExecutable
+	default:
+		return nodeCheckUnknown
+	}
+}
+
 //go:embed templates/systemd.service.tmpl
 var linuxTemplatesFS embed.FS
 
