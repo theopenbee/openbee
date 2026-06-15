@@ -26,13 +26,17 @@ func init() {
 // often points at /root/.nvm/.../bin/node — a node binary the daemon user
 // cannot exec, surfacing as "/usr/bin/env: 'node': Permission denied".
 //
-// `runuser -u <user> -- /bin/sh -lc 'printf %s "$PATH"'` runs as preflightRoot
-// guarantees root; -lc loads the user's profile so nvm-installed paths show up.
+// `runuser -l <user> -c 'printf %s "$PATH"'` runs as preflightRoot guarantees
+// root. `-l` is critical: without it runuser preserves the caller's env, so
+// root's PATH (e.g. /root/.nvm/...) leaks into what we think is the run-as
+// user's PATH and ends up baked into the unit — a path the daemon user can't
+// even read. `-l` clears env and starts a real login shell so we get the
+// run-as user's actual profile-derived PATH.
 func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
 	if username == "" {
 		return "", nil
 	}
-	out, err := runCommand(ctx, "runuser", "-u", username, "--", "/bin/sh", "-lc", `printf %s "$PATH"`)
+	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `printf %s "$PATH"`)
 	if err != nil {
 		return "", wrapRunErr("runuser", []string{"-u", username}, err, out)
 	}

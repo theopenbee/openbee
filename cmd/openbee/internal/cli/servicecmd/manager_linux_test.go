@@ -374,7 +374,7 @@ func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
 	if p != want {
 		t.Errorf("PATH = %q, want %q", p, want)
 	}
-	wantArgs := []string{"runuser", "-u", "openbee", "--", "/bin/sh", "-lc", `printf %s "$PATH"`}
+	wantArgs := []string{"runuser", "-l", "openbee", "-c", `printf %s "$PATH"`}
 	if strings.Join(got, " ") != strings.Join(wantArgs, " ") {
 		t.Errorf("runuser argv = %v, want %v", got, wantArgs)
 	}

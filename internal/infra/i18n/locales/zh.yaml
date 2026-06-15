@@ -241,7 +241,7 @@ output:
     status_log_tail_header: "最近日志："
     status_log_read_failed: "（无法读取日志：%v）"
     start_failed_see_status: "服务未进入运行状态，请运行 'openbee service status' 查看详情"
-    node_missing_warning: "警告：当前 PATH 中未找到 'node'（%s），claude/codex 等基于 Node.js 的 CLI 可能无法启动。请安装 Node.js 并确保其在 PATH 中，然后重新执行 'openbee service install --force'。"
+    node_missing_warning: "警告：在 run-as 用户 %q 的 PATH 中未找到 'node'（%s），claude/codex 等基于 Node.js 的 CLI 将无法启动。请为该用户安装 Node.js（例如使用其自己的 nvm），然后重新执行 'openbee service install --force'。"
     node_not_executable_warning: "警告：在 run-as 用户 %q 的 PATH 中找到了 'node'，但该用户无权执行（PATH=%s），claude/codex 等 CLI 将报 'Permission denied'。请为该用户安装 Node.js（例如使用其自己的 nvm），或为现有 node 二进制开放执行权限，然后重新执行 'openbee service install --force'。"
     run_as_path_resolve_failed: "警告：无法解析 run-as 用户 %q 的 PATH（%v）；回退到安装时的 PATH，可能与守护进程运行时实际看到的 PATH 不一致"
 validate:

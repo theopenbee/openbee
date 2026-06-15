@@ -229,12 +229,12 @@ func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
 	case nodeCheckOK:
 		return warnings
 	case nodeCheckMissing:
-		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
+		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
 	case nodeCheckNotExecutable:
 		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeNotExecutableWarning, runAsUser, envPath))
 	}
 	if _, err := execLookPath("node"); err != nil {
-		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
+		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
 	}
 	return warnings
 }
