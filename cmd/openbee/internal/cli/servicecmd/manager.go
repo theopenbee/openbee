@@ -13,8 +13,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
-// lookPathInstall is overridden in tests to simulate missing tools.
-var lookPathInstall = exec.LookPath
+// execLookPath is overridden in tests to simulate missing tools.
+var execLookPath = exec.LookPath
 
 // RunStateFailed is only produced by the linux (systemd) backend, which
 // surfaces a distinct "failed" ActiveState; launchd and Task Scheduler collapse
@@ -119,7 +119,7 @@ func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force boo
 
 	envPath := os.Getenv("PATH")
 	var warnings []string
-	if _, err := lookPathInstall("node"); err != nil {
+	if _, err := execLookPath("node"); err != nil {
 		warnings = append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
 	}
 

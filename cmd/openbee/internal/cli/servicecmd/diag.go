@@ -20,10 +20,9 @@ var (
 	verifyRunningPoll    = 150 * time.Millisecond
 )
 
-// reportRunStateAfterStart polls the manager until the service is running or
-// the deadline expires. On success it prints the started message; on failure
-// it prints diagnostics (last exit code/reason and a tail of the daemon log)
-// and returns an error so the CLI exits non-zero.
+// reportRunStateAfterStart returns an error on start failure so the CLI exits
+// non-zero; on failure it also prints last exit info and a tail of the daemon
+// log to help diagnose start crashes.
 func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer) error {
 	st, err := waitRunning(ctx, mgr, verifyRunningTimeout)
 	if err != nil {

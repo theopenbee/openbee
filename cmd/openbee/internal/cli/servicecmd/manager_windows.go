@@ -67,8 +67,8 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	defer tmp.Close()
 	if _, err := tmp.Write(encodeUTF16LE(xml)); err != nil {
+		tmp.Close()
 		return err
 	}
 	if err := tmp.Close(); err != nil {
@@ -89,14 +89,11 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 	if !opts.AutoStart {
 		return nil
 	}
-	if _, err := runOrWrap(ctx, "schtasks", "/Run", "/TN", schtaskName); err != nil {
-		return err
-	}
-	return nil
+	_, err = runOrWrap(ctx, "schtasks", "/Run", "/TN", schtaskName)
+	return err
 }
 
 func (windowsManager) Uninstall(ctx context.Context) error {
-	_, _ = runCommand(ctx, "schtasks", "/End", "/TN", schtaskName)
 	out, err := runCommand(ctx, "schtasks", "/Delete", "/TN", schtaskName, "/F")
 	if err != nil {
 		if strings.Contains(strings.ToLower(string(out)), "cannot find") {

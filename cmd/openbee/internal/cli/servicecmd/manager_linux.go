@@ -84,10 +84,8 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if opts.AutoStart {
 		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
 	}
-	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
-		return err
-	}
-	return nil
+	_, err = runOrWrap(ctx, "systemctl", enableArgs...)
+	return err
 }
 
 func (m linuxManager) Uninstall(ctx context.Context) error {

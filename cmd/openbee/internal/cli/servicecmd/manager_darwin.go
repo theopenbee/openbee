@@ -83,10 +83,8 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	if !opts.AutoStart {
 		return nil
 	}
-	if _, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
-		return err
-	}
-	return nil
+	_, err = runOrWrap(ctx, "launchctl", "kickstart", launchdTarget())
+	return err
 }
 
 func (m darwinManager) Uninstall(ctx context.Context) error {
@@ -94,7 +92,7 @@ func (m darwinManager) Uninstall(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, _ = runCommand(ctx, "launchctl", "bootout", guiTarget()+"/"+launchdLabel)
+	_, _ = runCommand(ctx, "launchctl", "bootout", launchdTarget())
 	if err := os.Remove(pp); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -103,28 +101,26 @@ func (m darwinManager) Uninstall(ctx context.Context) error {
 
 func (m darwinManager) Start(ctx context.Context) error {
 	if m.isLoaded(ctx) {
-		_, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
+		_, err := runOrWrap(ctx, "launchctl", "kickstart", launchdTarget())
 		return err
 	}
 	pp, err := m.plistPath()
 	if err != nil {
 		return err
 	}
-	if _, err := runOrWrap(ctx, "launchctl", "bootstrap", guiTarget(), pp); err != nil {
-		return err
-	}
-	return nil
+	_, err = runOrWrap(ctx, "launchctl", "bootstrap", guiTarget(), pp)
+	return err
 }
 
 // Stop unloads the launchd job rather than just killing the process; the plist
 // has KeepAlive=true, so a plain SIGTERM would be respawned immediately.
 func (darwinManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "launchctl", "bootout", guiTarget()+"/"+launchdLabel)
+	_, err := runOrWrap(ctx, "launchctl", "bootout", launchdTarget())
 	return err
 }
 
 func (darwinManager) isLoaded(ctx context.Context) bool {
-	_, err := runCommand(ctx, "launchctl", "print", guiTarget()+"/"+launchdLabel)
+	_, err := runCommand(ctx, "launchctl", "print", launchdTarget())
 	return err == nil
 }
 
@@ -144,7 +140,7 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 	if _, err := os.Stat(pp); err == nil {
 		st.Installed = true
 	}
-	out, err := runCommand(ctx, "launchctl", "print", guiTarget()+"/"+launchdLabel)
+	out, err := runCommand(ctx, "launchctl", "print", launchdTarget())
 	if err != nil {
 		if !st.Installed {
 			return st, nil
@@ -181,3 +177,5 @@ func guiTarget() string {
 	}
 	return "gui/" + u.Uid
 }
+
+func launchdTarget() string { return guiTarget() + "/" + launchdLabel }

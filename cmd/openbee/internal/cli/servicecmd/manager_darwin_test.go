@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -99,8 +100,8 @@ func TestDarwinStop_UnloadsViaBootout(t *testing.T) {
 	if err := (darwinManager{}).Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"launchctl", "bootout", guiTarget() + "/" + launchdLabel}
-	if !equalStrings(got, want) {
+	want := []string{"launchctl", "bootout", launchdTarget()}
+	if !slices.Equal(got, want) {
 		t.Errorf("Stop invoked %v, want %v", got, want)
 	}
 }
@@ -120,8 +121,8 @@ func TestDarwinStart_KickstartsWhenLoaded(t *testing.T) {
 	if len(calls) != 2 {
 		t.Fatalf("calls = %v, want 2 (print + kickstart)", calls)
 	}
-	wantKickstart := []string{"launchctl", "kickstart", guiTarget() + "/" + launchdLabel}
-	if !equalStrings(calls[1], wantKickstart) {
+	wantKickstart := []string{"launchctl", "kickstart", launchdTarget()}
+	if !slices.Equal(calls[1], wantKickstart) {
 		t.Errorf("second call = %v, want %v", calls[1], wantKickstart)
 	}
 }
@@ -149,21 +150,9 @@ func TestDarwinStart_BootstrapsWhenNotLoaded(t *testing.T) {
 	}
 	plistPath := filepath.Join(tmp, "Library", "LaunchAgents", launchdLabel+".plist")
 	wantBootstrap := []string{"launchctl", "bootstrap", guiTarget(), plistPath}
-	if !equalStrings(calls[1], wantBootstrap) {
+	if !slices.Equal(calls[1], wantBootstrap) {
 		t.Errorf("second call = %v, want %v", calls[1], wantBootstrap)
 	}
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func TestDarwinInstall_WritesPlist(t *testing.T) {

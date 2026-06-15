@@ -50,14 +50,14 @@ func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prev := lookPathInstall
-	lookPathInstall = func(name string) (string, error) {
+	prev := execLookPath
+	execLookPath = func(name string) (string, error) {
 		if name == "node" {
 			return "", os.ErrNotExist
 		}
 		return "/usr/bin/" + name, nil
 	}
-	t.Cleanup(func() { lookPathInstall = prev })
+	t.Cleanup(func() { execLookPath = prev })
 
 	_, warnings, err := resolveInstallOptions(cfg, "", false, false)
 	if err != nil {
