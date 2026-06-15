@@ -108,8 +108,10 @@ func (darwinManager) Stop(ctx context.Context) error {
 }
 
 var (
-	launchdStateRe = regexp.MustCompile(`state\s*=\s*(\w+)`)
-	launchdPIDRe   = regexp.MustCompile(`pid\s*=\s*(\d+)`)
+	launchdStateRe          = regexp.MustCompile(`state\s*=\s*(\w+)`)
+	launchdPIDRe            = regexp.MustCompile(`pid\s*=\s*(\d+)`)
+	launchdLastExitCodeRe   = regexp.MustCompile(`(?m)^\s*last exit code\s*=\s*(.+?)\s*$`)
+	launchdLastExitReasonRe = regexp.MustCompile(`(?m)^\s*last exit reason\s*=\s*(.+?)\s*$`)
 )
 
 func (m darwinManager) Status(ctx context.Context) (Status, error) {
@@ -142,6 +144,12 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 			st.PID = pid
 			st.UptimeSecs = readUptime(ctx, pid)
 		}
+	}
+	if m := launchdLastExitCodeRe.FindStringSubmatch(text); len(m) == 2 {
+		st.LastExitCode = m[1]
+	}
+	if m := launchdLastExitReasonRe.FindStringSubmatch(text); len(m) == 2 {
+		st.LastExitReason = m[1]
 	}
 	return st, nil
 }

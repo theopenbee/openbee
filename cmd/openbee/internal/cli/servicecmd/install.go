@@ -30,7 +30,10 @@ func newInstallCommand() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), i18n.M.Output.Service.Installed+"\n", opts.ConfigPath)
-			return nil
+			if !opts.AutoStart {
+				return nil
+			}
+			return reportRunStateAfterStart(cmd.Context(), mgr, cmd.OutOrStdout())
 		},
 	}
 	cmd.Flags().StringVar(&configFlag, "config", "", i18n.M.Flag.ServiceConfig)

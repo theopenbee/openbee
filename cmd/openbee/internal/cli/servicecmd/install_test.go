@@ -6,8 +6,22 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+func withFastVerify(t *testing.T) {
+	t.Helper()
+	prevTimeout := verifyRunningTimeout
+	prevPoll := verifyRunningPoll
+	verifyRunningTimeout = 30 * time.Millisecond
+	verifyRunningPoll = 5 * time.Millisecond
+	t.Cleanup(func() {
+		verifyRunningTimeout = prevTimeout
+		verifyRunningPoll = prevPoll
+	})
+}
 
 type fakeManager struct {
 	installCalls []InstallOptions
@@ -46,7 +60,8 @@ func writeFakeConfig(t *testing.T) string {
 }
 
 func TestInstall_DefaultAutoStart(t *testing.T) {
-	fm := &fakeManager{}
+	withFastVerify(t)
+	fm := &fakeManager{status: Status{RunState: RunStateRunning}}
 	withFake(t, fm)
 	cfg := writeFakeConfig(t)
 
@@ -66,6 +81,65 @@ func TestInstall_DefaultAutoStart(t *testing.T) {
 	}
 	if fm.installCalls[0].Force {
 		t.Errorf("Force should default to false")
+	}
+}
+
+func TestInstall_VerifyFailsWhenNotRunning(t *testing.T) {
+	withFastVerify(t)
+	fm := &fakeManager{status: Status{RunState: RunStateStopped, LastExitCode: "78"}}
+	withFake(t, fm)
+	cfg := writeFakeConfig(t)
+
+	cmd := NewCommand()
+	out := new(bytes.Buffer)
+	cmd.SetOut(out)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs([]string{"install", "--config", cfg})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error when post-install verification fails")
+	}
+	if !strings.Contains(out.String(), "78") {
+		t.Errorf("expected last exit code in output, got %q", out.String())
+	}
+}
+
+func TestStart_SuccessWhenRunning(t *testing.T) {
+	withFastVerify(t)
+	fm := &fakeManager{status: Status{RunState: RunStateRunning, PID: 4242, UptimeSecs: 3}}
+	withFake(t, fm)
+
+	cmd := NewCommand()
+	out := new(bytes.Buffer)
+	cmd.SetOut(out)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"start"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(out.String(), "4242") {
+		t.Errorf("expected PID in output, got %q", out.String())
+	}
+}
+
+func TestStart_FailureWhenStopped(t *testing.T) {
+	withFastVerify(t)
+	fm := &fakeManager{status: Status{RunState: RunStateStopped, LastExitReason: "SIGSEGV"}}
+	withFake(t, fm)
+
+	cmd := NewCommand()
+	out := new(bytes.Buffer)
+	cmd.SetOut(out)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs([]string{"start"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error when start verification fails")
+	}
+	if !strings.Contains(out.String(), "SIGSEGV") {
+		t.Errorf("expected exit reason in output, got %q", out.String())
 	}
 }
 

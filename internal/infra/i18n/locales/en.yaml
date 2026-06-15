@@ -229,6 +229,12 @@ output:
     status_pid_uptime: "PID:       %d (uptime %s)"
     status_yes: "yes"
     status_no: "no"
+    status_last_exit_code: "Last exit code:   %s"
+    status_last_exit_reason: "Last exit reason: %s"
+    status_log_path: "Log file:         %s"
+    status_log_tail_header: "Last log lines:"
+    status_log_read_failed: "(could not read log: %v)"
+    start_failed_see_status: "service did not enter running state; run 'openbee service status' for details"
 validate:
   port_integer: "port must be an integer"
   positive_integer: "must be a positive integer"

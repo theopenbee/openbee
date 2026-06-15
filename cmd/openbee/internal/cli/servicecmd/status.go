@@ -28,6 +28,9 @@ func newStatusCommand() *cobra.Command {
 			if st.RunState == RunStateRunning && st.PID > 0 {
 				fmt.Fprintf(out, i18n.M.Output.Service.StatusPIDUptime+"\n", st.PID, utils.FormatUptime(st.UptimeSecs))
 			}
+			if st.Installed && st.RunState != RunStateRunning {
+				printStartFailureDetails(out, st)
+			}
 			return nil
 		},
 	}

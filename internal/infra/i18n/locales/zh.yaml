@@ -229,6 +229,12 @@ output:
     status_pid_uptime: "进程：      PID %d (已运行 %s)"
     status_yes: "是"
     status_no: "否"
+    status_last_exit_code: "上次退出码：    %s"
+    status_last_exit_reason: "上次退出原因：  %s"
+    status_log_path: "日志文件：      %s"
+    status_log_tail_header: "最近日志："
+    status_log_read_failed: "（无法读取日志：%v）"
+    start_failed_see_status: "服务未进入运行状态，请运行 'openbee service status' 查看详情"
 validate:
   port_integer: "端口必须为整数"
   positive_integer: "必须为正整数"

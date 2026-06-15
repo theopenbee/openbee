@@ -38,10 +38,12 @@ func (s RunState) String() string {
 }
 
 type Status struct {
-	Installed  bool
-	RunState   RunState
-	PID        int
-	UptimeSecs int64
+	Installed      bool
+	RunState       RunState
+	PID            int
+	UptimeSecs     int64
+	LastExitCode   string
+	LastExitReason string
 }
 
 type InstallOptions struct {

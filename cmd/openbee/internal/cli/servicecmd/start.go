@@ -1,8 +1,6 @@
 package servicecmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -20,8 +18,7 @@ func newStartCommand() *cobra.Command {
 			if err := mgr.Start(cmd.Context()); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), i18n.M.Output.Service.Started)
-			return nil
+			return reportRunStateAfterStart(cmd.Context(), mgr, cmd.OutOrStdout())
 		},
 	}
 }

@@ -10,6 +10,50 @@ import (
 	"testing"
 )
 
+func TestDarwinStatus_ParsesLastExitInfo(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	plistDir := filepath.Join(tmp, "Library", "LaunchAgents")
+	if err := os.MkdirAll(plistDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plistDir, launchdLabel+".plist"), []byte("ignored"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	const sample = `com.theopenbee.openbee = {
+	active count = 0
+	path = /Users/me/Library/LaunchAgents/com.theopenbee.openbee.plist
+	state = not running
+	last exit code = 78
+	last exit reason = killed by signal: 9
+}
+`
+	prevRun := runCommand
+	runCommand = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+		return []byte(sample), nil
+	}
+	t.Cleanup(func() { runCommand = prevRun })
+
+	st, err := (darwinManager{}).Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Installed {
+		t.Errorf("Installed = false, want true")
+	}
+	if st.RunState != RunStateStopped {
+		t.Errorf("RunState = %v, want stopped", st.RunState)
+	}
+	if st.LastExitCode != "78" {
+		t.Errorf("LastExitCode = %q, want %q", st.LastExitCode, "78")
+	}
+	if st.LastExitReason != "killed by signal: 9" {
+		t.Errorf("LastExitReason = %q", st.LastExitReason)
+	}
+}
+
 func TestRenderLaunchdPlist(t *testing.T) {
 	got, err := renderLaunchdPlist(launchdTemplateData{
 		ExePath:    "/usr/local/bin/openbee",

@@ -167,19 +167,25 @@ type OutputMessages struct {
 
 // ServiceOutput maps to service command runtime output.
 type ServiceOutput struct {
-	Installed        string `yaml:"installed"`
-	Uninstalled      string `yaml:"uninstalled"`
-	Started          string `yaml:"started"`
-	Stopped          string `yaml:"stopped"`
-	AlreadyInstalled string `yaml:"already_installed"`
-	NotInstalled     string `yaml:"not_installed"`
-	ConfigMissing    string `yaml:"config_missing"`
-	SystemdUnavail   string `yaml:"systemd_unavailable"`
-	StatusInstalled  string `yaml:"status_installed"`
-	StatusRunState   string `yaml:"status_run_state"`
-	StatusPIDUptime  string `yaml:"status_pid_uptime"`
-	StatusYes        string `yaml:"status_yes"`
-	StatusNo         string `yaml:"status_no"`
+	Installed            string `yaml:"installed"`
+	Uninstalled          string `yaml:"uninstalled"`
+	Started              string `yaml:"started"`
+	Stopped              string `yaml:"stopped"`
+	AlreadyInstalled     string `yaml:"already_installed"`
+	NotInstalled         string `yaml:"not_installed"`
+	ConfigMissing        string `yaml:"config_missing"`
+	SystemdUnavail       string `yaml:"systemd_unavailable"`
+	StatusInstalled      string `yaml:"status_installed"`
+	StatusRunState       string `yaml:"status_run_state"`
+	StatusPIDUptime      string `yaml:"status_pid_uptime"`
+	StatusYes            string `yaml:"status_yes"`
+	StatusNo             string `yaml:"status_no"`
+	StatusLastExitCode   string `yaml:"status_last_exit_code"`
+	StatusLastExitReason string `yaml:"status_last_exit_reason"`
+	StatusLogPath        string `yaml:"status_log_path"`
+	StatusLogTailHeader  string `yaml:"status_log_tail_header"`
+	StatusLogReadFailed  string `yaml:"status_log_read_failed"`
+	StartFailedSeeStatus string `yaml:"start_failed_see_status"`
 }
 
 // StopOutput maps to stop command runtime output.
