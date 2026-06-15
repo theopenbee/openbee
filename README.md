@@ -106,21 +106,13 @@ The config file is written to `config.yaml` in the current directory by default.
 openbee config -o /path/to/config.yaml
 ```
 
-### Step 3 (optional): Enable autostart at login
-
-```bash
-openbee service install
-```
-
-This registers `openbee server` to start automatically when you log in on macOS, Linux, or Windows. See [docs/service-autostart.md](docs/service-autostart.md) for details.
-
-### Step 4: Start the service
+### Step 3: Start the service
 
 ```bash
 openbee server -d
 ```
 
-### Step 5: Start using
+### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
