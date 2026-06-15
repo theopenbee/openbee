@@ -16,7 +16,6 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		ConfigPath: "/Users/me/.openbee/config.yaml",
 		LogPath:    "/Users/me/.openbee/daemon.log",
 		Home:       "/Users/me",
-		Path:       "/usr/local/bin:/usr/bin:/bin",
 	})
 	if err != nil {
 		t.Fatal(err)

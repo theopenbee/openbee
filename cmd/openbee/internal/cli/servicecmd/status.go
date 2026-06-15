@@ -35,7 +35,7 @@ func newStatusCommand() *cobra.Command {
 
 func boolYesNo(b bool) string {
 	if b {
-		return "yes"
+		return i18n.M.Output.Service.StatusYes
 	}
-	return "no"
+	return i18n.M.Output.Service.StatusNo
 }

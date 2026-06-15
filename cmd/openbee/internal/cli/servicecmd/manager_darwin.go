@@ -28,7 +28,6 @@ type launchdTemplateData struct {
 	ConfigPath string
 	LogPath    string
 	Home       string
-	Path       string
 }
 
 func renderLaunchdPlist(d launchdTemplateData) (string, error) {
@@ -48,15 +47,18 @@ func (darwinManager) plistPath() (string, error) {
 }
 
 func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
-	home, err := os.UserHomeDir()
+	pp, err := m.plistPath()
 	if err != nil {
 		return err
 	}
-	pp := filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist")
 	if _, err := os.Stat(pp); err == nil && !opts.Force {
 		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 	}
 	if err := os.MkdirAll(filepath.Dir(pp), 0o755); err != nil {
+		return err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
 		return err
 	}
 	plist, err := renderLaunchdPlist(launchdTemplateData{
@@ -64,7 +66,6 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
 		Home:       home,
-		Path:       os.Getenv("PATH"),
 	})
 	if err != nil {
 		return err
@@ -72,13 +73,13 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(pp, []byte(plist), 0o644); err != nil {
 		return err
 	}
-	if _, err := runOrWrap(ctx, "launchctl bootstrap", "launchctl", "bootstrap", guiTarget(), pp); err != nil {
+	if _, err := runOrWrap(ctx, "launchctl", "bootstrap", guiTarget(), pp); err != nil {
 		return err
 	}
 	if !opts.AutoStart {
 		return nil
 	}
-	if _, err := runOrWrap(ctx, "launchctl kickstart", "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
+	if _, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel); err != nil {
 		return err
 	}
 	return nil
@@ -97,12 +98,12 @@ func (m darwinManager) Uninstall(ctx context.Context) error {
 }
 
 func (darwinManager) Start(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "launchctl kickstart", "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
+	_, err := runOrWrap(ctx, "launchctl", "kickstart", guiTarget()+"/"+launchdLabel)
 	return err
 }
 
 func (darwinManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "launchctl kill", "launchctl", "kill", "SIGTERM", guiTarget()+"/"+launchdLabel)
+	_, err := runOrWrap(ctx, "launchctl", "kill", "SIGTERM", guiTarget()+"/"+launchdLabel)
 	return err
 }
 

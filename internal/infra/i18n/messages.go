@@ -178,6 +178,8 @@ type ServiceOutput struct {
 	StatusInstalled  string `yaml:"status_installed"`
 	StatusRunState   string `yaml:"status_run_state"`
 	StatusPIDUptime  string `yaml:"status_pid_uptime"`
+	StatusYes        string `yaml:"status_yes"`
+	StatusNo         string `yaml:"status_no"`
 }
 
 // StopOutput maps to stop command runtime output.

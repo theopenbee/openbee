@@ -16,15 +16,19 @@ func defaultRunCommand(ctx context.Context, name string, args ...string) ([]byte
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func runOrWrap(ctx context.Context, label, name string, args ...string) ([]byte, error) {
+func runOrWrap(ctx context.Context, name string, args ...string) ([]byte, error) {
 	out, err := runCommand(ctx, name, args...)
 	if err != nil {
-		return out, wrapRunErr(label, err, out)
+		return out, wrapRunErr(name, args, err, out)
 	}
 	return out, nil
 }
 
-func wrapRunErr(label string, err error, out []byte) error {
+func wrapRunErr(name string, args []string, err error, out []byte) error {
+	label := name
+	if len(args) > 0 {
+		label = name + " " + args[0]
+	}
 	return fmt.Errorf("%s: %w (%s)", label, err, strings.TrimSpace(string(out)))
 }
 

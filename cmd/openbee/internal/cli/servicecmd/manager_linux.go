@@ -41,19 +41,8 @@ func NewManager() (Manager, error) {
 	return linuxManager{}, nil
 }
 
-func xdgConfigHome() (string, error) {
-	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
-		return dir, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config"), nil
-}
-
 func (linuxManager) unitPath() (string, error) {
-	cfgHome, err := xdgConfigHome()
+	cfgHome, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
@@ -84,14 +73,14 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
 		return err
 	}
-	if _, err := runOrWrap(ctx, "daemon-reload", "systemctl", "--user", "daemon-reload"); err != nil {
+	if _, err := runOrWrap(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
 		return err
 	}
 	enableArgs := []string{"--user", "enable", systemdUnitName}
 	if opts.AutoStart {
 		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
 	}
-	if _, err := runOrWrap(ctx, "systemctl enable", "systemctl", enableArgs...); err != nil {
+	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
 		return err
 	}
 	return nil
@@ -111,12 +100,12 @@ func (m linuxManager) Uninstall(ctx context.Context) error {
 }
 
 func (linuxManager) Start(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "systemctl start", "systemctl", "--user", "start", systemdUnitName)
+	_, err := runOrWrap(ctx, "systemctl", "--user", "start", systemdUnitName)
 	return err
 }
 
 func (linuxManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "systemctl stop", "systemctl", "--user", "stop", systemdUnitName)
+	_, err := runOrWrap(ctx, "systemctl", "--user", "stop", systemdUnitName)
 	return err
 }
 

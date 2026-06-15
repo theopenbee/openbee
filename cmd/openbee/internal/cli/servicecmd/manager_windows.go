@@ -82,12 +82,12 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 		if !opts.Force && strings.Contains(strings.ToLower(string(out)), "already exists") {
 			return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 		}
-		return wrapRunErr("schtasks /Create", err, out)
+		return wrapRunErr("schtasks", args, err, out)
 	}
 	if !opts.AutoStart {
 		return nil
 	}
-	if _, err := runOrWrap(ctx, "schtasks /Run", "schtasks", "/Run", "/TN", schtaskName); err != nil {
+	if _, err := runOrWrap(ctx, "schtasks", "/Run", "/TN", schtaskName); err != nil {
 		return err
 	}
 	return nil
@@ -100,18 +100,18 @@ func (windowsManager) Uninstall(ctx context.Context) error {
 		if strings.Contains(strings.ToLower(string(out)), "cannot find") {
 			return nil
 		}
-		return wrapRunErr("schtasks /Delete", err, out)
+		return wrapRunErr("schtasks", []string{"/Delete"}, err, out)
 	}
 	return nil
 }
 
 func (windowsManager) Start(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "schtasks /Run", "schtasks", "/Run", "/TN", schtaskName)
+	_, err := runOrWrap(ctx, "schtasks", "/Run", "/TN", schtaskName)
 	return err
 }
 
 func (windowsManager) Stop(ctx context.Context) error {
-	_, err := runOrWrap(ctx, "schtasks /End", "schtasks", "/End", "/TN", schtaskName)
+	_, err := runOrWrap(ctx, "schtasks", "/End", "/TN", schtaskName)
 	return err
 }
 
