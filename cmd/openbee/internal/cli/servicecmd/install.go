@@ -38,7 +38,7 @@ func newInstallCommand() *cobra.Command {
 			if !opts.AutoStart {
 				return nil
 			}
-			return reportRunStateAfterStart(cmd.Context(), mgr, cmd.OutOrStdout())
+			return reportRunStateAfterStart(cmd.Context(), mgr, cmd.OutOrStdout(), opts.LogPath)
 		},
 	}
 	cmd.Flags().StringVar(&configFlag, "config", "", i18n.M.Flag.ServiceConfig)

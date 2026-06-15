@@ -39,7 +39,7 @@ type windowsManager struct{}
 
 func NewManager() (Manager, error) { return windowsManager{}, nil }
 
-func currentUsername() (string, error) {
+func currentUserID() (string, error) {
 	u, err := user.Current()
 	if err != nil {
 		return "", err
@@ -48,7 +48,7 @@ func currentUsername() (string, error) {
 }
 
 func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
-	username, err := currentUsername()
+	username, err := currentUserID()
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 		if !opts.Force && strings.Contains(strings.ToLower(string(out)), "already exists") {
 			return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 		}
-		return wrapRunErr("schtasks", args, err, out)
+		return wrapRunErr("schtasks /Create", err, out)
 	}
 	if !opts.AutoStart {
 		return nil
@@ -99,7 +99,7 @@ func (windowsManager) Uninstall(ctx context.Context) error {
 		if strings.Contains(strings.ToLower(string(out)), "cannot find") {
 			return nil
 		}
-		return wrapRunErr("schtasks", []string{"/Delete"}, err, out)
+		return wrapRunErr("schtasks /Delete", err, out)
 	}
 	return nil
 }

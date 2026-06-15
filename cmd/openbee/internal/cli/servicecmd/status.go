@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
@@ -28,7 +29,8 @@ func newStatusCommand() *cobra.Command {
 				fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
 			}
 			if st.Installed && st.RunState != RunStateRunning {
-				printStartFailureDetails(out, st)
+				logPath, _ := config.DaemonLogFile()
+				printStartFailureDetails(out, st, logPath)
 			}
 			return nil
 		},

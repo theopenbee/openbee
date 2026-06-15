@@ -18,6 +18,10 @@ import (
 // execLookPath is overridden in tests to simulate missing tools.
 var execLookPath = exec.LookPath
 
+// runAsLookupTimeout bounds the runuser calls so a stuck profile script can't
+// hang `service install`. 5s is generous for a login shell + printf.
+var runAsLookupTimeout = 5 * time.Second
+
 // RunStateFailed is only produced by the linux (systemd) backend, which
 // surfaces a distinct "failed" ActiveState; launchd and Task Scheduler collapse
 // failure into RunStateStopped.
@@ -205,16 +209,13 @@ func resolveEnvPath(runAsUser string) (string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), runAsLookupTimeout)
 	defer cancel()
 	userPath, err := lookupRunAsEnvPath(ctx, runAsUser)
-	switch {
-	case err != nil:
+	if err != nil {
 		return installerPath, fmt.Sprintf(i18n.M.Output.Service.RunAsPathResolveFailed, runAsUser, err)
-	case userPath == "":
-		// Helper not implemented on this platform (defaults to "", nil) — keep
-		// the legacy behaviour without any warning.
-		return installerPath, ""
-	default:
-		return userPath, ""
 	}
+	if userPath == "" {
+		return installerPath, ""
+	}
+	return userPath, ""
 }
 
 // appendNodeWarning runs the node-availability check the daemon would face at
@@ -238,7 +239,3 @@ func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
 	}
 	return warnings
 }
-
-// runAsLookupTimeout bounds the runuser calls so a stuck profile script can't
-// hang `service install`. 5s is generous for a login shell + printf.
-var runAsLookupTimeout = 5 * time.Second

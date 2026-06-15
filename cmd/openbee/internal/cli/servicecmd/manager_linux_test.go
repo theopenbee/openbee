@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,17 +28,6 @@ func stubVerifyNode(t *testing.T, fn func(ctx context.Context, username, envPath
 	prev := verifyNodeForRunAsUser
 	verifyNodeForRunAsUser = fn
 	t.Cleanup(func() { verifyNodeForRunAsUser = prev })
-}
-
-// currentLinuxUsername mirrors currentUsername from manager_test.go but is
-// kept local so this file stays self-contained.
-func currentLinuxUsername(t *testing.T) string {
-	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatalf("user.Current: %v", err)
-	}
-	return u.Username
 }
 
 // stubRoot pretends the process runs as root so preflightRoot lets the call
@@ -291,7 +279,7 @@ func TestResolveInstallOptions_UsesRunAsUserPath(t *testing.T) {
 		return nodeCheckOK
 	})
 
-	opts, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	opts, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("resolveInstallOptions: %v", err)
 	}
@@ -316,7 +304,7 @@ func TestResolveInstallOptions_FallsBackOnLookupFailure(t *testing.T) {
 		return nodeCheckOK
 	})
 
-	opts, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	opts, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("resolveInstallOptions: %v", err)
 	}
@@ -341,7 +329,7 @@ func TestResolveInstallOptions_NotExecutableWarning(t *testing.T) {
 		return nodeCheckNotExecutable
 	})
 
-	_, warnings, err := resolveInstallOptions(cfg, "", currentLinuxUsername(t), false, false)
+	_, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
 	if err != nil {
 		t.Fatalf("resolveInstallOptions: %v", err)
 	}

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
@@ -22,8 +21,9 @@ var (
 
 // reportRunStateAfterStart returns an error on start failure so the CLI exits
 // non-zero; on failure it also prints last exit info and a tail of the daemon
-// log to help diagnose start crashes.
-func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer) error {
+// log to help diagnose start crashes. logPath may be empty when the caller does
+// not know which log file the unit writes to; the tail step is skipped then.
+func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer, logPath string) error {
 	st, err := waitRunning(ctx, mgr, verifyRunningTimeout)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer) e
 		}
 		return nil
 	}
-	printStartFailureDetails(out, st)
+	printStartFailureDetails(out, st, logPath)
 	return errors.New(i18n.M.Output.Service.StartFailedSeeStatus)
 }
 
@@ -60,15 +60,14 @@ func waitRunning(ctx context.Context, mgr Manager, timeout time.Duration) (Statu
 	}
 }
 
-func printStartFailureDetails(out io.Writer, st Status) {
+func printStartFailureDetails(out io.Writer, st Status, logPath string) {
 	if st.LastExitCode != "" {
 		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitCode+"\n", st.LastExitCode)
 	}
 	if st.LastExitReason != "" {
 		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitReason+"\n", st.LastExitReason)
 	}
-	logPath, err := config.DaemonLogFile()
-	if err != nil {
+	if logPath == "" {
 		return
 	}
 	fmt.Fprintf(out, i18n.M.Output.Service.StatusLogPath+"\n", logPath)

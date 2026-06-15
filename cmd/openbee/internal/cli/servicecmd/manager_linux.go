@@ -20,25 +20,17 @@ func init() {
 	verifyNodeForRunAsUser = linuxVerifyNodeForRunAsUser
 }
 
-// linuxLookupRunAsEnvPath returns the login-shell PATH for username. We need
-// the *daemon's* PATH baked into the unit, not the installer's: when sudo runs
-// install, os.Getenv("PATH") is root's PATH (or sudo's secure_path), which
-// often points at /root/.nvm/.../bin/node — a node binary the daemon user
-// cannot exec, surfacing as "/usr/bin/env: 'node': Permission denied".
-//
-// `runuser -l <user> -c 'printf %s "$PATH"'` runs as preflightRoot guarantees
-// root. `-l` is critical: without it runuser preserves the caller's env, so
-// root's PATH (e.g. /root/.nvm/...) leaks into what we think is the run-as
-// user's PATH and ends up baked into the unit — a path the daemon user can't
-// even read. `-l` clears env and starts a real login shell so we get the
-// run-as user's actual profile-derived PATH.
+// linuxLookupRunAsEnvPath returns the login-shell PATH for username. `-l` is
+// critical: without it runuser preserves root's env (e.g. /root/.nvm/...) and
+// that path gets baked into the unit, surfacing later as the daemon-user
+// "/usr/bin/env: 'node': Permission denied" failure.
 func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
 	if username == "" {
 		return "", nil
 	}
 	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `printf %s "$PATH"`)
 	if err != nil {
-		return "", wrapRunErr("runuser", []string{"-u", username}, err, out)
+		return "", wrapRunErr("runuser", err, out)
 	}
 	p := strings.TrimSpace(string(out))
 	if p == "" {
@@ -58,9 +50,7 @@ func linuxVerifyNodeForRunAsUser(ctx context.Context, username, envPath string) 
 	if username == "" {
 		return nodeCheckUnknown
 	}
-	// Inside the shell: command -v finds node via PATH, then test -x verifies
-	// the resolved binary is executable. Two distinct exits let us tell the
-	// modes apart: 1 → missing, 2 → found-but-not-executable.
+	// exit 1 = missing on PATH; exit 2 = found but not executable.
 	script := `p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0`
 	code, err := runWithExitCode(ctx, "runuser", "-u", username, "--", "/usr/bin/env", "-i", "PATH="+envPath, "/bin/sh", "-c", script)
 	if err != nil {
@@ -136,8 +126,8 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	}
 	up := m.unitPath()
 	_, statErr := os.Stat(up)
-	existed := statErr == nil
-	if existed && !opts.Force {
+	overwroteExisting := statErr == nil
+	if overwroteExisting && !opts.Force {
 		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
 	}
 	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
@@ -167,10 +157,10 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 		return err
 	}
 	// Roll back the unit on systemctl failure so a retry won't hit the
-	// already-installed guard. Skip on Force overwrite (caller accepted the
-	// loss of the prior unit) — there's no "prior state" to restore.
+	// already-installed guard. With Force the caller accepted overwriting the
+	// prior unit, so leave the new one in place rather than restoring nothing.
 	rollback := func(opErr error) error {
-		if !existed {
+		if !overwroteExisting {
 			_ = os.Remove(up)
 		}
 		return opErr
@@ -178,10 +168,11 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if _, err := runOrWrap(ctx, "systemctl", "daemon-reload"); err != nil {
 		return rollback(err)
 	}
-	enableArgs := []string{"enable", systemdUnitName}
+	enableArgs := []string{"enable"}
 	if opts.AutoStart {
-		enableArgs = []string{"enable", "--now", systemdUnitName}
+		enableArgs = append(enableArgs, "--now")
 	}
+	enableArgs = append(enableArgs, systemdUnitName)
 	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
 		return rollback(err)
 	}
@@ -235,14 +226,12 @@ func (linuxManager) Stop(ctx context.Context) error {
 func (m linuxManager) Status(ctx context.Context) (Status, error) {
 	up := m.unitPath()
 	st := Status{}
-	if _, err := os.Stat(up); err == nil {
-		st.Installed = true
+	if _, err := os.Stat(up); err != nil {
+		return st, nil
 	}
+	st.Installed = true
 	out, err := runCommand(ctx, "systemctl", "show", "-p", "ActiveState,SubState,MainPID,ExecMainStartTimestamp", systemdUnitName)
 	if err != nil {
-		if !st.Installed {
-			return st, nil
-		}
 		st.RunState = RunStateStopped
 		return st, nil
 	}

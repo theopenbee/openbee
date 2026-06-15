@@ -59,16 +59,12 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.MkdirAll(filepath.Dir(pp), 0o755); err != nil {
 		return err
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
 	plist, err := renderLaunchdPlist(launchdTemplateData{
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
 		WorkingDir: opts.WorkingDir,
-		Home:       home,
+		Home:       opts.Home,
 		EnvPath:    opts.EnvPath,
 	})
 	if err != nil {
@@ -137,14 +133,12 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	st := Status{}
-	if _, err := os.Stat(pp); err == nil {
-		st.Installed = true
+	if _, err := os.Stat(pp); err != nil {
+		return st, nil
 	}
+	st.Installed = true
 	out, err := runCommand(ctx, "launchctl", "print", launchdTarget())
 	if err != nil {
-		if !st.Installed {
-			return st, nil
-		}
 		st.RunState = RunStateStopped
 		return st, nil
 	}
