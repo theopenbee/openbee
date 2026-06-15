@@ -65,10 +65,10 @@ type InstallOptions struct {
 	// `/opt/homebrew/bin`, nvm directories, etc., so node-based CLIs (claude,
 	// codex) fail with `env: node: No such file or directory` unless we
 	// forward the install-time PATH. The Linux backend does NOT bake this into
-	// the unit — it wraps ExecStart in `/bin/bash -lc` and reads PATH from the
-	// run-as user's profile at start time. EnvPath is still computed on Linux
-	// so install-time warnings (node missing / not executable) have a value to
-	// display.
+	// the unit — it wraps ExecStart in `/bin/bash -ilc` and reads PATH from the
+	// run-as user's interactive-login profile at start time. EnvPath is still
+	// computed on Linux so install-time warnings (node missing / not
+	// executable) have a value to display.
 	EnvPath   string
 	AutoStart bool
 	Force     bool

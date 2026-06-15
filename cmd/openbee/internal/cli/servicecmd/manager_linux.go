@@ -20,15 +20,18 @@ func init() {
 	verifyNodeForRunAsUser = linuxVerifyNodeForRunAsUser
 }
 
-// linuxLookupRunAsEnvPath returns the login-shell PATH for username. `-l` is
-// critical: without it runuser preserves root's env (e.g. /root/.nvm/...) and
-// that path gets baked into the unit, surfacing later as the daemon-user
-// "/usr/bin/env: 'node': Permission denied" failure.
+// linuxLookupRunAsEnvPath returns the interactive-login-shell PATH for
+// username. We pair runuser's `-l` (login: sources /etc/profile and
+// ~/.bash_profile / ~/.profile) with an inner `bash -ic` (interactive: sources
+// ~/.bashrc) so the probe matches the runtime ExecStart, which uses
+// `/bin/bash -ilc`. Without the interactive layer, nvm setups that only patch
+// PATH in ~/.bashrc (the default on many distros) leak through as the daemon
+// "/usr/bin/env: 'node': No such file or directory" failure.
 func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
 	if username == "" {
 		return "", nil
 	}
-	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `printf %s "$PATH"`)
+	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `bash -ic 'printf %s "$PATH"'`)
 	if err != nil {
 		return "", wrapRunErr("runuser", err, out)
 	}
@@ -44,17 +47,17 @@ func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, erro
 //   - node not on PATH at all       → env reports "No such file or directory"
 //   - node on PATH but not exec'able → env reports "Permission denied"
 //
-// The unit runs the daemon via `/bin/bash -lc`, so we probe with the same login
-// shell as the run-as user: a green check here uses the exact PATH the daemon
-// will see at runtime, including nvm/conda scripts sourced from the profile.
-// envPath is ignored — it is only retained on the signature so the common-mode
-// stub can share the type.
+// The unit runs the daemon via `/bin/bash -ilc`, so we probe with the same
+// interactive-login shell as the run-as user (`runuser -l` for the profile,
+// inner `bash -ic` for ~/.bashrc-sourced nvm/conda). A green check here uses
+// the exact PATH the daemon will see at runtime. envPath is ignored — it is
+// only retained on the signature so the common-mode stub can share the type.
 func linuxVerifyNodeForRunAsUser(ctx context.Context, username, _ string) nodeCheckResult {
 	if username == "" {
 		return nodeCheckUnknown
 	}
 	// exit 1 = missing on PATH; exit 2 = found but not executable.
-	script := `p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0`
+	script := `bash -ic 'p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0'`
 	code, err := runWithExitCode(ctx, "runuser", "-l", username, "-c", script)
 	if err != nil {
 		return nodeCheckUnknown
@@ -87,8 +90,9 @@ var systemdTmpl = parseTemplate(linuxTemplatesFS, "templates/systemd.service.tmp
 
 // systemdTemplateData drives templates/systemd.service.tmpl. PATH/HOME are
 // intentionally not baked into the unit — the daemon is launched via
-// `/bin/bash -lc`, so it inherits the run-as user's live login-shell
-// environment (nvm, conda, custom PATH) instead of an install-time snapshot.
+// `/bin/bash -ilc`, so it inherits the run-as user's live interactive-login
+// environment (nvm, conda, custom PATH — including ~/.bashrc-sourced setups)
+// instead of an install-time snapshot.
 type systemdTemplateData struct {
 	ExePath    string
 	ConfigPath string

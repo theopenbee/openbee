@@ -73,10 +73,11 @@ func TestRenderSystemdUnit(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		// ExecStart goes through `bash -lc` so the daemon inherits the run-as
-		// user's login-shell PATH (nvm, conda, …) at start time. `exec` avoids
-		// the extra bash process so systemd still tracks the server PID.
-		"ExecStart=/bin/bash -lc 'exec /usr/local/bin/openbee server -c /home/me/.openbee/config.yaml'",
+		// ExecStart goes through `bash -ilc` so the daemon inherits the run-as
+		// user's interactive-login PATH (nvm/conda sourced from ~/.bashrc as
+		// well as ~/.bash_profile) at start time. `exec` avoids the extra bash
+		// process so systemd still tracks the server PID.
+		"ExecStart=/bin/bash -ilc 'exec /usr/local/bin/openbee server -c /home/me/.openbee/config.yaml'",
 		"WorkingDirectory=/home/me/.openbee",
 		"Restart=on-failure",
 		"RestartSec=10",
@@ -90,7 +91,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 			t.Errorf("unit missing %q\nfull:\n%s", want, got)
 		}
 	}
-	// PATH/HOME must NOT be frozen into the unit — that defeats the bash -lc
+	// PATH/HOME must NOT be frozen into the unit — that defeats the bash -ilc
 	// design and brings back the install-time snapshot bugs.
 	for _, forbidden := range []string{
 		"Environment=PATH=",
@@ -372,7 +373,7 @@ func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
 	if p != want {
 		t.Errorf("PATH = %q, want %q", p, want)
 	}
-	wantArgs := []string{"runuser", "-l", "openbee", "-c", `printf %s "$PATH"`}
+	wantArgs := []string{"runuser", "-l", "openbee", "-c", `bash -ic 'printf %s "$PATH"'`}
 	if strings.Join(got, " ") != strings.Join(wantArgs, " ") {
 		t.Errorf("runuser argv = %v, want %v", got, wantArgs)
 	}
@@ -407,12 +408,13 @@ func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {
 	}
 }
 
-// TestLinuxVerifyNodeForRunAsUser_UsesLoginShell pins the argv shape: the probe
-// must invoke `runuser -l <user> -c <script>` so it reads PATH from the same
-// login-shell profile the daemon will use at runtime. The earlier
-// `runuser -u <user> -- /usr/bin/env -i PATH=<snapshot>` form bypassed the
-// profile and was inconsistent with the new `bash -lc` ExecStart.
-func TestLinuxVerifyNodeForRunAsUser_UsesLoginShell(t *testing.T) {
+// TestLinuxVerifyNodeForRunAsUser_UsesInteractiveLoginShell pins the argv
+// shape: the probe must invoke `runuser -l <user> -c 'bash -ic <script>'` so
+// it reads PATH from the same interactive-login shell the daemon will use at
+// runtime. The earlier login-only form (no inner `bash -ic`) missed nvm setups
+// that only patch PATH from ~/.bashrc, producing false-negative node warnings
+// at install while the daemon still found node at runtime — and vice versa.
+func TestLinuxVerifyNodeForRunAsUser_UsesInteractiveLoginShell(t *testing.T) {
 	prev := runWithExitCode
 	var got []string
 	runWithExitCode = func(_ context.Context, name string, args ...string) (int, error) {
@@ -424,7 +426,10 @@ func TestLinuxVerifyNodeForRunAsUser_UsesLoginShell(t *testing.T) {
 	if r := linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/ignored"); r != nodeCheckOK {
 		t.Fatalf("unexpected result: %v", r)
 	}
-	if len(got) < 4 || got[0] != "runuser" || got[1] != "-l" || got[2] != "openbee" || got[3] != "-c" {
+	if len(got) < 5 || got[0] != "runuser" || got[1] != "-l" || got[2] != "openbee" || got[3] != "-c" {
 		t.Errorf("expected `runuser -l openbee -c <script>`, got %v", got)
+	}
+	if !strings.HasPrefix(got[4], "bash -ic ") {
+		t.Errorf("expected inner shell to be `bash -ic …`, got %q", got[4])
 	}
 }
