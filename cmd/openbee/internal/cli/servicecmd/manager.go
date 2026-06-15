@@ -87,11 +87,19 @@ func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force boo
 		}
 		cfgPath = filepath.Join(home, "config.yaml")
 	}
-	if _, err := os.Stat(cfgPath); err != nil {
+	cfgInfo, err := os.Stat(cfgPath)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return InstallOptions{}, nil, fmt.Errorf(i18n.M.Output.Service.ConfigMissing, cfgPath)
 		}
 		return InstallOptions{}, nil, fmt.Errorf("stat config: %w", err)
+	}
+	if cfgInfo.IsDir() {
+		return InstallOptions{}, nil, fmt.Errorf(
+			i18n.M.Output.Service.ConfigPathIsDir,
+			cfgPath,
+			filepath.Join(cfgPath, "config.yaml"),
+		)
 	}
 
 	logPath, err := config.DaemonLogFile()

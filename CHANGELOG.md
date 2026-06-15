@@ -8,6 +8,8 @@
 
 ### Fixed
 - `openbee service install` now captures the install-time `PATH` and embeds it into the launchd plist (`EnvironmentVariables.PATH`) and the systemd user unit (`Environment=PATH=…`). Without this, jobs started by launchd/systemd inherit a minimal default `PATH` that excludes `/usr/local/bin`, `/opt/homebrew/bin`, and nvm directories, so the server's spawned `claude`/`codex` Node.js CLIs failed with `env: node: No such file or directory`. The install command also prints a warning when `node` is not on `PATH` at install time.
+- `openbee service install` on Linux now preflights the systemd user bus before writing the unit file, and rolls the unit file back if `systemctl --user daemon-reload`/`enable` later fails. Previously, when the user had no reachable D-Bus session (e.g. SSH into a cloud VM without `loginctl enable-linger`), the install would leave a stale unit file behind and every subsequent retry would fail with `service already installed`. The preflight now surfaces an actionable message (`enable-linger`, `machinectl shell`, or `XDG_RUNTIME_DIR`) instead of the raw `Failed to connect to bus: Permission denied` from systemctl.
+- `openbee service install --config <dir>` now rejects directory paths up front (with a suggested `<dir>/config.yaml`). Previously a directory passed `os.Stat` validation and the install proceeded with a non-loadable config path baked into the unit/plist.
 
 ## [0.0.39] - 2026-06-02
 

@@ -175,7 +175,9 @@ type ServiceOutput struct {
 	AlreadyInstalled     string `yaml:"already_installed"`
 	NotInstalled         string `yaml:"not_installed"`
 	ConfigMissing        string `yaml:"config_missing"`
+	ConfigPathIsDir      string `yaml:"config_path_is_dir"`
 	SystemdUnavail       string `yaml:"systemd_unavailable"`
+	UserBusUnavail       string `yaml:"user_bus_unavailable"`
 	StatusInstalled      string `yaml:"status_installed"`
 	StatusRunState       string `yaml:"status_run_state"`
 	StatusPID            string `yaml:"status_pid"`

@@ -3,6 +3,7 @@ package servicecmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -72,6 +73,23 @@ func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", false, false)
 	if err == nil {
 		t.Fatal("expected error for missing config")
+	}
+}
+
+// Regression: passing a directory as --config (e.g. `--config ~/openbee`)
+// previously silently proceeded because os.Stat treats dirs as existing files.
+func TestResolveInstallOptions_ConfigIsDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	_, _, err := resolveInstallOptions(tmp, "", false, false)
+	if err == nil {
+		t.Fatal("expected error for directory passed as config")
+	}
+	if !strings.Contains(err.Error(), "must point to a config file") {
+		t.Errorf("expected directory-not-file error, got: %v", err)
+	}
+	suggested := filepath.Join(tmp, "config.yaml")
+	if !strings.Contains(err.Error(), suggested) {
+		t.Errorf("error should suggest %q, got: %v", suggested, err)
 	}
 }
 

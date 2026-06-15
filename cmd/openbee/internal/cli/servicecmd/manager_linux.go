@@ -6,6 +6,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,8 +57,13 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(up); err == nil && !opts.Force {
+	_, statErr := os.Stat(up)
+	existed := statErr == nil
+	if existed && !opts.Force {
 		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
+	}
+	if err := preflightUserBus(ctx); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
 		return err
@@ -77,15 +83,63 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
 		return err
 	}
+	// rollback removes the unit file we just created so a retry won't hit the
+	// "already installed" guard. Skip when we were asked to overwrite an
+	// existing unit (the caller accepted the loss already), so we don't go past
+	// "restore prior state".
+	rollback := func(opErr error) error {
+		if !existed {
+			_ = os.Remove(up)
+		}
+		return translateBusError(opErr)
+	}
 	if _, err := runOrWrap(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
-		return err
+		return rollback(err)
 	}
 	enableArgs := []string{"--user", "enable", systemdUnitName}
 	if opts.AutoStart {
 		enableArgs = []string{"--user", "enable", "--now", systemdUnitName}
 	}
-	_, err = runOrWrap(ctx, "systemctl", enableArgs...)
+	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
+		return rollback(err)
+	}
+	return nil
+}
+
+// preflightUserBus probes the systemd user bus before we touch the unit file,
+// so the bus-permission failure surfaces as an actionable error instead of
+// leaving a half-installed unit behind.
+func preflightUserBus(ctx context.Context) error {
+	out, err := runCommand(ctx, "systemctl", "--user", "show-environment")
+	if err == nil {
+		return nil
+	}
+	if looksLikeBusPermissionDenied(string(out) + " " + err.Error()) {
+		return userBusUnavailableErr()
+	}
+	return nil
+}
+
+func translateBusError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if looksLikeBusPermissionDenied(err.Error()) {
+		return userBusUnavailableErr()
+	}
 	return err
+}
+
+func looksLikeBusPermissionDenied(s string) bool {
+	return strings.Contains(s, "Failed to connect to bus") && strings.Contains(s, "Permission denied")
+}
+
+func userBusUnavailableErr() error {
+	user := os.Getenv("USER")
+	if user == "" {
+		user = "$USER"
+	}
+	return fmt.Errorf(i18n.M.Output.Service.UserBusUnavail, user, user)
 }
 
 func (m linuxManager) Uninstall(ctx context.Context) error {
