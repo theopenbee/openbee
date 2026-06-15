@@ -142,6 +142,7 @@ flag:
   upgrade_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
   upgrade_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
   service_config: "openbee 配置文件路径（默认 ~/.openbee/config.yaml）"
+  service_working_dir: "服务运行时的工作目录（默认 ~/.openbee）"
   service_no_start: "仅注册自启动，不立即启动"
   service_force: "覆盖已有安装"
 output:

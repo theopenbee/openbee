@@ -34,6 +34,7 @@
     <Exec>
       <Command>cmd.exe</Command>
       <Arguments>/c &quot;&quot;{{.ExePath}}&quot; server -c &quot;{{.ConfigPath}}&quot; &gt;&gt; &quot;{{.LogPath}}&quot; 2&gt;&amp;1&quot;</Arguments>
+      <WorkingDirectory>{{.WorkingDir}}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>

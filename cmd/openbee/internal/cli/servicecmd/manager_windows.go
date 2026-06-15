@@ -28,6 +28,7 @@ type schtaskTemplateData struct {
 	ExePath    string
 	ConfigPath string
 	LogPath    string
+	WorkingDir string
 }
 
 func renderSchtaskXML(d schtaskTemplateData) (string, error) {
@@ -56,6 +57,7 @@ func (windowsManager) Install(ctx context.Context, opts InstallOptions) error {
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
+		WorkingDir: opts.WorkingDir,
 	})
 	if err != nil {
 		return err

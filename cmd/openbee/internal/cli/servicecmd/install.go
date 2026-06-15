@@ -10,15 +10,16 @@ import (
 
 func newInstallCommand() *cobra.Command {
 	var (
-		configFlag string
-		noStart    bool
-		force      bool
+		configFlag     string
+		workingDirFlag string
+		noStart        bool
+		force          bool
 	)
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: i18n.M.Cmd.Service.Install,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts, err := resolveInstallOptions(configFlag, noStart, force)
+			opts, err := resolveInstallOptions(configFlag, workingDirFlag, noStart, force)
 			if err != nil {
 				return err
 			}
@@ -37,6 +38,7 @@ func newInstallCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&configFlag, "config", "", i18n.M.Flag.ServiceConfig)
+	cmd.Flags().StringVar(&workingDirFlag, "working-dir", "", i18n.M.Flag.ServiceWorkingDir)
 	cmd.Flags().BoolVar(&noStart, "no-start", false, i18n.M.Flag.ServiceNoStart)
 	cmd.Flags().BoolVar(&force, "force", false, i18n.M.Flag.ServiceForce)
 	return cmd

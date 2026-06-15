@@ -27,6 +27,7 @@ type launchdTemplateData struct {
 	ExePath    string
 	ConfigPath string
 	LogPath    string
+	WorkingDir string
 	Home       string
 }
 
@@ -65,6 +66,7 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 		ExePath:    opts.ExePath,
 		ConfigPath: opts.ConfigPath,
 		LogPath:    opts.LogPath,
+		WorkingDir: opts.WorkingDir,
 		Home:       home,
 	})
 	if err != nil {

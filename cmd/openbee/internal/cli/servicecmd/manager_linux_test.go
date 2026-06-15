@@ -15,6 +15,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: "/home/me/.openbee/config.yaml",
 		LogPath:    "/home/me/.openbee/daemon.log",
+		WorkingDir: "/home/me/.openbee",
 		Home:       "/home/me",
 	})
 	if err != nil {
@@ -22,6 +23,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 	}
 	for _, want := range []string{
 		"ExecStart=/usr/local/bin/openbee server -c /home/me/.openbee/config.yaml",
+		"WorkingDirectory=/home/me/.openbee",
 		"Restart=on-failure",
 		"RestartSec=10",
 		"StandardOutput=append:/home/me/.openbee/daemon.log",

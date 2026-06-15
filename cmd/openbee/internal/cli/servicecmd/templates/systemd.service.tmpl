@@ -4,6 +4,7 @@ After=default.target
 
 [Service]
 Type=simple
+WorkingDirectory={{.WorkingDir}}
 ExecStart={{.ExePath}} server -c {{.ConfigPath}}
 Restart=on-failure
 RestartSec=10

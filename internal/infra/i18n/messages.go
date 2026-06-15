@@ -138,9 +138,10 @@ type FlagMessages struct {
 	UpgradeCheck    string `yaml:"upgrade_check"`
 	UpgradeCDNURL   string `yaml:"upgrade_cdn_url"`
 	UpgradeCN       string `yaml:"upgrade_cn"`
-	ServiceConfig   string `yaml:"service_config"`
-	ServiceNoStart  string `yaml:"service_no_start"`
-	ServiceForce    string `yaml:"service_force"`
+	ServiceConfig     string `yaml:"service_config"`
+	ServiceWorkingDir string `yaml:"service_working_dir"`
+	ServiceNoStart    string `yaml:"service_no_start"`
+	ServiceForce      string `yaml:"service_force"`
 }
 
 // ValidateMessages maps to interactive input validation error messages.

@@ -59,6 +59,7 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: "/Users/me/.openbee/config.yaml",
 		LogPath:    "/Users/me/.openbee/daemon.log",
+		WorkingDir: "/Users/me/.openbee",
 		Home:       "/Users/me",
 	})
 	if err != nil {
@@ -73,6 +74,8 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		"<key>KeepAlive</key>",
 		"<integer>10</integer>",
 		"<string>/Users/me/.openbee/daemon.log</string>",
+		"<key>WorkingDirectory</key>",
+		"<string>/Users/me/.openbee</string>",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("rendered plist missing %q\nfull:\n%s", want, got)

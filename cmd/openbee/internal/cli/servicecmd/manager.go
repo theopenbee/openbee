@@ -50,6 +50,7 @@ type InstallOptions struct {
 	ExePath    string
 	ConfigPath string
 	LogPath    string
+	WorkingDir string
 	AutoStart  bool
 	Force      bool
 }
@@ -62,7 +63,7 @@ type Manager interface {
 	Status(ctx context.Context) (Status, error)
 }
 
-func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptions, error) {
+func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force bool) (InstallOptions, error) {
 	exe, err := utils.ResolveExecutable()
 	if err != nil {
 		return InstallOptions{}, fmt.Errorf("resolve executable: %w", err)
@@ -88,10 +89,29 @@ func resolveInstallOptions(configFlag string, noStart, force bool) (InstallOptio
 		return InstallOptions{}, fmt.Errorf("resolve log path: %w", err)
 	}
 
+	workingDir := workingDirFlag
+	if workingDir == "" {
+		workingDir, err = config.OpenbeeHomeDir()
+		if err != nil {
+			return InstallOptions{}, fmt.Errorf("resolve working dir: %w", err)
+		}
+	}
+	if !filepath.IsAbs(workingDir) {
+		abs, err := filepath.Abs(workingDir)
+		if err != nil {
+			return InstallOptions{}, fmt.Errorf("resolve working dir: %w", err)
+		}
+		workingDir = abs
+	}
+	if err := os.MkdirAll(workingDir, 0o755); err != nil {
+		return InstallOptions{}, fmt.Errorf("create working dir: %w", err)
+	}
+
 	return InstallOptions{
 		ExePath:    exe,
 		ConfigPath: cfgPath,
 		LogPath:    logPath,
+		WorkingDir: workingDir,
 		AutoStart:  !noStart,
 		Force:      force,
 	}, nil

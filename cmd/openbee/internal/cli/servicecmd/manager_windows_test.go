@@ -13,6 +13,7 @@ func TestRenderSchtaskXML(t *testing.T) {
 		ExePath:    `C:\Program Files\openbee\openbee.exe`,
 		ConfigPath: `C:\Users\me\.openbee\config.yaml`,
 		LogPath:    `C:\Users\me\.openbee\daemon.log`,
+		WorkingDir: `C:\Users\me\.openbee`,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -25,6 +26,7 @@ func TestRenderSchtaskXML(t *testing.T) {
 		"openbee.exe",
 		"server -c",
 		"daemon.log",
+		`<WorkingDirectory>C:\Users\me\.openbee</WorkingDirectory>`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("XML missing %q\nfull:\n%s", want, got)
