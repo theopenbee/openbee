@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- `openbee service install/uninstall/start/stop/status` subcommand group for one-click user-level autostart on macOS (launchd), Linux (systemd --user), and Windows (Task Scheduler). See `docs/service-autostart.md`.
+- `openbee service install/uninstall/start/stop/status` subcommand group for one-click user-level autostart on macOS (launchd), Linux (systemd --user), and Windows (Task Scheduler).
 
 ## [0.0.39] - 2026-06-02
 
