@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
+
+// lookPathInstall is overridden in tests to simulate missing tools.
+var lookPathInstall = exec.LookPath
 
 // RunStateFailed is only produced by the linux (systemd) backend, which
 // surfaces a distinct "failed" ActiveState; launchd and Task Scheduler collapse
@@ -50,8 +54,15 @@ type InstallOptions struct {
 	ConfigPath string
 	LogPath    string
 	WorkingDir string
-	AutoStart  bool
-	Force      bool
+	// EnvPath is the PATH value that should be embedded into the service unit
+	// (launchd plist / systemd unit). launchd and systemd start jobs with a
+	// minimal default PATH that excludes `/usr/local/bin`, `/opt/homebrew/bin`,
+	// nvm directories, etc., so node-based CLIs (claude, codex) fail with
+	// `env: node: No such file or directory` unless we explicitly forward
+	// the install-time PATH.
+	EnvPath   string
+	AutoStart bool
+	Force     bool
 }
 
 type Manager interface {
@@ -62,48 +73,54 @@ type Manager interface {
 	Status(ctx context.Context) (Status, error)
 }
 
-func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force bool) (InstallOptions, error) {
+func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force bool) (InstallOptions, []string, error) {
 	exe, err := utils.ResolveExecutable()
 	if err != nil {
-		return InstallOptions{}, fmt.Errorf("resolve executable: %w", err)
+		return InstallOptions{}, nil, fmt.Errorf("resolve executable: %w", err)
 	}
 
 	cfgPath := configFlag
 	if cfgPath == "" {
 		home, err := config.OpenbeeHomeDir()
 		if err != nil {
-			return InstallOptions{}, fmt.Errorf("resolve home dir: %w", err)
+			return InstallOptions{}, nil, fmt.Errorf("resolve home dir: %w", err)
 		}
 		cfgPath = filepath.Join(home, "config.yaml")
 	}
 	if _, err := os.Stat(cfgPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return InstallOptions{}, fmt.Errorf(i18n.M.Output.Service.ConfigMissing, cfgPath)
+			return InstallOptions{}, nil, fmt.Errorf(i18n.M.Output.Service.ConfigMissing, cfgPath)
 		}
-		return InstallOptions{}, fmt.Errorf("stat config: %w", err)
+		return InstallOptions{}, nil, fmt.Errorf("stat config: %w", err)
 	}
 
 	logPath, err := config.DaemonLogFile()
 	if err != nil {
-		return InstallOptions{}, fmt.Errorf("resolve log path: %w", err)
+		return InstallOptions{}, nil, fmt.Errorf("resolve log path: %w", err)
 	}
 
 	workingDir := workingDirFlag
 	if workingDir == "" {
 		workingDir, err = config.OpenbeeHomeDir()
 		if err != nil {
-			return InstallOptions{}, fmt.Errorf("resolve working dir: %w", err)
+			return InstallOptions{}, nil, fmt.Errorf("resolve working dir: %w", err)
 		}
 	}
 	if !filepath.IsAbs(workingDir) {
 		abs, err := filepath.Abs(workingDir)
 		if err != nil {
-			return InstallOptions{}, fmt.Errorf("resolve working dir: %w", err)
+			return InstallOptions{}, nil, fmt.Errorf("resolve working dir: %w", err)
 		}
 		workingDir = abs
 	}
 	if err := os.MkdirAll(workingDir, 0o755); err != nil {
-		return InstallOptions{}, fmt.Errorf("create working dir: %w", err)
+		return InstallOptions{}, nil, fmt.Errorf("create working dir: %w", err)
+	}
+
+	envPath := os.Getenv("PATH")
+	var warnings []string
+	if _, err := lookPathInstall("node"); err != nil {
+		warnings = append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, envPath))
 	}
 
 	return InstallOptions{
@@ -111,9 +128,10 @@ func resolveInstallOptions(configFlag, workingDirFlag string, noStart, force boo
 		ConfigPath: cfgPath,
 		LogPath:    logPath,
 		WorkingDir: workingDir,
+		EnvPath:    envPath,
 		AutoStart:  !noStart,
 		Force:      force,
-	}, nil
+	}, warnings, nil
 }
 
 var newManager = NewManager

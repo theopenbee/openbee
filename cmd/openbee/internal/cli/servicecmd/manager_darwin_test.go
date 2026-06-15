@@ -62,6 +62,7 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		LogPath:    "/Users/me/.openbee/daemon.log",
 		WorkingDir: "/Users/me/.openbee",
 		Home:       "/Users/me",
+		EnvPath:    "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +78,8 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		"<string>/Users/me/.openbee/daemon.log</string>",
 		"<key>WorkingDirectory</key>",
 		"<string>/Users/me/.openbee</string>",
+		"<key>PATH</key>",
+		"<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("rendered plist missing %q\nfull:\n%s", want, got)
@@ -182,6 +185,7 @@ func TestDarwinInstall_WritesPlist(t *testing.T) {
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: cfg,
 		LogPath:    log,
+		EnvPath:    "/opt/homebrew/bin:/usr/bin:/bin",
 		AutoStart:  false,
 	}); err != nil {
 		t.Fatal(err)
@@ -193,5 +197,8 @@ func TestDarwinInstall_WritesPlist(t *testing.T) {
 	}
 	if !strings.Contains(string(data), cfg) {
 		t.Errorf("plist missing config path")
+	}
+	if !strings.Contains(string(data), "/opt/homebrew/bin:/usr/bin:/bin") {
+		t.Errorf("plist missing PATH from EnvPath")
 	}
 }

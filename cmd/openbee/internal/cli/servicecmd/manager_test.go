@@ -13,7 +13,7 @@ func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	opts, err := resolveInstallOptions(cfg, "", false, false)
+	opts, _, err := resolveInstallOptions(cfg, "", false, false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -35,10 +35,41 @@ func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 	if !filepath.IsAbs(opts.WorkingDir) {
 		t.Errorf("WorkingDir %q must be absolute", opts.WorkingDir)
 	}
+	if opts.EnvPath == "" {
+		t.Errorf("EnvPath should capture the install-time PATH, got empty")
+	}
+	if opts.EnvPath != os.Getenv("PATH") {
+		t.Errorf("EnvPath = %q, want current PATH %q", opts.EnvPath, os.Getenv("PATH"))
+	}
+}
+
+func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "config.yaml")
+	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	prev := lookPathInstall
+	lookPathInstall = func(name string) (string, error) {
+		if name == "node" {
+			return "", os.ErrNotExist
+		}
+		return "/usr/bin/" + name, nil
+	}
+	t.Cleanup(func() { lookPathInstall = prev })
+
+	_, warnings, err := resolveInstallOptions(cfg, "", false, false)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected a warning when node is missing from PATH")
+	}
 }
 
 func TestResolveInstallOptions_MissingConfig(t *testing.T) {
-	_, err := resolveInstallOptions("/nonexistent/path.yaml", "", false, false)
+	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", false, false)
 	if err == nil {
 		t.Fatal("expected error for missing config")
 	}
@@ -52,7 +83,7 @@ func TestResolveInstallOptions_ExplicitWorkingDir(t *testing.T) {
 	}
 	wd := filepath.Join(tmp, "run")
 
-	opts, err := resolveInstallOptions(cfg, wd, false, false)
+	opts, _, err := resolveInstallOptions(cfg, wd, false, false)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

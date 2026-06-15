@@ -236,6 +236,7 @@ output:
     status_log_tail_header: "Last log lines:"
     status_log_read_failed: "(could not read log: %v)"
     start_failed_see_status: "service did not enter running state; run 'openbee service status' for details"
+    node_missing_warning: "warning: 'node' was not found on the current PATH (%s); claude/codex CLIs may fail to start because they are Node.js scripts. Install Node.js and ensure it is on PATH, then re-run 'openbee service install --force'."
 validate:
   port_integer: "port must be an integer"
   positive_integer: "must be a positive integer"

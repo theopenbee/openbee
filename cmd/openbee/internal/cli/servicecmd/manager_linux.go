@@ -27,6 +27,7 @@ type systemdTemplateData struct {
 	LogPath    string
 	WorkingDir string
 	Home       string
+	EnvPath    string
 }
 
 func renderSystemdUnit(d systemdTemplateData) (string, error) {
@@ -68,6 +69,7 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 		LogPath:    opts.LogPath,
 		WorkingDir: opts.WorkingDir,
 		Home:       home,
+		EnvPath:    opts.EnvPath,
 	})
 	if err != nil {
 		return err

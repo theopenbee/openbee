@@ -187,6 +187,7 @@ type ServiceOutput struct {
 	StatusLogTailHeader  string `yaml:"status_log_tail_header"`
 	StatusLogReadFailed  string `yaml:"status_log_read_failed"`
 	StartFailedSeeStatus string `yaml:"start_failed_see_status"`
+	NodeMissingWarning   string `yaml:"node_missing_warning"`
 }
 
 // StopOutput maps to stop command runtime output.

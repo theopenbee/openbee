@@ -17,6 +17,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		LogPath:    "/home/me/.openbee/daemon.log",
 		WorkingDir: "/home/me/.openbee",
 		Home:       "/home/me",
+		EnvPath:    "/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +29,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		"RestartSec=10",
 		"StandardOutput=append:/home/me/.openbee/daemon.log",
 		"WantedBy=default.target",
+		"Environment=PATH=/home/me/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("unit missing %q\nfull:\n%s", want, got)
@@ -57,6 +59,7 @@ func TestLinuxInstall_WritesUnit(t *testing.T) {
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: cfg,
 		LogPath:    filepath.Join(tmp, "daemon.log"),
+		EnvPath:    "/opt/homebrew/bin:/usr/bin:/bin",
 		AutoStart:  false,
 	}); err != nil {
 		t.Fatal(err)
@@ -68,5 +71,8 @@ func TestLinuxInstall_WritesUnit(t *testing.T) {
 	}
 	if !strings.Contains(string(data), cfg) {
 		t.Errorf("unit missing config path")
+	}
+	if !strings.Contains(string(data), "Environment=PATH=/opt/homebrew/bin:/usr/bin:/bin") {
+		t.Errorf("unit missing PATH from EnvPath")
 	}
 }

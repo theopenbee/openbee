@@ -236,6 +236,7 @@ output:
     status_log_tail_header: "最近日志："
     status_log_read_failed: "（无法读取日志：%v）"
     start_failed_see_status: "服务未进入运行状态，请运行 'openbee service status' 查看详情"
+    node_missing_warning: "警告：当前 PATH 中未找到 'node'（%s），claude/codex 等基于 Node.js 的 CLI 可能无法启动。请安装 Node.js 并确保其在 PATH 中，然后重新执行 'openbee service install --force'。"
 validate:
   port_integer: "端口必须为整数"
   positive_integer: "必须为正整数"

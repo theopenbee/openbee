@@ -6,6 +6,9 @@
 - `openbee service install/uninstall/start/stop/status` subcommand group for one-click user-level autostart on macOS (launchd), Linux (systemd --user), and Windows (Task Scheduler).
 - `openbee service install --working-dir` flag to override the service working directory; defaults to `~/.openbee`. The launchd plist, systemd unit, and Windows Task Scheduler XML now set a working directory explicitly, so relative paths in `config.yaml` (e.g. the default `./data/openbee.db`) no longer resolve to the OS default cwd (which is `/` for launchd and produced `mkdir data: read-only file system`).
 
+### Fixed
+- `openbee service install` now captures the install-time `PATH` and embeds it into the launchd plist (`EnvironmentVariables.PATH`) and the systemd user unit (`Environment=PATH=…`). Without this, jobs started by launchd/systemd inherit a minimal default `PATH` that excludes `/usr/local/bin`, `/opt/homebrew/bin`, and nvm directories, so the server's spawned `claude`/`codex` Node.js CLIs failed with `env: node: No such file or directory`. The install command also prints a warning when `node` is not on `PATH` at install time.
+
 ## [0.0.39] - 2026-06-02
 
 ### Removed

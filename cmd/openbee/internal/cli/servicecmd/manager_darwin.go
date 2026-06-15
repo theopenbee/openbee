@@ -29,6 +29,7 @@ type launchdTemplateData struct {
 	LogPath    string
 	WorkingDir string
 	Home       string
+	EnvPath    string
 }
 
 func renderLaunchdPlist(d launchdTemplateData) (string, error) {
@@ -68,6 +69,7 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 		LogPath:    opts.LogPath,
 		WorkingDir: opts.WorkingDir,
 		Home:       home,
+		EnvPath:    opts.EnvPath,
 	})
 	if err != nil {
 		return err

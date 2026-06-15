@@ -19,9 +19,12 @@ func newInstallCommand() *cobra.Command {
 		Use:   "install",
 		Short: i18n.M.Cmd.Service.Install,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts, err := resolveInstallOptions(configFlag, workingDirFlag, noStart, force)
+			opts, warnings, err := resolveInstallOptions(configFlag, workingDirFlag, noStart, force)
 			if err != nil {
 				return err
+			}
+			for _, w := range warnings {
+				fmt.Fprintln(cmd.ErrOrStderr(), w)
 			}
 			mgr, err := newManager()
 			if err != nil {

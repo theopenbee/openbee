@@ -11,6 +11,7 @@ RestartSec=10
 StandardOutput=append:{{.LogPath}}
 StandardError=append:{{.LogPath}}
 Environment=HOME={{.Home}}
+Environment=PATH={{.EnvPath}}
 
 [Install]
 WantedBy=default.target
