@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -428,5 +429,102 @@ func TestManager_UpdateWorker_NoNameChange_Succeeds(t *testing.T) {
 	}
 	if updated.Name != "alice" {
 		t.Errorf("expected name to remain %q, got %q", "alice", updated.Name)
+	}
+}
+
+func TestUpdateWorker_WorkDir_Success(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-success", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	newDir := filepath.Join(t.TempDir(), "moved")
+	newDirPtr := newDir
+	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &newDirPtr})
+	if err != nil {
+		t.Fatalf("update worker: %v", err)
+	}
+	if got.WorkDir != newDir {
+		t.Fatalf("WorkDir not updated: got %q want %q", got.WorkDir, newDir)
+	}
+}
+
+func TestUpdateWorker_WorkDir_TrimWhitespace(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-trim", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	padded := "   /tmp/openbee-x   "
+	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &padded})
+	if err != nil {
+		t.Fatalf("update worker: %v", err)
+	}
+	if got.WorkDir != "/tmp/openbee-x" {
+		t.Fatalf("WorkDir not trimmed: got %q", got.WorkDir)
+	}
+}
+
+func TestUpdateWorker_WorkDir_EmptyAfterTrim(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-empty", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	blank := "   "
+	_, err = m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &blank})
+	if err == nil || !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+}
+
+func TestUpdateWorker_WorkDir_Nil_NoChange(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-nil", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+	originalDir := w.WorkDir
+
+	newName := "wd-nil-renamed"
+	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{Name: &newName})
+	if err != nil {
+		t.Fatalf("update worker: %v", err)
+	}
+	if got.WorkDir != originalDir {
+		t.Fatalf("WorkDir changed unexpectedly: got %q want %q", got.WorkDir, originalDir)
+	}
+}
+
+func TestUpdateWorker_WorkDir_OldDirUntouched(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-old", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(w.WorkDir, "marker.txt"), []byte("keep me"), 0644); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	newDir := filepath.Join(t.TempDir(), "elsewhere")
+	_, err = m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &newDir})
+	if err != nil {
+		t.Fatalf("update worker: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(w.WorkDir, "marker.txt")); err != nil {
+		t.Fatalf("old workdir file disappeared: %v", err)
 	}
 }

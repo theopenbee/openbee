@@ -32,6 +32,7 @@ type UpdateWorkerParams struct {
 	Name             *string `json:"name"`
 	Description      *string `json:"description"`
 	Constraints      *string `json:"constraints"`
+	WorkDir          *string `json:"work_dir"`
 	PermissionScopes *string `json:"permission_scopes"`
 	Engine           *string `json:"engine"`
 	// nil = no change; empty map clears all; per-engine empty string deletes that entry.
@@ -40,10 +41,15 @@ type UpdateWorkerParams struct {
 
 func (p UpdateWorkerParams) HasChanges() bool {
 	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
-		p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil
+		p.WorkDir != nil || p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil
 }
 
 func (p UpdateWorkerParams) Validate(m *Manager) error {
+	if p.WorkDir != nil {
+		if strings.TrimSpace(*p.WorkDir) == "" {
+			return fmt.Errorf("work_dir cannot be empty: %w", ErrValidation)
+		}
+	}
 	if p.PermissionScopes != nil {
 		if err := auth.ValidatePermissionScopes(*p.PermissionScopes); err != nil {
 			return err
@@ -71,6 +77,9 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 	}
 	if p.Constraints != nil {
 		w.Constraints = *p.Constraints
+	}
+	if p.WorkDir != nil {
+		w.WorkDir = strings.TrimSpace(*p.WorkDir)
 	}
 	if p.PermissionScopes != nil {
 		w.PermissionScopes = *p.PermissionScopes
