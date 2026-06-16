@@ -195,6 +195,7 @@ type ServiceOutput struct {
 	NodeMissingWarning       string `yaml:"node_missing_warning"`
 	NodeNotExecutableWarning string `yaml:"node_not_executable_warning"`
 	RunAsPathResolveFailed   string `yaml:"run_as_path_resolve_failed"`
+	Unsupported              string `yaml:"unsupported"` // contains %s (GOOS)
 }
 
 // StopOutput maps to stop command runtime output.

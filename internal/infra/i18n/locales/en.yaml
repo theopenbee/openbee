@@ -244,6 +244,7 @@ output:
     node_missing_warning: "warning: 'node' was not found on the PATH for run-as user %q (%s); claude/codex CLIs will fail to start because they are Node.js scripts. Install Node.js for that user (e.g. via their own nvm), then re-run 'openbee service install --force'."
     node_not_executable_warning: "warning: 'node' was found on the run-as user %q's PATH but is not executable by that user (PATH=%s); claude/codex CLIs will fail with 'Permission denied'. Install Node.js for that user (e.g. via the user's own nvm) or grant execute access, then re-run 'openbee service install --force'."
     run_as_path_resolve_failed: "warning: could not resolve PATH for run-as user %q (%v); falling back to the installer's PATH, which may not match what the daemon actually sees at runtime"
+    unsupported: "openbee service is not supported on %s"
 validate:
   port_integer: "port must be an integer"
   positive_integer: "must be a positive integer"

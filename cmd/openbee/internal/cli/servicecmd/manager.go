@@ -23,8 +23,8 @@ var execLookPath = exec.LookPath
 var runAsLookupTimeout = 5 * time.Second
 
 // RunStateFailed is only produced by the linux (systemd) backend, which
-// surfaces a distinct "failed" ActiveState; launchd and Task Scheduler collapse
-// failure into RunStateStopped.
+// surfaces a distinct "failed" ActiveState; launchd collapses failure into
+// RunStateStopped.
 type RunState int
 
 const (
@@ -75,12 +75,12 @@ type InstallOptions struct {
 	// RunAsUser / RunAsGroup are only consumed by the Linux backend, where the
 	// system-wide systemd unit needs explicit User=/Group= directives so the
 	// daemon does not inherit root from the installing sudo invocation. Empty
-	// on darwin/windows.
+	// on darwin.
 	RunAsUser  string
 	RunAsGroup string
 	// Home is the HOME the daemon should see. On Linux this is the RunAsUser's
-	// home (so the daemon does not inherit /root from sudo); on darwin/windows
-	// it is the installing user's home.
+	// home (so the daemon does not inherit /root from sudo); on darwin it is
+	// the installing user's home.
 	Home string
 }
 
@@ -166,9 +166,9 @@ func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart
 }
 
 // resolveRunAs picks the user the daemon will run as. On non-Linux platforms
-// run-as is meaningless (launchd / Task Scheduler bind to the calling user
-// anyway), so we just resolve the current user's home for default-path
-// computation and leave RunAsUser/Group empty.
+// run-as is meaningless (launchd binds to the calling user anyway), so we just
+// resolve the current user's home for default-path computation and leave
+// RunAsUser/Group empty.
 func resolveRunAs(runAsFlag string) (string, string, string, error) {
 	if runtime.GOOS != "linux" {
 		home, err := os.UserHomeDir()
