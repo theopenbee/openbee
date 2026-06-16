@@ -9,7 +9,7 @@ openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>
 openbee ctl worker get <id>
 openbee ctl worker status <id>
 openbee ctl worker create --name <name> [--description <description>] [--constraints <constraints content>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
 openbee ctl worker delete <id> [--delete-work-dir]
 ```
 
@@ -45,6 +45,11 @@ openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks
 
 # Clear all scopes
 openbee ctl worker update <id> --scopes ""
+```
+
+```bash
+# Update a worker's working directory
+openbee ctl worker update <id> --work-dir /path/to/new/dir
 ```
 
 ## department subcommand
