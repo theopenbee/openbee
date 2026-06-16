@@ -49,13 +49,13 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
-	if err := os.MkdirAll(worker.WorkDir, 0755); err != nil {
+	if err := os.MkdirAll(worker.WorkDir, 0o755); err != nil {
 		log.Error("ensure worker workdir", zap.String("op", "execute"), zap.String("work_dir", worker.WorkDir), zap.Error(err))
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
 		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("ensure worker workdir: %w", err)
 	}
-	// Prepare failures are non-fatal: a missing engine config shouldn't block execution; runtime will surface a clearer error.
+	// Prepare is best-effort; the runtime below surfaces the real error if it matters.
 	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
 		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
 	}

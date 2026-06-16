@@ -66,6 +66,8 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     }
   }, [open, worker, enabledEngines])
 
+  const trimmedWorkDir = workDir.trim()
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setSubmitError("")
@@ -77,7 +79,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         worker.engine_args ?? {},
       )
       const nameChanged = name !== worker.name
-      const trimmedWorkDir = workDir.trim()
       const workDirChanged = trimmedWorkDir !== (worker.work_dir ?? "")
       const workerChanged =
         nameChanged ||
@@ -249,7 +250,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           <Button
             type="submit"
             form="edit-worker-info-form"
-            disabled={isPending || !name.trim() || !workDir.trim()}
+            disabled={isPending || !name.trim() || !trimmedWorkDir}
             className="flex-1"
           >
             {t("common.save")}
