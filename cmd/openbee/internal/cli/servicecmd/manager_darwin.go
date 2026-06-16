@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -120,13 +119,6 @@ func (darwinManager) isLoaded(ctx context.Context) bool {
 	return err == nil
 }
 
-var (
-	launchdStateRe          = regexp.MustCompile(`state\s*=\s*(\w+)`)
-	launchdPIDRe            = regexp.MustCompile(`pid\s*=\s*(\d+)`)
-	launchdLastExitCodeRe   = regexp.MustCompile(`(?m)^\s*last exit code\s*=\s*(.+?)\s*$`)
-	launchdLastExitReasonRe = regexp.MustCompile(`(?m)^\s*last exit reason\s*=\s*(.+?)\s*$`)
-)
-
 func (m darwinManager) Status(ctx context.Context) (Status, error) {
 	pp, err := m.plistPath()
 	if err != nil {
@@ -142,26 +134,36 @@ func (m darwinManager) Status(ctx context.Context) (Status, error) {
 		st.RunState = RunStateStopped
 		return st, nil
 	}
-	text := string(out)
-	if m := launchdStateRe.FindStringSubmatch(text); len(m) == 2 {
-		if strings.Contains(strings.ToLower(m[1]), "running") {
-			st.RunState = RunStateRunning
-		} else {
-			st.RunState = RunStateStopped
-		}
+	props := parseLaunchctlPrint(string(out))
+	if strings.HasPrefix(strings.ToLower(props["state"]), "running") {
+		st.RunState = RunStateRunning
+	} else {
+		st.RunState = RunStateStopped
 	}
-	if m := launchdPIDRe.FindStringSubmatch(text); len(m) == 2 {
-		if pid, err := strconv.Atoi(m[1]); err == nil {
-			st.PID = pid
-		}
+	if pid, err := strconv.Atoi(props["pid"]); err == nil && pid > 0 {
+		st.PID = pid
 	}
-	if m := launchdLastExitCodeRe.FindStringSubmatch(text); len(m) == 2 {
-		st.LastExitCode = m[1]
-	}
-	if m := launchdLastExitReasonRe.FindStringSubmatch(text); len(m) == 2 {
-		st.LastExitReason = m[1]
-	}
+	st.LastExitCode = props["last exit code"]
+	st.LastExitReason = props["last exit reason"]
 	return st, nil
+}
+
+// parseLaunchctlPrint scans `launchctl print` output once, splitting each
+// `key = value` line into the result map. Keys may contain spaces
+// (`last exit reason`), so we split on the first `=` only.
+func parseLaunchctlPrint(s string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		i := strings.Index(line, "=")
+		if i <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:i])
+		val := strings.TrimSpace(line[i+1:])
+		out[key] = val
+	}
+	return out
 }
 
 func guiTarget() string {

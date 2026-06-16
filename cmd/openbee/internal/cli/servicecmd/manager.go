@@ -92,9 +92,6 @@ type Manager interface {
 	Status(ctx context.Context) (Status, error)
 }
 
-// userLookup is overridden in tests.
-var userLookup = user.Lookup
-
 func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart, force bool) (InstallOptions, []string, error) {
 	exe, err := utils.ResolveExecutable()
 	if err != nil {
@@ -184,7 +181,7 @@ func resolveRunAs(runAsFlag string) (string, string, string, error) {
 	if name == "" {
 		return "", "", "", errors.New(i18n.M.Output.Service.RunAsRequired)
 	}
-	u, err := userLookup(name)
+	u, err := user.Lookup(name)
 	if err != nil {
 		return "", "", "", fmt.Errorf(i18n.M.Output.Service.RunAsUserUnknown, name)
 	}
@@ -224,8 +221,9 @@ func resolveEnvPath(runAsUser string) (string, string) {
 // appendNodeWarning runs the node-availability check the daemon would face at
 // runtime and appends the right warning. We split missing vs not-executable
 // because the fix differs: install node vs. install it for a *different* user
-// (or chmod +x). When verification can't run (non-linux, helper stubbed) we
-// fall back to the cheap execLookPath probe so behaviour stays at parity.
+// (or chmod +x). The execLookPath fallback runs only when no run-as user is
+// set; otherwise it would probe the installer's PATH (often root's) and
+// produce misleading warnings about a different user's environment.
 func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
 	ctx, cancel := context.WithTimeout(context.Background(), runAsLookupTimeout)
 	defer cancel()
@@ -236,6 +234,9 @@ func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
 		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
 	case nodeCheckNotExecutable:
 		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeNotExecutableWarning, runAsUser, envPath))
+	}
+	if runAsUser != "" {
+		return warnings
 	}
 	if _, err := execLookPath("node"); err != nil {
 		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
