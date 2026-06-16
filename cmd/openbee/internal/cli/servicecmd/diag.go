@@ -1,0 +1,120 @@
+package servicecmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+)
+
+// verifyRunningTimeout bounds how long reportRunStateAfterStart waits for the
+// service to enter the running state. Exposed as a var so tests can shrink it.
+var (
+	verifyRunningTimeout = 1500 * time.Millisecond
+	verifyRunningPoll    = 150 * time.Millisecond
+)
+
+// reportRunStateAfterStart returns an error on start failure so the CLI exits
+// non-zero; on failure it also prints last exit info and a tail of the daemon
+// log to help diagnose start crashes. logPath may be empty when the caller does
+// not know which log file the unit writes to; the tail step is skipped then.
+func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer, logPath string) error {
+	st, err := waitRunning(ctx, mgr, verifyRunningTimeout)
+	if err != nil {
+		return err
+	}
+	if st.RunState == RunStateRunning {
+		fmt.Fprintln(out, i18n.M.Output.Service.Started)
+		if st.PID > 0 {
+			fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
+		}
+		return nil
+	}
+	printStartFailureDetails(out, st, logPath)
+	return errors.New(i18n.M.Output.Service.StartFailedSeeStatus)
+}
+
+func waitRunning(ctx context.Context, mgr Manager, timeout time.Duration) (Status, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		st, err := mgr.Status(ctx)
+		if err != nil {
+			return st, err
+		}
+		if st.RunState == RunStateRunning {
+			return st, nil
+		}
+		if !time.Now().Before(deadline) {
+			return st, nil
+		}
+		select {
+		case <-ctx.Done():
+			return st, ctx.Err()
+		case <-time.After(verifyRunningPoll):
+		}
+	}
+}
+
+func printStartFailureDetails(out io.Writer, st Status, logPath string) {
+	if st.LastExitCode != "" {
+		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitCode+"\n", st.LastExitCode)
+	}
+	if st.LastExitReason != "" {
+		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitReason+"\n", st.LastExitReason)
+	}
+	if logPath == "" {
+		return
+	}
+	fmt.Fprintf(out, i18n.M.Output.Service.StatusLogPath+"\n", logPath)
+	tail, err := tailFile(logPath, 64*1024, 20)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(out, i18n.M.Output.Service.StatusLogReadFailed+"\n", err)
+		}
+		return
+	}
+	if tail == "" {
+		return
+	}
+	fmt.Fprintln(out, i18n.M.Output.Service.StatusLogTailHeader)
+	fmt.Fprintln(out, tail)
+}
+
+func tailFile(path string, maxBytes int64, maxLines int) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	var truncated bool
+	if size := info.Size(); size > maxBytes {
+		if _, err := f.Seek(size-maxBytes, io.SeekStart); err != nil {
+			return "", err
+		}
+		truncated = true
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	text := string(data)
+	if truncated {
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			text = text[i+1:]
+		}
+	}
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return strings.Join(lines, "\n"), nil
+}

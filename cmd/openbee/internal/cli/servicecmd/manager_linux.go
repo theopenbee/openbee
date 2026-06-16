@@ -1,0 +1,290 @@
+//go:build linux
+
+package servicecmd
+
+import (
+	"context"
+	"embed"
+	"errors"
+	"os"
+	"os/user"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/theopenbee/openbee/internal/infra/i18n"
+)
+
+func init() {
+	lookupRunAsEnvPath = linuxLookupRunAsEnvPath
+	verifyNodeForRunAsUser = linuxVerifyNodeForRunAsUser
+}
+
+// linuxLookupRunAsEnvPath returns the interactive-login-shell PATH for
+// username. We pair runuser's `-l` (login: sources /etc/profile and
+// ~/.bash_profile / ~/.profile) with an inner `bash -ic` (interactive: sources
+// ~/.bashrc) so the probe matches the runtime ExecStart, which uses
+// `/bin/bash -ilc`. Without the interactive layer, nvm setups that only patch
+// PATH in ~/.bashrc (the default on many distros) leak through as the daemon
+// "/usr/bin/env: 'node': No such file or directory" failure.
+func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
+	if username == "" {
+		return "", nil
+	}
+	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `bash -ic 'printf %s "$PATH"'`)
+	if err != nil {
+		return "", wrapRunErr("runuser", err, out)
+	}
+	p := strings.TrimSpace(string(out))
+	if p == "" {
+		return "", errors.New("runuser returned an empty PATH")
+	}
+	return p, nil
+}
+
+// linuxVerifyNodeForRunAsUser distinguishes the two failure modes the daemon
+// will see at runtime:
+//   - node not on PATH at all       → env reports "No such file or directory"
+//   - node on PATH but not exec'able → env reports "Permission denied"
+//
+// The unit runs the daemon via `/bin/bash -ilc`, so we probe with the same
+// interactive-login shell as the run-as user (`runuser -l` for the profile,
+// inner `bash -ic` for ~/.bashrc-sourced nvm/conda). A green check here uses
+// the exact PATH the daemon will see at runtime. envPath is ignored — it is
+// only retained on the signature so the common-mode stub can share the type.
+func linuxVerifyNodeForRunAsUser(ctx context.Context, username, _ string) nodeCheckResult {
+	if username == "" {
+		return nodeCheckUnknown
+	}
+	// exit 1 = missing on PATH; exit 2 = found but not executable.
+	script := `bash -ic 'p="$(command -v node 2>/dev/null)"; [ -n "$p" ] || exit 1; [ -x "$p" ] || exit 2; exit 0'`
+	code, err := runWithExitCode(ctx, "runuser", "-l", username, "-c", script)
+	if err != nil {
+		return nodeCheckUnknown
+	}
+	switch code {
+	case 0:
+		return nodeCheckOK
+	case 1:
+		return nodeCheckMissing
+	case 2:
+		return nodeCheckNotExecutable
+	default:
+		return nodeCheckUnknown
+	}
+}
+
+//go:embed templates/systemd.service.tmpl
+var linuxTemplatesFS embed.FS
+
+const systemdUnitName = "openbee.service"
+
+// systemdUnitDir is the directory the unit is written to. Overridden in tests.
+var systemdUnitDir = "/etc/systemd/system"
+
+// euid is overridden in tests so we can exercise the root preflight without
+// actually being root.
+var euid = os.Geteuid
+
+var systemdTmpl = parseTemplate(linuxTemplatesFS, "templates/systemd.service.tmpl", "systemd")
+
+// systemdTemplateData drives templates/systemd.service.tmpl. PATH/HOME are
+// intentionally not baked into the unit — the daemon is launched via
+// `/bin/bash -ilc`, so it inherits the run-as user's live interactive-login
+// environment (nvm, conda, custom PATH — including ~/.bashrc-sourced setups)
+// instead of an install-time snapshot.
+type systemdTemplateData struct {
+	ExePath    string
+	ConfigPath string
+	LogPath    string
+	WorkingDir string
+	RunAsUser  string
+	RunAsGroup string
+}
+
+func renderSystemdUnit(d systemdTemplateData) (string, error) {
+	return executeTemplate(systemdTmpl, d)
+}
+
+type linuxManager struct{}
+
+func NewManager() (Manager, error) {
+	if _, err := execLookPath("systemctl"); err != nil {
+		return nil, errors.New(i18n.M.Output.Service.SystemdUnavail)
+	}
+	return linuxManager{}, nil
+}
+
+func (linuxManager) unitPath() string {
+	return filepath.Join(systemdUnitDir, systemdUnitName)
+}
+
+// preflightRoot guards every state-changing entry point. The system-wide unit
+// directory and `systemctl daemon-reload` both require root; failing here lets
+// the user see one actionable error instead of a partial half-installed state.
+func preflightRoot() error {
+	if euid() != 0 {
+		return errors.New(i18n.M.Output.Service.MustBeRoot)
+	}
+	return nil
+}
+
+func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	up := m.unitPath()
+	_, statErr := os.Stat(up)
+	overwroteExisting := statErr == nil
+	if overwroteExisting && !opts.Force {
+		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
+	}
+	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
+		return err
+	}
+	unit, err := renderSystemdUnit(systemdTemplateData{
+		ExePath:    opts.ExePath,
+		ConfigPath: opts.ConfigPath,
+		LogPath:    opts.LogPath,
+		WorkingDir: opts.WorkingDir,
+		RunAsUser:  opts.RunAsUser,
+		RunAsGroup: opts.RunAsGroup,
+	})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(up, []byte(unit), 0o644); err != nil {
+		return err
+	}
+	// Make WorkingDir owned by RunAsUser so the daemon (which drops to that
+	// user) can write logs into it even when the directory was just created by
+	// root inside resolveInstallOptions.
+	if err := chownWorkingDir(opts); err != nil {
+		_ = os.Remove(up)
+		return err
+	}
+	// Roll back the unit on systemctl failure so a retry won't hit the
+	// already-installed guard. With Force the caller accepted overwriting the
+	// prior unit, so leave the new one in place rather than restoring nothing.
+	rollback := func(opErr error) error {
+		if !overwroteExisting {
+			_ = os.Remove(up)
+		}
+		return opErr
+	}
+	if _, err := runOrWrap(ctx, "systemctl", "daemon-reload"); err != nil {
+		return rollback(err)
+	}
+	enableArgs := []string{"enable"}
+	if opts.AutoStart {
+		enableArgs = append(enableArgs, "--now")
+	}
+	enableArgs = append(enableArgs, systemdUnitName)
+	if _, err := runOrWrap(ctx, "systemctl", enableArgs...); err != nil {
+		return rollback(err)
+	}
+	return nil
+}
+
+// chownWorkingDir is a no-op if RunAsUser is empty (tests) or the lookup
+// fails. We deliberately do not recurse — the unit only writes logs at the
+// directory root, and a recursive chown could clobber permissions on user
+// data the operator already placed there.
+var chownWorkingDir = func(opts InstallOptions) error {
+	if opts.RunAsUser == "" || opts.WorkingDir == "" {
+		return nil
+	}
+	uid, gid, err := lookupUIDGID(opts.RunAsUser, opts.RunAsGroup)
+	if err != nil {
+		return nil
+	}
+	return os.Chown(opts.WorkingDir, uid, gid)
+}
+
+func (m linuxManager) Uninstall(ctx context.Context) error {
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	up := m.unitPath()
+	_, _ = runCommand(ctx, "systemctl", "disable", "--now", systemdUnitName)
+	if err := os.Remove(up); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	_, _ = runCommand(ctx, "systemctl", "daemon-reload")
+	return nil
+}
+
+func (linuxManager) Start(ctx context.Context) error {
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	_, err := runOrWrap(ctx, "systemctl", "start", systemdUnitName)
+	return err
+}
+
+func (linuxManager) Stop(ctx context.Context) error {
+	if err := preflightRoot(); err != nil {
+		return err
+	}
+	_, err := runOrWrap(ctx, "systemctl", "stop", systemdUnitName)
+	return err
+}
+
+func (m linuxManager) Status(ctx context.Context) (Status, error) {
+	up := m.unitPath()
+	st := Status{}
+	if _, err := os.Stat(up); err != nil {
+		return st, nil
+	}
+	st.Installed = true
+	out, err := runCommand(ctx, "systemctl", "show", "-p", "ActiveState,SubState,MainPID,ExecMainStartTimestamp", systemdUnitName)
+	if err != nil {
+		st.RunState = RunStateStopped
+		return st, nil
+	}
+	props := parseSystemctlShow(string(out))
+	switch props["ActiveState"] {
+	case "active":
+		st.RunState = RunStateRunning
+	case "failed":
+		st.RunState = RunStateFailed
+	default:
+		st.RunState = RunStateStopped
+	}
+	if pid, err := strconv.Atoi(props["MainPID"]); err == nil && pid > 0 {
+		st.PID = pid
+	}
+	return st, nil
+}
+
+func lookupUIDGID(username, groupname string) (int, int, error) {
+	u, err := user.Lookup(username)
+	if err != nil {
+		return 0, 0, err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, err
+	}
+	gidStr := u.Gid
+	if groupname != "" {
+		if g, err := user.LookupGroup(groupname); err == nil {
+			gidStr = g.Gid
+		}
+	}
+	gid, err := strconv.Atoi(gidStr)
+	if err != nil {
+		return 0, 0, err
+	}
+	return uid, gid, nil
+}
+
+func parseSystemctlShow(s string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		if i := strings.Index(line, "="); i > 0 {
+			out[line[:i]] = line[i+1:]
+		}
+	}
+	return out
+}

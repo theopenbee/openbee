@@ -1,0 +1,18 @@
+[Unit]
+Description=OpenBee Worker Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{.RunAsUser}}
+Group={{.RunAsGroup}}
+WorkingDirectory={{.WorkingDir}}
+ExecStart=/bin/bash -ilc 'exec {{.ExePath}} server -c {{.ConfigPath}}'
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:{{.LogPath}}
+StandardError=append:{{.LogPath}}
+
+[Install]
+WantedBy=multi-user.target
