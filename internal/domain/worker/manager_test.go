@@ -507,6 +507,35 @@ func TestUpdateWorker_WorkDir_Nil_NoChange(t *testing.T) {
 	}
 }
 
+func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-exec-mkdir"})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+
+	missing := filepath.Join(t.TempDir(), "deep", "nested", "missing")
+	if _, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &missing}); err != nil {
+		t.Fatalf("update worker: %v", err)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatalf("precondition: missing dir should not exist, got err=%v", err)
+	}
+
+	// ExecuteWorker may fail later (no real engine subprocess), but it MUST create the dir first.
+	_, _ = m.ExecuteWorker(context.Background(), ExecuteRequest{
+		WorkerID:     w.ID,
+		SessionID:    "test-session",
+		TriggerInput: "noop",
+	})
+
+	if _, err := os.Stat(missing); err != nil {
+		t.Fatalf("expected execute to create WorkDir %q, got err=%v", missing, err)
+	}
+}
+
 func TestUpdateWorker_WorkDir_OldDirUntouched(t *testing.T) {
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
 	m := newTestManager(t, engines, ai.EngineClaude)
