@@ -46,6 +46,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [workDir, setWorkDir] = useState("")
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
@@ -56,6 +57,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
     if (open) {
       setName(worker.name ?? "")
       setDescription(worker.description ?? "")
+      setWorkDir(worker.work_dir ?? "")
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
       setEngineArgs(worker.engine_args ?? {})
@@ -75,9 +77,12 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         worker.engine_args ?? {},
       )
       const nameChanged = name !== worker.name
+      const trimmedWorkDir = workDir.trim()
+      const workDirChanged = trimmedWorkDir !== (worker.work_dir ?? "")
       const workerChanged =
         nameChanged ||
         description !== (worker.description ?? "") ||
+        workDirChanged ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
         engineArgsChanged
       const deptsChanged = newDeptIds !== originalDeptIds
@@ -86,6 +91,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       if (workerChanged) {
         const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
         if (nameChanged) data.name = name
+        if (workDirChanged) data.work_dir = trimmedWorkDir
         ops.push(updateWorker.mutateAsync({ id: worker.id, data }))
       }
       if (deptsChanged) {
@@ -145,6 +151,17 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 rows={3}
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ewis-workdir">{t("workers.form.workDir")}</Label>
+              <Input
+                id="ewis-workdir"
+                value={workDir}
+                onChange={(e) => setWorkDir(e.target.value)}
+                placeholder={t("workers.form.workDirPlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground">{t("workers.form.workDirEditHelper")}</p>
             </div>
 
             <div className="space-y-1.5">
@@ -232,7 +249,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           <Button
             type="submit"
             form="edit-worker-info-form"
-            disabled={isPending || !name.trim()}
+            disabled={isPending || !name.trim() || !workDir.trim()}
             className="flex-1"
           >
             {t("common.save")}

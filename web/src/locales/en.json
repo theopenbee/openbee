@@ -101,6 +101,7 @@
       "workDir": "Work Directory",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
+      "workDirEditHelper": "Created on next execution if missing. Files in the old directory are left untouched.",
       "constraints": "Work Constraints",
       "constraintsPlaceholder": "The work constraints for this worker...",
       "constraintsHelper": "Work constraints injected into the worker at the start of every session.",
