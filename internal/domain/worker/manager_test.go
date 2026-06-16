@@ -536,6 +536,35 @@ func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
 	}
 }
 
+func TestCreateWorker_WorkDir_TrimWhitespace(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	want := filepath.Join(t.TempDir(), "trimmed")
+	padded := "   " + want + "   "
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-trim", WorkDir: padded, Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+	if w.WorkDir != want {
+		t.Fatalf("WorkDir not trimmed on create: got %q want %q", w.WorkDir, want)
+	}
+}
+
+func TestCreateWorker_WorkDir_BlankFallsBackToDefault(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	m := newTestManager(t, engines, ai.EngineClaude)
+
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-blank", WorkDir: "   ", Engine: ai.EngineClaude})
+	if err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+	if filepath.Dir(w.WorkDir) != m.workerBaseDir {
+		t.Fatalf("WorkDir did not fall back to default: got %q, want under %q", w.WorkDir, m.workerBaseDir)
+	}
+}
+
 func TestUpdateWorker_WorkDir_OldDirUntouched(t *testing.T) {
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
 	m := newTestManager(t, engines, ai.EngineClaude)

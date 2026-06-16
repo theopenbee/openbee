@@ -163,6 +163,7 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 
 func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	p.Name = strings.TrimSpace(p.Name)
+	p.WorkDir = strings.TrimSpace(p.WorkDir)
 	if err := m.validateWorkerName(p.Name, ""); err != nil {
 		return model.Worker{}, err
 	}
@@ -171,7 +172,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		p.WorkDir = filepath.Join(m.workerBaseDir, id)
 	}
 
-	if err := os.MkdirAll(p.WorkDir, 0755); err != nil {
+	if err := os.MkdirAll(p.WorkDir, 0o755); err != nil {
 		return model.Worker{}, fmt.Errorf("create work dir: %w", err)
 	}
 
