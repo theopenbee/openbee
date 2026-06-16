@@ -179,15 +179,10 @@ func TestDarwinInstall_WritesPlist(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Content checks live in TestRenderLaunchdPlist; this test only confirms
+	// the install path actually drops the plist under ~/Library/LaunchAgents.
 	plistPath := filepath.Join(tmp, "Library", "LaunchAgents", "com.theopenbee.openbee.plist")
-	data, err := os.ReadFile(plistPath)
-	if err != nil {
+	if _, err := os.Stat(plistPath); err != nil {
 		t.Fatalf("plist not written: %v", err)
-	}
-	if !strings.Contains(string(data), cfg) {
-		t.Errorf("plist missing config path")
-	}
-	if !strings.Contains(string(data), "/opt/homebrew/bin:/usr/bin:/bin") {
-		t.Errorf("plist missing PATH from EnvPath")
 	}
 }

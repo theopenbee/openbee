@@ -423,9 +423,9 @@ func TestLinuxVerifyNodeForRunAsUser_UsesInteractiveLoginShell(t *testing.T) {
 	}
 	t.Cleanup(func() { runWithExitCode = prev })
 
-	if r := linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/ignored"); r != nodeCheckOK {
-		t.Fatalf("unexpected result: %v", r)
-	}
+	// Exit-code → result mapping is covered by TestLinuxVerifyNodeForRunAsUser_MapsExitCodes;
+	// this test only pins the argv shape.
+	linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/ignored")
 	if len(got) < 5 || got[0] != "runuser" || got[1] != "-l" || got[2] != "openbee" || got[3] != "-c" {
 		t.Errorf("expected `runuser -l openbee -c <script>`, got %v", got)
 	}

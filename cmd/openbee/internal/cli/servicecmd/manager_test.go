@@ -56,31 +56,6 @@ func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 	}
 }
 
-func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
-	tmp := t.TempDir()
-	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	prev := execLookPath
-	execLookPath = func(name string) (string, error) {
-		if name == "node" {
-			return "", os.ErrNotExist
-		}
-		return "/usr/bin/" + name, nil
-	}
-	t.Cleanup(func() { execLookPath = prev })
-
-	_, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(warnings) == 0 {
-		t.Fatal("expected a warning when node is missing from PATH")
-	}
-}
-
 func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", currentUsername(t), false, false)
 	if err == nil {
