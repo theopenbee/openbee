@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Support updating a worker's work directory.
+
 ## [0.0.40] - 2026-06-15
 
 ### Added

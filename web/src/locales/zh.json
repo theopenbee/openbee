@@ -101,6 +101,7 @@
       "workDir": "工作目录",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
+      "workDirEditHelper": "下次执行任务时，若该目录不存在会自动创建。旧目录的文件不会被移动或删除。",
       "constraints": "工作约束",
       "constraintsPlaceholder": "这个员工的工作约束...",
       "constraintsHelper": "每次会话开始时注入到员工中的工作约束。",

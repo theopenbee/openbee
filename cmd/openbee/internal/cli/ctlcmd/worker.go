@@ -136,6 +136,7 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 		name        string
 		description string
 		constraints string
+		workDir     string
 		engine      string
 		department  string
 		scopes      string
@@ -150,6 +151,7 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 			setIfFlagChanged(c, a, "name", "name", name)
 			setIfFlagChanged(c, a, "description", "description", description)
 			setIfFlagChanged(c, a, "constraints", "constraints", constraints)
+			setIfFlagChanged(c, a, "work-dir", "work_dir", workDir)
 			setIfFlagChanged(c, a, "engine", "engine", engine)
 			setIfFlagChanged(c, a, "department", "department_ids", department)
 			setIfFlagChanged(c, a, "scopes", "permission_scopes", scopes)
@@ -166,6 +168,7 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "New name")
 	cmd.Flags().StringVar(&description, "description", "", "New description")
 	cmd.Flags().StringVar(&constraints, "constraints", "", "New constraints content")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "New working directory path")
 	cmd.Flags().StringVar(&engine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty to keep unchanged")
 	cmd.Flags().StringVar(&department, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	cmd.Flags().StringVar(&scopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
