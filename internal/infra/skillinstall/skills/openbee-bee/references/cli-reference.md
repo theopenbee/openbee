@@ -20,6 +20,7 @@ openbee ctl worker delete <id> [--delete-work-dir]
 - `--page` / `--page-size` (only for `worker list`): pagination; default page 1, default 50 per page, max 200
 - `--scopes` (create/update): comma-separated permission scope list granted to this worker; pass empty string to clear all scopes
 - `--engine-args` (create/update): extra CLI flags for a specific engine, in `engine=<flags>` format (repeatable); e.g. `--engine-args "claude=--model claude-sonnet-4-6 --effort high"`; for update, pass `engine=` (empty value) to clear args for that engine
+- `--work-dir` (create/update): worker's working directory path; on update, pass a new path to change it
 
 ### Worker Permission Scopes
 
@@ -45,11 +46,6 @@ openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks
 
 # Clear all scopes
 openbee ctl worker update <id> --scopes ""
-```
-
-```bash
-# Update a worker's working directory
-openbee ctl worker update <id> --work-dir /path/to/new/dir
 ```
 
 ## department subcommand
