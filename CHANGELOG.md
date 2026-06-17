@@ -3,8 +3,12 @@
 ## [Unreleased]
 
 ### Added
-- `openbee service install/uninstall/start/stop/status` subcommand group for one-click user-level autostart on macOS and Linux.
 - Support updating a worker's work directory.
+
+## [0.0.40] - 2026-06-15
+
+### Added
+- `openbee service install/uninstall/start/stop/status` subcommand group for one-click user-level autostart on macOS and Linux.
 
 ## [0.0.39] - 2026-06-02
 
