@@ -101,7 +101,7 @@ export function CombinedTrendChart() {
             name={t("dashboard.executionDuration")}
             strokeWidth={2}
             dot={false}
-            stroke="var(--chart-2, hsl(var(--chart-2, 160 60% 45%)))"
+            stroke="var(--chart-2)"
           />
         </LineChart>
       </ResponsiveContainer>

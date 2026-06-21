@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
+import { SectionRule } from "@/components/section-rule"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
 export type DayOption = typeof DAY_OPTIONS[number]
@@ -64,12 +65,7 @@ export function TrendLineCard({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70 whitespace-nowrap select-none">
-              {title}
-            </span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
+          <SectionRule className="min-w-0 flex-1">{title}</SectionRule>
           <div className="flex gap-1 shrink-0" role="group" aria-label={title}>
             {DAY_OPTIONS.map((d) => (
               <Button
