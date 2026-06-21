@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react"
 import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LogoMark } from "@/components/brand/logo"
+import { LogoFull } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -69,14 +69,7 @@ export function Login() {
       <main className="animate-fade-in motion-reduce:animate-none relative w-full max-w-sm">
         <section className="rounded-xl border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
           <header className="space-y-5">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center">
-                <LogoMark className="size-9" />
-              </div>
-              <span className="text-base font-semibold tracking-tight">
-                OpenBee
-              </span>
-            </div>
+            <LogoFull className="h-9" />
             <div className="space-y-1.5">
               <h1 className="text-2xl font-semibold tracking-tight">
                 {t("login.title")}
