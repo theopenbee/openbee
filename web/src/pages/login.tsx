@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react"
-import { ArrowRight, CircleAlert, Gauge, LoaderCircle } from "lucide-react"
+import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { LogoMark } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -69,8 +70,8 @@ export function Login() {
         <section className="rounded-xl border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
           <header className="space-y-5">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Gauge aria-hidden="true" className="size-5" />
+              <div className="flex size-9 items-center justify-center">
+                <LogoMark className="size-9" />
               </div>
               <span className="text-base font-semibold tracking-tight">
                 OpenBee

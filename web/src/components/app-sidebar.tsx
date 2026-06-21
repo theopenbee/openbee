@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon } from "lucide-react"
 
+import { LogoMark } from "@/components/brand/logo"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
@@ -55,16 +56,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2L20 7V17L12 22L4 17V7L12 2Z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    fill="currentColor"
-                    fillOpacity="0.3"
-                  />
-                </svg>
+              <div className="flex aspect-square size-8 items-center justify-center">
+                <LogoMark className="size-8" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">OpenBee</span>
