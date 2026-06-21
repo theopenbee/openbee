@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-21",
+  "title": "Design System: OpenBee Console",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Brand Orange",
+        "canonical": "oklch(0.700 0.161 49)",
+        "hex": "#EC7B35",
+        "note": "Brightens to oklch(0.753 0.135 51) (#F2945A) in dark mode. Fill/signal only, never reading text.",
+        "tonalRamp": ["oklch(0.30 0.09 49)", "oklch(0.40 0.12 49)", "oklch(0.49 0.14 49)", "oklch(0.555 0.135 49)", "oklch(0.700 0.161 49)", "oklch(0.78 0.13 49)", "oklch(0.87 0.09 49)", "oklch(0.95 0.04 49)"]
+      },
+      "primary-strong": {
+        "role": "primary",
+        "displayName": "Strong Orange",
+        "canonical": "oklch(0.555 0.135 49)",
+        "note": "Deepened brand hue for solid buttons; white text clears WCAG AA (~5:1)."
+      },
+      "status-idle": {
+        "role": "tertiary",
+        "displayName": "Available / Idle Green",
+        "canonical": "oklch(0.527 0.154 150.069)",
+        "note": "Presence: available. Brightens to oklch(0.696 0.171 150.069) in dark mode.",
+        "tonalRamp": ["oklch(0.25 0.07 150)", "oklch(0.34 0.1 150)", "oklch(0.43 0.13 150)", "oklch(0.527 0.154 150)", "oklch(0.62 0.16 150)", "oklch(0.71 0.15 150)", "oklch(0.83 0.1 150)", "oklch(0.93 0.05 150)"]
+      },
+      "status-working": {
+        "role": "secondary",
+        "displayName": "Working / Busy Purple",
+        "canonical": "oklch(0.546 0.185 264.376)",
+        "note": "Presence: busy. Brightens to oklch(0.693 0.17 264.376) in dark mode.",
+        "tonalRamp": ["oklch(0.26 0.1 264)", "oklch(0.35 0.13 264)", "oklch(0.45 0.16 264)", "oklch(0.546 0.185 264)", "oklch(0.64 0.18 264)", "oklch(0.72 0.16 264)", "oklch(0.84 0.11 264)", "oklch(0.93 0.05 264)"]
+      },
+      "status-error": {
+        "role": "primary",
+        "displayName": "Blocked / Error Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "note": "Presence: blocked. Shared with destructive; kept clearly redder than brand orange (hue 27 vs 49). Brightens to oklch(0.704 0.191 22.216) in dark mode.",
+        "tonalRamp": ["oklch(0.27 0.12 27)", "oklch(0.36 0.16 27)", "oklch(0.47 0.21 27)", "oklch(0.577 0.245 27)", "oklch(0.66 0.22 27)", "oklch(0.74 0.18 27)", "oklch(0.85 0.11 27)", "oklch(0.93 0.05 27)"]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Foreground",
+        "canonical": "oklch(0.556 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.439 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.922 0 0)", "oklch(0.97 0 0)"]
+      }
+    },
+    "typographyMeta": {
+      "heading": { "displayName": "Heading", "purpose": "Card titles, section and page headings. Oxanium 500." },
+      "body": { "displayName": "Body", "purpose": "Default reading text across the console. Oxanium 400 at text-sm." },
+      "mono": { "displayName": "Mono", "purpose": "Logs, token counts, identifiers, command output. JetBrains Mono." },
+      "label": { "displayName": "Label", "purpose": "Badges, captions, control labels. Oxanium 500 at text-xs." }
+    },
+    "shadows": [
+      { "name": "ring-hairline", "value": "0 0 0 1px oklch(0.145 0 0 / 0.1)", "purpose": "The only resting elevation. Defines cards and containers in place of a drop shadow." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "ease-out", "purpose": "Default easing for state transitions and entrances. Honor prefers-reduced-motion." },
+      { "name": "fade-in", "value": "fade-in 0.2s ease-out both", "purpose": "Content entrance: opacity 0 to 1 with a 4px upward translate." },
+      { "name": "pulse-amber", "value": "pulse-amber 1.5s ease-in-out infinite", "purpose": "Attention pulse on live/working presence indicators (opacity 1 to 0.3)." }
+    ],
+    "radius": [
+      { "name": "base", "value": "0.625rem (10px)", "purpose": "The --radius primitive every other step derives from." },
+      { "name": "sm", "value": "0.375rem (6px)" },
+      { "name": "md", "value": "0.5rem (8px)" },
+      { "name": "lg", "value": "0.625rem (10px)", "purpose": "Buttons, inputs." },
+      { "name": "xl", "value": "0.875rem (14px)", "purpose": "Cards." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The action button. Strong-orange fill with white label (AA-safe); presses translate down 1px for a mechanical click.",
+      "html": "<button class=\"ds-btn-primary\">Assign work</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: oklch(0.555 0.135 49); color: oklch(0.985 0.005 60); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; white-space: nowrap; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-primary:hover { background: oklch(0.5 0.13 49); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action. Hairline border over the base surface, fills muted on hover, brand-orange focus ring.",
+      "html": "<button class=\"ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid var(--border, oklch(0.922 0 0)); border-radius: 0.625rem; background: var(--background, oklch(1 0 0)); color: var(--foreground, oklch(0.145 0 0)); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-outline:hover { background: var(--muted, oklch(0.97 0 0)); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-outline:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Destructive action. Tinted red, not solid, so it reads clearly without shouting.",
+      "html": "<button class=\"ds-btn-destructive\">Delete worker</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: color-mix(in oklch, oklch(0.577 0.245 27.325) 10%, transparent); color: oklch(0.577 0.245 27.325); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-destructive:hover { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); } .ds-btn-destructive:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Single-line field. Hairline border, 3px brand-orange ring on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search workers\" />",
+      "css": ".ds-input { height: 32px; width: 100%; min-width: 0; padding: 4px 10px; border: 1px solid var(--input, oklch(0.922 0 0)); border-radius: 0.625rem; background: transparent; color: var(--foreground, oklch(0.145 0 0)); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; outline: none; transition: color 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out; } .ds-input::placeholder { color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-input:focus-visible { border-color: oklch(0.700 0.161 49); box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Resting surface defined by a single hairline ring, never a drop shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Active workers</div><div class=\"ds-card-body\">12 working, 3 available</div></div>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 0.875rem; background: var(--card, oklch(1 0 0)); color: var(--card-foreground, oklch(0.145 0 0)); box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground, oklch(0.145 0 0)) 10%, transparent); font-family: 'Oxanium Variable', system-ui, sans-serif; } .ds-card-title { font-size: 1rem; font-weight: 500; line-height: 1.375; } .ds-card-body { font-size: 0.875rem; color: var(--muted-foreground, oklch(0.556 0 0)); }"
+    },
+    {
+      "name": "Worker Identity Row",
+      "kind": "custom",
+      "refersTo": "worker-identity",
+      "description": "Signature component carrying the digital-employee thesis: avatar + name + presence dot with label. Presence is never color-only.",
+      "html": "<div class=\"ds-worker\"><span class=\"ds-avatar\">B7</span><span class=\"ds-worker-name\">bee-worker-07</span><span class=\"ds-presence\"><span class=\"ds-dot ds-dot-working\"></span>working</span></div>",
+      "css": ".ds-worker { display: inline-flex; align-items: center; gap: 8px; font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; color: var(--foreground, oklch(0.145 0 0)); } .ds-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0.5rem; background: var(--muted, oklch(0.97 0 0)); color: var(--muted-foreground, oklch(0.556 0 0)); font-size: 0.6875rem; font-weight: 500; } .ds-worker-name { font-weight: 500; } .ds-presence { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-working { background: oklch(0.546 0.185 264.376); } .ds-dot-idle { background: oklch(0.527 0.154 150.069); } .ds-dot-error { background: oklch(0.577 0.245 27.325); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "status-badge",
+      "description": "Presence badge colored by state and always carrying its text label. Working purple shown; idle is green, error is red.",
+      "html": "<span class=\"ds-status-badge ds-status-working\">working</span>",
+      "css": ".ds-status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid; border-radius: 0.5rem; font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1.4; } .ds-status-working { background: color-mix(in oklch, oklch(0.546 0.185 264.376) 15%, transparent); color: oklch(0.546 0.185 264.376); border-color: color-mix(in oklch, oklch(0.546 0.185 264.376) 20%, transparent); } .ds-status-idle { background: color-mix(in oklch, oklch(0.527 0.154 150.069) 15%, transparent); color: oklch(0.527 0.154 150.069); border-color: color-mix(in oklch, oklch(0.527 0.154 150.069) 20%, transparent); } .ds-status-error { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 15%, transparent); color: oklch(0.577 0.245 27.325); border-color: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Digital Workforce HQ (企业数字员工工作台)",
+    "overview": "OpenBee is the headquarters of a digital workforce. The operator manages AI workers the way a manager runs a team inside a serious enterprise office platform, built on one conviction: an AI worker is a digital employee, equal in standing to a human colleague. Workers carry identity, presence, and history; the roster, presence dots, and profiles we give people are given to digital employees too. The register is product. The aesthetic is calm, efficient, and precise, drawing on Slack and Linear: do the heavy lifting so the operator's task feels effortless, and never make them think. Light mode is primary, dark mode equal. Warmth lives in a single brand orange used rarely; everything else is a disciplined achromatic field.",
+    "keyCharacteristics": [
+      "Warm brand orange used as a rare signal; an achromatic neutral field carries everything else.",
+      "Worker state is read as employee presence: green (available/idle), purple (working/busy), red (blocked/error).",
+      "Flat by default. Depth comes from hairline rings and tonal layering, never drop shadows.",
+      "A single precise radius scale on a 10px base, machine-consistent across components.",
+      "Light-primary, dark-equal. Both themes ship complete. WCAG AA throughout."
+    ],
+    "rules": [
+      { "name": "The One-Orange Rule", "body": "There is exactly one brand color and it is used rarely (≤10% of any screen). Its scarcity is what makes it read as 'this matters.' Never use orange for decoration or emphasis-by-default.", "section": "colors" },
+      { "name": "The Orange-Is-Signal-Not-Text Rule", "body": "Brand orange at L≈0.70 fails AA against both white and dark, so it never carries reading text. A label on an orange fill is white on Strong Orange or dark ink on Brand Orange, never orange on neutral.", "section": "colors" },
+      { "name": "The Achromatic-Field Rule", "body": "Outside the one orange and the three presence colors, neutrals are pure (chroma 0). The quiet field is what lets every signal land.", "section": "colors" },
+      { "name": "The Weight-Before-Size Rule", "body": "Build hierarchy through weight contrast (400 body vs 500 headings), not large type.", "section": "typography" },
+      { "name": "The No-Filler Rule", "body": "Type carries only what matters. Cut restated headings and sentences the UI already shows; a label beats a paragraph.", "section": "typography" },
+      { "name": "The Hairline-Not-Shadow Rule", "body": "Containers are defined by a 1px ring or border, not a box-shadow. Change tone or ring to make a surface distinct, never drop a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep orange rare (≤10% of a screen) and reserved for active states, focus, key indicators, and the primary CTA.",
+      "Do use white text on Strong Orange (oklch(0.555 0.135 49)) for solid orange buttons, so labels clear WCAG AA.",
+      "Do read worker state as employee presence and always pair the color with an icon or text label.",
+      "Do give every worker identity affordances (avatar, name, presence) as you would a human colleague.",
+      "Do define containers with a single ring-1 ring-foreground/10 and convey depth through tone.",
+      "Do hold light (primary) and dark mode to the same polish; respect prefers-reduced-motion.",
+      "Do prefer skeletons over spinners and inline states over modals."
+    ],
+    "donts": [
+      "Don't use brand orange for reading text or decoration; at L≈0.70 it fails AA as text and dilutes the signal.",
+      "Don't rely on color alone for status; green/purple/red must always carry an icon or label.",
+      "Don't introduce consumer-app energy: no rounded cartoon shapes, no emoji-heavy UI, no mascots, no personality theater.",
+      "Don't fall into enterprise drab: no heavy borders, no dated grays, no bloated nav chrome.",
+      "Don't write verbose or redundant copy: no restated headings, no paragraphs where a label works.",
+      "Don't drop shadows under resting surfaces; use hairlines and tonal steps instead.",
+      "Don't use a border-left/border-right greater than 1px as a colored stripe, gradient text, or decorative glassmorphism."
+    ]
+  }
+}
