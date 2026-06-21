@@ -19,7 +19,7 @@ The hive metaphor (workers, sessions, departments) grounds the product, but it s
 
 **Visual tone:** Achromatic neutrals carry the layout. Color is reserved exclusively for meaning — green (idle/complete), purple (working), red (error). No decorative color. Dark mode is primary; light mode is equally supported with the same level of polish.
 
-**Typography:** Oxanium (geometric, precise) for all brand and UI text. JetBrains Mono for code, logs, and technical output. Both choices reinforce the serious-but-modern register.
+**Typography:** Inter (neutral humanist sans, calm and legible at small sizes) for all brand and UI text, with Noto Sans SC bundled as the Chinese fallback. JetBrains Mono for code, logs, and technical output. The pairing reinforces the calm, precise register Slack and Linear set for dense product UI.
 
 ### Design Principles
 

@@ -5,6 +5,9 @@
 ### Added
 - Support updating a worker's work directory.
 
+### Changed
+- Replace the Oxanium UI typeface with Inter (calm, legible, Slack/Linear-aligned) and bundle Noto Sans SC as the Chinese fallback so mixed CN/EN copy renders in one voice. Also wire JetBrains Mono into the mono token (previously a no-op self-reference) and drop the unused DM Sans dependency.
+
 ## [0.0.40] - 2026-06-15
 
 ### Added

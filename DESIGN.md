@@ -18,13 +18,13 @@ colors:
   destructive: "oklch(0.577 0.245 27.325)"
 typography:
   heading:
-    fontFamily: "Oxanium Variable, system-ui, sans-serif"
+    fontFamily: "Inter Variable, Noto Sans SC, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 500
     lineHeight: 1.375
     letterSpacing: "normal"
   body:
-    fontFamily: "Oxanium Variable, system-ui, sans-serif"
+    fontFamily: "Inter Variable, Noto Sans SC, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
@@ -36,7 +36,7 @@ typography:
     lineHeight: 1.5
     letterSpacing: "normal"
   label:
-    fontFamily: "Oxanium Variable, system-ui, sans-serif"
+    fontFamily: "Inter Variable, Noto Sans SC, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 500
     lineHeight: 1.4
@@ -133,15 +133,15 @@ A restrained achromatic field warmed by one brand orange, plus three presence si
 
 ## 3. Typography
 
-**Display / UI Font:** Oxanium Variable (with system-ui, sans-serif)
+**Display / UI Font:** Inter Variable (with Noto Sans SC for CJK, then system-ui, sans-serif)
 **Mono Font:** JetBrains Mono Variable (with ui-monospace, monospace)
 
-**Character:** Oxanium is geometric and precise, with a faintly technical cut that reinforces the efficient, serious register without novelty. It carries every piece of interface text. JetBrains Mono handles logs, IDs, token counts, and command output, where alignment and small-size legibility matter most.
+**Character:** Inter is a neutral, highly legible humanist sans built for screens — calm and precise at small sizes, exactly the register Slack and Linear set for dense product UI. It carries every piece of interface text. Noto Sans SC is bundled as the Chinese fallback so mixed CN/EN copy renders in one coherent voice instead of dropping to a mismatched system font. JetBrains Mono handles logs, IDs, token counts, and command output, where alignment and small-size legibility matter most.
 
 ### Hierarchy
-- **Heading** (Oxanium, 500, `1rem`–`1.125rem`, line-height 1.375): Card titles, section and page headings. Weight does most of the hierarchy work.
-- **Body** (Oxanium, 400, `0.875rem` / `text-sm`, line-height 1.5): The default reading size. Cap measured prose at 65–75ch.
-- **Label** (Oxanium, 500, `0.75rem` / `text-xs`): Badges, captions, control labels.
+- **Heading** (Inter, 500, `1rem`–`1.125rem`, line-height 1.375): Card titles, section and page headings. Weight does most of the hierarchy work.
+- **Body** (Inter, 400, `0.875rem` / `text-sm`, line-height 1.5): The default reading size. Cap measured prose at 65–75ch.
+- **Label** (Inter, 500, `0.75rem` / `text-xs`): Badges, captions, control labels.
 - **Mono** (JetBrains Mono, 400, `~0.8125rem`): Logs, identifiers, token counts, command output.
 
 ### Named Rules

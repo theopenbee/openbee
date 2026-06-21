@@ -47,10 +47,10 @@
       }
     },
     "typographyMeta": {
-      "heading": { "displayName": "Heading", "purpose": "Card titles, section and page headings. Oxanium 500." },
-      "body": { "displayName": "Body", "purpose": "Default reading text across the console. Oxanium 400 at text-sm." },
+      "heading": { "displayName": "Heading", "purpose": "Card titles, section and page headings. Inter 500." },
+      "body": { "displayName": "Body", "purpose": "Default reading text across the console. Inter 400 at text-sm." },
       "mono": { "displayName": "Mono", "purpose": "Logs, token counts, identifiers, command output. JetBrains Mono." },
-      "label": { "displayName": "Label", "purpose": "Badges, captions, control labels. Oxanium 500 at text-xs." }
+      "label": { "displayName": "Label", "purpose": "Badges, captions, control labels. Inter 500 at text-xs." }
     },
     "shadows": [
       { "name": "ring-hairline", "value": "0 0 0 1px oklch(0.145 0 0 / 0.1)", "purpose": "The only resting elevation. Defines cards and containers in place of a drop shadow." }
@@ -81,7 +81,7 @@
       "refersTo": "button-primary",
       "description": "The action button. Strong-orange fill with white label (AA-safe); presses translate down 1px for a mechanical click.",
       "html": "<button class=\"ds-btn-primary\">Assign work</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: oklch(0.555 0.135 49); color: oklch(0.985 0.005 60); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; white-space: nowrap; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-primary:hover { background: oklch(0.5 0.13 49); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-primary:active { transform: translateY(1px); }"
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: oklch(0.555 0.135 49); color: oklch(0.985 0.005 60); font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; white-space: nowrap; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-primary:hover { background: oklch(0.5 0.13 49); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-primary:active { transform: translateY(1px); }"
     },
     {
       "name": "Outline Button",
@@ -89,7 +89,7 @@
       "refersTo": "button-outline",
       "description": "Secondary action. Hairline border over the base surface, fills muted on hover, brand-orange focus ring.",
       "html": "<button class=\"ds-btn-outline\">Cancel</button>",
-      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid var(--border, oklch(0.922 0 0)); border-radius: 0.625rem; background: var(--background, oklch(1 0 0)); color: var(--foreground, oklch(0.145 0 0)); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-outline:hover { background: var(--muted, oklch(0.97 0 0)); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-outline:active { transform: translateY(1px); }"
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid var(--border, oklch(0.922 0 0)); border-radius: 0.625rem; background: var(--background, oklch(1 0 0)); color: var(--foreground, oklch(0.145 0 0)); font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-outline:hover { background: var(--muted, oklch(0.97 0 0)); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-btn-outline:active { transform: translateY(1px); }"
     },
     {
       "name": "Destructive Button",
@@ -97,7 +97,7 @@
       "refersTo": "button-destructive",
       "description": "Destructive action. Tinted red, not solid, so it reads clearly without shouting.",
       "html": "<button class=\"ds-btn-destructive\">Delete worker</button>",
-      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: color-mix(in oklch, oklch(0.577 0.245 27.325) 10%, transparent); color: oklch(0.577 0.245 27.325); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-destructive:hover { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); } .ds-btn-destructive:active { transform: translateY(1px); }"
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; gap: 6px; border: 1px solid transparent; border-radius: 0.625rem; background: color-mix(in oklch, oklch(0.577 0.245 27.325) 10%, transparent); color: oklch(0.577 0.245 27.325); font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s ease-out; } .ds-btn-destructive:hover { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); } .ds-btn-destructive:active { transform: translateY(1px); }"
     },
     {
       "name": "Text Input",
@@ -105,7 +105,7 @@
       "refersTo": "input-default",
       "description": "Single-line field. Hairline border, 3px brand-orange ring on focus.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search workers\" />",
-      "css": ".ds-input { height: 32px; width: 100%; min-width: 0; padding: 4px 10px; border: 1px solid var(--input, oklch(0.922 0 0)); border-radius: 0.625rem; background: transparent; color: var(--foreground, oklch(0.145 0 0)); font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; outline: none; transition: color 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out; } .ds-input::placeholder { color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-input:focus-visible { border-color: oklch(0.700 0.161 49); box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; }"
+      "css": ".ds-input { height: 32px; width: 100%; min-width: 0; padding: 4px 10px; border: 1px solid var(--input, oklch(0.922 0 0)); border-radius: 0.625rem; background: transparent; color: var(--foreground, oklch(0.145 0 0)); font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; outline: none; transition: color 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out; } .ds-input::placeholder { color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-input:focus-visible { border-color: oklch(0.700 0.161 49); box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.700 0.161 49) 50%, transparent); } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; }"
     },
     {
       "name": "Card",
@@ -113,7 +113,7 @@
       "refersTo": "card-default",
       "description": "Resting surface defined by a single hairline ring, never a drop shadow.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Active workers</div><div class=\"ds-card-body\">12 working, 3 available</div></div>",
-      "css": ".ds-card { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 0.875rem; background: var(--card, oklch(1 0 0)); color: var(--card-foreground, oklch(0.145 0 0)); box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground, oklch(0.145 0 0)) 10%, transparent); font-family: 'Oxanium Variable', system-ui, sans-serif; } .ds-card-title { font-size: 1rem; font-weight: 500; line-height: 1.375; } .ds-card-body { font-size: 0.875rem; color: var(--muted-foreground, oklch(0.556 0 0)); }"
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 0.875rem; background: var(--card, oklch(1 0 0)); color: var(--card-foreground, oklch(0.145 0 0)); box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground, oklch(0.145 0 0)) 10%, transparent); font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; } .ds-card-title { font-size: 1rem; font-weight: 500; line-height: 1.375; } .ds-card-body { font-size: 0.875rem; color: var(--muted-foreground, oklch(0.556 0 0)); }"
     },
     {
       "name": "Worker Identity Row",
@@ -121,7 +121,7 @@
       "refersTo": "worker-identity",
       "description": "Signature component carrying the digital-employee thesis: avatar + name + presence dot with label. Presence is never color-only.",
       "html": "<div class=\"ds-worker\"><span class=\"ds-avatar\">B7</span><span class=\"ds-worker-name\">bee-worker-07</span><span class=\"ds-presence\"><span class=\"ds-dot ds-dot-working\"></span>working</span></div>",
-      "css": ".ds-worker { display: inline-flex; align-items: center; gap: 8px; font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.875rem; color: var(--foreground, oklch(0.145 0 0)); } .ds-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0.5rem; background: var(--muted, oklch(0.97 0 0)); color: var(--muted-foreground, oklch(0.556 0 0)); font-size: 0.6875rem; font-weight: 500; } .ds-worker-name { font-weight: 500; } .ds-presence { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-working { background: oklch(0.546 0.185 264.376); } .ds-dot-idle { background: oklch(0.527 0.154 150.069); } .ds-dot-error { background: oklch(0.577 0.245 27.325); }"
+      "css": ".ds-worker { display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; color: var(--foreground, oklch(0.145 0 0)); } .ds-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0.5rem; background: var(--muted, oklch(0.97 0 0)); color: var(--muted-foreground, oklch(0.556 0 0)); font-size: 0.6875rem; font-weight: 500; } .ds-worker-name { font-weight: 500; } .ds-presence { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-working { background: oklch(0.546 0.185 264.376); } .ds-dot-idle { background: oklch(0.527 0.154 150.069); } .ds-dot-error { background: oklch(0.577 0.245 27.325); }"
     },
     {
       "name": "Status Badge",
@@ -129,7 +129,7 @@
       "refersTo": "status-badge",
       "description": "Presence badge colored by state and always carrying its text label. Working purple shown; idle is green, error is red.",
       "html": "<span class=\"ds-status-badge ds-status-working\">working</span>",
-      "css": ".ds-status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid; border-radius: 0.5rem; font-family: 'Oxanium Variable', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1.4; } .ds-status-working { background: color-mix(in oklch, oklch(0.546 0.185 264.376) 15%, transparent); color: oklch(0.546 0.185 264.376); border-color: color-mix(in oklch, oklch(0.546 0.185 264.376) 20%, transparent); } .ds-status-idle { background: color-mix(in oklch, oklch(0.527 0.154 150.069) 15%, transparent); color: oklch(0.527 0.154 150.069); border-color: color-mix(in oklch, oklch(0.527 0.154 150.069) 20%, transparent); } .ds-status-error { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 15%, transparent); color: oklch(0.577 0.245 27.325); border-color: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); }"
+      "css": ".ds-status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid; border-radius: 0.5rem; font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1.4; } .ds-status-working { background: color-mix(in oklch, oklch(0.546 0.185 264.376) 15%, transparent); color: oklch(0.546 0.185 264.376); border-color: color-mix(in oklch, oklch(0.546 0.185 264.376) 20%, transparent); } .ds-status-idle { background: color-mix(in oklch, oklch(0.527 0.154 150.069) 15%, transparent); color: oklch(0.527 0.154 150.069); border-color: color-mix(in oklch, oklch(0.527 0.154 150.069) 20%, transparent); } .ds-status-error { background: color-mix(in oklch, oklch(0.577 0.245 27.325) 15%, transparent); color: oklch(0.577 0.245 27.325); border-color: color-mix(in oklch, oklch(0.577 0.245 27.325) 20%, transparent); }"
     }
   ],
   "narrative": {
