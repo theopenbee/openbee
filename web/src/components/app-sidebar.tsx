@@ -56,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <LogoFull className="h-8 w-auto" />
+              <LogoFull className="!h-8 !w-auto" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
