@@ -39,15 +39,10 @@ type ChangeIndicator = ReturnType<typeof changeIndicator>
 function changeIndicator(ratio: number | null) {
   const label = formatChange(ratio)
   const Icon = ratio === null ? null : ratio > 0 ? TrendingUp : ratio < 0 ? TrendingDown : Minus
-  const color =
-    ratio === null
-      ? ""
-      : ratio > 0
-        ? "text-status-idle"
-        : ratio < 0
-          ? "text-status-error"
-          : "text-muted-foreground"
-  return { label, Icon, color }
+  // Direction is carried entirely by the arrow icon. The delta color stays
+  // neutral so the presence palette (green idle / purple working / red error)
+  // remains reserved for worker status and never reads as a trend valence.
+  return { label, Icon, color: "text-muted-foreground" }
 }
 
 const STAT_LABEL = "text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
