@@ -68,10 +68,12 @@ function statusCellClass(i: number): string {
   ].join(" ")
 }
 
+// Skeleton dimensions mirror the loaded stat (label line box, mb-2.5, 3xl value)
+// so the System Status row does not shift vertically when data resolves.
 function StatSkeleton() {
   return (
     <div>
-      <Skeleton className="h-2.5 w-20 mb-3" />
+      <Skeleton className="h-3.5 w-20 mb-2.5" />
       <Skeleton className="h-8 w-14" />
     </div>
   )
@@ -247,7 +249,7 @@ export function Dashboard() {
                   <TooltipTrigger
                     type="button"
                     aria-label={t("dashboard.tokensCrossDayNote")}
-                    className="ml-auto text-muted-foreground/50 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    className="ml-auto text-muted-foreground/60 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded transition-colors"
                   >
                     <Info className="h-3.5 w-3.5" aria-hidden />
                   </TooltipTrigger>
