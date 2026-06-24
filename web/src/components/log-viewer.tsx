@@ -564,8 +564,8 @@ export function LogViewer({
 
   const shellClassName =
     variant === "embedded"
-      ? "overflow-hidden rounded-[1.6rem] bg-background/55 ring-1 ring-border/60"
-      : "overflow-hidden rounded-[1.75rem] border border-border/70 bg-card"
+      ? "overflow-hidden rounded-2xl bg-background/55 ring-1 ring-border/60"
+      : "overflow-hidden rounded-2xl border border-border/70 bg-card"
 
   return (
     <div className={shellClassName}>
