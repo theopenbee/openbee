@@ -8,7 +8,8 @@
     "directory": "Directory",
     "settings": "Env Variables",
     "systemSettings": "Settings",
-    "systemConfig": "System Config"
+    "systemConfig": "System Config",
+    "collapseNav": "Collapse navigation"
   },
   "common": {
     "save": "Save",

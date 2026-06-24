@@ -1,22 +1,18 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon } from "lucide-react"
+import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon, PanelLeftIcon } from "lucide-react"
 
-import { LogoFull } from "@/components/brand/logo"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { getStoredUsername } from "@/lib/auth"
 
 const navSecondary = [
   {
@@ -28,7 +24,7 @@ const navSecondary = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
-  const username = getStoredUsername() ?? "User"
+  const { toggleSidebar } = useSidebar()
 
   const navTop = React.useMemo(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
@@ -51,17 +47,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ], [t])
 
   return (
-    <Sidebar variant="inset" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <LogoFull className="!h-8 !w-auto" />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
+    <Sidebar variant="sidebar" collapsible="icon" {...props}>
+      <SidebarContent className="pt-2">
         <NavMain items={navTop} />
         <NavMain label={t("nav.directory")} items={navDirectory} />
         <NavMain items={navMain} />
@@ -69,7 +56,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser username={username} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              tooltip={t("nav.collapseNav")}
+            >
+              <PanelLeftIcon />
+              <span>{t("nav.collapseNav")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
