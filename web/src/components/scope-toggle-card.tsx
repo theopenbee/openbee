@@ -16,7 +16,7 @@ export function ScopeToggleCard({ scope, checked, onToggle, disabled }: ScopeTog
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-card px-4 py-3.5 transition-colors",
+        "flex items-start justify-between gap-4 rounded-sm border border-border/70 bg-card px-4 py-3.5 transition-colors",
         checked && "border-primary/30 bg-primary/5"
       )}
     >

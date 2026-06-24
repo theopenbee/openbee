@@ -144,7 +144,7 @@ export function Departments() {
             action={createButton}
           />
         ) : (
-          <div className="rounded-lg border border-border">
+          <div className="rounded-sm border border-border">
             {flatDepts.map(({ dept, depth }) => (
               <div
                 key={dept.id}
@@ -204,7 +204,7 @@ export function Departments() {
               <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
             </DialogHeader>
             <form onSubmit={mode === "create" ? handleCreate : handleUpdate} className="space-y-4">
-              {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+              {error && <div role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="dept-name">{t("departments.form.name")}</Label>
                 <Input

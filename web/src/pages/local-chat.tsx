@@ -106,7 +106,7 @@ const AttachmentPreview = memo(function AttachmentPreview({
         href={url}
         target="_blank"
         rel="noreferrer"
-        className={cn("block overflow-hidden rounded-2xl border", frameClass)}
+        className={cn("block overflow-hidden rounded-sm border", frameClass)}
       >
         <img
           src={url}
@@ -123,7 +123,7 @@ const AttachmentPreview = memo(function AttachmentPreview({
       target="_blank"
       rel="noreferrer"
       className={cn(
-        "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-colors",
+        "inline-flex items-center gap-2 rounded-sm border px-3 py-2 text-sm transition-colors",
         frameClass,
         "text-foreground hover:bg-muted/40"
       )}
@@ -345,7 +345,7 @@ export function LocalChat() {
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="rounded-3xl border border-border/70 bg-background/80 px-4 py-4"
+                    className="rounded-sm border border-border/70 bg-background/80 px-4 py-4"
                   >
                     <div className="skeleton h-4 w-28" />
                     <div className="skeleton mt-4 h-4 w-full" />
@@ -383,7 +383,7 @@ export function LocalChat() {
                     >
                       <article
                         className={cn(
-                          "w-full overflow-hidden rounded-3xl border border-border/70 bg-background/80 px-4 py-4 sm:px-5",
+                          "w-full overflow-hidden rounded-sm border border-border/70 bg-background/80 px-4 py-4 sm:px-5",
                           isUser
                             ? "max-w-[min(100%,44rem)]"
                             : "max-w-[min(100%,52rem)]"
@@ -421,7 +421,7 @@ export function LocalChat() {
 
                         {hasContent && (
                           <CollapsibleContent>
-                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-2xl prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
+                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
                               <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
                             </div>
                           </CollapsibleContent>
@@ -433,7 +433,7 @@ export function LocalChat() {
 
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="w-full max-w-[min(100%,52rem)] rounded-3xl border border-border/70 bg-background/80 px-4 py-4 sm:px-5">
+                    <div className="w-full max-w-[min(100%,52rem)] rounded-sm border border-border/70 bg-background/80 px-4 py-4 sm:px-5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                           <span className="size-2 rounded-full bg-primary" />
@@ -459,7 +459,7 @@ export function LocalChat() {
 
           <div className="border-t border-border/70 bg-card p-4 sm:p-5">
             {uploadError && (
-              <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {uploadError}
               </div>
             )}
@@ -488,7 +488,7 @@ export function LocalChat() {
               </div>
             )}
 
-            <div className="rounded-3xl border border-border/70 bg-background/80 p-3">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-3">
               <MentionTextarea
                 textareaRef={textareaRef}
                 className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
@@ -532,7 +532,7 @@ export function LocalChat() {
                   />
                   <Button
                     variant="outline"
-                    className="h-10 rounded-xl"
+                    className="h-10 rounded-sm"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t("localChat.uploadFile")}
                   >
@@ -540,7 +540,7 @@ export function LocalChat() {
                     <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
                   </Button>
                   <Button
-                    className="h-10 rounded-xl"
+                    className="h-10 rounded-sm"
                     onClick={() => void handleSend()}
                     disabled={!canSend || sendMessage.isPending}
                     aria-label={t("localChat.send")}

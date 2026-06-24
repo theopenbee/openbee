@@ -22,7 +22,7 @@ export type DayOption = typeof DAY_OPTIONS[number]
 export const CHART_TOOLTIP_STYLE = {
   background: "var(--card)",
   border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-sm)",
   color: "var(--card-foreground)",
   fontSize: 12,
 } as const

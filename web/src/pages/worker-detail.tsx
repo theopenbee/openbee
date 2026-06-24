@@ -68,14 +68,14 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+      <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
         {t("envConfig.noEffective")}
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl border border-border/70 overflow-hidden">
+    <div className="rounded-sm border border-border/70 overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
@@ -445,13 +445,13 @@ export function WorkerDetail() {
                     </div>
                   </div>
                 ) : worker.constraints ? (
-                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                  <div className="rounded-sm border border-border/70 bg-background/80 p-4">
                     <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
                       {worker.constraints}
                     </pre>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
+                  <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
                     {t("workerDetail.noConstraints")}
                   </div>
                 )}

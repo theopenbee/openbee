@@ -160,7 +160,7 @@ function MentionPanel({
 }) {
   return (
     <div
-      className="absolute bottom-full left-0 w-full mb-1 z-50 rounded-2xl border border-border/70 bg-popover shadow-lg overflow-hidden"
+      className="absolute bottom-full left-0 w-full mb-1 z-50 rounded-sm border border-border/70 bg-popover shadow-lg overflow-hidden"
     >
       <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
         {workers.map((worker, index) => (

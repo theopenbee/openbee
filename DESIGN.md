@@ -42,10 +42,8 @@ typography:
     lineHeight: 1.4
     letterSpacing: "normal"
 rounded:
-  sm: "0.375rem"
-  md: "0.5rem"
-  lg: "0.625rem"
-  xl: "0.875rem"
+  # Corner radius is capped at `sm` (see CLAUDE.md). Larger steps are not used.
+  sm: "0.1875rem"
 spacing:
   sm: "12px"
   md: "16px"
@@ -53,36 +51,36 @@ components:
   button-primary:
     backgroundColor: "{colors.primary-strong}"
     textColor: "{colors.primary-foreground}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.sm}"
     padding: "0 12px"
     height: "32px"
   button-outline:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.sm}"
     padding: "0 12px"
     height: "32px"
   button-ghost:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.sm}"
     padding: "0 12px"
     height: "32px"
   input-default:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.sm}"
     padding: "4px 10px"
     height: "32px"
   card-default:
     backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.xl}"
+    rounded: "{rounded.sm}"
     padding: "16px"
   status-badge:
     backgroundColor: "{colors.status-working}"
     textColor: "{colors.status-working}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.sm}"
     padding: "2px 8px"
 ---
 
@@ -102,7 +100,7 @@ Warmth lives in one place: a single brand orange (`#EC7B35`), the color of a wor
 - Warm brand orange used as a rare signal; an achromatic neutral field carries everything else.
 - Worker state is read as employee presence: green (available/idle), purple (working/busy), red (blocked/error).
 - Flat by default. Depth comes from hairline rings and tonal layering, never drop shadows.
-- A single precise radius scale on a 10px base, machine-consistent across components.
+- A tight radius scale capped at `sm`, machine-consistent across components and deliberately squared for a serious register.
 - Light-primary, dark-equal. Both themes ship complete. WCAG AA throughout.
 
 ## 2. Colors
@@ -159,7 +157,7 @@ The system is flat by default. Depth is conveyed through hairline rings and tona
 ## 5. Components
 
 ### Buttons
-- **Shape:** Gently squared corners (`rounded-lg`, 10px). Small and icon variants tighten proportionally.
+- **Shape:** Squared corners (`rounded-sm`, the radius cap). Small and icon variants share the same tight radius.
 - **Sizing:** Compact by default (`h-8`, 32px). Sizes range `xs` (24px) through `lg` (36px); icon buttons are square.
 - **Primary:** Strong Orange fill with white label (`bg-primary-strong text-primary-foreground`), medium weight, `text-sm`. The deepened shade keeps the orange identity while clearing WCAG AA for the label.
 - **Outline / Secondary / Ghost:** Transparent or muted fills revealing on `hover:bg-muted`; outline carries the standard hairline border.
@@ -167,13 +165,13 @@ The system is flat by default. Depth is conveyed through hairline rings and tona
 - **Hover / Focus / Active:** Transitions via `transition-all`. Focus is a 3px brand-orange ring (`ring-ring/50`) plus border shift, never an outline jump. Active presses translate down 1px (`active:translate-y-px`) for a precise, mechanical click.
 
 ### Cards / Containers
-- **Corner Style:** `rounded-xl` (14px).
+- **Corner Style:** `rounded-sm` (the radius cap; see CLAUDE.md).
 - **Background:** `bg-card` (mirrors the base surface per theme).
 - **Depth Strategy:** Single `ring-1 ring-foreground/10`. No shadow. (See Elevation.)
 - **Internal Padding:** `16px` default, tightening to `12px` in the `sm` size. Vertical rhythm via `gap-4` / `gap-3`.
 
 ### Inputs / Fields
-- **Style:** `h-8` (32px), `rounded-lg`, hairline `border-input` over a transparent (light) or faintly tinted (dark) fill.
+- **Style:** `h-8` (32px), `rounded-sm`, hairline `border-input` over a transparent (light) or faintly tinted (dark) fill.
 - **Focus:** Border shifts to the brand-orange `ring` with a 3px halo. Smooth `transition-colors`.
 - **Error / Disabled:** Invalid borders and rings in `destructive`; disabled drops to 50% opacity with no pointer events.
 

@@ -73,7 +73,7 @@ export function Sessions() {
       <PageHeader title={t("sessions.title")} subtitle={subtitle} />
 
       {error && (
-        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error.message}
         </div>
       )}
@@ -87,7 +87,7 @@ export function Sessions() {
         />
       ) : (
         <>
-          <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+          <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

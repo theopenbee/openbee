@@ -189,7 +189,7 @@ export function Dashboard() {
       <div className="mb-10">
         <SectionRule className="mb-5">{t("dashboard.todayActivity")}</SectionRule>
         <div
-          className="border border-border/70 rounded-3xl overflow-hidden"
+          className="border border-border/70 rounded-sm overflow-hidden"
           role="region"
           aria-label={t("dashboard.todayActivity")}
         >

@@ -160,7 +160,7 @@ export function CreateWorkerSheet({ open, onOpenChange, initialValues }: CreateW
         >
           <div className="px-6 py-5 space-y-5">
             {submitError && (
-              <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {submitError}
               </div>
             )}

@@ -234,7 +234,7 @@ export function SessionDetail() {
                       aria-pressed={isSelected}
                       onClick={() => setSelectedExecutionId(exec.id)}
                       className={cn(
-                        "w-full rounded-2xl border px-3 py-3 text-left transition-all",
+                        "w-full rounded-sm border px-3 py-3 text-left transition-all",
                         isSelected
                           ? "border-primary/20 bg-primary/5 ring-1 ring-primary/10"
                           : "border-border/60 bg-background/70 hover:border-border hover:bg-muted/40"
@@ -243,7 +243,7 @@ export function SessionDetail() {
                       <div className="flex items-start gap-3">
                         <div
                           className={cn(
-                            "flex size-10 shrink-0 items-center justify-center rounded-2xl border text-xs font-medium",
+                            "flex size-10 shrink-0 items-center justify-center rounded-sm border text-xs font-medium",
                             isSelected
                               ? "border-primary/20 bg-background text-foreground"
                               : "border-border/70 bg-background text-muted-foreground"
@@ -322,7 +322,7 @@ export function SessionDetail() {
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                       {t("executionDetail.triggerInput")}
                     </p>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
                       {selectedExecution.trigger_input ? (
                         <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                           {extractMessageContent(selectedExecution.trigger_input)}
@@ -337,7 +337,7 @@ export function SessionDetail() {
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                       {t("executionDetail.result")}
                     </p>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
                       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground">
                         {selectedExecution.result || t("executionDetail.noResult")}
                       </pre>
@@ -345,7 +345,7 @@ export function SessionDetail() {
                   </section>
                 </div>
 
-                <section className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                <section className="rounded-sm border border-border/70 bg-background/80 p-4">
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                       {t("sessionDetail.metadata")}

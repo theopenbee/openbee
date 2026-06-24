@@ -31,8 +31,8 @@ export function NavUser({ username }: { username: string }) {
 
   const initials = username.slice(0, 2).toUpperCase()
   const avatar = (
-    <Avatar className="size-8 rounded-lg">
-      <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+    <Avatar className="size-8 rounded-sm">
+      <AvatarFallback className="rounded-sm">{initials}</AvatarFallback>
     </Avatar>
   )
 
@@ -57,7 +57,7 @@ export function NavUser({ username }: { username: string }) {
             <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="min-w-48 rounded-lg"
+            className="min-w-48 rounded-sm"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}

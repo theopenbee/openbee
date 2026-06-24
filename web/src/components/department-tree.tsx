@@ -21,7 +21,7 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
         <button
           onClick={() => onSelect(null)}
           className={cn(
-            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors",
+            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-sm transition-colors",
             selectedId === null
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted"
@@ -34,7 +34,7 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
         <button
           onClick={() => onSelect(UNGROUPED_FILTER)}
           className={cn(
-            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors",
+            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-sm transition-colors",
             selectedId === UNGROUPED_FILTER
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted"
@@ -82,7 +82,7 @@ function DepartmentNode({
   return (
     <Fragment>
       <div
-        className="w-full flex items-center gap-1.5 py-1.5 text-sm rounded-md transition-colors"
+        className="w-full flex items-center gap-1.5 py-1.5 text-sm rounded-sm transition-colors"
         style={{ paddingLeft: `${depth * 16 + 12}px`, paddingRight: "12px" }}
       >
         {hasChildren ? (

@@ -129,7 +129,7 @@ export function Workers() {
       />
 
       {error && (
-        <div role="alert" className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -148,7 +148,7 @@ export function Workers() {
           }
         />
       ) : (
-        <div className="rounded-xl border border-border/70 bg-card overflow-hidden">
+        <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">

@@ -67,7 +67,7 @@ export function Login() {
       />
 
       <main className="animate-fade-in motion-reduce:animate-none relative w-full max-w-sm">
-        <section className="rounded-xl border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
+        <section className="rounded-sm border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
           <header className="space-y-5">
             <LogoFull className="h-9" />
             <div className="space-y-1.5">
@@ -84,7 +84,7 @@ export function Login() {
             <div
               role="alert"
               aria-live="polite"
-              className="mt-6 flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
+              className="mt-6 flex items-start gap-2.5 rounded-sm border border-destructive/20 bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
             >
               <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
               <p className="leading-6">{error}</p>

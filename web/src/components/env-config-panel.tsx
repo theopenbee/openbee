@@ -302,7 +302,7 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
         <EmptyState title={t("envConfig.empty")} />
       )}
       {!isLoading && envs.length > 0 && (
-        <div className="rounded-2xl border border-border/70 overflow-hidden">
+        <div className="rounded-sm border border-border/70 overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
