@@ -24,6 +24,16 @@
     "loadError": "Failed to load data.",
     "retry": "Retry"
   },
+  "statuses": {
+    "idle": "Idle",
+    "working": "Working",
+    "error": "Error",
+    "pending": "Pending",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
   "dashboard": {
     "title": "Dashboard",
     "departments": "Departments",

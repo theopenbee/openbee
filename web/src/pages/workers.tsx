@@ -4,7 +4,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
-import { formatEngineLabel } from "@/lib/format"
+import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { StatusBadge } from "@/components/status-badge"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
@@ -128,7 +129,7 @@ export function Workers() {
       />
 
       {error && (
-        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -147,7 +148,7 @@ export function Workers() {
           }
         />
       ) : (
-        <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/70 bg-card overflow-hidden">
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
@@ -160,18 +161,21 @@ export function Workers() {
             </TableHeader>
             <TableBody>
               {displayedWorkers.map((w) => (
-                <TableRow key={w.id} className="hover:bg-primary/5 transition-colors">
+                <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="min-w-[19rem]">
-                    <div className="flex flex-col gap-1.5 py-1">
-                      <Link
-                        to={`/workers/${w.id}`}
-                        className="font-medium text-foreground transition-colors hover:text-primary"
-                      >
-                        {w.name}
-                      </Link>
-                      <p className="max-w-[26rem] text-xs leading-5 text-muted-foreground line-clamp-2">
-                        {w.description || "-"}
-                      </p>
+                    <div className="flex items-center gap-3 py-1">
+                      <WorkerAvatar name={w.name} status={w.status} />
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <Link
+                          to={`/workers/${w.id}`}
+                          className="font-medium text-foreground transition-colors hover:text-primary"
+                        >
+                          {w.name}
+                        </Link>
+                        <p className="max-w-[26rem] text-xs leading-5 text-muted-foreground line-clamp-2">
+                          {w.description || "—"}
+                        </p>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -181,7 +185,9 @@ export function Workers() {
                     {formatEngineLabel(w.engine, t)}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
-                    {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}
+                    <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
+                      {formatRelative(w.updated_at)}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

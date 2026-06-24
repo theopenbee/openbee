@@ -19,15 +19,19 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+    <div className="rounded-xl border border-border/70 bg-card overflow-hidden">
       <div className="bg-secondary/50 px-4 py-3 flex gap-8">
         {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-4 w-20" />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="px-4 py-3 flex gap-8 border-t border-border">
-          {Array.from({ length: columns }).map((_, j) => (
+        <div key={i} className="px-4 py-3 flex items-center gap-8 border-t border-border">
+          <div className="flex items-center gap-3">
+            <div className="skeleton size-8 rounded-full" />
+            <div className="skeleton h-4 w-32" />
+          </div>
+          {Array.from({ length: Math.max(0, columns - 1) }).map((_, j) => (
             <div key={j} className="skeleton h-4 w-20" />
           ))}
         </div>
