@@ -7,6 +7,7 @@ import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { EYEBROW_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -189,7 +190,15 @@ export function Workers() {
                     <StatusBadge status={w.status} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatEngineLabel(w.engine, t)}
+                    {w.engine ? (
+                      <EngineIcon
+                        engine={w.engine}
+                        title={formatEngineLabel(w.engine, t)}
+                        className="size-5 text-foreground/80"
+                      />
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>

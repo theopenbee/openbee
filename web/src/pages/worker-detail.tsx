@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
 import { WorkerAvatar } from "@/components/worker-avatar"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
@@ -382,7 +383,15 @@ export function WorkerDetail() {
                       </RecordRow>
 
                       <RecordRow label={t("workers.form.engine")}>
-                        {formatEngineLabel(worker.engine, t)}
+                        {worker.engine ? (
+                          <EngineIcon
+                            engine={worker.engine}
+                            title={formatEngineLabel(worker.engine, t)}
+                            className="size-5 text-foreground"
+                          />
+                        ) : (
+                          "—"
+                        )}
                       </RecordRow>
 
                       <RecordRow label={t("departments.title")}>

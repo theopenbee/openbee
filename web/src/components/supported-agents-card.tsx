@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Panel } from "@/components/panel"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
@@ -18,11 +19,13 @@ export function SupportedAgentsCard() {
           const isOn = enabled.includes(engine)
           return (
             <li key={engine} className="flex items-baseline justify-between gap-4 px-5 py-3.5">
-              <div className="min-w-0">
-                <p className="text-base font-semibold tracking-tight truncate">
-                  {formatEngineLabel(engine, t)}
-                </p>
-                <p className="mt-0.5 font-mono text-xs text-muted-foreground">{engine}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <EngineIcon
+                  engine={engine}
+                  title={formatEngineLabel(engine, t)}
+                  className={`size-6 ${isOn ? "text-foreground" : "text-muted-foreground/50"}`}
+                />
+                <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">{engine}</p>
               </div>
               <span
                 className={`flex shrink-0 items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.05em] ${
