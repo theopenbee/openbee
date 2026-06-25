@@ -460,6 +460,8 @@
   },
   "envConfig": {
     "title": "Env Variables",
+    "workerTitle": "Worker Variables",
+    "workerHint": "Apply only to this worker, overriding global and department variables of the same name.",
     "globalTitle": "Global Env Variables",
     "add": "Add Variable",
     "editTitle": "Edit Variable",

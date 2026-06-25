@@ -459,6 +459,8 @@
   },
   "envConfig": {
     "title": "环境变量",
+    "workerTitle": "员工级变量",
+    "workerHint": "仅对该员工生效，覆盖全局与部门的同名变量。",
     "globalTitle": "全局环境变量",
     "add": "添加变量",
     "editTitle": "编辑变量",

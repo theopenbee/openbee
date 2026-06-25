@@ -535,28 +535,30 @@ export function WorkerDetail() {
               )}
 
               {activeSection === "env" && (
-                <div className="space-y-6">
-                <DetailSection className="p-5 sm:p-6 space-y-4">
-              <p className={EYEBROW_LABEL}>
-                {t("envConfig.title")}
-              </p>
-              <EnvConfigPanel scope="worker" scopeId={id!} />
-            </DetailSection>
+                <div className="max-w-3xl space-y-6">
+                  <DetailSection className="p-5 sm:p-6">
+                    <EnvConfigPanel
+                      scope="worker"
+                      scopeId={id!}
+                      title={t("envConfig.workerTitle")}
+                      description={t("envConfig.workerHint")}
+                    />
+                  </DetailSection>
 
-            <DetailSection className="p-5 sm:p-6 space-y-4">
-              <div>
-                <p className={EYEBROW_LABEL}>
-                  {t("envConfig.effectiveTitle")}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {t("envConfig.effectiveHint")}
-                </p>
-              </div>
-              <EffectiveEnvPreview
-                workerId={id!}
-                departmentIds={workerDeptIds}
-              />
-            </DetailSection>
+                  <DetailSection className="p-5 sm:p-6 space-y-4">
+                    <div>
+                      <p className={EYEBROW_LABEL}>
+                        {t("envConfig.effectiveTitle")}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {t("envConfig.effectiveHint")}
+                      </p>
+                    </div>
+                    <EffectiveEnvPreview
+                      workerId={id!}
+                      departmentIds={workerDeptIds}
+                    />
+                  </DetailSection>
                 </div>
               )}
             </div>
