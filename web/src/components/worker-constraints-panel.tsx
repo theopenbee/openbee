@@ -101,21 +101,18 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   // ---- View state (configured) ----
   if (constraints) {
     return (
-      <DetailSection>
-        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border/70 px-5 py-3.5 sm:px-6">
-          <div className="flex items-center gap-1">
+      <DetailSection className="px-5 py-5 sm:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <p className="min-w-0 max-w-[70ch] whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+            {constraints}
+          </p>
+          <div className="flex shrink-0 items-center gap-1">
             <CopyButton value={constraints} />
             <Button size="sm" variant="ghost" onClick={() => startEditing(worker.constraints || "")}>
               <Pencil className="size-4" />
               {t("workerDetail.editConstraints")}
             </Button>
           </div>
-        </div>
-
-        <div className="px-5 py-5 sm:px-6">
-          <p className="max-w-[70ch] whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
-            {constraints}
-          </p>
         </div>
       </DetailSection>
     )
