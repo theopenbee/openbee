@@ -34,7 +34,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { StatusBadge } from "@/components/status-badge"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
@@ -144,7 +143,7 @@ export function Workers() {
       )}
 
       {isLoading ? (
-        <SkeletonTable rows={6} columns={5} />
+        <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
@@ -161,7 +160,6 @@ export function Workers() {
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead className="w-[116px]">{t("workers.columns.status")}</TableHead>
                 <TableHead className="w-[112px]">{t("workers.columns.engine")}</TableHead>
                 <TableHead className="w-[124px]">{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
@@ -185,9 +183,6 @@ export function Workers() {
                         </p>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={w.status} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {w.engine ? (
