@@ -507,31 +507,31 @@ export function WorkerDetail() {
               )}
 
               {activeSection === "permissions" && (
-                <DetailSection className="space-y-6 p-5 sm:p-6">
-              <p className={EYEBROW_LABEL}>
-                {t("workerDetail.permissions")}
-              </p>
+                <div className="max-w-2xl space-y-4">
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {t("workers.form.permissionsHelper")}
+                  </p>
 
-              <div className="space-y-2">
-                {KNOWN_SCOPES.map((scope) => (
-                  <ScopeToggleCard
-                    key={scope.id}
-                    scope={scope}
-                    checked={localScopes.includes(scope.id)}
-                    onToggle={(scopeId, val) => {
-                      const prevScopes = localScopes
-                      const newScopes = toggleScope(localScopes, scopeId, val)
-                      setLocalScopes(newScopes)
-                      updateWorker.mutate(
-                        { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
-                        { onError: () => setLocalScopes(prevScopes) }
-                      )
-                    }}
-                    disabled={updateWorker.isPending}
-                  />
-                ))}
-              </div>
-                </DetailSection>
+                  <DetailSection className="divide-y divide-border/70">
+                    {KNOWN_SCOPES.map((scope) => (
+                      <ScopeToggleCard
+                        key={scope.id}
+                        scope={scope}
+                        checked={localScopes.includes(scope.id)}
+                        onToggle={(scopeId, val) => {
+                          const prevScopes = localScopes
+                          const newScopes = toggleScope(localScopes, scopeId, val)
+                          setLocalScopes(newScopes)
+                          updateWorker.mutate(
+                            { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
+                            { onError: () => setLocalScopes(prevScopes) }
+                          )
+                        }}
+                        disabled={updateWorker.isPending}
+                      />
+                    ))}
+                  </DetailSection>
+                </div>
               )}
 
               {activeSection === "env" && (
