@@ -113,7 +113,7 @@
       "sectionEnhancement": "增强信息",
       "sectionOther": "其它配置",
       "sectionPermissions": "权限配置",
-      "permissionsHelper": "未勾选任何权限时，Worker token 禁止访问任何系统内置工具"
+      "permissionsHelper": "未勾选任何权限时，员工 token 禁止访问任何系统内置工具"
     },
     "deleteDialog": {
       "title": "删除员工",
@@ -319,7 +319,7 @@
     "filter": "筛选",
     "allWorkers": "全部员工",
     "ungrouped": "未分组",
-    "manageDescription": "创建、编辑和组织 Worker 的部门结构。",
+    "manageDescription": "创建、编辑和组织员工的部门结构。",
     "empty": "暂无部门，创建一个开始使用。",
     "create": "创建部门",
     "addChild": "添加子部门",
@@ -347,8 +347,8 @@
   },
   "scopes": {
     "readWorkers": {
-      "title": "查询 Worker",
-      "description": "允许列出和查看 Worker 的基本信息与状态"
+      "title": "查询员工",
+      "description": "允许列出和查看员工的基本信息与状态"
     },
     "readDepartments": {
       "title": "查询部门",
@@ -399,9 +399,9 @@
     },
     "updated": "默认引擎已更新",
     "globalArgsSection": {
-      "title": "全局 Worker 参数",
-      "hint": "追加到所有 Worker 引擎调用的 CLI 参数，优先级低于各 Worker 自身参数。",
-      "updated": "全局 Worker 参数已更新"
+      "title": "全局员工参数",
+      "hint": "追加到所有员工引擎调用的 CLI 参数，优先级低于各员工自身参数。",
+      "updated": "全局员工参数已更新"
     },
     "beeArgsSection": {
       "title": "Bee 引擎参数",
