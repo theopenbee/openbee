@@ -163,6 +163,7 @@
     }
   },
   "workerDetail": {
+    "overview": "概览",
     "sessions": "会话",
     "workerInfo": "员工信息",
     "id": "ID",

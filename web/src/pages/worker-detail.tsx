@@ -1,14 +1,29 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Activity, Building2, CalendarIcon, Check, Copy, FolderOpenIcon, Logs, Pencil, X } from "lucide-react"
+import {
+  Activity,
+  Building2,
+  CalendarIcon,
+  Check,
+  Copy,
+  FolderOpenIcon,
+  LayoutDashboard,
+  ListTodo,
+  Logs,
+  Pencil,
+  ScrollText,
+  Settings2,
+  ShieldCheck,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
-import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
@@ -34,6 +49,20 @@ import {
 } from "@/components/ui/table"
 
 const PAGE_SIZE = 20
+
+// Left-rail navigation: each entry maps a menu item to the content rendered in
+// the right pane. The `key` is mirrored to the URL (`?tab=`) so the active
+// section survives refresh and is shareable.
+const SECTIONS = [
+  { key: "overview", labelKey: "workerDetail.overview", icon: LayoutDashboard },
+  { key: "sessions", labelKey: "workerDetail.sessions", icon: Logs },
+  { key: "tasks", labelKey: "tasks.title", icon: ListTodo },
+  { key: "constraints", labelKey: "workerDetail.constraints", icon: ScrollText },
+  { key: "permissions", labelKey: "workerDetail.permissions", icon: ShieldCheck },
+  { key: "env", labelKey: "envConfig.title", icon: Settings2 },
+] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon }>
+
+type SectionKey = (typeof SECTIONS)[number]["key"]
 
 const SOURCE_CONFIG: Record<Exclude<EnvScope, "bee">, { color: string; labelKey: string }> = {
   global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
@@ -153,15 +182,73 @@ export function WorkerDetail() {
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
     [worker?.departments]
   )
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const activeSection: SectionKey = SECTIONS.some((s) => s.key === tabParam)
+    ? (tabParam as SectionKey)
+    : "overview"
+  const setActiveSection = (key: SectionKey) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set("tab", key)
+        return next
+      },
+      { replace: true },
+    )
+  }
+  const activeLabelKey = SECTIONS.find((s) => s.key === activeSection)!.labelKey
+
   if (!worker) return <SkeletonPage />
 
   return (
-    <FadeIn>
-      <div className="space-y-6">
-        <PageHeader
-          title={worker.name}
-          actions={
-            <>
+    <FadeIn className="h-full">
+      <div className="flex h-full">
+        {/* Left rail: worker identity + vertical section menu. */}
+        <aside className="flex w-60 shrink-0 flex-col border-r">
+          <div className="flex h-16 items-center gap-3 border-b px-4">
+            <WorkerAvatar name={worker.name} status={worker.status} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {t(`statuses.${worker.status}`, worker.status)}
+              </p>
+            </div>
+          </div>
+          <nav className="min-h-0 flex-1 overflow-auto p-2">
+            <ul className="space-y-1">
+              {SECTIONS.map((section) => {
+                const isActive = section.key === activeSection
+                const Icon = section.icon
+                return (
+                  <li key={section.key}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection(section.key)}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      <span className="truncate">{t(section.labelKey)}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </nav>
+        </aside>
+
+        {/* Right pane: section header + scrollable content. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
+            <h1 className="text-xl font-bold tracking-tight">{t(activeLabelKey)}</h1>
+            <div className="flex shrink-0 items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
                 <Pencil className="size-4" />
                 {t("common.edit")}
@@ -171,25 +258,17 @@ export function WorkerDetail() {
                 {t("common.copy")}
               </Button>
               <StatusBadge status={worker.status} />
-            </>
-          }
-        />
-        <EditWorkerInfoSheet
-          open={editInfoSheetOpen}
-          onOpenChange={setEditInfoSheetOpen}
-          worker={worker}
-        />
-        <CreateWorkerSheet
-          open={copySheetOpen}
-          onOpenChange={setCopySheetOpen}
-          initialValues={workerToInitialValues(worker)}
-        />
+            </div>
+          </div>
 
-        {workerError ? (
-          <p className="text-destructive">{workerError.message}</p>
-        ) : null}
+          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+            <div className="mx-auto max-w-5xl space-y-6">
+              {workerError ? (
+                <p className="text-destructive">{workerError.message}</p>
+              ) : null}
 
-        <DetailHero>
+              {activeSection === "overview" && (
+                <DetailHero>
           <div className="flex flex-col gap-6 p-5 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
@@ -285,20 +364,11 @@ export function WorkerDetail() {
               />
             </div>
           </div>
-        </DetailHero>
+                </DetailHero>
+              )}
 
-        <Tabs defaultValue="sessions">
-          <TabsList variant="line">
-            <TabsTrigger value="sessions">{t("workerDetail.sessions")}</TabsTrigger>
-            <TabsTrigger value="tasks">{t("tasks.title")}</TabsTrigger>
-            <TabsTrigger value="constraints">{t("workerDetail.constraints")}</TabsTrigger>
-            <TabsTrigger value="permissions">{t("workerDetail.permissions")}</TabsTrigger>
-            <TabsTrigger value="env">
-              {t("envConfig.title")}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="sessions" className="mt-6 space-y-4">
+              {activeSection === "sessions" && (
+                <div className="space-y-4">
             <DetailSection>
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -370,14 +440,15 @@ export function WorkerDetail() {
             </DetailSection>
 
             <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
-          </TabsContent>
+                </div>
+              )}
 
-          <TabsContent value="tasks" className="mt-6">
-            <TaskList workerId={id!} />
-          </TabsContent>
+              {activeSection === "tasks" && (
+                <TaskList workerId={id!} />
+              )}
 
-          <TabsContent value="constraints" className="mt-6">
-            <DetailSection className="p-5 sm:p-6">
+              {activeSection === "constraints" && (
+                <DetailSection className="p-5 sm:p-6">
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -457,11 +528,11 @@ export function WorkerDetail() {
                   </div>
                 )}
               </div>
-            </DetailSection>
-          </TabsContent>
+                </DetailSection>
+              )}
 
-          <TabsContent value="permissions" className="mt-6">
-            <DetailSection className="space-y-6 p-5 sm:p-6">
+              {activeSection === "permissions" && (
+                <DetailSection className="space-y-6 p-5 sm:p-6">
               <p className={EYEBROW_LABEL}>
                 {t("workerDetail.permissions")}
               </p>
@@ -485,11 +556,12 @@ export function WorkerDetail() {
                   />
                 ))}
               </div>
-            </DetailSection>
-          </TabsContent>
+                </DetailSection>
+              )}
 
-          <TabsContent value="env" className="mt-6 space-y-6">
-            <DetailSection className="p-5 sm:p-6 space-y-4">
+              {activeSection === "env" && (
+                <div className="space-y-6">
+                <DetailSection className="p-5 sm:p-6 space-y-4">
               <p className={EYEBROW_LABEL}>
                 {t("envConfig.title")}
               </p>
@@ -510,10 +582,23 @@ export function WorkerDetail() {
                 departmentIds={workerDeptIds}
               />
             </DetailSection>
-          </TabsContent>
-        </Tabs>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
+      <EditWorkerInfoSheet
+        open={editInfoSheetOpen}
+        onOpenChange={setEditInfoSheetOpen}
+        worker={worker}
+      />
+      <CreateWorkerSheet
+        open={copySheetOpen}
+        onOpenChange={setCopySheetOpen}
+        initialValues={workerToInitialValues(worker)}
+      />
     </FadeIn>
   )
 }

@@ -8,9 +8,14 @@ import { cn } from "@/lib/utils"
 // the page fill the area and manage its own scroll (e.g. immersive chat).
 const FULL_BLEED_ROUTES = new Set(["/chat", "/workers"])
 
+// The worker detail route (/workers/:id) is also full-bleed: it owns the
+// viewport with its own left menu rail + right content panes.
+const isFullBleedPath = (pathname: string) =>
+  FULL_BLEED_ROUTES.has(pathname) || /^\/workers\/[^/]+$/.test(pathname)
+
 export function Layout() {
   const { pathname } = useLocation()
-  const fullBleed = FULL_BLEED_ROUTES.has(pathname)
+  const fullBleed = isFullBleedPath(pathname)
 
   return (
     // The shell is a column: a full-width top bar over a row of [sidebar | main].

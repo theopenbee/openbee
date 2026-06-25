@@ -163,6 +163,7 @@
     }
   },
   "workerDetail": {
+    "overview": "Overview",
     "sessions": "Sessions",
     "workerInfo": "Worker Info",
     "id": "ID",
