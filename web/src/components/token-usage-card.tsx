@@ -6,13 +6,7 @@ import { TokenTrendChart } from "@/components/token-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
 import { formatChange, formatTokenCount } from "@/lib/format"
 import { EYEBROW_LABEL } from "@/lib/styles"
-
-// Direction is carried by the arrow alone; the delta text stays neutral so the
-// presence palette (green/purple/red) is never co-opted as a trend valence.
-function changeMeta(ratio: number | null) {
-  const Icon = ratio === null ? null : ratio > 0 ? TrendingUp : ratio < 0 ? TrendingDown : Minus
-  return { label: formatChange(ratio), Icon }
-}
+import { cn } from "@/lib/utils"
 
 // Token usage and its trend live in one board: the headline metrics sit directly
 // under the title, then a single hairline divides them from the trend chart
@@ -24,7 +18,10 @@ export function TokenUsageCard() {
   const today = data?.tokens_today_total ?? 0
   const yesterday = data?.tokens_yesterday_total ?? 0
   const ratio = yesterday > 0 ? (today - yesterday) / yesterday : null
-  const change = changeMeta(ratio)
+  // Direction is carried by the arrow alone; the delta text stays neutral so the
+  // presence palette (green/purple/red) is never co-opted as a trend valence.
+  const changeLabel = formatChange(ratio)
+  const ChangeIcon = ratio === null ? null : ratio > 0 ? TrendingUp : ratio < 0 ? TrendingDown : Minus
 
   return (
     <Panel title={t("dashboard.tokenUsage")} ariaLabel={t("dashboard.tokenUsage")} flush>
@@ -47,10 +44,10 @@ export function TokenUsageCard() {
           <div className="mt-2.5 flex h-7 items-center">
             {isLoading ? (
               <Skeleton className="h-6 w-16" />
-            ) : change.label !== null && change.Icon ? (
-              <span className="flex items-center gap-1.5 text-muted-foreground" aria-label={change.label}>
-                <change.Icon className="size-4" aria-hidden />
-                <span className="text-xl font-semibold tabular-nums">{change.label}</span>
+            ) : changeLabel !== null && ChangeIcon ? (
+              <span className="flex items-center gap-1.5 text-muted-foreground" aria-label={changeLabel}>
+                <ChangeIcon className="size-4" aria-hidden />
+                <span className="text-xl font-semibold tabular-nums">{changeLabel}</span>
               </span>
             ) : (
               <span className="text-xl font-medium text-muted-foreground" aria-label={t("dashboard.noComparison")}>
@@ -82,7 +79,7 @@ function Metric({
   divider?: boolean
 }) {
   return (
-    <div className={divider ? "border-l border-border/70 px-5 py-4" : "px-5 py-4"}>
+    <div className={cn("px-5 py-4", divider && "border-l border-border/70")}>
       <p className={EYEBROW_LABEL}>{label}</p>
       <div className="mt-2.5 flex h-7 items-center">
         {isLoading ? (

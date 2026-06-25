@@ -4,6 +4,8 @@ import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
+import { EYEBROW_LABEL } from "@/lib/styles"
+import { cn } from "@/lib/utils"
 
 // The three engines OpenBee can drive. Each is presented as a named capability
 // with its CLI key, not a logo grid, so the lineup reads as a deliberate
@@ -28,9 +30,11 @@ export function SupportedAgentsCard() {
                 <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">{engine}</p>
               </div>
               <span
-                className={`flex shrink-0 items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.05em] ${
+                className={cn(
+                  EYEBROW_LABEL,
+                  "flex shrink-0 items-center gap-1.5",
                   isOn ? "text-foreground" : "text-muted-foreground/70"
-                }`}
+                )}
               >
                 <span
                   className={`size-1.5 rounded-full ${isOn ? "bg-brand" : "bg-muted-foreground/40"}`}

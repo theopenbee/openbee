@@ -15,6 +15,11 @@ const isFullBleedPath = (pathname: string) =>
   FULL_BLEED_ROUTES.has(pathname) ||
   (/^\/workers\/[^/]+$/.test(pathname) && pathname !== "/workers/create")
 
+// The sidebar primitive is `position: fixed; inset-y-0`, so it would slide under
+// the top bar. An inline offset wins over the class unconditionally, pinning it
+// to start below the 3rem bar. Hoisted so it isn't re-allocated each render.
+const SIDEBAR_OFFSET = { top: "3rem", height: "calc(100svh - 3rem)" }
+
 export function Layout() {
   const { pathname } = useLocation()
   const fullBleed = isFullBleedPath(pathname)
@@ -27,10 +32,7 @@ export function Layout() {
     <SidebarProvider defaultOpen className="h-svh flex-col">
       <AppTopbar />
       <div className="flex min-h-0 w-full flex-1">
-        {/* The sidebar container is `position: fixed; inset-y-0` in the primitive,
-            so it would slide under the top bar. An inline offset wins over the
-            class unconditionally, pinning it to start below the 3rem bar. */}
-        <AppSidebar style={{ top: "3rem", height: "calc(100svh - 3rem)" }} />
+        <AppSidebar style={SIDEBAR_OFFSET} />
         <SidebarInset>
           <main
             className={cn(
