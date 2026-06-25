@@ -4,6 +4,7 @@ import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, FolderOpenIcon, ChevronRi
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { cn, getErrorMessage } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -174,7 +175,7 @@ export function Departments() {
               <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
             </DialogHeader>
             <form onSubmit={mode === "create" ? handleCreate : handleUpdate} className="space-y-4">
-              {error && <div role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+              {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="dept-name">{t("departments.form.name")}</Label>
                 <Input

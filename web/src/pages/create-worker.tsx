@@ -25,6 +25,7 @@ import { WorkerNameField } from "@/components/worker-name-field"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { getErrorMessage } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
@@ -158,7 +159,7 @@ export function CreateWorker() {
         </div>
 
         {submitError && (
-          <div ref={errorRef} role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div ref={errorRef} role="alert" className={ALERT_DESTRUCTIVE}>
             {submitError}
           </div>
         )}

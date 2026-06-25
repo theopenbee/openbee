@@ -27,6 +27,7 @@ import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
@@ -129,7 +130,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         >
           <div className="px-6 py-5 space-y-5">
             {submitError && (
-              <div role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className={ALERT_DESTRUCTIVE}>
                 {submitError}
               </div>
             )}

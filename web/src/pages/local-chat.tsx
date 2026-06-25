@@ -34,6 +34,7 @@ import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
 import { useWorkers } from "@/hooks/use-workers"
 import { MentionTextarea } from "@/components/mention-textarea"
@@ -450,7 +451,7 @@ export function LocalChat() {
       <div className="border-t border-border/70 bg-card">
         <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-6">
             {uploadError && (
-              <div role="alert" className="mb-2 rounded-sm border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-2 px-3 py-2")}>
                 {uploadError}
               </div>
             )}

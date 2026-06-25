@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { getStoredUsername, login } from "@/lib/auth"
+import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 
 export function Login() {
   const { t } = useTranslation()
@@ -84,7 +86,7 @@ export function Login() {
             <div
               role="alert"
               aria-live="polite"
-              className="mt-6 flex items-start gap-2.5 rounded-sm border border-destructive/20 bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
+              className={cn(ALERT_DESTRUCTIVE, "mt-6 flex items-start gap-2.5 px-3.5 py-3")}
             >
               <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
               <p className="leading-6">{error}</p>

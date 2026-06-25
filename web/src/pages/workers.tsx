@@ -5,7 +5,8 @@ import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
-import { EYEBROW_LABEL } from "@/lib/styles"
+import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
@@ -124,7 +125,7 @@ export function Workers() {
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
       {error && (
-        <div role="alert" className="mb-4 mx-auto w-full max-w-6xl rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4 mx-auto w-full max-w-6xl")}>
           {error}
         </div>
       )}

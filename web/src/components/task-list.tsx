@@ -24,6 +24,7 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import type { Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { STATUS_ROW_BORDER } from "@/lib/format"
 
 export const TASK_PAGE_SIZE = 20
@@ -92,7 +93,7 @@ export function TaskList({
       )}
 
       {(error || mutationError) && (
-        <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4")}>
           {(error || mutationError)?.message}
         </div>
       )}

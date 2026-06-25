@@ -19,6 +19,7 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
@@ -73,7 +74,7 @@ export function Sessions() {
       <PageHeader title={t("sessions.title")} subtitle={subtitle} />
 
       {error && (
-        <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4")}>
           {error.message}
         </div>
       )}
