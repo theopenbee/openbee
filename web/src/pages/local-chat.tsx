@@ -27,10 +27,7 @@ import {
   useLoadMoreMessages,
   useSendMessage,
 } from "@/hooks/use-local-chat"
-import { DetailSection } from "@/components/detail-primitives"
 import { EmptyState } from "@/components/empty-state"
-import { FadeIn } from "@/components/fade-in"
-import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -336,10 +333,9 @@ export function LocalChat() {
   const isEmpty = !isLoading && messageCount === 0
 
   return (
-    <FadeIn>
-      <PageHeader title={t("localChat.title")} />
-      <DetailSection className="flex min-h-[34rem] flex-col xl:h-[calc(100vh-12rem)]">
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 sm:py-6">
+    <div className="flex h-full min-h-0 flex-col animate-fade-in">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -465,8 +461,10 @@ export function LocalChat() {
               </div>
             )}
           </div>
+      </div>
 
-          <div className="border-t border-border/70 bg-card p-3 sm:p-4">
+      <div className="border-t border-border/70 bg-card">
+        <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-6">
             {uploadError && (
               <div role="alert" className="mb-2 rounded-sm border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {uploadError}
@@ -560,7 +558,7 @@ export function LocalChat() {
               </div>
             </div>
           </div>
-      </DetailSection>
-    </FadeIn>
+        </div>
+      </div>
   )
 }
