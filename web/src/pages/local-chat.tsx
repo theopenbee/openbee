@@ -210,7 +210,7 @@ export function LocalChat() {
     const textarea = textareaRef.current
     if (!textarea) return
     textarea.style.height = "0px"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
   }, [input])
 
   const handleReply = useCallback((message: ChatMessage) => {
@@ -359,7 +359,7 @@ export function LocalChat() {
                 description={t("localChat.noMessagesDescription")}
               />
             ) : (
-              <div className="space-y-4" role="log" aria-live="polite" aria-relevant="additions">
+              <div role="log" aria-live="polite" aria-relevant="additions">
                 {hasMore && (
                   <div className="flex justify-center pb-4">
                     <button
@@ -375,40 +375,50 @@ export function LocalChat() {
                 {localMessages.map((message, index) => {
                   const isUser = message.role === "user"
                   const hasContent = message.content.trim().length > 0
+                  const prev = localMessages[index - 1]
+                  const isGroupStart = !prev || prev.role !== message.role
 
                   return (
                     <div
                       key={`${message.role}-${message.ts}-${index}`}
-                      className={cn("flex", isUser ? "justify-end" : "justify-start")}
+                      className={cn(
+                        "flex flex-col first:mt-0",
+                        isUser ? "items-end" : "items-start",
+                        isGroupStart ? "mt-4" : "mt-1"
+                      )}
                     >
-                      <article
-                        className={cn(
-                          "w-full overflow-hidden rounded-sm border border-border/70 bg-background/80 px-4 py-4 sm:px-5",
-                          isUser
-                            ? "max-w-[min(100%,44rem)]"
-                            : "max-w-[min(100%,52rem)]"
-                        )}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em]">
-                            <span
-                              className={cn(
-                                "size-2 rounded-full",
-                                isUser ? "bg-muted-foreground/40" : "bg-primary"
-                              )}
-                            />
-                            <span className="text-muted-foreground">
-                              {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
-                            </span>
-                          </div>
-
-                          <time className="text-xs text-muted-foreground">
+                      {isGroupStart && (
+                        <div
+                          className={cn(
+                            "mb-1 flex items-center gap-2 px-0.5 text-xs",
+                            isUser && "flex-row-reverse"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              isUser ? "bg-muted-foreground/40" : "bg-primary"
+                            )}
+                          />
+                          <span className="font-medium text-muted-foreground">
+                            {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
+                          </span>
+                          <time className="text-muted-foreground/60">
                             {formatMessageTimestamp(message.ts, i18n.language)}
                           </time>
                         </div>
+                      )}
 
+                      <div
+                        className={cn(
+                          "overflow-hidden",
+                          isUser
+                            ? "max-w-[min(100%,42rem)] rounded-sm bg-muted/50 px-3.5 py-2"
+                            : "max-w-[min(100%,52rem)] px-0.5"
+                        )}
+                      >
                         {message.media_paths && message.media_paths.length > 0 && (
-                          <div className="mt-4 space-y-3">
+                          <div className="space-y-2">
                             {message.media_paths.map((path) => (
                               <AttachmentPreview
                                 key={path}
@@ -421,33 +431,32 @@ export function LocalChat() {
 
                         {hasContent && (
                           <CollapsibleContent>
-                            <div className="prose prose-sm mt-4 max-w-none dark:prose-invert prose-p:my-3 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-4 prose-pre:py-3 prose-code:break-words">
+                            <div
+                              className={cn(
+                                "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
+                                message.media_paths && message.media_paths.length > 0 && "mt-2"
+                              )}
+                            >
                               <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
                             </div>
                           </CollapsibleContent>
                         )}
-                      </article>
+                      </div>
                     </div>
                   )
                 })}
 
                 {isProcessing && (
-                  <div className="flex justify-start">
-                    <div className="w-full max-w-[min(100%,52rem)] rounded-sm border border-border/70 bg-background/80 px-4 py-4 sm:px-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                          <span className="size-2 rounded-full bg-primary" />
-                          <span>{t("localChat.beeLabel")}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {t("localChat.processing")}
-                        </span>
-                      </div>
-                      <div className="mt-4 flex gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
-                      </div>
+                  <div className="mt-4 flex flex-col items-start">
+                    <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      <span className="font-medium">{t("localChat.beeLabel")}</span>
+                      <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                    </div>
+                    <div className="flex gap-1.5 px-0.5 py-1">
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
                     </div>
                   </div>
                 )}
@@ -457,15 +466,15 @@ export function LocalChat() {
             )}
           </div>
 
-          <div className="border-t border-border/70 bg-card p-4 sm:p-5">
+          <div className="border-t border-border/70 bg-card p-3 sm:p-4">
             {uploadError && (
-              <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className="mb-2 rounded-sm border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {uploadError}
               </div>
             )}
 
             {pendingMediaPaths.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-2">
+              <div className="mb-2 flex flex-wrap gap-2">
                 {pendingMediaPaths.map((path) => (
                   <span
                     key={path}
@@ -488,10 +497,10 @@ export function LocalChat() {
               </div>
             )}
 
-            <div className="rounded-sm border border-border/70 bg-background/80 p-3">
+            <div className="rounded-sm border border-border/70 bg-background/80 p-2">
               <MentionTextarea
                 textareaRef={textareaRef}
-                className="max-h-[220px] min-h-[120px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 placeholder:text-muted-foreground focus:outline-none"
+                className="max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
                 onChange={setInput}
@@ -501,28 +510,27 @@ export function LocalChat() {
                 disabled={isProcessing}
               />
 
-              <div className="mt-3 flex flex-wrap gap-1.5 px-3">
-                {[
-                  t("localChat.quickCommandClear"),
-                  t("localChat.quickCommandConfirm"),
-                ].map((cmd) => (
-                  <button
-                    key={cmd}
-                    type="button"
-                    className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
-                    onClick={() => void handleQuickCommand(cmd)}
-                  >
-                    {cmd}
-                  </button>
-                ))}
-              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    t("localChat.quickCommandClear"),
+                    t("localChat.quickCommandConfirm"),
+                  ].map((cmd) => (
+                    <button
+                      key={cmd}
+                      type="button"
+                      className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+                      onClick={() => void handleQuickCommand(cmd)}
+                    >
+                      {cmd}
+                    </button>
+                  ))}
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {t("localChat.composerHint")}
+                  </span>
+                </div>
 
-              <div className="mt-3 flex flex-col gap-3 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {t("localChat.composerHint")}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -532,7 +540,7 @@ export function LocalChat() {
                   />
                   <Button
                     variant="outline"
-                    className="h-10 rounded-sm"
+                    className="h-9 rounded-sm"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t("localChat.uploadFile")}
                   >
@@ -540,7 +548,7 @@ export function LocalChat() {
                     <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
                   </Button>
                   <Button
-                    className="h-10 rounded-sm"
+                    className="h-9 rounded-sm"
                     onClick={() => void handleSend()}
                     disabled={!canSend || sendMessage.isPending}
                     aria-label={t("localChat.send")}
