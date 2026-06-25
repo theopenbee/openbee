@@ -28,7 +28,6 @@ interface EngineArgsConfigSectionProps {
   configKey: string
   savedValue: Record<string, string>
   title: string
-  hint: string
   successMessage: string
 }
 
@@ -36,7 +35,6 @@ function EngineArgsConfigSection({
   configKey,
   savedValue,
   title,
-  hint,
   successMessage,
 }: EngineArgsConfigSectionProps) {
   const { t } = useTranslation()
@@ -61,11 +59,7 @@ function EngineArgsConfigSection({
 
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
-      <div>
-        <p className={EYEBROW_LABEL}>
-          {title}
-        </p>
-      </div>
+      <p className={EYEBROW_LABEL}>{title}</p>
       <EngineArgsSection
         engines={enabledEngines}
         value={value}
@@ -115,11 +109,7 @@ export function SystemSettings() {
         <PageHeader title={t("systemSettings.title")} />
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
-          <div>
-            <p className={EYEBROW_LABEL}>
-              {t("systemSettings.engineSection.title")}
-            </p>
-          </div>
+          <p className={EYEBROW_LABEL}>{t("systemSettings.engineSection.title")}</p>
           <div className="flex items-center gap-3">
             <Select
               value={engine}
@@ -150,7 +140,6 @@ export function SystemSettings() {
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
           savedValue={savedGlobalArgs}
           title={t("systemSettings.globalArgsSection.title")}
-          hint={t("systemSettings.globalArgsSection.hint")}
           successMessage={t("systemSettings.globalArgsSection.updated")}
         />
 
@@ -158,7 +147,6 @@ export function SystemSettings() {
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
           savedValue={savedBeeArgs}
           title={t("systemSettings.beeArgsSection.title")}
-          hint={t("systemSettings.beeArgsSection.hint")}
           successMessage={t("systemSettings.beeArgsSection.updated")}
         />
       </div>

@@ -29,7 +29,7 @@ export function DashboardHeroCard() {
       aria-label={t("dashboard.basicInfo")}
     >
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div className="absolute inset-0 bg-[radial-gradient(120%_130%_at_92%_-15%,oklch(0.7_0.161_49/0.16),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_130%_at_92%_-15%,color-mix(in_oklch,var(--brand)_16%,transparent),transparent_55%)]" />
         <Hexagon
           className="absolute -top-10 -right-6 size-44 -rotate-[18deg] text-brand/[0.10]"
           strokeWidth={1.25}

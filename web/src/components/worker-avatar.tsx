@@ -2,14 +2,14 @@ import { useTranslation } from "react-i18next"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 
-const presenceColor: Record<string, string> = {
+export const presenceColor: Record<string, string> = {
   idle: "bg-status-idle",
   working: "bg-status-working",
   error: "bg-status-error",
 }
 
 // First glyph for CJK names, first letters of the first two words otherwise.
-function initials(name: string): string {
+export function initials(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return "?"
   if (/[一-鿿]/.test(trimmed[0])) return trimmed.slice(0, 1)

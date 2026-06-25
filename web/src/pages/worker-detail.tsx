@@ -21,7 +21,7 @@ import { DetailSection } from "@/components/detail-primitives"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
-import { WorkerAvatar } from "@/components/worker-avatar"
+import { WorkerAvatar, initials, presenceColor } from "@/components/worker-avatar"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
@@ -137,31 +137,14 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
   )
 }
 
-// Presence colors mirror WorkerAvatar so the profile masthead speaks the same
-// employee-presence language as the roster: green idle, purple working, red error.
-const PRESENCE_COLOR: Record<string, string> = {
-  idle: "bg-status-idle",
-  working: "bg-status-working",
-  error: "bg-status-error",
-}
-
-function profileInitials(name: string): string {
-  const trimmed = name.trim()
-  if (!trimmed) return "?"
-  if (/[一-鿿]/.test(trimmed[0])) return trimmed.slice(0, 1)
-  const parts = trimmed.split(/[\s_-]+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return trimmed.slice(0, 2).toUpperCase()
-}
-
 // Masthead avatar: larger than the roster avatar to anchor the profile, carrying
-// the same presence dot. Flat fill, no shadow.
+// the same presence dot and presence-color language. Flat fill, no shadow.
 function ProfileAvatar({ name, status }: { name: string; status: string }) {
-  const color = PRESENCE_COLOR[status] ?? "bg-muted-foreground"
+  const color = presenceColor[status] ?? "bg-muted-foreground"
   return (
     <span className="relative inline-flex shrink-0">
       <span className="flex size-16 select-none items-center justify-center rounded-full bg-muted text-xl font-medium text-muted-foreground ring-1 ring-border">
-        {profileInitials(name)}
+        {initials(name)}
       </span>
       <span className="absolute right-1 bottom-1 inline-flex size-3.5 items-center justify-center rounded-full ring-2 ring-background">
         {status === "working" && (
@@ -333,35 +316,36 @@ export function WorkerDetail() {
                   {/* (2) Activity band: at-a-glance presence facts, divided by
                       hairlines into equal columns — no cards, no hero metric. */}
                   <div className="grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    <div className="py-4 sm:pr-6">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
-                        <Logs className="size-3.5" />
-                        <span>{t("workerDetail.sessions")}</span>
+                    {[
+                      {
+                        icon: Logs,
+                        label: t("workerDetail.sessions"),
+                        value: data?.total ?? 0,
+                        valueClass: "text-lg font-medium tabular-nums",
+                      },
+                      {
+                        icon: Clock,
+                        label: t("workerDetail.lastActive"),
+                        value: latestExecution
+                          ? formatTimestamp(latestExecution.started_at)
+                          : t("sessions.noExecutions"),
+                        valueClass: "text-sm",
+                      },
+                      {
+                        icon: CalendarIcon,
+                        label: t("workerDetail.created"),
+                        value: formatTimestamp(worker.created_at),
+                        valueClass: "text-sm",
+                      },
+                    ].map(({ icon: Icon, label, value, valueClass }, i) => (
+                      <div key={label} className={cn("py-4", i === 0 ? "sm:pr-6" : "sm:px-6")}>
+                        <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
+                          <Icon className="size-3.5" />
+                          <span>{label}</span>
+                        </div>
+                        <p className={cn("mt-2 font-mono text-foreground", valueClass)}>{value}</p>
                       </div>
-                      <p className="mt-2 font-mono text-lg font-medium tabular-nums text-foreground">
-                        {data?.total ?? 0}
-                      </p>
-                    </div>
-
-                    <div className="py-4 sm:px-6">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
-                        <Clock className="size-3.5" />
-                        <span>{t("workerDetail.lastActive")}</span>
-                      </div>
-                      <p className="mt-2 font-mono text-sm text-foreground">
-                        {latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
-                      </p>
-                    </div>
-
-                    <div className="py-4 sm:px-6">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
-                        <CalendarIcon className="size-3.5" />
-                        <span>{t("workerDetail.created")}</span>
-                      </div>
-                      <p className="mt-2 font-mono text-sm text-foreground">
-                        {formatTimestamp(worker.created_at)}
-                      </p>
-                    </div>
+                    ))}
                   </div>
 
                   {/* (3) Record: the structured attribute dossier, label-left and

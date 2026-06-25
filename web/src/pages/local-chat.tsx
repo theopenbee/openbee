@@ -493,11 +493,9 @@ export function LocalChat() {
               />
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {t("localChat.composerHint")}
-                  </span>
-                </div>
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  {t("localChat.composerHint")}
+                </span>
 
                 <div className="flex items-center gap-2">
                   <input

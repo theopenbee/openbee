@@ -108,7 +108,7 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
           </p>
           <div className="flex shrink-0 items-center gap-1">
             <CopyButton value={constraints} />
-            <Button size="sm" variant="ghost" onClick={() => startEditing(worker.constraints || "")}>
+            <Button size="sm" variant="ghost" onClick={() => startEditing(constraints)}>
               <Pencil className="size-4" />
               {t("workerDetail.editConstraints")}
             </Button>
