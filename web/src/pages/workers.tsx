@@ -137,7 +137,7 @@ export function Workers() {
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
       {error && (
-        <div role="alert" className="mb-4 max-w-6xl rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 mx-auto w-full max-w-6xl rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -155,7 +155,7 @@ export function Workers() {
           }
         />
       ) : (
-        <div className="max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
           <Table className="min-w-[680px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
