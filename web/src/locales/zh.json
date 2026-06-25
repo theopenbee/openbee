@@ -176,6 +176,33 @@
     "noConstraints": "未配置工作约束",
     "editDescription": "编辑描述",
     "editConstraints": "编辑工作约束",
+    "constraintsPanel": {
+      "active": "已生效",
+      "meta": "更新于 {{time}} · {{count}} 字",
+      "charCount": "{{count}} 字",
+      "shortcuts": "⌘↵ 保存 · Esc 取消",
+      "emptyTitle": "为 {{name}} 设定工作约束",
+      "emptyDescription": "工作约束会在每次会话开始时注入，用来设定 TA 的工作边界、风格与优先级。",
+      "add": "添加工作约束",
+      "templatesLabel": "从模板开始",
+      "templates": {
+        "tone": {
+          "title": "称呼与语气",
+          "desc": "设定如何称呼你、回复的语气与语言",
+          "body": "【称呼与语气】\n- 称呼我为「老板」。\n- 使用中文回复，语气简洁专业，不啰嗦。\n- 先给结论，必要时再展开细节。"
+        },
+        "scope": {
+          "title": "工作范围",
+          "desc": "限定可处理的任务类型与禁区",
+          "body": "【工作范围】\n- 可以处理：______。\n- 禁止操作：______（如删除数据、对外发布前未经确认）。\n- 不确定是否越界时，先确认再动手。"
+        },
+        "delivery": {
+          "title": "交付规范",
+          "desc": "约定代码风格、提交规范与完成后动作",
+          "body": "【交付规范】\n- 遵循项目既有的代码风格与目录约定。\n- 提交信息说明做了什么、为什么。\n- 完成前自检：构建通过、自测通过，再回报结果。"
+        }
+      }
+    },
     "permissions": "权限",
     "permissionsEmpty": "未配置任何权限，Worker token 将禁止访问任何系统内置工具。请根据需要开启对应权限。",
     "permissionsSaved": "已保存"

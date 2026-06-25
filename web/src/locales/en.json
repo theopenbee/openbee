@@ -176,6 +176,33 @@
     "noConstraints": "No work constraints configured",
     "editDescription": "Edit description",
     "editConstraints": "Edit work constraints",
+    "constraintsPanel": {
+      "active": "Active",
+      "meta": "Updated {{time}} · {{count}} chars",
+      "charCount": "{{count}} chars",
+      "shortcuts": "⌘↵ to save · Esc to cancel",
+      "emptyTitle": "Set work constraints for {{name}}",
+      "emptyDescription": "Work constraints are injected at the start of every session to set this worker's boundaries, style, and priorities.",
+      "add": "Add work constraints",
+      "templatesLabel": "Start from a template",
+      "templates": {
+        "tone": {
+          "title": "Tone & address",
+          "desc": "How to address you, plus reply tone and language",
+          "body": "[Tone & address]\n- Address me as \"boss\".\n- Reply in English, concise and professional, no filler.\n- Lead with the conclusion, expand details only when needed."
+        },
+        "scope": {
+          "title": "Scope of work",
+          "desc": "Allowed task types and the off-limits zones",
+          "body": "[Scope of work]\n- Allowed: ______.\n- Forbidden: ______ (e.g. deleting data, publishing externally without confirmation).\n- When unsure whether something is out of bounds, confirm before acting."
+        },
+        "delivery": {
+          "title": "Delivery standards",
+          "desc": "Code style, commit conventions, and wrap-up actions",
+          "body": "[Delivery standards]\n- Follow the project's existing code style and directory conventions.\n- Commit messages explain what changed and why.\n- Before reporting done: build passes and self-test passes, then report results."
+        }
+      }
+    },
     "permissions": "Permissions",
     "permissionsEmpty": "No permissions configured. The Worker token will be denied access to all system built-in tools. Enable the permissions your Worker needs.",
     "permissionsSaved": "Saved"

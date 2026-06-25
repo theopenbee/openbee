@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next"
 import {
   Building2,
   CalendarIcon,
-  Check,
   Clock,
   Copy,
   Hash,
@@ -15,13 +14,11 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
-  X,
   type LucideIcon,
 } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { DetailSection } from "@/components/detail-primitives"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
 import { WorkerAvatar } from "@/components/worker-avatar"
@@ -31,6 +28,7 @@ import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
+import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
@@ -222,8 +220,6 @@ export function WorkerDetail() {
 
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
-  const [isEditingConstraints, setIsEditingConstraints] = useState(false)
-  const [editConstraints, setEditConstraints] = useState("")
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
 
@@ -507,87 +503,7 @@ export function WorkerDetail() {
               )}
 
               {activeSection === "constraints" && (
-                <DetailSection className="p-5 sm:p-6">
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className={EYEBROW_LABEL}>
-                      {t("workerDetail.constraints")}
-                    </p>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      {t("workers.form.constraintsHelper")}
-                    </p>
-                  </div>
-
-                  {!isEditingConstraints ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditConstraints(worker.constraints || "")
-                        setIsEditingConstraints(true)
-                      }}
-                      aria-label={t("workerDetail.editConstraints")}
-                    >
-                      <Pencil className="size-4" />
-                      {t("workerDetail.editConstraints")}
-                    </Button>
-                  ) : null}
-                </div>
-
-                {isEditingConstraints ? (
-                  <div className="space-y-3">
-                    <Textarea
-                      value={editConstraints}
-                      onChange={(event) => setEditConstraints(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          setIsEditingConstraints(false)
-                          setEditConstraints(worker.constraints || "")
-                        }
-                      }}
-                      autoFocus
-                      rows={12}
-                      className="font-mono text-sm"
-                    />
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          await updateWorker.mutateAsync({ id: id!, data: { constraints: editConstraints } })
-                          setIsEditingConstraints(false)
-                        }}
-                      >
-                        <Check className="size-4" />
-                        {t("common.save")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditingConstraints(false)
-                          setEditConstraints(worker.constraints || "")
-                        }}
-                      >
-                        <X className="size-4" />
-                        {t("common.cancel")}
-                      </Button>
-                    </div>
-                  </div>
-                ) : worker.constraints ? (
-                  <div className="rounded-sm border border-border/70 bg-background/80 p-4">
-                    <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6 text-foreground">
-                      {worker.constraints}
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground">
-                    {t("workerDetail.noConstraints")}
-                  </div>
-                )}
-              </div>
-                </DetailSection>
+                <WorkerConstraintsPanel worker={worker} />
               )}
 
               {activeSection === "permissions" && (
