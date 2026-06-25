@@ -1,9 +1,12 @@
-<div align="center">
-  <h1>🐝 OpenBee</h1>
-  <p><strong>Run Agents as your digital workers</strong></p>
-</div>
+<img src="docs/logo-full.svg" alt="OpenBee" width="220" />
 
-<div align="center">
+# OpenBee — Build smarter AI teams.
+
+---
+
+**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
+
+To learn more about the project, visit [docs.theopenbee.com](https://docs.theopenbee.com).
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -11,15 +14,13 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 
-</div>
+<sub><a href="README.zh.md">中文</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
-<p align="center">
-  <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
-  <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0xtyz">0xtyz</a>
-</p>
+## 📸 Screenshots
 
-**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
+---
+
+<img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## ✨ Features
 
