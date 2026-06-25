@@ -65,7 +65,6 @@ function EngineArgsConfigSection({
         <p className={EYEBROW_LABEL}>
           {title}
         </p>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
       </div>
       <EngineArgsSection
         engines={enabledEngines}

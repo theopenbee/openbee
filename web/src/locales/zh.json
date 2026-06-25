@@ -14,7 +14,7 @@
     "directory": "通讯录",
     "settings": "环境变量",
     "systemSettings": "系统设置",
-    "systemConfig": "系统配置",
+    "systemConfig": "系统管理",
     "collapseNav": "收起导航"
   },
   "common": {
@@ -283,8 +283,8 @@
   },
   "tasks": {
     "title": "定时任务",
-    "summary_one": "{{count}} 个待执行或运行中的任务",
-    "summary_other": "{{count}} 个待执行或运行中的任务",
+    "summary_one": "{{count}}个任务",
+    "summary_other": "{{count}}个任务",
     "columns": {
       "worker": "员工",
       "instruction": "指令",

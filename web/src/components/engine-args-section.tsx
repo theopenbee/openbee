@@ -33,7 +33,6 @@ export function EngineArgsSection({ engines, value, onChange }: EngineArgsSectio
           />
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">{t("workers.form.engineArgsHelper")}</p>
     </div>
   )
 }

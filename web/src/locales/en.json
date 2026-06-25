@@ -14,7 +14,7 @@
     "directory": "Directory",
     "settings": "Env Variables",
     "systemSettings": "Settings",
-    "systemConfig": "System Config",
+    "systemConfig": "System Management",
     "collapseNav": "Collapse navigation"
   },
   "common": {
@@ -283,8 +283,8 @@
   },
   "tasks": {
     "title": "Scheduled",
-    "summary_one": "{{count}} active task",
-    "summary_other": "{{count}} active tasks",
+    "summary_one": "{{count}} task",
+    "summary_other": "{{count}} tasks",
     "columns": {
       "worker": "Worker",
       "instruction": "Instruction",
