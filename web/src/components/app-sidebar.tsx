@@ -1,8 +1,8 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon, PanelLeftIcon } from "lucide-react"
+import { LayoutDashboardIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, ContactIcon, Settings2Icon, PanelLeftIcon } from "lucide-react"
 
-import { NavMain } from "@/components/nav-main"
+import { NavMain, type NavEntry } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import {
   Sidebar,
@@ -26,33 +26,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { toggleSidebar } = useSidebar()
 
-  const navTop = React.useMemo(() => [
+  // Leaf links sit at the top level; sections with sub-pages become collapsible
+  // groups (icon + label + chevron) that reveal indented, plain-text children.
+  const navItems = React.useMemo<NavEntry[]>(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
     { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
-  ], [t])
-
-  const navDirectory = React.useMemo(() => [
-    { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
-    { title: t("nav.departments"), url: "/departments", icon: <Building2Icon /> },
-  ], [t])
-
-  const navMain = React.useMemo(() => [
+    {
+      title: t("nav.directory"),
+      icon: <ContactIcon />,
+      items: [
+        { title: t("nav.workers"), url: "/workers" },
+        { title: t("nav.departments"), url: "/departments" },
+      ],
+    },
     { title: t("nav.sessions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
-  ], [t])
-
-  const navSystemConfig = React.useMemo(() => [
-    { title: t("nav.settings"), url: "/env", icon: <SettingsIcon /> },
-    { title: t("nav.systemSettings"), url: "/settings", icon: <SettingsIcon /> },
+    {
+      title: t("nav.systemConfig"),
+      icon: <Settings2Icon />,
+      items: [
+        { title: t("nav.settings"), url: "/env" },
+        { title: t("nav.systemSettings"), url: "/settings" },
+      ],
+    },
   ], [t])
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" {...props}>
       <SidebarContent className="pt-2">
-        <NavMain items={navTop} />
-        <NavMain label={t("nav.directory")} items={navDirectory} />
-        <NavMain items={navMain} />
-        <NavMain label={t("nav.systemConfig")} items={navSystemConfig} />
+        <NavMain items={navItems} />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
