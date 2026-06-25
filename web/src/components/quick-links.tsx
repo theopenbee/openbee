@@ -1,0 +1,44 @@
+import type { ReactNode } from "react"
+import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
+import { SectionRule } from "@/components/section-rule"
+
+type QuickLink = {
+  to: string
+  labelKey: string
+  icon: ReactNode
+}
+
+const LINKS: QuickLink[] = [
+  { to: "/workers", labelKey: "nav.workers", icon: <Users /> },
+  { to: "/departments", labelKey: "nav.departments", icon: <Network /> },
+  { to: "/tasks", labelKey: "nav.tasks", icon: <CalendarClock /> },
+  { to: "/sessions", labelKey: "nav.sessions", icon: <MessagesSquare /> },
+  { to: "/env", labelKey: "nav.settings", icon: <KeyRound /> },
+  { to: "/settings", labelKey: "nav.systemSettings", icon: <SlidersHorizontal /> },
+]
+
+export function QuickLinks() {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-label={t("dashboard.quickAccess")}>
+      <SectionRule className="mb-4">{t("dashboard.quickAccess")}</SectionRule>
+      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {LINKS.map(({ to, labelKey, icon }) => (
+          <Link
+            key={to}
+            to={to}
+            className="group/quick flex items-center gap-3 rounded-sm border border-border/70 px-3.5 py-3 transition-colors hover:border-brand/40 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+          >
+            <span className="text-muted-foreground transition-colors group-hover/quick:text-brand [&_svg]:size-[18px]">
+              {icon}
+            </span>
+            <span className="text-sm font-medium">{t(labelKey)}</span>
+          </Link>
+        ))}
+      </nav>
+    </section>
+  )
+}

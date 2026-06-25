@@ -20,6 +20,7 @@ type ServerParams struct {
 	Departments       *api.DepartmentHandler
 	Stats             *api.StatsHandler
 	Config            *api.ConfigHandler
+	Version           *api.VersionHandler
 	LocalChat         *api.LocalChatHandler
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler

@@ -41,9 +41,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 
 	r.GET("/messages", s.Messages.List)
 
+	r.GET("/version", s.Version.Get)
+
 	r.GET("/stats/overview", s.Stats.GetOverview)
-	r.GET("/stats/trend", s.Stats.GetTrend)
-	r.GET("/stats/execution-duration-trend", s.Stats.GetExecutionDurationTrend)
 	r.GET("/stats/token-trend", s.Stats.GetTokenTrend)
 
 	r.GET("/envs", s.Envs.List)
