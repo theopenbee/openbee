@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next"
 import { Panel } from "@/components/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useVersion } from "@/hooks/use-version"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 // A short commit SHA reads better than the full 40 chars; build tooling injects
 // either, so trim defensively.
@@ -35,9 +36,7 @@ export function SystemInfoCard() {
             ))
           : rows.map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between gap-4 px-5 py-3">
-                <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  {label}
-                </dt>
+                <dt className={EYEBROW_LABEL}>{label}</dt>
                 <dd className="min-w-0 truncate font-mono text-xs text-foreground" title={value}>
                   {value}
                 </dd>

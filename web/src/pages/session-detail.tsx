@@ -13,6 +13,7 @@ import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
@@ -113,7 +114,7 @@ export function SessionDetail() {
           <div className="flex flex-col gap-6 p-5 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("sessionDetail.overview")}
                 </p>
                 <div className="space-y-2">
@@ -214,7 +215,7 @@ export function SessionDetail() {
           <aside className="xl:sticky xl:top-6">
             <DetailSection className="h-full flex flex-col">
               <div className="border-b border-border/70 px-4 py-4 sm:px-5">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("sessionDetail.turnNavigator")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -297,7 +298,7 @@ export function SessionDetail() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={EYEBROW_LABEL}>
                         {t("sessionDetail.inspectTurn")}
                       </p>
                       {isActiveStatus(selectedExecution.status) && (
@@ -319,7 +320,7 @@ export function SessionDetail() {
               <div className="grid gap-6 px-5 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(17rem,0.9fr)]">
                 <div className="space-y-5">
                   <section className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("executionDetail.triggerInput")}
                     </p>
                     <div className="rounded-sm border border-border/70 bg-background/80 p-4">
@@ -334,7 +335,7 @@ export function SessionDetail() {
                   </section>
 
                   <section className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("executionDetail.result")}
                     </p>
                     <div className="rounded-sm border border-border/70 bg-background/80 p-4">
@@ -347,7 +348,7 @@ export function SessionDetail() {
 
                 <section className="rounded-sm border border-border/70 bg-background/80 p-4">
                   <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("sessionDetail.metadata")}
                     </p>
 
@@ -388,7 +389,7 @@ export function SessionDetail() {
             <DetailSection>
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className={EYEBROW_LABEL}>
                     {t("executionDetail.logs")}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">

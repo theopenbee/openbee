@@ -5,6 +5,7 @@ import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { Button } from "@/components/ui/button"
 import {
@@ -240,7 +241,7 @@ export function Workers() {
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
         <DialogContent>
           <DialogHeader>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {deleteStep === 1 ? t("workers.deleteDialog.stepOne") : t("workers.deleteDialog.stepTwo")}
             </p>
             <DialogTitle>{t("workers.deleteDialog.title")}</DialogTitle>

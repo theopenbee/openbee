@@ -5,9 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { TokenTrendChart } from "@/components/token-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
 import { formatChange, formatTokenCount } from "@/lib/format"
-
-const STAT_LABEL =
-  "text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 // Direction is carried by the arrow alone; the delta text stays neutral so the
 // presence palette (green/purple/red) is never co-opted as a trend valence.
@@ -45,7 +43,7 @@ export function TokenUsageCard() {
           divider
         />
         <div className="border-l border-border/70 px-5 py-4">
-          <p className={STAT_LABEL}>{t("dashboard.dayOverDay")}</p>
+          <p className={EYEBROW_LABEL}>{t("dashboard.dayOverDay")}</p>
           <div className="mt-2.5 flex h-7 items-center">
             {isLoading ? (
               <Skeleton className="h-6 w-16" />
@@ -85,7 +83,7 @@ function Metric({
 }) {
   return (
     <div className={divider ? "border-l border-border/70 px-5 py-4" : "px-5 py-4"}>
-      <p className={STAT_LABEL}>{label}</p>
+      <p className={EYEBROW_LABEL}>{label}</p>
       <div className="mt-2.5 flex h-7 items-center">
         {isLoading ? (
           <Skeleton className="h-6 w-20" />

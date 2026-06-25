@@ -2,6 +2,7 @@ import { Fragment, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import type { DepartmentTree as DepartmentTreeType } from "@/lib/types"
 
 export const UNGROUPED_FILTER = "ungrouped" as const
@@ -46,7 +47,7 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
 
         {departments.length > 0 && (
           <div className="pt-4">
-            <p className="px-2.5 pb-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+            <p className={cn(EYEBROW_LABEL, "px-2.5 pb-2")}>
               {t("departments.title")}
             </p>
             <div className="space-y-0.5">

@@ -25,7 +25,7 @@ export function SupportedAgentsCard() {
                 <p className="mt-0.5 font-mono text-xs text-muted-foreground">{engine}</p>
               </div>
               <span
-                className={`flex shrink-0 items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.12em] ${
+                className={`flex shrink-0 items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.05em] ${
                   isOn ? "text-foreground" : "text-muted-foreground/70"
                 }`}
               >

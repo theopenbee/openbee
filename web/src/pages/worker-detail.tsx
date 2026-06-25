@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatEngineLabel, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
@@ -192,7 +193,7 @@ export function WorkerDetail() {
           <div className="flex flex-col gap-6 p-5 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("workerDetail.workerInfo")}
                 </p>
 
@@ -217,7 +218,7 @@ export function WorkerDetail() {
               <div className="flex flex-col gap-2">
                 {/* Department badges */}
                 <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <span className={EYEBROW_LABEL}>
                     {t("departments.title")}
                   </span>
                   {worker.departments && worker.departments.length > 0 ? (
@@ -302,7 +303,7 @@ export function WorkerDetail() {
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("workerDetail.sessions")}
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -380,7 +381,7 @@ export function WorkerDetail() {
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("workerDetail.constraints")}
                     </p>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -461,7 +462,7 @@ export function WorkerDetail() {
 
           <TabsContent value="permissions" className="mt-6">
             <DetailSection className="space-y-6 p-5 sm:p-6">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className={EYEBROW_LABEL}>
                 {t("workerDetail.permissions")}
               </p>
 
@@ -489,7 +490,7 @@ export function WorkerDetail() {
 
           <TabsContent value="env" className="mt-6 space-y-6">
             <DetailSection className="p-5 sm:p-6 space-y-4">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className={EYEBROW_LABEL}>
                 {t("envConfig.title")}
               </p>
               <EnvConfigPanel scope="worker" scopeId={id!} />
@@ -497,7 +498,7 @@ export function WorkerDetail() {
 
             <DetailSection className="p-5 sm:p-6 space-y-4">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("envConfig.effectiveTitle")}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">

@@ -4,9 +4,7 @@ import { LogoFull } from "@/components/brand/logo"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useStatsOverview } from "@/hooks/use-stats"
 import { formatNumber } from "@/lib/format"
-
-const STAT_LABEL =
-  "text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 // The hero panel is the one place brand orange washes a whole surface: a faint
 // tint (well under the visual weight of a fill) plus a brand-toned hairline, so
@@ -53,9 +51,9 @@ export function DashboardHeroCard() {
           {stats.map(({ label, value }, i) => (
             <div
               key={label}
-              className={i !== 0 ? "border-l border-brand/15 pl-5" : "pr-5"}
+              className={i !== 0 ? "border-l border-brand/25 pl-5" : "pr-5"}
             >
-              <dt className={STAT_LABEL}>{label}</dt>
+              <dt className={EYEBROW_LABEL}>{label}</dt>
               <dd className="mt-2 text-3xl font-semibold tabular-nums leading-none">
                 {isLoading || value === undefined ? (
                   <Skeleton className="h-8 w-12" />

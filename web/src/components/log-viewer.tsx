@@ -7,6 +7,7 @@ import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
 import { isActiveStatus } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import type { ParsedEntry, StreamParser } from "./log-viewer/types"
 import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
@@ -70,7 +71,7 @@ function AssistantEntry({ text }: { text: string }) {
     <TimelineRow markerClassName="bg-primary/70">
       <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <div className="px-4 pt-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className={EYEBROW_LABEL}>
             {t("logViewer.narrative")}
           </p>
           <p className="mt-1 text-sm font-medium text-foreground">{t("logViewer.assistant")}</p>
@@ -113,7 +114,7 @@ function ToolEntry({
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.toolCall")}
             </p>
 
@@ -163,13 +164,13 @@ function ExpandedDetails({ input, output }: { input: ReactNode; output: ReactNod
   return (
     <div className="grid gap-3 border-t border-border/70 px-4 pb-4 pt-3 md:grid-cols-2 animate-fade-in">
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className={EYEBROW_LABEL}>
           {t("logViewer.input")}
         </p>
         {input}
       </section>
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className={EYEBROW_LABEL}>
           {t("logViewer.output")}
         </p>
         {output}
@@ -186,7 +187,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
       <article className="overflow-hidden rounded-sm border border-status-idle/20 bg-status-idle/8">
         <div className="px-4 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.result")}
             </p>
             {entry.subtype && (
@@ -238,7 +239,7 @@ function CodexCommandEntry({
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.commandExecution")}
             </p>
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
@@ -291,7 +292,7 @@ function CodexTurnEntry({
   return (
     <TimelineRow markerClassName="bg-muted-foreground/40">
       <div className="flex flex-wrap items-center gap-2 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        <span className={EYEBROW_LABEL}>
           {t("logViewer.turnUsage")}
         </span>
         <MetricChip label={t("logViewer.inputTokens")} value={entry.inputTokens} />
@@ -322,7 +323,7 @@ function PiThinkingEntry({
           onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
         >
-          <p className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+          <p className={cn(EYEBROW_LABEL, "min-w-0 flex-1 text-muted-foreground/70")}>
             {t("logViewer.thinking")}
           </p>
           <span className="mt-0.5 shrink-0 text-muted-foreground/60" aria-hidden="true">
@@ -351,7 +352,7 @@ function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
       <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.rawOutput")}
             </p>
             <p className="mt-1 text-sm font-medium text-foreground">{isError ? t("logViewer.failed") : t("logViewer.raw")}</p>

@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
+import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
 export type DayOption = typeof DAY_OPTIONS[number]
@@ -65,9 +67,7 @@ export function TrendLineCard({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="min-w-0 truncate text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          {title}
-        </h3>
+        <h3 className={cn(EYEBROW_LABEL, "min-w-0 truncate")}>{title}</h3>
         <div className="flex gap-1 shrink-0" role="group" aria-label={title}>
           {DAY_OPTIONS.map((d) => (
             <Button

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 export function DetailHero({
   children,
@@ -48,7 +49,7 @@ export function DetailOverviewStat({
 }) {
   return (
     <div className={cn("rounded-sm border border-border/70 bg-background/80 p-4", className)}>
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
         {Icon ? <Icon className="size-3.5" /> : null}
         <span>{label}</span>
       </div>
@@ -69,7 +70,7 @@ export function DetailField({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className={EYEBROW_LABEL}>{label}</p>
       <div className={cn("text-sm text-foreground", mono && "font-mono break-all")}>{value}</div>
     </div>
   )

@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import {
   Select,
   SelectContent,
@@ -61,7 +62,7 @@ function EngineArgsConfigSection({
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className={EYEBROW_LABEL}>
           {title}
         </p>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
@@ -115,7 +116,7 @@ export function SystemSettings() {
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("systemSettings.engineSection.title")}
             </p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">

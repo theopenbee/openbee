@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { DEFAULT_BEE_ID } from "@/lib/types"
+import { EYEBROW_LABEL } from "@/lib/styles"
 
 export function Settings() {
   const { t } = useTranslation()
@@ -15,7 +16,7 @@ export function Settings() {
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("envConfig.globalTitle")}
             </p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -27,7 +28,7 @@ export function Settings() {
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("envConfig.beeTitle")}
             </p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
