@@ -62,7 +62,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}
-              tooltip={t("nav.collapseNav")}
+              tooltip={t("nav.expandNav")}
             >
               <PanelLeftIcon />
               <span>{t("nav.collapseNav")}</span>

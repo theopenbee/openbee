@@ -15,7 +15,8 @@
     "settings": "Env Variables",
     "systemSettings": "Settings",
     "systemConfig": "System Management",
-    "collapseNav": "Collapse navigation"
+    "collapseNav": "Collapse navigation",
+    "expandNav": "Expand navigation"
   },
   "common": {
     "save": "Save",
