@@ -110,7 +110,7 @@ export function SystemSettings() {
 
   return (
     <FadeIn>
-      <div className="space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title={t("systemSettings.title")} />
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
