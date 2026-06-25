@@ -35,8 +35,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: t("nav.directory"),
       icon: <ContactIcon />,
       items: [
-        { title: t("nav.workers"), url: "/workers" },
         { title: t("nav.departments"), url: "/departments" },
+        { title: t("nav.workers"), url: "/workers" },
       ],
     },
     { title: t("nav.sessions"), url: "/sessions", icon: <ActivityIcon /> },

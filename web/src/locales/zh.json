@@ -6,7 +6,7 @@
     "daysAgo": "{{count}} 天前"
   },
   "nav": {
-    "dashboard": "仪表板",
+    "dashboard": "概览",
     "workers": "员工",
     "sessions": "会话",
     "tasks": "定时任务",
@@ -42,7 +42,7 @@
     "cancelled": "已取消"
   },
   "dashboard": {
-    "title": "仪表盘",
+    "title": "概览",
     "basicInfo": "基础信息",
     "departments": "部门数",
     "workers": "员工数",

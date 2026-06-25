@@ -6,7 +6,7 @@
     "daysAgo": "{{count}}d ago"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Overview",
     "workers": "Workers",
     "sessions": "Sessions",
     "tasks": "Scheduled",
@@ -42,8 +42,8 @@
     "cancelled": "Cancelled"
   },
   "dashboard": {
-    "title": "Dashboard",
-    "basicInfo": "Overview",
+    "title": "Overview",
+    "basicInfo": "Basics",
     "departments": "Departments",
     "workers": "Workers",
     "scheduledTasks": "Scheduled Tasks",
