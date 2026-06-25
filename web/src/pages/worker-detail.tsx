@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
-import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
+import { DetailSection } from "@/components/detail-primitives"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
@@ -275,90 +275,99 @@ export function WorkerDetail() {
               ) : null}
 
               {activeSection === "overview" && (
-                <DetailHero>
-          <div className="flex flex-col gap-6 p-5 sm:p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-3">
-                <p className={EYEBROW_LABEL}>
-                  {t("workerDetail.workerInfo")}
-                </p>
+                <div className="flex flex-col gap-8">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <p className={EYEBROW_LABEL}>
+                        {t("workerDetail.workerInfo")}
+                      </p>
 
-                <div className="space-y-3">
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                    {worker.name}
-                  </h2>
+                      <div className="space-y-3">
+                        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                          {worker.name}
+                        </h2>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
-                      {worker.id}
-                    </span>
-                    <CopyButton value={worker.id} />
-                  </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+                            {worker.id}
+                          </span>
+                          <CopyButton value={worker.id} />
+                        </div>
 
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                    {worker.description || t("common.noDescription")}
-                  </p>
+                        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                          {worker.description || t("common.noDescription")}
+                        </p>
 
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
-                    <p className="text-sm">
-                      {formatEngineLabel(worker.engine, t)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {/* Department badges */}
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <span className={EYEBROW_LABEL}>
-                    {t("departments.title")}
-                  </span>
-                  {worker.departments && worker.departments.length > 0 ? (
-                    worker.departments.map((d) => (
-                      <span
-                        key={d.id}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
-                      >
-                        <Building2 className="size-3 shrink-0" />
-                        {d.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <DetailOverviewStat
-                icon={Logs}
-                label={t("workerDetail.sessions")}
-                value={<span className="font-mono text-sm sm:text-base">{data?.total ?? 0}</span>}
-                hint={latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
-              />
-              <DetailOverviewStat
-                icon={FolderOpenIcon}
-                label={t("workerDetail.workDir")}
-                valueClassName="font-mono text-sm leading-6 break-all"
-                value={
-                  worker.work_dir ? (
-                    <div className="flex items-start gap-2">
-                      <span className="flex-1">{worker.work_dir}</span>
-                      <CopyButton value={worker.work_dir} />
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
+                          <p className="text-sm">
+                            {formatEngineLabel(worker.engine, t)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  ) : "—"
-                }
-              />
-              <DetailOverviewStat
-                icon={CalendarIcon}
-                label={t("workerDetail.created")}
-                value={<span className="font-mono text-sm sm:text-base">{formatTimestamp(worker.created_at)}</span>}
-              />
-            </div>
-          </div>
-                </DetailHero>
+
+                    {/* Department badges */}
+                    <div className="flex flex-wrap items-center gap-2 lg:pt-1">
+                      <span className={EYEBROW_LABEL}>
+                        {t("departments.title")}
+                      </span>
+                      {worker.departments && worker.departments.length > 0 ? (
+                        worker.departments.map((d) => (
+                          <span
+                            key={d.id}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                          >
+                            <Building2 className="size-3 shrink-0" />
+                            {d.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stats laid out as borderless profile rows, divided from the
+                      identity block by a single hairline rather than nested cards. */}
+                  <div className="grid gap-x-8 gap-y-6 border-t border-border/60 pt-6 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
+                        <Logs className="size-3.5" />
+                        <span>{t("workerDetail.sessions")}</span>
+                      </div>
+                      <p className="font-mono text-sm text-foreground sm:text-base">{data?.total ?? 0}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
+                        <FolderOpenIcon className="size-3.5" />
+                        <span>{t("workerDetail.workDir")}</span>
+                      </div>
+                      {worker.work_dir ? (
+                        <div className="flex items-start gap-2">
+                          <span className="flex-1 break-all font-mono text-sm leading-6 text-foreground">
+                            {worker.work_dir}
+                          </span>
+                          <CopyButton value={worker.work_dir} />
+                        </div>
+                      ) : (
+                        <p className="text-sm text-foreground">—</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
+                        <CalendarIcon className="size-3.5" />
+                        <span>{t("workerDetail.created")}</span>
+                      </div>
+                      <p className="font-mono text-sm text-foreground sm:text-base">{formatTimestamp(worker.created_at)}</p>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {activeSection === "sessions" && (
