@@ -43,6 +43,7 @@
   },
   "dashboard": {
     "title": "Overview",
+    "tagline": "Build smarter AI teams.",
     "basicInfo": "Basics",
     "departments": "Departments",
     "workers": "Workers",

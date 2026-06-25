@@ -43,6 +43,7 @@
   },
   "dashboard": {
     "title": "概览",
+    "tagline": "Build smarter AI teams.",
     "basicInfo": "基础信息",
     "departments": "部门数",
     "workers": "员工数",

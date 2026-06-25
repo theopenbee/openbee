@@ -46,6 +46,9 @@ export function DashboardHeroCard() {
 
       <div className="relative">
         <LogoFull className="h-7" />
+        <p className="mt-3 text-sm text-muted-foreground">
+          {t("dashboard.tagline")}
+        </p>
 
         <dl className="mt-7 grid grid-cols-3">
           {stats.map(({ label, value }, i) => (
