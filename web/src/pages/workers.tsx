@@ -35,7 +35,6 @@ import {
 import { StatusBadge } from "@/components/status-badge"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
-import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
@@ -96,45 +95,52 @@ export function Workers() {
   }
 
   return (
-    <FadeIn>
-      <div className="flex gap-6 h-full">
-        <div className="w-56 shrink-0 border-r pr-4">
-          <DepartmentTreeSidebar
-            departments={departments}
-            selectedId={selectedDeptId}
-            onSelect={setSelectedDeptId}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-      <PageHeader
-        title={t("workers.title")}
-        subtitle={
-          displayedWorkers.length > 0
-            ? t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })
-            : undefined
-        }
-        actions={
-          <>
-            <Button onClick={() => setSheetState({ mode: "create" })}>
-              {t("workers.createWorker")}
-            </Button>
-            <CreateWorkerSheet
-              open={sheetState !== null}
-              onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
-              initialValues={copyInitialValues}
+    <FadeIn className="h-full">
+      <div className="flex h-full">
+        {/* Left pane: department filter, flush to the layout edge with its own scroll. */}
+        <aside className="flex w-60 shrink-0 flex-col border-r">
+          <div className="flex h-16 items-center border-b px-4">
+            <h2 className="text-sm font-semibold tracking-tight">{t("departments.filter")}</h2>
+          </div>
+          <div className="min-h-0 flex-1">
+            <DepartmentTreeSidebar
+              departments={departments}
+              selectedId={selectedDeptId}
+              onSelect={setSelectedDeptId}
             />
-          </>
-        }
-      />
+          </div>
+        </aside>
 
+        {/* Right pane: worker list, fills remaining width with its own scroll. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">{t("workers.title")}</h1>
+              {displayedWorkers.length > 0 && (
+                <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
+                  {t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button onClick={() => setSheetState({ mode: "create" })}>
+                {t("workers.createWorker")}
+              </Button>
+              <CreateWorkerSheet
+                open={sheetState !== null}
+                onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
+                initialValues={copyInitialValues}
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
       {error && (
         <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="min-h-[320px]">
       {isLoading ? (
         <SkeletonTable rows={6} columns={5} />
       ) : displayedWorkers.length === 0 && !error ? (

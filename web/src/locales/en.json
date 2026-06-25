@@ -372,6 +372,7 @@
   },
   "departments": {
     "title": "Departments",
+    "filter": "Filter",
     "allWorkers": "All Workers",
     "ungrouped": "Ungrouped",
     "manage": "Manage Departments",

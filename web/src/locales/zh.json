@@ -371,6 +371,7 @@
   },
   "departments": {
     "title": "部门",
+    "filter": "筛选",
     "allWorkers": "全部员工",
     "ungrouped": "未分组",
     "manage": "管理部门",

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 // Routes that own their full viewport: the main pane drops its padding and lets
 // the page fill the area and manage its own scroll (e.g. immersive chat).
-const FULL_BLEED_ROUTES = new Set(["/chat"])
+const FULL_BLEED_ROUTES = new Set(["/chat", "/workers"])
 
 export function Layout() {
   const { pathname } = useLocation()
