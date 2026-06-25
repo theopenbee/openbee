@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
-import { SectionRule } from "@/components/section-rule"
+import { Panel } from "@/components/panel"
 
 type QuickLink = {
   to: string
@@ -23,8 +23,7 @@ export function QuickLinks() {
   const { t } = useTranslation()
 
   return (
-    <section aria-label={t("dashboard.quickAccess")}>
-      <SectionRule className="mb-4">{t("dashboard.quickAccess")}</SectionRule>
+    <Panel title={t("dashboard.quickAccess")} ariaLabel={t("dashboard.quickAccess")}>
       <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {LINKS.map(({ to, labelKey, icon }) => (
           <Link
@@ -39,6 +38,6 @@ export function QuickLinks() {
           </Link>
         ))}
       </nav>
-    </section>
+    </Panel>
   )
 }

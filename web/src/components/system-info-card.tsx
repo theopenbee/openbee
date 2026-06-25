@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { SectionRule } from "@/components/section-rule"
+import { Panel } from "@/components/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useVersion } from "@/hooks/use-version"
 
@@ -24,18 +24,17 @@ export function SystemInfoCard() {
     : []
 
   return (
-    <section aria-label={t("dashboard.systemInfo")}>
-      <SectionRule className="mb-4">{t("dashboard.systemInfo")}</SectionRule>
-      <dl className="rounded-sm border border-border/70 divide-y divide-border/70">
+    <Panel title={t("dashboard.systemInfo")} ariaLabel={t("dashboard.systemInfo")} flush>
+      <dl className="divide-y divide-border/70">
         {isLoading
           ? Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div key={i} className="flex items-center justify-between gap-4 px-5 py-3">
                 <Skeleton className="h-4 w-16" />
                 <Skeleton className="h-4 w-24" />
               </div>
             ))
           : rows.map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div key={label} className="flex items-center justify-between gap-4 px-5 py-3">
                 <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                   {label}
                 </dt>
@@ -45,6 +44,6 @@ export function SystemInfoCard() {
               </div>
             ))}
       </dl>
-    </section>
+    </Panel>
   )
 }

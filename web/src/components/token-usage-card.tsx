@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { SectionRule } from "@/components/section-rule"
+import { Panel } from "@/components/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TokenTrendChart } from "@/components/token-trend-chart"
 import { useStatsOverview } from "@/hooks/use-stats"
@@ -16,6 +16,9 @@ function changeMeta(ratio: number | null) {
   return { label: formatChange(ratio), Icon }
 }
 
+// Token usage and its trend live in one board: the headline metrics sit directly
+// under the title, then a single hairline divides them from the trend chart
+// below. One surface, two reads.
 export function TokenUsageCard() {
   const { t } = useTranslation()
   const { data, isLoading } = useStatsOverview()
@@ -26,10 +29,8 @@ export function TokenUsageCard() {
   const change = changeMeta(ratio)
 
   return (
-    <section aria-label={t("dashboard.tokenUsage")}>
-      <SectionRule className="mb-4">{t("dashboard.tokenUsage")}</SectionRule>
-
-      <div className="grid grid-cols-3 rounded-sm border border-border/70">
+    <Panel title={t("dashboard.tokenUsage")} ariaLabel={t("dashboard.tokenUsage")} flush>
+      <div className="grid grid-cols-3">
         <Metric
           label={t("dashboard.tokensToday")}
           isLoading={isLoading}
@@ -43,7 +44,7 @@ export function TokenUsageCard() {
           valueClass="text-2xl font-medium text-muted-foreground"
           divider
         />
-        <div className="border-l border-border/70 p-5">
+        <div className="border-l border-border/70 px-5 py-4">
           <p className={STAT_LABEL}>{t("dashboard.dayOverDay")}</p>
           <div className="mt-2.5 flex h-7 items-center">
             {isLoading ? (
@@ -62,10 +63,10 @@ export function TokenUsageCard() {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="border-t border-border/70 px-5 pt-4 pb-1">
         <TokenTrendChart />
       </div>
-    </section>
+    </Panel>
   )
 }
 
@@ -83,7 +84,7 @@ function Metric({
   divider?: boolean
 }) {
   return (
-    <div className={divider ? "border-l border-border/70 p-5" : "p-5"}>
+    <div className={divider ? "border-l border-border/70 px-5 py-4" : "px-5 py-4"}>
       <p className={STAT_LABEL}>{label}</p>
       <div className="mt-2.5 flex h-7 items-center">
         {isLoading ? (

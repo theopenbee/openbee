@@ -10,11 +10,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
-import { SectionRule } from "@/components/section-rule"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
 export type DayOption = typeof DAY_OPTIONS[number]
@@ -61,29 +59,32 @@ export function TrendLineCard({
 }: TrendLineCardProps) {
   const { t } = useTranslation()
 
+  // Bare block (no card wrapper): embeds beneath a Panel's own title and
+  // hairline divider. The subtitle reads as a quiet section label, with the
+  // day-range toggle aligned to its right.
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <SectionRule className="min-w-0 flex-1">{title}</SectionRule>
-          <div className="flex gap-1 shrink-0" role="group" aria-label={title}>
-            {DAY_OPTIONS.map((d) => (
-              <Button
-                key={d}
-                variant={days === d ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                aria-pressed={days === d}
-                aria-label={t("dashboard.daysLabel", { count: d })}
-                onClick={() => onDaysChange(d)}
-              >
-                {d}{t("dashboard.days")}
-              </Button>
-            ))}
-          </div>
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="min-w-0 truncate text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </h3>
+        <div className="flex gap-1 shrink-0" role="group" aria-label={title}>
+          {DAY_OPTIONS.map((d) => (
+            <Button
+              key={d}
+              variant={days === d ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              aria-pressed={days === d}
+              aria-label={t("dashboard.daysLabel", { count: d })}
+              onClick={() => onDaysChange(d)}
+            >
+              {d}{t("dashboard.days")}
+            </Button>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div>
         {isLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : chartData.length === 0 ? (
@@ -129,7 +130,7 @@ export function TrendLineCard({
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

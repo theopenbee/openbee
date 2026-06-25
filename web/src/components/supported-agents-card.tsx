@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { SectionRule } from "@/components/section-rule"
+import { Panel } from "@/components/panel"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
@@ -12,13 +12,12 @@ export function SupportedAgentsCard() {
   const enabled = useEnabledEngines()
 
   return (
-    <section aria-label={t("dashboard.supportedAgents")}>
-      <SectionRule className="mb-4">{t("dashboard.supportedAgents")}</SectionRule>
-      <ul className="rounded-sm border border-border/70 divide-y divide-border/70">
+    <Panel title={t("dashboard.supportedAgents")} ariaLabel={t("dashboard.supportedAgents")} flush>
+      <ul className="divide-y divide-border/70">
         {ENGINES.map((engine) => {
           const isOn = enabled.includes(engine)
           return (
-            <li key={engine} className="flex items-baseline justify-between gap-4 px-4 py-3.5">
+            <li key={engine} className="flex items-baseline justify-between gap-4 px-5 py-3.5">
               <div className="min-w-0">
                 <p className="text-base font-semibold tracking-tight truncate">
                   {formatEngineLabel(engine, t)}
@@ -40,6 +39,6 @@ export function SupportedAgentsCard() {
           )
         })}
       </ul>
-    </section>
+    </Panel>
   )
 }
