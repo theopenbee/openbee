@@ -17,11 +17,11 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto py-2 space-y-0.5">
+      <div className="flex-1 overflow-y-auto">
         <button
           onClick={() => onSelect(null)}
           className={cn(
-            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-sm transition-colors",
+            "w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors",
             selectedId === null
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted"
@@ -34,7 +34,7 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
         <button
           onClick={() => onSelect(UNGROUPED_FILTER)}
           className={cn(
-            "w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-sm transition-colors",
+            "w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors",
             selectedId === UNGROUPED_FILTER
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted"
@@ -82,13 +82,13 @@ function DepartmentNode({
   return (
     <Fragment>
       <div
-        className="w-full flex items-center gap-1.5 py-1.5 text-sm rounded-sm transition-colors"
+        className="w-full flex items-center gap-1.5 py-1.5 text-sm transition-colors"
         style={{ paddingLeft: `${depth * 16 + 12}px`, paddingRight: "12px" }}
       >
         {hasChildren ? (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="shrink-0 p-0.5 hover:bg-muted rounded"
+            className="shrink-0 p-0.5 hover:bg-muted"
           >
             <ChevronRightIcon
               className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
