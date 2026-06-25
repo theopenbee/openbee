@@ -32,7 +32,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -459,38 +459,44 @@ export function WorkerDetail() {
                     const latest = group[0]
                     const oldest = group[group.length - 1]
                     const isRunning = latest.status === "running"
+                    const intent = extractMessageContent(oldest.trigger_input)
+                    const shortId = latest.session_id.slice(0, 8)
 
                     return (
                       <div
                         key={latest.session_id}
                         className={cn(
-                          "flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
+                          "group relative flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
                           isRunning && "bg-status-working/[0.04]"
                         )}
                       >
+                        {/* Whole-row click target; the copy chip below is raised above it. */}
+                        <Link
+                          to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
+                          aria-label={intent || t("sessions.noTriggerContent")}
+                          className="absolute inset-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        />
+
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2.5">
-                            <Link
-                              to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
-                              className="font-mono text-sm text-primary transition-colors hover:text-primary/80 hover:underline"
-                            >
-                              {latest.session_id}
-                            </Link>
-                            <span className="text-xs text-muted-foreground">
-                              {t("sessions.turnCount", { count: group.length })}
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {intent || t("sessions.noTriggerContent")}
+                          </p>
+
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}>
+                              {formatRelative(oldest.started_at, t)}
+                            </span>
+                            <span aria-hidden="true" className="text-border">·</span>
+                            <span>{t("sessions.turnCount", { count: group.length })}</span>
+                            <span aria-hidden="true" className="text-border">·</span>
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-mono">{shortId}</span>
+                              <CopyButton
+                                value={latest.session_id}
+                                className="relative z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              />
                             </span>
                           </div>
-
-                          {(oldest.started_at || oldest.trigger_input) ? (
-                            <p className="mt-1 max-w-3xl truncate text-sm text-muted-foreground">
-                              {oldest.started_at ? (
-                                <span className="mr-2 font-mono text-xs">{formatTimestamp(oldest.started_at)}</span>
-                              ) : null}
-                              {oldest.trigger_input ? (
-                                <span>{extractMessageContent(oldest.trigger_input)}</span>
-                              ) : null}
-                            </p>
-                          ) : null}
                         </div>
 
                         <StatusBadge status={latest.status} />

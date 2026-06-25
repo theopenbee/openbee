@@ -141,6 +141,7 @@
   "sessions": {
     "title": "Sessions",
     "noExecutions": "No sessions yet.",
+    "noTriggerContent": "No trigger content",
     "viewSession": "View session {{id}}",
     "turnCount_one": "{{count}} turn",
     "turnCount_other": "{{count}} turns",
