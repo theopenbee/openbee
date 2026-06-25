@@ -1,4 +1,10 @@
 {
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
+  },
   "nav": {
     "dashboard": "仪表板",
     "workers": "员工",

@@ -136,7 +136,7 @@ export function Workers() {
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
       {error && (
-        <div role="alert" className="mb-4 rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="mb-4 max-w-6xl rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -154,21 +154,21 @@ export function Workers() {
           }
         />
       ) : (
-        <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
-          <Table className="min-w-[600px]">
+        <div className="max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
+          <Table className="min-w-[680px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead>{t("workers.columns.status")}</TableHead>
-                <TableHead>{t("workers.columns.engine")}</TableHead>
-                <TableHead>{t("workers.columns.activeTime")}</TableHead>
-                <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
+                <TableHead className="w-[116px]">{t("workers.columns.status")}</TableHead>
+                <TableHead className="w-[112px]">{t("workers.columns.engine")}</TableHead>
+                <TableHead className="w-[124px]">{t("workers.columns.activeTime")}</TableHead>
+                <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayedWorkers.map((w) => (
                 <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="min-w-[19rem]">
+                  <TableCell>
                     <div className="flex items-center gap-3 py-1">
                       <WorkerAvatar name={w.name} status={w.status} />
                       <div className="flex min-w-0 flex-col gap-0.5">
@@ -178,7 +178,7 @@ export function Workers() {
                         >
                           {w.name}
                         </Link>
-                        <p className="max-w-[26rem] text-xs leading-5 text-muted-foreground line-clamp-2">
+                        <p className="max-w-[34rem] text-xs leading-5 text-muted-foreground line-clamp-2">
                           {w.description || "—"}
                         </p>
                       </div>
@@ -192,7 +192,7 @@ export function Workers() {
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
-                      {formatRelative(w.updated_at)}
+                      {formatRelative(w.updated_at, t)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">

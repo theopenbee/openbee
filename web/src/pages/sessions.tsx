@@ -163,7 +163,7 @@ export function Sessions() {
                             : undefined
                         }
                       >
-                        {formatRelative(oldest.started_at)}
+                        {formatRelative(oldest.started_at, t)}
                       </TableCell>
 
                       <TableCell className="text-xs font-mono">

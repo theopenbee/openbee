@@ -57,16 +57,18 @@ export function isSameDay(left: number, right: number) {
   )
 }
 
-export function formatRelative(ms: number | null): string {
+type RelativeTranslate = (key: string, options?: { count: number }) => string
+
+export function formatRelative(ms: number | null, t: RelativeTranslate): string {
   if (!ms) return "—"
   const diff = Date.now() - ms
   const sec = Math.floor(diff / 1000)
-  if (sec < 60) return "just now"
+  if (sec < 60) return t("time.justNow")
   const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
+  if (min < 60) return t("time.minutesAgo", { count: min })
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  return `${Math.floor(hr / 24)}d ago`
+  if (hr < 24) return t("time.hoursAgo", { count: hr })
+  return t("time.daysAgo", { count: Math.floor(hr / 24) })
 }
 
 export function groupExecutionsBySession<T extends { session_id: string; started_at: number | null }>(
