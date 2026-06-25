@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
-  Activity,
   Building2,
   CalendarIcon,
   Check,
@@ -23,6 +22,7 @@ import { DetailHero, DetailOverviewStat, DetailSection } from "@/components/deta
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusBadge } from "@/components/status-badge"
+import { CopyButton } from "@/components/copy-button"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
@@ -31,7 +31,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatEngineLabel, groupExecutionsBySession, statusTone, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -64,10 +64,13 @@ const SECTIONS = [
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
 
+// Env source is a configuration layer, not a presence status, so it stays in the
+// achromatic field: muted by default, with the effective (worker-level) override
+// lifted to full-weight foreground rather than a non-brand accent color.
 const SOURCE_CONFIG: Record<Exclude<EnvScope, "bee">, { color: string; labelKey: string }> = {
-  global: { color: "text-blue-500", labelKey: "envConfig.sourceGlobal" },
-  department: { color: "text-amber-500", labelKey: "envConfig.sourceDepartment" },
-  worker: { color: "text-green-500", labelKey: "envConfig.sourceWorker" },
+  global: { color: "text-muted-foreground", labelKey: "envConfig.sourceGlobal" },
+  department: { color: "text-muted-foreground", labelKey: "envConfig.sourceDepartment" },
+  worker: { color: "text-foreground", labelKey: "envConfig.sourceWorker" },
 }
 
 function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
@@ -135,53 +138,10 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
   )
 }
 
-function StatusDot({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    idle: "bg-status-idle",
-    working: "bg-status-working",
-    error: "bg-status-error",
-  }
-  const color = colorMap[status] ?? "bg-muted-foreground"
-
-  return (
-    <span className="relative inline-flex size-2 shrink-0">
-      {status === "working" ? (
-        <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", color)} />
-      ) : null}
-      <span className={cn("relative inline-flex size-2 rounded-full", color)} />
-    </span>
-  )
-}
-
 export function WorkerDetail() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
-  const { data: worker, error: workerError } = useWorker(id!)
-  const [page, setPage] = useState(1)
-  const { data } = useWorkerExecutions(id!, page, PAGE_SIZE)
-
-  const executions = data?.items ?? []
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
-  const latestExecution = executions[0]
-
-  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
-
-  const [isEditingConstraints, setIsEditingConstraints] = useState(false)
-  const [editConstraints, setEditConstraints] = useState("")
-  const [copiedWorkDir, setCopiedWorkDir] = useState(false)
-  const updateWorker = useUpdateWorker()
-  const [localScopes, setLocalScopes] = useState<string[]>([])
-
-  useEffect(() => {
-    setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
-  }, [worker?.permission_scopes])
-
-  const [copySheetOpen, setCopySheetOpen] = useState(false)
-  const [editInfoSheetOpen, setEditInfoSheetOpen] = useState(false)
-  const workerDeptIds = useMemo(
-    () => worker?.departments?.map((d) => d.id).sort() ?? [],
-    [worker?.departments]
-  )
+  const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get("tab")
@@ -199,6 +159,53 @@ export function WorkerDetail() {
     )
   }
   const activeLabelKey = SECTIONS.find((s) => s.key === activeSection)!.labelKey
+
+  // Sessions are only read on the Overview (count) and Sessions (list) tabs, so
+  // skip the request entirely on the other sections.
+  const [page, setPage] = useState(1)
+  const { data } = useWorkerExecutions(id!, page, PAGE_SIZE, {
+    enabled: activeSection === "overview" || activeSection === "sessions",
+  })
+
+  const executions = data?.items ?? []
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const latestExecution = executions[0]
+
+  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
+
+  const [isEditingConstraints, setIsEditingConstraints] = useState(false)
+  const [editConstraints, setEditConstraints] = useState("")
+  const updateWorker = useUpdateWorker()
+  const [localScopes, setLocalScopes] = useState<string[]>([])
+
+  useEffect(() => {
+    setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
+  }, [worker?.permission_scopes])
+
+  const [copySheetOpen, setCopySheetOpen] = useState(false)
+  const [editInfoSheetOpen, setEditInfoSheetOpen] = useState(false)
+  const workerDeptIds = useMemo(
+    () => worker?.departments?.map((d) => d.id).sort() ?? [],
+    [worker?.departments]
+  )
+
+  if (workerError && !worker) {
+    return (
+      <FadeIn className="h-full">
+        <div className="flex h-full items-center justify-center p-6">
+          <EmptyState
+            title={t("common.loadError")}
+            description={workerError.message}
+            action={
+              <Button variant="outline" size="sm" onClick={() => refetchWorker()}>
+                {t("common.retry")}
+              </Button>
+            }
+          />
+        </div>
+      </FadeIn>
+    )
+  }
 
   if (!worker) return <SkeletonPage />
 
@@ -228,7 +235,7 @@ export function WorkerDetail() {
                       onClick={() => setActiveSection(section.key)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+                        "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                         isActive
                           ? "bg-secondary text-foreground"
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -247,7 +254,7 @@ export function WorkerDetail() {
         {/* Right pane: section header + scrollable content. */}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
-            <h1 className="text-xl font-bold tracking-tight">{t(activeLabelKey)}</h1>
+            <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
             <div className="flex shrink-0 items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
                 <Pencil className="size-4" />
@@ -277,11 +284,18 @@ export function WorkerDetail() {
                 </p>
 
                 <div className="space-y-3">
-                  <h2 className="max-w-4xl break-all font-mono text-sm leading-7 text-foreground sm:text-base">
-                    {worker.id}
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                    {worker.name}
                   </h2>
 
-                  <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+                      {worker.id}
+                    </span>
+                    <CopyButton value={worker.id} />
+                  </div>
+
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
                     {worker.description || t("common.noDescription")}
                   </p>
 
@@ -317,17 +331,7 @@ export function WorkerDetail() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <DetailOverviewStat
-                icon={Activity}
-                label={t("sessions.columns.latestStatus")}
-                value={
-                  <span className={cn("inline-flex items-center gap-2", statusTone(worker.status))}>
-                    <StatusDot status={worker.status} />
-                    <span className="font-medium">{worker.status}</span>
-                  </span>
-                }
-              />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <DetailOverviewStat
                 icon={Logs}
                 label={t("workerDetail.sessions")}
@@ -342,17 +346,7 @@ export function WorkerDetail() {
                   worker.work_dir ? (
                     <div className="flex items-start gap-2">
                       <span className="flex-1">{worker.work_dir}</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(worker.work_dir)
-                          setCopiedWorkDir(true)
-                          setTimeout(() => setCopiedWorkDir(false), 2000)
-                        }}
-                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                        title="Copy"
-                      >
-                        {copiedWorkDir ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                      </button>
+                      <CopyButton value={worker.work_dir} />
                     </div>
                   ) : "—"
                 }
@@ -403,7 +397,7 @@ export function WorkerDetail() {
                         key={latest.session_id}
                         className={cn(
                           "flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
-                          isRunning && "border-l-2 border-l-status-working"
+                          isRunning && "bg-status-working/[0.04]"
                         )}
                       >
                         <div className="min-w-0 flex-1">
@@ -470,7 +464,7 @@ export function WorkerDetail() {
                       }}
                       aria-label={t("workerDetail.editConstraints")}
                     >
-                      <Pencil className="size-3.5" />
+                      <Pencil className="size-4" />
                       {t("workerDetail.editConstraints")}
                     </Button>
                   ) : null}
@@ -500,7 +494,7 @@ export function WorkerDetail() {
                           setIsEditingConstraints(false)
                         }}
                       >
-                        <Check className="size-3" />
+                        <Check className="size-4" />
                         {t("common.save")}
                       </Button>
                       <Button
@@ -511,7 +505,7 @@ export function WorkerDetail() {
                           setEditConstraints(worker.constraints || "")
                         }}
                       >
-                        <X className="size-3" />
+                        <X className="size-4" />
                         {t("common.cancel")}
                       </Button>
                     </div>
