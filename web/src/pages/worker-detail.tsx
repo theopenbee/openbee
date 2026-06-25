@@ -7,6 +7,7 @@ import {
   Check,
   Clock,
   Copy,
+  Hash,
   LayoutDashboard,
   ListTodo,
   Logs,
@@ -432,23 +433,6 @@ export function WorkerDetail() {
               {activeSection === "sessions" && (
                 <div className="space-y-4">
             <DetailSection>
-              <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className={EYEBROW_LABEL}>
-                      {t("workerDetail.sessions")}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {t("sessions.turnCount", { count: data?.total ?? 0 })}
-                    </p>
-                  </div>
-
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {t("sessions.pagination.page", { page, totalPages })}
-                  </span>
-                </div>
-              </div>
-
               {sessionGroups.length === 0 ? (
                 <div className="px-5 py-10 sm:px-6">
                   <EmptyState title={t("sessions.noExecutions")} />
@@ -482,14 +466,16 @@ export function WorkerDetail() {
                             {intent || t("sessions.noTriggerContent")}
                           </p>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                            <span title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span
+                              className="inline-flex items-center gap-1"
+                              title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
+                            >
+                              <Clock className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
                               {formatRelative(oldest.started_at, t)}
                             </span>
-                            <span aria-hidden="true" className="text-border">·</span>
-                            <span>{t("sessions.turnCount", { count: group.length })}</span>
-                            <span aria-hidden="true" className="text-border">·</span>
                             <span className="inline-flex items-center gap-1">
+                              <Hash className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
                               <span className="font-mono">{shortId}</span>
                               <CopyButton
                                 value={latest.session_id}
@@ -507,7 +493,12 @@ export function WorkerDetail() {
               )}
             </DetailSection>
 
-            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
+            />
                 </div>
               )}
 
