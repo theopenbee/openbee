@@ -119,7 +119,6 @@
       "title": "删除员工",
       "stepOne": "第 1 步",
       "stepTwo": "第 2 步",
-      "stepOneDescription": "请输入 <strong>{{name}}</strong> 以继续。",
       "stepTwoDescription": "你将删除 <strong>{{name}}</strong>。删除操作无法撤销。",
       "continue": "下一步",
       "deleteWorkDir": "同时删除工作目录",
@@ -169,8 +168,6 @@
     "constraints": "工作约束",
     "editConstraints": "编辑工作约束",
     "constraintsPanel": {
-      "active": "已生效",
-      "meta": "更新于 {{time}} · {{count}} 字",
       "charCount": "{{count}} 字",
       "shortcuts": "⌘↵ 保存 · Esc 取消",
       "emptyTitle": "为 {{name}} 设定工作约束",

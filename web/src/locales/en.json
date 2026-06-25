@@ -119,7 +119,6 @@
       "title": "Delete Worker",
       "stepOne": "Step 1",
       "stepTwo": "Step 2",
-      "stepOneDescription": "Type <strong>{{name}}</strong> to continue.",
       "stepTwoDescription": "You are about to delete <strong>{{name}}</strong>. This action cannot be undone.",
       "continue": "Next",
       "deleteWorkDir": "Also delete work directory",
@@ -169,8 +168,6 @@
     "constraints": "Work Constraints",
     "editConstraints": "Edit work constraints",
     "constraintsPanel": {
-      "active": "Active",
-      "meta": "Updated {{time}} · {{count}} chars",
       "charCount": "{{count}} chars",
       "shortcuts": "⌘↵ to save · Esc to cancel",
       "emptyTitle": "Set work constraints for {{name}}",

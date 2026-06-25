@@ -236,21 +236,15 @@ export function Workers() {
               {deleteStep === 1 ? t("workers.deleteDialog.stepOne") : t("workers.deleteDialog.stepTwo")}
             </p>
             <DialogTitle>{t("workers.deleteDialog.title")}</DialogTitle>
-            <DialogDescription>
-              {deleteStep === 1 ? (
-                <Trans
-                  i18nKey="workers.deleteDialog.stepOneDescription"
-                  values={{ name: deleteTarget?.name ?? "" }}
-                  components={{ strong: <strong /> }}
-                />
-              ) : (
+            {deleteStep === 2 && (
+              <DialogDescription>
                 <Trans
                   i18nKey="workers.deleteDialog.stepTwoDescription"
                   values={{ name: deleteTarget?.name ?? "" }}
                   components={{ strong: <strong /> }}
                 />
-              )}
-            </DialogDescription>
+              </DialogDescription>
+            )}
           </DialogHeader>
           {deleteStep === 1 ? (
             <form onSubmit={handleDeleteStepOne} className="space-y-4">

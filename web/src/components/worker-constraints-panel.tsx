@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { CopyButton } from "@/components/copy-button"
 import { useUpdateWorker } from "@/hooks/use-workers"
-import { formatRelative } from "@/lib/format"
 import type { Worker } from "@/lib/types"
 
 // Starter templates shown on the empty state. Clicking one opens the editor
@@ -103,20 +102,7 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   if (constraints) {
     return (
       <DetailSection>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-3.5 sm:px-6">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-status-idle" aria-hidden="true" />
-              <span className="font-medium text-foreground">{t("workerDetail.constraintsPanel.active")}</span>
-            </span>
-            <span aria-hidden="true" className="text-border">·</span>
-            <span className="text-muted-foreground">
-              {t("workerDetail.constraintsPanel.meta", {
-                time: formatRelative(worker.updated_at, t),
-                count: constraints.length,
-              })}
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border/70 px-5 py-3.5 sm:px-6">
           <div className="flex items-center gap-1">
             <CopyButton value={constraints} />
             <Button size="sm" variant="ghost" onClick={() => startEditing(worker.constraints || "")}>
