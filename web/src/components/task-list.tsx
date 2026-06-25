@@ -19,11 +19,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
-import { Badge } from "@/components/ui/badge"
 import type { Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { STATUS_ROW_BORDER } from "@/lib/format"
@@ -37,35 +35,20 @@ interface TaskListProps {
   onPageChange?: (page: number) => void
 }
 
-function TimeInfo({ task }: { task: Task }) {
-  const { t } = useTranslation()
-  if (task.type === "countdown" && task.scheduled_at) {
-    return (
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">
-          {t("tasks.triggerAt")}
-        </p>
-        <p className="font-mono text-xs text-foreground/80">
-          {new Date(task.scheduled_at).toLocaleString()}
-        </p>
-      </div>
-    )
+function CronCell({ task }: { task: Task }) {
+  if (task.type === "scheduled" && task.cron_expr) {
+    return <p className="font-mono text-xs text-foreground/80">{task.cron_expr}</p>
   }
-  if (task.type === "scheduled" && (task.next_run_at || task.cron_expr)) {
+  return <span className="text-sm text-muted-foreground">—</span>
+}
+
+function NextRunCell({ task }: { task: Task }) {
+  const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
+  if (timestamp) {
     return (
-      <div className="space-y-1">
-        {task.next_run_at && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">{t("tasks.nextRun")}</p>
-            <p className="font-mono text-xs text-foreground/80">
-              {new Date(task.next_run_at).toLocaleString()}
-            </p>
-          </div>
-        )}
-        {task.cron_expr && (
-          <p className="font-mono text-xs text-muted-foreground">{task.cron_expr}</p>
-        )}
-      </div>
+      <p className="font-mono text-xs text-foreground/80">
+        {new Date(timestamp).toLocaleString()}
+      </p>
     )
   }
   return <span className="text-sm text-muted-foreground">—</span>
@@ -86,6 +69,7 @@ export function TaskList({
   const cancelTask = useCancelTask()
   const cancelAll = useCancelWorkerTasks()
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
+  const [confirmCancelAll, setConfirmCancelAll] = useState(false)
 
   const tasks = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
@@ -99,7 +83,7 @@ export function TaskList({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => cancelAll.mutate(workerId)}
+            onClick={() => setConfirmCancelAll(true)}
             disabled={cancelAll.isPending}
           >
             {t("tasks.cancelAll")}
@@ -116,39 +100,30 @@ export function TaskList({
       {isLoading ? (
         <SkeletonTable />
       ) : tasks.length === 0 && !error ? (
-        <EmptyState
-          title={t("emptyState.noTasks")}
-          description={t("emptyState.noTasksDesc")}
-        />
+        <EmptyState title={t("emptyState.noTasks")} />
       ) : (
         <>
           <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
             <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  <TableHead className="pl-5 w-28">{t("tasks.columns.type")}</TableHead>
-                  {!workerId && <TableHead className="w-40">{t("tasks.columns.worker")}</TableHead>}
-                  <TableHead className="min-w-[24rem]">{t("tasks.columns.instruction")}</TableHead>
-                  <TableHead className="w-28">{t("tasks.columns.status")}</TableHead>
-                  <TableHead className="w-56">{t("tasks.columns.timeInfo")}</TableHead>
+                  {!workerId && <TableHead className="pl-5 w-40">{t("tasks.columns.worker")}</TableHead>}
+                  <TableHead className={cn("min-w-[24rem]", workerId && "pl-5")}>{t("tasks.columns.instruction")}</TableHead>
+                  <TableHead className="w-44">{t("tasks.columns.cron")}</TableHead>
+                  <TableHead className="w-48">{t("tasks.columns.nextRunAt")}</TableHead>
                   <TableHead className="w-28 text-right">{t("tasks.columns.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => (
+                {tasks.map((task) => {
+                  const borderClass = cn(
+                    "pl-4 border-l-2",
+                    STATUS_ROW_BORDER[task.status] ?? "border-l-transparent"
+                  )
+                  return (
                   <TableRow key={task.id} className="hover:bg-primary/5 transition-colors">
-                    <TableCell
-                      className={cn(
-                        "pl-4 border-l-2",
-                        STATUS_ROW_BORDER[task.status] ?? "border-l-transparent"
-                      )}
-                    >
-                      <Badge variant={task.type === "scheduled" ? "secondary" : "outline"}>
-                        {t(`tasks.types.${task.type}`)}
-                      </Badge>
-                    </TableCell>
                     {!workerId && (
-                      <TableCell>
+                      <TableCell className={borderClass}>
                         {task.worker_id ? (
                           <Link
                             to={`/workers/${task.worker_id}`}
@@ -161,7 +136,7 @@ export function TaskList({
                         )}
                       </TableCell>
                     )}
-                    <TableCell className="max-w-[32rem] whitespace-normal">
+                    <TableCell className={cn("max-w-[32rem] whitespace-normal", workerId && borderClass)}>
                       <p
                         className="line-clamp-2 break-words text-sm leading-5 text-foreground"
                         title={task.instruction}
@@ -170,10 +145,10 @@ export function TaskList({
                       </p>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={task.status} />
+                      <CronCell task={task} />
                     </TableCell>
                     <TableCell>
-                      <TimeInfo task={task} />
+                      <NextRunCell task={task} />
                     </TableCell>
                     <TableCell className="text-right">
                       {task.status === "pending" && (
@@ -184,7 +159,7 @@ export function TaskList({
                           disabled={cancelTask.isPending}
                           className="text-destructive hover:text-destructive"
                         >
-                          {t("tasks.cancelTask")}
+                          {t("tasks.cancel")}
                         </Button>
                       )}
                       {task.status !== "pending" && (
@@ -192,11 +167,17 @@ export function TaskList({
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
-          <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            leadingLabel={t("tasks.summary", { count: data?.total ?? 0 })}
+          />
         </>
       )}
 
@@ -218,6 +199,29 @@ export function TaskList({
               }}
             >
               {t("tasks.cancelTask")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmCancelAll} onOpenChange={setConfirmCancelAll}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("tasks.cancelAllConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("tasks.cancelAllConfirmDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmCancelAll(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (workerId) cancelAll.mutate(workerId)
+                setConfirmCancelAll(false)
+              }}
+            >
+              {t("tasks.cancelAll")}
             </Button>
           </DialogFooter>
         </DialogContent>

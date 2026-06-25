@@ -259,23 +259,23 @@
     "summary_one": "{{count}} 个待执行或运行中的任务",
     "summary_other": "{{count}} 个待执行或运行中的任务",
     "columns": {
-      "type": "类型",
       "worker": "员工",
       "instruction": "指令",
-      "status": "状态",
-      "timeInfo": "时间信息",
+      "cron": "Cron 表达式",
+      "nextRunAt": "下次执行时间",
       "actions": "操作"
     },
     "types": {
       "scheduled": "定时任务",
       "countdown": "倒计时任务"
     },
-    "nextRun": "下次运行",
-    "triggerAt": "触发时间",
+    "cancel": "取消",
     "cancelTask": "取消任务",
     "cancelConfirmTitle": "取消任务",
     "cancelConfirmDescription": "确定要取消此任务吗？此操作无法撤销。",
-    "cancelAll": "取消所有待执行任务",
+    "cancelAll": "取消所有任务",
+    "cancelAllConfirmTitle": "取消所有任务",
+    "cancelAllConfirmDescription": "确定要取消该员工的所有任务吗？此操作无法撤销。",
     "cancelSuccess": "任务已取消",
     "cancelAllSuccess": "所有待执行任务已取消",
     "cancelNoPending": "当前没有可取消的任务",
@@ -410,8 +410,7 @@
     "noExecutionsDesc": "当员工执行任务时，记录会显示在这里",
     "noSessions": "暂无对话",
     "noSessionsDesc": "开始与你的 AI 员工对话",
-    "noTasks": "暂无任务",
-    "noTasksDesc": "定时任务和倒计时任务将在此显示"
+    "noTasks": "暂无任务"
   },
   "scopes": {
     "readWorkers": {

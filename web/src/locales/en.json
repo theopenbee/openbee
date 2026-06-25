@@ -259,23 +259,23 @@
     "summary_one": "{{count}} active task",
     "summary_other": "{{count}} active tasks",
     "columns": {
-      "type": "Type",
       "worker": "Worker",
       "instruction": "Instruction",
-      "status": "Status",
-      "timeInfo": "Time Info",
+      "cron": "Cron expression",
+      "nextRunAt": "Next run",
       "actions": "Actions"
     },
     "types": {
       "scheduled": "Scheduled",
       "countdown": "Countdown"
     },
-    "nextRun": "Next run",
-    "triggerAt": "Trigger at",
+    "cancel": "Cancel",
     "cancelTask": "Cancel task",
     "cancelConfirmTitle": "Cancel task",
     "cancelConfirmDescription": "Are you sure you want to cancel this task? This action cannot be undone.",
-    "cancelAll": "Cancel pending tasks",
+    "cancelAll": "Cancel all tasks",
+    "cancelAllConfirmTitle": "Cancel all tasks",
+    "cancelAllConfirmDescription": "Are you sure you want to cancel all tasks for this worker? This action cannot be undone.",
     "cancelSuccess": "Task cancelled",
     "cancelAllSuccess": "All pending tasks cancelled",
     "cancelNoPending": "No pending tasks to cancel",
@@ -411,8 +411,7 @@
     "noExecutionsDesc": "Sessions will appear here when workers run tasks",
     "noSessions": "No chat sessions",
     "noSessionsDesc": "Start a new conversation with your AI workers",
-    "noTasks": "No active tasks",
-    "noTasksDesc": "Scheduled and countdown tasks will appear here"
+    "noTasks": "No active tasks"
   },
   "scopes": {
     "readWorkers": {
