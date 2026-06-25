@@ -265,9 +265,6 @@ export function WorkerDetail() {
             <WorkerAvatar name={worker.name} status={worker.status} />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {t(`statuses.${worker.status}`, worker.status)}
-              </p>
             </div>
           </div>
           <nav className="min-h-0 flex-1 overflow-auto p-2">
@@ -311,7 +308,6 @@ export function WorkerDetail() {
                 <Copy className="size-4" />
                 {t("common.copy")}
               </Button>
-              <StatusBadge status={worker.status} />
             </div>
           </div>
 
@@ -328,12 +324,9 @@ export function WorkerDetail() {
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                     <ProfileAvatar name={worker.name} status={worker.status} />
                     <div className="min-w-0 flex-1 space-y-2.5">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                          {worker.name}
-                        </h2>
-                        <StatusBadge status={worker.status} />
-                      </div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                        {worker.name}
+                      </h2>
                       <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
                         {worker.description || t("common.noDescription")}
                       </p>
@@ -412,8 +405,8 @@ export function WorkerDetail() {
 
                       <RecordRow label={t("workerDetail.workDir")}>
                         {worker.work_dir ? (
-                          <div className="flex items-start gap-2">
-                            <span className="min-w-0 flex-1 break-all font-mono text-xs leading-6 text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
                               {worker.work_dir}
                             </span>
                             <CopyButton value={worker.work_dir} />
