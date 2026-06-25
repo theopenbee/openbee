@@ -211,7 +211,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                   filteredDepts.map(({ dept, depth }) => (
                     <label
                       key={dept.id}
-                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="flex items-center gap-2 rounded-sm px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
                       style={{ paddingLeft: `${12 + depth * 12}px` }}
                     >
                       <input
@@ -223,7 +223,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
                       />
                       <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
                     </label>

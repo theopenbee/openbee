@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -80,6 +81,15 @@ export function CreateWorker() {
   const [submitError, setSubmitError] = useState("")
   const [deptSearch, setDeptSearch] = useState("")
 
+  // Bring submission failures into view: on a long form the alert sits above
+  // the submit button, so scroll it into the viewport when it appears.
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (submitError) {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+  }, [submitError])
+
   // Seed the form once: for a copy we must wait for the source worker to load,
   // otherwise we initialize immediately with defaults.
   const seededRef = useRef(false)
@@ -121,6 +131,7 @@ export function CreateWorker() {
   }
 
   const isPending = createWorker.isPending || setWorkerDepts.isPending
+  const isCopyLoading = isCopy && !copyWorker
 
   const filteredDepts = deptSearch.trim()
     ? flatDepts.filter(({ dept }) =>
@@ -140,7 +151,7 @@ export function CreateWorker() {
             {t("workers.backToList")}
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-xl font-semibold tracking-tight">
               {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -150,11 +161,22 @@ export function CreateWorker() {
         </div>
 
         {submitError && (
-          <div role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div ref={errorRef} role="alert" className="rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {submitError}
           </div>
         )}
 
+        {isCopyLoading ? (
+          <div className="space-y-6" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <DetailSection key={i} className="space-y-4 p-5 sm:p-6">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-3/4" />
+              </DetailSection>
+            ))}
+          </div>
+        ) : (
         <form id="create-worker-form" onSubmit={handleSubmit} className="space-y-6">
           <DetailSection className="space-y-5 p-5 sm:p-6">
             <SectionHeading text={t("workers.form.sectionBasic")} />
@@ -169,10 +191,7 @@ export function CreateWorker() {
             />
 
             <div className="space-y-1.5">
-              <Label htmlFor="cw-engine">
-                {t("workers.form.engine")}
-                <span className="ml-1 text-destructive" aria-hidden>*</span>
-              </Label>
+              <Label htmlFor="cw-engine">{t("workers.form.engine")}</Label>
               <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
                 <SelectTrigger id="cw-engine">
                   <SelectValue placeholder={t("workers.form.engineDefault")} />
@@ -211,7 +230,7 @@ export function CreateWorker() {
                   filteredDepts.map(({ dept, depth }) => (
                     <label
                       key={dept.id}
-                      className="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 transition-colors hover:bg-muted/50"
+                      className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
                       style={{ paddingLeft: `${12 + depth * 12}px` }}
                     >
                       <input
@@ -224,7 +243,7 @@ export function CreateWorker() {
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
                       />
                       <span className="text-sm leading-snug text-foreground/75">{dept.name}</span>
                     </label>
@@ -235,6 +254,35 @@ export function CreateWorker() {
               <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
             </DetailSection>
           )}
+
+          <DetailSection className="space-y-3 p-5 sm:p-6">
+            <SectionHeading
+              text={t("workers.form.sectionPermissions")}
+              badge={selectedScopes.length}
+            />
+            <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+              {KNOWN_SCOPES.map((scope) => (
+                <label
+                  key={scope.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedScopes.includes(scope.id)}
+                    onChange={(e) =>
+                      setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
+                    }
+                    disabled={isPending}
+                    className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
+                  />
+                  <span className="text-sm leading-snug text-foreground/75">
+                    {t(scope.titleKey)}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
+          </DetailSection>
 
           <DetailSection className="space-y-5 p-5 sm:p-6">
             <SectionHeading text={t("workers.form.optionalSettings")} />
@@ -280,35 +328,6 @@ export function CreateWorker() {
               value={engineArgs}
               onChange={setEngineArgs}
             />
-
-            <div className="space-y-2">
-              <SectionHeading
-                text={t("workers.form.sectionPermissions")}
-                badge={selectedScopes.length}
-              />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                {KNOWN_SCOPES.map((scope) => (
-                  <label
-                    key={scope.id}
-                    className="group flex cursor-pointer items-center gap-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedScopes.includes(scope.id)}
-                      onChange={(e) =>
-                        setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
-                      }
-                      disabled={isPending}
-                      className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
-                    />
-                    <span className="text-sm leading-snug text-foreground/75 transition-colors group-hover:text-foreground">
-                      {t(scope.titleKey)}
-                    </span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
-            </div>
           </DetailSection>
 
           <div className="flex justify-end gap-2">
@@ -327,6 +346,7 @@ export function CreateWorker() {
             </Button>
           </div>
         </form>
+        )}
       </div>
     </FadeIn>
   )
