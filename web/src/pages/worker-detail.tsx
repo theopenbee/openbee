@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   Building2,
@@ -37,7 +37,6 @@ import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
-import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
 import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
 import {
   Table,
@@ -187,6 +186,7 @@ function RecordRow({ label, children }: { label: string; children: ReactNode }) 
 
 export function WorkerDetail() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
 
@@ -227,7 +227,6 @@ export function WorkerDetail() {
     setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
   }, [worker?.permission_scopes])
 
-  const [copySheetOpen, setCopySheetOpen] = useState(false)
   const [editInfoSheetOpen, setEditInfoSheetOpen] = useState(false)
   const workerDeptIds = useMemo(
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
@@ -302,7 +301,7 @@ export function WorkerDetail() {
                 <Pencil className="size-4" />
                 {t("common.edit")}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCopySheetOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
                 <Copy className="size-4" />
                 {t("common.copy")}
               </Button>
@@ -566,11 +565,6 @@ export function WorkerDetail() {
         open={editInfoSheetOpen}
         onOpenChange={setEditInfoSheetOpen}
         worker={worker}
-      />
-      <CreateWorkerSheet
-        open={copySheetOpen}
-        onOpenChange={setCopySheetOpen}
-        initialValues={workerToInitialValues(worker)}
       />
     </FadeIn>
   )

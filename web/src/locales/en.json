@@ -76,6 +76,7 @@
     "title": "Workers",
     "createWorker": "Create Worker",
     "copyWorker": "Copy Worker",
+    "backToList": "Back to workers",
     "summary_one": "{{count}} worker, {{active}} active",
     "summary_other": "{{count}} workers, {{active}} active",
     "defaultWorkDir": "Default directory",

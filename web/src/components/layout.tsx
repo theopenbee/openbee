@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils"
 const FULL_BLEED_ROUTES = new Set(["/chat", "/workers"])
 
 // The worker detail route (/workers/:id) is also full-bleed: it owns the
-// viewport with its own left menu rail + right content panes.
+// viewport with its own left menu rail + right content panes. The create route
+// (/workers/create) is a plain form page, so it keeps the standard padded shell.
 const isFullBleedPath = (pathname: string) =>
-  FULL_BLEED_ROUTES.has(pathname) || /^\/workers\/[^/]+$/.test(pathname)
+  FULL_BLEED_ROUTES.has(pathname) ||
+  (/^\/workers\/[^/]+$/.test(pathname) && pathname !== "/workers/create")
 
 export function Layout() {
   const { pathname } = useLocation()

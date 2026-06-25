@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
@@ -38,11 +38,8 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
-import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
-import type { Worker } from "@/lib/types"
 
 type DeleteStep = 1 | 2
-type SheetState = { mode: "create" } | { mode: "copy"; worker: Worker } | null
 
 export function Workers() {
   const { t } = useTranslation()
@@ -55,11 +52,6 @@ export function Workers() {
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const deleteWorker = useDeleteWorker()
-  const [sheetState, setSheetState] = useState<SheetState>(null)
-  const copyInitialValues = useMemo(
-    () => (sheetState?.mode === "copy" ? workerToInitialValues(sheetState.worker) : undefined),
-    [sheetState],
-  )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
@@ -124,14 +116,9 @@ export function Workers() {
               )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <Button onClick={() => setSheetState({ mode: "create" })}>
+              <Button onClick={() => navigate("/workers/create")}>
                 {t("workers.createWorker")}
               </Button>
-              <CreateWorkerSheet
-                open={sheetState !== null}
-                onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
-                initialValues={copyInitialValues}
-              />
             </div>
           </div>
 
@@ -150,7 +137,7 @@ export function Workers() {
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
             selectedDeptId === null ? (
-              <Button onClick={() => setSheetState({ mode: "create" })}>{t("workers.createWorker")}</Button>
+              <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
         />
@@ -219,7 +206,7 @@ export function Workers() {
                           {t("common.view")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setSheetState({ mode: "copy", worker: w })}>
+                        <DropdownMenuItem onClick={() => navigate(`/workers/create?copy=${w.id}`)}>
                           <Copy className="size-4" />
                           {t("common.copy")}
                         </DropdownMenuItem>

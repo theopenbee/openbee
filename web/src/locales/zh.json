@@ -76,6 +76,7 @@
     "title": "员工",
     "createWorker": "创建员工",
     "copyWorker": "复制员工",
+    "backToList": "返回员工列表",
     "summary_one": "{{count}} 名员工，{{active}} 名运行中",
     "summary_other": "{{count}} 名员工，{{active}} 名运行中",
     "defaultWorkDir": "默认目录",
