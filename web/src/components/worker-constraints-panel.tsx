@@ -61,7 +61,6 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
             </span>
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">{t("workerDetail.editConstraints")}</p>
-              <p className="text-xs leading-5 text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
             </div>
           </div>
 

@@ -89,7 +89,6 @@
       "actions": "操作"
     },
     "form": {
-      "copyPanelDescription": "修改后创建一个新的员工副本。",
       "copySuffix": "副本",
       "sectionBasic": "基本信息",
       "sectionConfig": "配置",
@@ -110,7 +109,6 @@
       "workDirEditHelper": "下次执行任务时，若该目录不存在会自动创建。旧目录的文件不会被移动或删除。",
       "constraints": "工作约束",
       "constraintsPlaceholder": "这个员工的工作约束...",
-      "constraintsHelper": "每次会话开始时注入到员工中的工作约束。",
       "engineArgs": "引擎参数",
       "engineArgsPlaceholder": "--effort high",
       "engineArgsHelper": "传递给该 Worker 引擎的 CLI 参数。",

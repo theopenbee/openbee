@@ -89,7 +89,6 @@
       "actions": "Actions"
     },
     "form": {
-      "copyPanelDescription": "Modify and create a new copy of this worker.",
       "copySuffix": "Copy",
       "sectionBasic": "Basic Info",
       "sectionConfig": "Configuration",
@@ -110,7 +109,6 @@
       "workDirEditHelper": "Created on next execution if missing. Files in the old directory are left untouched.",
       "constraints": "Work Constraints",
       "constraintsPlaceholder": "The work constraints for this worker...",
-      "constraintsHelper": "Work constraints injected into the worker at the start of every session.",
       "engineArgs": "Engine Args",
       "engineArgsPlaceholder": "--effort high",
       "engineArgsHelper": "CLI flags passed to the engine for this worker.",

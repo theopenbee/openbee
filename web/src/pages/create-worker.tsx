@@ -154,11 +154,6 @@ export function CreateWorker() {
             <h1 className="text-xl font-semibold tracking-tight">
               {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
             </h1>
-            {isCopy && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("workers.form.copyPanelDescription")}
-              </p>
-            )}
           </div>
         </div>
 
@@ -231,7 +226,6 @@ export function CreateWorker() {
                 placeholder={t("workers.form.constraintsPlaceholder")}
                 rows={4}
               />
-              <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
             </div>
           </DetailSection>
 
