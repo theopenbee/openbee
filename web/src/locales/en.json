@@ -169,6 +169,7 @@
     "id": "ID",
     "workDir": "Work Dir",
     "created": "Created",
+    "lastActive": "Last active",
     "constraints": "Work Constraints",
     "noConstraints": "No work constraints configured",
     "editDescription": "Edit description",

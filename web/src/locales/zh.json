@@ -169,6 +169,7 @@
     "id": "ID",
     "workDir": "工作目录",
     "created": "创建时间",
+    "lastActive": "最近活跃",
     "constraints": "工作约束",
     "noConstraints": "未配置工作约束",
     "editDescription": "编辑描述",

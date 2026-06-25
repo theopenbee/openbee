@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   Building2,
   CalendarIcon,
   Check,
+  Clock,
   Copy,
-  FolderOpenIcon,
   LayoutDashboard,
   ListTodo,
   Logs,
@@ -134,6 +134,53 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
           })}
         </TableBody>
       </Table>
+    </div>
+  )
+}
+
+// Presence colors mirror WorkerAvatar so the profile masthead speaks the same
+// employee-presence language as the roster: green idle, purple working, red error.
+const PRESENCE_COLOR: Record<string, string> = {
+  idle: "bg-status-idle",
+  working: "bg-status-working",
+  error: "bg-status-error",
+}
+
+function profileInitials(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return "?"
+  if (/[一-鿿]/.test(trimmed[0])) return trimmed.slice(0, 1)
+  const parts = trimmed.split(/[\s_-]+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return trimmed.slice(0, 2).toUpperCase()
+}
+
+// Masthead avatar: larger than the roster avatar to anchor the profile, carrying
+// the same presence dot. Flat fill, no shadow.
+function ProfileAvatar({ name, status }: { name: string; status: string }) {
+  const color = PRESENCE_COLOR[status] ?? "bg-muted-foreground"
+  return (
+    <span className="relative inline-flex shrink-0">
+      <span className="flex size-16 select-none items-center justify-center rounded-full bg-muted text-xl font-medium text-muted-foreground ring-1 ring-border">
+        {profileInitials(name)}
+      </span>
+      <span className="absolute right-1 bottom-1 inline-flex size-3.5 items-center justify-center rounded-full ring-2 ring-background">
+        {status === "working" && (
+          <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />
+        )}
+        <span className={cn("relative inline-flex size-full rounded-full", color)} />
+      </span>
+    </span>
+  )
+}
+
+// One attribute in the profile record: label-left, value-right, hairline-divided.
+// The canonical enterprise dossier row, not a card.
+function RecordRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
+      <dt className="shrink-0 text-xs font-medium text-muted-foreground sm:w-40 sm:pt-0.5">{label}</dt>
+      <dd className="min-w-0 flex-1 text-sm text-foreground">{children}</dd>
     </div>
   )
 }
@@ -276,96 +323,106 @@ export function WorkerDetail() {
 
               {activeSection === "overview" && (
                 <div className="flex flex-col gap-8">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
-                      <p className={EYEBROW_LABEL}>
-                        {t("workerDetail.workerInfo")}
-                      </p>
-
-                      <div className="space-y-3">
-                        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {/* (1) Masthead: the identity hero — avatar with presence, name,
+                      status, and the worker's role read as a profile bio. */}
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                    <ProfileAvatar name={worker.name} status={worker.status} />
+                    <div className="min-w-0 flex-1 space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                           {worker.name}
                         </h2>
+                        <StatusBadge status={worker.status} />
+                      </div>
+                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                        {worker.description || t("common.noDescription")}
+                      </p>
+                    </div>
+                  </div>
 
+                  {/* (2) Activity band: at-a-glance presence facts, divided by
+                      hairlines into equal columns — no cards, no hero metric. */}
+                  <div className="grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                    <div className="py-4 sm:pr-6">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
+                        <Logs className="size-3.5" />
+                        <span>{t("workerDetail.sessions")}</span>
+                      </div>
+                      <p className="mt-2 font-mono text-lg font-medium tabular-nums text-foreground">
+                        {data?.total ?? 0}
+                      </p>
+                    </div>
+
+                    <div className="py-4 sm:px-6">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
+                        <Clock className="size-3.5" />
+                        <span>{t("workerDetail.lastActive")}</span>
+                      </div>
+                      <p className="mt-2 font-mono text-sm text-foreground">
+                        {latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
+                      </p>
+                    </div>
+
+                    <div className="py-4 sm:px-6">
+                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
+                        <CalendarIcon className="size-3.5" />
+                        <span>{t("workerDetail.created")}</span>
+                      </div>
+                      <p className="mt-2 font-mono text-sm text-foreground">
+                        {formatTimestamp(worker.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* (3) Record: the structured attribute dossier, label-left and
+                      value-right, the canonical enterprise profile pattern. */}
+                  <div>
+                    <p className={EYEBROW_LABEL}>{t("workerDetail.workerInfo")}</p>
+                    <dl className="mt-2 divide-y divide-border/60 border-t border-border/60">
+                      <RecordRow label={t("workerDetail.id")}>
                         <div className="flex items-center gap-1.5">
                           <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
                             {worker.id}
                           </span>
                           <CopyButton value={worker.id} />
                         </div>
+                      </RecordRow>
 
-                        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                          {worker.description || t("common.noDescription")}
-                        </p>
+                      <RecordRow label={t("workers.form.engine")}>
+                        {formatEngineLabel(worker.engine, t)}
+                      </RecordRow>
 
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-medium text-muted-foreground">{t("workers.form.engine")}</p>
-                          <p className="text-sm">
-                            {formatEngineLabel(worker.engine, t)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                      <RecordRow label={t("departments.title")}>
+                        {worker.departments && worker.departments.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {worker.departments.map((d) => (
+                              <span
+                                key={d.id}
+                                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground"
+                              >
+                                <Building2 className="size-3 shrink-0" />
+                                {d.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">{t("departments.ungrouped")}</span>
+                        )}
+                      </RecordRow>
 
-                    {/* Department badges */}
-                    <div className="flex flex-wrap items-center gap-2 lg:pt-1">
-                      <span className={EYEBROW_LABEL}>
-                        {t("departments.title")}
-                      </span>
-                      {worker.departments && worker.departments.length > 0 ? (
-                        worker.departments.map((d) => (
-                          <span
-                            key={d.id}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
-                          >
-                            <Building2 className="size-3 shrink-0" />
-                            {d.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{t("departments.ungrouped")}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats laid out as borderless profile rows, divided from the
-                      identity block by a single hairline rather than nested cards. */}
-                  <div className="grid gap-x-8 gap-y-6 border-t border-border/60 pt-6 sm:grid-cols-2 xl:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
-                        <Logs className="size-3.5" />
-                        <span>{t("workerDetail.sessions")}</span>
-                      </div>
-                      <p className="font-mono text-sm text-foreground sm:text-base">{data?.total ?? 0}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {latestExecution ? formatTimestamp(latestExecution.started_at) : t("sessions.noExecutions")}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
-                        <FolderOpenIcon className="size-3.5" />
-                        <span>{t("workerDetail.workDir")}</span>
-                      </div>
-                      {worker.work_dir ? (
-                        <div className="flex items-start gap-2">
-                          <span className="flex-1 break-all font-mono text-sm leading-6 text-foreground">
-                            {worker.work_dir}
-                          </span>
-                          <CopyButton value={worker.work_dir} />
-                        </div>
-                      ) : (
-                        <p className="text-sm text-foreground">—</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
-                        <CalendarIcon className="size-3.5" />
-                        <span>{t("workerDetail.created")}</span>
-                      </div>
-                      <p className="font-mono text-sm text-foreground sm:text-base">{formatTimestamp(worker.created_at)}</p>
-                    </div>
+                      <RecordRow label={t("workerDetail.workDir")}>
+                        {worker.work_dir ? (
+                          <div className="flex items-start gap-2">
+                            <span className="min-w-0 flex-1 break-all font-mono text-xs leading-6 text-muted-foreground">
+                              {worker.work_dir}
+                            </span>
+                            <CopyButton value={worker.work_dir} />
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </RecordRow>
+                    </dl>
                   </div>
                 </div>
               )}
