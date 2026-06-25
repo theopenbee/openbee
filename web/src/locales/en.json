@@ -462,7 +462,6 @@
   "envConfig": {
     "title": "Env Variables",
     "workerTitle": "Worker Variables",
-    "workerHint": "Apply only to this worker, overriding global and department variables of the same name.",
     "globalTitle": "Global Env Variables",
     "add": "Add Variable",
     "editTitle": "Edit Variable",
@@ -482,10 +481,7 @@
     "empty": "No environment variables configured.",
     "deleteConfirm": "Delete variable \"{{key}}\"? This action cannot be undone.",
     "effectiveTitle": "Effective Variables",
-    "effectiveHint": "Final merged env vars this worker receives at runtime. Later scopes override earlier ones.",
-    "globalHint": "Global env variables are inherited by all departments and workers. Worker-level or department-level variables override these.",
     "beeTitle": "Bee Env Variables",
-    "beeHint": "Bee-scoped variables override global variables with the same name.",
     "sourceGlobal": "global",
     "sourceDepartment": "dept",
     "sourceWorker": "worker",
@@ -496,8 +492,7 @@
   "systemSettings": {
     "title": "Settings",
     "engineSection": {
-      "title": "Default Engine",
-      "hint": "The default AI engine Bee uses for scheduling"
+      "title": "Default Engine"
     },
     "updated": "Default engine updated",
     "globalArgsSection": {

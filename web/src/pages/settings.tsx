@@ -70,6 +70,7 @@ function EngineArgsConfigSection({
         engines={enabledEngines}
         value={value}
         onChange={setPendingValue}
+        showLabel={false}
       />
       <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
         {t("common.save")}
@@ -117,9 +118,6 @@ export function SystemSettings() {
           <div>
             <p className={EYEBROW_LABEL}>
               {t("systemSettings.engineSection.title")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {t("systemSettings.engineSection.hint")}
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -8,14 +8,15 @@ interface EngineArgsSectionProps {
   engines: readonly Engine[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
+  showLabel?: boolean
 }
 
-export function EngineArgsSection({ engines, value, onChange }: EngineArgsSectionProps) {
+export function EngineArgsSection({ engines, value, onChange, showLabel = true }: EngineArgsSectionProps) {
   const { t } = useTranslation()
 
   return (
     <div className="space-y-2">
-      <Label>{t("workers.form.engineArgs")}</Label>
+      {showLabel && <Label>{t("workers.form.engineArgs")}</Label>}
       {engines.map((engine) => (
         <div key={engine} className="flex items-center gap-3">
           <span className="flex w-16 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">

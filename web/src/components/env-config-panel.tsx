@@ -268,10 +268,9 @@ interface EnvConfigPanelProps {
   scope: EnvScope
   scopeId?: string
   title?: string
-  description?: string
 }
 
-export function EnvConfigPanel({ scope, scopeId, title, description }: EnvConfigPanelProps) {
+export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
   const { t } = useTranslation()
   const { data: envs = [], isLoading } = useEnvList(scope, scopeId)
   const deleteEnv = useDeleteEnv(scope, scopeId)
@@ -296,9 +295,6 @@ export function EnvConfigPanel({ scope, scopeId, title, description }: EnvConfig
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           {title && <p className={EYEBROW_LABEL}>{title}</p>}
-          {description && (
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
-          )}
         </div>
         <Button size="sm" className="shrink-0" onClick={() => setAddDialogOpen(true)}>
           <PlusIcon className="size-3.5" />
@@ -307,7 +303,7 @@ export function EnvConfigPanel({ scope, scopeId, title, description }: EnvConfig
       </div>
 
       {!isLoading && envs.length === 0 && (
-        <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+        <div className="px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
           {t("envConfig.empty")}
         </div>
       )}

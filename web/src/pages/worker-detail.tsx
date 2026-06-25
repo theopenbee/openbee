@@ -541,7 +541,6 @@ export function WorkerDetail() {
                       scope="worker"
                       scopeId={id!}
                       title={t("envConfig.workerTitle")}
-                      description={t("envConfig.workerHint")}
                     />
                   </DetailSection>
 
@@ -549,9 +548,6 @@ export function WorkerDetail() {
                     <div>
                       <p className={EYEBROW_LABEL}>
                         {t("envConfig.effectiveTitle")}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {t("envConfig.effectiveHint")}
                       </p>
                     </div>
                     <EffectiveEnvPreview

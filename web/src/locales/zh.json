@@ -461,7 +461,6 @@
   "envConfig": {
     "title": "环境变量",
     "workerTitle": "员工级变量",
-    "workerHint": "仅对该员工生效，覆盖全局与部门的同名变量。",
     "globalTitle": "全局环境变量",
     "add": "添加变量",
     "editTitle": "编辑变量",
@@ -481,10 +480,7 @@
     "empty": "暂无环境变量配置。",
     "deleteConfirm": "确认删除变量 \"{{key}}\"？此操作不可撤销。",
     "effectiveTitle": "生效变量预览",
-    "effectiveHint": "该员工运行时实际生效的合并环境变量。后置作用域会覆盖前面的同名变量。",
-    "globalHint": "全局环境变量会被所有部门和员工继承。员工级或部门级变量会覆盖全局同名变量。",
     "beeTitle": "Bee 环境变量",
-    "beeHint": "Bee 级别的环境变量，覆盖全局同名变量。",
     "sourceGlobal": "全局",
     "sourceDepartment": "部门",
     "sourceWorker": "员工",
@@ -495,8 +491,7 @@
   "systemSettings": {
     "title": "系统设置",
     "engineSection": {
-      "title": "默认引擎",
-      "hint": "Bee 调度时使用的默认 AI 引擎"
+      "title": "默认引擎"
     },
     "updated": "默认引擎已更新",
     "globalArgsSection": {

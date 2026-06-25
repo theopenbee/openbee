@@ -17,7 +17,6 @@ export function Settings() {
           <EnvConfigPanel
             scope="global"
             title={t("envConfig.globalTitle")}
-            description={t("envConfig.globalHint")}
           />
         </DetailSection>
 
@@ -26,7 +25,6 @@ export function Settings() {
             scope="bee"
             scopeId={DEFAULT_BEE_ID}
             title={t("envConfig.beeTitle")}
-            description={t("envConfig.beeHint")}
           />
         </DetailSection>
       </div>
