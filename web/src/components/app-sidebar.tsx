@@ -1,21 +1,18 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboardIcon, BotIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, Building2Icon, SettingsIcon } from "lucide-react"
+import { LayoutDashboardIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, ContactIcon, Settings2Icon, PanelLeftIcon } from "lucide-react"
 
-import { NavMain } from "@/components/nav-main"
+import { NavMain, type NavEntry } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { getStoredUsername } from "@/lib/auth"
 
 const navSecondary = [
   {
@@ -27,62 +24,51 @@ const navSecondary = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
-  const username = getStoredUsername() ?? "User"
+  const { toggleSidebar } = useSidebar()
 
-  const navTop = React.useMemo(() => [
+  // Leaf links sit at the top level; sections with sub-pages become collapsible
+  // groups (icon + label + chevron) that reveal indented, plain-text children.
+  const navItems = React.useMemo<NavEntry[]>(() => [
     { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
     { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
-  ], [t])
-
-  const navDirectory = React.useMemo(() => [
-    { title: t("nav.workers"), url: "/workers", icon: <BotIcon /> },
-    { title: t("nav.departments"), url: "/departments", icon: <Building2Icon /> },
-  ], [t])
-
-  const navMain = React.useMemo(() => [
+    {
+      title: t("nav.directory"),
+      icon: <ContactIcon />,
+      items: [
+        { title: t("nav.departments"), url: "/departments" },
+        { title: t("nav.workers"), url: "/workers" },
+      ],
+    },
     { title: t("nav.sessions"), url: "/sessions", icon: <ActivityIcon /> },
     { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
-  ], [t])
-
-  const navSystemConfig = React.useMemo(() => [
-    { title: t("nav.settings"), url: "/env", icon: <SettingsIcon /> },
-    { title: t("nav.systemSettings"), url: "/settings", icon: <SettingsIcon /> },
+    {
+      title: t("nav.systemConfig"),
+      icon: <Settings2Icon />,
+      items: [
+        { title: t("nav.settings"), url: "/env" },
+        { title: t("nav.systemSettings"), url: "/settings" },
+      ],
+    },
   ], [t])
 
   return (
-    <Sidebar variant="inset" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2L20 7V17L12 22L4 17V7L12 2Z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    fill="currentColor"
-                    fillOpacity="0.3"
-                  />
-                </svg>
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">OpenBee</span>
-                <span className="truncate text-xs text-muted-foreground">AI Workers</span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={navTop} />
-        <NavMain label={t("nav.directory")} items={navDirectory} />
-        <NavMain items={navMain} />
-        <NavMain label={t("nav.systemConfig")} items={navSystemConfig} />
+    <Sidebar variant="sidebar" collapsible="icon" {...props}>
+      <SidebarContent className="pt-2">
+        <NavMain items={navItems} />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser username={username} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              tooltip={t("nav.expandNav")}
+            >
+              <PanelLeftIcon />
+              <span>{t("nav.collapseNav")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )

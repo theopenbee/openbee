@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli"
+	"github.com/theopenbee/openbee/internal/infra/buildinfo"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
@@ -19,6 +20,10 @@ var (
 )
 
 func main() {
+	// Publish build metadata so non-CLI layers (e.g. the HTTP API) can read it
+	// without threading the values through every constructor.
+	buildinfo.Set(version, commit, date)
+
 	lang := cli.DetectLang()
 	if err := i18n.Load(lang); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: i18n load failed: %v\n", err)

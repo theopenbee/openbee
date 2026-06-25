@@ -1,16 +1,14 @@
 import { useState, type FormEvent } from "react"
-import {
-  ArrowRight,
-  CircleAlert,
-  Gauge,
-  LoaderCircle,
-} from "lucide-react"
+import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { LogoFull } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { getStoredUsername, login } from "@/lib/auth"
+import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 
 export function Login() {
   const { t } = useTranslation()
@@ -43,117 +41,116 @@ export function Login() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-background px-4 py-10 text-foreground">
+      {/* Tonal base: a quiet off-paper field so the white card lifts without a shadow. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-85"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(to bottom, var(--background), color-mix(in oklch, var(--background) 90%, var(--muted) 10%))",
+        }}
+      />
+      {/* Blueprint grid, hairline-thin and vignetted toward the edges. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage: [
-            "radial-gradient(circle at top left, color-mix(in oklch, var(--status-working) 18%, transparent), transparent 32%)",
-            "radial-gradient(circle at bottom right, color-mix(in oklch, var(--foreground) 10%, transparent), transparent 34%)",
-            "linear-gradient(180deg, color-mix(in oklch, var(--background) 96%, var(--muted) 4%), color-mix(in oklch, var(--background) 88%, var(--muted) 12%))",
-            "linear-gradient(color-mix(in oklch, var(--border) 44%, transparent) 1px, transparent 1px)",
-            "linear-gradient(90deg, color-mix(in oklch, var(--border) 44%, transparent) 1px, transparent 1px)",
+            "linear-gradient(color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
+            "linear-gradient(90deg, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
           ].join(", "),
-          backgroundSize: "100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px",
+          backgroundSize: "32px 32px, 32px 32px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
         }}
       />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-<div className="animate-fade-in motion-reduce:animate-none flex flex-1 flex-col">
-          <main className="flex flex-1 items-center justify-center py-6 lg:py-10">
-            <section
-              className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-border/70 bg-card/82 p-5 shadow-[0_30px_80px_-52px_rgba(15,23,42,0.55)] backdrop-blur-sm sm:p-6 lg:p-7"
-              style={{
-                backgroundImage: [
-                  "linear-gradient(180deg, color-mix(in oklch, var(--card) 92%, var(--muted) 8%), color-mix(in oklch, var(--card) 82%, var(--background) 18%))",
-                  "radial-gradient(circle at top center, color-mix(in oklch, var(--foreground) 8%, transparent), transparent 36%)",
-                ].join(", "),
-              }}
+      <main className="animate-fade-in motion-reduce:animate-none relative w-full max-w-sm">
+        <section className="rounded-sm border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
+          <header className="space-y-5">
+            <LogoFull className="h-9" />
+            <div className="space-y-1.5">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {t("login.title")}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {t("login.eyebrow")}
+              </p>
+            </div>
+          </header>
+
+          {error ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className={cn(ALERT_DESTRUCTIVE, "mt-6 flex items-start gap-2.5 px-3.5 py-3")}
             >
-              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-foreground/24 to-transparent" />
+              <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <p className="leading-6">{error}</p>
+            </div>
+          ) : null}
 
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-11 items-center justify-center rounded-2xl border border-border/70 bg-background/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                      <Gauge className="size-4 text-foreground" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                        OpenBee
-                      </p>
-                      <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-[2rem]">
-                        {t("login.title")}
-                      </h1>
-                    </div>
-                  </div>
-                </div>
+          <form
+            onSubmit={handleSubmit}
+            className="mt-6 space-y-5"
+            aria-busy={loading}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="username">{t("login.username")}</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoFocus={username.length === 0}
+                aria-invalid={error ? true : undefined}
+                placeholder={t("login.usernamePlaceholder")}
+                className="h-11 px-3.5"
+                required
+              />
+            </div>
 
-                {error ? (
-                  <div
-                    role="alert"
-                    aria-live="polite"
-                    className="flex items-start gap-3 rounded-[1.35rem] border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-                  >
-                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                    <p className="leading-6">{error}</p>
-                  </div>
-                ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="password">{t("login.password")}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                aria-invalid={error ? true : undefined}
+                placeholder={t("login.passwordPlaceholder")}
+                className="h-11 px-3.5"
+                required
+              />
+            </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
-                  <div className="space-y-2.5">
-                    <Label htmlFor="username">{t("login.username")}</Label>
-                    <Input
-                      id="username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      autoComplete="username"
-                      autoFocus={username.length === 0}
-                      placeholder={t("login.usernamePlaceholder")}
-                      className="h-11 rounded-xl border-border/70 bg-background/82 px-4"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <Label htmlFor="password">{t("login.password")}</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      placeholder={t("login.passwordPlaceholder")}
-                      className="h-11 rounded-xl border-border/70 bg-background/82 px-4"
-                      required
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={!canSubmit}
-                    className="h-11 w-full rounded-xl px-4 text-sm font-semibold"
-                  >
-                    {loading ? (
-                      <>
-                        <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
-                        <span>{t("login.submitting")}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{t("login.submit")}</span>
-                        <ArrowRight className="size-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </div>
-            </section>
-          </main>
-        </div>
-      </div>
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="h-11 w-full text-sm font-semibold"
+            >
+              {loading ? (
+                <>
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="size-4 animate-spin motion-reduce:animate-none"
+                  />
+                  <span>{t("login.submitting")}</span>
+                </>
+              ) : (
+                <>
+                  <span>{t("login.submit")}</span>
+                  <ArrowRight aria-hidden="true" className="size-4" />
+                </>
+              )}
+            </Button>
+          </form>
+        </section>
+      </main>
     </div>
   )
 }

@@ -6,7 +6,7 @@ export function SkeletonLine({ className }: { className?: string }) {
 
 export function SkeletonCard() {
   return (
-    <div className="rounded-xl bg-card border p-5 space-y-3">
+    <div className="rounded-sm bg-card border p-5 space-y-3">
       <div className="flex items-center justify-between">
         <div className="skeleton h-5 w-32" />
         <div className="skeleton h-5 w-16 rounded-full" />
@@ -19,15 +19,19 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+    <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
       <div className="bg-secondary/50 px-4 py-3 flex gap-8">
         {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-4 w-20" />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="px-4 py-3 flex gap-8 border-t border-border">
-          {Array.from({ length: columns }).map((_, j) => (
+        <div key={i} className="px-4 py-3 flex items-center gap-8 border-t border-border">
+          <div className="flex items-center gap-3">
+            <div className="skeleton size-8 rounded-full" />
+            <div className="skeleton h-4 w-32" />
+          </div>
+          {Array.from({ length: Math.max(0, columns - 1) }).map((_, j) => (
             <div key={j} className="skeleton h-4 w-20" />
           ))}
         </div>
@@ -51,7 +55,7 @@ export function SkeletonPage() {
         <div className="skeleton h-4 w-3/4" />
         <div className="skeleton h-4 w-1/2" />
       </div>
-      <div className="rounded-xl bg-card ring-1 ring-foreground/5 p-5 space-y-3">
+      <div className="rounded-sm bg-card ring-1 ring-foreground/5 p-5 space-y-3">
         <div className="skeleton h-4 w-full" />
         <div className="skeleton h-4 w-2/3" />
         <div className="skeleton h-4 w-1/2" />

@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, StatsTrend, EnvConfig, ExecDurationTrend, TokenTrend, AppConfig, Engine, SessionDetail } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -54,6 +54,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   config: {
     get: () => fetchAPI<AppConfig>("/config"),
+  },
+  version: {
+    get: () => fetchAPI<AppVersion>("/version"),
   },
   workers: {
     list: async (departmentId?: string) => {
@@ -166,9 +169,6 @@ export const api = {
   },
   stats: {
     overview: () => fetchAPI<StatsOverview>("/stats/overview"),
-    trend: (days: 7 | 15 | 30) => fetchAPI<StatsTrend>(`/stats/trend?days=${days}`),
-    executionDurationTrend: (days: 7 | 15 | 30) =>
-      fetchAPI<ExecDurationTrend>(`/stats/execution-duration-trend?days=${days}`),
     tokenTrend: (days: 7 | 15 | 30) =>
       fetchAPI<TokenTrend>(`/stats/token-trend?days=${days}`),
   },

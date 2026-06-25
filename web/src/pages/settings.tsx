@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { DetailSection } from "@/components/detail-primitives"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import {
   Select,
   SelectContent,
@@ -27,7 +28,6 @@ interface EngineArgsConfigSectionProps {
   configKey: string
   savedValue: Record<string, string>
   title: string
-  hint: string
   successMessage: string
 }
 
@@ -35,7 +35,6 @@ function EngineArgsConfigSection({
   configKey,
   savedValue,
   title,
-  hint,
   successMessage,
 }: EngineArgsConfigSectionProps) {
   const { t } = useTranslation()
@@ -60,16 +59,12 @@ function EngineArgsConfigSection({
 
   return (
     <DetailSection className="p-5 sm:p-6 space-y-4">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          {title}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">{hint}</p>
-      </div>
+      <p className={EYEBROW_LABEL}>{title}</p>
       <EngineArgsSection
         engines={enabledEngines}
         value={value}
         onChange={setPendingValue}
+        showLabel={false}
       />
       <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
         {t("common.save")}
@@ -110,18 +105,11 @@ export function SystemSettings() {
 
   return (
     <FadeIn>
-      <div className="space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title={t("systemSettings.title")} />
 
         <DetailSection className="p-5 sm:p-6 space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              {t("systemSettings.engineSection.title")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {t("systemSettings.engineSection.hint")}
-            </p>
-          </div>
+          <p className={EYEBROW_LABEL}>{t("systemSettings.engineSection.title")}</p>
           <div className="flex items-center gap-3">
             <Select
               value={engine}
@@ -152,7 +140,6 @@ export function SystemSettings() {
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
           savedValue={savedGlobalArgs}
           title={t("systemSettings.globalArgsSection.title")}
-          hint={t("systemSettings.globalArgsSection.hint")}
           successMessage={t("systemSettings.globalArgsSection.updated")}
         />
 
@@ -160,7 +147,6 @@ export function SystemSettings() {
           configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
           savedValue={savedBeeArgs}
           title={t("systemSettings.beeArgsSection.title")}
-          hint={t("systemSettings.beeArgsSection.hint")}
           successMessage={t("systemSettings.beeArgsSection.updated")}
         />
       </div>

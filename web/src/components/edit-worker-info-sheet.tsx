@@ -27,6 +27,7 @@ import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
@@ -129,7 +130,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
         >
           <div className="px-6 py-5 space-y-5">
             {submitError && (
-              <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div role="alert" className={ALERT_DESTRUCTIVE}>
                 {submitError}
               </div>
             )}
@@ -211,7 +212,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                   filteredDepts.map(({ dept, depth }) => (
                     <label
                       key={dept.id}
-                      className="flex items-center gap-2 rounded px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="flex items-center gap-2 rounded-sm px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
                       style={{ paddingLeft: `${12 + depth * 12}px` }}
                     >
                       <input
@@ -223,7 +224,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded accent-primary"
+                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
                       />
                       <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
                     </label>

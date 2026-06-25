@@ -1,9 +1,12 @@
-<div align="center">
-  <h1>🐝 OpenBee</h1>
-  <p><strong>Run Agents as your digital workers</strong></p>
-</div>
+<img src="docs/logo-full.svg" alt="OpenBee" width="220" />
 
-<div align="center">
+# OpenBee — Build smarter AI teams.
+
+---
+
+**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
+
+To learn more about the project, visit [docs.theopenbee.com](https://docs.theopenbee.com).
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -11,36 +14,13 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 
-</div>
+<sub><a href="README.zh.md">中文</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
-<p align="center">
-  <a href="README.zh.md">中文</a> &nbsp;|&nbsp;
-  <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;|&nbsp;
-  <a href="https://x.com/0xtyz">0xtyz</a>
-</p>
+## 📸 Screenshots
 
-**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
+---
 
-## ✨ Features
-
-<div align="center">
-
-| | | |
-|:---:|:---:|:---:|
-| 🤖 **AI Workers** | 💬 **Multi-Platform Support** | ⏰ **Scheduled Tasks** |
-| Each Worker is an AI Agent capable of multi-step task planning and independent execution | Native support for Lark, DingTalk, WeCom, WeChat, Telegram, and Linear — receive tasks and reply where the work starts | Cron-based scheduling for automatic, hands-free triggering |
-
-</div>
-
-## 🤖 Supported AI Engines
-
-OpenBee supports multiple AI engines as the underlying execution backend:
-
-| Engine | Description |
-|:---:|:---|
-| **Claude Code** | Anthropic's official agentic coding tool; default and recommended engine |
-| **Codex** | OpenAI's Codex agent, supported via the plugin engine |
-| **Pi** | Pi agent, supported via the plugin engine |
+<img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## 🚀 Quick Start
 
@@ -116,27 +96,6 @@ openbee server -d
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
-
-## ⚙️ How It Works
-
-```mermaid
-graph TD
-    A["💬 Communication Layer\nLark / DingTalk / WeCom / WeChat / Telegram / Linear"] --> B["🧠 Scheduling Layer\nAI Agent"]
-    B --> C["🤖 Execution Layer\nAI Agents"]
-    C -. "Reply Results" .-> A
-    B -. "Reply Results" .-> A
-```
-
-OpenBee consists of three core layers:
-
-**1. Communication Layer**
-Includes Lark, DingTalk, WeCom, WeChat, Telegram, and Linear. Users can send messages from chat platforms, or create and comment on Linear issues, then receive replies in the same conversation or issue thread.
-
-**2. Scheduling Layer (AI Agent)**
-Responsible for task scheduling — receives messages from the Communication layer, understands user intent, and dispatches tasks to the Execution layer for execution. It can also reply results directly to the Communication layer.
-
-**3. Execution Layer**
-Each Worker is an independent AI Agent, equipped with tool invocation (CLI) and multi-step task planning. Workers execute assigned tasks autonomously and reply results directly to the Communication layer — just like real workers.
 
 ## 🌟 Star History
 

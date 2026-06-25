@@ -1,11 +1,14 @@
-import { useState, useMemo, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useDepartments } from "@/hooks/use-departments"
-import { formatEngineLabel } from "@/lib/format"
+import { formatEngineLabel, formatRelative } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -32,16 +35,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { StatusBadge } from "@/components/status-badge"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
-import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
-import { CreateWorkerSheet, workerToInitialValues } from "@/components/create-worker-sheet"
-import type { Worker } from "@/lib/types"
 
 type DeleteStep = 1 | 2
-type SheetState = { mode: "create" } | { mode: "copy"; worker: Worker } | null
 
 export function Workers() {
   const { t } = useTranslation()
@@ -54,11 +53,6 @@ export function Workers() {
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const deleteWorker = useDeleteWorker()
-  const [sheetState, setSheetState] = useState<SheetState>(null)
-  const copyInitialValues = useMemo(
-    () => (sheetState?.mode === "copy" ? workerToInitialValues(sheetState.worker) : undefined),
-    [sheetState],
-  )
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
   const [deleteWorkDir, setDeleteWorkDir] = useState(false)
@@ -95,93 +89,104 @@ export function Workers() {
   }
 
   return (
-    <FadeIn>
-      <div className="flex gap-6 h-full">
-        <div className="w-56 shrink-0 border-r pr-4">
-          <DepartmentTreeSidebar
-            departments={departments}
-            selectedId={selectedDeptId}
-            onSelect={setSelectedDeptId}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-      <PageHeader
-        title={t("workers.title")}
-        subtitle={
-          displayedWorkers.length > 0
-            ? t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })
-            : undefined
-        }
-        actions={
-          <>
-            <Button onClick={() => setSheetState({ mode: "create" })}>
-              {t("workers.createWorker")}
-            </Button>
-            <CreateWorkerSheet
-              open={sheetState !== null}
-              onOpenChange={(isOpen) => { if (!isOpen) setSheetState(null) }}
-              initialValues={copyInitialValues}
+    <FadeIn className="h-full">
+      <div className="flex h-full">
+        {/* Left pane: department filter, flush to the layout edge with its own scroll. */}
+        <aside className="flex w-60 shrink-0 flex-col border-r">
+          <div className="flex h-16 items-center border-b px-4">
+            <h2 className="text-sm font-semibold tracking-tight">{t("departments.filter")}</h2>
+          </div>
+          <div className="min-h-0 flex-1">
+            <DepartmentTreeSidebar
+              departments={departments}
+              selectedId={selectedDeptId}
+              onSelect={setSelectedDeptId}
             />
-          </>
-        }
-      />
+          </div>
+        </aside>
 
+        {/* Right pane: worker list, fills remaining width with its own scroll. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">{t("workers.title")}</h1>
+              {displayedWorkers.length > 0 && (
+                <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
+                  {t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button onClick={() => navigate("/workers/create")}>
+                {t("workers.createWorker")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
       {error && (
-        <div role="alert" className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4 mx-auto w-full max-w-6xl")}>
           {error}
         </div>
       )}
 
-      <div className="min-h-[320px]">
       {isLoading ? (
-        <SkeletonTable rows={6} columns={5} />
+        <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
           title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
             selectedDeptId === null ? (
-              <Button onClick={() => setSheetState({ mode: "create" })}>{t("workers.createWorker")}</Button>
+              <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
         />
       ) : (
-        <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
-          <Table className="min-w-[600px]">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
+          <Table className="min-w-[680px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead>{t("workers.columns.status")}</TableHead>
-                <TableHead>{t("workers.columns.engine")}</TableHead>
-                <TableHead>{t("workers.columns.activeTime")}</TableHead>
-                <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
+                <TableHead className="w-[112px]">{t("workers.columns.engine")}</TableHead>
+                <TableHead className="w-[124px]">{t("workers.columns.activeTime")}</TableHead>
+                <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayedWorkers.map((w) => (
-                <TableRow key={w.id} className="hover:bg-primary/5 transition-colors">
-                  <TableCell className="min-w-[19rem]">
-                    <div className="flex flex-col gap-1.5 py-1">
-                      <Link
-                        to={`/workers/${w.id}`}
-                        className="font-medium text-foreground transition-colors hover:text-primary"
-                      >
-                        {w.name}
-                      </Link>
-                      <p className="max-w-[26rem] text-xs leading-5 text-muted-foreground line-clamp-2">
-                        {w.description || "-"}
-                      </p>
+                <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
+                  <TableCell>
+                    <div className="flex items-center gap-3 py-1">
+                      <WorkerAvatar name={w.name} status={w.status} />
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <Link
+                          to={`/workers/${w.id}`}
+                          className="font-medium text-foreground transition-colors hover:text-primary"
+                        >
+                          {w.name}
+                        </Link>
+                        <p className="max-w-[34rem] text-xs leading-5 text-muted-foreground line-clamp-2">
+                          {w.description || "—"}
+                        </p>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge status={w.status} />
-                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatEngineLabel(w.engine, t)}
+                    {w.engine ? (
+                      <EngineIcon
+                        engine={w.engine}
+                        title={formatEngineLabel(w.engine, t)}
+                        className="size-5 text-foreground/80"
+                      />
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
-                    {w.updated_at ? new Date(w.updated_at).toLocaleString() : "-"}
+                    <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
+                      {formatRelative(w.updated_at, t)}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -202,7 +207,7 @@ export function Workers() {
                           {t("common.view")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setSheetState({ mode: "copy", worker: w })}>
+                        <DropdownMenuItem onClick={() => navigate(`/workers/create?copy=${w.id}`)}>
                           <Copy className="size-4" />
                           {t("common.copy")}
                         </DropdownMenuItem>
@@ -228,25 +233,19 @@ export function Workers() {
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
         <DialogContent>
           <DialogHeader>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {deleteStep === 1 ? t("workers.deleteDialog.stepOne") : t("workers.deleteDialog.stepTwo")}
             </p>
             <DialogTitle>{t("workers.deleteDialog.title")}</DialogTitle>
-            <DialogDescription>
-              {deleteStep === 1 ? (
-                <Trans
-                  i18nKey="workers.deleteDialog.stepOneDescription"
-                  values={{ name: deleteTarget?.name ?? "" }}
-                  components={{ strong: <strong /> }}
-                />
-              ) : (
+            {deleteStep === 2 && (
+              <DialogDescription>
                 <Trans
                   i18nKey="workers.deleteDialog.stepTwoDescription"
                   values={{ name: deleteTarget?.name ?? "" }}
                   components={{ strong: <strong /> }}
                 />
-              )}
-            </DialogDescription>
+              </DialogDescription>
+            )}
           </DialogHeader>
           {deleteStep === 1 ? (
             <form onSubmit={handleDeleteStepOne} className="space-y-4">

@@ -13,6 +13,7 @@ import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
@@ -113,7 +114,7 @@ export function SessionDetail() {
           <div className="flex flex-col gap-6 p-5 sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-3">
-                <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("sessionDetail.overview")}
                 </p>
                 <div className="space-y-2">
@@ -214,7 +215,7 @@ export function SessionDetail() {
           <aside className="xl:sticky xl:top-6">
             <DetailSection className="h-full flex flex-col">
               <div className="border-b border-border/70 px-4 py-4 sm:px-5">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className={EYEBROW_LABEL}>
                   {t("sessionDetail.turnNavigator")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -234,7 +235,7 @@ export function SessionDetail() {
                       aria-pressed={isSelected}
                       onClick={() => setSelectedExecutionId(exec.id)}
                       className={cn(
-                        "w-full rounded-2xl border px-3 py-3 text-left transition-all",
+                        "w-full rounded-sm border px-3 py-3 text-left transition-all",
                         isSelected
                           ? "border-primary/20 bg-primary/5 ring-1 ring-primary/10"
                           : "border-border/60 bg-background/70 hover:border-border hover:bg-muted/40"
@@ -243,7 +244,7 @@ export function SessionDetail() {
                       <div className="flex items-start gap-3">
                         <div
                           className={cn(
-                            "flex size-10 shrink-0 items-center justify-center rounded-2xl border text-xs font-medium",
+                            "flex size-10 shrink-0 items-center justify-center rounded-sm border text-xs font-medium",
                             isSelected
                               ? "border-primary/20 bg-background text-foreground"
                               : "border-border/70 bg-background text-muted-foreground"
@@ -297,7 +298,7 @@ export function SessionDetail() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={EYEBROW_LABEL}>
                         {t("sessionDetail.inspectTurn")}
                       </p>
                       {isActiveStatus(selectedExecution.status) && (
@@ -319,10 +320,10 @@ export function SessionDetail() {
               <div className="grid gap-6 px-5 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(17rem,0.9fr)]">
                 <div className="space-y-5">
                   <section className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("executionDetail.triggerInput")}
                     </p>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
                       {selectedExecution.trigger_input ? (
                         <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
                           {extractMessageContent(selectedExecution.trigger_input)}
@@ -334,10 +335,10 @@ export function SessionDetail() {
                   </section>
 
                   <section className="space-y-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("executionDetail.result")}
                     </p>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
                       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground">
                         {selectedExecution.result || t("executionDetail.noResult")}
                       </pre>
@@ -345,9 +346,9 @@ export function SessionDetail() {
                   </section>
                 </div>
 
-                <section className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                <section className="rounded-sm border border-border/70 bg-background/80 p-4">
                   <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className={EYEBROW_LABEL}>
                       {t("sessionDetail.metadata")}
                     </p>
 
@@ -388,7 +389,7 @@ export function SessionDetail() {
             <DetailSection>
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className={EYEBROW_LABEL}>
                     {t("executionDetail.logs")}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">

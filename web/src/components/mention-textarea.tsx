@@ -160,7 +160,7 @@ function MentionPanel({
 }) {
   return (
     <div
-      className="absolute bottom-full left-0 w-full mb-1 z-50 rounded-2xl border border-border/70 bg-popover shadow-lg overflow-hidden"
+      className="absolute bottom-full left-0 min-w-[12rem] max-w-xs w-max mb-1 z-50 rounded-sm border border-border/70 bg-popover shadow-lg overflow-hidden"
     >
       <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
         {workers.map((worker, index) => (
@@ -169,7 +169,7 @@ function MentionPanel({
             role="option"
             aria-selected={index === activeIndex}
             className={cn(
-              "flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors",
+              "flex items-center px-3 py-2 text-sm cursor-pointer transition-colors",
               index === activeIndex
                 ? "bg-accent text-accent-foreground"
                 : "hover:bg-accent/50"

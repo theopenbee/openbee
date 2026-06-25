@@ -107,43 +107,9 @@ export interface Task {
 export interface StatsOverview {
   departments: number
   workers: number
-  active_workers_today: number
-  active_workers_yesterday: number
-  active_workers_change: number | null
-  messages_total_today: number
-  messages_total_yesterday: number
-  messages_change: number | null
-  messages_total_global: number
-  executions_today: number
-  executions_yesterday: number
-  executions_change: number | null
-  exec_duration_today_ms: number
-  exec_duration_yesterday_ms: number
-  exec_duration_total_ms: number
   scheduled_tasks: number
-  tokens_total: number
   tokens_today_total: number
   tokens_yesterday_total: number
-}
-
-export interface TrendPoint {
-  date: string
-  active_workers: number
-}
-
-export interface StatsTrend {
-  days: number
-  data: TrendPoint[]
-}
-
-export interface ExecDurationTrendPoint {
-  date: string
-  total_duration_ms: number
-}
-
-export interface ExecDurationTrend {
-  days: number
-  data: ExecDurationTrendPoint[]
 }
 
 export interface TokenTrendPoint {
@@ -192,4 +158,13 @@ export interface EnvConfig {
 export interface AppConfig {
   language: string
   enabled_engines: Engine[]
+}
+
+export interface AppVersion {
+  version: string
+  commit: string
+  date: string
+  go_version: string
+  os: string
+  arch: string
 }

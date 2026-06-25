@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EmptyState } from "@/components/empty-state"
 import { cn, getErrorMessage } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import type { EnvConfig, EnvScope } from "@/lib/types"
 
 function ValueHints({ value }: { value: string }) {
@@ -267,9 +267,10 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
 interface EnvConfigPanelProps {
   scope: EnvScope
   scopeId?: string
+  title?: string
 }
 
-export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
+export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
   const { t } = useTranslation()
   const { data: envs = [], isLoading } = useEnvList(scope, scopeId)
   const deleteEnv = useDeleteEnv(scope, scopeId)
@@ -291,18 +292,23 @@ export function EnvConfigPanel({ scope, scopeId }: EnvConfigPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          {title && <p className={EYEBROW_LABEL}>{title}</p>}
+        </div>
+        <Button size="sm" className="shrink-0" onClick={() => setAddDialogOpen(true)}>
           <PlusIcon className="size-3.5" />
           {t("envConfig.add")}
         </Button>
       </div>
 
       {!isLoading && envs.length === 0 && (
-        <EmptyState title={t("envConfig.empty")} />
+        <div className="px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
+          {t("envConfig.empty")}
+        </div>
       )}
       {!isLoading && envs.length > 0 && (
-        <div className="rounded-2xl border border-border/70 overflow-hidden">
+        <div className="rounded-sm border border-border/70 overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>

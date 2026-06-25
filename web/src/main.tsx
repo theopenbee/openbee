@@ -1,5 +1,8 @@
-import "@fontsource-variable/oxanium"
+import "@fontsource-variable/inter"
 import "@fontsource-variable/jetbrains-mono"
+// Bundled CJK fallback — only the simplified-Chinese subset at the weights we use (400 body, 500 headings/labels).
+import "@fontsource/noto-sans-sc/chinese-simplified-400.css"
+import "@fontsource/noto-sans-sc/chinese-simplified-500.css"
 import "./i18n"
 import { getStoredTheme, applyTheme } from "./lib/theme"
 applyTheme(getStoredTheme())

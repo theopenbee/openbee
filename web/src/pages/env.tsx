@@ -10,31 +10,22 @@ export function Settings() {
 
   return (
     <FadeIn>
-      <div className="space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title={t("nav.settings")} />
 
-        <DetailSection className="p-5 sm:p-6 space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              {t("envConfig.globalTitle")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {t("envConfig.globalHint")}
-            </p>
-          </div>
-          <EnvConfigPanel scope="global" />
+        <DetailSection className="p-5 sm:p-6">
+          <EnvConfigPanel
+            scope="global"
+            title={t("envConfig.globalTitle")}
+          />
         </DetailSection>
 
-        <DetailSection className="p-5 sm:p-6 space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              {t("envConfig.beeTitle")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {t("envConfig.beeHint")}
-            </p>
-          </div>
-          <EnvConfigPanel scope="bee" scopeId={DEFAULT_BEE_ID} />
+        <DetailSection className="p-5 sm:p-6">
+          <EnvConfigPanel
+            scope="bee"
+            scopeId={DEFAULT_BEE_ID}
+            title={t("envConfig.beeTitle")}
+          />
         </DetailSection>
       </div>
     </FadeIn>

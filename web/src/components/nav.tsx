@@ -46,7 +46,7 @@ export function Nav() {
                 key={link.href}
                 to={link.href}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
+                  "flex items-center gap-2 px-3 py-1.5 rounded-sm text-sm font-medium transition-colors whitespace-nowrap",
                   active
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
@@ -63,7 +63,7 @@ export function Nav() {
           href="https://github.com/theopenbee/openbee"
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+          className="ml-2 p-2 rounded-sm text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
         >
           <Github className="h-4 w-4" />
         </a>

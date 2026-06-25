@@ -1,21 +1,49 @@
-import { Outlet } from "react-router-dom"
+import { Outlet, useLocation } from "react-router-dom"
 import { AppSidebar } from "@/components/app-sidebar"
-import { AppBreadcrumb } from "@/components/app-breadcrumb"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { AppTopbar } from "@/components/app-topbar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
+
+// Routes that own their full viewport: the main pane drops its padding and lets
+// the page fill the area and manage its own scroll (e.g. immersive chat).
+const FULL_BLEED_ROUTES = new Set(["/chat", "/workers"])
+
+// The worker detail route (/workers/:id) is also full-bleed: it owns the
+// viewport with its own left menu rail + right content panes. The create route
+// (/workers/create) is a plain form page, so it keeps the standard padded shell.
+const isFullBleedPath = (pathname: string) =>
+  FULL_BLEED_ROUTES.has(pathname) ||
+  (/^\/workers\/[^/]+$/.test(pathname) && pathname !== "/workers/create")
+
+// The sidebar primitive is `position: fixed; inset-y-0`, so it would slide under
+// the top bar. An inline offset wins over the class unconditionally, pinning it
+// to start below the 3rem bar. Hoisted so it isn't re-allocated each render.
+const SIDEBAR_OFFSET = { top: "3rem", height: "calc(100svh - 3rem)" }
+
 export function Layout() {
+  const { pathname } = useLocation()
+  const fullBleed = isFullBleedPath(pathname)
+
   return (
-    <SidebarProvider defaultOpen={true}>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <div className="h-4 w-px shrink-0 bg-border" />
-          <AppBreadcrumb />
-        </header>
-        <main className="min-w-0 flex-1 overflow-auto p-6">
-          <Outlet />
-        </main>
-      </SidebarInset>
+    // The shell is a column: a full-width top bar over a row of [sidebar | main].
+    // SidebarProvider normally lays its children out as a row, so we flip it to a
+    // column and pin it to the viewport height; the body row below owns the
+    // remaining space and lets the main pane scroll on its own.
+    <SidebarProvider defaultOpen className="h-svh flex-col">
+      <AppTopbar />
+      <div className="flex min-h-0 w-full flex-1">
+        <AppSidebar style={SIDEBAR_OFFSET} />
+        <SidebarInset>
+          <main
+            className={cn(
+              "min-w-0 flex-1",
+              fullBleed ? "flex flex-col overflow-hidden" : "overflow-auto p-6"
+            )}
+          >
+            <Outlet />
+          </main>
+        </SidebarInset>
+      </div>
     </SidebarProvider>
   )
 }

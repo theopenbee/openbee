@@ -9,10 +9,11 @@ export function useWorkers(departmentId?: string) {
   })
 }
 
-export function useWorker(id: string) {
+export function useWorker(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["workers", id],
     queryFn: () => api.workers.get(id),
+    enabled: options?.enabled ?? true,
   })
 }
 
@@ -57,11 +58,17 @@ export function useUpdateWorker() {
   })
 }
 
-export function useWorkerExecutions(workerId: string, page: number = 1, pageSize: number = 20) {
+export function useWorkerExecutions(
+  workerId: string,
+  page: number = 1,
+  pageSize: number = 20,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["workers", workerId, "executions", page, pageSize],
     queryFn: () => api.sessions.list(page, pageSize, workerId),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   })
 }
 

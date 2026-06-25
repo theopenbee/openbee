@@ -78,148 +78,12 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	if ov.Workers != 2 {
 		t.Errorf("Workers: want 2, got %d", ov.Workers)
 	}
-	if ov.ActiveWorkersToday != 2 {
-		t.Errorf("ActiveWorkersToday: want 2, got %d", ov.ActiveWorkersToday)
-	}
-	if ov.MessagesTotalToday != 2 {
-		t.Errorf("MessagesTotalToday: want 2, got %d", ov.MessagesTotalToday)
-	}
-	if ov.ExecDurationTodayMS != 0 {
-		t.Errorf("ExecDurationTodayMS: want 0 (no completed_at set), got %d", ov.ExecDurationTodayMS)
-	}
-	if ov.ExecutionsToday != 3 {
-		t.Errorf("ExecutionsToday: want 3, got %d", ov.ExecutionsToday)
-	}
 	if ov.ScheduledTasks != 1 {
 		t.Errorf("ScheduledTasks: want 1, got %d", ov.ScheduledTasks)
 	}
 
 	_ = es
 	_ = oms
-}
-
-func TestStatsStore_GetTrend_FillsMissingDays(t *testing.T) {
-	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
-	db := ss.db
-
-	// Add an execution 3 days ago only
-	threeDaysAgo := time.Now().AddDate(0, 0, -3).UnixMilli()
-	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, threeDaysAgo); err != nil {
-		t.Fatalf("insert execution: %v", err)
-	}
-
-	points, err := ss.GetTrend(ctx, 7)
-	if err != nil {
-		t.Fatalf("GetTrend: %v", err)
-	}
-
-	if len(points) != 7 {
-		t.Fatalf("want 7 points, got %d", len(points))
-	}
-
-	// Find the day 3 days ago
-	target := time.Now().AddDate(0, 0, -3).Format("2006-01-02")
-	found := false
-	for _, p := range points {
-		if p.Date == target {
-			found = true
-			if p.ActiveWorkers != 1 {
-				t.Errorf("day %s: want 1 active worker, got %d", target, p.ActiveWorkers)
-			}
-		}
-	}
-	if !found {
-		t.Errorf("date %s not found in trend points", target)
-	}
-}
-
-func TestStatsStore_ActiveWorkersChange_NullWhenYesterdayZero(t *testing.T) {
-	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
-	db := ss.db
-
-	// Only today's execution, none yesterday
-	todayStartMS, _ := dayBounds(0)
-	todayMS := todayStartMS + 1000
-	if _, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "sess1", "hi", "completed", "", 0, todayMS); err != nil {
-		t.Fatalf("insert execution: %v", err)
-	}
-
-	ov, err := ss.GetOverview(ctx)
-	if err != nil {
-		t.Fatalf("GetOverview: %v", err)
-	}
-
-	if ov.ActiveWorkersChange != nil {
-		t.Errorf("ActiveWorkersChange: want nil (yesterday=0), got %v", *ov.ActiveWorkersChange)
-	}
-}
-
-func TestStatsStore_GetOverview_ExecDuration(t *testing.T) {
-	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
-	db := ss.db
-
-	todayStart, _ := dayBounds(0)
-	yestStart, _ := dayBounds(-1)
-
-	// Today: two completed executions with known durations (1000ms + 2000ms = 3000ms)
-	for _, pair := range [][2]int64{
-		{todayStart + 100, todayStart + 1100},  // 1000ms
-		{todayStart + 200, todayStart + 2200},  // 2000ms
-	} {
-		if _, err := db.Exec(`INSERT INTO bee_executions
-			(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
-			uuid.New().String(), w1.ID, "s1", "hi", "completed", "", 0, pair[0], pair[1]); err != nil {
-			t.Fatalf("insert: %v", err)
-		}
-	}
-
-	// Yesterday: one completed execution of 500ms
-	if _, err := db.Exec(`INSERT INTO bee_executions
-		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "s2", "hi", "completed", "", 0, yestStart+100, yestStart+600); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	// A failed execution today (should NOT count toward duration)
-	if _, err := db.Exec(`INSERT INTO bee_executions
-		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "s3", "hi", "failed", "", 0, todayStart+300, todayStart+800); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	ov, err := ss.GetOverview(ctx)
-	if err != nil {
-		t.Fatalf("GetOverview: %v", err)
-	}
-
-	if ov.ExecDurationTodayMS != 3000 {
-		t.Errorf("ExecDurationTodayMS: want 3000, got %d", ov.ExecDurationTodayMS)
-	}
-	if ov.ExecDurationYesterdayMS != 500 {
-		t.Errorf("ExecDurationYesterdayMS: want 500, got %d", ov.ExecDurationYesterdayMS)
-	}
-	// Cumulative = today(3000) + yesterday(500) = 3500 (failed exec not counted)
-	if ov.ExecDurationTotalMS != 3500 {
-		t.Errorf("ExecDurationTotalMS: want 3500, got %d", ov.ExecDurationTotalMS)
-	}
-
 }
 
 func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
@@ -270,67 +134,11 @@ func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
 		t.Fatalf("GetOverview: %v", err)
 	}
 
-	if ov.TokensTotal != 300 {
-		t.Errorf("TokensTotal: want 300, got %d", ov.TokensTotal)
-	}
 	if ov.TokensTodayTotal != 100 {
 		t.Errorf("TokensTodayTotal: want 100, got %d", ov.TokensTodayTotal)
 	}
 	if ov.TokensYestTotal != 200 {
 		t.Errorf("TokensYestTotal: want 200, got %d", ov.TokensYestTotal)
-	}
-}
-
-func TestStatsStore_GetExecutionDurationTrend_FillsMissingDays(t *testing.T) {
-	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	w1, _ := ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
-	db := ss.db
-
-	// One completed execution 3 days ago: 2000ms
-	threeDaysAgo := time.Now().AddDate(0, 0, -3).UnixMilli()
-	if _, err := db.Exec(`INSERT INTO bee_executions
-		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "s1", "hi", "completed", "", 0, threeDaysAgo, threeDaysAgo+2000); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	// A failed execution 3 days ago (must NOT appear in totals)
-	if _, err := db.Exec(`INSERT INTO bee_executions
-		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), w1.ID, "s1", "hi", "failed", "", 0, threeDaysAgo+100, threeDaysAgo+5000); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	points, err := ss.GetExecutionDurationTrend(ctx, 7)
-	if err != nil {
-		t.Fatalf("GetExecutionDurationTrend: %v", err)
-	}
-
-	if len(points) != 7 {
-		t.Fatalf("want 7 points, got %d", len(points))
-	}
-
-	target := time.Now().AddDate(0, 0, -3).Format("2006-01-02")
-	found := false
-	for _, p := range points {
-		if p.Date == target {
-			found = true
-			if p.TotalDurationMS != 2000 {
-				t.Errorf("date %s: want TotalDurationMS=2000, got %d", target, p.TotalDurationMS)
-			}
-		} else {
-			if p.TotalDurationMS != 0 {
-				t.Errorf("date %s: want 0, got %d", p.Date, p.TotalDurationMS)
-			}
-		}
-	}
-	if !found {
-		t.Errorf("date %s not found in trend points", target)
 	}
 }
 

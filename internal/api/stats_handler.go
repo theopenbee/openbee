@@ -24,34 +24,6 @@ func (h *StatsHandler) GetOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, ov)
 }
 
-func (h *StatsHandler) GetTrend(c *gin.Context) {
-	days, ok := parseDaysParam(c)
-	if !ok {
-		return
-	}
-
-	points, err := h.stats.GetTrend(c.Request.Context(), days)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"days": days, "data": points})
-}
-
-func (h *StatsHandler) GetExecutionDurationTrend(c *gin.Context) {
-	days, ok := parseDaysParam(c)
-	if !ok {
-		return
-	}
-
-	points, err := h.stats.GetExecutionDurationTrend(c.Request.Context(), days)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"days": days, "data": points})
-}
-
 func (h *StatsHandler) GetTokenTrend(c *gin.Context) {
 	days, ok := parseDaysParam(c)
 	if !ok {

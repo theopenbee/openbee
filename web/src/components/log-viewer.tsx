@@ -7,6 +7,7 @@ import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
 import { isActiveStatus } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { EYEBROW_LABEL } from "@/lib/styles"
 import type { ParsedEntry, StreamParser } from "./log-viewer/types"
 import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
@@ -68,16 +69,16 @@ function AssistantEntry({ text }: { text: string }) {
 
   return (
     <TimelineRow markerClassName="bg-primary/70">
-      <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
+      <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <div className="px-4 pt-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className={EYEBROW_LABEL}>
             {t("logViewer.narrative")}
           </p>
           <p className="mt-1 text-sm font-medium text-foreground">{t("logViewer.assistant")}</p>
         </div>
 
         <div className="px-4 pb-4 pt-3">
-          <div className="rounded-xl bg-muted/35 p-4">
+          <div className="rounded-sm bg-muted/35 p-4">
             <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-p:leading-6 prose-headings:font-medium">
               <Streamdown mode="static">{text}</Streamdown>
             </div>
@@ -100,7 +101,7 @@ function ToolEntry({
 
   return (
     <TimelineRow markerClassName={entry.isError ? "bg-destructive" : entry.result ? "bg-status-idle" : "bg-primary/55"}>
-      <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
+      <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <button
           type="button"
           aria-expanded={open}
@@ -113,7 +114,7 @@ function ToolEntry({
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.toolCall")}
             </p>
 
@@ -131,12 +132,12 @@ function ToolEntry({
         {open && (
           <ExpandedDetails
             input={
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
+              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-sm border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
                 {stringify(entry.input)}
               </pre>
             }
             output={
-              <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
+              <div className="rounded-sm border border-border/70 bg-muted/35 p-3">
                 {entry.result !== undefined ? (
                   <pre
                     className={cn(
@@ -163,13 +164,13 @@ function ExpandedDetails({ input, output }: { input: ReactNode; output: ReactNod
   return (
     <div className="grid gap-3 border-t border-border/70 px-4 pb-4 pt-3 md:grid-cols-2 animate-fade-in">
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className={EYEBROW_LABEL}>
           {t("logViewer.input")}
         </p>
         {input}
       </section>
       <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className={EYEBROW_LABEL}>
           {t("logViewer.output")}
         </p>
         {output}
@@ -183,10 +184,10 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
 
   return (
     <TimelineRow markerClassName="bg-status-idle">
-      <article className="overflow-hidden rounded-2xl border border-status-idle/20 bg-status-idle/8">
+      <article className="overflow-hidden rounded-sm border border-status-idle/20 bg-status-idle/8">
         <div className="px-4 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.result")}
             </p>
             {entry.subtype && (
@@ -221,7 +222,7 @@ function CodexCommandEntry({
 
   return (
     <TimelineRow markerClassName={markerClass}>
-      <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
+      <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <button
           type="button"
           aria-expanded={open}
@@ -238,7 +239,7 @@ function CodexCommandEntry({
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.commandExecution")}
             </p>
             <div className="mt-1 flex flex-wrap items-baseline gap-2">
@@ -259,12 +260,12 @@ function CodexCommandEntry({
         {open && (
           <ExpandedDetails
             input={
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
+              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-sm border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6 text-foreground">
                 {entry.command}
               </pre>
             }
             output={
-              <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
+              <div className="rounded-sm border border-border/70 bg-muted/35 p-3">
                 {entry.inProgress ? (
                   <p className="text-sm text-muted-foreground">{t("logViewer.running")}</p>
                 ) : (
@@ -291,7 +292,7 @@ function CodexTurnEntry({
   return (
     <TimelineRow markerClassName="bg-muted-foreground/40">
       <div className="flex flex-wrap items-center gap-2 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        <span className={EYEBROW_LABEL}>
           {t("logViewer.turnUsage")}
         </span>
         <MetricChip label={t("logViewer.inputTokens")} value={entry.inputTokens} />
@@ -314,7 +315,7 @@ function PiThinkingEntry({
 
   return (
     <TimelineRow markerClassName="bg-muted-foreground/35">
-      <article className="overflow-hidden rounded-2xl border border-border/50 bg-muted/15">
+      <article className="overflow-hidden rounded-sm border border-border/50 bg-muted/15">
         <button
           type="button"
           aria-expanded={open}
@@ -322,7 +323,7 @@ function PiThinkingEntry({
           onClick={() => setOpen((current) => !current)}
           className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/25"
         >
-          <p className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+          <p className={cn(EYEBROW_LABEL, "min-w-0 flex-1 text-muted-foreground/70")}>
             {t("logViewer.thinking")}
           </p>
           <span className="mt-0.5 shrink-0 text-muted-foreground/60" aria-hidden="true">
@@ -332,7 +333,7 @@ function PiThinkingEntry({
 
         {open && (
           <div className="border-t border-border/50 px-4 pb-4 pt-3">
-            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-muted/25 p-3 font-mono text-[12px] leading-6 text-muted-foreground">
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-sm bg-muted/25 p-3 font-mono text-[12px] leading-6 text-muted-foreground">
               {entry.thinking}
             </pre>
           </div>
@@ -348,10 +349,10 @@ function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
 
   return (
     <TimelineRow markerClassName={isError ? "bg-destructive/85" : "bg-muted-foreground/55"}>
-      <article className="overflow-hidden rounded-2xl border border-border/70 bg-background/80">
+      <article className="overflow-hidden rounded-sm border border-border/70 bg-background/80">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <p className={EYEBROW_LABEL}>
               {t("logViewer.rawOutput")}
             </p>
             <p className="mt-1 text-sm font-medium text-foreground">{isError ? t("logViewer.failed") : t("logViewer.raw")}</p>
@@ -365,7 +366,7 @@ function RawEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "raw" }> }) {
         <div className="px-4 pb-4 pt-3">
           <pre
             className={cn(
-              "overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6",
+              "overflow-x-auto whitespace-pre-wrap break-words rounded-sm border border-border/70 bg-muted/35 p-3 font-mono text-[12px] leading-6",
               isError ? "text-destructive" : "text-foreground"
             )}
           >
@@ -564,8 +565,8 @@ export function LogViewer({
 
   const shellClassName =
     variant === "embedded"
-      ? "overflow-hidden rounded-[1.6rem] bg-background/55 ring-1 ring-border/60"
-      : "overflow-hidden rounded-[1.75rem] border border-border/70 bg-card"
+      ? "overflow-hidden rounded-sm bg-background/55 ring-1 ring-border/60"
+      : "overflow-hidden rounded-sm border border-border/70 bg-card"
 
   return (
     <div className={shellClassName}>
@@ -612,7 +613,7 @@ export function LogViewer({
         className="max-h-[min(70vh,52rem)] overflow-y-auto px-4 py-4 sm:px-5"
       >
         {entries.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
+          <div className="rounded-sm border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
             {isActiveStatus(status) ? (
               <span className="inline-flex items-center gap-2">
                 <span className="size-1.5 rounded-full bg-primary animate-pulse-amber" />
@@ -623,7 +624,7 @@ export function LogViewer({
             )}
           </div>
         ) : visibleItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
+          <div className="rounded-sm border border-dashed border-border/70 bg-background/70 px-4 py-6 text-sm text-muted-foreground">
             {t("logViewer.noMatches")}
           </div>
         ) : (

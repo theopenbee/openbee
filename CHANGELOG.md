@@ -5,6 +5,9 @@
 ### Added
 - Support updating a worker's work directory.
 
+### Changed
+- Redesign the web UI and interactions.
+
 ## [0.0.40] - 2026-06-15
 
 ### Added
