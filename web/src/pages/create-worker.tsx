@@ -154,9 +154,11 @@ export function CreateWorker() {
             <h1 className="text-xl font-semibold tracking-tight">
               {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isCopy ? t("workers.form.copyPanelDescription") : t("workers.form.panelDescription")}
-            </p>
+            {isCopy && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t("workers.form.copyPanelDescription")}
+              </p>
+            )}
           </div>
         </div>
 
@@ -181,14 +183,16 @@ export function CreateWorker() {
           <DetailSection className="space-y-5 p-5 sm:p-6">
             <SectionHeading text={t("workers.form.sectionBasic")} />
 
-            <WorkerNameField
-              id="cw-name"
-              open
-              value={name}
-              onChange={setName}
-              onError={setSubmitError}
-              autoFocus
-            />
+            <div className="max-w-sm">
+              <WorkerNameField
+                id="cw-name"
+                open
+                value={name}
+                onChange={setName}
+                onError={setSubmitError}
+                autoFocus
+              />
+            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="cw-engine">{t("workers.form.engine")}</Label>
@@ -200,7 +204,34 @@ export function CreateWorker() {
                   <EngineSelectItems engines={enabledEngines} />
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
+            </div>
+          </DetailSection>
+
+          <DetailSection className="space-y-5 p-5 sm:p-6">
+            <SectionHeading text={t("workers.form.sectionEnhancement")} />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cw-desc">{t("workers.form.description")}</Label>
+              <Textarea
+                id="cw-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("workers.form.descriptionPlaceholder")}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cw-constraints">{t("workers.form.constraints")}</Label>
+              <Textarea
+                id="cw-constraints"
+                value={constraints}
+                onChange={(e) => setConstraints(e.target.value)}
+                placeholder={t("workers.form.constraintsPlaceholder")}
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
             </div>
           </DetailSection>
 
@@ -250,10 +281,30 @@ export function CreateWorker() {
                   ))
                 )}
               </div>
-
-              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
             </DetailSection>
           )}
+
+          <DetailSection className="space-y-5 p-5 sm:p-6">
+            <SectionHeading text={t("workers.form.sectionOther")} />
+
+            <EngineArgsSection
+              engines={[engine]}
+              value={engineArgs}
+              onChange={setEngineArgs}
+            />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cw-workdir">{t("workers.form.workDir")}</Label>
+              <Input
+                id="cw-workdir"
+                value={workDir}
+                onChange={(e) => setWorkDir(e.target.value)}
+                placeholder={t("workers.form.workDirPlaceholder")}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
+            </div>
+          </DetailSection>
 
           <DetailSection className="space-y-3 p-5 sm:p-6">
             <SectionHeading
@@ -281,53 +332,6 @@ export function CreateWorker() {
                 </label>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">{t("workers.form.permissionsHelper")}</p>
-          </DetailSection>
-
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.optionalSettings")} />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-desc">{t("workers.form.description")}</Label>
-              <Textarea
-                id="cw-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("workers.form.descriptionPlaceholder")}
-                rows={2}
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-workdir">{t("workers.form.workDir")}</Label>
-              <Input
-                id="cw-workdir"
-                value={workDir}
-                onChange={(e) => setWorkDir(e.target.value)}
-                placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-constraints">{t("workers.form.constraints")}</Label>
-              <Textarea
-                id="cw-constraints"
-                value={constraints}
-                onChange={(e) => setConstraints(e.target.value)}
-                placeholder={t("workers.form.constraintsPlaceholder")}
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.constraintsHelper")}</p>
-            </div>
-
-            <EngineArgsSection
-              engines={[engine]}
-              value={engineArgs}
-              onChange={setEngineArgs}
-            />
           </DetailSection>
 
           <div className="flex justify-end gap-2">

@@ -89,7 +89,6 @@
       "actions": "Actions"
     },
     "form": {
-      "panelDescription": "Configure a new AI worker for your hive.",
       "copyPanelDescription": "Modify and create a new copy of this worker.",
       "copySuffix": "Copy",
       "sectionBasic": "Basic Info",
@@ -119,7 +118,8 @@
       "departmentHelper": "Assign the worker to departments (optional)",
       "searchDepartments": "Filter departments",
       "noMatchingDepartments": "No matching departments",
-      "optionalSettings": "Optional settings",
+      "sectionEnhancement": "Enhancements",
+      "sectionOther": "Other settings",
       "sectionPermissions": "Permissions",
       "permissionsHelper": "When no permissions are selected, the Worker token is denied access to all system built-in tools"
     },

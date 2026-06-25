@@ -89,7 +89,6 @@
       "actions": "操作"
     },
     "form": {
-      "panelDescription": "为你的蜂巢配置一名新的 AI 员工。",
       "copyPanelDescription": "修改后创建一个新的员工副本。",
       "copySuffix": "副本",
       "sectionBasic": "基本信息",
@@ -119,7 +118,8 @@
       "departmentHelper": "将员工分配到所属部门（可选）",
       "searchDepartments": "搜索部门",
       "noMatchingDepartments": "没有匹配的部门",
-      "optionalSettings": "可选配置",
+      "sectionEnhancement": "增强信息",
+      "sectionOther": "其它配置",
       "sectionPermissions": "权限配置",
       "permissionsHelper": "未勾选任何权限时，Worker token 禁止访问任何系统内置工具"
     },
