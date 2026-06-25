@@ -388,6 +388,7 @@
     "create": "创建部门",
     "addChild": "添加子部门",
     "rename": "重命名",
+    "rowActions": "部门操作",
     "form": {
       "name": "部门名称",
       "namePlaceholder": "例如：技术部",

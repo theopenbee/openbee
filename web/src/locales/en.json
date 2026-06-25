@@ -389,6 +389,7 @@
     "create": "Create Department",
     "addChild": "Add Sub-department",
     "rename": "Rename",
+    "rowActions": "Department actions",
     "form": {
       "name": "Department Name",
       "namePlaceholder": "e.g. Engineering",
