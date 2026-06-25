@@ -354,8 +354,6 @@
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "openAttachment": "Open attachment",
     "removeAttachment": "Remove attachment",
-    "quickCommandClear": "clear",
-    "quickCommandConfirm": "confirm",
     "loadMore": "Load earlier messages",
     "loadingMore": "Loading…"
   },

@@ -269,22 +269,6 @@ export function LocalChat() {
     })
   }, [loadMore, localMessages])
 
-  const handleQuickCommand = useCallback(async (text: string) => {
-    const userMessage: ChatMessage = {
-      role: "user",
-      content: text,
-      ts: Date.now(),
-    }
-    setLocalMessages((prev) => [...prev, userMessage])
-    setIsProcessing(true)
-    try {
-      await sendMessage.mutateAsync({ content: text })
-    } catch {
-      setLocalMessages((prev) => prev.filter((m) => m !== userMessage))
-      setIsProcessing(false)
-    }
-  }, [sendMessage])
-
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return
 
@@ -510,19 +494,6 @@ export function LocalChat() {
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {[
-                    t("localChat.quickCommandClear"),
-                    t("localChat.quickCommandConfirm"),
-                  ].map((cmd) => (
-                    <button
-                      key={cmd}
-                      type="button"
-                      className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
-                      onClick={() => void handleQuickCommand(cmd)}
-                    >
-                      {cmd}
-                    </button>
-                  ))}
                   <span className="hidden text-xs text-muted-foreground sm:inline">
                     {t("localChat.composerHint")}
                   </span>
