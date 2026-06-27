@@ -230,3 +230,10 @@ func scanUser(scanner interface{ Scan(...any) error }) (model.User, error) {
 	err := scanner.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.Status, &u.CreatedBy, &u.CreatedAt, &u.UpdatedAt)
 	return u, err
 }
+
+// UserStatus returns a user's account status (implements auth.UserStatusLoader).
+func (s *UserStore) UserStatus(userID string) (string, error) {
+	var status string
+	err := s.db.QueryRow(`SELECT status FROM bee_users WHERE id = ?`, userID).Scan(&status)
+	return status, err
+}
