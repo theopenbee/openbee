@@ -20,16 +20,22 @@ import {
 
 // A leaf is a direct link (icon + label). A group is a collapsible header
 // (icon + label + chevron) whose children are plain, indented text links.
+// An optional `perm` marks the entry as permission-gated; gating itself is
+// applied by the caller (see app-sidebar) before items reach this component.
+export type NavSubItem = { title: string; url: string; perm?: string }
+
 export type NavLeaf = {
   title: string
   url: string
   icon: React.ReactNode
+  perm?: string
 }
 
 export type NavGroupItem = {
   title: string
   icon: React.ReactNode
-  items: { title: string; url: string }[]
+  perm?: string
+  items: NavSubItem[]
 }
 
 export type NavEntry = NavLeaf | NavGroupItem
