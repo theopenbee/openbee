@@ -234,8 +234,8 @@ type RPCConfig struct {
 }
 
 type AuthConfig struct {
-	Username        string        `yaml:"username"`          // login username; default "admin"
-	Password        string        `yaml:"password"`          // login password; empty = auto-generated on startup
+	Username        string        `yaml:"username"`          // DEPRECATED: web login now uses DB users; ignored for login
+	Password        string        `yaml:"password"`          // DEPRECATED: web login now uses DB users; ignored for login
 	JWTSecret       string        `yaml:"jwt_secret"`        // HMAC-SHA256 secret; empty = auto-generated on startup
 	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`  // access token lifetime; default 2h
 	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"` // refresh token lifetime; default 7d

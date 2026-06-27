@@ -1,56 +1,89 @@
 package routes
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+)
 
 func (s *Server) registerAuthRoutes() {
-	auth := s.router.Group("/api/auth")
-	auth.POST("/login", s.Auth.Login)
-	auth.POST("/refresh", s.Auth.Refresh)
+	authGroup := s.router.Group("/api/auth")
+	authGroup.POST("/login", s.Auth.Login)
+	authGroup.POST("/refresh", s.Auth.Refresh)
 }
 
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
-	r.POST("/workers", s.Workers.Create)
-	r.GET("/workers", s.Workers.List)
-	r.GET("/workers/random-name", s.Workers.RandomName)
-	r.GET("/workers/:id", s.Workers.Get)
-	r.PUT("/workers/:id", s.Workers.Update)
-	r.DELETE("/workers/:id", s.Workers.Delete)
+	rp := func(perm string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perm) }
 
-	r.GET("/sessions", s.Executions.List)
-	r.GET("/sessions/:id", s.Executions.GetSession)
-	r.GET("/sessions/:id/logs", s.Executions.GetLogs)
+	// Current-user endpoints (any authenticated user)
+	r.GET("/me", s.Auth.Me)
+	r.POST("/me/password", s.Auth.ChangePassword)
 
-	r.GET("/tasks", s.Tasks.List)
-	r.DELETE("/tasks/:id", s.Tasks.Cancel)
-	r.POST("/workers/:id/tasks/cancel-all", s.Tasks.CancelByWorker)
+	// Workers
+	r.POST("/workers", rp(auth.PermWorkersWrite), s.Workers.Create)
+	r.GET("/workers", rp(auth.PermWorkersRead), s.Workers.List)
+	r.GET("/workers/random-name", rp(auth.PermWorkersRead), s.Workers.RandomName)
+	r.GET("/workers/:id", rp(auth.PermWorkersRead), s.Workers.Get)
+	r.PUT("/workers/:id", rp(auth.PermWorkersWrite), s.Workers.Update)
+	r.DELETE("/workers/:id", rp(auth.PermWorkersWrite), s.Workers.Delete)
 
-	r.POST("/departments", s.Departments.Create)
-	r.GET("/departments", s.Departments.List)
-	r.GET("/departments/:id", s.Departments.Get)
-	r.PUT("/departments/:id", s.Departments.Update)
-	r.DELETE("/departments/:id", s.Departments.Delete)
-	r.PUT("/workers/:id/departments", s.Departments.SetWorkerDepartments)
-	r.GET("/workers/:id/departments", s.Departments.GetWorkerDepartments)
-	r.GET("/departments/:id/workers", s.Departments.GetDepartmentWorkers)
+	// Sessions
+	r.GET("/sessions", rp(auth.PermSessionsRead), s.Executions.List)
+	r.GET("/sessions/:id", rp(auth.PermSessionsRead), s.Executions.GetSession)
+	r.GET("/sessions/:id/logs", rp(auth.PermSessionsRead), s.Executions.GetLogs)
 
-	r.POST("/local/messages", s.LocalChat.SendMessage)
-	r.GET("/local/messages", s.LocalChat.GetMessages)
-	r.POST("/local/media", s.LocalChat.UploadMedia)
-	r.GET("/local/media/:filename", s.LocalChat.ServeMedia)
-	r.GET("/local/stream", s.LocalChat.StreamReplies)
+	// Tasks
+	r.GET("/tasks", rp(auth.PermTasksRead), s.Tasks.List)
+	r.DELETE("/tasks/:id", rp(auth.PermTasksWrite), s.Tasks.Cancel)
+	r.POST("/workers/:id/tasks/cancel-all", rp(auth.PermTasksWrite), s.Tasks.CancelByWorker)
 
-	r.GET("/messages", s.Messages.List)
+	// Departments
+	r.POST("/departments", rp(auth.PermDepartmentsWrite), s.Departments.Create)
+	r.GET("/departments", rp(auth.PermDepartmentsRead), s.Departments.List)
+	r.GET("/departments/:id", rp(auth.PermDepartmentsRead), s.Departments.Get)
+	r.PUT("/departments/:id", rp(auth.PermDepartmentsWrite), s.Departments.Update)
+	r.DELETE("/departments/:id", rp(auth.PermDepartmentsWrite), s.Departments.Delete)
+	r.PUT("/workers/:id/departments", rp(auth.PermDepartmentsWrite), s.Departments.SetWorkerDepartments)
+	r.GET("/workers/:id/departments", rp(auth.PermDepartmentsRead), s.Departments.GetWorkerDepartments)
+	r.GET("/departments/:id/workers", rp(auth.PermDepartmentsRead), s.Departments.GetDepartmentWorkers)
 
+	// Local chat (treated as worker interaction)
+	r.POST("/local/messages", rp(auth.PermWorkersWrite), s.LocalChat.SendMessage)
+	r.GET("/local/messages", rp(auth.PermWorkersRead), s.LocalChat.GetMessages)
+	r.POST("/local/media", rp(auth.PermWorkersWrite), s.LocalChat.UploadMedia)
+	r.GET("/local/media/:filename", rp(auth.PermWorkersRead), s.LocalChat.ServeMedia)
+	r.GET("/local/stream", rp(auth.PermWorkersRead), s.LocalChat.StreamReplies)
+
+	// Messages
+	r.GET("/messages", rp(auth.PermMessagesRead), s.Messages.List)
+
+	// Version (any authenticated user)
 	r.GET("/version", s.Version.Get)
 
-	r.GET("/stats/overview", s.Stats.GetOverview)
-	r.GET("/stats/token-trend", s.Stats.GetTokenTrend)
+	// Stats
+	r.GET("/stats/overview", rp(auth.PermStatsRead), s.Stats.GetOverview)
+	r.GET("/stats/token-trend", rp(auth.PermStatsRead), s.Stats.GetTokenTrend)
 
-	r.GET("/envs", s.Envs.List)
-	r.POST("/envs", s.Envs.Create)
-	r.PUT("/envs/:id", s.Envs.Update)
-	r.DELETE("/envs/:id", s.Envs.Delete)
+	// Env
+	r.GET("/envs", rp(auth.PermEnvRead), s.Envs.List)
+	r.POST("/envs", rp(auth.PermEnvWrite), s.Envs.Create)
+	r.PUT("/envs/:id", rp(auth.PermEnvWrite), s.Envs.Update)
+	r.DELETE("/envs/:id", rp(auth.PermEnvWrite), s.Envs.Delete)
 
-	r.GET("/system-configs", s.SystemConfigs.Get)
-	r.PUT("/system-configs/:key", s.SystemConfigs.Set)
+	// System configs
+	r.GET("/system-configs", rp(auth.PermSystemConfigRead), s.SystemConfigs.Get)
+	r.PUT("/system-configs/:key", rp(auth.PermSystemConfigWrite), s.SystemConfigs.Set)
+
+	// User & role administration
+	r.GET("/users", rp(auth.PermUsersManage), s.Users.List)
+	r.POST("/users", rp(auth.PermUsersManage), s.Users.Create)
+	r.PUT("/users/:id/roles", rp(auth.PermUsersManage), s.Users.SetRoles)
+	r.PUT("/users/:id/status", rp(auth.PermUsersManage), s.Users.SetStatus)
+	r.POST("/users/:id/password", rp(auth.PermUsersManage), s.Users.ResetPassword)
+	r.DELETE("/users/:id", rp(auth.PermUsersManage), s.Users.Delete)
+
+	r.GET("/permissions", rp(auth.PermRolesManage), s.Roles.Catalog)
+	r.GET("/roles", rp(auth.PermRolesManage), s.Roles.List)
+	r.POST("/roles", rp(auth.PermRolesManage), s.Roles.Create)
+	r.PUT("/roles/:id", rp(auth.PermRolesManage), s.Roles.Update)
+	r.DELETE("/roles/:id", rp(auth.PermRolesManage), s.Roles.Delete)
 }
