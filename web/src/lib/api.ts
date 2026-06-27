@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -194,5 +194,60 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ value }),
       }),
+  },
+  setup: {
+    // Public endpoints — no token required (fetchAPI tolerates a missing token).
+    status: () => fetchAPI<SetupStatus>("/setup/status"),
+    create: (data: { username: string; password: string; display_name?: string }) =>
+      fetchAPI<TokenResponse>("/setup", { method: "POST", body: JSON.stringify(data) }),
+  },
+  me: {
+    get: () => fetchAPI<CurrentUser>("/me"),
+    changePassword: (oldPassword: string, newPassword: string) =>
+      fetchAPI("/me/password", {
+        method: "POST",
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      }),
+  },
+  users: {
+    list: async () => {
+      const users = await fetchAPI<UserWithRoles[] | null>("/users")
+      return Array.isArray(users) ? users : []
+    },
+    create: (data: { username: string; password: string; display_name?: string; role_ids?: string[] }) =>
+      fetchAPI<UserWithRoles>("/users", { method: "POST", body: JSON.stringify(data) }),
+    setRoles: (id: string, roleIds: string[]) =>
+      fetchAPI<UserWithRoles>(`/users/${id}/roles`, {
+        method: "PUT",
+        body: JSON.stringify({ role_ids: roleIds }),
+      }),
+    setStatus: (id: string, status: UserStatus) =>
+      fetchAPI<UserWithRoles>(`/users/${id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      }),
+    setPassword: (id: string, newPassword: string) =>
+      fetchAPI(`/users/${id}/password`, {
+        method: "POST",
+        body: JSON.stringify({ new_password: newPassword }),
+      }),
+    delete: (id: string) => fetchAPI(`/users/${id}`, { method: "DELETE" }),
+  },
+  roles: {
+    list: async () => {
+      const roles = await fetchAPI<Role[] | null>("/roles")
+      return Array.isArray(roles) ? roles : []
+    },
+    create: (data: { name: string; description?: string; permissions?: string[] }) =>
+      fetchAPI<Role>("/roles", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; description?: string; permissions?: string[] }) =>
+      fetchAPI<Role>(`/roles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => fetchAPI(`/roles/${id}`, { method: "DELETE" }),
+  },
+  permissions: {
+    list: async () => {
+      const groups = await fetchAPI<PermissionGroup[] | null>("/permissions")
+      return Array.isArray(groups) ? groups : []
+    },
   },
 }

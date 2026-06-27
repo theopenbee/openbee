@@ -312,6 +312,24 @@
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"
   },
+  "setup": {
+    "title": "Create Admin Account",
+    "eyebrow": "First-run setup",
+    "description": "No account exists yet. Create the first administrator to get started.",
+    "username": "Username",
+    "usernamePlaceholder": "admin",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Administrator",
+    "displayNameOptional": "Optional",
+    "password": "Password",
+    "passwordPlaceholder": "At least 6 characters",
+    "passwordHint": "Use at least 6 characters.",
+    "submit": "Create account",
+    "submitting": "Creating...",
+    "errorPasswordLength": "Password must be at least 6 characters",
+    "errorConflict": "An account already exists",
+    "errorGeneric": "Setup failed"
+  },
   "departments": {
     "title": "Departments",
     "filter": "Filter",

@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth-guard"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
+const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
 const Dashboard = lazy(() => import("@/pages/dashboard").then(m => ({ default: m.Dashboard })))
 const Workers = lazy(() => import("@/pages/workers").then(m => ({ default: m.Workers })))
 const CreateWorker = lazy(() => import("@/pages/create-worker").then(m => ({ default: m.CreateWorker })))
@@ -38,6 +39,7 @@ export function App() {
           <Suspense fallback={null}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/setup" element={<Setup />} />
               <Route element={<AuthGuard><Layout /></AuthGuard>}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/workers" element={<Workers />} />

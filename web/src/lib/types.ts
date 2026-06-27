@@ -168,3 +168,47 @@ export interface AppVersion {
   os: string
   arch: string
 }
+
+// RBAC --------------------------------------------------------------------
+
+export type UserStatus = "active" | "disabled"
+
+export interface Role {
+  id: string
+  name: string
+  description: string
+  is_system: boolean
+  permissions?: string[]
+}
+
+export interface CurrentUser {
+  id: string
+  username: string
+  display_name: string
+  status: UserStatus
+  roles: Role[]
+  permissions: string[]
+}
+
+export interface UserWithRoles {
+  id: string
+  username: string
+  display_name: string
+  status: UserStatus
+  roles: Role[]
+}
+
+export interface PermissionGroup {
+  resource: string
+  permissions: string[]
+}
+
+export interface SetupStatus {
+  initialized: boolean
+}
+
+export interface TokenResponse {
+  access_token: string
+  refresh_token: string
+  expires_in: number
+}
