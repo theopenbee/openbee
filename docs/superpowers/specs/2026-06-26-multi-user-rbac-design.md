@@ -29,7 +29,7 @@
 | 权限边界 | 业务资源的查看/操作也按角色分权（非仅登录/用户/系统配置） |
 | 超管初始化方式 | Web 首次设置向导创建超管 |
 | 普通用户来源 | 仅由超管/管理员后台创建（无开放注册） |
-| 用户↔角色关系 | **一人一角色**（用户表上挂 `role_id`），后续可平滑扩展为多角色 |
+| 用户↔角色关系 | **一人多角色**（关联表 `bee_user_roles`），有效权限取所有角色权限的并集 |
 | 存量升级策略 | **一律走设置向导**，不从 `config.yaml` 种超管 |
 
 ## 4. 数据模型（新增迁移，v47 起）
@@ -45,7 +45,6 @@
 | password_hash | TEXT NOT NULL | bcrypt（依赖 `golang.org/x/crypto/bcrypt`，已在 go.mod） |
 | display_name | TEXT NOT NULL DEFAULT '' | 展示名 |
 | status | TEXT NOT NULL DEFAULT 'active' | `active` / `disabled` |
-| role_id | TEXT NOT NULL REFERENCES bee_roles(id) | 绑定角色 |
 | created_by | TEXT NOT NULL DEFAULT '' | 创建者 user id（向导建的超管为空） |
 | created_at | INTEGER NOT NULL | |
 | updated_at | INTEGER NOT NULL | |
@@ -68,6 +67,17 @@
 | role_id | TEXT NOT NULL REFERENCES bee_roles(id) ON DELETE CASCADE | |
 | permission | TEXT NOT NULL | 权限点 key | 
 | PRIMARY KEY (role_id, permission) | | |
+
+**`bee_user_roles`**（用户↔角色多对多）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| user_id | TEXT NOT NULL REFERENCES bee_users(id) ON DELETE CASCADE | |
+| role_id | TEXT NOT NULL REFERENCES bee_roles(id) ON DELETE CASCADE | |
+| created_at | INTEGER NOT NULL | |
+| PRIMARY KEY (user_id, role_id) | | |
+
+> 用户有效权限 = 其所有角色权限点的并集；任一角色含 `*` 即视为超管。
 
 ### 4.2 内置角色（迁移时种子）
 
@@ -102,7 +112,7 @@ roles:manage
 ### 6.1 Token 与权限解析
 
 - JWT access token payload 增加 `uid`（用户 id）。
-- **权限不写入 token**：每次请求由服务端按 `user → role → permissions` 解析，避免改角色后旧 token 权限滞留。解析结果加进程内缓存（按 role_id 失效，角色/权限变更时清除对应缓存）。
+- **权限不写入 token**：每次请求由服务端按 `user → roles → permissions（并集）` 解析，避免改角色后旧 token 权限滞留。解析结果加进程内缓存（按 user_id 失效；用户的角色绑定、角色权限变更时清除对应缓存）。
 - refresh token 流程不变。
 
 ### 6.2 中间件
@@ -116,7 +126,7 @@ roles:manage
 - `POST /api/auth/login`：改为校验 `bee_users`（bcrypt 比对），替换现有 config 单账号校验。保留登录限流（`LoginRateLimiter`）。
 - `GET /api/me`：返回当前用户信息 + 解析后的权限列表，供前端驱动 UI。
 - `POST /api/me/password`：当前用户改密（校验旧密码）。
-- 用户管理接口（受 `users:manage`）：列表 / 创建 / 禁用启用 / 重置密码 / 分配角色。
+- 用户管理接口（受 `users:manage`）：列表 / 创建 / 禁用启用 / 重置密码 / 分配角色（多选）。
 - 角色管理接口（受 `roles:manage`）：列表 / 创建 / 编辑（含勾选权限点）/ 删除（`is_system` 角色禁止删除，super-admin 禁止降权）。
 - `GET /api/permissions`：返回权限点目录与分组。
 
@@ -149,8 +159,8 @@ roles:manage
 
 ## 9. 模块边界（设计为可独立测试的单元）
 
-- `infra/store`：`user_store.go`、`role_store.go`（CRUD + 权限读写），纯 DB 层。
-- `infra/auth`：权限目录与解析 `permissions.go`（`role → permission set`，含缓存）、`RequirePermission` 中间件、bcrypt 封装。
+- `infra/store`：`user_store.go`（含用户↔角色绑定读写）、`role_store.go`（CRUD + 权限读写），纯 DB 层。
+- `infra/auth`：权限目录与解析 `permissions.go`（`user → roles → permission set 并集`，含缓存）、`RequirePermission` 中间件、bcrypt 封装。
 - `api`：`auth_handler`（登录/me/改密）、`user_handler`、`role_handler`、`setup_handler`。
 - 各单元通过明确接口交互：handler 依赖 store 接口与 auth 解析接口，便于以 fake 替身做单测。
 
@@ -159,13 +169,12 @@ roles:manage
 - SSO / OAuth、MFA。
 - 操作审计日志。
 - 按实例的细粒度 ACL（如「某人只能看某些 worker/部门」的部门级数据隔离）——本期为「角色 × 资源类型」级别分权。
-- 一人多角色（本期一人一角色，预留扩展）。
 - `ctl` CLI 的人类身份鉴权：仍走本地 RPC token，不变。
 
 ## 11. 测试计划
 
-- store：用户/角色 CRUD、唯一约束、`is_system` 删除保护、级联删除权限。
-- auth：`role → permissions` 解析与缓存失效、bcrypt 登录、超管 `*` 直通、`RequirePermission` 拦截（有权/无权/禁用用户）。
+- store：用户/角色 CRUD、唯一约束、`is_system` 删除保护、级联删除权限、用户↔角色绑定与解绑、删用户/角色时 `bee_user_roles` 级联清理。
+- auth：`user → roles → permissions（并集）` 解析与缓存失效、bcrypt 登录、超管 `*` 直通、`RequirePermission` 拦截（有权/无权/禁用用户）。
 - setup：一次性守卫（零用户可建、已初始化返回 409）。
 - 迁移：v47 建表与内置角色种子幂等。
 - handler：登录、me、用户管理、角色管理的权限边界。
