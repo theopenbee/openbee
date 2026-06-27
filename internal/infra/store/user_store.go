@@ -237,3 +237,16 @@ func (s *UserStore) UserStatus(userID string) (string, error) {
 	err := s.db.QueryRow(`SELECT status FROM bee_users WHERE id = ?`, userID).Scan(&status)
 	return status, err
 }
+
+// CountActiveSuperAdmins counts active users holding the super-admin role.
+func (s *UserStore) CountActiveSuperAdmins() (int, error) {
+	var n int
+	err := s.db.QueryRow(`
+		SELECT COUNT(DISTINCT u.id)
+		FROM bee_users u
+		JOIN bee_user_roles ur ON ur.user_id = u.id
+		WHERE ur.role_id = ? AND u.status = ?`,
+		model.RoleIDSuperAdmin, model.UserStatusActive,
+	).Scan(&n)
+	return n, err
+}
