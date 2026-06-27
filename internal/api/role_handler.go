@@ -94,12 +94,8 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 func validatePermissions(perms []string) error {
 	for _, p := range perms {
 		if !auth.IsAssignablePermission(p) {
-			return errUnknownPermission(p)
+			return fmt.Errorf("unknown permission: %s", p)
 		}
 	}
 	return nil
-}
-
-func errUnknownPermission(p string) error {
-	return fmt.Errorf("unknown permission: %s", p)
 }
