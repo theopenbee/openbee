@@ -332,13 +332,14 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
 	}
-	if cfg.Server.Auth.Password != "" {
-		if cfg.Server.Auth.AccessTokenTTL == 0 {
-			cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour
-		}
-		if cfg.Server.Auth.RefreshTokenTTL == 0 {
-			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
-		}
+	// Token TTL defaults are unconditional: web login now uses DB users, so the
+	// deprecated Auth.Password is normally empty. Gating these on a non-empty
+	// password would leave TTLs at 0 and mint immediately-expired access tokens.
+	if cfg.Server.Auth.AccessTokenTTL == 0 {
+		cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour
+	}
+	if cfg.Server.Auth.RefreshTokenTTL == 0 {
+		cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 	}
 	if cfg.Bee.RPC.TokenSecret == "" {
 		cfg.Bee.RPC.TokenSecret = GenerateRandomSecret()

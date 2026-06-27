@@ -100,15 +100,17 @@ func (s *RoleStore) Update(r model.Role, permissions []string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	if r.ID == model.RoleIDSuperAdmin {
+		// The super-admin role is locked: its name, description, and permissions
+		// are all immutable. Ignore any incoming changes.
+		return tx.Commit()
+	}
+
 	if _, err := tx.Exec(
 		`UPDATE bee_roles SET name = ?, description = ?, updated_at = ? WHERE id = ?`,
 		r.Name, r.Description, time.Now().UnixMilli(), r.ID,
 	); err != nil {
 		return fmt.Errorf("update role: %w", err)
-	}
-	if r.ID == model.RoleIDSuperAdmin {
-		// super-admin permissions are immutable; ignore incoming changes.
-		return tx.Commit()
 	}
 	if _, err := tx.Exec(`DELETE FROM bee_role_permissions WHERE role_id = ?`, r.ID); err != nil {
 		return err
