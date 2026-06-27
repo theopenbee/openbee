@@ -17,6 +17,8 @@ const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ d
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks })))
 const Departments = lazy(() => import("@/pages/departments").then(m => ({ default: m.Departments })))
+const Users = lazy(() => import("@/pages/users").then(m => ({ default: m.Users })))
+const Roles = lazy(() => import("@/pages/roles").then(m => ({ default: m.Roles })))
 const Env = lazy(() => import("@/pages/env").then(m => ({ default: m.Settings })))
 const SystemSettings = lazy(() => import("@/pages/settings").then(m => ({ default: m.SystemSettings })))
 const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
@@ -46,6 +48,8 @@ export function App() {
                 <Route path="/workers/create" element={<CreateWorker />} />
                 <Route path="/workers/:id" element={<WorkerDetail />} />
                 <Route path="/departments" element={<Departments />} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/roles" element={<Roles />} />
                 <Route path="/sessions" element={<Sessions />} />
                 <Route path="/sessions/detail" element={<SessionDetail />} />
                 <Route path="/tasks" element={<Tasks />} />

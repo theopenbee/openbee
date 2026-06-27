@@ -11,6 +11,8 @@
     "sessions": "Sessions",
     "tasks": "Scheduled",
     "departments": "Departments",
+    "users": "Users",
+    "roles": "Roles",
     "directory": "Directory",
     "settings": "Env Variables",
     "systemSettings": "Settings",
@@ -350,6 +352,73 @@
     "deleteConfirm": {
       "title": "Delete Department",
       "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "users": {
+    "create": "New User",
+    "createDescription": "Create a user account and assign roles.",
+    "empty": "No users yet. Create one to get started.",
+    "rowActions": "User actions",
+    "editRoles": "Edit Roles",
+    "editRolesDescription": "Assign roles to \"{{name}}\".",
+    "resetPassword": "Reset Password",
+    "resetPasswordDescription": "Set a new password for \"{{name}}\".",
+    "enable": "Enable",
+    "disable": "Disable",
+    "noRoles": "No roles available. Create a role first.",
+    "created": "User created",
+    "rolesUpdated": "Roles updated",
+    "passwordReset": "Password reset",
+    "enabled": "User enabled",
+    "disabled": "User disabled",
+    "deleted": "User deleted",
+    "table": {
+      "username": "Username",
+      "displayName": "Display Name",
+      "roles": "Roles",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "form": {
+      "username": "Username",
+      "usernamePlaceholder": "e.g. alice",
+      "password": "Password",
+      "passwordPlaceholder": "At least 6 characters",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Optional",
+      "roles": "Roles"
+    },
+    "deleteConfirm": {
+      "title": "Delete User",
+      "description": "Are you sure you want to delete user \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "roles": {
+    "create": "New Role",
+    "edit": "Edit Role",
+    "formDescription": "Define a role name and grant permissions.",
+    "empty": "No roles yet. Create one to get started.",
+    "rowActions": "Role actions",
+    "system": "System",
+    "allPermissions": "All permissions",
+    "noPermissions": "No permissions",
+    "noPermissionsAvailable": "No permissions available.",
+    "created": "Role created",
+    "updated": "Role updated",
+    "deleted": "Role deleted",
+    "form": {
+      "name": "Role Name",
+      "namePlaceholder": "e.g. Editor",
+      "description": "Description",
+      "descriptionPlaceholder": "Optional",
+      "permissions": "Permissions"
+    },
+    "deleteConfirm": {
+      "title": "Delete Role",
+      "description": "Are you sure you want to delete role \"{{name}}\"? This action cannot be undone."
     }
   },
   "emptyState": {
