@@ -420,6 +420,60 @@ UPDATE bee_executions
 		name:    "drop_execution_id_from_tasks",
 		sql:     `ALTER TABLE bee_tasks DROP COLUMN execution_id`,
 	},
+	{
+		version: 47,
+		name:    "create_rbac_tables_and_seed_roles",
+		sql: `
+CREATE TABLE IF NOT EXISTS bee_users (
+    id            TEXT PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    display_name  TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled')),
+    created_by    TEXT NOT NULL DEFAULT '',
+    created_at    INTEGER NOT NULL,
+    updated_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bee_roles (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    is_system   INTEGER NOT NULL DEFAULT 0,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bee_role_permissions (
+    role_id    TEXT NOT NULL REFERENCES bee_roles(id) ON DELETE CASCADE,
+    permission TEXT NOT NULL,
+    PRIMARY KEY (role_id, permission)
+);
+CREATE TABLE IF NOT EXISTS bee_user_roles (
+    user_id    TEXT NOT NULL REFERENCES bee_users(id) ON DELETE CASCADE,
+    role_id    TEXT NOT NULL REFERENCES bee_roles(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, role_id)
+);
+INSERT OR IGNORE INTO bee_roles (id, name, description, is_system, created_at, updated_at) VALUES
+    ('sysrole_superadmin', 'super-admin', 'Full access; cannot be deleted or downgraded', 1, CAST(strftime('%s','now') AS INTEGER)*1000, CAST(strftime('%s','now') AS INTEGER)*1000),
+    ('sysrole_admin', 'admin', 'Manage business resources and users', 0, CAST(strftime('%s','now') AS INTEGER)*1000, CAST(strftime('%s','now') AS INTEGER)*1000),
+    ('sysrole_member', 'member', 'Read-only access to business resources', 0, CAST(strftime('%s','now') AS INTEGER)*1000, CAST(strftime('%s','now') AS INTEGER)*1000);
+INSERT OR IGNORE INTO bee_role_permissions (role_id, permission) VALUES
+    ('sysrole_superadmin', '*'),
+    ('sysrole_admin', 'workers:read'), ('sysrole_admin', 'workers:write'),
+    ('sysrole_admin', 'tasks:read'), ('sysrole_admin', 'tasks:write'),
+    ('sysrole_admin', 'departments:read'), ('sysrole_admin', 'departments:write'),
+    ('sysrole_admin', 'messages:read'),
+    ('sysrole_admin', 'sessions:read'), ('sysrole_admin', 'sessions:write'),
+    ('sysrole_admin', 'stats:read'),
+    ('sysrole_admin', 'env:read'), ('sysrole_admin', 'env:write'),
+    ('sysrole_admin', 'system_config:read'),
+    ('sysrole_admin', 'users:manage'),
+    ('sysrole_member', 'workers:read'), ('sysrole_member', 'tasks:read'),
+    ('sysrole_member', 'departments:read'), ('sysrole_member', 'messages:read'),
+    ('sysrole_member', 'sessions:read'), ('sysrole_member', 'stats:read'),
+    ('sysrole_member', 'env:read'), ('sysrole_member', 'system_config:read');
+`,
+	},
 }
 
 type whereBuilder struct {
