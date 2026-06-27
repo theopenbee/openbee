@@ -229,7 +229,7 @@ export const api = {
     setPassword: (id: string, newPassword: string) =>
       fetchAPI(`/users/${id}/password`, {
         method: "POST",
-        body: JSON.stringify({ new_password: newPassword }),
+        body: JSON.stringify({ password: newPassword }),
       }),
     delete: (id: string) => fetchAPI(`/users/${id}`, { method: "DELETE" }),
   },

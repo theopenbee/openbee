@@ -20,6 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronsUpDownIcon, ChevronDownIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 import { clearTokens } from "@/lib/auth"
 import { useThemeToggle } from "@/hooks/use-theme-toggle"
 
@@ -33,6 +34,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { t } = useTranslation()
   const { theme, toggle: toggleTheme } = useThemeToggle()
 
@@ -45,6 +47,9 @@ export function NavUser({
 
   const handleLogout = () => {
     clearTokens()
+    // Drop cached per-user data (current user, permissions, user/role lists) so a
+    // subsequent login in the same tab never sees the previous user's state.
+    queryClient.clear()
     navigate("/login", { replace: true })
   }
 
