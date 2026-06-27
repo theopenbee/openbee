@@ -92,12 +92,8 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 
 // validatePermissions rejects unknown permission keys (wildcard not assignable here).
 func validatePermissions(perms []string) error {
-	valid := map[string]struct{}{}
-	for _, p := range auth.AllPermissions() {
-		valid[p] = struct{}{}
-	}
 	for _, p := range perms {
-		if _, ok := valid[p]; !ok {
+		if !auth.IsAssignablePermission(p) {
 			return errUnknownPermission(p)
 		}
 	}

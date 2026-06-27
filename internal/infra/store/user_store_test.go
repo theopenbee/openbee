@@ -1,6 +1,7 @@
 package store
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -61,7 +62,7 @@ func TestUserStore_PermissionsUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PermissionsForUser: %v", err)
 	}
-	if !contains(perms, "workers:write") || !contains(perms, "users:manage") {
+	if !slices.Contains(perms, "workers:write") || !slices.Contains(perms, "users:manage") {
 		t.Fatalf("expected admin perms in union, got %v", perms)
 	}
 }
@@ -70,7 +71,7 @@ func TestUserStore_SuperAdminWildcard(t *testing.T) {
 	us := setupUserStore(t)
 	u, _ := us.Create("root", "pw", "Root", "", []string{model.RoleIDSuperAdmin})
 	perms, _ := us.PermissionsForUser(u.ID)
-	if !contains(perms, "*") {
+	if !slices.Contains(perms, "*") {
 		t.Fatalf("expected wildcard, got %v", perms)
 	}
 }
@@ -83,7 +84,7 @@ func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 		t.Fatalf("SetRoles: %v", err)
 	}
 	perms, _ := us.PermissionsForUser(u.ID)
-	if !contains(perms, "users:manage") {
+	if !slices.Contains(perms, "users:manage") {
 		t.Fatal("expected admin perms after SetRoles")
 	}
 
@@ -112,13 +113,4 @@ func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	if _, err := us.GetByID(u.ID); err == nil {
 		t.Fatal("expected user gone")
 	}
-}
-
-func contains(ss []string, want string) bool {
-	for _, s := range ss {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }

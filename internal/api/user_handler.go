@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -140,20 +141,15 @@ func (h *UserHandler) guardLastSuperAdmin(c *gin.Context, userID string, newRole
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return err
 	}
-	isSuper := false
-	for _, r := range user.Roles {
-		if r.ID == model.RoleIDSuperAdmin {
-			isSuper = true
-		}
-	}
+	isSuper := slices.ContainsFunc(user.Roles, func(r model.Role) bool {
+		return r.ID == model.RoleIDSuperAdmin
+	})
 	if !isSuper {
 		return nil
 	}
 	// If newRoleIDs still grants super-admin, the change is safe.
-	for _, rid := range newRoleIDs {
-		if rid == model.RoleIDSuperAdmin {
-			return nil
-		}
+	if slices.Contains(newRoleIDs, model.RoleIDSuperAdmin) {
+		return nil
 	}
 	count, err := h.users.CountActiveSuperAdmins()
 	if err != nil {

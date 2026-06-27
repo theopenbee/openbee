@@ -55,6 +55,23 @@ func AllPermissions() []string {
 	return out
 }
 
+// assignablePermissions is the set of known, assignable permission keys
+// (wildcard excluded), built once from the immutable catalog.
+var assignablePermissions = func() map[string]struct{} {
+	perms := AllPermissions()
+	set := make(map[string]struct{}, len(perms))
+	for _, p := range perms {
+		set[p] = struct{}{}
+	}
+	return set
+}()
+
+// IsAssignablePermission reports whether p is a known, assignable permission.
+func IsAssignablePermission(p string) bool {
+	_, ok := assignablePermissions[p]
+	return ok
+}
+
 // PermissionLoader loads the raw permission keys for a user (union across roles).
 type PermissionLoader func(userID string) ([]string, error)
 

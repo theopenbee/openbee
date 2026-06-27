@@ -62,12 +62,10 @@ func TestSetup_StatusFalseThenTrue(t *testing.T) {
 func TestSetup_SecondCreateRejected(t *testing.T) {
 	r, _ := newSetupServer(t)
 	body, _ := json.Marshal(map[string]string{"username": "root", "password": "rootpw"})
-	for i := 0; i < 1; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/api/setup", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-	}
+	// first create succeeds
+	req0 := httptest.NewRequest(http.MethodPost, "/api/setup", bytes.NewReader(body))
+	req0.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(httptest.NewRecorder(), req0)
 	// second attempt
 	req := httptest.NewRequest(http.MethodPost, "/api/setup", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
