@@ -1,26 +1,35 @@
 package auth
 
 import (
-	"crypto/subtle"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-type AuthHandler struct {
-	username    string
-	password    string
-	jwtSvc      *JWTService
-	rateLimiter *LoginRateLimiter
+// UserAuthenticator authenticates credentials and loads user data.
+type UserAuthenticator interface {
+	Authenticate(username, password string) (model.UserWithRoles, error)
+	GetByID(id string) (model.UserWithRoles, error)
+	SetPassword(id, plainPassword string) error
 }
 
-func NewAuthHandler(username, password string, jwtSvc *JWTService, rateLimiter *LoginRateLimiter) *AuthHandler {
-	return &AuthHandler{
-		username:    username,
-		password:    password,
-		jwtSvc:      jwtSvc,
-		rateLimiter: rateLimiter,
-	}
+type AuthHandler struct {
+	users       UserAuthenticator
+	jwtSvc      *JWTService
+	rateLimiter *LoginRateLimiter
+	resolver    *PermissionResolver
+}
+
+func NewAuthHandler(users UserAuthenticator, jwtSvc *JWTService, rateLimiter *LoginRateLimiter) *AuthHandler {
+	return &AuthHandler{users: users, jwtSvc: jwtSvc, rateLimiter: rateLimiter}
+}
+
+// WithResolver attaches the permission resolver (needed for /api/me). Returns the
+// handler for chaining.
+func (h *AuthHandler) WithResolver(r *PermissionResolver) *AuthHandler {
+	h.resolver = r
+	return h
 }
 
 type loginRequest struct {
@@ -33,26 +42,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many attempts, please try again later"})
 		return
 	}
-
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-
-	usernameMatch := subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.username)) == 1
-	passwordMatch := subtle.ConstantTimeCompare([]byte(req.Password), []byte(h.password)) == 1
-	if !usernameMatch || !passwordMatch {
+	user, err := h.users.Authenticate(req.Username, req.Password)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
-
-	pair, err := h.jwtSvc.GenerateTokenPair()
+	pair, err := h.jwtSvc.GenerateUserTokenPair(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
-
 	c.JSON(http.StatusOK, pair)
 }
 
@@ -71,20 +75,65 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-
-	if err := h.jwtSvc.ValidateRefreshToken(req.RefreshToken); err != nil {
+	uid, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
+	if err != nil || uid == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}
-
-	accessToken, expiresIn, err := h.jwtSvc.GenerateAccessToken()
+	accessToken, expiresIn, err := h.jwtSvc.GenerateUserAccessToken(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
+	c.JSON(http.StatusOK, refreshResponse{AccessToken: accessToken, ExpiresIn: expiresIn})
+}
 
-	c.JSON(http.StatusOK, refreshResponse{
-		AccessToken: accessToken,
-		ExpiresIn:   expiresIn,
-	})
+type meResponse struct {
+	model.UserWithRoles
+	Permissions []string `json:"permissions"`
+}
+
+// Me returns the current user with resolved permissions.
+func (h *AuthHandler) Me(c *gin.Context) {
+	uid := UserID(c)
+	user, err := h.users.GetByID(uid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	perms, err := h.resolver.PermissionsFor(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve permissions"})
+		return
+	}
+	c.JSON(http.StatusOK, meResponse{UserWithRoles: user, Permissions: perms})
+}
+
+type changePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+// ChangePassword updates the current user's password after verifying the old one.
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	uid := UserID(c)
+	var req changePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := h.users.GetByID(uid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if _, err := h.users.Authenticate(user.Username, req.OldPassword); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
+		return
+	}
+	if err := h.users.SetPassword(uid, req.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
