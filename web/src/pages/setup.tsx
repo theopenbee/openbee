@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { LogoFull } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ const MIN_PASSWORD_LENGTH = 6
 export function Setup() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [username, setUsername] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [password, setPassword] = useState("")
@@ -46,6 +48,10 @@ export function Setup() {
       })
       saveTokens(tokens.access_token, tokens.refresh_token)
       saveUsername(username.trim())
+      // The AuthGuard caches the setup probe with staleTime: Infinity, so the
+      // first-run value (initialized: false) would otherwise bounce us straight
+      // back here. Seed the freshly-true status synchronously before navigating.
+      queryClient.setQueryData(["setup", "status"], { initialized: true })
       navigate("/", { replace: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : ""
