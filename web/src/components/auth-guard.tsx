@@ -12,7 +12,14 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     retry: 1,
   })
 
-  // Wait for the setup probe before deciding where to send the user.
+  // An authenticated user is always allowed through. Checking the token first
+  // means a freshly-created admin (who just saved tokens on /setup) is never
+  // bounced back by a stale setup probe still reporting initialized: false.
+  if (getAccessToken()) {
+    return <>{children}</>
+  }
+
+  // Wait for the setup probe before deciding where to send an anonymous user.
   if (isLoading) {
     return null
   }
@@ -22,9 +29,5 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return <Navigate to="/setup" replace />
   }
 
-  if (!getAccessToken()) {
-    return <Navigate to="/login" replace />
-  }
-
-  return <>{children}</>
+  return <Navigate to="/login" replace />
 }
