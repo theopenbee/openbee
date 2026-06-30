@@ -419,7 +419,7 @@
       "chat": "Chat",
       "tasks": "Tasks",
       "sessions": "Sessions",
-      "stats": "Stats",
+      "dashboard": "Dashboard",
       "env": "Environment",
       "system_config": "System Config",
       "administration": "Administration"
@@ -429,7 +429,7 @@
       "chat": { "write": "Start chats & view messages" },
       "tasks": { "read": "View tasks", "write": "Create & manage tasks" },
       "sessions": { "read": "View sessions", "write": "Manage sessions" },
-      "stats": { "read": "View statistics" },
+      "dashboard": { "read": "View dashboard" },
       "env": { "read": "View environment variables", "write": "Edit environment variables" },
       "system_config": { "read": "View system config", "write": "Edit system config" },
       "users": { "manage": "Manage users" },

@@ -9,7 +9,7 @@ export const Perm = {
   ChatWrite: "chat:write",
   SessionsRead: "sessions:read",
   SessionsWrite: "sessions:write",
-  StatsRead: "stats:read",
+  DashboardRead: "dashboard:read",
   EnvRead: "env:read",
   EnvWrite: "env:write",
   SystemConfigRead: "system_config:read",

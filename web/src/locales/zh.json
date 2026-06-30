@@ -418,7 +418,7 @@
       "chat": "聊天",
       "tasks": "任务",
       "sessions": "会话",
-      "stats": "统计",
+      "dashboard": "仪表盘",
       "env": "环境变量",
       "system_config": "系统配置",
       "administration": "管理"
@@ -428,7 +428,7 @@
       "chat": { "write": "发起对话与查看消息" },
       "tasks": { "read": "查看任务", "write": "创建与管理任务" },
       "sessions": { "read": "查看会话", "write": "管理会话" },
-      "stats": { "read": "查看统计数据" },
+      "dashboard": { "read": "查看仪表盘" },
       "env": { "read": "查看环境变量", "write": "编辑环境变量" },
       "system_config": { "read": "查看系统配置", "write": "修改系统配置" },
       "users": { "manage": "管理用户" },

@@ -6,7 +6,7 @@ import { firstAccessiblePath } from "@/lib/nav"
 import { NoAccessLanding } from "@/components/no-access-landing"
 
 // Home resolves the "/" landing page against the user's permissions:
-//   1. holds stats:read       -> render the dashboard (passed as children)
+//   1. holds dashboard:read   -> render the dashboard (passed as children)
 //   2. otherwise              -> redirect to their first accessible page
 //   3. nothing is accessible  -> show the no-access landing (no redirect, so an
 //                                empty-permission account can never loop)
@@ -16,7 +16,7 @@ export function Home({ children }: { children: ReactNode }) {
   if (isLoading) return null
 
   const perms = me?.permissions
-  if (hasPermission(perms, Perm.StatsRead)) return <>{children}</>
+  if (hasPermission(perms, Perm.DashboardRead)) return <>{children}</>
 
   const target = firstAccessiblePath(perms)
   if (target && target !== "/") return <Navigate to={target} replace />

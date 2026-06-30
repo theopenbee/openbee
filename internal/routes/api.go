@@ -58,8 +58,8 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/version", s.Version.Get)
 
 	// Stats
-	r.GET("/stats/overview", rp(auth.PermStatsRead), s.Stats.GetOverview)
-	r.GET("/stats/token-trend", rp(auth.PermStatsRead), s.Stats.GetTokenTrend)
+	r.GET("/stats/overview", rp(auth.PermDashboardRead), s.Stats.GetOverview)
+	r.GET("/stats/token-trend", rp(auth.PermDashboardRead), s.Stats.GetTokenTrend)
 
 	// Env
 	r.GET("/envs", rp(auth.PermEnvRead), s.Envs.List)

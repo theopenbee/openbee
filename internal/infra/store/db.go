@@ -459,6 +459,13 @@ INSERT OR IGNORE INTO bee_role_permissions (role_id, permission) VALUES
     ('sysrole_superadmin', '*');
 `,
 	},
+	{
+		version: 48,
+		name:    "rename_stats_read_to_dashboard_read",
+		sql: `
+UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission = 'stats:read';
+`,
+	},
 }
 
 type whereBuilder struct {

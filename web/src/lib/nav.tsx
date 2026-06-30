@@ -31,7 +31,7 @@ export function isNavGroup(entry: NavDef): entry is NavGroupDef {
 }
 
 export const NAV: NavDef[] = [
-  { titleKey: "nav.dashboard", url: "/", icon: <LayoutDashboardIcon />, perm: Perm.StatsRead },
+  { titleKey: "nav.dashboard", url: "/", icon: <LayoutDashboardIcon />, perm: Perm.DashboardRead},
   { titleKey: "localChat.title", url: "/chat", icon: <MessageCircleIcon />, perm: Perm.ChatWrite },
   {
     titleKey: "nav.digitalEmployees",

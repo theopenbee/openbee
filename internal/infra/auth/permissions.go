@@ -14,7 +14,7 @@ const (
 	PermChatWrite         = "chat:write"
 	PermSessionsRead      = "sessions:read"
 	PermSessionsWrite     = "sessions:write"
-	PermStatsRead         = "stats:read"
+	PermDashboardRead     = "dashboard:read"
 	PermEnvRead           = "env:read"
 	PermEnvWrite          = "env:write"
 	PermSystemConfigRead  = "system_config:read"
@@ -36,7 +36,7 @@ func PermissionCatalog() []PermissionGroup {
 		{Resource: "chat", Permissions: []string{PermChatWrite}},
 		{Resource: "tasks", Permissions: []string{PermTasksRead, PermTasksWrite}},
 		{Resource: "sessions", Permissions: []string{PermSessionsRead, PermSessionsWrite}},
-		{Resource: "stats", Permissions: []string{PermStatsRead}},
+		{Resource: "dashboard", Permissions: []string{PermDashboardRead}},
 		{Resource: "env", Permissions: []string{PermEnvRead, PermEnvWrite}},
 		{Resource: "system_config", Permissions: []string{PermSystemConfigRead, PermSystemConfigWrite}},
 		{Resource: "administration", Permissions: []string{PermUsersManage, PermRolesManage}},

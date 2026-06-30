@@ -7,7 +7,7 @@ describe("firstAccessiblePath", () => {
     expect(firstAccessiblePath(["*"])).toBe("/")
   })
 
-  it("lands on chat when the user holds chat:write but not stats:read", () => {
+  it("lands on chat when the user holds chat:write but not dashboard:read", () => {
     // /chat is gated on chat:write and sits above tasks/departments in nav order.
     expect(firstAccessiblePath([Perm.ChatWrite])).toBe("/chat")
   })
@@ -42,9 +42,9 @@ describe("granted", () => {
   })
 
   it("honours the wildcard and explicit grants", () => {
-    expect(granted(["*"], Perm.StatsRead)).toBe(true)
-    expect(granted([Perm.StatsRead], Perm.StatsRead)).toBe(true)
-    expect(granted([Perm.TasksRead], Perm.StatsRead)).toBe(false)
-    expect(granted(undefined, Perm.StatsRead)).toBe(false)
+    expect(granted(["*"], Perm.DashboardRead)).toBe(true)
+    expect(granted([Perm.DashboardRead], Perm.DashboardRead)).toBe(true)
+    expect(granted([Perm.TasksRead], Perm.DashboardRead)).toBe(false)
+    expect(granted(undefined, Perm.DashboardRead)).toBe(false)
   })
 })
