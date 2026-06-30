@@ -8,7 +8,6 @@ export const Perm = {
   TasksWrite: "tasks:write",
   ChatWrite: "chat:write",
   SessionsRead: "sessions:read",
-  SessionsWrite: "sessions:write",
   DashboardRead: "dashboard:read",
   EnvRead: "env:read",
   EnvWrite: "env:write",
