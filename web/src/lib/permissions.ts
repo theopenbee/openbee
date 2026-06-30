@@ -6,7 +6,6 @@ export const Perm = {
   ContactsWrite: "contacts:write",
   TasksRead: "tasks:read",
   TasksWrite: "tasks:write",
-  MessagesRead: "messages:read",
   ChatWrite: "chat:write",
   SessionsRead: "sessions:read",
   SessionsWrite: "sessions:write",

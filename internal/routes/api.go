@@ -46,16 +46,14 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/workers/:id/departments", rp(auth.PermContactsRead), s.Departments.GetWorkerDepartments)
 	r.GET("/departments/:id/workers", rp(auth.PermContactsRead), s.Departments.GetDepartmentWorkers)
 
-	// Local chat — gated by a single chat:write capability (view + send),
-	// decoupled from worker-management permissions.
+	// Local chat & messages — gated by a single chat:write capability
+	// (view + send), decoupled from worker-management permissions.
 	r.POST("/local/messages", rp(auth.PermChatWrite), s.LocalChat.SendMessage)
 	r.GET("/local/messages", rp(auth.PermChatWrite), s.LocalChat.GetMessages)
 	r.POST("/local/media", rp(auth.PermChatWrite), s.LocalChat.UploadMedia)
 	r.GET("/local/media/:filename", rp(auth.PermChatWrite), s.LocalChat.ServeMedia)
 	r.GET("/local/stream", rp(auth.PermChatWrite), s.LocalChat.StreamReplies)
-
-	// Messages
-	r.GET("/messages", rp(auth.PermMessagesRead), s.Messages.List)
+	r.GET("/messages", rp(auth.PermChatWrite), s.Messages.List)
 
 	// Version (any authenticated user)
 	r.GET("/version", s.Version.Get)

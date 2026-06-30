@@ -417,7 +417,6 @@
       "contacts": "通讯录",
       "chat": "聊天",
       "tasks": "任务",
-      "messages": "消息",
       "sessions": "会话",
       "stats": "统计",
       "env": "环境变量",
@@ -426,9 +425,8 @@
     },
     "permissionItems": {
       "contacts": { "read": "查看通讯录", "write": "编辑通讯录" },
-      "chat": { "write": "发起对话" },
+      "chat": { "write": "发起对话与查看消息" },
       "tasks": { "read": "查看任务", "write": "创建与管理任务" },
-      "messages": { "read": "查看消息" },
       "sessions": { "read": "查看会话", "write": "管理会话" },
       "stats": { "read": "查看统计数据" },
       "env": { "read": "查看环境变量", "write": "编辑环境变量" },

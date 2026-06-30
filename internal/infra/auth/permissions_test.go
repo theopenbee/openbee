@@ -60,3 +60,10 @@ func TestCatalogGroupsCoverAllPermissions(t *testing.T) {
 		}
 	}
 }
+
+// messages:read was merged into chat:write; it must no longer be assignable.
+func TestMessagesReadRetired(t *testing.T) {
+	if IsAssignablePermission("messages:read") {
+		t.Fatal("messages:read should be retired (merged into chat:write)")
+	}
+}

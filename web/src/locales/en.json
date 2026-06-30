@@ -418,7 +418,6 @@
       "contacts": "Contacts",
       "chat": "Chat",
       "tasks": "Tasks",
-      "messages": "Messages",
       "sessions": "Sessions",
       "stats": "Stats",
       "env": "Environment",
@@ -427,9 +426,8 @@
     },
     "permissionItems": {
       "contacts": { "read": "View contacts", "write": "Edit contacts" },
-      "chat": { "write": "Start chats" },
+      "chat": { "write": "Start chats & view messages" },
       "tasks": { "read": "View tasks", "write": "Create & manage tasks" },
-      "messages": { "read": "View messages" },
       "sessions": { "read": "View sessions", "write": "Manage sessions" },
       "stats": { "read": "View statistics" },
       "env": { "read": "View environment variables", "write": "Edit environment variables" },
