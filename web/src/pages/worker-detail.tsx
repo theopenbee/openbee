@@ -199,6 +199,10 @@ export function WorkerDetail() {
     [me?.permissions],
   )
   const canSessions = hasPermission(me?.permissions, Perm.SessionsRead)
+  // Editing a worker (permission scopes here, like the header actions) requires
+  // contacts:write. Without it the scope switches stay visible as a read-only
+  // view of what's granted, but disabled so they can't fire a 403'd write.
+  const canWriteContacts = hasPermission(me?.permissions, Perm.ContactsWrite)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get("tab")
@@ -534,7 +538,9 @@ export function WorkerDetail() {
               {activeSection === "permissions" && (
                 <div className="max-w-2xl space-y-4">
                   <p className="text-sm leading-6 text-muted-foreground">
-                    {t("workers.form.permissionsHelper")}
+                    {canWriteContacts
+                      ? t("workers.form.permissionsHelper")
+                      : t("workerDetail.permissionsReadonly")}
                   </p>
 
                   <DetailSection className="divide-y divide-border/70">
@@ -552,7 +558,7 @@ export function WorkerDetail() {
                             { onError: () => setLocalScopes(prevScopes) }
                           )
                         }}
-                        disabled={updateWorker.isPending}
+                        disabled={!canWriteContacts || updateWorker.isPending}
                       />
                     ))}
                   </DetailSection>

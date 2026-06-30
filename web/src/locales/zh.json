@@ -175,6 +175,7 @@
       "shortcuts": "⌘↵ 保存 · Esc 取消",
       "emptyTitle": "为 {{name}} 设定工作约束",
       "emptyDescription": "工作约束会在每次会话开始时注入，用来设定 TA 的工作边界、风格与优先级。",
+      "emptyReadonly": "尚未设定工作约束。",
       "add": "添加工作约束",
       "templatesLabel": "从模板开始",
       "templates": {
@@ -195,7 +196,8 @@
         }
       }
     },
-    "permissions": "权限"
+    "permissions": "权限",
+    "permissionsReadonly": "你没有修改权限，以下为当前已授予的权限范围（只读）。"
   },
   "executionDetail": {
     "noResult": "暂无结果。",

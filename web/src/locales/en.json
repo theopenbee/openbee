@@ -175,6 +175,7 @@
       "shortcuts": "⌘↵ to save · Esc to cancel",
       "emptyTitle": "Set work constraints for {{name}}",
       "emptyDescription": "Work constraints are injected at the start of every session to set this worker's boundaries, style, and priorities.",
+      "emptyReadonly": "No work constraints set yet.",
       "add": "Add work constraints",
       "templatesLabel": "Start from a template",
       "templates": {
@@ -195,7 +196,8 @@
         }
       }
     },
-    "permissions": "Permissions"
+    "permissions": "Permissions",
+    "permissionsReadonly": "You don't have permission to edit. The granted permission scopes below are read-only."
   },
   "executionDetail": {
     "noResult": "No result yet.",
