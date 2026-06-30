@@ -321,21 +321,28 @@ function PermissionPicker({
       {groups.map((group) => (
         <div key={group.resource} className="space-y-1">
           <p className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
-            {group.resource}
+            {t(`roles.permissionGroups.${group.resource}`, group.resource)}
           </p>
           <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
             {group.permissions.map((perm) => (
               <label
                 key={perm}
-                className="flex cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-muted/50"
+                className="flex cursor-pointer items-start gap-2 rounded-sm px-1.5 py-1 hover:bg-muted/50"
               >
                 <input
                   type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
+                  className="mt-0.5 size-4 shrink-0 accent-primary"
                   checked={selected.includes(perm)}
                   onChange={() => onToggle(perm)}
                 />
-                <span className="truncate font-mono text-xs">{perm}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs">
+                    {t(`roles.permissionItems.${perm.replace(":", ".")}`, perm)}
+                  </span>
+                  <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                    {perm}
+                  </span>
+                </span>
               </label>
             ))}
           </div>
