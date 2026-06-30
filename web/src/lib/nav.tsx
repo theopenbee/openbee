@@ -6,8 +6,6 @@ import {
   MessageCircleIcon,
   ContactIcon,
   Settings2Icon,
-  UsersIcon,
-  ShieldCheckIcon,
 } from "lucide-react"
 
 import { Perm, hasPermission } from "@/lib/permissions"
@@ -17,7 +15,12 @@ import { Perm, hasPermission } from "@/lib/permissions"
 // at render time) and an optional `perm`; an absent perm means the entry is
 // always reachable. Keep this in sync with the route guards in App.tsx — both
 // reference the same `Perm` constants.
-export type NavSubDef = { titleKey: string; url: string; perm?: string }
+//
+// `sectionKey` (optional) lets a group split its sub-items into labelled
+// sections; consecutive sub-items sharing a key render under one small header.
+// Items without a key render plain (no header), so existing flat groups are
+// unaffected.
+export type NavSubDef = { titleKey: string; url: string; perm?: string; sectionKey?: string }
 export type NavLeafDef = { titleKey: string; url: string; icon: ReactNode; perm?: string }
 export type NavGroupDef = { titleKey: string; icon: ReactNode; items: NavSubDef[] }
 export type NavDef = NavLeafDef | NavGroupDef
@@ -43,12 +46,12 @@ export const NAV: NavDef[] = [
     titleKey: "nav.systemConfig",
     icon: <Settings2Icon />,
     items: [
-      { titleKey: "nav.settings", url: "/env", perm: Perm.EnvRead },
-      { titleKey: "nav.systemSettings", url: "/settings", perm: Perm.SystemConfigRead },
+      { titleKey: "nav.users", url: "/users", perm: Perm.UsersManage, sectionKey: "nav.accessControl" },
+      { titleKey: "nav.roles", url: "/roles", perm: Perm.RolesManage, sectionKey: "nav.accessControl" },
+      { titleKey: "nav.settings", url: "/env", perm: Perm.EnvRead, sectionKey: "nav.platformConfig" },
+      { titleKey: "nav.systemSettings", url: "/settings", perm: Perm.SystemConfigRead, sectionKey: "nav.platformConfig" },
     ],
   },
-  { titleKey: "nav.users", url: "/users", icon: <UsersIcon />, perm: Perm.UsersManage },
-  { titleKey: "nav.roles", url: "/roles", icon: <ShieldCheckIcon />, perm: Perm.RolesManage },
 ]
 
 // granted reports whether an entry with the given perm is reachable: ungated

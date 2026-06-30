@@ -17,6 +17,8 @@
     "settings": "Env Variables",
     "systemSettings": "Settings",
     "systemConfig": "System",
+    "accessControl": "Access Control",
+    "platformConfig": "System Config",
     "collapseNav": "Collapse navigation",
     "expandNav": "Expand navigation"
   },

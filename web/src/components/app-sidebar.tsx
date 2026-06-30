@@ -40,7 +40,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (isNavGroup(entry)) {
         const visibleSubs: NavSubItem[] = entry.items
           .filter((sub) => granted(me?.permissions, sub.perm))
-          .map((sub) => ({ title: t(sub.titleKey), url: sub.url, perm: sub.perm }))
+          .map((sub) => ({
+            title: t(sub.titleKey),
+            url: sub.url,
+            perm: sub.perm,
+            section: sub.sectionKey ? t(sub.sectionKey) : undefined,
+          }))
         if (visibleSubs.length > 0) {
           acc.push({ title: t(entry.titleKey), icon: entry.icon, items: visibleSubs })
         }

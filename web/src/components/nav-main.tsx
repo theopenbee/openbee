@@ -22,7 +22,7 @@ import {
 // (icon + label + chevron) whose children are plain, indented text links.
 // An optional `perm` marks the entry as permission-gated; gating itself is
 // applied by the caller (see app-sidebar) before items reach this component.
-export type NavSubItem = { title: string; url: string; perm?: string }
+export type NavSubItem = { title: string; url: string; perm?: string; section?: string }
 
 export type NavLeaf = {
   title: string
@@ -83,17 +83,31 @@ export function NavMain({
               />
               <CollapsibleContent>
                 <SidebarMenuSub className="mx-0 gap-1 border-l-0 px-0 pl-[2.125rem]">
-                  {item.items.map((sub) => (
-                    <SidebarMenuSubItem key={sub.title}>
-                      <SidebarMenuSubButton
-                        isActive={isActive(sub.url)}
-                        className="h-8 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary"
-                        render={<Link to={sub.url} />}
-                      >
-                        <span>{sub.title}</span>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  ))}
+                  {item.items.map((sub, i) => {
+                    // Render a small section header whenever this sub-item's
+                    // section differs from the previous (already permission-
+                    // filtered) one. Sub-items without a section render plain.
+                    const showSection =
+                      sub.section && sub.section !== item.items[i - 1]?.section
+                    return (
+                      <React.Fragment key={sub.title}>
+                        {showSection && (
+                          <SidebarGroupLabel className="h-7 px-0 text-sidebar-foreground/60">
+                            {sub.section}
+                          </SidebarGroupLabel>
+                        )}
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isActive(sub.url)}
+                            className="h-8 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary"
+                            render={<Link to={sub.url} />}
+                          >
+                            <span>{sub.title}</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </React.Fragment>
+                    )
+                  })}
                 </SidebarMenuSub>
               </CollapsibleContent>
             </Collapsible>

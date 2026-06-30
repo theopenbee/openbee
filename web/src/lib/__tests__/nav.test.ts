@@ -25,6 +25,14 @@ describe("firstAccessiblePath", () => {
     expect(firstAccessiblePath([])).toBeUndefined()
     expect(firstAccessiblePath(undefined)).toBeUndefined()
   })
+
+  it("resolves users/roles now that they live inside the System group", () => {
+    // Moved from top-level leaves into the System group; group flattening must
+    // still reach them via their sub-item perms.
+    expect(firstAccessiblePath([Perm.UsersManage])).toBe("/users")
+    expect(firstAccessiblePath([Perm.RolesManage])).toBe("/roles")
+    expect(firstAccessiblePath([Perm.EnvRead])).toBe("/env")
+  })
 })
 
 describe("granted", () => {
