@@ -44,6 +44,71 @@ function isGroup(item: NavEntry): item is NavGroupItem {
   return "items" in item
 }
 
+type IsActive = (url: string) => boolean
+
+// A collapsible group. Its open state is controlled so it can follow the active
+// route: when navigation lands on one of its children (e.g. a post-login
+// redirect to /departments), the group auto-opens. The `defaultOpen` prop alone
+// wouldn't cover this — it's read once at mount, before in-app redirects change
+// the route. Adjusting state during render (rather than in an effect) opens the
+// group synchronously, with no collapsed flash.
+function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }) {
+  const childActive = item.items.some((sub) => isActive(sub.url))
+  const [open, setOpen] = React.useState(childActive)
+
+  if (childActive && !open) setOpen(true)
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      render={<SidebarMenuItem />}
+    >
+      <CollapsibleTrigger
+        render={
+          <SidebarMenuButton
+            className="group/collapsible h-9"
+            tooltip={item.title}
+          >
+            {item.icon}
+            <span>{item.title}</span>
+            <ChevronDownIcon className="ml-auto text-sidebar-foreground/60 transition-transform duration-200 group-data-[panel-open]/collapsible:rotate-180" />
+          </SidebarMenuButton>
+        }
+      />
+      <CollapsibleContent>
+        <SidebarMenuSub className="mx-0 gap-1 border-l-0 px-0 pl-[2.125rem]">
+          {item.items.map((sub, i) => {
+            // Render a small section header whenever this sub-item's
+            // section differs from the previous (already permission-
+            // filtered) one. Sub-items without a section render plain.
+            const showSection =
+              sub.section && sub.section !== item.items[i - 1]?.section
+            return (
+              <React.Fragment key={sub.title}>
+                {showSection && (
+                  <SidebarGroupLabel className="h-7 px-0 text-sidebar-foreground/60">
+                    {sub.section}
+                  </SidebarGroupLabel>
+                )}
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={isActive(sub.url)}
+                    className="h-8 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary"
+                    render={<Link to={sub.url} />}
+                  >
+                    <span>{sub.title}</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </React.Fragment>
+            )
+          })}
+        </SidebarMenuSub>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 export function NavMain({
   items,
   label,
@@ -53,7 +118,7 @@ export function NavMain({
 }) {
   const { pathname } = useLocation()
 
-  const isActive = (url: string) =>
+  const isActive: IsActive = (url) =>
     url === "/" ? pathname === "/" : pathname.startsWith(url)
 
   return (
@@ -62,55 +127,7 @@ export function NavMain({
       <SidebarMenu className="gap-1">
         {items.map((item) =>
           isGroup(item) ? (
-            <Collapsible
-              key={item.title}
-              // Multiple groups can stay open independently; the group holding
-              // the current route opens by default.
-              defaultOpen={item.items.some((sub) => isActive(sub.url))}
-              render={<SidebarMenuItem />}
-            >
-              <CollapsibleTrigger
-                render={
-                  <SidebarMenuButton
-                    className="group/collapsible h-9"
-                    tooltip={item.title}
-                  >
-                    {item.icon}
-                    <span>{item.title}</span>
-                    <ChevronDownIcon className="ml-auto text-sidebar-foreground/60 transition-transform duration-200 group-data-[panel-open]/collapsible:rotate-180" />
-                  </SidebarMenuButton>
-                }
-              />
-              <CollapsibleContent>
-                <SidebarMenuSub className="mx-0 gap-1 border-l-0 px-0 pl-[2.125rem]">
-                  {item.items.map((sub, i) => {
-                    // Render a small section header whenever this sub-item's
-                    // section differs from the previous (already permission-
-                    // filtered) one. Sub-items without a section render plain.
-                    const showSection =
-                      sub.section && sub.section !== item.items[i - 1]?.section
-                    return (
-                      <React.Fragment key={sub.title}>
-                        {showSection && (
-                          <SidebarGroupLabel className="h-7 px-0 text-sidebar-foreground/60">
-                            {sub.section}
-                          </SidebarGroupLabel>
-                        )}
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isActive(sub.url)}
-                            className="h-8 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary"
-                            render={<Link to={sub.url} />}
-                          >
-                            <span>{sub.title}</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </React.Fragment>
-                    )
-                  })}
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </Collapsible>
+            <NavGroup key={item.title} item={item} isActive={isActive} />
           ) : (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
