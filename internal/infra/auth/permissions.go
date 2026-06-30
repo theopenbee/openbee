@@ -7,12 +7,10 @@ const PermWildcard = "*"
 
 // Permission keys ("resource:action"). Single source of truth.
 const (
-	PermWorkersRead       = "workers:read"
-	PermWorkersWrite      = "workers:write"
+	PermContactsRead      = "contacts:read"
+	PermContactsWrite     = "contacts:write"
 	PermTasksRead         = "tasks:read"
 	PermTasksWrite        = "tasks:write"
-	PermDepartmentsRead   = "departments:read"
-	PermDepartmentsWrite  = "departments:write"
 	PermMessagesRead      = "messages:read"
 	PermChatWrite         = "chat:write"
 	PermSessionsRead      = "sessions:read"
@@ -35,10 +33,9 @@ type PermissionGroup struct {
 // PermissionCatalog returns the grouped permission catalog for the UI.
 func PermissionCatalog() []PermissionGroup {
 	return []PermissionGroup{
-		{Resource: "workers", Permissions: []string{PermWorkersRead, PermWorkersWrite}},
+		{Resource: "contacts", Permissions: []string{PermContactsRead, PermContactsWrite}},
 		{Resource: "chat", Permissions: []string{PermChatWrite}},
 		{Resource: "tasks", Permissions: []string{PermTasksRead, PermTasksWrite}},
-		{Resource: "departments", Permissions: []string{PermDepartmentsRead, PermDepartmentsWrite}},
 		{Resource: "messages", Permissions: []string{PermMessagesRead}},
 		{Resource: "sessions", Permissions: []string{PermSessionsRead, PermSessionsWrite}},
 		{Resource: "stats", Permissions: []string{PermStatsRead}},

@@ -21,7 +21,7 @@ func newTestContext(jwt *JWTService, loader UserStatusLoader, resolver *Permissi
 	r := gin.New()
 	grp := r.Group("/api")
 	grp.Use(AuthMiddleware(jwt, loader))
-	grp.GET("/secured", RequirePermission(resolver, PermWorkersRead), func(c *gin.Context) {
+	grp.GET("/secured", RequirePermission(resolver, PermContactsRead), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 	rec := httptest.NewRecorder()
@@ -49,7 +49,7 @@ func TestRequirePermission_AllowsAndDenies(t *testing.T) {
 	loader := fakeUserLoader{status: "active"}
 
 	// has permission
-	resolverYes := NewPermissionResolver(func(string) ([]string, error) { return []string{PermWorkersRead}, nil })
+	resolverYes := NewPermissionResolver(func(string) ([]string, error) { return []string{PermContactsRead}, nil })
 	r, rec := newTestContext(jwt, loader, resolverYes, pair.AccessToken)
 	req := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)

@@ -53,10 +53,10 @@ export function App() {
               <Route path="/setup" element={<Setup />} />
               <Route element={<AuthGuard><Layout /></AuthGuard>}>
                 <Route path="/" element={<Home><Dashboard /></Home>} />
-                <Route path="/workers" element={<Guard perm={Perm.WorkersRead}><Workers /></Guard>} />
-                <Route path="/workers/create" element={<Guard perm={Perm.WorkersWrite}><CreateWorker /></Guard>} />
-                <Route path="/workers/:id" element={<Guard perm={Perm.WorkersRead}><WorkerDetail /></Guard>} />
-                <Route path="/departments" element={<Guard perm={Perm.DepartmentsRead}><Departments /></Guard>} />
+                <Route path="/workers" element={<Guard perm={Perm.ContactsRead}><Workers /></Guard>} />
+                <Route path="/workers/create" element={<Guard perm={Perm.ContactsWrite}><CreateWorker /></Guard>} />
+                <Route path="/workers/:id" element={<Guard perm={Perm.ContactsRead}><WorkerDetail /></Guard>} />
+                <Route path="/departments" element={<Guard perm={Perm.ContactsRead}><Departments /></Guard>} />
                 <Route path="/users" element={<Guard perm={Perm.UsersManage}><Users /></Guard>} />
                 <Route path="/roles" element={<Guard perm={Perm.RolesManage}><Roles /></Guard>} />
                 <Route path="/sessions" element={<Guard perm={Perm.SessionsRead}><Sessions /></Guard>} />

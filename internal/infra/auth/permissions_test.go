@@ -8,7 +8,7 @@ import (
 func TestResolver_HasPermissionWildcard(t *testing.T) {
 	loader := func(uid string) ([]string, error) { return []string{"*"}, nil }
 	r := NewPermissionResolver(loader)
-	ok, err := r.HasPermission("u1", PermWorkersWrite)
+	ok, err := r.HasPermission("u1", PermContactsWrite)
 	if err != nil {
 		t.Fatalf("HasPermission: %v", err)
 	}
@@ -18,13 +18,13 @@ func TestResolver_HasPermissionWildcard(t *testing.T) {
 }
 
 func TestResolver_HasPermissionExact(t *testing.T) {
-	loader := func(uid string) ([]string, error) { return []string{PermWorkersRead}, nil }
+	loader := func(uid string) ([]string, error) { return []string{PermContactsRead}, nil }
 	r := NewPermissionResolver(loader)
-	if ok, _ := r.HasPermission("u1", PermWorkersRead); !ok {
-		t.Fatal("expected workers:read granted")
+	if ok, _ := r.HasPermission("u1", PermContactsRead); !ok {
+		t.Fatal("expected contacts:read granted")
 	}
-	if ok, _ := r.HasPermission("u1", PermWorkersWrite); ok {
-		t.Fatal("expected workers:write denied")
+	if ok, _ := r.HasPermission("u1", PermContactsWrite); ok {
+		t.Fatal("expected contacts:write denied")
 	}
 }
 
@@ -32,16 +32,16 @@ func TestResolver_CacheAndInvalidate(t *testing.T) {
 	var calls int64
 	loader := func(uid string) ([]string, error) {
 		atomic.AddInt64(&calls, 1)
-		return []string{PermWorkersRead}, nil
+		return []string{PermContactsRead}, nil
 	}
 	r := NewPermissionResolver(loader)
-	_, _ = r.HasPermission("u1", PermWorkersRead)
-	_, _ = r.HasPermission("u1", PermWorkersRead)
+	_, _ = r.HasPermission("u1", PermContactsRead)
+	_, _ = r.HasPermission("u1", PermContactsRead)
 	if atomic.LoadInt64(&calls) != 1 {
 		t.Fatalf("expected loader called once (cached), got %d", calls)
 	}
 	r.Invalidate("u1")
-	_, _ = r.HasPermission("u1", PermWorkersRead)
+	_, _ = r.HasPermission("u1", PermContactsRead)
 	if atomic.LoadInt64(&calls) != 2 {
 		t.Fatalf("expected loader called again after invalidate, got %d", calls)
 	}

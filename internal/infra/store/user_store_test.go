@@ -67,14 +67,14 @@ func TestUserStore_Count(t *testing.T) {
 
 func TestUserStore_PermissionsUnion(t *testing.T) {
 	us := setupUserStore(t)
-	writer := makeRole(t, us, "writer", []string{"workers:write", "users:manage"})
-	reader := makeRole(t, us, "reader", []string{"workers:read"})
+	writer := makeRole(t, us, "writer", []string{"contacts:write", "users:manage"})
+	reader := makeRole(t, us, "reader", []string{"contacts:read"})
 	u, _ := us.Create("carol", "pw", "Carol", "", []string{writer, reader})
 	perms, err := us.PermissionsForUser(u.ID)
 	if err != nil {
 		t.Fatalf("PermissionsForUser: %v", err)
 	}
-	if !slices.Contains(perms, "workers:write") || !slices.Contains(perms, "users:manage") {
+	if !slices.Contains(perms, "contacts:write") || !slices.Contains(perms, "users:manage") {
 		t.Fatalf("expected union perms, got %v", perms)
 	}
 }
@@ -90,7 +90,7 @@ func TestUserStore_SuperAdminWildcard(t *testing.T) {
 
 func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 	us := setupUserStore(t)
-	basic := makeRole(t, us, "basic", []string{"workers:read"})
+	basic := makeRole(t, us, "basic", []string{"contacts:read"})
 	elevated := makeRole(t, us, "elevated", []string{"users:manage"})
 	u, _ := us.Create("dave", "pw", "Dave", "", []string{basic})
 

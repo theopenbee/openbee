@@ -2,12 +2,10 @@
 // keep in sync with the Go source of truth.
 
 export const Perm = {
-  WorkersRead: "workers:read",
-  WorkersWrite: "workers:write",
+  ContactsRead: "contacts:read",
+  ContactsWrite: "contacts:write",
   TasksRead: "tasks:read",
   TasksWrite: "tasks:write",
-  DepartmentsRead: "departments:read",
-  DepartmentsWrite: "departments:write",
   MessagesRead: "messages:read",
   ChatWrite: "chat:write",
   SessionsRead: "sessions:read",

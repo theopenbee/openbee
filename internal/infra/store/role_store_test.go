@@ -18,7 +18,7 @@ func setupRoleStore(t *testing.T) *RoleStore {
 
 func TestRoleStore_CreateAndGet(t *testing.T) {
 	rs := setupRoleStore(t)
-	created, err := rs.Create(model.Role{Name: "ops"}, []string{"workers:read", "tasks:read"})
+	created, err := rs.Create(model.Role{Name: "ops"}, []string{"contacts:read", "tasks:read"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -50,9 +50,9 @@ func TestRoleStore_SeedRolesPresent(t *testing.T) {
 
 func TestRoleStore_UpdatePermissions(t *testing.T) {
 	rs := setupRoleStore(t)
-	r, _ := rs.Create(model.Role{Name: "ops"}, []string{"workers:read"})
+	r, _ := rs.Create(model.Role{Name: "ops"}, []string{"contacts:read"})
 	r.Description = "operations"
-	if err := rs.Update(r.Role, []string{"workers:read", "workers:write"}); err != nil {
+	if err := rs.Update(r.Role, []string{"contacts:read", "contacts:write"}); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	got, _ := rs.GetByID(r.ID)
@@ -71,7 +71,7 @@ func TestRoleStore_DeleteSystemRoleBlocked(t *testing.T) {
 
 func TestRoleStore_DeleteCustomRole(t *testing.T) {
 	rs := setupRoleStore(t)
-	r, _ := rs.Create(model.Role{Name: "ops"}, []string{"workers:read"})
+	r, _ := rs.Create(model.Role{Name: "ops"}, []string{"contacts:read"})
 	if err := rs.Delete(r.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}

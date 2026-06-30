@@ -14,8 +14,8 @@ type QuickLink = {
 }
 
 const LINKS: QuickLink[] = [
-  { to: "/workers", labelKey: "nav.workers", icon: <Users />, perm: Perm.WorkersRead },
-  { to: "/departments", labelKey: "nav.departments", icon: <Network />, perm: Perm.DepartmentsRead },
+  { to: "/workers", labelKey: "nav.workers", icon: <Users />, perm: Perm.ContactsRead },
+  { to: "/departments", labelKey: "nav.departments", icon: <Network />, perm: Perm.ContactsRead },
   { to: "/tasks", labelKey: "nav.tasks", icon: <CalendarClock />, perm: Perm.TasksRead },
   { to: "/sessions", labelKey: "nav.sessions", icon: <MessagesSquare />, perm: Perm.SessionsRead },
   { to: "/env", labelKey: "nav.settings", icon: <KeyRound />, perm: Perm.EnvRead },

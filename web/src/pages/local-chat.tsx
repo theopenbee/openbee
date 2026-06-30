@@ -223,7 +223,7 @@ export function LocalChat() {
   // chat but cannot browse the worker directory simply get no mention list — we
   // skip the request entirely so it never 403s and tears down the whole page.
   const { data: me } = useMe()
-  const canMention = hasPermission(me?.permissions, Perm.WorkersRead)
+  const canMention = hasPermission(me?.permissions, Perm.ContactsRead)
   const { data: workersData } = useWorkers(undefined, { enabled: canMention })
 
   useEffect(() => {

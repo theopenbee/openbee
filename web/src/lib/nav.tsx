@@ -36,8 +36,8 @@ export const NAV: NavDef[] = [
     titleKey: "nav.directory",
     icon: <ContactIcon />,
     items: [
-      { titleKey: "nav.departments", url: "/departments", perm: Perm.DepartmentsRead },
-      { titleKey: "nav.workers", url: "/workers", perm: Perm.WorkersRead },
+      { titleKey: "nav.departments", url: "/departments", perm: Perm.ContactsRead },
+      { titleKey: "nav.workers", url: "/workers", perm: Perm.ContactsRead },
     ],
   },
   { titleKey: "nav.sessions", url: "/sessions", icon: <ActivityIcon />, perm: Perm.SessionsRead },

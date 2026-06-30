@@ -51,7 +51,7 @@ func TestRoleHandler_Catalog(t *testing.T) {
 func TestRoleHandler_CreateAndDelete(t *testing.T) {
 	r, _ := newRoleServer(t)
 	body, _ := json.Marshal(map[string]any{
-		"name": "ops", "permissions": []string{"workers:read"},
+		"name": "ops", "permissions": []string{"contacts:read"},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/roles", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

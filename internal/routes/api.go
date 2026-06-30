@@ -19,12 +19,12 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/me/password", s.Auth.ChangePassword)
 
 	// Workers
-	r.POST("/workers", rp(auth.PermWorkersWrite), s.Workers.Create)
-	r.GET("/workers", rp(auth.PermWorkersRead), s.Workers.List)
-	r.GET("/workers/random-name", rp(auth.PermWorkersRead), s.Workers.RandomName)
-	r.GET("/workers/:id", rp(auth.PermWorkersRead), s.Workers.Get)
-	r.PUT("/workers/:id", rp(auth.PermWorkersWrite), s.Workers.Update)
-	r.DELETE("/workers/:id", rp(auth.PermWorkersWrite), s.Workers.Delete)
+	r.POST("/workers", rp(auth.PermContactsWrite), s.Workers.Create)
+	r.GET("/workers", rp(auth.PermContactsRead), s.Workers.List)
+	r.GET("/workers/random-name", rp(auth.PermContactsRead), s.Workers.RandomName)
+	r.GET("/workers/:id", rp(auth.PermContactsRead), s.Workers.Get)
+	r.PUT("/workers/:id", rp(auth.PermContactsWrite), s.Workers.Update)
+	r.DELETE("/workers/:id", rp(auth.PermContactsWrite), s.Workers.Delete)
 
 	// Sessions
 	r.GET("/sessions", rp(auth.PermSessionsRead), s.Executions.List)
@@ -37,14 +37,14 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/workers/:id/tasks/cancel-all", rp(auth.PermTasksWrite), s.Tasks.CancelByWorker)
 
 	// Departments
-	r.POST("/departments", rp(auth.PermDepartmentsWrite), s.Departments.Create)
-	r.GET("/departments", rp(auth.PermDepartmentsRead), s.Departments.List)
-	r.GET("/departments/:id", rp(auth.PermDepartmentsRead), s.Departments.Get)
-	r.PUT("/departments/:id", rp(auth.PermDepartmentsWrite), s.Departments.Update)
-	r.DELETE("/departments/:id", rp(auth.PermDepartmentsWrite), s.Departments.Delete)
-	r.PUT("/workers/:id/departments", rp(auth.PermDepartmentsWrite), s.Departments.SetWorkerDepartments)
-	r.GET("/workers/:id/departments", rp(auth.PermDepartmentsRead), s.Departments.GetWorkerDepartments)
-	r.GET("/departments/:id/workers", rp(auth.PermDepartmentsRead), s.Departments.GetDepartmentWorkers)
+	r.POST("/departments", rp(auth.PermContactsWrite), s.Departments.Create)
+	r.GET("/departments", rp(auth.PermContactsRead), s.Departments.List)
+	r.GET("/departments/:id", rp(auth.PermContactsRead), s.Departments.Get)
+	r.PUT("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Update)
+	r.DELETE("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Delete)
+	r.PUT("/workers/:id/departments", rp(auth.PermContactsWrite), s.Departments.SetWorkerDepartments)
+	r.GET("/workers/:id/departments", rp(auth.PermContactsRead), s.Departments.GetWorkerDepartments)
+	r.GET("/departments/:id/workers", rp(auth.PermContactsRead), s.Departments.GetDepartmentWorkers)
 
 	// Local chat — gated by a single chat:write capability (view + send),
 	// decoupled from worker-management permissions.
