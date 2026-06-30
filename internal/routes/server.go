@@ -15,7 +15,6 @@ import (
 type ServerParams struct {
 	Workers           *api.WorkerHandler
 	Executions        *api.ExecutionHandler
-	Messages          *api.MessageHandler
 	Tasks             *api.TaskHandler
 	Departments       *api.DepartmentHandler
 	Stats             *api.StatsHandler

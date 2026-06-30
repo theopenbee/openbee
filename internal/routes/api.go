@@ -53,7 +53,6 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/local/media", rp(auth.PermChatWrite), s.LocalChat.UploadMedia)
 	r.GET("/local/media/:filename", rp(auth.PermChatWrite), s.LocalChat.ServeMedia)
 	r.GET("/local/stream", rp(auth.PermChatWrite), s.LocalChat.StreamReplies)
-	r.GET("/messages", rp(auth.PermChatWrite), s.Messages.List)
 
 	// Version (any authenticated user)
 	r.GET("/version", s.Version.Get)

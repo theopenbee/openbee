@@ -390,7 +390,6 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
 		Executions:        api.NewExecutionHandler(s.execStore, s.tokenStatsStore),
-		Messages:          api.NewMessageHandler(s.msgStore),
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Stats:             api.NewStatsHandler(s.statsStore),
