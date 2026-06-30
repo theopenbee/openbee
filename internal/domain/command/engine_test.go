@@ -168,7 +168,7 @@ func TestEngineCommand_SwitchWorkerEngine(t *testing.T) {
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	if len(sender.sent) != 1 || sender.sent[0] != `已将 Worker "alice" 的 engine 切换为 codex` {
+	if len(sender.sent) != 1 || sender.sent[0] != `已将员工 "alice" 的 engine 切换为 codex` {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
 }
@@ -194,7 +194,7 @@ func TestEngineCommand_WorkerNotFound(t *testing.T) {
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	want := `Worker "nobody" 不存在`
+	want := `员工 "nobody" 不存在`
 	if len(sender.sent) != 1 || sender.sent[0] != want {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
@@ -206,7 +206,7 @@ func TestEngineCommand_NoArgs(t *testing.T) {
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定 worker 的 engine"
+	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"
 	if len(sender.sent) != 1 || sender.sent[0] != want {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
@@ -307,7 +307,7 @@ func TestEngineCommand_WorkerSwitch_NotBlockedByOtherWorker(t *testing.T) {
 		t.Fatal("expected handled=true")
 	}
 	// Should succeed, not be blocked
-	want := `已将 Worker "alice" 的 engine 切换为 codex`
+	want := `已将员工 "alice" 的 engine 切换为 codex`
 	if len(sender.sent) != 1 || sender.sent[0] != want {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
@@ -326,7 +326,7 @@ func TestEngineCommand_BusyDoesNotBlockUsage(t *testing.T) {
 	if !handled {
 		t.Fatal("expected handled=true")
 	}
-	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定 worker 的 engine"
+	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"
 	if len(sender.sent) != 1 || sender.sent[0] != want {
 		t.Errorf("unexpected reply: %v", sender.sent)
 	}
