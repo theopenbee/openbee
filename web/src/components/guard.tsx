@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useMe } from "@/hooks/use-me"
+import { useCan } from "@/hooks/use-can"
 import { hasPermission } from "@/lib/permissions"
 import { isForbidden } from "@/lib/api"
 import { PermissionDenied } from "@/components/permission-denied"
@@ -22,6 +23,20 @@ export function Guard({
   if (isLoading) return null
   if (!hasPermission(me?.permissions, perm)) return <PermissionDenied />
   return <>{children}</>
+}
+
+// Can is the inline counterpart to Guard: it renders its children only when the
+// current user holds `perm`, and nothing otherwise. Use it to hide action
+// buttons and menu items the user has no permission to act on (an undefined
+// perm renders children unconditionally).
+export function Can({
+  perm,
+  children,
+}: {
+  perm?: string
+  children: React.ReactNode
+}) {
+  return useCan(perm) ? <>{children}</> : null
 }
 
 // ForbiddenBoundary catches a 403 that a query throws after permissions drift

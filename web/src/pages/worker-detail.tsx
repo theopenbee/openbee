@@ -38,6 +38,8 @@ import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/s
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
 import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
+import { Can } from "@/components/guard"
+import { Perm } from "@/lib/permissions"
 import {
   Table,
   TableBody,
@@ -279,16 +281,18 @@ export function WorkerDetail() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
             <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
-                <Pencil className="size-4" />
-                {t("common.edit")}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
-                <Copy className="size-4" />
-                {t("common.copy")}
-              </Button>
-            </div>
+            <Can perm={Perm.ContactsWrite}>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
+                  <Pencil className="size-4" />
+                  {t("common.edit")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
+                  <Copy className="size-4" />
+                  {t("common.copy")}
+                </Button>
+              </div>
+            </Can>
           </div>
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">

@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/empty-state"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import type { Task } from "@/lib/types"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { STATUS_ROW_BORDER } from "@/lib/format"
@@ -62,6 +64,7 @@ export function TaskList({
   onPageChange,
 }: TaskListProps) {
   const { t } = useTranslation()
+  const canWrite = useCan(Perm.TasksWrite)
   const [internalPage, setInternalPage] = useState(1)
   const page = controlledPage ?? internalPage
   const setPage = onPageChange ?? setInternalPage
@@ -79,7 +82,7 @@ export function TaskList({
 
   return (
     <div>
-      {workerId && !isLoading && tasks.length > 0 && (
+      {workerId && canWrite && !isLoading && tasks.length > 0 && (
         <div className="flex justify-end mb-4">
           <Button
             variant="outline"
@@ -152,7 +155,7 @@ export function TaskList({
                       <NextRunCell task={task} />
                     </TableCell>
                     <TableCell className="text-right">
-                      {task.status === "pending" && (
+                      {task.status === "pending" && canWrite ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -162,8 +165,7 @@ export function TaskList({
                         >
                           {t("tasks.cancel")}
                         </Button>
-                      )}
-                      {task.status !== "pending" && (
+                      ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>

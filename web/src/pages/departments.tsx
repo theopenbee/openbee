@@ -1,7 +1,9 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useMemo, useState, type ComponentType, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, FolderOpenIcon, ChevronRightIcon, KeyRoundIcon, MoreHorizontalIcon } from "lucide-react"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { cn, getErrorMessage } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
@@ -40,8 +42,21 @@ const NO_PARENT_VALUE = "__no_parent__"
 
 type Mode = "idle" | "create" | "edit" | "delete"
 
+// One action in a department row's dropdown. The env entry needs only env:read
+// (it opens a panel that gates its own writes); the structural actions need
+// contacts:write. The menu is assembled by filtering, so an empty list hides
+// the trigger entirely.
+type DeptRowAction = {
+  key: string
+  icon: ComponentType<{ className?: string }>
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}
+
 export function Departments() {
   const { t } = useTranslation()
+  const canWrite = useCan(Perm.ContactsWrite)
   const { data: departments = [] } = useDepartments()
   const createDept = useCreateDepartment()
   const updateDept = useUpdateDepartment()
@@ -127,12 +142,12 @@ export function Departments() {
 
   const isFormOpen = mode === "create" || mode === "edit"
   const isDeleteOpen = mode === "delete"
-  const createButton = (
+  const createButton = canWrite ? (
     <Button onClick={() => openCreate()}>
       <PlusIcon className="size-4 mr-1" />
       {t("departments.create")}
     </Button>
-  )
+  ) : null
   const filteredDepts = useMemo(
     () => flatDepts.filter(({ dept }) => dept.id !== targetDept?.id),
     [flatDepts, targetDept?.id]
@@ -286,8 +301,25 @@ interface DepartmentRowProps {
 
 function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: DepartmentRowProps) {
   const { t } = useTranslation()
+  const canWrite = useCan(Perm.ContactsWrite)
+  const canReadEnv = useCan(Perm.EnvRead)
   const [expanded, setExpanded] = useState(true)
   const hasChildren = node.children.length > 0
+
+  const actions: DeptRowAction[] = [
+    ...(canReadEnv
+      ? [{ key: "env", icon: KeyRoundIcon, label: t("envConfig.depEnvTitle"), onClick: () => onEnv(node) }]
+      : []),
+    ...(canWrite
+      ? [
+          { key: "addChild", icon: PlusIcon, label: t("departments.addChild"), onClick: () => onCreateChild(node.id) },
+          { key: "rename", icon: PencilIcon, label: t("departments.rename"), onClick: () => onEdit(node) },
+          { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => onDelete(node) },
+        ]
+      : []),
+  ]
+  const normalActions = actions.filter((a) => !a.destructive)
+  const dangerActions = actions.filter((a) => a.destructive)
 
   return (
     <div>
@@ -313,39 +345,37 @@ function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: Departm
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
         <span className="flex-1 truncate text-sm">{node.name}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground"
-                aria-label={t("departments.rowActions")}
-              />
-            }
-          >
-            <MoreHorizontalIcon className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-40">
-            <DropdownMenuItem onClick={() => onEnv(node)}>
-              <KeyRoundIcon className="size-3.5" />
-              {t("envConfig.depEnvTitle")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreateChild(node.id)}>
-              <PlusIcon className="size-3.5" />
-              {t("departments.addChild")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onEdit(node)}>
-              <PencilIcon className="size-3.5" />
-              {t("departments.rename")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
-              <Trash2Icon className="size-3.5" />
-              {t("common.delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {actions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground"
+                  aria-label={t("departments.rowActions")}
+                />
+              }
+            >
+              <MoreHorizontalIcon className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              {normalActions.map((action) => (
+                <DropdownMenuItem key={action.key} onClick={action.onClick}>
+                  <action.icon className="size-3.5" />
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+              {dangerActions.length > 0 && normalActions.length > 0 && <DropdownMenuSeparator />}
+              {dangerActions.map((action) => (
+                <DropdownMenuItem key={action.key} variant="destructive" onClick={action.onClick}>
+                  <action.icon className="size-3.5" />
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {expanded && hasChildren && (

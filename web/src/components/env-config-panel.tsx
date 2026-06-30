@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/table"
 import { cn, getErrorMessage } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import type { EnvConfig, EnvScope } from "@/lib/types"
 
 function ValueHints({ value }: { value: string }) {
@@ -272,6 +274,7 @@ interface EnvConfigPanelProps {
 
 export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
   const { t } = useTranslation()
+  const canWrite = useCan(Perm.EnvWrite)
   const { data: envs = [], isLoading } = useEnvList(scope, scopeId)
   const deleteEnv = useDeleteEnv(scope, scopeId)
 
@@ -296,10 +299,12 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
         <div className="min-w-0">
           {title && <p className={EYEBROW_LABEL}>{title}</p>}
         </div>
-        <Button size="sm" className="shrink-0" onClick={() => setAddDialogOpen(true)}>
-          <PlusIcon className="size-3.5" />
-          {t("envConfig.add")}
-        </Button>
+        {canWrite && (
+          <Button size="sm" className="shrink-0" onClick={() => setAddDialogOpen(true)}>
+            <PlusIcon className="size-3.5" />
+            {t("envConfig.add")}
+          </Button>
+        )}
       </div>
 
       {!isLoading && envs.length === 0 && (
@@ -314,7 +319,9 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
               <TableRow>
                 <TableHead>{t("envConfig.key")}</TableHead>
                 <TableHead>{t("envConfig.masked")}</TableHead>
-                <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
+                {canWrite && (
+                  <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -322,26 +329,28 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
                 <TableRow key={env.id}>
                   <TableCell className="font-mono text-sm">{env.key}</TableCell>
                   <TableCell className="font-mono text-sm text-muted-foreground">{env.masked}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => setEditTarget(env)}
-                        title={t("common.edit")}
-                      >
-                        <PencilIcon className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => setDeleteTarget(env)}
-                        title={t("common.delete")}
-                      >
-                        <Trash2Icon className="size-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canWrite && (
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setEditTarget(env)}
+                          title={t("common.edit")}
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setDeleteTarget(env)}
+                          title={t("common.delete")}
+                        >
+                          <Trash2Icon className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
