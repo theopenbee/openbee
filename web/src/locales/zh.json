@@ -402,6 +402,10 @@
     "empty": "暂无角色，创建一个开始使用。",
     "rowActions": "角色操作",
     "system": "系统",
+    "superadmin": {
+      "name": "超级管理员",
+      "description": "拥有全部权限，不可删除或降级"
+    },
     "allPermissions": "全部权限",
     "noPermissions": "无权限",
     "noPermissionsAvailable": "暂无可用权限。",

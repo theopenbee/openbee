@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS bee_user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 INSERT OR IGNORE INTO bee_roles (id, name, description, is_system, created_at, updated_at) VALUES
-    ('sysrole_superadmin', 'super-admin', 'Full access; cannot be deleted or downgraded', 1, CAST(strftime('%s','now') AS INTEGER)*1000, CAST(strftime('%s','now') AS INTEGER)*1000);
+    ('sysrole_superadmin', 'roles.superadmin.name', 'roles.superadmin.description', 1, CAST(strftime('%s','now') AS INTEGER)*1000, CAST(strftime('%s','now') AS INTEGER)*1000);
 INSERT OR IGNORE INTO bee_role_permissions (role_id, permission) VALUES
     ('sysrole_superadmin', '*');
 `,

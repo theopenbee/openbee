@@ -403,6 +403,10 @@
     "empty": "No roles yet. Create one to get started.",
     "rowActions": "Role actions",
     "system": "System",
+    "superadmin": {
+      "name": "Super Admin",
+      "description": "Full access; cannot be deleted or downgraded"
+    },
     "allPermissions": "All permissions",
     "noPermissions": "No permissions",
     "noPermissionsAvailable": "No permissions available.",

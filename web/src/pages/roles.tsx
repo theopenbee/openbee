@@ -10,6 +10,7 @@ import {
   useDeleteRole,
 } from "@/hooks/use-roles"
 import { getErrorMessage } from "@/lib/utils"
+import { roleLabel, roleDescription } from "@/lib/roles"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
@@ -158,7 +159,7 @@ export function Roles() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{role.name}</span>
+                        <span className="font-medium">{roleLabel(role, t)}</span>
                         {role.is_system && (
                           <Badge variant="outline">
                             <LockIcon className="size-3" />
@@ -167,7 +168,7 @@ export function Roles() {
                         )}
                       </div>
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        {role.description || t("common.noDescription")}
+                        {roleDescription(role, t) || t("common.noDescription")}
                       </p>
                     </div>
                     {!role.is_system && (

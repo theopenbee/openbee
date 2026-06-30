@@ -20,6 +20,7 @@ import {
 } from "@/hooks/use-users"
 import { useRoles } from "@/hooks/use-roles"
 import { getErrorMessage } from "@/lib/utils"
+import { roleLabel, roleDescription } from "@/lib/roles"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
@@ -84,10 +85,10 @@ function RoleCheckboxes({
             onChange={() => onToggle(role.id)}
           />
           <span className="min-w-0">
-            <span className="block text-sm">{role.name}</span>
+            <span className="block text-sm">{roleLabel(role, t)}</span>
             {role.description && (
               <span className="block truncate text-xs text-muted-foreground">
-                {role.description}
+                {roleDescription(role, t)}
               </span>
             )}
           </span>
@@ -263,7 +264,7 @@ export function Users() {
                         ) : (
                           user.roles.map((r) => (
                             <Badge key={r.id} variant="outline">
-                              {r.name}
+                              {roleLabel(r, t)}
                             </Badge>
                           ))
                         )}
