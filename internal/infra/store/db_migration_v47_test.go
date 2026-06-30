@@ -23,8 +23,8 @@ func TestMigrationV47_TablesAndSeedRoles(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM bee_roles`).Scan(&roleCount); err != nil {
 		t.Fatalf("count roles: %v", err)
 	}
-	if roleCount != 3 {
-		t.Fatalf("expected 3 seed roles, got %d", roleCount)
+	if roleCount != 1 {
+		t.Fatalf("expected 1 seed role, got %d", roleCount)
 	}
 
 	var wildcard int

@@ -22,7 +22,7 @@ func newAuthTestServer(t *testing.T) (*gin.Engine, *store.UserStore, *auth.JWTSe
 	}
 	t.Cleanup(func() { db.Close() })
 	us := store.NewUserStore(db)
-	if _, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDAdmin}); err != nil {
+	if _, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin}); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 	jwtSvc := auth.NewJWTService("secret", time.Hour, 24*time.Hour)

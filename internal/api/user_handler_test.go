@@ -39,7 +39,7 @@ func TestUserHandler_CreateAndList(t *testing.T) {
 	r, _ := newUserServer(t)
 	body, _ := json.Marshal(map[string]any{
 		"username": "bob", "password": "bobpw1", "display_name": "Bob",
-		"role_ids": []string{model.RoleIDMember},
+		"role_ids": []string{model.RoleIDSuperAdmin},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/users", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

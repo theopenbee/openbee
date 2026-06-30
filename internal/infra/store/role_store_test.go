@@ -40,8 +40,11 @@ func TestRoleStore_SeedRolesPresent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(roles) != 3 {
-		t.Fatalf("expected 3 seed roles, got %d", len(roles))
+	if len(roles) != 1 {
+		t.Fatalf("expected 1 seed role, got %d", len(roles))
+	}
+	if roles[0].ID != model.RoleIDSuperAdmin {
+		t.Fatalf("expected super-admin seed role, got %s", roles[0].ID)
 	}
 }
 

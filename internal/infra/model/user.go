@@ -40,9 +40,5 @@ const (
 	UserStatusDisabled = "disabled"
 )
 
-// Seed system role IDs (inserted by migration v47).
-const (
-	RoleIDSuperAdmin = "sysrole_superadmin"
-	RoleIDAdmin      = "sysrole_admin"
-	RoleIDMember     = "sysrole_member"
-)
+// RoleIDSuperAdmin is the sole seed system role (inserted by migration v47).
+const RoleIDSuperAdmin = "sysrole_superadmin"

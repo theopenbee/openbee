@@ -17,9 +17,19 @@ func setupUserStore(t *testing.T) *UserStore {
 	return NewUserStore(db)
 }
 
+// makeRole creates a custom role with the given permissions and returns its ID.
+func makeRole(t *testing.T, us *UserStore, name string, perms []string) string {
+	t.Helper()
+	r, err := NewRoleStore(us.db).Create(model.Role{Name: name}, perms)
+	if err != nil {
+		t.Fatalf("create role %s: %v", name, err)
+	}
+	return r.ID
+}
+
 func TestUserStore_CreateAndAuthenticate(t *testing.T) {
 	us := setupUserStore(t)
-	u, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDAdmin})
+	u, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -48,7 +58,7 @@ func TestUserStore_Count(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("expected 0 users, got %d", n)
 	}
-	_, _ = us.Create("bob", "pw", "Bob", "", []string{model.RoleIDMember})
+	_, _ = us.Create("bob", "pw", "Bob", "", []string{model.RoleIDSuperAdmin})
 	n, _ = us.Count()
 	if n != 1 {
 		t.Fatalf("expected 1 user, got %d", n)
@@ -57,13 +67,15 @@ func TestUserStore_Count(t *testing.T) {
 
 func TestUserStore_PermissionsUnion(t *testing.T) {
 	us := setupUserStore(t)
-	u, _ := us.Create("carol", "pw", "Carol", "", []string{model.RoleIDAdmin, model.RoleIDMember})
+	writer := makeRole(t, us, "writer", []string{"workers:write", "users:manage"})
+	reader := makeRole(t, us, "reader", []string{"workers:read"})
+	u, _ := us.Create("carol", "pw", "Carol", "", []string{writer, reader})
 	perms, err := us.PermissionsForUser(u.ID)
 	if err != nil {
 		t.Fatalf("PermissionsForUser: %v", err)
 	}
 	if !slices.Contains(perms, "workers:write") || !slices.Contains(perms, "users:manage") {
-		t.Fatalf("expected admin perms in union, got %v", perms)
+		t.Fatalf("expected union perms, got %v", perms)
 	}
 }
 
@@ -78,14 +90,16 @@ func TestUserStore_SuperAdminWildcard(t *testing.T) {
 
 func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 	us := setupUserStore(t)
-	u, _ := us.Create("dave", "pw", "Dave", "", []string{model.RoleIDMember})
+	basic := makeRole(t, us, "basic", []string{"workers:read"})
+	elevated := makeRole(t, us, "elevated", []string{"users:manage"})
+	u, _ := us.Create("dave", "pw", "Dave", "", []string{basic})
 
-	if err := us.SetRoles(u.ID, []string{model.RoleIDAdmin}); err != nil {
+	if err := us.SetRoles(u.ID, []string{elevated}); err != nil {
 		t.Fatalf("SetRoles: %v", err)
 	}
 	perms, _ := us.PermissionsForUser(u.ID)
 	if !slices.Contains(perms, "users:manage") {
-		t.Fatal("expected admin perms after SetRoles")
+		t.Fatal("expected elevated perms after SetRoles")
 	}
 
 	if err := us.SetStatus(u.ID, model.UserStatusDisabled); err != nil {
@@ -106,7 +120,7 @@ func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 
 func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	us := setupUserStore(t)
-	u, _ := us.Create("erin", "pw", "Erin", "", []string{model.RoleIDMember})
+	u, _ := us.Create("erin", "pw", "Erin", "", []string{model.RoleIDSuperAdmin})
 	if err := us.Delete(u.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
