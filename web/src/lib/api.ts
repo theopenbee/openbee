@@ -242,6 +242,8 @@ export const api = {
     },
     create: (data: { username: string; password: string; display_name?: string; role_ids?: string[] }) =>
       fetchAPI<UserWithRoles>("/users", { method: "POST", body: JSON.stringify(data) }),
+    updateProfile: (id: string, data: { username: string; display_name?: string }) =>
+      fetchAPI<void>(`/users/${id}/profile`, { method: "PUT", body: JSON.stringify(data) }),
     setRoles: (id: string, roleIds: string[]) =>
       fetchAPI<UserWithRoles>(`/users/${id}/roles`, {
         method: "PUT",

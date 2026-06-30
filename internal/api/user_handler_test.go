@@ -28,6 +28,7 @@ func newUserServer(t *testing.T) (*gin.Engine, *store.UserStore) {
 	r := gin.New()
 	r.GET("/api/users", h.List)
 	r.POST("/api/users", h.Create)
+	r.PUT("/api/users/:id/profile", h.UpdateProfile)
 	r.PUT("/api/users/:id/roles", h.SetRoles)
 	r.PUT("/api/users/:id/status", h.SetStatus)
 	r.POST("/api/users/:id/password", h.ResetPassword)
@@ -55,6 +56,60 @@ func TestUserHandler_CreateAndList(t *testing.T) {
 	_ = json.Unmarshal(rec2.Body.Bytes(), &users)
 	if len(users) != 1 || users[0].Username != "bob" {
 		t.Fatalf("unexpected users: %+v", users)
+	}
+}
+
+func TestUserHandler_UpdateProfile(t *testing.T) {
+	r, us := newUserServer(t)
+	u, _ := us.Create("alice", "alicepw", "Alice", "", nil)
+
+	body, _ := json.Marshal(map[string]any{"username": "alice2", "display_name": "Alice Two"})
+	req := httptest.NewRequest(http.MethodPut, "/api/users/"+u.ID+"/profile", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	got, _ := us.GetByID(u.ID)
+	if got.Username != "alice2" || got.DisplayName != "Alice Two" {
+		t.Fatalf("profile not updated: %+v", got.User)
+	}
+}
+
+func TestUserHandler_UpdateProfile_UsernameTaken(t *testing.T) {
+	r, us := newUserServer(t)
+	_, _ = us.Create("taken", "pw1234", "Taken", "", nil)
+	u, _ := us.Create("free", "pw1234", "Free", "", nil)
+
+	body, _ := json.Marshal(map[string]any{"username": "taken"})
+	req := httptest.NewRequest(http.MethodPut, "/api/users/"+u.ID+"/profile", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Code != "username_taken" {
+		t.Fatalf("expected code username_taken, got %q", resp.Code)
+	}
+}
+
+func TestUserHandler_UpdateProfile_BlankUsername(t *testing.T) {
+	r, us := newUserServer(t)
+	u, _ := us.Create("blanktest", "pw1234", "Blank", "", nil)
+
+	body, _ := json.Marshal(map[string]any{"username": "   "})
+	req := httptest.NewRequest(http.MethodPut, "/api/users/"+u.ID+"/profile", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for blank username, got %d", rec.Code)
 	}
 }
 

@@ -24,6 +24,24 @@ export function useCreateUser() {
   })
 }
 
+export function useUpdateUserProfile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      username,
+      displayName,
+    }: {
+      id: string
+      username: string
+      displayName?: string
+    }) => api.users.updateProfile(id, { username, display_name: displayName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
 export function useSetUserRoles() {
   const queryClient = useQueryClient()
   return useMutation({

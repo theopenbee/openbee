@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -134,6 +136,25 @@ func (s *UserStore) SetStatus(id, status string) error {
 	_, err := s.db.Exec(`UPDATE bee_users SET status = ?, updated_at = ? WHERE id = ?`,
 		status, time.Now().UnixMilli(), id)
 	return err
+}
+
+// UpdateProfile changes a user's login username and display name. It returns a
+// coded username_taken error when the new username collides with another user
+// (the bee_users.username UNIQUE constraint), or user_not_found when no row
+// matches id.
+func (s *UserStore) UpdateProfile(id, username, displayName string) error {
+	res, err := s.db.Exec(`UPDATE bee_users SET username = ?, display_name = ?, updated_at = ? WHERE id = ?`,
+		username, displayName, time.Now().UnixMilli(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return apperr.New("username_taken", "username already taken")
+		}
+		return fmt.Errorf("update user profile: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return apperr.New("user_not_found", "user not found")
+	}
+	return nil
 }
 
 func (s *UserStore) SetPassword(id, plainPassword string) error {

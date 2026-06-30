@@ -77,6 +77,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	// User & role administration
 	r.GET("/users", rp(auth.PermUsersManage), s.Users.List)
 	r.POST("/users", rp(auth.PermUsersManage), s.Users.Create)
+	r.PUT("/users/:id/profile", rp(auth.PermUsersManage), s.Users.UpdateProfile)
 	r.PUT("/users/:id/roles", rp(auth.PermUsersManage), s.Users.SetRoles)
 	r.PUT("/users/:id/status", rp(auth.PermUsersManage), s.Users.SetStatus)
 	r.POST("/users/:id/password", rp(auth.PermUsersManage), s.Users.ResetPassword)

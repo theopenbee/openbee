@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
   PlusIcon,
+  PencilIcon,
   Trash2Icon,
   KeyRoundIcon,
   ShieldIcon,
@@ -13,6 +14,7 @@ import {
 import {
   useUsers,
   useCreateUser,
+  useUpdateUserProfile,
   useSetUserRoles,
   useSetUserStatus,
   useSetUserPassword,
@@ -54,7 +56,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { Role, UserWithRoles } from "@/lib/types"
 
-type Mode = "idle" | "create" | "roles" | "password" | "delete"
+type Mode = "idle" | "create" | "edit" | "roles" | "password" | "delete"
 
 const MIN_PASSWORD_LENGTH = 6
 
@@ -103,6 +105,7 @@ export function Users() {
   const { data: users = [] } = useUsers()
   const { data: roles = [] } = useRoles()
   const createUser = useCreateUser()
+  const updateProfile = useUpdateUserProfile()
   const setRoles = useSetUserRoles()
   const setStatus = useSetUserStatus()
   const setPassword = useSetUserPassword()
@@ -135,6 +138,14 @@ export function Users() {
   const openCreate = () => {
     resetForm()
     setMode("create")
+  }
+
+  const openEdit = (user: UserWithRoles) => {
+    setError("")
+    setTarget(user)
+    setUsername(user.username)
+    setDisplayName(user.display_name)
+    setMode("edit")
   }
 
   const openRoles = (user: UserWithRoles) => {
@@ -171,6 +182,22 @@ export function Users() {
         role_ids: roleIds,
       })
       toast.success(t("users.created"))
+      resetForm()
+    } catch (err) {
+      setError(getErrorMessage(err))
+    }
+  }
+
+  const handleSaveProfile = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!target || !username.trim()) return
+    try {
+      await updateProfile.mutateAsync({
+        id: target.id,
+        username: username.trim(),
+        displayName: displayName.trim() || undefined,
+      })
+      toast.success(t("users.profileUpdated"))
       resetForm()
     } catch (err) {
       setError(getErrorMessage(err))
@@ -297,6 +324,10 @@ export function Users() {
                           <MoreHorizontalIcon className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuItem onClick={() => openEdit(user)}>
+                            <PencilIcon className="size-3.5" />
+                            {t("users.editProfile")}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openRoles(user)}>
                             <ShieldIcon className="size-3.5" />
                             {t("users.editRoles")}
@@ -387,6 +418,49 @@ export function Users() {
                 </Button>
                 <Button type="submit" disabled={!canCreate || createUser.isPending}>
                   {t("users.create")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit profile */}
+        <Dialog open={mode === "edit"} onOpenChange={(open) => { if (!open) resetForm() }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("users.editProfile")}</DialogTitle>
+              <DialogDescription>
+                {t("users.editProfileDescription", { name: target?.username })}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-user-username">{t("users.form.username")}</Label>
+                <Input
+                  id="edit-user-username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={t("users.form.usernamePlaceholder")}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-user-display-name">{t("users.form.displayName")}</Label>
+                <Input
+                  id="edit-user-display-name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("users.form.displayNamePlaceholder")}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={resetForm}>
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit" disabled={!username.trim() || updateProfile.isPending}>
+                  {t("common.save")}
                 </Button>
               </DialogFooter>
             </form>

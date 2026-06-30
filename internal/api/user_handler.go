@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/apperr"
@@ -53,6 +54,37 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, user)
+}
+
+type updateProfileRequest struct {
+	Username    string `json:"username" binding:"required"`
+	DisplayName string `json:"display_name"`
+}
+
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	id := c.Param("id")
+	var req updateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		respondError(c, http.StatusBadRequest, apperr.New("username_required", "username is required"))
+		return
+	}
+	if err := h.users.UpdateProfile(id, username, strings.TrimSpace(req.DisplayName)); err != nil {
+		switch apperr.Code(err) {
+		case "username_taken":
+			respondError(c, http.StatusConflict, err)
+		case "user_not_found":
+			respondError(c, http.StatusNotFound, err)
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 type setRolesRequest struct {
