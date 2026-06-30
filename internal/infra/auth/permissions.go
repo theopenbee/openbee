@@ -117,6 +117,21 @@ func (r *PermissionResolver) HasPermission(userID, perm string) (bool, error) {
 	return ok, nil
 }
 
+// HasAnyPermission reports whether the user holds at least one of perms (or the
+// wildcard). With no perms it returns false.
+func (r *PermissionResolver) HasAnyPermission(userID string, perms ...string) (bool, error) {
+	for _, perm := range perms {
+		ok, err := r.HasPermission(userID, perm)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // PermissionsFor returns the user's resolved permission keys (for /api/me).
 func (r *PermissionResolver) PermissionsFor(userID string) ([]string, error) {
 	set, err := r.permSet(userID)

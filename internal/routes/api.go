@@ -12,7 +12,7 @@ func (s *Server) registerAuthRoutes() {
 }
 
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
-	rp := func(perm string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perm) }
+	rp := func(perms ...string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perms...) }
 
 	// Current-user endpoints (any authenticated user)
 	r.GET("/me", s.Auth.Me)
@@ -81,7 +81,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.DELETE("/users/:id", rp(auth.PermUsersManage), s.Users.Delete)
 
 	r.GET("/permissions", rp(auth.PermRolesManage), s.Roles.Catalog)
-	r.GET("/roles", rp(auth.PermRolesManage), s.Roles.List)
+	// User management needs to read the role catalog to assign roles, so the
+	// list is readable by user-managers too; mutations stay roles:manage-only.
+	r.GET("/roles", rp(auth.PermRolesManage, auth.PermUsersManage), s.Roles.List)
 	r.POST("/roles", rp(auth.PermRolesManage), s.Roles.Create)
 	r.PUT("/roles/:id", rp(auth.PermRolesManage), s.Roles.Update)
 	r.DELETE("/roles/:id", rp(auth.PermRolesManage), s.Roles.Delete)

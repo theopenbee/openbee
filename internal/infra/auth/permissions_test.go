@@ -28,6 +28,32 @@ func TestResolver_HasPermissionExact(t *testing.T) {
 	}
 }
 
+func TestResolver_HasAnyPermission(t *testing.T) {
+	loader := func(uid string) ([]string, error) { return []string{PermUsersManage}, nil }
+	r := NewPermissionResolver(loader)
+
+	// Holds one of the listed perms -> granted.
+	if ok, _ := r.HasAnyPermission("u1", PermRolesManage, PermUsersManage); !ok {
+		t.Fatal("expected any-of {roles:manage, users:manage} granted via users:manage")
+	}
+	// Holds none of the listed perms -> denied.
+	if ok, _ := r.HasAnyPermission("u1", PermRolesManage, PermContactsWrite); ok {
+		t.Fatal("expected any-of {roles:manage, contacts:write} denied")
+	}
+	// No perms supplied -> denied.
+	if ok, _ := r.HasAnyPermission("u1"); ok {
+		t.Fatal("expected no-perms any-of to be denied")
+	}
+}
+
+func TestResolver_HasAnyPermissionWildcard(t *testing.T) {
+	loader := func(uid string) ([]string, error) { return []string{"*"}, nil }
+	r := NewPermissionResolver(loader)
+	if ok, _ := r.HasAnyPermission("u1", PermRolesManage); !ok {
+		t.Fatal("wildcard should satisfy any-of")
+	}
+}
+
 func TestResolver_CacheAndInvalidate(t *testing.T) {
 	var calls int64
 	loader := func(uid string) ([]string, error) {

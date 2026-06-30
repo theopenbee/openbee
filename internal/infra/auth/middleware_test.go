@@ -43,6 +43,43 @@ func TestAuthMiddleware_RejectsDisabledUser(t *testing.T) {
 	}
 }
 
+func TestRequirePermission_AnyOf(t *testing.T) {
+	jwt := NewJWTService("s", time.Hour, time.Hour)
+	pair, _ := jwt.GenerateUserTokenPair("u1")
+	loader := fakeUserLoader{status: "active"}
+
+	newAnyOfCtx := func(resolver *PermissionResolver) (*gin.Engine, *httptest.ResponseRecorder) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+		grp := r.Group("/api")
+		grp.Use(AuthMiddleware(jwt, loader))
+		grp.GET("/roles", RequirePermission(resolver, PermRolesManage, PermUsersManage), func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+		return r, httptest.NewRecorder()
+	}
+
+	// Only users:manage -> still allowed to read the role list (any-of).
+	resolverUsers := NewPermissionResolver(func(string) ([]string, error) { return []string{PermUsersManage}, nil })
+	r, rec := newAnyOfCtx(resolverUsers)
+	req := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected users:manage to read roles (200), got %d", rec.Code)
+	}
+
+	// Neither perm -> 403.
+	resolverNone := NewPermissionResolver(func(string) ([]string, error) { return []string{PermContactsRead}, nil })
+	r2, rec2 := newAnyOfCtx(resolverNone)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
+	req2.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	r2.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 without roles:manage or users:manage, got %d", rec2.Code)
+	}
+}
+
 func TestRequirePermission_AllowsAndDenies(t *testing.T) {
 	jwt := NewJWTService("s", time.Hour, time.Hour)
 	pair, _ := jwt.GenerateUserTokenPair("u1")

@@ -36,15 +36,17 @@ func AuthMiddleware(jwtSvc *JWTService, users UserStatusLoader) gin.HandlerFunc 
 	}
 }
 
-// RequirePermission aborts with 403 unless the current user holds perm.
-func RequirePermission(resolver *PermissionResolver, perm string) gin.HandlerFunc {
+// RequirePermission aborts with 403 unless the current user holds at least one
+// of perms. Multiple perms are OR-ed (any one grants access); pass a single
+// perm for the common case.
+func RequirePermission(resolver *PermissionResolver, perms ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uid := UserID(c)
 		if uid == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		ok, err := resolver.HasPermission(uid, perm)
+		ok, err := resolver.HasAnyPermission(uid, perms...)
 		if err != nil || !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
