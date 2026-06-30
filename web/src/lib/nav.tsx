@@ -5,6 +5,7 @@ import {
   ClockIcon,
   MessageCircleIcon,
   ContactIcon,
+  BotIcon,
   Settings2Icon,
 } from "lucide-react"
 
@@ -33,11 +34,17 @@ export const NAV: NavDef[] = [
   { titleKey: "nav.dashboard", url: "/", icon: <LayoutDashboardIcon />, perm: Perm.StatsRead },
   { titleKey: "localChat.title", url: "/chat", icon: <MessageCircleIcon />, perm: Perm.ChatWrite },
   {
-    titleKey: "nav.directory",
-    icon: <ContactIcon />,
+    titleKey: "nav.digitalEmployees",
+    icon: <BotIcon />,
     items: [
       { titleKey: "nav.departments", url: "/departments", perm: Perm.ContactsRead },
       { titleKey: "nav.workers", url: "/workers", perm: Perm.ContactsRead },
+    ],
+  },
+  {
+    titleKey: "nav.directory",
+    icon: <ContactIcon />,
+    items: [
       { titleKey: "nav.users", url: "/users", perm: Perm.UsersManage },
       { titleKey: "nav.roles", url: "/roles", perm: Perm.RolesManage },
     ],
