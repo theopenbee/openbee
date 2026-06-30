@@ -19,12 +19,13 @@ async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response>
 
   let res = await fetch(url, { ...init, headers })
 
-  if (res.status === 401 && getRefreshToken()) {
-    const newToken = await refreshAccessToken()
+  if (res.status === 401) {
+    const newToken = getRefreshToken() ? await refreshAccessToken() : null
     if (newToken) {
       headers.set("Authorization", `Bearer ${newToken}`)
       res = await fetch(url, { ...init, headers })
-    } else {
+    }
+    if (res.status === 401) {
       redirectToLogin()
       throw new Error("unauthorized")
     }
