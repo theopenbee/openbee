@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   Avatar,
@@ -20,8 +19,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronsUpDownIcon, ChevronDownIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react"
-import { useQueryClient } from "@tanstack/react-query"
-import { clearTokens } from "@/lib/auth"
+import { useLogout } from "@/hooks/use-logout"
 import { useThemeToggle } from "@/hooks/use-theme-toggle"
 
 export function NavUser({
@@ -33,8 +31,7 @@ export function NavUser({
   variant?: "sidebar" | "bar"
 }) {
   const { isMobile } = useSidebar()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const logout = useLogout()
   const { t } = useTranslation()
   const { theme, toggle: toggleTheme } = useThemeToggle()
 
@@ -44,14 +41,6 @@ export function NavUser({
       <AvatarFallback className="rounded-sm">{initials}</AvatarFallback>
     </Avatar>
   )
-
-  const handleLogout = () => {
-    clearTokens()
-    // Drop cached per-user data (current user, permissions, user/role lists) so a
-    // subsequent login in the same tab never sees the previous user's state.
-    queryClient.clear()
-    navigate("/login", { replace: true })
-  }
 
   // The dropdown opens downward in the topbar and on mobile, but to the side
   // when anchored to the desktop sidebar row.
@@ -78,7 +67,7 @@ export function NavUser({
         {theme === "dark" ? t("theme.light", "Light mode") : t("theme.dark", "Dark mode")}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={handleLogout}>
+      <DropdownMenuItem onClick={logout}>
         <LogOutIcon className="size-4" />
         {t("login.logout", "Log out")}
       </DropdownMenuItem>

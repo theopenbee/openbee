@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { LockIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { clearTokens } from "@/lib/auth"
+import { useLogout } from "@/hooks/use-logout"
 
 // NoAccessLanding is the safety net for an account with no reachable page at
 // all. The home resolver shows it instead of redirecting, so an account with
@@ -9,11 +9,7 @@ import { clearTokens } from "@/lib/auth"
 // is ungated) this is unreachable, but it keeps a future, stricter config safe.
 export function NoAccessLanding() {
   const { t } = useTranslation()
-
-  function logout() {
-    clearTokens()
-    window.location.hash = "#/login"
-  }
+  const logout = useLogout()
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
