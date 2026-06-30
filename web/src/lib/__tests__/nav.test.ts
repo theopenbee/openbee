@@ -7,19 +7,23 @@ describe("firstAccessiblePath", () => {
     expect(firstAccessiblePath(["*"])).toBe("/")
   })
 
-  it("skips the stats-gated dashboard and lands on chat when stats:read is missing", () => {
-    // /chat carries no perm, so it is the universal fallback landing page.
-    expect(firstAccessiblePath([])).toBe("/chat")
+  it("lands on chat when the user holds chat:write but not stats:read", () => {
+    // /chat is gated on chat:write and sits above tasks/departments in nav order.
+    expect(firstAccessiblePath([Perm.ChatWrite])).toBe("/chat")
   })
 
-  it("still prefers the ungated chat over a held deeper permission", () => {
-    // chat sits above tasks/departments in nav order and is always reachable.
-    expect(firstAccessiblePath([Perm.TasksRead])).toBe("/chat")
-    expect(firstAccessiblePath([Perm.DepartmentsRead])).toBe("/chat")
+  it("prefers gated chat over a held deeper permission", () => {
+    expect(firstAccessiblePath([Perm.ChatWrite, Perm.TasksRead])).toBe("/chat")
   })
 
-  it("treats undefined perms the same as none — chat remains reachable", () => {
-    expect(firstAccessiblePath(undefined)).toBe("/chat")
+  it("skips chat when chat:write is missing and lands on the next accessible page", () => {
+    expect(firstAccessiblePath([Perm.TasksRead])).toBe("/tasks")
+    expect(firstAccessiblePath([Perm.DepartmentsRead])).toBe("/departments")
+  })
+
+  it("returns undefined when no permissions grant any page", () => {
+    expect(firstAccessiblePath([])).toBeUndefined()
+    expect(firstAccessiblePath(undefined)).toBeUndefined()
   })
 })
 

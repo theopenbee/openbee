@@ -46,12 +46,13 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/workers/:id/departments", rp(auth.PermDepartmentsRead), s.Departments.GetWorkerDepartments)
 	r.GET("/departments/:id/workers", rp(auth.PermDepartmentsRead), s.Departments.GetDepartmentWorkers)
 
-	// Local chat (treated as worker interaction)
-	r.POST("/local/messages", rp(auth.PermWorkersWrite), s.LocalChat.SendMessage)
-	r.GET("/local/messages", rp(auth.PermWorkersRead), s.LocalChat.GetMessages)
-	r.POST("/local/media", rp(auth.PermWorkersWrite), s.LocalChat.UploadMedia)
-	r.GET("/local/media/:filename", rp(auth.PermWorkersRead), s.LocalChat.ServeMedia)
-	r.GET("/local/stream", rp(auth.PermWorkersRead), s.LocalChat.StreamReplies)
+	// Local chat — gated by a single chat:write capability (view + send),
+	// decoupled from worker-management permissions.
+	r.POST("/local/messages", rp(auth.PermChatWrite), s.LocalChat.SendMessage)
+	r.GET("/local/messages", rp(auth.PermChatWrite), s.LocalChat.GetMessages)
+	r.POST("/local/media", rp(auth.PermChatWrite), s.LocalChat.UploadMedia)
+	r.GET("/local/media/:filename", rp(auth.PermChatWrite), s.LocalChat.ServeMedia)
+	r.GET("/local/stream", rp(auth.PermChatWrite), s.LocalChat.StreamReplies)
 
 	// Messages
 	r.GET("/messages", rp(auth.PermMessagesRead), s.Messages.List)

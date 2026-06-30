@@ -14,6 +14,7 @@ const (
 	PermDepartmentsRead   = "departments:read"
 	PermDepartmentsWrite  = "departments:write"
 	PermMessagesRead      = "messages:read"
+	PermChatWrite         = "chat:write"
 	PermSessionsRead      = "sessions:read"
 	PermSessionsWrite     = "sessions:write"
 	PermStatsRead         = "stats:read"
@@ -35,6 +36,7 @@ type PermissionGroup struct {
 func PermissionCatalog() []PermissionGroup {
 	return []PermissionGroup{
 		{Resource: "workers", Permissions: []string{PermWorkersRead, PermWorkersWrite}},
+		{Resource: "chat", Permissions: []string{PermChatWrite}},
 		{Resource: "tasks", Permissions: []string{PermTasksRead, PermTasksWrite}},
 		{Resource: "departments", Permissions: []string{PermDepartmentsRead, PermDepartmentsWrite}},
 		{Resource: "messages", Permissions: []string{PermMessagesRead}},

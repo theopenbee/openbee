@@ -9,6 +9,7 @@ export const Perm = {
   DepartmentsRead: "departments:read",
   DepartmentsWrite: "departments:write",
   MessagesRead: "messages:read",
+  ChatWrite: "chat:write",
   SessionsRead: "sessions:read",
   SessionsWrite: "sessions:write",
   StatsRead: "stats:read",

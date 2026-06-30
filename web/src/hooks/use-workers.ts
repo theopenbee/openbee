@@ -2,10 +2,11 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "@/lib/api"
 import type { Worker, Engine } from "@/lib/types"
 
-export function useWorkers(departmentId?: string) {
+export function useWorkers(departmentId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["workers", { departmentId }],
     queryFn: () => api.workers.list(departmentId),
+    enabled: options?.enabled ?? true,
   })
 }
 

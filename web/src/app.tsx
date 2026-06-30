@@ -31,7 +31,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      // Never retry a 403 — the permission won't change on a retry, and retrying
+      // only multiplies the failing requests. Other errors keep one retry.
+      retry: (count, error) => !isForbidden(error) && count < 1,
       // Surface a 403 to the nearest ForbiddenBoundary so it renders the shared
       // no-permission state; other errors stay in component state as before.
       throwOnError: (error) => isForbidden(error),
@@ -60,7 +62,7 @@ export function App() {
                 <Route path="/sessions" element={<Guard perm={Perm.SessionsRead}><Sessions /></Guard>} />
                 <Route path="/sessions/detail" element={<Guard perm={Perm.SessionsRead}><SessionDetail /></Guard>} />
                 <Route path="/tasks" element={<Guard perm={Perm.TasksRead}><Tasks /></Guard>} />
-                <Route path="/chat" element={<LocalChat />} />
+                <Route path="/chat" element={<Guard perm={Perm.ChatWrite}><LocalChat /></Guard>} />
                 <Route path="/env" element={<Guard perm={Perm.EnvRead}><Env /></Guard>} />
                 <Route path="/settings" element={<Guard perm={Perm.SystemConfigRead}><SystemSettings /></Guard>} />
               </Route>
