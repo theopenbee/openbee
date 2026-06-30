@@ -181,21 +181,16 @@ export interface Role {
   permissions?: string[]
 }
 
-export interface CurrentUser {
-  id: string
-  username: string
-  display_name: string
-  status: UserStatus
-  roles: Role[]
-  permissions: string[]
-}
-
 export interface UserWithRoles {
   id: string
   username: string
   display_name: string
   status: UserStatus
   roles: Role[]
+}
+
+export interface CurrentUser extends UserWithRoles {
+  permissions: string[]
 }
 
 export interface PermissionGroup {

@@ -67,6 +67,21 @@ export function granted(perms: string[] | undefined, perm?: string): boolean {
   return perm === undefined || hasPermission(perms, perm)
 }
 
+// permForPath returns the permission gating the given route, looked up from the
+// NAV tree so secondary surfaces (e.g. dashboard quick links) don't restate the
+// route→perm mapping. Returns undefined for ungated or unknown paths.
+export function permForPath(url: string): string | undefined {
+  for (const entry of NAV) {
+    if (isNavGroup(entry)) {
+      const sub = entry.items.find((s) => s.url === url)
+      if (sub) return sub.perm
+    } else if (entry.url === url) {
+      return entry.perm
+    }
+  }
+  return undefined
+}
+
 // firstAccessiblePath returns the first navigation destination the user may
 // open, in sidebar order, flattening groups to their first reachable sub-item.
 // Returns undefined when nothing is accessible — the caller then shows the

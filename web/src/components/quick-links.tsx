@@ -4,22 +4,21 @@ import { useTranslation } from "react-i18next"
 import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
 import { Panel } from "@/components/panel"
 import { useMe } from "@/hooks/use-me"
-import { Perm, hasPermission } from "@/lib/permissions"
+import { granted, permForPath } from "@/lib/nav"
 
 type QuickLink = {
   to: string
   labelKey: string
   icon: ReactNode
-  perm: string
 }
 
 const LINKS: QuickLink[] = [
-  { to: "/workers", labelKey: "nav.workers", icon: <Users />, perm: Perm.ContactsRead },
-  { to: "/departments", labelKey: "nav.departments", icon: <Network />, perm: Perm.ContactsRead },
-  { to: "/tasks", labelKey: "nav.tasks", icon: <CalendarClock />, perm: Perm.TasksRead },
-  { to: "/sessions", labelKey: "nav.sessions", icon: <MessagesSquare />, perm: Perm.SessionsRead },
-  { to: "/env", labelKey: "nav.settings", icon: <KeyRound />, perm: Perm.EnvRead },
-  { to: "/settings", labelKey: "nav.systemSettings", icon: <SlidersHorizontal />, perm: Perm.SystemConfigRead },
+  { to: "/workers", labelKey: "nav.workers", icon: <Users /> },
+  { to: "/departments", labelKey: "nav.departments", icon: <Network /> },
+  { to: "/tasks", labelKey: "nav.tasks", icon: <CalendarClock /> },
+  { to: "/sessions", labelKey: "nav.sessions", icon: <MessagesSquare /> },
+  { to: "/env", labelKey: "nav.settings", icon: <KeyRound /> },
+  { to: "/settings", labelKey: "nav.systemSettings", icon: <SlidersHorizontal /> },
 ]
 
 export function QuickLinks() {
@@ -28,7 +27,7 @@ export function QuickLinks() {
 
   // Only surface shortcuts the user can actually open — a link to a page that
   // would render PermissionDenied is just a dead end.
-  const links = LINKS.filter((link) => hasPermission(me?.permissions, link.perm))
+  const links = LINKS.filter((link) => granted(me?.permissions, permForPath(link.to)))
   if (links.length === 0) return null
 
   return (

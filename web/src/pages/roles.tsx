@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { PlusIcon, PencilIcon, Trash2Icon, LockIcon, MoreHorizontalIcon } from "lucide-react"
@@ -53,11 +53,6 @@ export function Roles() {
   const createRole = useCreateRole()
   const updateRole = useUpdateRole()
   const deleteRole = useDeleteRole()
-
-  const allPermissions = useMemo(
-    () => groups.flatMap((g) => g.permissions),
-    [groups]
-  )
 
   const [mode, setMode] = useState<Mode>("idle")
   const [target, setTarget] = useState<Role | null>(null)
@@ -256,7 +251,6 @@ export function Roles() {
                 <Label>{t("roles.form.permissions")}</Label>
                 <PermissionPicker
                   groups={groups}
-                  allPermissions={allPermissions}
                   selected={perms}
                   onToggle={togglePerm}
                 />
@@ -303,17 +297,15 @@ export function Roles() {
 
 function PermissionPicker({
   groups,
-  allPermissions,
   selected,
   onToggle,
 }: {
   groups: PermissionGroup[]
-  allPermissions: string[]
   selected: string[]
   onToggle: (perm: string) => void
 }) {
   const { t } = useTranslation()
-  if (allPermissions.length === 0) {
+  if (groups.every((g) => g.permissions.length === 0)) {
     return <p className="text-sm text-muted-foreground">{t("roles.noPermissionsAvailable")}</p>
   }
   return (

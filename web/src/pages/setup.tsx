@@ -7,9 +7,9 @@ import { LogoFull } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { api } from "@/lib/api"
+import { api, ApiError } from "@/lib/api"
 import { saveTokens, saveUsername } from "@/lib/auth"
-import { cn } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 
 const MIN_PASSWORD_LENGTH = 6
@@ -54,11 +54,10 @@ export function Setup() {
       queryClient.setQueryData(["setup", "status"], { initialized: true })
       navigate("/", { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : ""
-      if (/409|exist|initial/i.test(message)) {
+      if (err instanceof ApiError && err.status === 409) {
         setError(t("setup.errorConflict"))
       } else {
-        setError(message || t("setup.errorGeneric"))
+        setError(getErrorMessage(err) || t("setup.errorGeneric"))
       }
       setLoading(false)
     }
