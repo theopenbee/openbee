@@ -27,7 +27,7 @@ type updateEnvRequest struct {
 }
 
 func respondEnvError(c *gin.Context, err error) {
-	respondDomainError(c, err, env.ErrNotFound, env.ErrValidation)
+	respondDomainError(c, err, env.ErrNotFound, env.ErrValidation, "env_not_found", "env_validation")
 }
 
 func (h *EnvHandler) List(c *gin.Context) {

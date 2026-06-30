@@ -511,5 +511,22 @@
     "noAccessTitle": "暂无可访问的功能",
     "noAccessDescription": "你的账号尚未被分配任何可访问的功能，请联系管理员开通权限。",
     "logout": "退出登录"
+  },
+  "errors": {
+    "last_super_admin": "无法移除或停用最后一个启用的超级管理员",
+    "user_not_found": "用户不存在",
+    "system_role_undeletable": "系统角色不可删除",
+    "department_not_found": "部门不存在",
+    "department_parent_not_found": "上级部门不存在",
+    "department_has_sub": "该部门下存在子部门，请先移除子部门",
+    "department_has_workers": "该部门下存在数字员工，请先将其移动到其他部门",
+    "department_circular_reference": "不能将下级部门设为上级部门",
+    "department_invalid_parent": "上级部门参数无效",
+    "departments_not_found": "存在一个或多个部门不存在",
+    "worker_not_found": "数字员工不存在",
+    "env_not_found": "环境变量配置不存在",
+    "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee、department 或 worker 之一",
+    "env_reserved_key": "{{key}} 为保留键，不可设置",
+    "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id"
   }
 }

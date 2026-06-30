@@ -83,7 +83,7 @@ func (h *RoleHandler) Update(c *gin.Context) {
 
 func (h *RoleHandler) Delete(c *gin.Context) {
 	if err := h.roles.Delete(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	h.resolver.InvalidateAll()

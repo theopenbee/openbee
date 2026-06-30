@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -13,7 +14,7 @@ import (
 )
 
 func respondWorkerError(c *gin.Context, err error) {
-	respondDomainError(c, err, worker.ErrNotFound, worker.ErrValidation)
+	respondDomainError(c, err, worker.ErrNotFound, worker.ErrValidation, "worker_not_found", "worker_validation")
 }
 
 type createWorkerRequest struct {
@@ -185,7 +186,7 @@ func (h *WorkerHandler) List(c *gin.Context) {
 func (h *WorkerHandler) Get(c *gin.Context) {
 	w, err := h.workers.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
 		return
 	}
 	depts, err := h.departments.GetWorkerDepartments(w.ID)

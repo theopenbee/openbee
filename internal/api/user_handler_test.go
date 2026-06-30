@@ -67,4 +67,17 @@ func TestUserHandler_CannotDeleteLastSuperAdmin(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 deleting last super-admin, got %d", rec.Code)
 	}
+	var body struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "last_super_admin" {
+		t.Fatalf("expected error code %q, got %q", "last_super_admin", body.Code)
+	}
+	if body.Error == "" {
+		t.Fatalf("expected non-empty fallback error message")
+	}
 }

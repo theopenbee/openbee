@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
@@ -37,7 +38,7 @@ func (h *DepartmentHandler) Create(c *gin.Context) {
 		SortOrder: req.SortOrder,
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusCreated, d)
@@ -56,7 +57,7 @@ func (h *DepartmentHandler) List(c *gin.Context) {
 func (h *DepartmentHandler) Get(c *gin.Context) {
 	d, err := h.departments.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "department not found"})
+		respondError(c, http.StatusNotFound, apperr.New("department_not_found", "department not found"))
 		return
 	}
 	c.JSON(http.StatusOK, d)
@@ -65,7 +66,7 @@ func (h *DepartmentHandler) Get(c *gin.Context) {
 func (h *DepartmentHandler) Update(c *gin.Context) {
 	d, err := h.departments.GetByID(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "department not found"})
+		respondError(c, http.StatusNotFound, apperr.New("department_not_found", "department not found"))
 		return
 	}
 
@@ -88,11 +89,11 @@ func (h *DepartmentHandler) Update(c *gin.Context) {
 		} else {
 			var parentID string
 			if err := json.Unmarshal(req.ParentID, &parentID); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parent_id"})
+				respondError(c, http.StatusBadRequest, apperr.New("department_invalid_parent", "invalid parent_id"))
 				return
 			}
 			if err := h.departments.CheckCircularReference(d.ID, parentID); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				respondError(c, http.StatusBadRequest, err)
 				return
 			}
 			d.ParentID = &parentID
@@ -112,7 +113,7 @@ func (h *DepartmentHandler) Update(c *gin.Context) {
 
 func (h *DepartmentHandler) Delete(c *gin.Context) {
 	if err := h.departments.Delete(c.Param("id")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
@@ -125,7 +126,7 @@ type setWorkerDepartmentsRequest struct {
 func (h *DepartmentHandler) SetWorkerDepartments(c *gin.Context) {
 	workerID := c.Param("id")
 	if _, err := h.workers.GetByID(workerID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
 		return
 	}
 
@@ -141,7 +142,7 @@ func (h *DepartmentHandler) SetWorkerDepartments(c *gin.Context) {
 		return
 	}
 	if len(found) != len(req.DepartmentIDs) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "one or more departments not found"})
+		respondError(c, http.StatusBadRequest, apperr.New("departments_not_found", "one or more departments not found"))
 		return
 	}
 
@@ -155,7 +156,7 @@ func (h *DepartmentHandler) SetWorkerDepartments(c *gin.Context) {
 func (h *DepartmentHandler) GetWorkerDepartments(c *gin.Context) {
 	workerID := c.Param("id")
 	if _, err := h.workers.GetByID(workerID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "worker not found"})
+		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
 		return
 	}
 

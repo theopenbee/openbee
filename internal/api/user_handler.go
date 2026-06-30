@@ -1,17 +1,17 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"slices"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-var errLastSuperAdmin = errors.New("cannot remove or disable the last active super-admin")
+var errLastSuperAdmin = apperr.New("last_super_admin", "cannot remove or disable the last active super-admin")
 
 type UserHandler struct {
 	users    *store.UserStore
@@ -138,7 +138,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 func (h *UserHandler) guardLastSuperAdmin(c *gin.Context, userID string, newRoleIDs []string) error {
 	user, err := h.users.GetByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		respondError(c, http.StatusNotFound, apperr.New("user_not_found", "user not found"))
 		return err
 	}
 	isSuper := slices.ContainsFunc(user.Roles, func(r model.Role) bool {
@@ -157,9 +157,8 @@ func (h *UserHandler) guardLastSuperAdmin(c *gin.Context, userID string, newRole
 		return err
 	}
 	if count <= 1 {
-		err := errLastSuperAdmin
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return err
+		respondError(c, http.StatusBadRequest, errLastSuperAdmin)
+		return errLastSuperAdmin
 	}
 	return nil
 }

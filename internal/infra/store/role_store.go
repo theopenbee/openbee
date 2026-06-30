@@ -2,11 +2,11 @@ package store
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -127,7 +127,7 @@ func (s *RoleStore) Delete(id string) error {
 		return fmt.Errorf("get role: %w", err)
 	}
 	if isSystem == 1 {
-		return errors.New("system roles cannot be deleted")
+		return apperr.New("system_role_undeletable", "system roles cannot be deleted")
 	}
 	if _, err := s.db.Exec(`DELETE FROM bee_roles WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete role: %w", err)
