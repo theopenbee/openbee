@@ -5,6 +5,24 @@ import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from
 
 const API_BASE = config.apiUrl
 
+// ApiError carries the HTTP status alongside the message so callers can tell a
+// 403 (no permission) apart from other failures. Without it the status is lost
+// and every failure reads as a generic error.
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = "ApiError"
+  }
+}
+
+// isForbidden reports whether an unknown caught value is a 403 from the API.
+export function isForbidden(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403
+}
+
 function redirectToLogin() {
   clearTokens()
   window.location.hash = "#/login"
@@ -46,7 +64,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || res.statusText)
+    throw new ApiError(res.status, err.error || res.statusText)
   }
   if (res.status === 204) return undefined as T
   return res.json()

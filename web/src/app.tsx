@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Toaster } from "sonner"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
+import { Guard } from "@/components/guard"
+import { Home } from "@/pages/home"
+import { Perm } from "@/lib/permissions"
+import { isForbidden } from "@/lib/api"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
@@ -28,6 +32,9 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       retry: 1,
+      // Surface a 403 to the nearest ForbiddenBoundary so it renders the shared
+      // no-permission state; other errors stay in component state as before.
+      throwOnError: (error) => isForbidden(error),
     },
   },
 })
@@ -43,19 +50,19 @@ export function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/setup" element={<Setup />} />
               <Route element={<AuthGuard><Layout /></AuthGuard>}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/workers" element={<Workers />} />
-                <Route path="/workers/create" element={<CreateWorker />} />
-                <Route path="/workers/:id" element={<WorkerDetail />} />
-                <Route path="/departments" element={<Departments />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/roles" element={<Roles />} />
-                <Route path="/sessions" element={<Sessions />} />
-                <Route path="/sessions/detail" element={<SessionDetail />} />
-                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/" element={<Home><Dashboard /></Home>} />
+                <Route path="/workers" element={<Guard perm={Perm.WorkersRead}><Workers /></Guard>} />
+                <Route path="/workers/create" element={<Guard perm={Perm.WorkersWrite}><CreateWorker /></Guard>} />
+                <Route path="/workers/:id" element={<Guard perm={Perm.WorkersRead}><WorkerDetail /></Guard>} />
+                <Route path="/departments" element={<Guard perm={Perm.DepartmentsRead}><Departments /></Guard>} />
+                <Route path="/users" element={<Guard perm={Perm.UsersManage}><Users /></Guard>} />
+                <Route path="/roles" element={<Guard perm={Perm.RolesManage}><Roles /></Guard>} />
+                <Route path="/sessions" element={<Guard perm={Perm.SessionsRead}><Sessions /></Guard>} />
+                <Route path="/sessions/detail" element={<Guard perm={Perm.SessionsRead}><SessionDetail /></Guard>} />
+                <Route path="/tasks" element={<Guard perm={Perm.TasksRead}><Tasks /></Guard>} />
                 <Route path="/chat" element={<LocalChat />} />
-                <Route path="/env" element={<Env />} />
-                <Route path="/settings" element={<SystemSettings />} />
+                <Route path="/env" element={<Guard perm={Perm.EnvRead}><Env /></Guard>} />
+                <Route path="/settings" element={<Guard perm={Perm.SystemConfigRead}><SystemSettings /></Guard>} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

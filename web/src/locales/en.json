@@ -504,5 +504,12 @@
     "description": "The page you visited doesn't exist or has been removed.",
     "backToHome": "Back to Home",
     "goToLogin": "Go to Login"
+  },
+  "permission": {
+    "deniedTitle": "No permission",
+    "deniedDescription": "You don't have permission to view this content. Contact an administrator if you think this is a mistake.",
+    "noAccessTitle": "No accessible features yet",
+    "noAccessDescription": "Your account hasn't been granted access to any features. Please contact an administrator to request permissions.",
+    "logout": "Log out"
   }
 }

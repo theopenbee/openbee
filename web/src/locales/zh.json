@@ -503,5 +503,12 @@
     "description": "你访问的路径不存在或已被移除",
     "backToHome": "返回首页",
     "goToLogin": "去登录"
+  },
+  "permission": {
+    "deniedTitle": "无访问权限",
+    "deniedDescription": "你没有权限查看此内容。如有疑问，请联系管理员。",
+    "noAccessTitle": "暂无可访问的功能",
+    "noAccessDescription": "你的账号尚未被分配任何可访问的功能，请联系管理员开通权限。",
+    "logout": "退出登录"
   }
 }
