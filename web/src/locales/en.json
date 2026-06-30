@@ -428,7 +428,7 @@
     },
     "permissionItems": {
       "contacts": { "read": "View contacts", "write": "Edit contacts" },
-      "chat": { "write": "Start chats & view messages" },
+      "chat": { "write": "Chat" },
       "tasks": { "read": "View tasks", "write": "Create & manage tasks" },
       "sessions": { "read": "View sessions", "write": "Manage sessions" },
       "dashboard": { "read": "View dashboard" },
