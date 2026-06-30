@@ -38,8 +38,9 @@ import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/s
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
 import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
-import { Can } from "@/components/guard"
-import { Perm } from "@/lib/permissions"
+import { Can, ForbiddenBoundary } from "@/components/guard"
+import { Perm, hasPermission } from "@/lib/permissions"
+import { useMe } from "@/hooks/use-me"
 import {
   Table,
   TableBody,
@@ -53,17 +54,30 @@ const PAGE_SIZE = 20
 
 // Left-rail navigation: each entry maps a menu item to the content rendered in
 // the right pane. The `key` is mirrored to the URL (`?tab=`) so the active
-// section survives refresh and is shareable.
+// section survives refresh and is shareable. `perm` is the permission needed to
+// load that section's data — viewing the worker itself only requires
+// contacts:read (the route guard), but Sessions/Tasks/Env read other domains,
+// so those tabs are hidden (and their requests skipped) when the user lacks the
+// permission. This declarative map is the single source of truth for tab
+// visibility, data fetching, and deep-link fallback.
 const SECTIONS = [
   { key: "overview", labelKey: "workerDetail.overview", icon: LayoutDashboard },
-  { key: "sessions", labelKey: "workerDetail.sessions", icon: Logs },
-  { key: "tasks", labelKey: "tasks.title", icon: ListTodo },
+  { key: "sessions", labelKey: "workerDetail.sessions", icon: Logs, perm: Perm.SessionsRead },
+  { key: "tasks", labelKey: "tasks.title", icon: ListTodo, perm: Perm.TasksRead },
   { key: "constraints", labelKey: "workerDetail.constraints", icon: ScrollText },
   { key: "permissions", labelKey: "workerDetail.permissions", icon: ShieldCheck },
-  { key: "env", labelKey: "envConfig.title", icon: Settings2 },
-] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon }>
+  { key: "env", labelKey: "envConfig.title", icon: Settings2, perm: Perm.EnvRead },
+] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon; perm?: string }>
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
+
+// Static Tailwind class lookup for the overview activity band, whose column
+// count shrinks when the session metrics are hidden (no sessions:read).
+const GRID_COLS: Record<number, string> = {
+  1: "sm:grid-cols-1",
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-3",
+}
 
 // Env source is a configuration layer, not a presence status, so it stays in the
 // achromatic field: muted by default, with the effective (worker-level) override
@@ -174,10 +188,22 @@ export function WorkerDetail() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
+  const { data: me } = useMe()
+
+  // Tabs the user can actually load, derived from the SECTIONS perm map. Ungated
+  // sections (overview/constraints/permissions) always show; the rest appear
+  // only with their permission. While `me` loads, gated tabs stay hidden to
+  // avoid a flash-then-disappear.
+  const visibleSections = useMemo(
+    () => SECTIONS.filter((s) => !s.perm || hasPermission(me?.permissions, s.perm)),
+    [me?.permissions],
+  )
+  const canSessions = hasPermission(me?.permissions, Perm.SessionsRead)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get("tab")
-  const activeSection: SectionKey = SECTIONS.some((s) => s.key === tabParam)
+  // Fall back to overview when the deep-linked tab is unknown or not permitted.
+  const activeSection: SectionKey = visibleSections.some((s) => s.key === tabParam)
     ? (tabParam as SectionKey)
     : "overview"
   const setActiveSection = (key: SectionKey) => {
@@ -196,7 +222,7 @@ export function WorkerDetail() {
   // skip the request entirely on the other sections.
   const [page, setPage] = useState(1)
   const { data } = useWorkerExecutions(id!, page, PAGE_SIZE, {
-    enabled: activeSection === "overview" || activeSection === "sessions",
+    enabled: canSessions && (activeSection === "overview" || activeSection === "sessions"),
   })
 
   const executions = data?.items ?? []
@@ -238,6 +264,35 @@ export function WorkerDetail() {
 
   if (!worker) return <SkeletonPage />
 
+  // The session metrics live in the sessions domain, so they only appear with
+  // sessions:read; the band collapses to the remaining columns otherwise.
+  const overviewStats = [
+    ...(canSessions
+      ? [
+          {
+            icon: Logs,
+            label: t("workerDetail.sessions"),
+            value: data?.total ?? 0,
+            valueClass: "text-lg font-medium tabular-nums",
+          },
+          {
+            icon: Clock,
+            label: t("workerDetail.lastActive"),
+            value: latestExecution
+              ? formatTimestamp(latestExecution.started_at)
+              : t("sessions.noExecutions"),
+            valueClass: "text-sm",
+          },
+        ]
+      : []),
+    {
+      icon: CalendarIcon,
+      label: t("workerDetail.created"),
+      value: formatTimestamp(worker.created_at),
+      valueClass: "text-sm",
+    },
+  ]
+
   return (
     <FadeIn className="h-full">
       <div className="flex h-full">
@@ -251,7 +306,7 @@ export function WorkerDetail() {
           </div>
           <nav className="min-h-0 flex-1 overflow-auto p-2">
             <ul className="space-y-1">
-              {SECTIONS.map((section) => {
+              {visibleSections.map((section) => {
                 const isActive = section.key === activeSection
                 const Icon = section.icon
                 return (
@@ -296,6 +351,10 @@ export function WorkerDetail() {
           </div>
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+            {/* Section-scoped boundary: a 403 from a cross-domain panel degrades
+                only the active section, not the whole page. Keyed by section so
+                switching tabs clears a prior forbidden state. */}
+            <ForbiddenBoundary key={activeSection}>
             <div className="mx-auto max-w-5xl space-y-6">
               {workerError ? (
                 <p className="text-destructive">{workerError.message}</p>
@@ -319,29 +378,8 @@ export function WorkerDetail() {
 
                   {/* (2) Activity band: at-a-glance presence facts, divided by
                       hairlines into equal columns — no cards, no hero metric. */}
-                  <div className="grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    {[
-                      {
-                        icon: Logs,
-                        label: t("workerDetail.sessions"),
-                        value: data?.total ?? 0,
-                        valueClass: "text-lg font-medium tabular-nums",
-                      },
-                      {
-                        icon: Clock,
-                        label: t("workerDetail.lastActive"),
-                        value: latestExecution
-                          ? formatTimestamp(latestExecution.started_at)
-                          : t("sessions.noExecutions"),
-                        valueClass: "text-sm",
-                      },
-                      {
-                        icon: CalendarIcon,
-                        label: t("workerDetail.created"),
-                        value: formatTimestamp(worker.created_at),
-                        valueClass: "text-sm",
-                      },
-                    ].map(({ icon: Icon, label, value, valueClass }, i) => (
+                  <div className={cn("grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:divide-x sm:divide-y-0", GRID_COLS[overviewStats.length])}>
+                    {overviewStats.map(({ icon: Icon, label, value, valueClass }, i) => (
                       <div key={label} className={cn("py-4", i === 0 ? "sm:pr-6" : "sm:px-6")}>
                         <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
                           <Icon className="size-3.5" />
@@ -545,6 +583,7 @@ export function WorkerDetail() {
                 </div>
               )}
             </div>
+            </ForbiddenBoundary>
           </div>
         </div>
       </div>
