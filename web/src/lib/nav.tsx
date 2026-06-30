@@ -38,6 +38,8 @@ export const NAV: NavDef[] = [
     items: [
       { titleKey: "nav.departments", url: "/departments", perm: Perm.ContactsRead },
       { titleKey: "nav.workers", url: "/workers", perm: Perm.ContactsRead },
+      { titleKey: "nav.users", url: "/users", perm: Perm.UsersManage },
+      { titleKey: "nav.roles", url: "/roles", perm: Perm.RolesManage },
     ],
   },
   { titleKey: "nav.sessions", url: "/sessions", icon: <ActivityIcon />, perm: Perm.SessionsRead },
@@ -46,10 +48,8 @@ export const NAV: NavDef[] = [
     titleKey: "nav.systemConfig",
     icon: <Settings2Icon />,
     items: [
-      { titleKey: "nav.users", url: "/users", perm: Perm.UsersManage, sectionKey: "nav.accessControl" },
-      { titleKey: "nav.roles", url: "/roles", perm: Perm.RolesManage, sectionKey: "nav.accessControl" },
-      { titleKey: "nav.settings", url: "/env", perm: Perm.EnvRead, sectionKey: "nav.platformConfig" },
-      { titleKey: "nav.systemSettings", url: "/settings", perm: Perm.SystemConfigRead, sectionKey: "nav.platformConfig" },
+      { titleKey: "nav.settings", url: "/env", perm: Perm.EnvRead },
+      { titleKey: "nav.systemSettings", url: "/settings", perm: Perm.SystemConfigRead },
     ],
   },
 ]
