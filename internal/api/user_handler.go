@@ -26,7 +26,7 @@ func NewUserHandler(users *store.UserStore, resolver *auth.PermissionResolver) *
 func (h *UserHandler) List(c *gin.Context) {
 	users, err := h.users.List()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if users == nil {
@@ -45,12 +45,12 @@ type createUserRequest struct {
 func (h *UserHandler) Create(c *gin.Context) {
 	var req createUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	user, err := h.users.Create(req.Username, req.Password, req.DisplayName, auth.UserID(c), req.RoleIDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusCreated, user)
@@ -65,7 +65,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	id := c.Param("id")
 	var req updateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	username := strings.TrimSpace(req.Username)
@@ -80,7 +80,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		case "user_not_found":
 			respondError(c, http.StatusNotFound, err)
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			respondError(c, http.StatusInternalServerError, err)
 		}
 		return
 	}
@@ -95,14 +95,14 @@ func (h *UserHandler) SetRoles(c *gin.Context) {
 	id := c.Param("id")
 	var req setRolesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if err := h.guardLastSuperAdmin(c, id, req.RoleIDs); err != nil {
 		return
 	}
 	if err := h.users.SetRoles(id, req.RoleIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	h.resolver.Invalidate(id)
@@ -117,7 +117,7 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 	id := c.Param("id")
 	var req setStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if req.Status == model.UserStatusDisabled {
@@ -126,7 +126,7 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 		}
 	}
 	if err := h.users.SetStatus(id, req.Status); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	h.resolver.Invalidate(id)
@@ -141,11 +141,11 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	id := c.Param("id")
 	var req resetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if err := h.users.SetPassword(id, req.Password); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -157,7 +157,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.users.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	h.resolver.Invalidate(id)
@@ -185,7 +185,7 @@ func (h *UserHandler) guardLastSuperAdmin(c *gin.Context, userID string, newRole
 	}
 	count, err := h.users.CountActiveSuperAdmins()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return err
 	}
 	if count <= 1 {

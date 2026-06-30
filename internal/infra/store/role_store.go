@@ -82,11 +82,15 @@ func (s *RoleStore) List() ([]model.RoleWithPermissions, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	permsByRole, err := s.permissionsByRole()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]model.RoleWithPermissions, 0, len(roles))
 	for _, r := range roles {
-		perms, err := s.permissionsFor(r.ID)
-		if err != nil {
-			return nil, err
+		perms := permsByRole[r.ID]
+		if perms == nil {
+			perms = []string{}
 		}
 		out = append(out, model.RoleWithPermissions{Role: r, Permissions: perms})
 	}
@@ -150,6 +154,25 @@ func (s *RoleStore) permissionsFor(roleID string) ([]string, error) {
 		perms = append(perms, p)
 	}
 	return perms, rows.Err()
+}
+
+// permissionsByRole loads every role's permissions in a single query, bucketed
+// by role id. List uses this instead of one permissionsFor call per role.
+func (s *RoleStore) permissionsByRole() (map[string][]string, error) {
+	rows, err := s.db.Query(`SELECT role_id, permission FROM bee_role_permissions ORDER BY role_id, permission`)
+	if err != nil {
+		return nil, fmt.Errorf("get role permissions: %w", err)
+	}
+	defer rows.Close()
+	byRole := map[string][]string{}
+	for rows.Next() {
+		var roleID, p string
+		if err := rows.Scan(&roleID, &p); err != nil {
+			return nil, err
+		}
+		byRole[roleID] = append(byRole[roleID], p)
+	}
+	return byRole, rows.Err()
 }
 
 func insertRolePermissions(tx *sql.Tx, roleID string, permissions []string) error {

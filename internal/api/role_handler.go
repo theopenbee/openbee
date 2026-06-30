@@ -27,7 +27,7 @@ func (h *RoleHandler) Catalog(c *gin.Context) {
 func (h *RoleHandler) List(c *gin.Context) {
 	roles, err := h.roles.List()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if roles == nil {
@@ -45,16 +45,16 @@ type roleRequest struct {
 func (h *RoleHandler) Create(c *gin.Context) {
 	var req roleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if err := validatePermissions(req.Permissions); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	role, err := h.roles.Create(model.Role{Name: req.Name, Description: req.Description}, req.Permissions)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusCreated, role)
@@ -64,17 +64,17 @@ func (h *RoleHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	var req roleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if err := validatePermissions(req.Permissions); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	if err := h.roles.Update(
 		model.Role{ID: id, Name: req.Name, Description: req.Description}, req.Permissions,
 	); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	h.resolver.InvalidateAll() // role permission change affects every member

@@ -22,7 +22,7 @@ func NewSetupHandler(users *store.UserStore, jwtSvc *auth.JWTService) *SetupHand
 func (h *SetupHandler) Status(c *gin.Context) {
 	n, err := h.users.Count()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"initialized": n > 0})
@@ -38,7 +38,7 @@ type setupRequest struct {
 func (h *SetupHandler) Create(c *gin.Context) {
 	n, err := h.users.Count()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if n > 0 {
@@ -47,12 +47,12 @@ func (h *SetupHandler) Create(c *gin.Context) {
 	}
 	var req setupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	user, err := h.users.Create(req.Username, req.Password, req.DisplayName, "", []string{model.RoleIDSuperAdmin})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	pair, err := h.jwtSvc.GenerateUserTokenPair(user.ID)

@@ -95,11 +95,15 @@ func (s *UserStore) List() ([]model.UserWithRoles, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	rolesByUser, err := s.rolesByUser()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]model.UserWithRoles, 0, len(users))
 	for _, u := range users {
-		roles, err := s.rolesFor(u.ID)
-		if err != nil {
-			return nil, err
+		roles := rolesByUser[u.ID]
+		if roles == nil {
+			roles = []model.Role{}
 		}
 		out = append(out, model.UserWithRoles{User: u, Roles: roles})
 	}
@@ -226,6 +230,34 @@ func (s *UserStore) rolesFor(userID string) ([]model.Role, error) {
 		roles = append(roles, r)
 	}
 	return roles, rows.Err()
+}
+
+// rolesByUser loads every user's roles in a single query, bucketed by user id.
+// List uses this instead of one rolesFor call per user.
+func (s *UserStore) rolesByUser() (map[string][]model.Role, error) {
+	rows, err := s.db.Query(`
+		SELECT ur.user_id, r.id, r.name, r.description, r.is_system, r.created_at, r.updated_at
+		FROM bee_user_roles ur
+		JOIN bee_roles r ON r.id = ur.role_id
+		ORDER BY r.is_system DESC, r.name`)
+	if err != nil {
+		return nil, fmt.Errorf("roles for users: %w", err)
+	}
+	defer rows.Close()
+	byUser := map[string][]model.Role{}
+	for rows.Next() {
+		var userID string
+		var r model.Role
+		var isSystem int
+		if err := rows.Scan(
+			&userID, &r.ID, &r.Name, &r.Description, &isSystem, &r.CreatedAt, &r.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		r.IsSystem = isSystem == 1
+		byUser[userID] = append(byUser[userID], r)
+	}
+	return byUser, rows.Err()
 }
 
 func replaceUserRoles(tx *sql.Tx, userID string, roleIDs []string, now int64) error {

@@ -35,15 +35,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { PERM_WILDCARD } from "@/lib/permissions"
 import type { PermissionGroup, Role } from "@/lib/types"
 
 type Mode = "idle" | "create" | "edit" | "delete"
 
-const WILDCARD = "*"
-
 // A super-admin role carries the wildcard permission, granting everything.
 function isSuperAdmin(role: Role): boolean {
-  return (role.permissions ?? []).includes(WILDCARD)
+  return (role.permissions ?? []).includes(PERM_WILDCARD)
 }
 
 // PermissionBadges renders a role's permission summary: "all" for super-admin,
@@ -168,8 +167,7 @@ export function Roles() {
           <EmptyState title={t("roles.empty")} action={createButton} />
         ) : (
           <div className="space-y-3">
-            {roles.map((role) => {
-              return (
+            {roles.map((role) => (
                 <div key={role.id} className="rounded-sm border border-border p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -218,8 +216,7 @@ export function Roles() {
                     <PermissionBadges role={role} t={t} />
                   </div>
                 </div>
-              )
-            })}
+              ))}
           </div>
         )}
 

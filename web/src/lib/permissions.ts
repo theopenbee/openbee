@@ -22,7 +22,7 @@ export const Perm = {
 export type PermKey = (typeof Perm)[keyof typeof Perm]
 
 // Wildcard grants every permission (super-admin).
-const PERM_WILDCARD = "*"
+export const PERM_WILDCARD = "*"
 
 // hasPermission reports whether the resolved perm set holds the given key,
 // or holds the wildcard "*".
