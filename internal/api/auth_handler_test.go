@@ -27,7 +27,8 @@ func newAuthTestServer(t *testing.T) (*gin.Engine, *store.UserStore, *auth.JWTSe
 	}
 	jwtSvc := auth.NewJWTService("secret", time.Hour, 24*time.Hour)
 	rl := auth.NewLoginRateLimiter(50, time.Minute)
-	h := auth.NewAuthHandler(us, jwtSvc, rl)
+	resolver := auth.NewPermissionResolver(us.PermissionsForUser)
+	h := auth.NewAuthHandler(us, jwtSvc, rl, resolver)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

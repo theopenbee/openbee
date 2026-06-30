@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useMemo, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
@@ -27,7 +27,10 @@ export function QuickLinks() {
 
   // Only surface shortcuts the user can actually open — a link to a page that
   // would render PermissionDenied is just a dead end.
-  const links = LINKS.filter((link) => granted(me?.permissions, permForPath(link.to)))
+  const links = useMemo(
+    () => LINKS.filter((link) => granted(me?.permissions, permForPath(link.to))),
+    [me?.permissions],
+  )
   if (links.length === 0) return null
 
   return (

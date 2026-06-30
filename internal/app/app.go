@@ -383,7 +383,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
 	resolver := auth.NewPermissionResolver(s.userStore.PermissionsForUser)
-	authHandler := auth.NewAuthHandler(s.userStore, jwtSvc, rateLimiter).WithResolver(resolver)
+	authHandler := auth.NewAuthHandler(s.userStore, jwtSvc, rateLimiter, resolver)
 	authMiddleware := auth.AuthMiddleware(jwtSvc, s.userStore)
 	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 

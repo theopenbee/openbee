@@ -54,7 +54,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
       return acc
     }, [])
-  }, [t, me])
+  }, [t, me?.permissions])
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" {...props}>

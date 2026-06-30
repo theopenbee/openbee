@@ -114,7 +114,7 @@ export function Users() {
 
   // Create form
   const [username, setUsername] = useState("")
-  const [password, setPassword_] = useState("")
+  const [newUserPassword, setNewUserPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [roleIds, setRoleIds] = useState<string[]>([])
 
@@ -126,7 +126,7 @@ export function Users() {
     setTarget(null)
     setError("")
     setUsername("")
-    setPassword_("")
+    setNewUserPassword("")
     setDisplayName("")
     setRoleIds([])
     setNewPassword("")
@@ -162,11 +162,11 @@ export function Users() {
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()
-    if (!username.trim() || password.length < MIN_PASSWORD_LENGTH) return
+    if (!username.trim() || newUserPassword.length < MIN_PASSWORD_LENGTH) return
     try {
       await createUser.mutateAsync({
         username: username.trim(),
-        password,
+        password: newUserPassword,
         display_name: displayName.trim() || undefined,
         role_ids: roleIds,
       })
@@ -229,7 +229,7 @@ export function Users() {
     </Button>
   )
 
-  const canCreate = username.trim().length > 0 && password.length >= MIN_PASSWORD_LENGTH
+  const canCreate = username.trim().length > 0 && newUserPassword.length >= MIN_PASSWORD_LENGTH
 
   return (
     <FadeIn>
@@ -361,8 +361,8 @@ export function Users() {
                 <Input
                   id="user-password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword_(e.target.value)}
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
                   placeholder={t("users.form.passwordPlaceholder")}
                   required
                   minLength={MIN_PASSWORD_LENGTH}

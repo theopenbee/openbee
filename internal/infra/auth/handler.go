@@ -21,15 +21,8 @@ type AuthHandler struct {
 	resolver    *PermissionResolver
 }
 
-func NewAuthHandler(users UserAuthenticator, jwtSvc *JWTService, rateLimiter *LoginRateLimiter) *AuthHandler {
-	return &AuthHandler{users: users, jwtSvc: jwtSvc, rateLimiter: rateLimiter}
-}
-
-// WithResolver attaches the permission resolver (needed for /api/me). Returns the
-// handler for chaining.
-func (h *AuthHandler) WithResolver(r *PermissionResolver) *AuthHandler {
-	h.resolver = r
-	return h
+func NewAuthHandler(users UserAuthenticator, jwtSvc *JWTService, rateLimiter *LoginRateLimiter, resolver *PermissionResolver) *AuthHandler {
+	return &AuthHandler{users: users, jwtSvc: jwtSvc, rateLimiter: rateLimiter, resolver: resolver}
 }
 
 type loginRequest struct {

@@ -46,6 +46,27 @@ function isSuperAdmin(role: Role): boolean {
   return (role.permissions ?? []).includes(WILDCARD)
 }
 
+// PermissionBadges renders a role's permission summary: "all" for super-admin,
+// a muted hint when empty, otherwise one badge per permission.
+function PermissionBadges({ role, t }: { role: Role; t: (key: string) => string }) {
+  if (isSuperAdmin(role)) {
+    return <Badge variant="secondary">{t("roles.allPermissions")}</Badge>
+  }
+  const perms = role.permissions ?? []
+  if (perms.length === 0) {
+    return <span className="text-xs text-muted-foreground">{t("roles.noPermissions")}</span>
+  }
+  return (
+    <>
+      {perms.map((p) => (
+        <Badge key={p} variant="outline" className="font-mono text-[11px]">
+          {p}
+        </Badge>
+      ))}
+    </>
+  )
+}
+
 export function Roles() {
   const { t } = useTranslation()
   const { data: roles = [] } = useRoles()
@@ -148,7 +169,6 @@ export function Roles() {
         ) : (
           <div className="space-y-3">
             {roles.map((role) => {
-              const superAdmin = isSuperAdmin(role)
               return (
                 <div key={role.id} className="rounded-sm border border-border p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -195,19 +215,7 @@ export function Roles() {
                     )}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {superAdmin ? (
-                      <Badge variant="secondary">{t("roles.allPermissions")}</Badge>
-                    ) : (role.permissions ?? []).length === 0 ? (
-                      <span className="text-xs text-muted-foreground">
-                        {t("roles.noPermissions")}
-                      </span>
-                    ) : (
-                      (role.permissions ?? []).map((p) => (
-                        <Badge key={p} variant="outline" className="font-mono text-[11px]">
-                          {p}
-                        </Badge>
-                      ))
-                    )}
+                    <PermissionBadges role={role} t={t} />
                   </div>
                 </div>
               )
