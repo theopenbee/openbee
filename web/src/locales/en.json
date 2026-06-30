@@ -510,6 +510,7 @@
   },
   "systemSettings": {
     "title": "Settings",
+    "readonlyHint": "You don't have permission to edit. The settings below are read-only.",
     "engineSection": {
       "title": "Default Engine"
     },

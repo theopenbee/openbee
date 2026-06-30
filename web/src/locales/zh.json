@@ -509,6 +509,7 @@
   },
   "systemSettings": {
     "title": "系统设置",
+    "readonlyHint": "你没有修改权限，以下设置为只读。",
     "engineSection": {
       "title": "默认引擎"
     },
