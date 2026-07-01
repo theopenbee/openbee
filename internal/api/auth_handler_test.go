@@ -14,16 +14,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newAuthTestServer(t *testing.T) (*gin.Engine, *store.UserStore, *auth.JWTService) {
-	return newAuthTestServerWithStore(t, 50)
-}
-
-func newAuthTestServerWithLimit(t *testing.T, maxAttempts int) *gin.Engine {
-	r, _, _ := newAuthTestServerWithStore(t, maxAttempts)
-	return r
-}
-
-func newAuthTestServerWithStore(t *testing.T, maxAttempts int) (*gin.Engine, *store.UserStore, *auth.JWTService) {
+func newAuthTestServer(t *testing.T, maxAttempts int) (*gin.Engine, *store.UserStore, *auth.JWTService) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	if err != nil {
@@ -46,7 +37,7 @@ func newAuthTestServerWithStore(t *testing.T, maxAttempts int) (*gin.Engine, *st
 }
 
 func TestAuthHandler_LoginSuccess(t *testing.T) {
-	r, _, _ := newAuthTestServer(t)
+	r, _, _ := newAuthTestServer(t, 50)
 	body, _ := json.Marshal(map[string]string{"username": "alice", "password": "s3cret"})
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -63,14 +54,9 @@ func TestAuthHandler_LoginSuccess(t *testing.T) {
 }
 
 func TestAuthHandler_LoginBadPassword(t *testing.T) {
-	r, _, _ := newAuthTestServer(t)
-	body, _ := json.Marshal(map[string]string{"username": "alice", "password": "nope"})
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
+	r, _, _ := newAuthTestServer(t, 50)
+	if code := login(t, r, "alice", "nope"); code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", code)
 	}
 }
 
@@ -87,7 +73,7 @@ func login(t *testing.T, r *gin.Engine, username, password string) int {
 // A successful login must clear the rate-limit budget, so repeated successful
 // logins from the same client never trip the limiter.
 func TestAuthHandler_SuccessfulLoginsNeverRateLimited(t *testing.T) {
-	r := newAuthTestServerWithLimit(t, 3)
+	r, _, _ := newAuthTestServer(t, 3)
 	for i := 0; i < 10; i++ {
 		if code := login(t, r, "alice", "s3cret"); code != http.StatusOK {
 			t.Fatalf("successful login %d: expected 200, got %d", i+1, code)
@@ -97,7 +83,7 @@ func TestAuthHandler_SuccessfulLoginsNeverRateLimited(t *testing.T) {
 
 // Repeated failed logins must eventually be blocked with 429.
 func TestAuthHandler_RepeatedFailuresRateLimited(t *testing.T) {
-	r := newAuthTestServerWithLimit(t, 3)
+	r, _, _ := newAuthTestServer(t, 3)
 	for i := 0; i < 3; i++ {
 		if code := login(t, r, "alice", "wrong"); code != http.StatusUnauthorized {
 			t.Fatalf("failed login %d: expected 401, got %d", i+1, code)
