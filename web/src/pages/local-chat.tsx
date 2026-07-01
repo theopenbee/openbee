@@ -7,6 +7,7 @@ import {
   useState,
 } from "react"
 import { Streamdown } from "streamdown"
+import { code } from "@streamdown/code"
 import { useTranslation } from "react-i18next"
 import {
   ArrowUpRight,
@@ -42,6 +43,11 @@ import { hasPermission, Perm } from "@/lib/permissions"
 import { MentionTextarea } from "@/components/mention-textarea"
 
 const EMPTY_WORKERS: Worker[] = []
+
+// Enable Shiki syntax highlighting for fenced code blocks. Kept as a stable
+// module-level reference so Streamdown's memoization isn't defeated by a new
+// object on every render.
+const STREAMDOWN_PLUGINS = { code }
 
 // Convert isolated single newlines to double newlines so Markdown renders them
 // as paragraph breaks. Fenced code blocks are left untouched.
@@ -425,7 +431,7 @@ export function LocalChat() {
                                 message.media_paths && message.media_paths.length > 0 && "mt-2"
                               )}
                             >
-                              <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
+                              <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizeBeeContent(message.content)}</Streamdown>
                             </div>
                           </CollapsibleContent>
                         )}
