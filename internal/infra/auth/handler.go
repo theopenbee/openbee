@@ -32,7 +32,8 @@ type loginRequest struct {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	if !h.rateLimiter.Allow(c.ClientIP()) {
+	ip := c.ClientIP()
+	if !h.rateLimiter.Allow(ip) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many attempts, please try again later"})
 		return
 	}
@@ -43,9 +44,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	user, err := h.users.Authenticate(req.Username, req.Password)
 	if err != nil {
+		// The token consumed above stays spent, so only failed attempts
+		// accumulate toward the limit.
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
+	// A successful login clears the budget: legitimate users never lock
+	// themselves (or others behind the same IP) out by logging in.
+	h.rateLimiter.Reset(ip)
 	pair, err := h.jwtSvc.GenerateUserTokenPair(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})

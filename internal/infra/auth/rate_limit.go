@@ -3,46 +3,77 @@ package auth
 import (
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
+// LoginRateLimiter throttles login attempts per client key (typically an IP).
+// It wraps a token-bucket limiter per key: up to maxAttempts in a burst, then
+// one slot recovers every window/maxAttempts. Callers consume a token on each
+// attempt via Allow and clear a key's budget with Reset on success, so only
+// failed attempts leave a lasting cost.
 type LoginRateLimiter struct {
-	maxAttempts int
-	window      time.Duration
-	attempts    map[string][]time.Time
-	mu          sync.Mutex
+	mu        sync.Mutex
+	limiters  map[string]*ipEntry
+	rate      rate.Limit
+	burst     int
+	window    time.Duration
+	lastSweep time.Time
+}
+
+type ipEntry struct {
+	lim      *rate.Limiter
+	lastSeen time.Time
 }
 
 func NewLoginRateLimiter(maxAttempts int, window time.Duration) *LoginRateLimiter {
 	return &LoginRateLimiter{
-		maxAttempts: maxAttempts,
-		window:      window,
-		attempts:    make(map[string][]time.Time),
+		limiters: make(map[string]*ipEntry),
+		rate:     rate.Every(window / time.Duration(maxAttempts)),
+		burst:    maxAttempts,
+		window:   window,
 	}
 }
 
-func (l *LoginRateLimiter) Allow(ip string) bool {
+// Allow consumes one token for the key and reports whether the attempt is
+// permitted. Call it at the request entry point.
+func (l *LoginRateLimiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	now := time.Now()
-	cutoff := now.Add(-l.window)
+	l.sweep(now)
 
-	recent := l.attempts[ip][:0]
-	for _, t := range l.attempts[ip] {
-		if t.After(cutoff) {
-			recent = append(recent, t)
+	e := l.limiters[key]
+	if e == nil {
+		e = &ipEntry{lim: rate.NewLimiter(l.rate, l.burst)}
+		l.limiters[key] = e
+	}
+	e.lastSeen = now
+	return e.lim.Allow()
+}
+
+// Reset clears a key's budget so its next attempt starts from a full bucket.
+// Call it after a successful login so legitimate users never accumulate a cost.
+func (l *LoginRateLimiter) Reset(key string) {
+	l.mu.Lock()
+	delete(l.limiters, key)
+	l.mu.Unlock()
+}
+
+// sweep evicts keys idle longer than the window, keeping the map from growing
+// unboundedly with one-off client keys. It runs at most once per window,
+// piggybacked on Allow, so no background goroutine is needed. The caller must
+// hold l.mu.
+func (l *LoginRateLimiter) sweep(now time.Time) {
+	if now.Sub(l.lastSweep) < l.window {
+		return
+	}
+	cutoff := now.Add(-l.window)
+	for key, e := range l.limiters {
+		if e.lastSeen.Before(cutoff) {
+			delete(l.limiters, key)
 		}
 	}
-
-	if len(recent) == 0 {
-		delete(l.attempts, ip)
-	}
-
-	if len(recent) >= l.maxAttempts {
-		l.attempts[ip] = recent
-		return false
-	}
-
-	l.attempts[ip] = append(recent, now)
-	return true
+	l.lastSweep = now
 }
