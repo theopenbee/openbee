@@ -109,7 +109,7 @@ func (h *StopCommandHandler) handleStopWorker(ctx context.Context, replyTo platf
 	result, err := h.workerStop.StopWorker(ctx, sessionKey, w)
 	if err != nil {
 		log.Error("stop worker", zap.String("workerID", w.ID), zap.Error(err))
-		sendReply(ctx, h.senders, replyTo, m.LookupFailed)
+		sendReply(ctx, h.senders, replyTo, fmt.Sprintf(m.WorkerStopFailed, w.Name))
 		return
 	}
 

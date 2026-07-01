@@ -307,6 +307,7 @@ runtime:
     worker_duplicate: "Multiple workers named %q found:\n%s"
     worker_stopped: "✅ Stopped worker %s. Cancelled %d task(s)."
     worker_nothing_to_stop: "Worker %s has no running or queued tasks."
+    worker_stop_failed: "⚠️ Failed to stop worker %s. Please retry; if this persists, check server logs."
   status_command:
     usage: "Usage: /status"
     lookup_failed: "⚠️ Failed to look up session status. Please retry; if this persists, check server logs."

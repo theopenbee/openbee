@@ -307,6 +307,7 @@ runtime:
     worker_duplicate: "存在多个同名员工 %q：\n%s"
     worker_stopped: "✅ 已停止员工 %s 的执行，取消了 %d 个任务"
     worker_nothing_to_stop: "员工 %s 当前没有正在执行或排队的任务"
+    worker_stop_failed: "⚠️ 停止员工 %s 失败，请稍后重试；若持续出现请检查服务端日志。"
   status_command:
     usage: "用法：/status"
     lookup_failed: "⚠️ 查询会话状态失败，请稍后重试；若持续出现请检查服务端日志。"

@@ -351,6 +351,7 @@ type StopCommandMessages struct {
 	WorkerDuplicate     string `yaml:"worker_duplicate"`       // contains %q, %s (name, id list)
 	WorkerStopped       string `yaml:"worker_stopped"`         // contains %s, %d (worker name, cancelled count)
 	WorkerNothingToStop string `yaml:"worker_nothing_to_stop"` // contains %s (worker name)
+	WorkerStopFailed    string `yaml:"worker_stop_failed"`     // contains %s (worker name)
 }
 
 // StatusCommandMessages holds text sent to IM users by the /status command handler.
