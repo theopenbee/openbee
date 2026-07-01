@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -99,10 +100,8 @@ function mediaUrl(mediaPath: string) {
 
 const AttachmentPreview = memo(function AttachmentPreview({
   mediaPath,
-  tone,
 }: {
   mediaPath: string
-  tone: "user" | "bee"
 }) {
   const filename = basename(mediaPath)
   const url = mediaUrl(mediaPath)
@@ -185,6 +184,11 @@ const MessageBubble = memo(function MessageBubble({
   const { t, i18n } = useTranslation()
   const isUser = message.role === "user"
   const hasContent = message.content.trim().length > 0
+  const hasMedia = Boolean(message.media_paths && message.media_paths.length > 0)
+  const normalizedContent = useMemo(
+    () => normalizeBeeContent(message.content),
+    [message.content]
+  )
 
   return (
     <div
@@ -230,14 +234,10 @@ const MessageBubble = memo(function MessageBubble({
               : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
           )}
         >
-          {message.media_paths && message.media_paths.length > 0 && (
+          {hasMedia && (
             <div className="space-y-2">
-              {message.media_paths.map((path) => (
-                <AttachmentPreview
-                  key={path}
-                  mediaPath={path}
-                  tone={message.role}
-                />
+              {message.media_paths!.map((path) => (
+                <AttachmentPreview key={path} mediaPath={path} />
               ))}
             </div>
           )}
@@ -247,10 +247,10 @@ const MessageBubble = memo(function MessageBubble({
               <div
                 className={cn(
                   "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
-                  message.media_paths && message.media_paths.length > 0 && "mt-2"
+                  hasMedia && "mt-2"
                 )}
               >
-                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizeBeeContent(message.content)}</Streamdown>
+                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizedContent}</Streamdown>
               </div>
             </CollapsibleContent>
           )}
