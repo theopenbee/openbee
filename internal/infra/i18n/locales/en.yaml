@@ -297,10 +297,16 @@ runtime:
     worker_confirm_header: "⚠️ Will clear session context for %s (engine: %s)."
     worker_confirm_footer: "Send /clear %s again within 30s to confirm."
   stop_command:
+    usage: "Usage:\n/stop — stop the running bee for this session and cancel pending messages\n/stop {workerName} — stop a specific worker's running tasks (keeps context)"
     stopped: "✅ Stopped bee execution"
     stopped_with_messages: "✅ Stopped bee execution and cancelled %d pending message(s)"
     cancelled_messages: "✅ Cancelled %d pending message(s)"
     nothing_to_stop: "Nothing to stop in this session"
+    lookup_failed: "⚠️ Failed to look up worker. Please retry; if this persists, check server logs."
+    worker_not_found: "Worker %q not found"
+    worker_duplicate: "Multiple workers named %q found:\n%s"
+    worker_stopped: "✅ Stopped worker %s. Cancelled %d task(s)."
+    worker_nothing_to_stop: "Worker %s has no running or queued tasks."
   status_command:
     usage: "Usage: /status"
     lookup_failed: "⚠️ Failed to look up session status. Please retry; if this persists, check server logs."

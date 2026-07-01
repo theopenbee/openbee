@@ -297,10 +297,16 @@ runtime:
     worker_confirm_header: "⚠️ 将清除 %s（engine：%s）的会话上下文。"
     worker_confirm_footer: "30s 内再发一次 /clear %s 确认。"
   stop_command:
+    usage: "用法：\n/stop — 停止当前会话正在运行的 bee 并取消待处理消息\n/stop {workerName} — 停止指定员工正在运行的任务（保留上下文）"
     stopped: "✅ 已停止 bee 执行"
     stopped_with_messages: "✅ 已停止 bee 执行，取消了 %d 条待处理消息"
     cancelled_messages: "✅ 已取消 %d 条待处理消息"
     nothing_to_stop: "当前会话没有需要停止的内容"
+    lookup_failed: "⚠️ 查询员工失败，请稍后重试；若持续出现请检查服务端日志。"
+    worker_not_found: "员工 %q 不存在"
+    worker_duplicate: "存在多个同名员工 %q：\n%s"
+    worker_stopped: "✅ 已停止员工 %s 的执行，取消了 %d 个任务"
+    worker_nothing_to_stop: "员工 %s 当前没有正在执行或排队的任务"
   status_command:
     usage: "用法：/status"
     lookup_failed: "⚠️ 查询会话状态失败，请稍后重试；若持续出现请检查服务端日志。"

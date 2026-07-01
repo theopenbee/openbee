@@ -4,6 +4,7 @@
 
 ### Added
 - Multi-user accounts with role-based access control (RBAC).
+- `/stop {workerName}` command variant that stops a worker's running and queued tasks while preserving its session context.
 
 ## [0.0.41] - 2026-06-25
 
