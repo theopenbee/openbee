@@ -157,16 +157,22 @@ type ClearWorkerPreview struct {
 // touch for one worker in sessionKey.
 func (s *ClearService) EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerPreview, error) {
 	engine := s.engineCfg.Resolve(w.Engine)
-	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
-		SessionKey: sessionKey,
-		WorkerID:   w.ID,
-		Status:     model.TaskStatusActive,
-		Type:       model.TaskTypeImmediate,
-	})
+	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
 	if err != nil {
 		return ClearWorkerPreview{}, err
 	}
 	return ClearWorkerPreview{Engine: engine, ActiveTasks: activeTasks}, nil
+}
+
+// listActiveImmediateTasks returns the worker's active immediate tasks for
+// sessionKey — the in-flight work that stop/clear must interrupt.
+func (s *ClearService) listActiveImmediateTasks(ctx context.Context, sessionKey, workerID string) ([]model.Task, error) {
+	return s.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		WorkerID:   workerID,
+		Status:     model.TaskStatusActive,
+		Type:       model.TaskTypeImmediate,
+	})
 }
 
 // ClearWorkerResult is the outcome of a ClearWorker execution.
@@ -208,11 +214,11 @@ type StopWorkerResult struct {
 // but WITHOUT deleting the worker's session context. This backs /stop
 // {workerName}: interrupt in-flight work while preserving conversation memory.
 func (s *ClearService) StopWorker(ctx context.Context, sessionKey string, w model.Worker) (StopWorkerResult, error) {
-	preview, err := s.EvaluateClearWorker(ctx, sessionKey, w)
+	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
 	if err != nil {
 		return StopWorkerResult{}, err
 	}
-	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, preview.ActiveTasks)
+	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, activeTasks)
 	if err != nil {
 		return StopWorkerResult{}, err
 	}

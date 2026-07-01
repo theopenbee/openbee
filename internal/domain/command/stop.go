@@ -101,7 +101,11 @@ func (h *StopCommandHandler) handleStopWorker(ctx context.Context, replyTo platf
 	m := i18n.M.Runtime.StopCommand
 	sessionKey := replyTo.SessionKey
 
-	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, m.LookupFailed, m.WorkerNotFound, m.WorkerDuplicate)
+	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, workerResolveMessages{
+		LookupFailed: m.LookupFailed,
+		NotFound:     m.WorkerNotFound,
+		Duplicate:    m.WorkerDuplicate,
+	})
 	if !ok {
 		return
 	}

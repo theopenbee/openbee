@@ -123,7 +123,11 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	m := i18n.M.Runtime.ClearCommand
 	sessionKey := replyTo.SessionKey
 
-	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, m.NoContext, m.WorkerNotFound, m.WorkerDuplicate)
+	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, workerResolveMessages{
+		LookupFailed: m.NoContext,
+		NotFound:     m.WorkerNotFound,
+		Duplicate:    m.WorkerDuplicate,
+	})
 	if !ok {
 		return
 	}
