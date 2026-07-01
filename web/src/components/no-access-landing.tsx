@@ -5,8 +5,9 @@ import { useLogout } from "@/hooks/use-logout"
 
 // NoAccessLanding is the safety net for an account with no reachable page at
 // all. The home resolver shows it instead of redirecting, so an account with
-// zero permissions never falls into a redirect loop. With the current nav (chat
-// is ungated) this is unreachable, but it keeps a future, stricter config safe.
+// zero permissions never falls into a redirect loop. Every nav entry is now
+// permission-gated, so this is the correct destination for a user who can reach
+// nothing at all.
 export function NoAccessLanding() {
   const { t } = useTranslation()
   const logout = useLogout()

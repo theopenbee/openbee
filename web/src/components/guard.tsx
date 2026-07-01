@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useMe } from "@/hooks/use-me"
 import { useCan } from "@/hooks/use-can"
-import { hasPermission } from "@/lib/permissions"
 import { isForbidden } from "@/lib/api"
 import { PermissionDenied } from "@/components/permission-denied"
 
@@ -17,12 +16,12 @@ export function Guard({
   perm?: string
   children: React.ReactNode
 }) {
-  const { data: me, isLoading } = useMe()
+  const { isLoading } = useMe()
+  const allowed = useCan(perm)
 
   if (perm === undefined) return <>{children}</>
   if (isLoading) return null
-  if (!hasPermission(me?.permissions, perm)) return <PermissionDenied />
-  return <>{children}</>
+  return allowed ? <>{children}</> : <PermissionDenied />
 }
 
 // Can is the inline counterpart to Guard: it renders its children only when the

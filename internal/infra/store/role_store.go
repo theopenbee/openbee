@@ -98,9 +98,13 @@ func (s *RoleStore) List() ([]model.RoleWithPermissions, error) {
 }
 
 func (s *RoleStore) Update(r model.Role, permissions []string) error {
-	if r.ID == model.RoleIDSuperAdmin {
-		// The super-admin role is locked: its name, description, and permissions
-		// are all immutable. Ignore any incoming changes.
+	var isSystem int
+	if err := s.db.QueryRow(`SELECT is_system FROM bee_roles WHERE id = ?`, r.ID).Scan(&isSystem); err != nil {
+		return fmt.Errorf("get role: %w", err)
+	}
+	if isSystem == 1 {
+		// System roles are locked: their name, description, and permissions are
+		// all immutable. Ignore any incoming changes.
 		return nil
 	}
 
