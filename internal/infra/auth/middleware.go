@@ -8,26 +8,32 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-// UserStatusLoader returns the account status for a user id.
-type UserStatusLoader interface {
-	UserStatus(userID string) (string, error)
+// UserAuthStateLoader returns the account status and last password-change time
+// for a user id, in a single query.
+type UserAuthStateLoader interface {
+	UserAuthState(userID string) (status string, passwordChangedAt int64, err error)
 }
 
 // AuthMiddleware validates the access token, loads the user id, and rejects
-// missing/disabled accounts.
-func AuthMiddleware(jwtSvc *JWTService, users UserStatusLoader) gin.HandlerFunc {
+// missing/disabled accounts as well as tokens minted before the user's last
+// password change (which forces a re-login after any password change/reset).
+func AuthMiddleware(jwtSvc *JWTService, users UserAuthStateLoader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractBearerToken(c)
 		if token == "" {
 			token = c.Query("token")
 		}
-		uid, err := jwtSvc.ParseAccessToken(token)
+		uid, issuedAt, err := jwtSvc.ParseAccessToken(token)
 		if err != nil || uid == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		status, err := users.UserStatus(uid)
+		status, passwordChangedAt, err := users.UserAuthState(uid)
 		if err != nil || status != model.UserStatusActive {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		if TokenPredatesPasswordChange(issuedAt, passwordChangedAt) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}

@@ -118,6 +118,33 @@ func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 	}
 }
 
+func TestUserStore_SetPasswordBumpsPasswordChangedAt(t *testing.T) {
+	us := setupUserStore(t)
+	u, _ := us.Create("erin", "pw", "Erin", "", nil)
+
+	status, before, err := us.UserAuthState(u.ID)
+	if err != nil {
+		t.Fatalf("UserAuthState: %v", err)
+	}
+	if status != model.UserStatusActive {
+		t.Fatalf("expected active status, got %q", status)
+	}
+
+	if err := us.SetPassword(u.ID, "newpw"); err != nil {
+		t.Fatalf("SetPassword: %v", err)
+	}
+	_, after, err := us.UserAuthState(u.ID)
+	if err != nil {
+		t.Fatalf("UserAuthState after: %v", err)
+	}
+	if after < before {
+		t.Fatalf("password_changed_at must advance on SetPassword: before=%d after=%d", before, after)
+	}
+	if after%1000 != 0 {
+		t.Fatalf("password_changed_at must be floored to the second, got %d", after)
+	}
+}
+
 func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	us := setupUserStore(t)
 	u, _ := us.Create("erin", "pw", "Erin", "", []string{model.RoleIDSuperAdmin})

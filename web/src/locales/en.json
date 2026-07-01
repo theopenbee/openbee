@@ -303,6 +303,20 @@
     "light": "Light mode",
     "dark": "Dark mode"
   },
+  "account": {
+    "changePassword": "Change Password",
+    "changePasswordDescription": "Update the password for your account.",
+    "currentPassword": "Current Password",
+    "currentPasswordPlaceholder": "Enter your current password",
+    "newPassword": "New Password",
+    "newPasswordPlaceholder": "At least 6 characters",
+    "confirmPassword": "Confirm New Password",
+    "confirmPasswordPlaceholder": "Re-enter the new password",
+    "passwordChanged": "Password changed",
+    "passwordChangedRelogin": "Password changed. Please sign in again with your new password.",
+    "errorMismatch": "The two passwords do not match.",
+    "errorSameAsOld": "The new password must be different from the current one."
+  },
   "login": {
     "title": "Sign In",
     "eyebrow": "Control console access",
@@ -554,6 +568,7 @@
     "env_not_found": "Env config not found",
     "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
     "env_reserved_key": "{{key}} is reserved and cannot be set",
-    "env_scope_id_required": "scope_id is required for scope {{scope}}"
+    "env_scope_id_required": "scope_id is required for scope {{scope}}",
+    "old_password_incorrect": "The current password is incorrect."
   }
 }

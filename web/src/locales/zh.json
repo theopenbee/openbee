@@ -302,6 +302,20 @@
     "light": "浅色模式",
     "dark": "深色模式"
   },
+  "account": {
+    "changePassword": "修改密码",
+    "changePasswordDescription": "更新你账号的登录密码。",
+    "currentPassword": "当前密码",
+    "currentPasswordPlaceholder": "请输入当前密码",
+    "newPassword": "新密码",
+    "newPasswordPlaceholder": "至少 6 个字符",
+    "confirmPassword": "确认新密码",
+    "confirmPasswordPlaceholder": "请再次输入新密码",
+    "passwordChanged": "密码已修改",
+    "passwordChangedRelogin": "密码已修改，请使用新密码重新登录。",
+    "errorMismatch": "两次输入的密码不一致。",
+    "errorSameAsOld": "新密码不能与当前密码相同。"
+  },
   "login": {
     "title": "登录",
     "eyebrow": "控制台入口",
@@ -553,6 +567,7 @@
     "env_not_found": "环境变量配置不存在",
     "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee、department 或 worker 之一",
     "env_reserved_key": "{{key}} 为保留键，不可设置",
-    "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id"
+    "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id",
+    "old_password_incorrect": "当前密码不正确。"
   }
 }

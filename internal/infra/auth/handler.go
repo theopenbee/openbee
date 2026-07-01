@@ -12,6 +12,7 @@ type UserAuthenticator interface {
 	Authenticate(username, password string) (model.UserWithRoles, error)
 	GetByID(id string) (model.UserWithRoles, error)
 	SetPassword(id, plainPassword string) error
+	UserAuthState(userID string) (status string, passwordChangedAt int64, err error)
 }
 
 type AuthHandler struct {
@@ -68,8 +69,17 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	uid, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
+	uid, issuedAt, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
 	if err != nil || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
+		return
+	}
+	// A refresh token minted before the user's last password change must not mint
+	// new access tokens — otherwise a stale session could refresh indefinitely
+	// after the password was changed or reset. This path bypasses AuthMiddleware,
+	// so the same check is repeated here.
+	_, passwordChangedAt, err := h.users.UserAuthState(uid)
+	if err != nil || TokenPredatesPasswordChange(issuedAt, passwordChangedAt) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}
@@ -121,7 +131,10 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if _, err := h.users.Authenticate(user.Username, req.OldPassword); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
+		// 400, not 401: a wrong old password is a validation failure, not an
+		// expired session. Returning 401 here would trip the frontend's token
+		// interceptor and log the user out. The code lets the UI localize it.
+		c.JSON(http.StatusBadRequest, gin.H{"error": "old password is incorrect", "code": "old_password_incorrect"})
 		return
 	}
 	if err := h.users.SetPassword(uid, req.NewPassword); err != nil {
