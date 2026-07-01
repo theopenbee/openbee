@@ -8,16 +8,16 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-// UserStatusLoader returns the account status and last password-change time for
-// a user id, in a single query.
-type UserStatusLoader interface {
+// UserAuthStateLoader returns the account status and last password-change time
+// for a user id, in a single query.
+type UserAuthStateLoader interface {
 	UserAuthState(userID string) (status string, passwordChangedAt int64, err error)
 }
 
 // AuthMiddleware validates the access token, loads the user id, and rejects
 // missing/disabled accounts as well as tokens minted before the user's last
 // password change (which forces a re-login after any password change/reset).
-func AuthMiddleware(jwtSvc *JWTService, users UserStatusLoader) gin.HandlerFunc {
+func AuthMiddleware(jwtSvc *JWTService, users UserAuthStateLoader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractBearerToken(c)
 		if token == "" {
@@ -33,7 +33,7 @@ func AuthMiddleware(jwtSvc *JWTService, users UserStatusLoader) gin.HandlerFunc 
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		if issuedAt < passwordChangedAt {
+		if TokenPredatesPasswordChange(issuedAt, passwordChangedAt) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}

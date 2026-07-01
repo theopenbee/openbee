@@ -49,7 +49,6 @@ export function ChangePasswordDialog({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (newPassword.length < MIN_PASSWORD_LENGTH) return
     if (newPassword !== confirmPassword) {
       setError(t("account.errorMismatch"))
       return

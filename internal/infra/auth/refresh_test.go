@@ -21,6 +21,9 @@ func (f fakeAuthenticator) Authenticate(string, string) (model.UserWithRoles, er
 }
 func (f fakeAuthenticator) GetByID(string) (model.UserWithRoles, error) { return f.user, f.err }
 func (f fakeAuthenticator) SetPassword(string, string) error           { return nil }
+func (f fakeAuthenticator) UserAuthState(string) (string, int64, error) {
+	return f.user.Status, f.user.PasswordChangedAt, f.err
+}
 
 func serveRefresh(h *AuthHandler, refreshToken string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)

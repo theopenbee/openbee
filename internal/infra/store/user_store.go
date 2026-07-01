@@ -25,6 +25,13 @@ func NewUserStore(db *sql.DB) *UserStore {
 
 const userColumns = `id, username, password_hash, display_name, status, created_by, created_at, updated_at, password_changed_at`
 
+// floorToSecond truncates a millisecond timestamp to second granularity so that
+// password_changed_at lines up with the JWT `iat` claim, which is emitted with
+// second precision. Tokens minted at or before this instant are then rejected in
+// the auth middleware / refresh path, forcing a re-login after any password
+// change or admin reset.
+func floorToSecond(ms int64) int64 { return ms / 1000 * 1000 }
+
 func (s *UserStore) Create(username, plainPassword, displayName, createdBy string, roleIDs []string) (model.UserWithRoles, error) {
 	hash, err := auth.HashPassword(plainPassword)
 	if err != nil {
@@ -40,8 +47,7 @@ func (s *UserStore) Create(username, plainPassword, displayName, createdBy strin
 	}
 	now := time.Now().UnixMilli()
 	u.CreatedAt, u.UpdatedAt = now, now
-	// Floored to the second to match the JWT `iat` granularity, same as SetPassword.
-	u.PasswordChangedAt = now / 1000 * 1000
+	u.PasswordChangedAt = floorToSecond(now)
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -169,14 +175,11 @@ func (s *UserStore) SetPassword(id, plainPassword string) error {
 		return err
 	}
 	now := time.Now().UnixMilli()
-	// Floor to the second so it lines up with the JWT `iat` claim (second
-	// granularity). Tokens issued at or before this instant are then rejected in
-	// the auth middleware / refresh path, forcing a re-login on every session.
-	// This is the single write choke point for both self-service change and the
-	// admin ResetPassword flow, so both invalidate existing sessions.
-	passwordChangedAt := now / 1000 * 1000
+	// SetPassword is the single write choke point for both the self-service change
+	// and the admin ResetPassword flow, so bumping password_changed_at here
+	// invalidates every existing session for the user.
 	_, err = s.db.Exec(`UPDATE bee_users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?`,
-		hash, passwordChangedAt, now, id)
+		hash, floorToSecond(now), now, id)
 	return err
 }
 
@@ -294,7 +297,7 @@ func scanUser(scanner interface{ Scan(...any) error }) (model.User, error) {
 }
 
 // UserAuthState returns a user's account status and last password-change
-// timestamp in one query (implements auth.UserStatusLoader). The middleware
+// timestamp in one query (implements auth.UserAuthStateLoader). The middleware
 // uses both to reject disabled accounts and tokens issued before a password
 // change, without a second round-trip.
 func (s *UserStore) UserAuthState(userID string) (string, int64, error) {

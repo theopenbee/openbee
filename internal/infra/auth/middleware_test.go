@@ -19,7 +19,7 @@ func (f fakeUserLoader) UserAuthState(uid string) (string, int64, error) {
 	return f.status, f.passwordChangedAt, f.err
 }
 
-func newTestContext(jwt *JWTService, loader UserStatusLoader, resolver *PermissionResolver, token string) (*gin.Engine, *httptest.ResponseRecorder) {
+func newTestContext(jwt *JWTService, loader UserAuthStateLoader, resolver *PermissionResolver, token string) (*gin.Engine, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	grp := r.Group("/api")

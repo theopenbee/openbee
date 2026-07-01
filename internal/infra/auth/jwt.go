@@ -80,6 +80,15 @@ func (s *JWTService) ParseRefreshToken(tokenStr string) (uid string, issuedAt in
 	return s.parseUserToken(tokenStr, tokenTypeRefresh)
 }
 
+// TokenPredatesPasswordChange reports whether a token issued at issuedAt was
+// minted before the user's last password change (passwordChangedAt), in which
+// case it must be rejected to force a re-login. Both the access-token middleware
+// and the refresh path apply this check, since the refresh endpoint bypasses the
+// middleware.
+func TokenPredatesPasswordChange(issuedAt, passwordChangedAt int64) bool {
+	return issuedAt < passwordChangedAt
+}
+
 func (s *JWTService) signUserToken(tokenType, userID string, now time.Time, ttl time.Duration) (string, error) {
 	claims := Claims{
 		Type: tokenType,

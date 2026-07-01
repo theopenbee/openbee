@@ -12,6 +12,7 @@ type UserAuthenticator interface {
 	Authenticate(username, password string) (model.UserWithRoles, error)
 	GetByID(id string) (model.UserWithRoles, error)
 	SetPassword(id, plainPassword string) error
+	UserAuthState(userID string) (status string, passwordChangedAt int64, err error)
 }
 
 type AuthHandler struct {
@@ -77,12 +78,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	// new access tokens — otherwise a stale session could refresh indefinitely
 	// after the password was changed or reset. This path bypasses AuthMiddleware,
 	// so the same check is repeated here.
-	user, err := h.users.GetByID(uid)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
-		return
-	}
-	if issuedAt < user.PasswordChangedAt {
+	_, passwordChangedAt, err := h.users.UserAuthState(uid)
+	if err != nil || TokenPredatesPasswordChange(issuedAt, passwordChangedAt) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}
