@@ -4,6 +4,7 @@
 
 ### Added
 - Support updating a worker's work directory.
+- Multi-user accounts with role-based access control (RBAC).
 
 ### Changed
 - Redesign the web UI and interactions.
