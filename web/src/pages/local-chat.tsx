@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-local-chat"
 import { EmptyState } from "@/components/empty-state"
 import { CopyButton } from "@/components/copy-button"
+import { ImageLightbox } from "@/components/image-lightbox"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -108,20 +109,7 @@ const AttachmentPreview = memo(function AttachmentPreview({
   const frameClass = "border-border/70 bg-background/70"
 
   if (isImage(mediaPath)) {
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className={cn("block overflow-hidden rounded-sm border", frameClass)}
-      >
-        <img
-          src={url}
-          alt={filename}
-          className="max-h-80 w-full object-contain"
-        />
-      </a>
-    )
+    return <ImageLightbox src={url} alt={filename} className={frameClass} />
   }
 
   return (
