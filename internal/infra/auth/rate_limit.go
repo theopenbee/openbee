@@ -13,11 +13,12 @@ import (
 // attempt via Allow and clear a key's budget with Reset on success, so only
 // failed attempts leave a lasting cost.
 type LoginRateLimiter struct {
-	mu       sync.Mutex
-	limiters map[string]*ipEntry
-	rate     rate.Limit
-	burst    int
-	window   time.Duration
+	mu        sync.Mutex
+	limiters  map[string]*ipEntry
+	rate      rate.Limit
+	burst     int
+	window    time.Duration
+	lastSweep time.Time
 }
 
 type ipEntry struct {
@@ -26,14 +27,12 @@ type ipEntry struct {
 }
 
 func NewLoginRateLimiter(maxAttempts int, window time.Duration) *LoginRateLimiter {
-	l := &LoginRateLimiter{
+	return &LoginRateLimiter{
 		limiters: make(map[string]*ipEntry),
 		rate:     rate.Every(window / time.Duration(maxAttempts)),
 		burst:    maxAttempts,
 		window:   window,
 	}
-	go l.cleanupLoop()
-	return l
 }
 
 // Allow consumes one token for the key and reports whether the attempt is
@@ -42,12 +41,15 @@ func (l *LoginRateLimiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	now := time.Now()
+	l.sweep(now)
+
 	e := l.limiters[key]
 	if e == nil {
 		e = &ipEntry{lim: rate.NewLimiter(l.rate, l.burst)}
 		l.limiters[key] = e
 	}
-	e.lastSeen = time.Now()
+	e.lastSeen = now
 	return e.lim.Allow()
 }
 
@@ -59,19 +61,19 @@ func (l *LoginRateLimiter) Reset(key string) {
 	l.mu.Unlock()
 }
 
-// cleanupLoop periodically evicts keys that have been idle longer than the
-// window, keeping the map from growing unboundedly with one-off client keys.
-func (l *LoginRateLimiter) cleanupLoop() {
-	ticker := time.NewTicker(l.window)
-	defer ticker.Stop()
-	for range ticker.C {
-		cutoff := time.Now().Add(-l.window)
-		l.mu.Lock()
-		for key, e := range l.limiters {
-			if e.lastSeen.Before(cutoff) {
-				delete(l.limiters, key)
-			}
-		}
-		l.mu.Unlock()
+// sweep evicts keys idle longer than the window, keeping the map from growing
+// unboundedly with one-off client keys. It runs at most once per window,
+// piggybacked on Allow, so no background goroutine is needed. The caller must
+// hold l.mu.
+func (l *LoginRateLimiter) sweep(now time.Time) {
+	if now.Sub(l.lastSweep) < l.window {
+		return
 	}
+	cutoff := now.Add(-l.window)
+	for key, e := range l.limiters {
+		if e.lastSeen.Before(cutoff) {
+			delete(l.limiters, key)
+		}
+	}
+	l.lastSweep = now
 }
