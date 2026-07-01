@@ -104,7 +104,6 @@ export const api = {
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
-    getDepartments: (id: string) => fetchAPI<Department[]>(`/workers/${id}/departments`),
     setDepartments: (id: string, departmentIds: string[]) =>
       fetchAPI(`/workers/${id}/departments`, {
         method: "PUT",
@@ -167,14 +166,12 @@ export const api = {
       const tree = await fetchAPI<DepartmentTree[] | null>("/departments")
       return Array.isArray(tree) ? tree : []
     },
-    get: (id: string) => fetchAPI<Department>(`/departments/${id}`),
     create: (data: { name: string; parent_id?: string | null; sort_order?: number }) =>
       fetchAPI<Department>("/departments", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: { name?: string; parent_id?: string | null; sort_order?: number }) =>
       fetchAPI<Department>(`/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) =>
       fetchAPI(`/departments/${id}`, { method: "DELETE" }),
-    workers: (id: string) => fetchAPI<Worker[]>(`/departments/${id}/workers`),
   },
   tasks: {
     list: (params: { workerID?: string; page?: number; pageSize?: number } = {}) => {

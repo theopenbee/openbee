@@ -39,12 +39,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	// Departments
 	r.POST("/departments", rp(auth.PermContactsWrite), s.Departments.Create)
 	r.GET("/departments", rp(auth.PermContactsRead), s.Departments.List)
-	r.GET("/departments/:id", rp(auth.PermContactsRead), s.Departments.Get)
 	r.PUT("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Update)
 	r.DELETE("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Delete)
 	r.PUT("/workers/:id/departments", rp(auth.PermContactsWrite), s.Departments.SetWorkerDepartments)
-	r.GET("/workers/:id/departments", rp(auth.PermContactsRead), s.Departments.GetWorkerDepartments)
-	r.GET("/departments/:id/workers", rp(auth.PermContactsRead), s.Departments.GetDepartmentWorkers)
 
 	// Local chat & messages — gated by a single chat:write capability
 	// (view + send), decoupled from worker-management permissions.
