@@ -28,6 +28,7 @@ import {
   useSendMessage,
 } from "@/hooks/use-local-chat"
 import { EmptyState } from "@/components/empty-state"
+import { CopyButton } from "@/components/copy-button"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
@@ -173,6 +174,99 @@ const CollapsibleContent = memo(function CollapsibleContent({
           {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
         </button>
       )}
+    </div>
+  )
+})
+
+// A single chat message row (sent or received). Extracted as a memo'd component
+// so a long transcript doesn't re-render every bubble on each state change, and
+// so each row can own its hover state for the inline copy affordance.
+const MessageBubble = memo(function MessageBubble({
+  message,
+  isGroupStart,
+}: {
+  message: ChatMessage
+  isGroupStart: boolean
+}) {
+  const { t, i18n } = useTranslation()
+  const isUser = message.role === "user"
+  const hasContent = message.content.trim().length > 0
+
+  return (
+    <div
+      className={cn(
+        "group flex flex-col first:mt-0",
+        isUser ? "items-end" : "items-start",
+        isGroupStart ? "mt-4" : "mt-1"
+      )}
+    >
+      {isGroupStart && (
+        <div
+          className={cn(
+            "mb-1 flex items-center gap-2 px-0.5 text-xs",
+            isUser && "flex-row-reverse"
+          )}
+        >
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              isUser ? "bg-muted-foreground/40" : "bg-primary"
+            )}
+          />
+          <span className="font-medium text-muted-foreground">
+            {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
+          </span>
+          <time className="text-muted-foreground/60">
+            {formatMessageTimestamp(message.ts, i18n.language)}
+          </time>
+        </div>
+      )}
+
+      <div className="relative">
+        <div
+          className={cn(
+            "overflow-hidden",
+            isUser
+              ? "max-w-[min(100%,42rem)] rounded-sm bg-muted/50 px-3.5 py-2"
+              : "max-w-[min(100%,52rem)] rounded-sm border border-border/60 bg-card px-3.5 py-2"
+          )}
+        >
+          {message.media_paths && message.media_paths.length > 0 && (
+            <div className="space-y-2">
+              {message.media_paths.map((path) => (
+                <AttachmentPreview
+                  key={path}
+                  mediaPath={path}
+                  tone={message.role}
+                />
+              ))}
+            </div>
+          )}
+
+          {hasContent && (
+            <CollapsibleContent>
+              <div
+                className={cn(
+                  "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
+                  message.media_paths && message.media_paths.length > 0 && "mt-2"
+                )}
+              >
+                <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
+              </div>
+            </CollapsibleContent>
+          )}
+        </div>
+
+        {hasContent && (
+          <CopyButton
+            value={message.content}
+            className={cn(
+              "absolute top-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
+              isUser ? "-left-7" : "-right-7"
+            )}
+          />
+        )}
+      </div>
     </div>
   )
 })
@@ -361,76 +455,15 @@ export function LocalChat() {
                   </div>
                 )}
                 {localMessages.map((message, index) => {
-                  const isUser = message.role === "user"
-                  const hasContent = message.content.trim().length > 0
                   const prev = localMessages[index - 1]
                   const isGroupStart = !prev || prev.role !== message.role
 
                   return (
-                    <div
+                    <MessageBubble
                       key={`${message.role}-${message.ts}-${index}`}
-                      className={cn(
-                        "flex flex-col first:mt-0",
-                        isUser ? "items-end" : "items-start",
-                        isGroupStart ? "mt-4" : "mt-1"
-                      )}
-                    >
-                      {isGroupStart && (
-                        <div
-                          className={cn(
-                            "mb-1 flex items-center gap-2 px-0.5 text-xs",
-                            isUser && "flex-row-reverse"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              isUser ? "bg-muted-foreground/40" : "bg-primary"
-                            )}
-                          />
-                          <span className="font-medium text-muted-foreground">
-                            {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
-                          </span>
-                          <time className="text-muted-foreground/60">
-                            {formatMessageTimestamp(message.ts, i18n.language)}
-                          </time>
-                        </div>
-                      )}
-
-                      <div
-                        className={cn(
-                          "overflow-hidden",
-                          isUser
-                            ? "max-w-[min(100%,42rem)] rounded-sm bg-muted/50 px-3.5 py-2"
-                            : "max-w-[min(100%,52rem)] rounded-sm border border-border/60 bg-card px-3.5 py-2"
-                        )}
-                      >
-                        {message.media_paths && message.media_paths.length > 0 && (
-                          <div className="space-y-2">
-                            {message.media_paths.map((path) => (
-                              <AttachmentPreview
-                                key={path}
-                                mediaPath={path}
-                                tone={message.role}
-                              />
-                            ))}
-                          </div>
-                        )}
-
-                        {hasContent && (
-                          <CollapsibleContent>
-                            <div
-                              className={cn(
-                                "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
-                                message.media_paths && message.media_paths.length > 0 && "mt-2"
-                              )}
-                            >
-                              <Streamdown mode="static">{normalizeBeeContent(message.content)}</Streamdown>
-                            </div>
-                          </CollapsibleContent>
-                        )}
-                      </div>
-                    </div>
+                      message={message}
+                      isGroupStart={isGroupStart}
+                    />
                   )
                 })}
 
