@@ -10,6 +10,10 @@ type User struct {
 	CreatedBy    string `json:"created_by" db:"created_by"`
 	CreatedAt    int64  `json:"created_at" db:"created_at"`
 	UpdatedAt    int64  `json:"updated_at" db:"updated_at"`
+	// PasswordChangedAt is the millisecond timestamp (floored to the second) of
+	// the last password change. Access/refresh tokens issued before this instant
+	// are rejected, forcing a re-login after any password change or admin reset.
+	PasswordChangedAt int64 `json:"-" db:"password_changed_at"`
 }
 
 // UserWithRoles is a user plus its assigned roles, for list/detail responses.

@@ -312,6 +312,7 @@
     "confirmPassword": "确认新密码",
     "confirmPasswordPlaceholder": "请再次输入新密码",
     "passwordChanged": "密码已修改",
+    "passwordChangedRelogin": "密码已修改，请使用新密码重新登录。",
     "errorMismatch": "两次输入的密码不一致。",
     "errorSameAsOld": "新密码不能与当前密码相同。"
   },

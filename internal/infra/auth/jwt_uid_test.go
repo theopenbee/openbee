@@ -11,15 +11,18 @@ func TestJWT_UserTokenRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateUserTokenPair: %v", err)
 	}
-	uid, err := svc.ParseAccessToken(pair.AccessToken)
+	uid, issuedAt, err := svc.ParseAccessToken(pair.AccessToken)
 	if err != nil {
 		t.Fatalf("ParseAccessToken: %v", err)
 	}
 	if uid != "user-123" {
 		t.Fatalf("expected uid user-123, got %s", uid)
 	}
+	if issuedAt <= 0 {
+		t.Fatalf("expected positive issuedAt, got %d", issuedAt)
+	}
 
-	ruid, err := svc.ParseRefreshToken(pair.RefreshToken)
+	ruid, _, err := svc.ParseRefreshToken(pair.RefreshToken)
 	if err != nil {
 		t.Fatalf("ParseRefreshToken: %v", err)
 	}

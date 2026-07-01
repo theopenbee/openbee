@@ -68,8 +68,21 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	uid, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
+	uid, issuedAt, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
 	if err != nil || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
+		return
+	}
+	// A refresh token minted before the user's last password change must not mint
+	// new access tokens — otherwise a stale session could refresh indefinitely
+	// after the password was changed or reset. This path bypasses AuthMiddleware,
+	// so the same check is repeated here.
+	user, err := h.users.GetByID(uid)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
+		return
+	}
+	if issuedAt < user.PasswordChangedAt {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}

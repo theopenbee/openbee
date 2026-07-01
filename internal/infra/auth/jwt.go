@@ -66,13 +66,17 @@ func (s *JWTService) GenerateUserAccessToken(userID string) (string, int64, erro
 	return token, int64(s.accessTokenTTL.Seconds()), nil
 }
 
-// ParseAccessToken validates an access token and returns its uid.
-func (s *JWTService) ParseAccessToken(tokenStr string) (string, error) {
+// ParseAccessToken validates an access token and returns its uid and the
+// issued-at time in milliseconds (floored to the second, matching the JWT `iat`
+// claim). Callers compare issuedAt against the user's password_changed_at to
+// reject tokens minted before a password change.
+func (s *JWTService) ParseAccessToken(tokenStr string) (uid string, issuedAt int64, err error) {
 	return s.parseUserToken(tokenStr, tokenTypeAccess)
 }
 
-// ParseRefreshToken validates a refresh token and returns its uid.
-func (s *JWTService) ParseRefreshToken(tokenStr string) (string, error) {
+// ParseRefreshToken validates a refresh token and returns its uid and issued-at
+// time in milliseconds. See ParseAccessToken for the issuedAt semantics.
+func (s *JWTService) ParseRefreshToken(tokenStr string) (uid string, issuedAt int64, err error) {
 	return s.parseUserToken(tokenStr, tokenTypeRefresh)
 }
 
@@ -89,7 +93,7 @@ func (s *JWTService) signUserToken(tokenType, userID string, now time.Time, ttl 
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 
-func (s *JWTService) parseUserToken(tokenStr, expectedType string) (string, error) {
+func (s *JWTService) parseUserToken(tokenStr, expectedType string) (string, int64, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -97,11 +101,15 @@ func (s *JWTService) parseUserToken(tokenStr, expectedType string) (string, erro
 		return s.secret, nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("invalid token: %w", err)
+		return "", 0, fmt.Errorf("invalid token: %w", err)
 	}
 	claims, ok := token.Claims.(*Claims)
 	if !ok || claims.Type != expectedType {
-		return "", fmt.Errorf("invalid token type: expected %s", expectedType)
+		return "", 0, fmt.Errorf("invalid token type: expected %s", expectedType)
 	}
-	return claims.UID, nil
+	var issuedAt int64
+	if claims.IssuedAt != nil {
+		issuedAt = claims.IssuedAt.UnixMilli()
+	}
+	return claims.UID, issuedAt, nil
 }

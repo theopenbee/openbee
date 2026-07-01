@@ -466,6 +466,11 @@ INSERT OR IGNORE INTO bee_role_permissions (role_id, permission) VALUES
 UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission = 'stats:read';
 `,
 	},
+	{
+		version: 49,
+		name:    "add_password_changed_at_to_bee_users",
+		sql:     `ALTER TABLE bee_users ADD COLUMN password_changed_at INTEGER NOT NULL DEFAULT 0`,
+	},
 }
 
 type whereBuilder struct {

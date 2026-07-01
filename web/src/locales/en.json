@@ -313,6 +313,7 @@
     "confirmPassword": "Confirm New Password",
     "confirmPasswordPlaceholder": "Re-enter the new password",
     "passwordChanged": "Password changed",
+    "passwordChangedRelogin": "Password changed. Please sign in again with your new password.",
     "errorMismatch": "The two passwords do not match.",
     "errorSameAsOld": "The new password must be different from the current one."
   },

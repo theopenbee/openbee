@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useChangePassword } from "@/hooks/use-change-password"
+import { useLogout } from "@/hooks/use-logout"
 import { getErrorMessage } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ export function ChangePasswordDialog({
 }) {
   const { t } = useTranslation()
   const changePassword = useChangePassword()
+  const logout = useLogout()
 
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -58,8 +60,12 @@ export function ChangePasswordDialog({
     }
     try {
       await changePassword.mutateAsync({ oldPassword, newPassword })
-      toast.success(t("account.passwordChanged"))
+      // Changing the password invalidates every existing session server-side,
+      // so tear down this one and send the user back to the login page instead
+      // of leaving them on a page whose tokens are already dead.
       handleOpenChange(false)
+      toast.success(t("account.passwordChangedRelogin"))
+      logout()
     } catch (err) {
       setError(getErrorMessage(err))
     }
