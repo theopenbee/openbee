@@ -402,7 +402,7 @@ export function LocalChat() {
                           "overflow-hidden",
                           isUser
                             ? "max-w-[min(100%,42rem)] rounded-sm bg-muted/50 px-3.5 py-2"
-                            : "max-w-[min(100%,52rem)] px-0.5"
+                            : "max-w-[min(100%,52rem)] rounded-sm border border-border/60 bg-card px-3.5 py-2"
                         )}
                       >
                         {message.media_paths && message.media_paths.length > 0 && (
