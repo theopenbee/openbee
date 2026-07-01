@@ -154,7 +154,7 @@ func workerLookup(name string, workers ...model.Worker) *fakeClearWorkerLookup {
 
 func TestStop_Worker_StopsTasks(t *testing.T) {
 	sender := &fakeStopSender{}
-	stop := &fakeWorkerStopper{result: session.StopWorkerResult{Engine: "claude", CancelledTasks: 2}}
+	stop := &fakeWorkerStopper{result: session.StopWorkerResult{CancelledTasks: 2}}
 	h := newStopWorkerHandler(workerLookup("alice", model.Worker{ID: "w-1", Name: "alice"}), stop, sender)
 
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
@@ -172,7 +172,7 @@ func TestStop_Worker_StopsTasks(t *testing.T) {
 
 func TestStop_Worker_NothingToStop(t *testing.T) {
 	sender := &fakeStopSender{}
-	stop := &fakeWorkerStopper{result: session.StopWorkerResult{Engine: "claude", CancelledTasks: 0}}
+	stop := &fakeWorkerStopper{result: session.StopWorkerResult{CancelledTasks: 0}}
 	h := newStopWorkerHandler(workerLookup("alice", model.Worker{ID: "w-1", Name: "alice"}), stop, sender)
 
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())

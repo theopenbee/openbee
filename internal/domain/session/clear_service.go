@@ -200,7 +200,6 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 
 // StopWorkerResult is the outcome of a StopWorker execution.
 type StopWorkerResult struct {
-	Engine         string
 	CancelledTasks int64
 }
 
@@ -215,9 +214,9 @@ func (s *ClearService) StopWorker(ctx context.Context, sessionKey string, w mode
 	}
 	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, preview.ActiveTasks)
 	if err != nil {
-		return StopWorkerResult{Engine: preview.Engine}, err
+		return StopWorkerResult{}, err
 	}
-	return StopWorkerResult{Engine: preview.Engine, CancelledTasks: cancelled}, nil
+	return StopWorkerResult{CancelledTasks: cancelled}, nil
 }
 
 // stopWorkerTasks stops the running executions for activeTasks, cancels the

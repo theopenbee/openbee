@@ -381,8 +381,8 @@ func TestStopWorker_StopsAndCancels_WithoutDeletingContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.CancelledTasks != 1 || got.Engine != "claude" {
-		t.Fatalf("expected engine=claude cancelled=1, got %+v", got)
+	if got.CancelledTasks != 1 {
+		t.Fatalf("expected cancelled=1, got %+v", got)
 	}
 	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-1" {
 		t.Fatalf("expected stop exec-1, got %v", stopper.stopped)
