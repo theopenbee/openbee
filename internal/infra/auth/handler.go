@@ -121,7 +121,10 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if _, err := h.users.Authenticate(user.Username, req.OldPassword); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
+		// 400, not 401: a wrong old password is a validation failure, not an
+		// expired session. Returning 401 here would trip the frontend's token
+		// interceptor and log the user out. The code lets the UI localize it.
+		c.JSON(http.StatusBadRequest, gin.H{"error": "old password is incorrect", "code": "old_password_incorrect"})
 		return
 	}
 	if err := h.users.SetPassword(uid, req.NewPassword); err != nil {

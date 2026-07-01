@@ -18,9 +18,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { ChevronsUpDownIcon, ChevronDownIcon, LogOutIcon, SunIcon, MoonIcon } from "lucide-react"
+import { ChevronsUpDownIcon, ChevronDownIcon, LogOutIcon, SunIcon, MoonIcon, KeyRoundIcon } from "lucide-react"
+import { useState } from "react"
 import { useLogout } from "@/hooks/use-logout"
 import { useThemeToggle } from "@/hooks/use-theme-toggle"
+import { ChangePasswordDialog } from "@/components/change-password-dialog"
 
 export function NavUser({
   username,
@@ -34,6 +36,7 @@ export function NavUser({
   const logout = useLogout()
   const { t } = useTranslation()
   const { theme, toggle: toggleTheme } = useThemeToggle()
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   const initials = username.slice(0, 2).toUpperCase()
   const avatar = (
@@ -62,6 +65,10 @@ export function NavUser({
         </DropdownMenuLabel>
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
+        <KeyRoundIcon className="size-4" />
+        {t("account.changePassword", "Change Password")}
+      </DropdownMenuItem>
       <DropdownMenuItem onClick={toggleTheme}>
         {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
         {theme === "dark" ? t("theme.light", "Light mode") : t("theme.dark", "Dark mode")}
@@ -74,16 +81,23 @@ export function NavUser({
     </DropdownMenuContent>
   )
 
+  const passwordDialog = (
+    <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+  )
+
   if (variant === "bar") {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2 rounded-sm px-1.5 py-1 text-sm outline-hidden transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted">
-          {avatar}
-          <span className="hidden max-w-32 truncate font-medium sm:inline-block">{username}</span>
-          <ChevronDownIcon className="size-4 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        {menuContent}
-      </DropdownMenu>
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 rounded-sm px-1.5 py-1 text-sm outline-hidden transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted">
+            {avatar}
+            <span className="hidden max-w-32 truncate font-medium sm:inline-block">{username}</span>
+            <ChevronDownIcon className="size-4 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          {menuContent}
+        </DropdownMenu>
+        {passwordDialog}
+      </>
     )
   }
 
@@ -105,6 +119,7 @@ export function NavUser({
           {menuContent}
         </DropdownMenu>
       </SidebarMenuItem>
+      {passwordDialog}
     </SidebarMenu>
   )
 }
