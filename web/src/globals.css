@@ -6,6 +6,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Streamdown renders fenced code as
+   div[data-streamdown="code-block"] > div[data-streamdown="code-block-body"] > pre.
+   The body ships with `overflow-hidden`, so long lines are clipped with no scroll.
+   Enable horizontal scrolling on that actual scroll container. Kept unlayered so it
+   beats Streamdown's `overflow-hidden` utility. */
+[data-streamdown="code-block-body"] {
+  overflow-x: auto;
+}
+
 @theme inline {
 --font-sans: "Inter Variable", "Noto Sans SC", system-ui, sans-serif;
 --font-heading: "Inter Variable", "Noto Sans SC", system-ui, sans-serif;

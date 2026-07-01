@@ -222,13 +222,18 @@ const MessageBubble = memo(function MessageBubble({
         </div>
       )}
 
-      <div className="relative">
+      <div
+        className={cn(
+          "relative min-w-0",
+          isUser ? "max-w-[min(100%,42rem)]" : "max-w-[min(100%,52rem)]"
+        )}
+      >
         <div
           className={cn(
             "overflow-hidden",
             isUser
-              ? "max-w-[min(100%,42rem)] rounded-sm bg-muted/50 px-3.5 py-2"
-              : "max-w-[min(100%,52rem)] rounded-sm border border-border/60 bg-card px-3.5 py-2"
+              ? "rounded-sm bg-muted/50 px-3.5 py-2"
+              : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
           )}
         >
           {message.media_paths && message.media_paths.length > 0 && (
@@ -247,7 +252,7 @@ const MessageBubble = memo(function MessageBubble({
             <CollapsibleContent>
               <div
                 className={cn(
-                  "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:overflow-x-auto prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
+                  "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
                   message.media_paths && message.media_paths.length > 0 && "mt-2"
                 )}
               >
