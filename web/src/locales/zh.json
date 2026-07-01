@@ -283,7 +283,7 @@
     "send": "发送",
     "uploadFile": "上传文件",
     "processing": "处理中...",
-    "uploadError": "{{count}} 个文件上传失败，请重试",
+    "uploadError_other": "{{count}} 个文件上传失败，请重试",
     "noMessagesTitle": "开始第一轮对话",
     "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
@@ -318,7 +318,6 @@
   },
   "setup": {
     "title": "创建管理员账户",
-    "eyebrow": "首次初始化",
     "description": "尚未创建任何账户。请先创建第一个管理员账户。",
     "username": "用户名",
     "usernamePlaceholder": "admin",
@@ -516,12 +515,10 @@
     "updated": "默认引擎已更新",
     "globalArgsSection": {
       "title": "全局员工参数",
-      "hint": "追加到所有员工引擎调用的 CLI 参数，优先级低于各员工自身参数。",
       "updated": "全局员工参数已更新"
     },
     "beeArgsSection": {
       "title": "Bee 引擎参数",
-      "hint": "追加到 Bee 编排进程自身引擎调用的 CLI 参数，覆盖全局参数中对应项。",
       "updated": "Bee 引擎参数已更新"
     }
   },

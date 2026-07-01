@@ -319,7 +319,6 @@
   },
   "setup": {
     "title": "Create Admin Account",
-    "eyebrow": "First-run setup",
     "description": "No account exists yet. Create the first administrator to get started.",
     "username": "Username",
     "usernamePlaceholder": "admin",
@@ -517,12 +516,10 @@
     "updated": "Default engine updated",
     "globalArgsSection": {
       "title": "Global Worker Args",
-      "hint": "CLI flags appended to every worker's engine invocation. Applied before per-worker args.",
       "updated": "Global worker args updated"
     },
     "beeArgsSection": {
       "title": "Bee Engine Args",
-      "hint": "CLI flags appended to the Bee orchestrator's own engine invocation. Merged on top of global args.",
       "updated": "Bee engine args updated"
     }
   },
