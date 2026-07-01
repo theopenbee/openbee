@@ -123,26 +123,15 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	m := i18n.M.Runtime.ClearCommand
 	sessionKey := replyTo.SessionKey
 
-	workers, err := h.workers.ListByName(workerName)
-	if err != nil {
-		log.Error("list workers by name for /clear", zap.String("name", workerName), zap.Error(err))
-		h.reply(ctx, replyTo, m.NoContext)
-		return
-	}
-	if len(workers) == 0 {
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerNotFound, workerName))
-		return
-	}
-	if len(workers) > 1 {
-		var lines []string
-		for _, w := range workers {
-			lines = append(lines, fmt.Sprintf("  %s (%s)", w.Name, w.ID))
-		}
-		h.reply(ctx, replyTo, fmt.Sprintf(m.WorkerDuplicate, workerName, strings.Join(lines, "\n")))
+	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, workerResolveMessages{
+		LookupFailed: m.NoContext,
+		NotFound:     m.WorkerNotFound,
+		Duplicate:    m.WorkerDuplicate,
+	})
+	if !ok {
 		return
 	}
 
-	w := workers[0]
 	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
 	confirmed := h.consumePending(pendingKey)
 

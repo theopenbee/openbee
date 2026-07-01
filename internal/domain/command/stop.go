@@ -3,10 +3,13 @@ package command
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -18,18 +21,34 @@ type StopMessageStore interface {
 	FailReceived(ctx context.Context, sessionKey string) ([]string, error)
 }
 
+// WorkerStopper stops a single worker's in-flight work for a session without
+// deleting its session context. Implemented by *session.ClearService.
+type WorkerStopper interface {
+	StopWorker(ctx context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error)
+}
+
 type StopCommandHandler struct {
-	feeder  BeeStopper
-	msgs    StopMessageStore
-	senders map[string]platform.PlatformSenderAdapter
+	feeder     BeeStopper
+	msgs       StopMessageStore
+	workers    WorkerNameLookup
+	workerStop WorkerStopper
+	senders    map[string]platform.PlatformSenderAdapter
 }
 
 func NewStopCommandHandler(
 	feeder BeeStopper,
 	msgs StopMessageStore,
+	workers WorkerNameLookup,
+	workerStop WorkerStopper,
 	senders map[string]platform.PlatformSenderAdapter,
 ) *StopCommandHandler {
-	return &StopCommandHandler{feeder: feeder, msgs: msgs, senders: senders}
+	return &StopCommandHandler{
+		feeder:     feeder,
+		msgs:       msgs,
+		workers:    workers,
+		workerStop: workerStop,
+		senders:    senders,
+	}
 }
 
 func (h *StopCommandHandler) IsCommand(content string) bool {
@@ -37,9 +56,23 @@ func (h *StopCommandHandler) IsCommand(content string) bool {
 }
 
 func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, replyTo platform.InboundMessage) bool {
-	if content != CmdStop {
+	fields := strings.Fields(content)
+	if len(fields) == 0 || fields[0] != CmdStop {
 		return false
 	}
+
+	switch len(fields) {
+	case 1:
+		h.handleStopBee(ctx, replyTo)
+	case 2:
+		h.handleStopWorker(ctx, replyTo, fields[1])
+	default:
+		sendReply(ctx, h.senders, replyTo, i18n.M.Runtime.StopCommand.Usage)
+	}
+	return true
+}
+
+func (h *StopCommandHandler) handleStopBee(ctx context.Context, replyTo platform.InboundMessage) {
 	sessionKey := replyTo.SessionKey
 	m := i18n.M.Runtime.StopCommand
 
@@ -62,5 +95,31 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 		reply = m.NothingToStop
 	}
 	sendReply(ctx, h.senders, replyTo, reply)
-	return true
+}
+
+func (h *StopCommandHandler) handleStopWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
+	m := i18n.M.Runtime.StopCommand
+	sessionKey := replyTo.SessionKey
+
+	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, workerResolveMessages{
+		LookupFailed: m.LookupFailed,
+		NotFound:     m.WorkerNotFound,
+		Duplicate:    m.WorkerDuplicate,
+	})
+	if !ok {
+		return
+	}
+
+	result, err := h.workerStop.StopWorker(ctx, sessionKey, w)
+	if err != nil {
+		log.Error("stop worker", zap.String("workerID", w.ID), zap.Error(err))
+		sendReply(ctx, h.senders, replyTo, fmt.Sprintf(m.WorkerStopFailed, w.Name))
+		return
+	}
+
+	if result.CancelledTasks > 0 {
+		sendReply(ctx, h.senders, replyTo, fmt.Sprintf(m.WorkerStopped, w.Name, result.CancelledTasks))
+	} else {
+		sendReply(ctx, h.senders, replyTo, fmt.Sprintf(m.WorkerNothingToStop, w.Name))
+	}
 }

@@ -4,6 +4,7 @@
 
 ### Added
 - Multi-user accounts with role-based access control (RBAC).
+- `/stop {workerName}` command variant that stops a worker's running and queued tasks while preserving its session context.
 
 ### Fixed
 - Fix login rate limiting counting successful logins, locking out accounts behind a shared IP; only failed attempts now count.

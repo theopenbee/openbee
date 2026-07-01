@@ -177,7 +177,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		EngineCfg:     engineCfg,
 	})
 	clearCmdHandler := command.NewClearCommandHandler(s.workerStore, clearSvc, sendersByPlatform, s.execStore)
-	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, sendersByPlatform)
+	stopCmdHandler := command.NewStopCommandHandler(feeder, s.msgStore, s.workerStore, clearSvc, sendersByPlatform)
 	statusCmdHandler := command.NewStatusCommandHandler(command.StatusCommandDeps{
 		Sessions:     s.sessionStore,
 		Tasks:        s.taskStore,

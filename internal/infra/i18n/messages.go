@@ -129,15 +129,15 @@ type PromptMessages struct {
 
 // FlagMessages maps to all cobra flag Usage descriptions.
 type FlagMessages struct {
-	ConfigPath      string `yaml:"config_path"`
-	ServerDaemon    string `yaml:"server_daemon"`
-	ConfigOutput    string `yaml:"config_output"`
-	BackupPassword  string `yaml:"backup_password"`
-	RestorePassword string `yaml:"restore_password"`
-	RestoreForce    string `yaml:"restore_force"`
-	UpgradeCheck    string `yaml:"upgrade_check"`
-	UpgradeCDNURL   string `yaml:"upgrade_cdn_url"`
-	UpgradeCN       string `yaml:"upgrade_cn"`
+	ConfigPath        string `yaml:"config_path"`
+	ServerDaemon      string `yaml:"server_daemon"`
+	ConfigOutput      string `yaml:"config_output"`
+	BackupPassword    string `yaml:"backup_password"`
+	RestorePassword   string `yaml:"restore_password"`
+	RestoreForce      string `yaml:"restore_force"`
+	UpgradeCheck      string `yaml:"upgrade_check"`
+	UpgradeCDNURL     string `yaml:"upgrade_cdn_url"`
+	UpgradeCN         string `yaml:"upgrade_cn"`
 	ServiceConfig     string `yaml:"service_config"`
 	ServiceWorkingDir string `yaml:"service_working_dir"`
 	ServiceNoStart    string `yaml:"service_no_start"`
@@ -169,28 +169,28 @@ type OutputMessages struct {
 
 // ServiceOutput maps to service command runtime output.
 type ServiceOutput struct {
-	Installed            string `yaml:"installed"`
-	Uninstalled          string `yaml:"uninstalled"`
-	Started              string `yaml:"started"`
-	Stopped              string `yaml:"stopped"`
-	AlreadyInstalled     string `yaml:"already_installed"`
-	NotInstalled         string `yaml:"not_installed"`
-	ConfigMissing        string `yaml:"config_missing"`
-	ConfigPathIsDir      string `yaml:"config_path_is_dir"`
-	SystemdUnavail       string `yaml:"systemd_unavailable"`
-	MustBeRoot           string `yaml:"must_be_root"`
-	RunAsRequired        string `yaml:"run_as_required"`
-	RunAsUserUnknown     string `yaml:"run_as_user_unknown"`
-	StatusInstalled      string `yaml:"status_installed"`
-	StatusRunState       string `yaml:"status_run_state"`
-	StatusPID            string `yaml:"status_pid"`
-	StatusYes            string `yaml:"status_yes"`
-	StatusNo             string `yaml:"status_no"`
-	StatusLastExitCode   string `yaml:"status_last_exit_code"`
-	StatusLastExitReason string `yaml:"status_last_exit_reason"`
-	StatusLogPath        string `yaml:"status_log_path"`
-	StatusLogTailHeader  string `yaml:"status_log_tail_header"`
-	StatusLogReadFailed  string `yaml:"status_log_read_failed"`
+	Installed                string `yaml:"installed"`
+	Uninstalled              string `yaml:"uninstalled"`
+	Started                  string `yaml:"started"`
+	Stopped                  string `yaml:"stopped"`
+	AlreadyInstalled         string `yaml:"already_installed"`
+	NotInstalled             string `yaml:"not_installed"`
+	ConfigMissing            string `yaml:"config_missing"`
+	ConfigPathIsDir          string `yaml:"config_path_is_dir"`
+	SystemdUnavail           string `yaml:"systemd_unavailable"`
+	MustBeRoot               string `yaml:"must_be_root"`
+	RunAsRequired            string `yaml:"run_as_required"`
+	RunAsUserUnknown         string `yaml:"run_as_user_unknown"`
+	StatusInstalled          string `yaml:"status_installed"`
+	StatusRunState           string `yaml:"status_run_state"`
+	StatusPID                string `yaml:"status_pid"`
+	StatusYes                string `yaml:"status_yes"`
+	StatusNo                 string `yaml:"status_no"`
+	StatusLastExitCode       string `yaml:"status_last_exit_code"`
+	StatusLastExitReason     string `yaml:"status_last_exit_reason"`
+	StatusLogPath            string `yaml:"status_log_path"`
+	StatusLogTailHeader      string `yaml:"status_log_tail_header"`
+	StatusLogReadFailed      string `yaml:"status_log_read_failed"`
 	StartFailedSeeStatus     string `yaml:"start_failed_see_status"`
 	NodeMissingWarning       string `yaml:"node_missing_warning"`
 	NodeNotExecutableWarning string `yaml:"node_not_executable_warning"`
@@ -341,10 +341,17 @@ type ClearCommandMessages struct {
 
 // StopCommandMessages holds text sent to IM users by the /stop command handler.
 type StopCommandMessages struct {
+	Usage               string `yaml:"usage"`
 	Stopped             string `yaml:"stopped"`
 	StoppedWithMessages string `yaml:"stopped_with_messages"`
 	CancelledMessages   string `yaml:"cancelled_messages"`
 	NothingToStop       string `yaml:"nothing_to_stop"`
+	LookupFailed        string `yaml:"lookup_failed"`
+	WorkerNotFound      string `yaml:"worker_not_found"`       // contains %q (worker name)
+	WorkerDuplicate     string `yaml:"worker_duplicate"`       // contains %q, %s (name, id list)
+	WorkerStopped       string `yaml:"worker_stopped"`         // contains %s, %d (worker name, cancelled count)
+	WorkerNothingToStop string `yaml:"worker_nothing_to_stop"` // contains %s (worker name)
+	WorkerStopFailed    string `yaml:"worker_stop_failed"`     // contains %s (worker name)
 }
 
 // StatusCommandMessages holds text sent to IM users by the /status command handler.

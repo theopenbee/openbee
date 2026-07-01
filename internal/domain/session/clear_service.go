@@ -157,16 +157,22 @@ type ClearWorkerPreview struct {
 // touch for one worker in sessionKey.
 func (s *ClearService) EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerPreview, error) {
 	engine := s.engineCfg.Resolve(w.Engine)
-	activeTasks, err := s.tasks.List(ctx, store.TaskFilter{
-		SessionKey: sessionKey,
-		WorkerID:   w.ID,
-		Status:     model.TaskStatusActive,
-		Type:       model.TaskTypeImmediate,
-	})
+	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
 	if err != nil {
 		return ClearWorkerPreview{}, err
 	}
 	return ClearWorkerPreview{Engine: engine, ActiveTasks: activeTasks}, nil
+}
+
+// listActiveImmediateTasks returns the worker's active immediate tasks for
+// sessionKey — the in-flight work that stop/clear must interrupt.
+func (s *ClearService) listActiveImmediateTasks(ctx context.Context, sessionKey, workerID string) ([]model.Task, error) {
+	return s.tasks.List(ctx, store.TaskFilter{
+		SessionKey: sessionKey,
+		WorkerID:   workerID,
+		Status:     model.TaskStatusActive,
+		Type:       model.TaskTypeImmediate,
+	})
 }
 
 // ClearWorkerResult is the outcome of a ClearWorker execution.
@@ -181,15 +187,9 @@ type ClearWorkerResult struct {
 // dispatcher queue for the pair. Always executes; callers pass the preview
 // returned by EvaluateClearWorker so this method doesn't repeat the lookups.
 func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker, preview ClearWorkerPreview) (ClearWorkerResult, error) {
-	s.stopRunningExecutions(ctx, preview.ActiveTasks)
-
-	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
-		SessionKey: sessionKey,
-		WorkerID:   w.ID,
-		Type:       model.TaskTypeImmediate,
-	})
+	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, preview.ActiveTasks)
 	if err != nil {
-		return ClearWorkerResult{Engine: preview.Engine}, fmt.Errorf("cancel tasks for clear_worker %s: %w", w.ID, err)
+		return ClearWorkerResult{Engine: preview.Engine}, err
 	}
 
 	deleted, err := s.sessions.DeleteSessionContextForEngine(ctx, sessionKey, w.ID, preview.Engine)
@@ -197,13 +197,54 @@ func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w mod
 		return ClearWorkerResult{Engine: preview.Engine}, err
 	}
 
-	s.dispatcher.ClearWorker(sessionKey, w.ID)
-
 	return ClearWorkerResult{
 		Engine:         preview.Engine,
 		CancelledTasks: cancelled,
 		DeletedContext: deleted,
 	}, nil
+}
+
+// StopWorkerResult is the outcome of a StopWorker execution.
+type StopWorkerResult struct {
+	CancelledTasks int64
+}
+
+// StopWorker stops the running executions, cancels the worker's immediate
+// tasks, and drains the dispatcher queue for the pair — the same as ClearWorker
+// but WITHOUT deleting the worker's session context. This backs /stop
+// {workerName}: interrupt in-flight work while preserving conversation memory.
+func (s *ClearService) StopWorker(ctx context.Context, sessionKey string, w model.Worker) (StopWorkerResult, error) {
+	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
+	if err != nil {
+		return StopWorkerResult{}, err
+	}
+	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, activeTasks)
+	if err != nil {
+		return StopWorkerResult{}, err
+	}
+	return StopWorkerResult{CancelledTasks: cancelled}, nil
+}
+
+// stopWorkerTasks stops the running executions for activeTasks, cancels the
+// worker's immediate tasks, and drains the dispatcher queue. This is the
+// shared core of StopWorker and ClearWorker; ClearWorker layers context
+// deletion on top. Callers pass the already-evaluated activeTasks so this
+// doesn't repeat the lookup.
+func (s *ClearService) stopWorkerTasks(ctx context.Context, sessionKey string, w model.Worker, activeTasks []model.Task) (int64, error) {
+	s.stopRunningExecutions(ctx, activeTasks)
+
+	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
+		SessionKey: sessionKey,
+		WorkerID:   w.ID,
+		Type:       model.TaskTypeImmediate,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("cancel tasks for worker %s: %w", w.ID, err)
+	}
+
+	s.dispatcher.ClearWorker(sessionKey, w.ID)
+
+	return cancelled, nil
 }
 
 // CancelTask resolves the running execution for taskID, stops and finalizes

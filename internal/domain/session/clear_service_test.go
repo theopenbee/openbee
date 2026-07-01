@@ -370,6 +370,53 @@ func TestClearWorker_NoActiveTasks_StillDeletesContextAndClearsQueue(t *testing.
 	}
 }
 
+func TestStopWorker_StopsAndCancels_WithoutDeletingContext(t *testing.T) {
+	sessions := &fakeSessionStore{deleted: true}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}, cancelled: 1}
+	disp := &fakeDispatcher{}
+	stopper := &fakeExecStopper{}
+	svc := newSvc(t, sessions, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	got, err := svc.StopWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.CancelledTasks != 1 {
+		t.Fatalf("expected cancelled=1, got %+v", got)
+	}
+	if len(stopper.stopped) != 1 || stopper.stopped[0] != "exec-1" {
+		t.Fatalf("expected stop exec-1, got %v", stopper.stopped)
+	}
+	if len(disp.workers) != 1 || disp.workers[0] != "sess-1::w1" {
+		t.Fatalf("expected ClearWorker(sess-1, w1), got %v", disp.workers)
+	}
+	// The defining difference from ClearWorker: context is preserved.
+	if len(sessions.deletedCalls) != 0 {
+		t.Fatalf("StopWorker must NOT delete session context, got %v", sessions.deletedCalls)
+	}
+}
+
+func TestStopWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
+	sessions := &fakeSessionStore{}
+	tasks := &fakeTaskStore{
+		tasks:     []model.Task{{ID: "t1", WorkerID: "w1"}},
+		cancelErr: errors.New("db down"),
+	}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	_, err := svc.StopWorker(context.Background(), "sess-1", model.Worker{ID: "w1", Engine: "claude"})
+	if err == nil {
+		t.Fatalf("expected error when cancel fails, got nil")
+	}
+	if len(disp.workers) != 0 {
+		t.Fatalf("dispatcher.ClearWorker must not run after cancel failure, got %v", disp.workers)
+	}
+	if len(sessions.deletedCalls) != 0 {
+		t.Fatalf("StopWorker must never delete context, got %v", sessions.deletedCalls)
+	}
+}
+
 func TestCancelTask_StopsAndFinalizesOnError(t *testing.T) {
 	stopper := &fakeExecStopper{err: errStopFailed}
 	fin := &fakeExecFinalizer{}
