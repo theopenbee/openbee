@@ -234,8 +234,8 @@ type RPCConfig struct {
 }
 
 type AuthConfig struct {
-	Username        string        `yaml:"username"`          // login username; default "admin"
-	Password        string        `yaml:"password"`          // login password; empty = auto-generated on startup
+	Username        string        `yaml:"username"`          // DEPRECATED: web login now uses DB users; ignored for login
+	Password        string        `yaml:"password"`          // DEPRECATED: web login now uses DB users; ignored for login
 	JWTSecret       string        `yaml:"jwt_secret"`        // HMAC-SHA256 secret; empty = auto-generated on startup
 	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`  // access token lifetime; default 2h
 	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"` // refresh token lifetime; default 7d
@@ -332,13 +332,14 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
 	}
-	if cfg.Server.Auth.Password != "" {
-		if cfg.Server.Auth.AccessTokenTTL == 0 {
-			cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour
-		}
-		if cfg.Server.Auth.RefreshTokenTTL == 0 {
-			cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
-		}
+	// Token TTL defaults are unconditional: web login now uses DB users, so the
+	// deprecated Auth.Password is normally empty. Gating these on a non-empty
+	// password would leave TTLs at 0 and mint immediately-expired access tokens.
+	if cfg.Server.Auth.AccessTokenTTL == 0 {
+		cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour
+	}
+	if cfg.Server.Auth.RefreshTokenTTL == 0 {
+		cfg.Server.Auth.RefreshTokenTTL = 7 * 24 * time.Hour
 	}
 	if cfg.Bee.RPC.TokenSecret == "" {
 		cfg.Bee.RPC.TokenSecret = GenerateRandomSecret()

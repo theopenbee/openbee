@@ -11,7 +11,10 @@
     "sessions": "Sessions",
     "tasks": "Scheduled",
     "departments": "Departments",
+    "users": "Users",
+    "roles": "Roles",
     "directory": "Directory",
+    "digitalEmployees": "Digital Employees",
     "settings": "Env Variables",
     "systemSettings": "Settings",
     "systemConfig": "System",
@@ -172,6 +175,7 @@
       "shortcuts": "⌘↵ to save · Esc to cancel",
       "emptyTitle": "Set work constraints for {{name}}",
       "emptyDescription": "Work constraints are injected at the start of every session to set this worker's boundaries, style, and priorities.",
+      "emptyReadonly": "No work constraints set yet.",
       "add": "Add work constraints",
       "templatesLabel": "Start from a template",
       "templates": {
@@ -192,7 +196,8 @@
         }
       }
     },
-    "permissions": "Permissions"
+    "permissions": "Permissions",
+    "permissionsReadonly": "You don't have permission to edit. The granted permission scopes below are read-only."
   },
   "executionDetail": {
     "noResult": "No result yet.",
@@ -312,6 +317,24 @@
     "error429": "Too many attempts, please try again later",
     "errorGeneric": "Login failed"
   },
+  "setup": {
+    "title": "Create Admin Account",
+    "eyebrow": "First-run setup",
+    "description": "No account exists yet. Create the first administrator to get started.",
+    "username": "Username",
+    "usernamePlaceholder": "admin",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Administrator",
+    "displayNameOptional": "Optional",
+    "password": "Password",
+    "passwordPlaceholder": "At least 6 characters",
+    "passwordHint": "Use at least 6 characters.",
+    "submit": "Create account",
+    "submitting": "Creating...",
+    "errorPasswordLength": "Password must be at least 6 characters",
+    "errorConflict": "An account already exists",
+    "errorGeneric": "Setup failed"
+  },
   "departments": {
     "title": "Departments",
     "filter": "Filter",
@@ -332,6 +355,101 @@
     "deleteConfirm": {
       "title": "Delete Department",
       "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "users": {
+    "create": "New User",
+    "createDescription": "Create a user account and assign roles.",
+    "empty": "No users yet. Create one to get started.",
+    "rowActions": "User actions",
+    "editProfile": "Edit Profile",
+    "editProfileDescription": "Update the username and display name for \"{{name}}\".",
+    "editRoles": "Edit Roles",
+    "editRolesDescription": "Assign roles to \"{{name}}\".",
+    "resetPassword": "Reset Password",
+    "resetPasswordDescription": "Set a new password for \"{{name}}\".",
+    "enable": "Enable",
+    "disable": "Disable",
+    "noRoles": "No roles available. Create a role first.",
+    "created": "User created",
+    "profileUpdated": "Profile updated",
+    "rolesUpdated": "Roles updated",
+    "passwordReset": "Password reset",
+    "enabled": "User enabled",
+    "disabled": "User disabled",
+    "deleted": "User deleted",
+    "table": {
+      "username": "Username",
+      "displayName": "Display Name",
+      "roles": "Roles",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "form": {
+      "username": "Username",
+      "usernamePlaceholder": "e.g. alice",
+      "password": "Password",
+      "passwordPlaceholder": "At least 6 characters",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Optional",
+      "roles": "Roles"
+    },
+    "deleteConfirm": {
+      "title": "Delete User",
+      "description": "Are you sure you want to delete user \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "roles": {
+    "create": "New Role",
+    "edit": "Edit Role",
+    "formDescription": "Define a role name and grant permissions.",
+    "empty": "No roles yet. Create one to get started.",
+    "rowActions": "Role actions",
+    "system": "System",
+    "superadmin": {
+      "name": "Super Admin",
+      "description": "Full access; cannot be deleted or downgraded"
+    },
+    "allPermissions": "All permissions",
+    "noPermissions": "No permissions",
+    "noPermissionsAvailable": "No permissions available.",
+    "permissionGroups": {
+      "contacts": "Contacts",
+      "chat": "Chat",
+      "tasks": "Tasks",
+      "sessions": "Sessions",
+      "dashboard": "Dashboard",
+      "env": "Environment",
+      "system_config": "System Config",
+      "administration": "Administration"
+    },
+    "permissionItems": {
+      "contacts": { "read": "View contacts", "write": "Edit contacts" },
+      "chat": { "write": "Chat" },
+      "tasks": { "read": "View tasks", "write": "Create & manage tasks" },
+      "sessions": { "read": "View sessions", "write": "Manage sessions" },
+      "dashboard": { "read": "View dashboard" },
+      "env": { "read": "View environment variables", "write": "Edit environment variables" },
+      "system_config": { "read": "View system config", "write": "Edit system config" },
+      "users": { "manage": "Manage users" },
+      "roles": { "manage": "Manage roles" }
+    },
+    "created": "Role created",
+    "updated": "Role updated",
+    "deleted": "Role deleted",
+    "form": {
+      "name": "Role Name",
+      "namePlaceholder": "e.g. Editor",
+      "description": "Description",
+      "descriptionPlaceholder": "Optional",
+      "permissions": "Permissions"
+    },
+    "deleteConfirm": {
+      "title": "Delete Role",
+      "description": "Are you sure you want to delete role \"{{name}}\"? This action cannot be undone."
     }
   },
   "emptyState": {
@@ -392,6 +510,7 @@
   },
   "systemSettings": {
     "title": "Settings",
+    "readonlyHint": "You don't have permission to edit. The settings below are read-only.",
     "engineSection": {
       "title": "Default Engine"
     },
@@ -413,5 +532,31 @@
     "description": "The page you visited doesn't exist or has been removed.",
     "backToHome": "Back to Home",
     "goToLogin": "Go to Login"
+  },
+  "permission": {
+    "deniedTitle": "No permission",
+    "deniedDescription": "You don't have permission to view this content. Contact an administrator if you think this is a mistake.",
+    "noAccessTitle": "No accessible features yet",
+    "noAccessDescription": "Your account hasn't been granted access to any features. Please contact an administrator to request permissions.",
+    "logout": "Log out"
+  },
+  "errors": {
+    "last_super_admin": "Cannot remove or disable the last active super-admin",
+    "username_taken": "Username is already taken",
+    "username_required": "Username is required",
+    "user_not_found": "User not found",
+    "system_role_undeletable": "System roles cannot be deleted",
+    "department_not_found": "Department not found",
+    "department_parent_not_found": "Parent department not found",
+    "department_has_sub": "This department has sub-departments. Please remove them first.",
+    "department_has_workers": "This department has associated workers. Please move them to another department first.",
+    "department_circular_reference": "Cannot set a descendant as the parent department.",
+    "department_invalid_parent": "Invalid parent_id",
+    "departments_not_found": "One or more departments not found",
+    "worker_not_found": "Worker not found",
+    "env_not_found": "Env config not found",
+    "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
+    "env_reserved_key": "{{key}} is reserved and cannot be set",
+    "env_scope_id_required": "scope_id is required for scope {{scope}}"
   }
 }

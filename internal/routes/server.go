@@ -15,7 +15,6 @@ import (
 type ServerParams struct {
 	Workers           *api.WorkerHandler
 	Executions        *api.ExecutionHandler
-	Messages          *api.MessageHandler
 	Tasks             *api.TaskHandler
 	Departments       *api.DepartmentHandler
 	Stats             *api.StatsHandler
@@ -25,10 +24,14 @@ type ServerParams struct {
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
+	Users             *api.UserHandler
+	Roles             *api.RoleHandler
+	Setup             *api.SetupHandler
 	BeeRPC            *rpc.Server
 	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
-	JWTMiddleware     gin.HandlerFunc
+	AuthMiddleware    gin.HandlerFunc
+	Resolver          *auth.PermissionResolver
 }
 
 type Server struct {
@@ -56,9 +59,11 @@ func NewServer(p ServerParams) (*Server, error) {
 func (s *Server) setupRoutes() error {
 	s.registerAuthRoutes()
 	s.router.GET("/api/config", s.Config.Get)
+	s.router.GET("/api/setup/status", s.Setup.Status)
+	s.router.POST("/api/setup", s.Setup.Create)
 
 	apiGroup := s.router.Group("/api")
-	apiGroup.Use(s.JWTMiddleware)
+	apiGroup.Use(s.AuthMiddleware)
 	s.registerAPIRoutes(apiGroup)
 
 	s.registerRPCRoutes()

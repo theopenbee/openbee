@@ -1,8 +1,10 @@
-import type { ReactNode } from "react"
+import { useMemo, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
 import { Panel } from "@/components/panel"
+import { useMe } from "@/hooks/use-me"
+import { granted, permForPath } from "@/lib/nav"
 
 type QuickLink = {
   to: string
@@ -21,11 +23,20 @@ const LINKS: QuickLink[] = [
 
 export function QuickLinks() {
   const { t } = useTranslation()
+  const { data: me } = useMe()
+
+  // Only surface shortcuts the user can actually open — a link to a page that
+  // would render PermissionDenied is just a dead end.
+  const links = useMemo(
+    () => LINKS.filter((link) => granted(me?.permissions, permForPath(link.to))),
+    [me?.permissions],
+  )
+  if (links.length === 0) return null
 
   return (
     <Panel title={t("dashboard.quickAccess")} ariaLabel={t("dashboard.quickAccess")}>
       <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {LINKS.map(({ to, labelKey, icon }) => (
+        {links.map(({ to, labelKey, icon }) => (
           <Link
             key={to}
             to={to}

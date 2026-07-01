@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { CopyButton } from "@/components/copy-button"
 import { useUpdateWorker } from "@/hooks/use-workers"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import type { Worker } from "@/lib/types"
 
 // Starter templates shown on the empty state. Clicking one opens the editor
@@ -28,6 +30,7 @@ const TEMPLATES: { id: string; icon: LucideIcon }[] = [
 
 export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   const { t } = useTranslation()
+  const canWrite = useCan(Perm.ContactsWrite)
   const updateWorker = useUpdateWorker()
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState("")
@@ -108,11 +111,31 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
           </p>
           <div className="flex shrink-0 items-center gap-1">
             <CopyButton value={constraints} />
-            <Button size="sm" variant="ghost" onClick={() => startEditing(constraints)}>
-              <Pencil className="size-4" />
-              {t("workerDetail.editConstraints")}
-            </Button>
+            {canWrite && (
+              <Button size="sm" variant="ghost" onClick={() => startEditing(constraints)}>
+                <Pencil className="size-4" />
+                {t("workerDetail.editConstraints")}
+              </Button>
+            )}
           </div>
+        </div>
+      </DetailSection>
+    )
+  }
+
+  // ---- Empty state (read-only) ----
+  // Without contacts:write the operator cannot add constraints, so drop the
+  // editing affordances (add button + templates) and show a plain notice.
+  if (!canWrite) {
+    return (
+      <DetailSection className="px-5 py-12 sm:px-6">
+        <div className="mx-auto flex max-w-md flex-col items-center text-center">
+          <span className="flex size-12 items-center justify-center rounded-sm bg-muted text-muted-foreground">
+            <ScrollText className="size-6" aria-hidden="true" />
+          </span>
+          <p className="mt-4 text-sm leading-6 text-muted-foreground">
+            {t("workerDetail.constraintsPanel.emptyReadonly")}
+          </p>
         </div>
       </DetailSection>
     )

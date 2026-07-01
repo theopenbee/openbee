@@ -53,6 +53,10 @@ export function useSendMessage() {
   })
 }
 
+// Stop reconnecting after this many consecutive failures so an unrecoverable
+// error (revoked permission, server down) can't spin a reconnect loop forever.
+const MAX_RECONNECT_ATTEMPTS = 5
+
 // useLocalChatStream subscribes to SSE for the default local session.
 // Calls onReply on each new reply event and re-fetches history on reconnect.
 export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
@@ -64,10 +68,17 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
     let es: EventSource
     let reconnectTimer: ReturnType<typeof setTimeout>
     let mounted = true
+    let attempts = 0
+    let everConnected = false
 
     const connect = () => {
       if (!mounted) return
       es = new EventSource(`${config.apiUrl}/local/stream${tokenParam()}`)
+
+      es.onopen = () => {
+        attempts = 0
+        everConnected = true
+      }
 
       es.onmessage = (event) => {
         try {
@@ -85,9 +96,18 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
       es.onerror = () => {
         es.close()
         clearTimeout(reconnectTimer)
-        // Re-fetch full history to fill any gap created by the disconnect.
-        queryClient.invalidateQueries({ queryKey: ["local-messages"] })
-        reconnectTimer = setTimeout(connect, 2000)
+        // A connection that never opened (e.g. a 403) has no gap to backfill and
+        // would only spawn another failing request — only re-fetch history after
+        // a real disconnect from a previously-open stream.
+        if (everConnected) {
+          queryClient.invalidateQueries({ queryKey: ["local-messages"] })
+        }
+        if (attempts >= MAX_RECONNECT_ATTEMPTS) return
+        attempts += 1
+        // Exponential backoff (2s, 4s, 8s … capped at 30s) instead of a fixed
+        // 2s loop, so repeated failures don't hammer the server.
+        const delay = Math.min(2000 * 2 ** (attempts - 1), 30_000)
+        reconnectTimer = setTimeout(connect, delay)
       }
     }
 

@@ -1,8 +1,10 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
-import { LayoutDashboardIcon, ActivityIcon, ClockIcon, MessageCircleIcon, GithubIcon, ContactIcon, Settings2Icon, PanelLeftIcon } from "lucide-react"
+import { GithubIcon, PanelLeftIcon } from "lucide-react"
 
-import { NavMain, type NavEntry } from "@/components/nav-main"
+import { NavMain, type NavEntry, type NavSubItem } from "@/components/nav-main"
+import { useMe } from "@/hooks/use-me"
+import { NAV, granted, isNavGroup } from "@/lib/nav"
 import { NavSecondary } from "@/components/nav-secondary"
 import {
   Sidebar,
@@ -25,31 +27,34 @@ const navSecondary = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { toggleSidebar } = useSidebar()
+  const { data: me } = useMe()
 
-  // Leaf links sit at the top level; sections with sub-pages become collapsible
-  // groups (icon + label + chevron) that reveal indented, plain-text children.
-  const navItems = React.useMemo<NavEntry[]>(() => [
-    { title: t("nav.dashboard"), url: "/", icon: <LayoutDashboardIcon /> },
-    { title: t("localChat.title"), url: "/chat", icon: <MessageCircleIcon /> },
-    {
-      title: t("nav.directory"),
-      icon: <ContactIcon />,
-      items: [
-        { title: t("nav.departments"), url: "/departments" },
-        { title: t("nav.workers"), url: "/workers" },
-      ],
-    },
-    { title: t("nav.sessions"), url: "/sessions", icon: <ActivityIcon /> },
-    { title: t("nav.tasks"), url: "/tasks", icon: <ClockIcon /> },
-    {
-      title: t("nav.systemConfig"),
-      icon: <Settings2Icon />,
-      items: [
-        { title: t("nav.settings"), url: "/env" },
-        { title: t("nav.systemSettings"), url: "/settings" },
-      ],
-    },
-  ], [t])
+  // The shared NAV (lib/nav) is the single source of truth — also used by the
+  // home resolver. Here we translate each entry's titleKey and apply gating:
+  // ungated entries always show; gated ones are hidden unless the user holds
+  // the permission. Groups keep only the sub-items the user can see and drop
+  // entirely when none remain. While `me` is loading, permissions are undefined
+  // and gated entries stay hidden (no flash).
+  const navItems = React.useMemo<NavEntry[]>(() => {
+    return NAV.reduce<NavEntry[]>((acc, entry) => {
+      if (isNavGroup(entry)) {
+        const visibleSubs: NavSubItem[] = entry.items
+          .filter((sub) => granted(me?.permissions, sub.perm))
+          .map((sub) => ({
+            title: t(sub.titleKey),
+            url: sub.url,
+            perm: sub.perm,
+            section: sub.sectionKey ? t(sub.sectionKey) : undefined,
+          }))
+        if (visibleSubs.length > 0) {
+          acc.push({ title: t(entry.titleKey), icon: entry.icon, items: visibleSubs })
+        }
+      } else if (granted(me?.permissions, entry.perm)) {
+        acc.push({ title: t(entry.titleKey), url: entry.url, icon: entry.icon, perm: entry.perm })
+      }
+      return acc
+    }, [])
+  }, [t, me?.permissions])
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" {...props}>

@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/infra/crypto"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -47,13 +48,17 @@ func validateScope(scope string) error {
 	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
 		return nil
 	default:
-		return fmt.Errorf("%w: invalid scope %q: must be one of global, bee, department, worker", ErrValidation, scope)
+		return apperr.New("env_invalid_scope",
+			fmt.Sprintf("invalid scope %q: must be one of global, bee, department, worker", scope)).
+			WithParams(map[string]any{"scope": scope}).Wrapping(ErrValidation)
 	}
 }
 
 func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConfig, error) {
 	if key == reservedKey {
-		return nil, fmt.Errorf("%w: OPENBEE_API_KEY is reserved and cannot be set", ErrValidation)
+		return nil, apperr.New("env_reserved_key",
+			fmt.Sprintf("%s is reserved and cannot be set", reservedKey)).
+			WithParams(map[string]any{"key": reservedKey}).Wrapping(ErrValidation)
 	}
 
 	if err := validateScope(scope); err != nil {
@@ -61,7 +66,9 @@ func (s *Service) Create(scope, scopeID, key, plainValue string) (*model.EnvConf
 	}
 
 	if scope != ScopeGlobal && scopeID == "" {
-		return nil, fmt.Errorf("%w: scope_id is required for scope %q", ErrValidation, scope)
+		return nil, apperr.New("env_scope_id_required",
+			fmt.Sprintf("scope_id is required for scope %q", scope)).
+			WithParams(map[string]any{"scope": scope}).Wrapping(ErrValidation)
 	}
 
 	encValue, masked, err := s.encryptAndMask(plainValue)
@@ -98,7 +105,9 @@ func (s *Service) getEditable(id string) (*model.EnvConfig, error) {
 		return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if existing.Key == reservedKey {
-		return nil, fmt.Errorf("%w: %s is reserved", ErrValidation, reservedKey)
+		return nil, apperr.New("env_reserved_key",
+			fmt.Sprintf("%s is reserved", reservedKey)).
+			WithParams(map[string]any{"key": reservedKey}).Wrapping(ErrValidation)
 	}
 	return existing, nil
 }

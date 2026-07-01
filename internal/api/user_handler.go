@@ -1,0 +1,196 @@
+package api
+
+import (
+	"net/http"
+	"slices"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/apperr"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
+)
+
+var errLastSuperAdmin = apperr.New("last_super_admin", "cannot remove or disable the last active super-admin")
+
+type UserHandler struct {
+	users    *store.UserStore
+	resolver *auth.PermissionResolver
+}
+
+func NewUserHandler(users *store.UserStore, resolver *auth.PermissionResolver) *UserHandler {
+	return &UserHandler{users: users, resolver: resolver}
+}
+
+func (h *UserHandler) List(c *gin.Context) {
+	users, err := h.users.List()
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if users == nil {
+		users = []model.UserWithRoles{}
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+type createUserRequest struct {
+	Username    string   `json:"username" binding:"required"`
+	Password    string   `json:"password" binding:"required,min=6"`
+	DisplayName string   `json:"display_name"`
+	RoleIDs     []string `json:"role_ids"`
+}
+
+func (h *UserHandler) Create(c *gin.Context) {
+	var req createUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	user, err := h.users.Create(req.Username, req.Password, req.DisplayName, auth.UserID(c), req.RoleIDs)
+	if err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	c.JSON(http.StatusCreated, user)
+}
+
+type updateProfileRequest struct {
+	Username    string `json:"username" binding:"required"`
+	DisplayName string `json:"display_name"`
+}
+
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	id := c.Param("id")
+	var req updateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		respondError(c, http.StatusBadRequest, apperr.New("username_required", "username is required"))
+		return
+	}
+	if err := h.users.UpdateProfile(id, username, strings.TrimSpace(req.DisplayName)); err != nil {
+		switch apperr.Code(err) {
+		case "username_taken":
+			respondError(c, http.StatusConflict, err)
+		case "user_not_found":
+			respondError(c, http.StatusNotFound, err)
+		default:
+			respondError(c, http.StatusInternalServerError, err)
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type setRolesRequest struct {
+	RoleIDs []string `json:"role_ids"`
+}
+
+func (h *UserHandler) SetRoles(c *gin.Context) {
+	id := c.Param("id")
+	var req setRolesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := h.guardLastSuperAdmin(c, id, req.RoleIDs); err != nil {
+		return
+	}
+	if err := h.users.SetRoles(id, req.RoleIDs); err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	h.resolver.Invalidate(id)
+	c.Status(http.StatusNoContent)
+}
+
+type setStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=active disabled"`
+}
+
+func (h *UserHandler) SetStatus(c *gin.Context) {
+	id := c.Param("id")
+	var req setStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if req.Status == model.UserStatusDisabled {
+		if err := h.guardLastSuperAdmin(c, id, nil); err != nil {
+			return
+		}
+	}
+	if err := h.users.SetStatus(id, req.Status); err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	h.resolver.Invalidate(id)
+	c.Status(http.StatusNoContent)
+}
+
+type resetPasswordRequest struct {
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	id := c.Param("id")
+	var req resetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := h.users.SetPassword(id, req.Password); err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *UserHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.guardLastSuperAdmin(c, id, nil); err != nil {
+		return
+	}
+	if err := h.users.Delete(id); err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	h.resolver.Invalidate(id)
+	c.Status(http.StatusNoContent)
+}
+
+// guardLastSuperAdmin blocks removing the super-admin role from / disabling /
+// deleting the last remaining active super-admin. newRoleIDs is the prospective
+// role set for a SetRoles call, or nil for disable/delete.
+func (h *UserHandler) guardLastSuperAdmin(c *gin.Context, userID string, newRoleIDs []string) error {
+	user, err := h.users.GetByID(userID)
+	if err != nil {
+		respondError(c, http.StatusNotFound, apperr.New("user_not_found", "user not found"))
+		return err
+	}
+	isSuper := slices.ContainsFunc(user.Roles, func(r model.Role) bool {
+		return r.ID == model.RoleIDSuperAdmin
+	})
+	if !isSuper {
+		return nil
+	}
+	// If newRoleIDs still grants super-admin, the change is safe.
+	if slices.Contains(newRoleIDs, model.RoleIDSuperAdmin) {
+		return nil
+	}
+	count, err := h.users.CountActiveSuperAdmins()
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, err)
+		return err
+	}
+	if count <= 1 {
+		respondError(c, http.StatusBadRequest, errLastSuperAdmin)
+		return errLastSuperAdmin
+	}
+	return nil
+}

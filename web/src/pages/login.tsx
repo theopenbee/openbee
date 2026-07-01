@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { LogoFull } from "@/components/brand/logo"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 export function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [username, setUsername] = useState(() => getStoredUsername() ?? "")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -30,6 +32,11 @@ export function Login() {
     setLoading(false)
 
     if (result.success) {
+      // Backstop against stale per-user cache: any logout path that funnels
+      // through this form (including a forced 401 redirect) starts the new
+      // session with an empty cache, so we never read the previous user's
+      // permissions/me.
+      queryClient.clear()
       navigate("/", { replace: true })
     } else if (result.status === 401) {
       setError(t("login.error401"))

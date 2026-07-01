@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from "react"
+import { Fragment, useState, type FormEvent, type ComponentType } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -42,9 +44,21 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 
 type DeleteStep = 1 | 2
 
+// One row action in the worker dropdown. Read actions (View) are always present;
+// write actions (Copy, Delete) are appended only when the user holds
+// contacts:write, so the menu is built by filtering rather than per-item guards.
+type WorkerRowAction = {
+  key: string
+  icon: ComponentType<{ className?: string }>
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}
+
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canWrite = useCan(Perm.ContactsWrite)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const { data: departments = [] } = useDepartments()
   const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
@@ -116,11 +130,13 @@ export function Workers() {
                 </p>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button onClick={() => navigate("/workers/create")}>
-                {t("workers.createWorker")}
-              </Button>
-            </div>
+            {canWrite && (
+              <div className="flex shrink-0 items-center gap-2">
+                <Button onClick={() => navigate("/workers/create")}>
+                  {t("workers.createWorker")}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
@@ -137,7 +153,7 @@ export function Workers() {
           title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
           description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            selectedDeptId === null ? (
+            selectedDeptId === null && canWrite ? (
               <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
@@ -154,7 +170,17 @@ export function Workers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayedWorkers.map((w) => (
+              {displayedWorkers.map((w) => {
+                const rowActions: WorkerRowAction[] = [
+                  { key: "view", icon: EyeIcon, label: t("common.view"), onClick: () => navigate(`/workers/${w.id}`) },
+                  ...(canWrite
+                    ? [
+                        { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
+                        { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
+                      ]
+                    : []),
+                ]
+                return (
                 <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3 py-1">
@@ -202,28 +228,24 @@ export function Workers() {
                         <MoreHorizontalIcon className="size-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-36">
-                        <DropdownMenuItem onClick={() => navigate(`/workers/${w.id}`)}>
-                          <EyeIcon className="size-4" />
-                          {t("common.view")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate(`/workers/create?copy=${w.id}`)}>
-                          <Copy className="size-4" />
-                          {t("common.copy")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => openDeleteDialog({ id: w.id, name: w.name })}
-                        >
-                          <Trash2Icon className="size-4" />
-                          {t("common.delete")}
-                        </DropdownMenuItem>
+                        {rowActions.map((action, i) => (
+                          <Fragment key={action.key}>
+                            {i > 0 && <DropdownMenuSeparator />}
+                            <DropdownMenuItem
+                              variant={action.destructive ? "destructive" : undefined}
+                              onClick={action.onClick}
+                            >
+                              <action.icon className="size-4" />
+                              {action.label}
+                            </DropdownMenuItem>
+                          </Fragment>
+                        ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>

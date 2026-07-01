@@ -12,10 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
+import { SystemConfigSaveButton } from "@/components/system-config-save-button"
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
+import { useCan } from "@/hooks/use-can"
+import { Perm } from "@/lib/permissions"
 import { api } from "@/lib/api"
 import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
 import {
@@ -66,9 +68,9 @@ function EngineArgsConfigSection({
         onChange={setPendingValue}
         showLabel={false}
       />
-      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
+      <SystemConfigSaveButton onClick={() => save(value)} disabled={isPending || !isDirty}>
         {t("common.save")}
-      </Button>
+      </SystemConfigSaveButton>
     </DetailSection>
   )
 }
@@ -77,6 +79,7 @@ export function SystemSettings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const enabledEngines = useEnabledEngines()
+  const canWrite = useCan(Perm.SystemConfigWrite)
 
   const { data: sysConfigs } = useQuery({
     queryKey: ["system-configs"],
@@ -108,6 +111,13 @@ export function SystemSettings() {
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title={t("systemSettings.title")} />
 
+        {!canWrite && (
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t("systemSettings.readonlyHint")}
+          </p>
+        )}
+
+        <fieldset disabled={!canWrite} className="min-w-0 space-y-6 border-0 p-0 m-0">
         <DetailSection className="p-5 sm:p-6 space-y-4">
           <p className={EYEBROW_LABEL}>{t("systemSettings.engineSection.title")}</p>
           <div className="flex items-center gap-3">
@@ -123,7 +133,7 @@ export function SystemSettings() {
                 <EngineSelectItems engines={enabledEngines} />
               </SelectContent>
             </Select>
-            <Button
+            <SystemConfigSaveButton
               onClick={() => saveEngine(engine)}
               disabled={
                 isPending ||
@@ -132,7 +142,7 @@ export function SystemSettings() {
               }
             >
               {t("common.save")}
-            </Button>
+            </SystemConfigSaveButton>
           </div>
         </DetailSection>
 
@@ -149,6 +159,7 @@ export function SystemSettings() {
           title={t("systemSettings.beeArgsSection.title")}
           successMessage={t("systemSettings.beeArgsSection.updated")}
         />
+        </fieldset>
       </div>
     </FadeIn>
   )

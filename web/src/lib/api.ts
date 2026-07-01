@@ -1,9 +1,34 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
 
 const API_BASE = config.apiUrl
+
+// ApiError carries the HTTP status alongside the message so callers can tell a
+// 403 (no permission) apart from other failures. Without it the status is lost
+// and every failure reads as a generic error.
+//
+// code (when present) is a stable, machine-readable identifier for the backend
+// error that getErrorMessage maps to a localized string via the `errors` i18n
+// namespace; params carries interpolation values for that string. message stays
+// as the untranslated fallback.
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+    public params?: Record<string, unknown>,
+  ) {
+    super(message)
+    this.name = "ApiError"
+  }
+}
+
+// isForbidden reports whether an unknown caught value is a 403 from the API.
+export function isForbidden(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403
+}
 
 function redirectToLogin() {
   clearTokens()
@@ -19,12 +44,13 @@ async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response>
 
   let res = await fetch(url, { ...init, headers })
 
-  if (res.status === 401 && getRefreshToken()) {
-    const newToken = await refreshAccessToken()
+  if (res.status === 401) {
+    const newToken = getRefreshToken() ? await refreshAccessToken() : null
     if (newToken) {
       headers.set("Authorization", `Bearer ${newToken}`)
       res = await fetch(url, { ...init, headers })
-    } else {
+    }
+    if (res.status === 401) {
       redirectToLogin()
       throw new Error("unauthorized")
     }
@@ -45,7 +71,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || res.statusText)
+    throw new ApiError(res.status, err.error || res.statusText, err.code, err.params)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -194,5 +220,62 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ value }),
       }),
+  },
+  setup: {
+    // Public endpoints — no token required (fetchAPI tolerates a missing token).
+    status: () => fetchAPI<SetupStatus>("/setup/status"),
+    create: (data: { username: string; password: string; display_name?: string }) =>
+      fetchAPI<TokenResponse>("/setup", { method: "POST", body: JSON.stringify(data) }),
+  },
+  me: {
+    get: () => fetchAPI<CurrentUser>("/me"),
+    changePassword: (oldPassword: string, newPassword: string) =>
+      fetchAPI("/me/password", {
+        method: "POST",
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      }),
+  },
+  users: {
+    list: async () => {
+      const users = await fetchAPI<UserWithRoles[] | null>("/users")
+      return Array.isArray(users) ? users : []
+    },
+    create: (data: { username: string; password: string; display_name?: string; role_ids?: string[] }) =>
+      fetchAPI<UserWithRoles>("/users", { method: "POST", body: JSON.stringify(data) }),
+    updateProfile: (id: string, data: { username: string; display_name?: string }) =>
+      fetchAPI<void>(`/users/${id}/profile`, { method: "PUT", body: JSON.stringify(data) }),
+    setRoles: (id: string, roleIds: string[]) =>
+      fetchAPI<UserWithRoles>(`/users/${id}/roles`, {
+        method: "PUT",
+        body: JSON.stringify({ role_ids: roleIds }),
+      }),
+    setStatus: (id: string, status: UserStatus) =>
+      fetchAPI<UserWithRoles>(`/users/${id}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      }),
+    setPassword: (id: string, newPassword: string) =>
+      fetchAPI(`/users/${id}/password`, {
+        method: "POST",
+        body: JSON.stringify({ password: newPassword }),
+      }),
+    delete: (id: string) => fetchAPI(`/users/${id}`, { method: "DELETE" }),
+  },
+  roles: {
+    list: async () => {
+      const roles = await fetchAPI<Role[] | null>("/roles")
+      return Array.isArray(roles) ? roles : []
+    },
+    create: (data: { name: string; description?: string; permissions?: string[] }) =>
+      fetchAPI<Role>("/roles", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; description?: string; permissions?: string[] }) =>
+      fetchAPI<Role>(`/roles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => fetchAPI(`/roles/${id}`, { method: "DELETE" }),
+  },
+  permissions: {
+    list: async () => {
+      const groups = await fetchAPI<PermissionGroup[] | null>("/permissions")
+      return Array.isArray(groups) ? groups : []
+    },
   },
 }

@@ -264,6 +264,8 @@ type appStores struct {
 	departmentStore   *store.DepartmentStore
 	statsStore        *store.StatsStore
 	tokenStatsStore   *store.TokenStatsStore
+	userStore         *store.UserStore
+	roleStore         *store.RoleStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -284,6 +286,8 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		departmentStore:   store.NewDepartmentStore(db),
 		statsStore:        store.NewStatsStore(db),
 		tokenStatsStore:   store.NewTokenStatsStore(db),
+		userStore:         store.NewUserStore(db),
+		roleStore:         store.NewRoleStore(db),
 	}, nil
 }
 
@@ -378,14 +382,14 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
-	authHandler := auth.NewAuthHandler(serverCfg.Auth.Username, serverCfg.Auth.Password, jwtSvc, rateLimiter)
-	jwtMiddleware := auth.JWTMiddleware(jwtSvc)
+	resolver := auth.NewPermissionResolver(s.userStore.PermissionsForUser)
+	authHandler := auth.NewAuthHandler(s.userStore, jwtSvc, rateLimiter, resolver)
+	authMiddleware := auth.AuthMiddleware(jwtSvc, s.userStore)
 	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
 		Executions:        api.NewExecutionHandler(s.execStore, s.tokenStatsStore),
-		Messages:          api.NewMessageHandler(s.msgStore),
 		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Stats:             api.NewStatsHandler(s.statsStore),
@@ -395,9 +399,13 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
+		Users:             api.NewUserHandler(s.userStore, resolver),
+		Roles:             api.NewRoleHandler(s.roleStore, resolver),
+		Setup:             api.NewSetupHandler(s.userStore, jwtSvc),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
-		JWTMiddleware:     jwtMiddleware,
+		AuthMiddleware:    authMiddleware,
+		Resolver:          resolver,
 	})
 }
