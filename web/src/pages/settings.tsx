@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
+import { SystemConfigSaveButton } from "@/components/system-config-save-button"
 import { EngineSelectItems } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -68,9 +68,9 @@ function EngineArgsConfigSection({
         onChange={setPendingValue}
         showLabel={false}
       />
-      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
+      <SystemConfigSaveButton onClick={() => save(value)} disabled={isPending || !isDirty}>
         {t("common.save")}
-      </Button>
+      </SystemConfigSaveButton>
     </DetailSection>
   )
 }
@@ -133,7 +133,7 @@ export function SystemSettings() {
                 <EngineSelectItems engines={enabledEngines} />
               </SelectContent>
             </Select>
-            <Button
+            <SystemConfigSaveButton
               onClick={() => saveEngine(engine)}
               disabled={
                 isPending ||
@@ -142,7 +142,7 @@ export function SystemSettings() {
               }
             >
               {t("common.save")}
-            </Button>
+            </SystemConfigSaveButton>
           </div>
         </DetailSection>
 
