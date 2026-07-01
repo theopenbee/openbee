@@ -4,13 +4,9 @@
 
 ### Added
 - Support updating a worker's work directory.
-- Multi-user accounts with configurable role-based access control (RBAC). Each user can hold multiple roles; effective permissions are the union of their roles' permission keys, and the built-in super-admin role holds a wildcard that grants everything and cannot be deleted or downgraded.
-- First-run setup wizard to create the initial super-admin. On upgrade, the web console shows the wizard until a super-admin exists.
-- User and role management pages in the web console, with navigation and actions gated by the signed-in user's permissions.
 
 ### Changed
 - Redesign the web UI and interactions.
-- Web login now authenticates against database users instead of the single `server.auth.username` / `server.auth.password` config credential. Those config fields are deprecated and ignored for login; JWT secret and token-TTL settings are unchanged.
 
 ## [0.0.40] - 2026-06-15
 
