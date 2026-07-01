@@ -5,9 +5,16 @@
 ### Added
 - Multi-user accounts with role-based access control (RBAC).
 - `/stop {workerName}` command variant that stops a worker's running and queued tasks while preserving its session context.
+- Add a copy affordance to local chat messages.
+- Syntax-highlight fenced code blocks in local chat messages.
+- View local chat message images fullscreen on click.
+
+### Changed
+- Refine local chat message styling.
 
 ### Fixed
 - Fix login rate limiting counting successful logins, locking out accounts behind a shared IP; only failed attempts now count.
+- Fix code block rendering in local chat messages.
 
 ## [0.0.41] - 2026-06-25
 
