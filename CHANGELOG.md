@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.42] - 2026-07-01
 
 ### Added
 - Multi-user accounts with role-based access control (RBAC).
