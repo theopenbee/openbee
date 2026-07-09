@@ -71,10 +71,6 @@ func sessionKeyFor(userID, workerID string) string {
 
 func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	uid := auth.UserID(c)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
-		return
-	}
 	workerID, ok := h.resolveWorkerID(c, c.Query("worker_id"))
 	if !ok {
 		return
@@ -104,10 +100,6 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 
 func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	uid := auth.UserID(c)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
-		return
-	}
 
 	var body struct {
 		Content    string   `json:"content" binding:"required"`
@@ -217,10 +209,6 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	uid := auth.UserID(c)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
-		return
-	}
 	workerID, ok := h.resolveWorkerID(c, c.Query("worker_id"))
 	if !ok {
 		return
@@ -292,10 +280,6 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 
 func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 	uid := auth.UserID(c)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
-		return
-	}
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
@@ -333,10 +317,6 @@ func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 
 func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
 	uid := auth.UserID(c)
-	if uid == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
-		return
-	}
 
 	filename := filepath.Base(c.Param("filename"))
 	if filename == "." || filename == ".." {
