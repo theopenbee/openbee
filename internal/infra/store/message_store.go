@@ -20,15 +20,15 @@ const (
 
 // BatchMsg is a single row for a bulk insert via CreateBatch.
 type BatchMsg struct {
-	ID            string
-	SessionKey    string
-	Platform      string
-	Content       string
-	Raw           string
-	PlatformMsgID string
-	MessageTime   int64
-	Status        string // "received" or "merged"
-	MergedInto    string // non-empty only when Status == "merged"
+	ID             string
+	SessionKey     string
+	Platform       string
+	Content        string
+	Raw            string
+	PlatformMsgID  string
+	MessageTime    int64
+	Status         string // "received" or "merged"
+	MergedInto     string // non-empty only when Status == "merged"
 	TargetWorkerID string // when non-empty, route directly to this worker instead of bee
 }
 
