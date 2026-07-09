@@ -221,14 +221,15 @@ func (g *Gateway) onDebounce(sessionKey string, generation int) {
 			mt = time.Now().UnixMilli()
 		}
 		bm := store.BatchMsg{
-			ID:            ids[i],
-			SessionKey:    m.SessionKey,
-			Platform:      m.Platform,
-			Content:       m.Content,
-			Raw:           m.Raw,
-			PlatformMsgID: m.PlatformMessageID,
-			MessageTime:   mt,
-			MergedInto:    "",
+			ID:             ids[i],
+			SessionKey:     m.SessionKey,
+			Platform:       m.Platform,
+			Content:        m.Content,
+			Raw:            m.Raw,
+			PlatformMsgID:  m.PlatformMessageID,
+			MessageTime:    mt,
+			MergedInto:     "",
+			TargetWorkerID: m.TargetWorkerID,
 		}
 		if i < n-1 {
 			bm.Status = "merged"

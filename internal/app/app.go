@@ -238,6 +238,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		localReceiver, localHub,
 		s.outboundMsgStore,
 		s.msgStore,
+		s.workerStore,
 	)
 
 	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)

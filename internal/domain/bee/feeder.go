@@ -387,17 +387,34 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 	}
 
 	primary := msgs[len(msgs)-1]
-	workerName, instruction, ok := parseDirectMention(primary.Content)
-	if !ok {
-		return false
+
+	// A message carrying an explicit target worker (e.g. a user chatting 1:1 with a
+	// digital employee from local chat) is routed straight to that worker, bypassing
+	// both the @mention parsing and bee. The full content is the instruction.
+	var worker model.Worker
+	var instruction string
+	if primary.TargetWorkerID != "" {
+		w, err := f.workerLookup.GetByID(primary.TargetWorkerID)
+		if err != nil {
+			log.Error("direct: lookup target worker", zap.String("workerID", primary.TargetWorkerID), zap.Error(err))
+			return false
+		}
+		worker = w
+		instruction = primary.Content
+	} else {
+		workerName, instr, ok := parseDirectMention(primary.Content)
+		if !ok {
+			return false
+		}
+		w, err := f.workerLookup.GetByName(workerName)
+		if err != nil {
+			return false
+		}
+		worker = w
+		instruction = instr
 	}
 
-	worker, err := f.workerLookup.GetByName(workerName)
-	if err != nil {
-		return false
-	}
-
-	_, err = f.taskStore.Create(ctx, model.Task{
+	_, err := f.taskStore.Create(ctx, model.Task{
 		MessageID:   primary.ID,
 		WorkerID:    worker.ID,
 		Instruction: instruction,
@@ -410,7 +427,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 	}
 
 	log.Info("direct: dispatched task to worker via scheduler",
-		zap.String("name", workerName), zap.String("workerID", worker.ID))
+		zap.String("name", worker.Name), zap.String("workerID", worker.ID))
 
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("direct: mark bee_processed", zap.Error(err))

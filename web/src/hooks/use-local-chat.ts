@@ -5,10 +5,21 @@ import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage } from "@/lib/types"
 
-export function useLocalMessages() {
+// useLocalWorkers lists the digital employees a user can chat with 1:1.
+// Scoped by chat:write (not contacts:read), so any chat user gets the list.
+export function useLocalWorkers() {
   return useQuery({
-    queryKey: ["local-messages"],
-    queryFn: () => api.localChat.getMessages(),
+    queryKey: ["local-chat-workers"],
+    queryFn: () => api.localChat.listWorkers(),
+  })
+}
+
+// useLocalMessages fetches history for the active conversation. Pass a workerId
+// to scope to a 1:1 digital-employee conversation; omit it for the bee conversation.
+export function useLocalMessages(workerId = "") {
+  return useQuery({
+    queryKey: ["local-messages", workerId],
+    queryFn: () => api.localChat.getMessages(undefined, 50, workerId),
   })
 }
 
@@ -20,6 +31,7 @@ export function useLocalMessages() {
 export function useLoadMoreMessages(
   onLoaded: (older: ChatMessage[]) => void,
   initialHasMore = false,
+  workerId = "",
 ) {
   const isLoadingRef = useRef(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -34,22 +46,22 @@ export function useLoadMoreMessages(
     isLoadingRef.current = true
     setIsLoadingMore(true)
     try {
-      const res = await api.localChat.getMessages(earliestTs)
+      const res = await api.localChat.getMessages(earliestTs, 50, workerId)
       setHasMore(res.has_more)
       onLoaded(res.messages)
     } finally {
       isLoadingRef.current = false
       setIsLoadingMore(false)
     }
-  }, [onLoaded])
+  }, [onLoaded, workerId])
 
   return { loadMore, hasMore, isLoadingMore }
 }
 
 export function useSendMessage() {
   return useMutation({
-    mutationFn: ({ content, mediaPaths }: { content: string; mediaPaths?: string[] }) =>
-      api.localChat.sendMessage(content, mediaPaths),
+    mutationFn: ({ content, mediaPaths, workerId }: { content: string; mediaPaths?: string[]; workerId?: string }) =>
+      api.localChat.sendMessage(content, mediaPaths, workerId),
   })
 }
 
@@ -57,9 +69,10 @@ export function useSendMessage() {
 // error (revoked permission, server down) can't spin a reconnect loop forever.
 const MAX_RECONNECT_ATTEMPTS = 5
 
-// useLocalChatStream subscribes to SSE for the default local session.
-// Calls onReply on each new reply event and re-fetches history on reconnect.
-export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
+// useLocalChatStream subscribes to SSE for the active conversation (bee when
+// workerId is empty, otherwise the 1:1 digital-employee session). Calls onReply
+// on each new reply event and re-fetches that conversation's history on reconnect.
+export function useLocalChatStream(onReply: (msg: ChatMessage) => void, workerId = "") {
   const queryClient = useQueryClient()
   const onReplyRef = useRef(onReply)
   onReplyRef.current = onReply
@@ -73,7 +86,8 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
 
     const connect = () => {
       if (!mounted) return
-      es = new EventSource(`${config.apiUrl}/local/stream${tokenParam()}`)
+      const workerParam = workerId ? `&worker_id=${encodeURIComponent(workerId)}` : ""
+      es = new EventSource(`${config.apiUrl}/local/stream${tokenParam()}${workerParam}`)
 
       es.onopen = () => {
         attempts = 0
@@ -100,7 +114,7 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
         // would only spawn another failing request — only re-fetch history after
         // a real disconnect from a previously-open stream.
         if (everConnected) {
-          queryClient.invalidateQueries({ queryKey: ["local-messages"] })
+          queryClient.invalidateQueries({ queryKey: ["local-messages", workerId] })
         }
         if (attempts >= MAX_RECONNECT_ATTEMPTS) return
         attempts += 1
@@ -118,5 +132,5 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
       clearTimeout(reconnectTimer)
       es?.close()
     }
-  }, [queryClient])
+  }, [queryClient, workerId])
 }

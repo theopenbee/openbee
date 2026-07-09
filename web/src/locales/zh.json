@@ -288,6 +288,7 @@
     "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
     "beeLabel": "Bee",
+    "conversationsLabel": "会话",
     "showMore": "展开全部",
     "showLess": "收起",
     "composerHint": "回车发送，Shift+Enter 换行",

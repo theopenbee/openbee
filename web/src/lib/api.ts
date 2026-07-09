@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, LocalChatWorker, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -139,16 +139,21 @@ export const api = {
     },
   },
   localChat: {
-    sendMessage: (content: string, mediaPaths?: string[]) =>
+    sendMessage: (content: string, mediaPaths?: string[], workerId?: string) =>
       fetchAPI("/local/messages", {
         method: "POST",
-        body: JSON.stringify({ content, media_paths: mediaPaths }),
+        body: JSON.stringify({ content, media_paths: mediaPaths, worker_id: workerId || undefined }),
       }),
-    getMessages: async (before?: number, limit = 50): Promise<LocalMessagesResponse> => {
+    getMessages: async (before?: number, limit = 50, workerId?: string): Promise<LocalMessagesResponse> => {
       const qs = new URLSearchParams({ limit: String(limit) })
       if (before) qs.set("before", String(before))
+      if (workerId) qs.set("worker_id", workerId)
       const res = await fetchAPI<LocalMessagesResponse>(`/local/messages?${qs}`)
       return { messages: Array.isArray(res?.messages) ? res.messages : [], has_more: res?.has_more ?? false }
+    },
+    listWorkers: async (): Promise<LocalChatWorker[]> => {
+      const res = await fetchAPI<{ workers: LocalChatWorker[] }>("/local/workers")
+      return Array.isArray(res?.workers) ? res.workers : []
     },
     uploadMedia: async (file: File) => {
       const form = new FormData()

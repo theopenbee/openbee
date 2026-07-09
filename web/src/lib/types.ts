@@ -87,6 +87,15 @@ export interface LocalMessagesResponse {
   has_more: boolean
 }
 
+// LocalChatWorker is a digital employee a user can open a 1:1 conversation with
+// from local chat. Served by GET /local/workers (chat:write scoped).
+export interface LocalChatWorker {
+  id: string
+  name: string
+  description: string
+  status: string
+}
+
 export type TaskType = "immediate" | "countdown" | "scheduled"
 export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
 

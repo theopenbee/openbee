@@ -28,6 +28,7 @@ import {
   useLocalChatStream,
   useLoadMoreMessages,
   useSendMessage,
+  useLocalWorkers,
 } from "@/hooks/use-local-chat"
 import { EmptyState } from "@/components/empty-state"
 import { CopyButton } from "@/components/copy-button"
@@ -177,9 +178,11 @@ const CollapsibleContent = memo(function CollapsibleContent({
 const MessageBubble = memo(function MessageBubble({
   message,
   isGroupStart,
+  assistantLabel,
 }: {
   message: ChatMessage
   isGroupStart: boolean
+  assistantLabel: string
 }) {
   const { t, i18n } = useTranslation()
   const isUser = message.role === "user"
@@ -212,7 +215,7 @@ const MessageBubble = memo(function MessageBubble({
             )}
           />
           <span className="font-medium text-muted-foreground">
-            {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
+            {isUser ? t("localChat.operatorLabel") : assistantLabel}
           </span>
           <time className="text-muted-foreground/60">
             {formatMessageTimestamp(message.ts, i18n.language)}
@@ -270,10 +273,45 @@ const MessageBubble = memo(function MessageBubble({
   )
 })
 
+const ConversationItem = memo(function ConversationItem({
+  name,
+  description,
+  active,
+  onClick,
+}: {
+  name: string
+  description?: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active}
+      className={cn(
+        "flex w-full flex-col items-start gap-0.5 rounded-sm px-2.5 py-2 text-left transition-colors",
+        active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+      )}
+    >
+      <span className="w-full truncate text-sm font-medium">{name}</span>
+      {description && (
+        <span className="w-full truncate text-xs text-muted-foreground/70">{description}</span>
+      )}
+    </button>
+  )
+})
+
 export function LocalChat() {
   const { t, i18n } = useTranslation()
 
-  const { data, isLoading } = useLocalMessages()
+  // Active conversation: "" = bee, otherwise a digital employee's worker id.
+  const [activeWorkerId, setActiveWorkerId] = useState("")
+  const { data: chatWorkers } = useLocalWorkers()
+  const activeWorker = chatWorkers?.find((w) => w.id === activeWorkerId)
+  const assistantLabel = activeWorker ? activeWorker.name : t("localChat.beeLabel")
+
+  const { data, isLoading } = useLocalMessages(activeWorkerId)
   const sendMessage = useSendMessage()
 
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
@@ -292,7 +330,14 @@ export function LocalChat() {
     setLocalMessages((prev) => [...older, ...prev])
   }, [])
 
-  const { loadMore, hasMore, isLoadingMore } = useLoadMoreMessages(handleOlderLoaded, data?.has_more ?? false)
+  const { loadMore, hasMore, isLoadingMore } = useLoadMoreMessages(handleOlderLoaded, data?.has_more ?? false, activeWorkerId)
+
+  // Switching conversation clears the transcript so the previous conversation's
+  // messages don't linger while the new conversation's history loads.
+  useEffect(() => {
+    setLocalMessages([])
+    setIsProcessing(false)
+  }, [activeWorkerId])
 
   useEffect(() => {
     if (!data) return
@@ -310,7 +355,7 @@ export function LocalChat() {
     setLocalMessages((prev) => [...prev, message])
     setIsProcessing(false)
   }, [])
-  useLocalChatStream(handleReply)
+  useLocalChatStream(handleReply, activeWorkerId)
 
   // @mention autocomplete is an enhancement gated on workers:read. Users who can
   // chat but cannot browse the worker directory simply get no mention list — we
@@ -349,13 +394,14 @@ export function LocalChat() {
       await sendMessage.mutateAsync({
         content: content || " ",
         mediaPaths: paths.length > 0 ? paths : undefined,
+        workerId: activeWorkerId || undefined,
       })
     } catch {
       setLocalMessages((prev) => prev.filter((message) => message !== userMessage))
       setPendingMediaPaths((prev) => [...paths, ...prev])
       setIsProcessing(false)
     }
-  }, [input, pendingMediaPaths, sendMessage])
+  }, [input, pendingMediaPaths, sendMessage, activeWorkerId])
 
   const handleLoadMore = useCallback(() => {
     const container = scrollContainerRef.current
@@ -418,7 +464,30 @@ export function LocalChat() {
   const isEmpty = !isLoading && messageCount === 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col animate-fade-in">
+    <div className="flex h-full min-h-0 animate-fade-in">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-border/70 bg-card/40 sm:flex">
+        <div className="px-3 pb-2 pt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+          {t("localChat.conversationsLabel")}
+        </div>
+        <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
+          <ConversationItem
+            name={t("localChat.beeLabel")}
+            active={activeWorkerId === ""}
+            onClick={() => setActiveWorkerId("")}
+          />
+          {chatWorkers?.map((w) => (
+            <ConversationItem
+              key={w.id}
+              name={w.name}
+              description={w.description}
+              active={activeWorkerId === w.id}
+              onClick={() => setActiveWorkerId(w.id)}
+            />
+          ))}
+        </div>
+      </aside>
+
+      <div className="flex h-full min-h-0 flex-1 flex-col">
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6">
             {isLoading ? (
@@ -462,6 +531,7 @@ export function LocalChat() {
                       key={`${message.role}-${message.ts}-${index}`}
                       message={message}
                       isGroupStart={isGroupStart}
+                      assistantLabel={assistantLabel}
                     />
                   )
                 })}
@@ -470,7 +540,7 @@ export function LocalChat() {
                   <div className="mt-4 flex flex-col items-start">
                     <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
                       <span className="size-1.5 rounded-full bg-primary" />
-                      <span className="font-medium">{t("localChat.beeLabel")}</span>
+                      <span className="font-medium">{assistantLabel}</span>
                       <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
                     </div>
                     <div className="flex gap-1.5 px-0.5 py-1">
@@ -569,5 +639,6 @@ export function LocalChat() {
           </div>
         </div>
       </div>
+    </div>
   )
 }

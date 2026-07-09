@@ -184,17 +184,21 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create stub bee_executions: %v", err)
 	}
-	// bee_tasks is required by migration 45 (backfill task_id into bee_executions).
+	// bee_tasks is required by migration 45 (backfill task_id into bee_executions)
+	// and migration 51 (clear legacy local:default chat, keyed by message_id).
 	if _, err := db.Exec(`CREATE TABLE bee_tasks (
 		id           TEXT PRIMARY KEY,
+		message_id   TEXT NOT NULL DEFAULT '',
 		execution_id TEXT NOT NULL DEFAULT ''
 	)`); err != nil {
 		t.Fatalf("create stub bee_tasks: %v", err)
 	}
-	// bee_outbound_messages is required by migration 34 (index on sent_at).
+	// bee_outbound_messages is required by migration 34 (index on sent_at) and
+	// migration 51 (clear legacy local:default chat, keyed by session_key).
 	if _, err := db.Exec(`CREATE TABLE bee_outbound_messages (
-		id      TEXT PRIMARY KEY,
-		sent_at INTEGER NOT NULL
+		id          TEXT PRIMARY KEY,
+		session_key TEXT NOT NULL DEFAULT '',
+		sent_at     INTEGER NOT NULL
 	)`); err != nil {
 		t.Fatalf("create stub bee_outbound_messages: %v", err)
 	}

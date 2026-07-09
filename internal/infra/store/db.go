@@ -471,6 +471,25 @@ UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission =
 		name:    "add_password_changed_at_to_bee_users",
 		sql:     `ALTER TABLE bee_users ADD COLUMN password_changed_at INTEGER NOT NULL DEFAULT 0`,
 	},
+	{
+		version: 50,
+		name:    "add_target_worker_id_to_platform_messages",
+		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN target_worker_id TEXT NOT NULL DEFAULT ''`,
+	},
+	{
+		version: 51,
+		name:    "clear_legacy_local_default_chat",
+		// Multi-user chat replaces the single global "local:default" session with
+		// per-user session keys. The legacy shared history is not migrated (it has
+		// no user attribution), so it is cleared. Delete children before parents to
+		// respect the bee_tasks -> bee_platform_messages foreign key.
+		sql: `
+DELETE FROM bee_tasks WHERE message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = 'local:default');
+DELETE FROM bee_outbound_messages WHERE session_key = 'local:default';
+DELETE FROM bee_session_contexts WHERE session_key = 'local:default';
+DELETE FROM bee_platform_messages WHERE session_key = 'local:default';
+`,
+	},
 }
 
 type whereBuilder struct {
