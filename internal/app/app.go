@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/routes"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	_ "github.com/theopenbee/openbee/internal/ai/claude"
@@ -48,51 +49,87 @@ import (
 	webui "github.com/theopenbee/openbee/web"
 )
 
+// shutdownTimeout bounds how long the HTTP server gets to finish in-flight
+// requests once shutdown begins.
+const shutdownTimeout = 15 * time.Second
+
+// runner is a named long-lived background loop. run must return when ctx is
+// cancelled; Run waits for every one of them before closing the database.
+type runner struct {
+	name string
+	run  func(ctx context.Context)
+}
+
+// httpServer is the slice of *routes.Server that App depends on. Keeping it an
+// interface lets the lifecycle be tested without standing up the full router.
+type httpServer interface {
+	Run(addr string) error
+	Shutdown(ctx context.Context) error
+}
+
 // App holds all wired-up components and runs the server.
 type App struct {
 	db      *sql.DB
-	server  *routes.Server
-	runners []func(ctx context.Context)
+	server  httpServer
+	runners []runner
 	addr    string
+
+	// recoverInflight re-hydrates work left behind by a previous process. It
+	// runs at the start of Run rather than during BuildApp, so constructing an
+	// App has no side effects.
+	recoverInflight func(ctx context.Context)
 }
 
-// Run starts all goroutines, waits for a signal, then shuts down gracefully.
-func (a *App) Run() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// Run starts all background runners and the HTTP server, then blocks until
+// SIGINT/SIGTERM or an unrecoverable server error.
+func (a *App) Run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return a.run(ctx)
+}
+
+// run is Run without signal handling, so tests can drive shutdown directly.
+func (a *App) run(ctx context.Context) error {
+	// Deferred first, so it unwinds last — after g.Wait() below has confirmed
+	// every runner returned. Runners touch the database on their way out of a
+	// cancelled loop, so closing it any earlier is a race.
+	defer a.db.Close()
+
+	a.recoverInflight(ctx)
+
+	g, gctx := errgroup.WithContext(ctx)
 
 	for _, r := range a.runners {
-		r := r
-		go r(ctx)
+		g.Go(func() error {
+			r.run(gctx)
+			logger.Debug("runner exited", zap.String("runner", r.name))
+			return nil
+		})
 	}
 
-	serverErr := make(chan error, 1)
-	go func() {
+	g.Go(func() error {
 		logger.Info("OpenBee Core starting", zap.String("addr", a.addr))
+		// A non-nil return here cancels gctx, which drains every runner.
 		if err := a.server.Run(a.addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
+			return fmt.Errorf("http server: %w", err)
 		}
-	}()
+		return nil
+	})
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case <-quit:
+	g.Go(func() error {
+		<-gctx.Done()
 		logger.Info("Shutting down...")
-	case err := <-serverErr:
-		logger.Error("server error", zap.Error(err))
-	}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := a.server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("http server shutdown: %w", err)
+		}
+		return nil
+	})
 
-	cancel()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer shutdownCancel()
-	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("server shutdown error", zap.Error(err))
-	}
-
-	a.db.Close()
+	err := g.Wait()
+	logger.Info("all runners drained")
+	return err
 }
 
 // BuildApp wires all components together. Returns a ready-to-run App.
@@ -103,6 +140,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	db, s, err := buildStores(cfg.Database)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := publishRPCBaseURL(cfg.Bee); err != nil {
 		return nil, err
 	}
 
@@ -137,18 +178,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
-	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
-
-	// sendersByPlatform is populated below; notifier holds a reference to the same map.
-	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
-
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
 	rawLocalSender := local.NewLocalSender(localHub)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
-	sendersByPlatform[local.PlatformID] = localSender
 
 	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
@@ -158,9 +192,13 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range platforms {
-		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
-	}
+
+	// Built in one shot, before any consumer sees it. Nothing may capture a
+	// reference to this map while it is still being filled.
+	sendersByPlatform := buildSenders(platforms, localSender, s.outboundMsgStore)
+
+	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
@@ -200,37 +238,43 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
-	// Synchronous startup recovery — must run before goroutines start
-	feeder.RecoverFeeding(context.Background())
-	sched.RecoverRunning(context.Background())
-	if n, err := s.execStore.ResetRunningExecutions(context.Background()); err != nil {
-		logger.Error("recover running executions", zap.Error(err))
-	} else if n > 0 {
-		logger.Info("reset orphaned executions", zap.Int64("count", n))
+	// Startup recovery is deferred to Run so that building an App stays free of
+	// side effects. It still completes before any runner starts.
+	recoverInflight := func(ctx context.Context) {
+		feeder.RecoverFeeding(ctx)
+		sched.RecoverRunning(ctx)
+		if n, err := s.execStore.ResetRunningExecutions(ctx); err != nil {
+			logger.Error("recover running executions", zap.Error(err))
+		} else if n > 0 {
+			logger.Info("reset orphaned executions", zap.Int64("count", n))
+		}
 	}
 
 	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
 	reconciler := task.NewReconciler(s.taskStore, s.execStore, 0)
-	runners := []func(ctx context.Context){
-		func(ctx context.Context) { ingest.Run(ctx) },
-		func(ctx context.Context) { localIngest.Run(ctx) },
-		func(ctx context.Context) {
+	runners := []runner{
+		{name: "ingest", run: ingest.Run},
+		{name: "ingest:local", run: localIngest.Run},
+		{name: "receiver:local", run: func(ctx context.Context) {
 			if err := localReceiver.Start(ctx, localIngest.Dispatch); err != nil {
 				logger.Error("local receiver error", zap.Error(err))
 			}
-		},
-		func(ctx context.Context) { feeder.Run(ctx) },
-		func(ctx context.Context) { sched.Run(ctx) },
-		func(ctx context.Context) { disp.Run(ctx) },
-		func(ctx context.Context) { reconciler.Run(ctx) },
-		func(ctx context.Context) { tokenSyncer.Run(ctx) },
+		}},
+		{name: "feeder", run: feeder.Run},
+		{name: "scheduler", run: sched.Run},
+		{name: "dispatcher", run: disp.Run},
+		{name: "reconciler", run: reconciler.Run},
+		{name: "tokenstat", run: tokenSyncer.Run},
 	}
 	for _, p := range platforms {
-		recv := p.Receiver()
-		runners = append(runners, func(ctx context.Context) {
-			if err := recv.Start(ctx, ingest.Dispatch); err != nil {
-				logger.Error("platform receiver error", zap.Error(err))
-			}
+		recv, id := p.Receiver(), p.ID()
+		runners = append(runners, runner{
+			name: "receiver:" + id,
+			run: func(ctx context.Context) {
+				if err := recv.Start(ctx, ingest.Dispatch); err != nil {
+					logger.Error("platform receiver error", zap.String("platform", id), zap.Error(err))
+				}
+			},
 		})
 	}
 
@@ -246,7 +290,28 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
+	return &App{
+		db:              db,
+		server:          srv,
+		runners:         runners,
+		addr:            addr,
+		recoverInflight: recoverInflight,
+	}, nil
+}
+
+// buildSenders returns the complete platform-id -> sender map.
+func buildSenders(
+	platforms []platform.Platform,
+	localSender platform.PlatformSenderAdapter,
+	out *store.OutboundMessageStore,
+) map[string]platform.PlatformSenderAdapter {
+	senders := map[string]platform.PlatformSenderAdapter{
+		local.PlatformID: localSender,
+	}
+	for _, p := range platforms {
+		senders[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), out, p.ID())
+	}
+	return senders
 }
 
 // appStores groups all store instances for passing to sub-builders.
@@ -291,10 +356,18 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
+// publishRPCBaseURL exports the RPC base URL to the process environment.
+// Engine CLIs (claude/codex/pi) read OPENBEE_URL from their inherited env, so
+// this must run before any engine adapter is constructed.
+func publishRPCBaseURL(cfg config.BeeConfig) error {
+	if err := os.Setenv("OPENBEE_URL", cfg.RPCBaseURL); err != nil {
+		return fmt.Errorf("publish OPENBEE_URL: %w", err)
+	}
+	return nil
+}
+
 // buildAllEngines initializes engine adapters shared safely across concurrent workers.
 func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
-
 	result := make(map[string]ai.EngineAdapter)
 	for _, name := range ai.AllEngines() {
 		if !cfg.Engines.IsEnabled(name) {

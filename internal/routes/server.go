@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"sync"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -35,8 +36,13 @@ type ServerParams struct {
 }
 
 type Server struct {
-	router     *gin.Engine
+	router *gin.Engine
+
+	// mu guards httpServer, which Run writes and Shutdown reads from a
+	// different goroutine.
+	mu         sync.Mutex
 	httpServer *http.Server
+
 	ServerParams
 }
 
@@ -72,16 +78,22 @@ func (s *Server) setupRoutes() error {
 }
 
 func (s *Server) Run(addr string) error {
-	s.httpServer = &http.Server{
+	srv := &http.Server{
 		Addr:    addr,
 		Handler: s.router,
 	}
-	return s.httpServer.ListenAndServe()
+	s.mu.Lock()
+	s.httpServer = srv
+	s.mu.Unlock()
+	return srv.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.httpServer == nil {
+	s.mu.Lock()
+	srv := s.httpServer
+	s.mu.Unlock()
+	if srv == nil {
 		return nil
 	}
-	return s.httpServer.Shutdown(ctx)
+	return srv.Shutdown(ctx)
 }

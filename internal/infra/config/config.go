@@ -181,6 +181,7 @@ type WeComConfig struct {
 	Secret       string `yaml:"secret"`
 	WebSocketURL string `yaml:"websocket_url"`
 	BotName      string `yaml:"bot_name"`
+}
 
 type TelegramConfig struct {
 	Enabled      bool   `yaml:"enabled"`
