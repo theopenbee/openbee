@@ -188,8 +188,8 @@ func TestBeeConfig_TokenTTLDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Bee.RPC.TokenTTL != 2*time.Hour {
-		t.Errorf("TokenTTL default: want 2h got %v", cfg.Bee.RPC.TokenTTL)
+	if cfg.Bee.RPC.TokenTTL != 48*time.Hour {
+		t.Errorf("TokenTTL default: want 48h got %v", cfg.Bee.RPC.TokenTTL)
 	}
 }
 

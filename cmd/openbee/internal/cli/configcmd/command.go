@@ -54,7 +54,7 @@ func runConfig() error {
 		ClaudePath:             "claude",
 		CodexPath:              "codex",
 		PiPath:                 "pi",
-		RPCTokenTTL:            "2h",
+		RPCTokenTTL:            "48h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		FFprobePath:            "ffprobe",
