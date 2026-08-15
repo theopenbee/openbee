@@ -67,8 +67,7 @@ func NewServerCommand() *cobra.Command {
 				return fmt.Errorf("build app: %w", err)
 			}
 
-			a.Run()
-			return nil
+			return a.Run()
 		},
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)

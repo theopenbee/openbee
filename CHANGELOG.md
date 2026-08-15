@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- `openbee server` now exits with a non-zero status when the HTTP server fails to start, for example when the port is already in use. Previously the error was logged and the process still exited successfully.
+
 ### Fixed
+- Wait for every background loop (message gateways, platform receivers, feeder, scheduler, dispatcher, reconciler and token-stats syncer) to finish before closing the database on shutdown. Previously the database was closed as soon as the HTTP server stopped, while those loops were still writing to it.
+- Build the platform sender map completely before passing it to the task failure notifier, removing a startup-order dependency on mutating a shared map after handing out a reference to it.
+- Guard the HTTP server handle so that `Run` and `Shutdown` no longer race when shutdown begins while the listener is still starting.
 - Fix `openbee ctl` failing with `unauthorized` for the remainder of a long-running worker execution. The worker token is minted once at process launch, so a TTL shorter than the execution left every subsequent call rejected; the default `bee.rpc.token_ttl` is now 48h instead of 2h.
 
 ## [0.0.42] - 2026-07-01
