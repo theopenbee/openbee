@@ -230,7 +230,7 @@ type LinearConfig struct {
 
 type RPCConfig struct {
 	TokenSecret string        `yaml:"token_secret"` // HMAC-SHA256 secret; empty = auto-generated on startup
-	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 2h
+	TokenTTL    time.Duration `yaml:"token_ttl"`    // token validity period; default 48h
 }
 
 type AuthConfig struct {
@@ -347,8 +347,11 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Server.EnvSecret == "" {
 		cfg.Server.EnvSecret = GenerateRandomSecret()
 	}
+	// 48h, not 2h: the worker token is minted once at process launch and injected
+	// as a static OPENBEE_API_KEY env var, so a token shorter than the worker
+	// execution leaves `openbee ctl` returning 401 for the rest of that run.
 	if cfg.Bee.RPC.TokenTTL == 0 {
-		cfg.Bee.RPC.TokenTTL = 2 * time.Hour
+		cfg.Bee.RPC.TokenTTL = 48 * time.Hour
 	}
 	if cfg.Bee.Platforms.Linear.LabelName == "" {
 		cfg.Bee.Platforms.Linear.LabelName = "openbee"
