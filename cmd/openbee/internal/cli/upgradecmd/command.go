@@ -2,7 +2,6 @@ package upgradecmd
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -179,12 +178,8 @@ func doUpgrade(newVersion string) error {
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
 		}
-		expected, err := parseChecksumFile(data, archiveName)
-		if err != nil {
-			return fmt.Errorf("%w in checksums.txt", err)
-		}
-		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
-			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
+		if err := verifyChecksum(data, archiveName, h.Sum(nil)); err != nil {
+			return err
 		}
 		fmt.Println(i18n.M.Output.Upgrade.Verified)
 	}

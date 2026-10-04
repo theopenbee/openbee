@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -65,5 +66,55 @@ func TestParseChecksumFileMissing(t *testing.T) {
 	data := []byte("aaa111  openbee-1.0.0-linux-amd64.tar.gz\n")
 	if _, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.tar.gz"); err == nil {
 		t.Fatalf("parseChecksumFile for missing asset returned nil error")
+	}
+}
+
+func TestParseChecksumFileBinaryMode(t *testing.T) {
+	// sha256sum -b marks binary-mode entries with a leading '*'.
+	data := []byte("aaa111 *openbee-1.0.0-windows-amd64.zip\n")
+	got, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.zip")
+	if err != nil {
+		t.Fatalf("parseChecksumFile(*name): %v", err)
+	}
+	if got != "aaa111" {
+		t.Fatalf("parseChecksumFile(*name) = %q, want %q", got, "aaa111")
+	}
+}
+
+func TestParseChecksumFileCRLF(t *testing.T) {
+	data := []byte("aaa111  openbee-1.0.0-windows-amd64.zip\r\nbbb222  openbee-1.0.0-linux-amd64.tar.gz\r\n")
+	got, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.zip")
+	if err != nil {
+		t.Fatalf("parseChecksumFile(CRLF): %v", err)
+	}
+	if got != "aaa111" {
+		t.Fatalf("parseChecksumFile(CRLF) = %q, want %q", got, "aaa111")
+	}
+}
+
+func TestVerifyChecksumIgnoresHexCase(t *testing.T) {
+	sum := sha256.Sum256([]byte("archive"))
+	upper := strings.ToUpper(hex.EncodeToString(sum[:]))
+	checksums := []byte(upper + "  openbee-1.0.0-linux-amd64.tar.gz\n")
+	if err := verifyChecksum(checksums, "openbee-1.0.0-linux-amd64.tar.gz", sum[:]); err != nil {
+		t.Fatalf("verifyChecksum with uppercase hex: %v", err)
+	}
+}
+
+func TestVerifyChecksumMismatch(t *testing.T) {
+	sum := sha256.Sum256([]byte("archive"))
+	checksums := []byte(strings.Repeat("0", 64) + "  openbee-1.0.0-linux-amd64.tar.gz\n")
+	err := verifyChecksum(checksums, "openbee-1.0.0-linux-amd64.tar.gz", sum[:])
+	if err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
+		t.Fatalf("verifyChecksum mismatch: err = %v, want SHA256 mismatch", err)
+	}
+}
+
+func TestVerifyChecksumMissingEntry(t *testing.T) {
+	sum := sha256.Sum256([]byte("archive"))
+	checksums := []byte(strings.Repeat("0", 64) + "  openbee-1.0.0-linux-amd64.tar.gz\n")
+	err := verifyChecksum(checksums, "openbee-1.0.0-windows-amd64.zip", sum[:])
+	if err == nil || !strings.Contains(err.Error(), "in checksums.txt") {
+		t.Fatalf("verifyChecksum missing entry: err = %v, want not-found error", err)
 	}
 }

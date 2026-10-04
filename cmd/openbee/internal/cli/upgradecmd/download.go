@@ -1,6 +1,7 @@
 package upgradecmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,13 +43,28 @@ func downloadFile(url, dest string, extra io.Writer) error {
 	return nil
 }
 
-// parseChecksumFile looks up assetName in a checksum file (one "hash  filename" pair per line)
-// and returns the expected hex digest. Returns an error if the entry is not found.
+// parseChecksumFile looks up assetName in a sha256sum-style checksum file and returns
+// the expected hex digest. Lines are "hash  name" (text mode) or "hash *name" (binary
+// mode, as written by sha256sum -b). Returns an error if the entry is not found.
 func parseChecksumFile(data []byte, assetName string) (string, error) {
 	for line := range strings.SplitSeq(string(data), "\n") {
-		if parts := strings.Fields(line); len(parts) == 2 && parts[1] == assetName {
+		parts := strings.Fields(line)
+		if len(parts) == 2 && strings.TrimPrefix(parts[1], "*") == assetName {
 			return parts[0], nil
 		}
 	}
 	return "", fmt.Errorf("no checksum for %s found", assetName)
+}
+
+// verifyChecksum checks sum (a raw SHA256 digest) against assetName's entry in
+// checksums. Hex digits are compared case-insensitively.
+func verifyChecksum(checksums []byte, assetName string, sum []byte) error {
+	expected, err := parseChecksumFile(checksums, assetName)
+	if err != nil {
+		return fmt.Errorf("%w in checksums.txt", err)
+	}
+	if actual := hex.EncodeToString(sum); !strings.EqualFold(actual, expected) {
+		return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
+	}
+	return nil
 }
