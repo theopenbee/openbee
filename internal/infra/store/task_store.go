@@ -107,13 +107,13 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 
 // List returns tasks matching the given filter. If session_key is set, tasks are
 // joined with bee_platform_messages to resolve the session. Results are ordered
-// by created_at DESC.
+// by created_at DESC, ties broken by insertion order so pagination is stable.
 func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
 	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
 	             t.scheduled_at, t.cron_expr, t.next_run_at,
 	             t.created_at, t.updated_at
 	      FROM bee_tasks t`, f)
-	q += ` ORDER BY t.created_at DESC`
+	q += ` ORDER BY t.created_at DESC, t.rowid DESC`
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, f.Limit)
