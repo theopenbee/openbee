@@ -155,8 +155,7 @@ func TestEngineCommand_SwitchWorkerEngine(t *testing.T) {
 	h, sender, _, _ := makeHandler(workers)
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, `已将员工 "alice" 的 engine 切换为 codex`, sender.sent[0])
+	assert.Equal(t, []string{`已将员工 "alice" 的 engine 切换为 codex`}, sender.sent)
 }
 
 func TestEngineCommand_InvalidEngine(t *testing.T) {
@@ -171,16 +170,14 @@ func TestEngineCommand_WorkerNotFound(t *testing.T) {
 	h, sender, _, _ := makeHandler(map[string]model.Worker{})
 	handled := h.HandleCommand(context.Background(), "/engine claude nobody", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, `员工 "nobody" 不存在`, sender.sent[0])
+	assert.Equal(t, []string{`员工 "nobody" 不存在`}, sender.sent)
 }
 
 func TestEngineCommand_NoArgs(t *testing.T) {
 	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine", sender.sent[0])
+	assert.Equal(t, []string{"用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"}, sender.sent)
 }
 
 // TestEngineCommand_Busy merges the busy-checker scenarios that used to be
@@ -266,8 +263,7 @@ func TestEngineCommand_Busy(t *testing.T) {
 
 			handled := h.HandleCommand(context.Background(), tc.cmd, makeReplyTo())
 			require.True(t, handled, "expected handled=true")
-			require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-			assert.Equal(t, tc.wantReply, sender.sent[0])
+			assert.Equal(t, []string{tc.wantReply}, sender.sent)
 		})
 	}
 }
@@ -285,6 +281,5 @@ func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
 	assert.Equal(t, "claude", engineCfg.Get())
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, "切换失败，请稍后重试", sender.sent[0])
+	assert.Equal(t, []string{"切换失败，请稍后重试"}, sender.sent)
 }

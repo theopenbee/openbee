@@ -119,8 +119,7 @@ func TestStatusCommand_UsageOnExtraArgs(t *testing.T) {
 	h, sender := makeStatusHandler(nil, nil, nil)
 	handled := h.HandleCommand(context.Background(), "/status x", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, i18n.M.Runtime.StatusCommand.Usage, sender.sent[0])
+	assert.Equal(t, []string{i18n.M.Runtime.StatusCommand.Usage}, sender.sent)
 }
 
 func TestStatusCommand_HappyPath(t *testing.T) {

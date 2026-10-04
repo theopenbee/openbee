@@ -50,8 +50,7 @@ func TestListCommand_UsageOnExtraArgs(t *testing.T) {
 	h, sender := makeListHandler(nil, nil)
 	handled := h.HandleCommand(context.Background(), "/list a b", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
-	assert.Equal(t, i18n.M.Runtime.ListCommand.Usage, sender.sent[0])
+	assert.Equal(t, []string{i18n.M.Runtime.ListCommand.Usage}, sender.sent)
 }
 
 func TestListCommand_EmptyDirectory(t *testing.T) {
