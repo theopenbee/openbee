@@ -14,25 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubLookupRunAsEnvPath swaps in a deterministic PATH resolver so tests can
-// exercise the success / failure paths without depending on a real `runuser`.
-func stubLookupRunAsEnvPath(t *testing.T, fn func(ctx context.Context, username string) (string, error)) {
-	t.Helper()
-	prev := lookupRunAsEnvPath
-	lookupRunAsEnvPath = fn
-	t.Cleanup(func() { lookupRunAsEnvPath = prev })
-}
-
-// stubVerifyNode swaps in a deterministic node-availability check so we can
-// fire each warning branch (missing / not-executable / ok / unknown) without
-// shelling out.
-func stubVerifyNode(t *testing.T, fn func(ctx context.Context, username, envPath string) nodeCheckResult) {
-	t.Helper()
-	prev := verifyNodeForRunAsUser
-	verifyNodeForRunAsUser = fn
-	t.Cleanup(func() { verifyNodeForRunAsUser = prev })
-}
-
 // stubRoot pretends the process runs as root so preflightRoot lets the call
 // through; tests still execute as the invoking developer's UID.
 func stubRoot(t *testing.T) {

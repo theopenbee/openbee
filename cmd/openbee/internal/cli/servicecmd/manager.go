@@ -18,6 +18,10 @@ import (
 // execLookPath is overridden in tests to simulate missing tools.
 var execLookPath = exec.LookPath
 
+// lookupUser is overridden in tests so the run-as user's home (and with it the
+// default ~/.openbee working dir) points at a temp dir instead of the real one.
+var lookupUser = user.Lookup
+
 // runAsLookupTimeout bounds the runuser calls so a stuck profile script can't
 // hang `service install`. 5s is generous for a login shell + printf.
 var runAsLookupTimeout = 5 * time.Second
@@ -181,7 +185,7 @@ func resolveRunAs(runAsFlag string) (string, string, string, error) {
 	if name == "" {
 		return "", "", "", errors.New(i18n.M.Output.Service.RunAsRequired)
 	}
-	u, err := user.Lookup(name)
+	u, err := lookupUser(name)
 	if err != nil {
 		return "", "", "", fmt.Errorf(i18n.M.Output.Service.RunAsUserUnknown, name)
 	}
