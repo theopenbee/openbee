@@ -56,6 +56,20 @@ func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.
 	return nil, ai.ErrSessionDataNotFound
 }
 
+// waitForMonitors blocks until every monitorExecution goroutine started by m
+// has finished. monitorExecution removes its activeProcesses entry only after
+// its final DB writes, so an empty map means no write can race t.Cleanup's
+// db.Close and TempDir removal (which otherwise fails with "directory not
+// empty" when SQLite recreates its journal mid-cleanup).
+func waitForMonitors(t *testing.T, m *Manager) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		return len(m.activeProcesses) == 0
+	}, 5*time.Second, 5*time.Millisecond, "monitorExecution goroutines did not finish")
+}
+
 func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
 	return newTestManagerWithBotNames(t, engines, defaultEngine, nil)
 }
@@ -191,6 +205,8 @@ func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
 		got, err := mgr.executionStore.GetByID(exec.ID)
 		if err == nil && got.Status == model.ExecStatusFailed && got.CompletedAt != nil {
 			require.NotEmpty(t, got.Result, "expected non-empty result on abandoned execution")
+			// The worker-status write still follows MarkAbandoned.
+			waitForMonitors(t, mgr)
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -433,6 +449,7 @@ func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
 		SessionID:    "test-session",
 		TriggerInput: "noop",
 	})
+	waitForMonitors(t, m)
 
 	_, err = os.Stat(missing)
 	require.NoError(t, err, "expected execute to create WorkDir")
