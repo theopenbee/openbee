@@ -163,7 +163,6 @@ output:
     new_version: "发现新版本：%s"
     run_cmd: "运行 'openbee upgrade' 以升级。"
     downloading: "正在下载 %s..."
-    checksum_warning: "警告：无法下载 checksums.txt，跳过校验（%v）"
     verifying: "正在验证 SHA256..."
     verified: "SHA256 验证通过。"
     binary_at: "正在升级二进制文件：%s"

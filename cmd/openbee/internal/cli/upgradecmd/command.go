@@ -1,11 +1,8 @@
 package upgradecmd
 
 import (
-	"archive/tar"
-	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +23,9 @@ const (
 	githubRelBase        = "https://github.com/theopenbee/openbee/releases/download"
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
+	// githubTokenEnv names the env var whose token, if set, authenticates GitHub API
+	// calls (anonymous requests are limited to 60 per hour per IP).
+	githubTokenEnv = "GITHUB_TOKEN"
 )
 
 const executablePerm = 0o755
@@ -55,7 +55,7 @@ func runUpgrade(current string, checkOnly bool) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
-	latest, err := fetchLatestVersion()
+	tag, latest, err := fetchLatestVersion(githubAPILatest)
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
@@ -74,37 +74,86 @@ func runUpgrade(current string, checkOnly bool) error {
 		return nil
 	}
 
-	return doUpgrade(latest)
+	return doUpgrade(tag, latest)
 }
 
-func fetchLatestVersion() (string, error) {
-	resp, err := apiClient.Get(githubAPILatest)
+// fetchLatestVersion returns the latest release's tag exactly as published and its
+// normalized version (see normalizeVersionTag). Download paths must use the tag:
+// GitHub tags are case-sensitive. The version is for comparison and display.
+func fetchLatestVersion(apiURL string) (tag, version string, err error) {
+	token := strings.TrimSpace(os.Getenv(githubTokenEnv))
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := apiClient.Do(req)
+	if err != nil {
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		return "", "", apiStatusError(resp, token != "")
 	}
 	var rel githubRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
-		return "", fmt.Errorf("parse response: %w", err)
+		return "", "", fmt.Errorf("parse response: %w", err)
 	}
-	return normalizeVersionTag(rel.TagName)
+	tag = strings.TrimSpace(rel.TagName)
+	if version, err = normalizeVersionTag(tag); err != nil {
+		return "", "", err
+	}
+	return tag, version, nil
 }
 
-// normalizeVersionTag trims whitespace, validates the tag is non-empty, and
-// ensures it carries a "v" prefix (e.g. "1.2.3" → "v1.2.3").
+// apiStatusError explains a non-200 GitHub API response, calling out rate limiting
+// and rejected tokens, which would otherwise surface only as a bare 403 or 401.
+func apiStatusError(resp *http.Response, withToken bool) error {
+	switch {
+	case isRateLimited(resp):
+		msg := fmt.Sprintf("GitHub API rate limit exceeded (HTTP %d)", resp.StatusCode)
+		if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+			msg += ", resets at " + time.Unix(reset, 0).Format(time.DateTime)
+		}
+		if !withToken {
+			msg += "; set " + githubTokenEnv + " to raise the limit"
+		}
+		return errors.New(msg)
+	case resp.StatusCode == http.StatusUnauthorized && withToken:
+		return fmt.Errorf("GitHub API returned 401: check %s", githubTokenEnv)
+	default:
+		return fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+	}
+}
+
+// isRateLimited reports whether resp is a GitHub rate-limit rejection. The primary
+// limit answers 403 with X-RateLimit-Remaining: 0; secondary limits answer 403 or
+// 429, usually with Retry-After.
+func isRateLimited(resp *http.Response) bool {
+	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		return true
+	case http.StatusForbidden:
+		return resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != ""
+	}
+	return false
+}
+
+// normalizeVersionTag trims whitespace, validates the tag holds more than a "v"
+// prefix, and ensures it carries a lowercase "v" ("1.2.3" and "V1.2.3" → "v1.2.3").
 func normalizeVersionTag(tag string) (string, error) {
 	tag = strings.TrimSpace(tag)
+	if tag != "" && (tag[0] == 'v' || tag[0] == 'V') {
+		tag = tag[1:]
+	}
 	if tag == "" {
 		return "", fmt.Errorf("empty version tag")
 	}
-	if !strings.HasPrefix(tag, "v") {
-		tag = "v" + tag
-	}
-	return tag, nil
+	return "v" + tag, nil
 }
 
 // isNewer returns true when latest is strictly newer than current.
@@ -144,13 +193,16 @@ func parseSemver(v string) []int {
 	return nums
 }
 
-func doUpgrade(newVersion string) error {
-	versionNum := strings.TrimPrefix(newVersion, "v")
-	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", upgradeBinaryName, versionNum, runtime.GOOS, runtime.GOARCH)
+// releaseDownload returns the download base URL and archive name for a release tag.
+// Both use the tag as published, like goreleaser does: GitHub tags are
+// case-sensitive, and {{ .Version }} in the archive name is the tag minus only a
+// lowercase "v" prefix.
+func releaseDownload(tag, goos, goarch string) (relBase, archiveName string) {
+	return githubRelBase + "/" + tag, releaseArchiveName(strings.TrimPrefix(tag, "v"), goos, goarch)
+}
 
-	relBase := fmt.Sprintf("%s/%s", githubRelBase, newVersion)
-	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
-	checksumURL := fmt.Sprintf("%s/checksums.txt", relBase)
+func doUpgrade(tag, newVersion string) error {
+	relBase, archiveName := releaseDownload(tag, runtime.GOOS, runtime.GOARCH)
 
 	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
@@ -160,35 +212,9 @@ func doUpgrade(newVersion string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Download checksums first (small file), then the archive while hashing it.
-	// This avoids a second read of the archive for checksum verification.
-	checksumPath := filepath.Join(tmpDir, "checksums.txt")
-	checksumAvailable := true
-	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
-		checksumAvailable = false
-		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
-	}
-
-	h := sha256.New()
-	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath, h); err != nil {
-		return fmt.Errorf("download: %w", err)
-	}
-
-	if checksumAvailable {
-		fmt.Println(i18n.M.Output.Upgrade.Verifying)
-		data, err := os.ReadFile(checksumPath)
-		if err != nil {
-			return fmt.Errorf("read checksums: %w", err)
-		}
-		expected, err := parseChecksumFile(data, archiveName)
-		if err != nil {
-			return fmt.Errorf("%w in checksums.txt", err)
-		}
-		if actual := hex.EncodeToString(h.Sum(nil)); actual != expected {
-			return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
-		}
-		fmt.Println(i18n.M.Output.Upgrade.Verified)
+	archivePath, err := fetchVerifiedArchive(relBase, archiveName, tmpDir)
+	if err != nil {
+		return err
 	}
 
 	execPath, err := utils.ResolveExecutable()
@@ -197,7 +223,7 @@ func doUpgrade(newVersion string) error {
 	}
 	fmt.Printf(i18n.M.Output.Upgrade.BinaryAt+"\n", execPath)
 
-	// Atomic replace: extract directly into a temp file next to the target, then rename.
+	// Extract into a temp file next to the target (same filesystem), then swap it in.
 	dir := filepath.Dir(execPath)
 	tmpBin, err := os.CreateTemp(dir, ".openbee-new-*")
 	if err != nil {
@@ -205,55 +231,30 @@ func doUpgrade(newVersion string) error {
 		return fmt.Errorf("create temp file in %s (may need sudo): %w", dir, err)
 	}
 	tmpBinPath := tmpBin.Name()
-	defer os.Remove(tmpBinPath)
+	keepTmpBin := false
+	defer func() {
+		if !keepTmpBin {
+			os.Remove(tmpBinPath)
+		}
+	}()
 
 	if err := extractBinary(archivePath, tmpBin); err != nil {
+		tmpBin.Close()
 		return fmt.Errorf("extract: %w", err)
+	}
+	if err := tmpBin.Close(); err != nil {
+		return fmt.Errorf("write new binary: %w", err)
 	}
 	if err := os.Chmod(tmpBinPath, executablePerm); err != nil {
 		return fmt.Errorf("set permissions: %w", err)
 	}
-	if err := os.Rename(tmpBinPath, execPath); err != nil {
+	if err := replaceExecutable(tmpBinPath, execPath); err != nil {
+		// With nothing left at execPath, the new binary is one of the two copies
+		// the user can restore by hand.
+		keepTmpBin = errors.Is(err, errBinaryStranded)
 		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 
 	fmt.Printf(i18n.M.Output.Upgrade.Success+"\n", newVersion)
 	return nil
-}
-
-func extractBinary(archivePath string, dest *os.File) error {
-	f, err := os.Open(archivePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return err
-	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if hdr.Typeflag != tar.TypeReg {
-			continue
-		}
-		name := filepath.Base(hdr.Name)
-		if name == upgradeBinaryName || name == upgradeBinaryNameWin {
-			if _, err := io.Copy(dest, tr); err != nil {
-				dest.Close()
-				return err
-			}
-			return dest.Close()
-		}
-	}
-	return fmt.Errorf("%s binary not found in archive", upgradeBinaryName)
 }
