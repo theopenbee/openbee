@@ -1,8 +1,6 @@
 package upgradecmd
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -146,7 +144,7 @@ func parseSemver(v string) []int {
 
 func doUpgrade(newVersion string) error {
 	versionNum := strings.TrimPrefix(newVersion, "v")
-	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", upgradeBinaryName, versionNum, runtime.GOOS, runtime.GOARCH)
+	archiveName := releaseArchiveName(versionNum, runtime.GOOS, runtime.GOARCH)
 
 	relBase := fmt.Sprintf("%s/%s", githubRelBase, newVersion)
 	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
@@ -208,7 +206,11 @@ func doUpgrade(newVersion string) error {
 	defer os.Remove(tmpBinPath)
 
 	if err := extractBinary(archivePath, tmpBin); err != nil {
+		tmpBin.Close()
 		return fmt.Errorf("extract: %w", err)
+	}
+	if err := tmpBin.Close(); err != nil {
+		return fmt.Errorf("write new binary: %w", err)
 	}
 	if err := os.Chmod(tmpBinPath, executablePerm); err != nil {
 		return fmt.Errorf("set permissions: %w", err)
@@ -219,41 +221,4 @@ func doUpgrade(newVersion string) error {
 
 	fmt.Printf(i18n.M.Output.Upgrade.Success+"\n", newVersion)
 	return nil
-}
-
-func extractBinary(archivePath string, dest *os.File) error {
-	f, err := os.Open(archivePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return err
-	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if hdr.Typeflag != tar.TypeReg {
-			continue
-		}
-		name := filepath.Base(hdr.Name)
-		if name == upgradeBinaryName || name == upgradeBinaryNameWin {
-			if _, err := io.Copy(dest, tr); err != nil {
-				dest.Close()
-				return err
-			}
-			return dest.Close()
-		}
-	}
-	return fmt.Errorf("%s binary not found in archive", upgradeBinaryName)
 }
