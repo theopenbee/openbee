@@ -214,18 +214,17 @@ type StatusOutput struct {
 
 // UpgradeOutput maps to upgrade command runtime output.
 type UpgradeOutput struct {
-	CurrentVersion  string `yaml:"current_version"` // contains %s
-	Checking        string `yaml:"checking"`
-	LatestVersion   string `yaml:"latest_version"` // contains %s
-	UpToDate        string `yaml:"up_to_date"`
-	NewVersion      string `yaml:"new_version"` // contains %s
-	RunCmd          string `yaml:"run_cmd"`
-	Downloading     string `yaml:"downloading"`      // contains %s
-	ChecksumWarning string `yaml:"checksum_warning"` // contains %v
-	Verifying       string `yaml:"verifying"`
-	Verified        string `yaml:"verified"`
-	BinaryAt        string `yaml:"binary_at"` // contains %s
-	Success         string `yaml:"success"`   // contains %s
+	CurrentVersion string `yaml:"current_version"` // contains %s
+	Checking       string `yaml:"checking"`
+	LatestVersion  string `yaml:"latest_version"` // contains %s
+	UpToDate       string `yaml:"up_to_date"`
+	NewVersion     string `yaml:"new_version"` // contains %s
+	RunCmd         string `yaml:"run_cmd"`
+	Downloading    string `yaml:"downloading"` // contains %s
+	Verifying      string `yaml:"verifying"`
+	Verified       string `yaml:"verified"`
+	BinaryAt       string `yaml:"binary_at"` // contains %s
+	Success        string `yaml:"success"`   // contains %s
 }
 
 // BackupOutput maps to backup command runtime output.

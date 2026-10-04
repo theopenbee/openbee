@@ -1,13 +1,17 @@
 package upgradecmd
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 const maxDownloadBytes = 512 * 1024 * 1024 // 512 MB guard against runaway responses
@@ -67,4 +71,33 @@ func verifyChecksum(checksums []byte, assetName string, sum []byte) error {
 		return fmt.Errorf("SHA256 mismatch\n  expected: %s\n  got:      %s", expected, actual)
 	}
 	return nil
+}
+
+// fetchVerifiedArchive downloads checksums.txt and archiveName from relBase into dir,
+// verifies the archive's SHA256, and returns the archive path. Any failure aborts,
+// including checksums.txt being unavailable: an unverified archive is never returned.
+func fetchVerifiedArchive(relBase, archiveName, dir string) (string, error) {
+	// Download checksums first (small file), then the archive while hashing it.
+	// This avoids a second read of the archive for checksum verification.
+	checksumPath := filepath.Join(dir, "checksums.txt")
+	if err := downloadFile(relBase+"/checksums.txt", checksumPath, nil); err != nil {
+		return "", fmt.Errorf("download checksums.txt: %w", err)
+	}
+
+	h := sha256.New()
+	archivePath := filepath.Join(dir, archiveName)
+	if err := downloadFile(relBase+"/"+archiveName, archivePath, h); err != nil {
+		return "", fmt.Errorf("download: %w", err)
+	}
+
+	fmt.Println(i18n.M.Output.Upgrade.Verifying)
+	checksums, err := os.ReadFile(checksumPath)
+	if err != nil {
+		return "", fmt.Errorf("read checksums: %w", err)
+	}
+	if err := verifyChecksum(checksums, archiveName, h.Sum(nil)); err != nil {
+		return "", err
+	}
+	fmt.Println(i18n.M.Output.Upgrade.Verified)
+	return archivePath, nil
 }

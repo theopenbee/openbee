@@ -163,7 +163,6 @@ output:
     new_version: "New version available: %s"
     run_cmd: "Run 'openbee upgrade' to upgrade."
     downloading: "Downloading %s..."
-    checksum_warning: "warning: failed to download checksums.txt, skipping verification (%v)"
     verifying: "Verifying SHA256..."
     verified: "SHA256 verified."
     binary_at: "Upgrading binary at: %s"

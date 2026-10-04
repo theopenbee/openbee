@@ -118,3 +118,68 @@ func TestVerifyChecksumMissingEntry(t *testing.T) {
 		t.Fatalf("verifyChecksum missing entry: err = %v, want not-found error", err)
 	}
 }
+
+// newReleaseServer serves files keyed by URL path (without the leading slash).
+// Any other path answers 503, standing in for a flaky or failing CDN.
+func newReleaseServer(t *testing.T, files map[string]string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, ok := files[strings.TrimPrefix(r.URL.Path, "/")]
+		if !ok {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestFetchVerifiedArchive(t *testing.T) {
+	const name = "openbee-1.0.0-linux-amd64.tar.gz"
+	const body = "archive-bytes"
+	sum := sha256.Sum256([]byte(body))
+	srv := newReleaseServer(t, map[string]string{
+		"checksums.txt": hex.EncodeToString(sum[:]) + "  " + name + "\n",
+		name:            body,
+	})
+
+	path, err := fetchVerifiedArchive(srv.URL, name, t.TempDir())
+	if err != nil {
+		t.Fatalf("fetchVerifiedArchive: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read archive: %v", err)
+	}
+	if string(got) != body {
+		t.Fatalf("archive content = %q, want %q", got, body)
+	}
+}
+
+func TestFetchVerifiedArchiveAbortsWithoutChecksums(t *testing.T) {
+	const name = "openbee-1.0.0-linux-amd64.tar.gz"
+	srv := newReleaseServer(t, map[string]string{name: "archive-bytes"}) // checksums.txt -> 503
+
+	dir := t.TempDir()
+	_, err := fetchVerifiedArchive(srv.URL, name, dir)
+	if err == nil || !strings.Contains(err.Error(), "checksums.txt") {
+		t.Fatalf("fetchVerifiedArchive with checksums.txt unavailable: err = %v, want checksums.txt error", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(statErr) {
+		t.Fatalf("archive should not be downloaded when checksums.txt is unavailable, stat err = %v", statErr)
+	}
+}
+
+func TestFetchVerifiedArchiveMismatch(t *testing.T) {
+	const name = "openbee-1.0.0-linux-amd64.tar.gz"
+	srv := newReleaseServer(t, map[string]string{
+		"checksums.txt": strings.Repeat("0", 64) + "  " + name + "\n",
+		name:            "tampered-bytes",
+	})
+
+	_, err := fetchVerifiedArchive(srv.URL, name, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
+		t.Fatalf("fetchVerifiedArchive with wrong hash: err = %v, want SHA256 mismatch", err)
+	}
+}

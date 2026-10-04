@@ -1,7 +1,6 @@
 package upgradecmd
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -146,8 +145,6 @@ func doUpgrade(newVersion string) error {
 	archiveName := releaseArchiveName(versionNum, runtime.GOOS, runtime.GOARCH)
 
 	relBase := fmt.Sprintf("%s/%s", githubRelBase, newVersion)
-	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
-	checksumURL := fmt.Sprintf("%s/checksums.txt", relBase)
 
 	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
@@ -157,31 +154,9 @@ func doUpgrade(newVersion string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Download checksums first (small file), then the archive while hashing it.
-	// This avoids a second read of the archive for checksum verification.
-	checksumPath := filepath.Join(tmpDir, "checksums.txt")
-	checksumAvailable := true
-	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
-		checksumAvailable = false
-		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
-	}
-
-	h := sha256.New()
-	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath, h); err != nil {
-		return fmt.Errorf("download: %w", err)
-	}
-
-	if checksumAvailable {
-		fmt.Println(i18n.M.Output.Upgrade.Verifying)
-		data, err := os.ReadFile(checksumPath)
-		if err != nil {
-			return fmt.Errorf("read checksums: %w", err)
-		}
-		if err := verifyChecksum(data, archiveName, h.Sum(nil)); err != nil {
-			return err
-		}
-		fmt.Println(i18n.M.Output.Upgrade.Verified)
+	archivePath, err := fetchVerifiedArchive(relBase, archiveName, tmpDir)
+	if err != nil {
+		return err
 	}
 
 	execPath, err := utils.ResolveExecutable()
