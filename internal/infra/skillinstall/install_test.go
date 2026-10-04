@@ -9,30 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInstallSkills_FirstInstall(t *testing.T) {
-	dir := t.TempDir()
-	results, err := InstallSkills(dir)
-	require.NoError(t, err)
-	require.Len(t, results, len(embeddedSkills))
-	for _, r := range results {
-		assert.Equal(t, ActionInstalled, r.Action, "skill %s", r.Name)
-	}
-
-	// Verify all embedded files were installed for each skill.
-	for _, name := range embeddedSkills {
-		embedded, err := collectEmbeddedFiles("skills/" + name)
-		require.NoError(t, err, "skill %s: collect embedded files", name)
-		for relPath, wantContent := range embedded {
-			p := filepath.Join(dir, name, filepath.FromSlash(relPath))
-			got, err := os.ReadFile(p)
-			if !assert.NoError(t, err, "skill %s: file %s not created", name, relPath) {
-				continue
-			}
-			assert.Equal(t, wantContent, string(got), "skill %s: file %s content mismatch", name, relPath)
-		}
-	}
-}
-
 func TestInstallSkills_UpToDate(t *testing.T) {
 	dir := t.TempDir()
 	_, err := InstallSkills(dir)
@@ -125,17 +101,20 @@ func TestInstallSkillsToDefaults(t *testing.T) {
 		assert.Equal(t, ActionInstalled, r.Action, "skill %s", r.Name)
 	}
 
-	// Verify all embedded files exist in both target directories.
+	// Verify all embedded files exist, with matching content, in both target directories.
 	claudeSkills := filepath.Join(home, ".claude", "skills")
 	agentsSkills := filepath.Join(home, ".agents", "skills")
 	for _, dir := range []string{claudeSkills, agentsSkills} {
 		for _, name := range embeddedSkills {
 			embedded, err := collectEmbeddedFiles("skills/" + name)
 			require.NoError(t, err, "skill %s: collect embedded files", name)
-			for relPath := range embedded {
+			for relPath, wantContent := range embedded {
 				p := filepath.Join(dir, name, filepath.FromSlash(relPath))
-				_, err := os.Stat(p)
-				assert.NoError(t, err, "expected %s to exist", p)
+				got, err := os.ReadFile(p)
+				if !assert.NoError(t, err, "expected %s to exist", p) {
+					continue
+				}
+				assert.Equal(t, wantContent, string(got), "skill %s: file %s content mismatch", name, relPath)
 			}
 		}
 	}

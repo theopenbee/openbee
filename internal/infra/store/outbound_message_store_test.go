@@ -32,6 +32,23 @@ func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, total)
 	assert.Len(t, msgs, 2)
+
+	// Add a third message and verify pagination: limit/offset and DESC ordering.
+	require.NoError(t, s.Create(context.Background(), OutboundMessage{ID: "o3", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 3000}))
+
+	// page 1 (limit=2, offset=0) → most recent 2
+	page1, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 2, 0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 3, total)
+	require.Len(t, page1, 2)
+	// Results ordered by sent_at DESC — first item is o3
+	assert.Equal(t, "o3", page1[0].ID)
+
+	// page 2 (limit=2, offset=2) → remaining 1
+	page2, _, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 2, 2)
+	require.NoError(t, err)
+	require.Len(t, page2, 1)
+	assert.Equal(t, "o1", page2[0].ID)
 }
 
 func TestOutboundMessageStore_ListFiltered_BySessionKey(t *testing.T) {
@@ -87,27 +104,4 @@ func TestOutboundMessageStore_ListFiltered_BySentAtRange(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	assert.Equal(t, "o2", msgs[0].ID)
-}
-
-func TestOutboundMessageStore_ListFiltered_Pagination(t *testing.T) {
-	s := setupOutboundStore(t)
-	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 1000},
-		{ID: "o2", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 2000},
-		{ID: "o3", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 3000},
-	})
-
-	// page 1 (limit=2, offset=0) → most recent 2
-	msgs, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 2, 0)
-	require.NoError(t, err)
-	assert.EqualValues(t, 3, total)
-	require.Len(t, msgs, 2)
-	// Results ordered by sent_at DESC — first item is o3
-	assert.Equal(t, "o3", msgs[0].ID)
-
-	// page 2 (limit=2, offset=2) → remaining 1
-	msgs2, _, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 2, 2)
-	require.NoError(t, err)
-	require.Len(t, msgs2, 1)
-	assert.Equal(t, "o1", msgs2[0].ID)
 }

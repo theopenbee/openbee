@@ -167,23 +167,6 @@ func TestExecutionStore_UpdateStatus(t *testing.T) {
 	assert.Equal(t, model.ExecStatusRunning, got.Status)
 }
 
-func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
-	db := newTestDB(t)
-	ws := NewWorkerStore(db)
-	es := NewExecutionStore(db, t.TempDir())
-
-	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, err := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
-	require.NoError(t, err)
-
-	var startedAt int64
-	err = db.QueryRow(`SELECT started_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&startedAt)
-	require.NoError(t, err)
-	assert.Positive(t, startedAt, "want positive Unix millisecond timestamp")
-
-	assert.NotNil(t, exec.StartedAt, "exec.StartedAt must not be nil")
-}
-
 func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.T) {
 	db := newTestDB(t)
 	ws := NewWorkerStore(db)
@@ -191,11 +174,17 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
+	assert.NotNil(t, exec.StartedAt, "exec.StartedAt must not be nil")
+
+	var startedAt int64
+	err := db.QueryRow(`SELECT started_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&startedAt)
+	require.NoError(t, err)
+	assert.Positive(t, startedAt, "want positive Unix millisecond timestamp")
 
 	require.NoError(t, es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted))
 
 	var completedAt int64
-	err := db.QueryRow(`SELECT completed_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&completedAt)
+	err = db.QueryRow(`SELECT completed_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&completedAt)
 	require.NoError(t, err)
 	assert.Positive(t, completedAt, "want positive Unix millisecond timestamp")
 }

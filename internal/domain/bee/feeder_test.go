@@ -124,6 +124,11 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	assert.NotEmpty(t, call.opts.SessionID, "expected non-empty sessionID on first call")
 	assert.False(t, call.opts.Resume, "expected resume=false on first call")
 
+	// logPath should already be prepared (PrepareLogPath) before the process runs.
+	assert.NotEmpty(t, call.logPath, "logPath passed to runner must be non-empty")
+	_, statErr := os.Stat(filepath.Dir(call.logPath))
+	assert.NoError(t, statErr, "log directory should exist before process runs")
+
 	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
 	require.NoError(t, err)
 	assert.Equal(t, call.opts.SessionID, got)
@@ -286,31 +291,6 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	assert.Nil(t, e.workerID, "expected nil worker_id for bee execution")
 	assert.Equal(t, string(model.ExecStatusCompleted), e.status)
 	assert.NotEmpty(t, e.logPath, "expected non-empty log_path — PrepareLogPath should set it before process runs")
-}
-
-func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
-	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello")
-
-	var capturedLogPath string
-	runner := &mockBeeRunner{}
-	// Intercept: after Run is called, log_path should already be in DB.
-	// We verify this by checking the call's logPath is non-empty AND matches DB.
-	f := newFeeder(ms, ts, ss, es, runner)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	go f.Run(ctx)
-	time.Sleep(700 * time.Millisecond)
-
-	calls := runner.getCalls()
-	require.NotEmpty(t, calls, "expected runner to be called")
-	capturedLogPath = calls[0].logPath
-	assert.NotEmpty(t, capturedLogPath, "logPath passed to runner must be non-empty")
-
-	// Verify the directory exists (PrepareLogPath creates it)
-	_, err := os.Stat(filepath.Dir(capturedLogPath))
-	assert.NoError(t, err, "log directory should exist before process runs")
 }
 
 func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {

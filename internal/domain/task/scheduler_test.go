@@ -23,33 +23,6 @@ func setupDB(t *testing.T) (*sql.DB, *store.TaskStore) {
 	return db, store.NewTaskStore(db)
 }
 
-func TestScheduler_ImmediateTask_Dispatched(t *testing.T) {
-	db, ts := setupDB(t)
-	defer db.Close()
-
-	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-
-	dispCh := make(chan task.DispatchTask, 10)
-	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	go sched.Run(ctx)
-
-	select {
-	case dt := <-dispCh:
-		assert.Equal(t, "w1", dt.WorkerID)
-		assert.Equal(t, model.TaskTypeImmediate, dt.TaskType)
-	case <-ctx.Done():
-		require.Fail(t, "timeout: no task dispatched")
-	}
-}
-
 func TestScheduler_ScheduledTask_NextRunAtSetCorrectly(t *testing.T) {
 	db, ts := setupDB(t)
 	defer db.Close()
@@ -75,7 +48,9 @@ func TestScheduler_ScheduledTask_NextRunAtSetCorrectly(t *testing.T) {
 
 	// Wait for dispatch
 	select {
-	case <-dispCh:
+	case dt := <-dispCh:
+		assert.Equal(t, "w1", dt.WorkerID)
+		assert.Equal(t, model.TaskTypeScheduled, dt.TaskType)
 	case <-ctx.Done():
 		require.Fail(t, "timeout: scheduled task not dispatched")
 	}

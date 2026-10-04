@@ -150,57 +150,6 @@ func TestClient_CreateComment_EmptyCommentIDReturnsError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestClient_IssuesInStates_SinglePage(t *testing.T) {
-	_, c := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		s := string(body)
-		assert.Contains(t, s, `"states":["Todo","In Progress"]`)
-		assert.Contains(t, s, `"label":"openbee"`)
-		assert.Contains(t, s, `"projects":["alpha","beta"]`)
-		// Decode the request and assert the variables map does not contain a
-		// "since" key (i.e. no time-based filter is being passed).
-		var req struct {
-			Variables map[string]any `json:"variables"`
-		}
-		assert.NoError(t, json.Unmarshal(body, &req))
-		_, ok := req.Variables["since"]
-		assert.False(t, ok, "request variables unexpectedly contains 'since': %v", req.Variables)
-
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"issues": map[string]any{
-					"pageInfo": map[string]any{
-						"hasNextPage": false,
-						"endCursor":   "",
-					},
-					"nodes": []map[string]any{
-						{
-							"id":          "I1",
-							"identifier":  "ENG-1",
-							"title":       "first",
-							"description": "body",
-							"createdAt":   "2026-05-02T10:00:00Z",
-							"updatedAt":   "2026-05-02T11:00:00Z",
-							"team":        map[string]string{"key": "ENG"},
-							"creator":     map[string]string{"id": "U2"},
-							"comments": map[string]any{"nodes": []map[string]any{
-								{"id": "C1", "body": "hi", "createdAt": "2026-05-02T10:45:00Z", "user": map[string]string{"id": "U2"}},
-							}},
-						},
-					},
-				},
-			},
-		})
-	})
-
-	out, err := c.IssuesInStates(context.Background(), []string{"Todo", "In Progress"}, "openbee", []string{"alpha", "beta"})
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	assert.Equal(t, "ENG-1", out[0].Identifier)
-	require.Len(t, out[0].Comments, 1) // guard: index access out[0].Comments[0] below
-	assert.Equal(t, "C1", out[0].Comments[0].ID)
-}
-
 func TestClient_IssuesInStates_PaginatesNestedComments(t *testing.T) {
 	var (
 		mu        sync.Mutex
@@ -416,6 +365,12 @@ func TestIssuesInStates_FullPagination(t *testing.T) {
 		case 1:
 			// First call: after should be nil/absent.
 			assert.Nil(t, req.Variables["after"], "first call: expected after=nil")
+			s := string(body)
+			assert.Contains(t, s, `"states":["Todo"]`)
+			assert.Contains(t, s, `"label":"openbee"`)
+			assert.Contains(t, s, `"projects":["alpha"]`)
+			_, hasSince := req.Variables["since"]
+			assert.False(t, hasSince, "request variables unexpectedly contains 'since': %v", req.Variables)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]any{
 					"issues": map[string]any{
@@ -434,7 +389,9 @@ func TestIssuesInStates_FullPagination(t *testing.T) {
 								"team":        map[string]string{"key": "ENG"},
 								"creator":     map[string]string{"id": "U2"},
 								"labels":      map[string]any{"nodes": []map[string]any{}},
-								"comments":    map[string]any{"nodes": []map[string]any{}},
+								"comments": map[string]any{"nodes": []map[string]any{
+									{"id": "C1", "body": "hi", "createdAt": "2026-05-02T10:45:00Z", "user": map[string]string{"id": "U2"}},
+								}},
 							},
 						},
 					},
@@ -478,7 +435,10 @@ func TestIssuesInStates_FullPagination(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out, 2)
 	assert.Equal(t, "I1", out[0].ID)
+	assert.Equal(t, "ENG-1", out[0].Identifier)
 	assert.Equal(t, "I2", out[1].ID)
+	require.Len(t, out[0].Comments, 1) // guard: index access out[0].Comments[0] below
+	assert.Equal(t, "C1", out[0].Comments[0].ID)
 
 	mu.Lock()
 	defer mu.Unlock()

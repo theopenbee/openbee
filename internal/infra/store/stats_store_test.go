@@ -37,7 +37,7 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	w2, _ := ws.Create(model.Worker{Name: "W2", WorkDir: "/tmp/w2"})
 
 	// Both workers have executions today
-	todayStartMS, _ := dayBounds(0)
+	todayStartMS, todayEndMS := dayBounds(0)
 	todayMS := todayStartMS + 1000
 	db := ss.db
 	_, err := db.Exec(`INSERT INTO bee_executions (id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at) VALUES (?,?,?,?,?,?,?,?)`,
@@ -66,31 +66,12 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	})
 
-	ov, err := ss.GetOverview(ctx)
-	require.NoError(t, err)
-
-	assert.EqualValues(t, 2, ov.Workers)
-	assert.EqualValues(t, 1, ov.ScheduledTasks)
-
-	_ = es
-	_ = oms
-}
-
-func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
-	ss, ws, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	ws.Create(model.Worker{Name: "W1", WorkDir: "/tmp/w1"})
-	db := ss.db
-
-	todayStart, todayEnd := dayBounds(0)
+	// Completed executions with token stats, used below to check today/yesterday totals.
 	yestStart, _ := dayBounds(-1)
-	todayMid := (todayStart + todayEnd) / 2
+	todayMid := (todayStartMS + todayEndMS) / 2
 	yestMid := yestStart + 1000
-
 	// Session A: execution completed today
-	_, err := db.Exec(`INSERT INTO bee_executions
+	_, err = db.Exec(`INSERT INTO bee_executions
 		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
 		VALUES (?,?,?,?,?,?,?,?,?)`,
 		uuid.New().String(), "w1", "sess-today", "hi", "completed", "", 0, todayMid-100, todayMid)
@@ -101,7 +82,6 @@ func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
 		VALUES (?,?,?,?,?,?,?,?,?)`,
 		uuid.New().String(), "w1", "sess-yest", "hi", "completed", "", 0, yestMid-100, yestMid)
 	require.NoError(t, err)
-
 	// Token stats: sess-today: 100 total (60 input, 40 output)
 	_, err = db.Exec(`INSERT INTO bee_token_stats
 		(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
@@ -118,54 +98,13 @@ func TestStatsStore_GetOverview_TokenStats(t *testing.T) {
 	ov, err := ss.GetOverview(ctx)
 	require.NoError(t, err)
 
+	assert.EqualValues(t, 2, ov.Workers)
+	assert.EqualValues(t, 1, ov.ScheduledTasks)
 	assert.EqualValues(t, 100, ov.TokensTodayTotal)
 	assert.EqualValues(t, 200, ov.TokensYestTotal)
-}
 
-func TestStatsStore_GetTokenTrend_FillsMissingDays(t *testing.T) {
-	ss, _, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-	db := ss.db
-
-	// Insert an execution completed 2 days ago with 2 models in token stats
-	twoDaysAgo := time.Now().AddDate(0, 0, -2).UnixMilli()
-	sessID := "sess-trend-1"
-	_, err := db.Exec(`INSERT INTO bee_executions
-		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), "w1", sessID, "hi", "completed", "", 0, twoDaysAgo-100, twoDaysAgo)
-	require.NoError(t, err)
-	// Two model rows for the same session — should count once per day, summed
-	for _, row := range []struct {
-		model  string
-		tokens int64
-	}{
-		{"claude-3", 300},
-		{"claude-3.5", 200},
-	} {
-		_, err := db.Exec(`INSERT INTO bee_token_stats
-			(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			uuid.New().String(), sessID, "bee", row.model, 0, 0, 0, 0, row.tokens, twoDaysAgo)
-		require.NoError(t, err)
-	}
-
-	points, err := ss.GetTokenTrend(ctx, 7)
-	require.NoError(t, err)
-	require.Len(t, points, 7)
-
-	target := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
-	found := false
-	for _, p := range points {
-		if p.Date == target {
-			found = true
-			assert.EqualValues(t, 500, p.TotalTokens, "date %s", target)
-		} else {
-			assert.EqualValues(t, 0, p.TotalTokens, "date %s", p.Date)
-		}
-	}
-	assert.True(t, found, "date %s not found in trend points", target)
+	_ = es
+	_ = oms
 }
 
 func TestStatsStore_GetTokenTrend_MultipleExecutionsSameDay_NoDuplication(t *testing.T) {
@@ -192,12 +131,43 @@ func TestStatsStore_GetTokenTrend_MultipleExecutionsSameDay_NoDuplication(t *tes
 		uuid.New().String(), sessID, "bee", "claude-3", 0, 0, 0, 0, 1000, todayMid)
 	require.NoError(t, err)
 
+	// A different session two days ago with two model rows in bee_token_stats —
+	// these must be summed (via the join), not deduplicated like the executions above.
+	twoDaysAgo := time.Now().AddDate(0, 0, -2).UnixMilli()
+	trendSessID := "sess-trend-1"
+	_, err = db.Exec(`INSERT INTO bee_executions
+		(id,worker_id,session_id,trigger_input,status,result,ai_process_pid,started_at,completed_at)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		uuid.New().String(), "w1", trendSessID, "hi", "completed", "", 0, twoDaysAgo-100, twoDaysAgo)
+	require.NoError(t, err)
+	for _, row := range []struct {
+		model  string
+		tokens int64
+	}{
+		{"claude-3", 300},
+		{"claude-3.5", 200},
+	} {
+		_, err := db.Exec(`INSERT INTO bee_token_stats
+			(id,session_id,agent_type,model,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,total_tokens,synced_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			uuid.New().String(), trendSessID, "bee", row.model, 0, 0, 0, 0, row.tokens, twoDaysAgo)
+		require.NoError(t, err)
+	}
+
 	points, err := ss.GetTokenTrend(ctx, 7)
 	require.NoError(t, err)
+	require.Len(t, points, 7)
+
 	today := time.Now().Format("2006-01-02")
+	trendTarget := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
 	for _, p := range points {
-		if p.Date == today {
+		switch p.Date {
+		case today:
 			assert.EqualValues(t, 1000, p.TotalTokens, "today: no duplication")
+		case trendTarget:
+			assert.EqualValues(t, 500, p.TotalTokens, "date %s", trendTarget)
+		default:
+			assert.EqualValues(t, 0, p.TotalTokens, "date %s", p.Date)
 		}
 	}
 }

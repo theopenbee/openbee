@@ -51,28 +51,15 @@ func TestMessageStore_CreateBatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "received", status)
 	assert.Empty(t, mergedInto)
-}
 
-func TestMessageStore_CreateBatch_DuplicateIgnored(t *testing.T) {
-	s := setupMessageStore(t)
-	ctx := context.Background()
-
-	msg := BatchMsg{
-		ID: "id-1", SessionKey: "s1", Platform: "test",
-		Content: "hello", Raw: "", PlatformMsgID: "pmsg-dup",
-		MessageTime: time.Now().UnixMilli(), Status: "received", MergedInto: "",
-	}
-
-	// First insert: should succeed
-	inserted, err := s.CreateBatch(ctx, []BatchMsg{msg})
+	// A second batch reusing an existing platform_msg_id should be ignored (INSERT OR IGNORE).
+	dupInserted, err := s.CreateBatch(ctx, []BatchMsg{{
+		ID: "dup-of-primary", SessionKey: "s1", Platform: "test",
+		Content: "dup", Raw: "", PlatformMsgID: "pmsg-2",
+		MessageTime: now, Status: "received", MergedInto: "",
+	}})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, inserted)
-
-	// Second insert with same platform_msg_id: INSERT OR IGNORE should skip it
-	msg.ID = "id-2" // different row ID but same platform_msg_id
-	inserted, err = s.CreateBatch(ctx, []BatchMsg{msg})
-	require.NoError(t, err)
-	require.EqualValues(t, 0, inserted, "duplicate ignored")
+	require.EqualValues(t, 0, dupInserted, "duplicate ignored")
 }
 
 func TestMessageStore_CreateBatch_Empty(t *testing.T) {
