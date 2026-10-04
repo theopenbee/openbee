@@ -1,14 +1,18 @@
 package upgradecmd
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDownloadFileWritesBodyAndExtra(t *testing.T) {
@@ -181,5 +185,48 @@ func TestFetchVerifiedArchiveMismatch(t *testing.T) {
 	_, err := fetchVerifiedArchive(srv.URL, name, t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
 		t.Fatalf("fetchVerifiedArchive with wrong hash: err = %v, want SHA256 mismatch", err)
+	}
+}
+
+func TestCopyWithLimit(t *testing.T) {
+	cases := []struct {
+		body    string
+		wantErr bool
+	}{
+		{"abc", false},  // under the limit
+		{"abcd", false}, // exactly the limit
+		{"abcde", true}, // one byte over
+	}
+	for _, tc := range cases {
+		var buf bytes.Buffer
+		err := copyWithLimit(&buf, strings.NewReader(tc.body), 4)
+		if (err != nil) != tc.wantErr {
+			t.Fatalf("copyWithLimit(%q, limit 4) err = %v, wantErr %v", tc.body, err, tc.wantErr)
+		}
+		if !tc.wantErr && buf.String() != tc.body {
+			t.Fatalf("copyWithLimit(%q) copied %q", tc.body, buf.String())
+		}
+	}
+}
+
+func TestDownloadFileTimesOut(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	orig := downloadClient
+	downloadClient = &http.Client{Timeout: 100 * time.Millisecond}
+	t.Cleanup(func() { downloadClient = orig })
+
+	err := downloadFile(srv.URL, filepath.Join(t.TempDir(), "out"), nil)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("downloadFile against a stalled server: err = %v, want a timeout", err)
 	}
 }

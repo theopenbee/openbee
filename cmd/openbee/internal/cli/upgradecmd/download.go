@@ -14,13 +14,15 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
-const maxDownloadBytes = 512 * 1024 * 1024 // 512 MB guard against runaway responses
+const maxDownloadBytes = 512 * 1024 * 1024 // 512 MiB guard against runaway responses
+
+// downloadClient is the HTTP client for release asset downloads.
+var downloadClient = &http.Client{Timeout: 5 * time.Minute}
 
 // downloadFile fetches url and writes the response body to dest.
 // If extra is non-nil, all downloaded bytes are also written to it (e.g. for hashing).
 func downloadFile(url, dest string, extra io.Writer) error {
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	resp, err := downloadClient.Get(url)
 	if err != nil {
 		return err
 	}
@@ -32,17 +34,27 @@ func downloadFile(url, dest string, extra io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	w := io.Writer(f)
 	if extra != nil {
 		w = io.MultiWriter(f, extra)
 	}
-	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDownloadBytes))
+	if err := copyWithLimit(w, resp.Body, maxDownloadBytes); err != nil {
+		f.Close()
+		return err
+	}
+	// A failed Close can mean written data never reached disk; don't report success.
+	return f.Close()
+}
+
+// copyWithLimit copies src to dst and fails if src holds more than limit bytes.
+// It reads one byte past limit so a body of exactly limit bytes is accepted.
+func copyWithLimit(dst io.Writer, src io.Reader, limit int64) error {
+	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
 	if err != nil {
 		return err
 	}
-	if n == maxDownloadBytes {
-		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
+	if n > limit {
+		return fmt.Errorf("download exceeded %d byte limit", limit)
 	}
 	return nil
 }
