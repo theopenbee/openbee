@@ -3,8 +3,10 @@ package claude_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/claude"
@@ -29,50 +31,33 @@ func TestClaudeAdapter_ExtraEnvInBaseEnv(t *testing.T) {
 func TestClaudeAdapter_Prepare_Stub(t *testing.T) {
 	dir := t.TempDir()
 	adapter := newTestAdapter(t)
-	if err := adapter.Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	require.NoError(t, adapter.Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}))
 }
 
 func TestClaudeAdapter_Prepare_DeletesOpenbeeFile(t *testing.T) {
 	dir := t.TempDir()
 	openbeeFile := filepath.Join(dir, ai.SystemRulesFile)
-	if err := os.WriteFile(openbeeFile, []byte("old rules"), 0o644); err != nil {
-		t.Fatalf("write .openbee.md: %v", err)
-	}
+	require.NoError(t, os.WriteFile(openbeeFile, []byte("old rules"), 0o644))
 
-	if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	require.NoError(t, newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}))
 
-	if _, err := os.Stat(openbeeFile); !os.IsNotExist(err) {
-		t.Error(".openbee.md should have been deleted by Prepare")
-	}
+	_, err := os.Stat(openbeeFile)
+	assert.True(t, os.IsNotExist(err), ".openbee.md should have been deleted by Prepare")
 }
 
 func TestClaudeAdapter_Prepare_RemovesImportLine(t *testing.T) {
 	dir := t.TempDir()
 	claudeFile := filepath.Join(dir, "CLAUDE.md")
 	content := "# My Bot\n" + ai.ImportLine + "\nOther content\n"
-	if err := os.WriteFile(claudeFile, []byte(content), 0o644); err != nil {
-		t.Fatalf("write CLAUDE.md: %v", err)
-	}
+	require.NoError(t, os.WriteFile(claudeFile, []byte(content), 0o644))
 
-	if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	require.NoError(t, newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleWorker}))
 
 	data, _ := os.ReadFile(claudeFile)
 	got := string(data)
-	if strings.Contains(got, ai.ImportLine) {
-		t.Errorf("CLAUDE.md should not contain import line after Prepare, got:\n%s", got)
-	}
-	if !strings.Contains(got, "# My Bot") {
-		t.Error("CLAUDE.md should preserve other content")
-	}
-	if !strings.Contains(got, "Other content") {
-		t.Error("CLAUDE.md should preserve other content")
-	}
+	assert.NotContains(t, got, ai.ImportLine, "CLAUDE.md should not contain import line after Prepare")
+	assert.Contains(t, got, "# My Bot", "CLAUDE.md should preserve other content")
+	assert.Contains(t, got, "Other content", "CLAUDE.md should preserve other content")
 }
 
 func TestClaudeAdapter_Prepare_PreservesOtherCLAUDEMDContent(t *testing.T) {
@@ -80,25 +65,18 @@ func TestClaudeAdapter_Prepare_PreservesOtherCLAUDEMDContent(t *testing.T) {
 	claudeFile := filepath.Join(dir, "CLAUDE.md")
 	// CLAUDE.md with no import line — must not be modified
 	original := "# Custom instructions\nDo something special.\n"
-	if err := os.WriteFile(claudeFile, []byte(original), 0o644); err != nil {
-		t.Fatalf("write CLAUDE.md: %v", err)
-	}
+	require.NoError(t, os.WriteFile(claudeFile, []byte(original), 0o644))
 
-	if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	require.NoError(t, newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}))
 
 	data, _ := os.ReadFile(claudeFile)
-	if string(data) != original {
-		t.Errorf("CLAUDE.md should be unchanged when import line is absent.\nGot: %q\nWant: %q", string(data), original)
-	}
+	assert.Equal(t, original, string(data), "CLAUDE.md should be unchanged when import line is absent")
 }
 
 func TestClaudeAdapter_Prepare_NoopWhenFilesAbsent(t *testing.T) {
 	dir := t.TempDir()
-	if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
-		t.Fatalf("Prepare should not error when no files exist: %v", err)
-	}
+	err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee})
+	require.NoError(t, err, "Prepare should not error when no files exist")
 }
 
 func TestClaudeAdapter_Prepare_BothRoles(t *testing.T) {
@@ -108,11 +86,9 @@ func TestClaudeAdapter_Prepare_BothRoles(t *testing.T) {
 		os.WriteFile(filepath.Join(dir, ai.SystemRulesFile), []byte("rules"), 0o644)
 		os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(ai.ImportLine+"\n"), 0o644)
 
-		if err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: role}); err != nil {
-			t.Errorf("Prepare(%s): %v", role, err)
-		}
-		if _, err := os.Stat(filepath.Join(dir, ai.SystemRulesFile)); !os.IsNotExist(err) {
-			t.Errorf("role %s: .openbee.md should be deleted", role)
-		}
+		err := newTestAdapter(t).Prepare(dir, ai.PrepareOptions{Role: role})
+		assert.NoError(t, err, "Prepare(%s)", role)
+		_, statErr := os.Stat(filepath.Join(dir, ai.SystemRulesFile))
+		assert.True(t, os.IsNotExist(statErr), "role %s: .openbee.md should be deleted", role)
 	}
 }

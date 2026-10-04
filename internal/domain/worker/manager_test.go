@@ -2,11 +2,13 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -62,17 +64,13 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 	t.Helper()
 	dir := t.TempDir()
 	db, err := store.InitDB(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	ws := store.NewWorkerStore(db)
 	es := store.NewExecutionStore(db, dir)
 	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
 	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	bc := config.BeeConfig{}
 	bc.RPC.TokenTTL = time.Minute
 	m := &Manager{
@@ -91,34 +89,51 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 	return m
 }
 
-func TestManager_ResolveEngine_KnownEngine(t *testing.T) {
-	claude := &mockEngine{}
-	codex := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude, "codex": codex}
-	mgr := newTestManager(t, engines, "claude")
-
-	w := model.Worker{Engine: "codex"}
-	name, got := mgr.resolveEngine(w)
-	if name != "codex" {
-		t.Fatalf("expected codex engine name, got %q", name)
+// TestManager_ResolveEngine merges the engine-resolution scenarios that cover
+// both resolveEngine and resolveEngineSelection. Each case builds its own
+// manager and engine map.
+func TestManager_ResolveEngine(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func(t *testing.T) (gotName string, gotEngine ai.EngineAdapter, err error, wantName string, wantEngine ai.EngineAdapter)
+	}{
+		{
+			name: "KnownEngine",
+			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
+				claude := &mockEngine{}
+				codex := &mockEngine{}
+				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude, "codex": codex}, "claude")
+				name, got := mgr.resolveEngine(model.Worker{Engine: "codex"})
+				return name, got, nil, "codex", codex
+			},
+		},
+		{
+			name: "EmptyEngine_FallsBackToDefault",
+			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
+				claude := &mockEngine{}
+				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude}, "claude")
+				name, got := mgr.resolveEngine(model.Worker{Engine: ""})
+				return name, got, nil, "claude", claude
+			},
+		},
+		{
+			name: "UnknownEngineUsesFallbackName",
+			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
+				claude := &mockEngine{}
+				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude}, "claude")
+				name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
+				return name, got, err, "claude", claude
+			},
+		},
 	}
-	if got != codex {
-		t.Error("expected codex engine adapter")
-	}
-}
 
-func TestManager_ResolveEngine_EmptyEngine_FallsBackToDefault(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
-
-	w := model.Worker{Engine: ""}
-	name, got := mgr.resolveEngine(w)
-	if name != "claude" {
-		t.Fatalf("expected default claude engine name, got %q", name)
-	}
-	if got != claude {
-		t.Error("expected default claude engine adapter")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotName, gotEngine, err, wantName, wantEngine := tc.run(t)
+			require.NoError(t, err)
+			require.Equal(t, wantName, gotName)
+			assert.Same(t, wantEngine, gotEngine)
+		})
 	}
 }
 
@@ -129,45 +144,20 @@ func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
 
 	w := model.Worker{Engine: "unknown-engine"}
 	name, got := mgr.resolveEngine(w)
-	if name != "claude" {
-		t.Fatalf("expected fallback engine name claude, got %q", name)
-	}
-	if got != claude {
-		t.Error("expected fallback to default claude engine adapter")
-	}
-}
-
-func TestManager_ResolveEngineSelection_UnknownEngineUsesFallbackName(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
-
-	name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if name != "claude" {
-		t.Fatalf("got engine name %q, want %q", name, "claude")
-	}
-	if got != claude {
-		t.Error("expected fallback to default claude engine adapter")
-	}
+	require.Equal(t, "claude", name)
+	assert.Same(t, claude, got)
 }
 
 func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
 	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})
-	if err == nil {
-		t.Fatal("expected error for unknown engine, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
 	err := mgr.ValidateEngineArgs(map[string]string{"claude": `--model "unterminated`})
-	if err == nil {
-		t.Fatal("expected parse error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
@@ -176,9 +166,7 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	err := mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
-	if err == nil {
-		t.Error("expected error for unknown executionID, got nil")
-	}
+	assert.Error(t, err)
 }
 
 // Regression: when a worker process exits without emitting Done/Error (killed,
@@ -189,26 +177,20 @@ func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("CreateWorker: %v", err)
-	}
+	require.NoError(t, err)
 
 	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{
 		WorkerID:     w.ID,
 		TriggerInput: "test",
 		SessionID:    "session-1",
 	})
-	if err != nil {
-		t.Fatalf("ExecuteWorker: %v", err)
-	}
+	require.NoError(t, err)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		got, err := mgr.executionStore.GetByID(exec.ID)
 		if err == nil && got.Status == model.ExecStatusFailed && got.CompletedAt != nil {
-			if got.Result == "" {
-				t.Fatal("expected non-empty result on abandoned execution")
-			}
+			require.NotEmpty(t, got.Result, "expected non-empty result on abandoned execution")
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -217,103 +199,52 @@ func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
 	t.Fatalf("execution not finalized after 2s; status=%s completedAt=%v", got.Status, got.CompletedAt)
 }
 
-func TestManager_ValidateWorkerName_DuplicateName(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
-
-	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("first create failed: %v", err)
-	}
-	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err == nil {
-		t.Fatal("expected error for duplicate name, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestManager_ValidateWorkerName_CaseInsensitiveDuplicate(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
-
-	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "Alice"})
-	if err != nil {
-		t.Fatalf("first create failed: %v", err)
-	}
-	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err == nil {
-		t.Fatal("expected error for case-insensitive duplicate, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestManager_ValidateWorkerName_BotNameConflict(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
-
-	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "feishu"})
-	if err == nil {
-		t.Fatal("expected error for bot name conflict, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestManager_ValidateWorkerName_BotNameConflict_CaseInsensitive(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
-
-	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "FEISHU"})
-	if err == nil {
-		t.Fatal("expected error for case-insensitive bot name conflict, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestManager_ValidateWorkerName_WhitespaceTrimmed(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
-
-	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("first create failed: %v", err)
-	}
-	_, err = mgr.CreateWorker(CreateWorkerParams{Name: " alice "})
-	if err == nil {
-		t.Fatal("expected error for whitespace-padded duplicate, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestManager_UpdateWorker_RenameToDifferentName_Duplicate(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
-
-	w1, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("create alice failed: %v", err)
-	}
-	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "bob"})
-	if err != nil {
-		t.Fatalf("create bob failed: %v", err)
+// TestManager_ValidateWorkerName_Rejects merges the duplicate/conflict name
+// scenarios that must all be rejected with ErrValidation, whether triggered
+// via CreateWorker or via a rename through UpdateWorker.
+func TestManager_ValidateWorkerName_Rejects(t *testing.T) {
+	cases := []struct {
+		name          string
+		existingNames []string // workers created up front, in order
+		botNames      []string
+		renameIdx     int // -1: create a new worker named targetName; >=0: rename existingNames[renameIdx]
+		targetName    string
+	}{
+		{name: "ValidateWorkerName_DuplicateName", existingNames: []string{"alice"}, renameIdx: -1, targetName: "alice"},
+		{name: "ValidateWorkerName_CaseInsensitiveDuplicate", existingNames: []string{"Alice"}, renameIdx: -1, targetName: "alice"},
+		{name: "ValidateWorkerName_WhitespaceTrimmed", existingNames: []string{"alice"}, renameIdx: -1, targetName: " alice "},
+		{name: "UpdateWorker_RenameToDifferentName_Duplicate", existingNames: []string{"alice", "bob"}, renameIdx: 0, targetName: "bob"},
+		{name: "ValidateWorkerName_BotNameConflict", botNames: []string{"feishu"}, renameIdx: -1, targetName: "feishu"},
+		{name: "ValidateWorkerName_BotNameConflict_CaseInsensitive", botNames: []string{"feishu"}, renameIdx: -1, targetName: "FEISHU"},
 	}
 
-	newName := "bob"
-	_, err = mgr.UpdateWorker(w1.ID, UpdateWorkerParams{Name: &newName})
-	if err == nil {
-		t.Fatal("expected error renaming alice to existing name bob, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+			var mgr *Manager
+			if len(tc.botNames) > 0 {
+				mgr = newTestManagerWithBotNames(t, engines, ai.EngineClaude, tc.botNames)
+			} else {
+				mgr = newTestManager(t, engines, ai.EngineClaude)
+			}
+			ids := make([]string, len(tc.existingNames))
+			for i, n := range tc.existingNames {
+				w, err := mgr.CreateWorker(CreateWorkerParams{Name: n})
+				require.NoError(t, err)
+				ids[i] = w.ID
+			}
+
+			var err error
+			if tc.renameIdx >= 0 {
+				newName := tc.targetName
+				_, err = mgr.UpdateWorker(ids[tc.renameIdx], UpdateWorkerParams{Name: &newName})
+			} else {
+				_, err = mgr.CreateWorker(CreateWorkerParams{Name: tc.targetName})
+			}
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrValidation)
+		})
 	}
 }
 
@@ -322,15 +253,11 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	sameName := "alice"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &sameName})
-	if err != nil {
-		t.Errorf("renaming to same name should succeed, got: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
@@ -341,19 +268,13 @@ func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
 		Name:       "alice",
 		EngineArgs: `{"claude":"--model sonnet","codex":"--model o3"}`,
 	})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
 		EngineArgs: map[string]string{},
 	})
-	if err != nil {
-		t.Fatalf("update failed: %v", err)
-	}
-	if updated.EngineArgs != "{}" {
-		t.Fatalf("got %s, want {}", updated.EngineArgs)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "{}", updated.EngineArgs)
 }
 
 func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
@@ -361,15 +282,11 @@ func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	upperName := "ALICE"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &upperName})
-	if err != nil {
-		t.Errorf("renaming to case variant of same name should succeed, got: %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
@@ -377,18 +294,12 @@ func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
 	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	botName := "feishu"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &botName})
-	if err == nil {
-		t.Fatal("expected error renaming to bot name, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrValidation)
 }
 
 func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) {
@@ -396,18 +307,12 @@ func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) 
 	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	upperBotName := "FEISHU"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &upperBotName})
-	if err == nil {
-		t.Fatal("expected error renaming to case-variant bot name, got nil")
-	}
-	if !errors.Is(err, ErrValidation) {
-		t.Errorf("expected ErrValidation, got %v", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrValidation)
 }
 
 func TestManager_UpdateWorker_NoNameChange_Succeeds(t *testing.T) {
@@ -415,59 +320,84 @@ func TestManager_UpdateWorker_NoNameChange_Succeeds(t *testing.T) {
 	mgr := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice", Description: "original"})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	newDesc := "updated"
 	updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{Description: &newDesc})
-	if err != nil {
-		t.Errorf("update without name change should succeed, got: %v", err)
-	}
-	if updated.Description != "updated" {
-		t.Errorf("expected description %q, got %q", "updated", updated.Description)
-	}
-	if updated.Name != "alice" {
-		t.Errorf("expected name to remain %q, got %q", "alice", updated.Name)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, "updated", updated.Description)
+	assert.Equal(t, "alice", updated.Name)
 }
 
-func TestUpdateWorker_WorkDir_Success(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
-
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-success", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
+// TestUpdateWorker_WorkDir merges the WorkDir update scenarios. Each case
+// builds its own worker and performs its own UpdateWorker call; OldDirUntouched
+// checks a side effect (the old directory's file survives) instead of the
+// returned WorkDir.
+func TestUpdateWorker_WorkDir(t *testing.T) {
+	type result struct {
+		params      UpdateWorkerParams
+		wantWorkDir string // ignored when wantOldDirMarker is true
+	}
+	cases := []struct {
+		name             string
+		workerName       string
+		build            func(t *testing.T, w model.Worker) result
+		wantOldDirMarker bool
+	}{
+		{
+			name:       "Success",
+			workerName: "wd-success",
+			build: func(t *testing.T, w model.Worker) result {
+				newDir := filepath.Join(t.TempDir(), "moved")
+				return result{params: UpdateWorkerParams{WorkDir: &newDir}, wantWorkDir: newDir}
+			},
+		},
+		{
+			name:       "Nil_NoChange",
+			workerName: "wd-nil",
+			build: func(t *testing.T, w model.Worker) result {
+				newName := "wd-nil-renamed"
+				return result{params: UpdateWorkerParams{Name: &newName}, wantWorkDir: w.WorkDir}
+			},
+		},
+		{
+			name:       "TrimWhitespace",
+			workerName: "wd-trim",
+			build: func(t *testing.T, w model.Worker) result {
+				padded := "   /tmp/openbee-x   "
+				return result{params: UpdateWorkerParams{WorkDir: &padded}, wantWorkDir: "/tmp/openbee-x"}
+			},
+		},
+		{
+			name:       "OldDirUntouched",
+			workerName: "wd-old",
+			build: func(t *testing.T, w model.Worker) result {
+				require.NoError(t, os.WriteFile(filepath.Join(w.WorkDir, "marker.txt"), []byte("keep me"), 0644))
+				newDir := filepath.Join(t.TempDir(), "elsewhere")
+				return result{params: UpdateWorkerParams{WorkDir: &newDir}}
+			},
+			wantOldDirMarker: true,
+		},
 	}
 
-	newDir := filepath.Join(t.TempDir(), "moved")
-	newDirPtr := newDir
-	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &newDirPtr})
-	if err != nil {
-		t.Fatalf("update worker: %v", err)
-	}
-	if got.WorkDir != newDir {
-		t.Fatalf("WorkDir not updated: got %q want %q", got.WorkDir, newDir)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+			m := newTestManager(t, engines, ai.EngineClaude)
+			w, err := m.CreateWorker(CreateWorkerParams{Name: tc.workerName, Engine: ai.EngineClaude})
+			require.NoError(t, err)
 
-func TestUpdateWorker_WorkDir_TrimWhitespace(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
+			r := tc.build(t, w)
+			got, err := m.UpdateWorker(w.ID, r.params)
+			require.NoError(t, err)
 
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-trim", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-
-	padded := "   /tmp/openbee-x   "
-	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &padded})
-	if err != nil {
-		t.Fatalf("update worker: %v", err)
-	}
-	if got.WorkDir != "/tmp/openbee-x" {
-		t.Fatalf("WorkDir not trimmed: got %q", got.WorkDir)
+			if tc.wantOldDirMarker {
+				_, err := os.Stat(filepath.Join(w.WorkDir, "marker.txt"))
+				require.NoError(t, err)
+				return
+			}
+			require.Equal(t, r.wantWorkDir, got.WorkDir)
+		})
 	}
 }
 
@@ -476,35 +406,12 @@ func TestUpdateWorker_WorkDir_EmptyAfterTrim(t *testing.T) {
 	m := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-empty", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
+	require.NoError(t, err)
 
 	blank := "   "
 	_, err = m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &blank})
-	if err == nil || !errors.Is(err, ErrValidation) {
-		t.Fatalf("expected ErrValidation, got %v", err)
-	}
-}
-
-func TestUpdateWorker_WorkDir_Nil_NoChange(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
-
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-nil", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-	originalDir := w.WorkDir
-
-	newName := "wd-nil-renamed"
-	got, err := m.UpdateWorker(w.ID, UpdateWorkerParams{Name: &newName})
-	if err != nil {
-		t.Fatalf("update worker: %v", err)
-	}
-	if got.WorkDir != originalDir {
-		t.Fatalf("WorkDir changed unexpectedly: got %q want %q", got.WorkDir, originalDir)
-	}
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrValidation)
 }
 
 func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
@@ -512,17 +419,13 @@ func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
 	m := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-exec-mkdir"})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
+	require.NoError(t, err)
 
 	missing := filepath.Join(t.TempDir(), "deep", "nested", "missing")
-	if _, err := m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &missing}); err != nil {
-		t.Fatalf("update worker: %v", err)
-	}
-	if _, err := os.Stat(missing); !os.IsNotExist(err) {
-		t.Fatalf("precondition: missing dir should not exist, got err=%v", err)
-	}
+	_, err = m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &missing})
+	require.NoError(t, err)
+	_, err = os.Stat(missing)
+	require.True(t, os.IsNotExist(err), "precondition: missing dir should not exist")
 
 	// ExecuteWorker may fail later (no real engine subprocess), but it MUST create the dir first.
 	_, _ = m.ExecuteWorker(context.Background(), ExecuteRequest{
@@ -531,9 +434,8 @@ func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
 		TriggerInput: "noop",
 	})
 
-	if _, err := os.Stat(missing); err != nil {
-		t.Fatalf("expected execute to create WorkDir %q, got err=%v", missing, err)
-	}
+	_, err = os.Stat(missing)
+	require.NoError(t, err, "expected execute to create WorkDir")
 }
 
 func TestCreateWorker_WorkDir_TrimWhitespace(t *testing.T) {
@@ -544,12 +446,8 @@ func TestCreateWorker_WorkDir_TrimWhitespace(t *testing.T) {
 	padded := "   " + want + "   "
 
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-trim", WorkDir: padded, Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-	if w.WorkDir != want {
-		t.Fatalf("WorkDir not trimmed on create: got %q want %q", w.WorkDir, want)
-	}
+	require.NoError(t, err)
+	require.Equal(t, want, w.WorkDir)
 }
 
 func TestCreateWorker_WorkDir_BlankFallsBackToDefault(t *testing.T) {
@@ -557,32 +455,6 @@ func TestCreateWorker_WorkDir_BlankFallsBackToDefault(t *testing.T) {
 	m := newTestManager(t, engines, ai.EngineClaude)
 
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-blank", WorkDir: "   ", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-	if filepath.Dir(w.WorkDir) != m.workerBaseDir {
-		t.Fatalf("WorkDir did not fall back to default: got %q, want under %q", w.WorkDir, m.workerBaseDir)
-	}
-}
-
-func TestUpdateWorker_WorkDir_OldDirUntouched(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
-
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-old", Engine: ai.EngineClaude})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(w.WorkDir, "marker.txt"), []byte("keep me"), 0644); err != nil {
-		t.Fatalf("write marker: %v", err)
-	}
-
-	newDir := filepath.Join(t.TempDir(), "elsewhere")
-	_, err = m.UpdateWorker(w.ID, UpdateWorkerParams{WorkDir: &newDir})
-	if err != nil {
-		t.Fatalf("update worker: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(w.WorkDir, "marker.txt")); err != nil {
-		t.Fatalf("old workdir file disappeared: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, m.workerBaseDir, filepath.Dir(w.WorkDir))
 }

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // On non-Linux builds resolveRunAs returns an empty RunAsUser, so
@@ -16,9 +18,7 @@ import (
 func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 
 	prev := execLookPath
 	execLookPath = func(name string) (string, error) {
@@ -30,10 +30,6 @@ func TestResolveInstallOptions_NodeMissingEmitsWarning(t *testing.T) {
 	t.Cleanup(func() { execLookPath = prev })
 
 	_, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(warnings) == 0 {
-		t.Fatal("expected a warning when node is missing from PATH")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, warnings, "expected a warning when node is missing from PATH")
 }

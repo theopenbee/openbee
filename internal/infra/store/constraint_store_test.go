@@ -2,116 +2,69 @@ package store
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConstraintStore_SaveAndGet(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	cs := NewConstraintStore(db)
 
-	err = cs.Save("global", "test_key", "test_value")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cs.Save("global", "test_key", "test_value"))
 
 	c, err := cs.Get("global", "test_key")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c == nil {
-		t.Fatal("expected constraint, got nil")
-	}
-	if c.Value != "test_value" {
-		t.Errorf("expected value 'test_value', got %q", c.Value)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Equal(t, "test_value", c.Value)
 
 	c, err = cs.Get("global", "nonexistent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != nil {
-		t.Error("expected nil for non-existent key")
-	}
+	require.NoError(t, err)
+	assert.Nil(t, c)
 }
 
-func TestConstraintStore_Upsert(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+// TestConstraintStore_UpsertAndList merges the former Upsert and ListByScope
+// tests: both share the same setup, differing only in how they read back data.
+func TestConstraintStore_UpsertAndList(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T, cs *ConstraintStore)
+	}{
+		{"Upsert", func(t *testing.T, cs *ConstraintStore) {
+			require.NoError(t, cs.Save("global", "key1", "value1"))
+			require.NoError(t, cs.Save("global", "key1", "value2"))
 
-	cs := NewConstraintStore(db)
+			c, err := cs.Get("global", "key1")
+			require.NoError(t, err)
+			assert.Equal(t, "value2", c.Value)
+		}},
+		{"ListByScope", func(t *testing.T, cs *ConstraintStore) {
+			require.NoError(t, cs.Save("global", "key1", "val1"))
+			require.NoError(t, cs.Save("global", "key2", "val2"))
+			require.NoError(t, cs.Save("user123", "key3", "val3"))
 
-	if err := cs.Save("global", "key1", "value1"); err != nil {
-		t.Fatal(err)
+			constraints, err := cs.ListByScope("global", 50)
+			require.NoError(t, err)
+			assert.Len(t, constraints, 2)
+		}},
 	}
-	if err := cs.Save("global", "key1", "value2"); err != nil {
-		t.Fatal(err)
-	}
-
-	c, err := cs.Get("global", "key1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c.Value != "value2" {
-		t.Errorf("expected updated value 'value2', got %q", c.Value)
-	}
-}
-
-func TestConstraintStore_ListByScope(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	cs := NewConstraintStore(db)
-
-	if err := cs.Save("global", "key1", "val1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := cs.Save("global", "key2", "val2"); err != nil {
-		t.Fatal(err)
-	}
-	if err := cs.Save("user123", "key3", "val3"); err != nil {
-		t.Fatal(err)
-	}
-
-	constraints, err := cs.ListByScope("global", 50)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(constraints) != 2 {
-		t.Errorf("expected 2 global constraints, got %d", len(constraints))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := newTestDB(t)
+			cs := NewConstraintStore(db)
+			tt.run(t, cs)
+		})
 	}
 }
 
 func TestConstraintStore_Delete(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	cs := NewConstraintStore(db)
-	if err := cs.Save("global", "key1", "val1"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cs.Save("global", "key1", "val1"))
 
-	if err := cs.Delete("global", "key1"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cs.Delete("global", "key1"))
 	c, _ := cs.Get("global", "key1")
-	if c != nil {
-		t.Error("expected nil after delete")
-	}
+	assert.Nil(t, c)
 
-	if err := cs.Delete("global", "nonexistent"); err != nil {
-		t.Errorf("expected no error on delete of non-existent key, got %v", err)
-	}
+	assert.NoError(t, cs.Delete("global", "nonexistent"))
 }

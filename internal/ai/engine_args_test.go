@@ -1,8 +1,9 @@
 package ai_test
 
 import (
-	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -12,14 +13,10 @@ func TestParseEngineArgs_PreservesOrderAndQuotedValues(t *testing.T) {
 		"claude": `--model claude-sonnet-4-5 --append-system-prompt "be terse" --verbose`,
 	}
 	got, err := ai.ParseEngineArgs(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	want := []string{"--model", "claude-sonnet-4-5", "--append-system-prompt", "be terse", "--verbose"}
-	if !slices.Equal(got["claude"], want) {
-		t.Fatalf("got %v, want %v", got["claude"], want)
-	}
+	require.Equal(t, want, got["claude"])
 }
 
 func TestParseEngineArgs_PreservesDuplicateFlags(t *testing.T) {
@@ -27,14 +24,10 @@ func TestParseEngineArgs_PreservesDuplicateFlags(t *testing.T) {
 		"codex": `--include src --include test`,
 	}
 	got, err := ai.ParseEngineArgs(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	want := []string{"--include", "src", "--include", "test"}
-	if !slices.Equal(got["codex"], want) {
-		t.Fatalf("got %v, want %v", got["codex"], want)
-	}
+	require.Equal(t, want, got["codex"])
 }
 
 func TestParseEngineArgs_PreservesEmptyQuotedValue(t *testing.T) {
@@ -42,23 +35,17 @@ func TestParseEngineArgs_PreservesEmptyQuotedValue(t *testing.T) {
 		"claude": `--append-system-prompt "" --verbose`,
 	}
 	got, err := ai.ParseEngineArgs(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	want := []string{"--append-system-prompt", "", "--verbose"}
-	if !slices.Equal(got["claude"], want) {
-		t.Fatalf("got %v, want %v", got["claude"], want)
-	}
+	require.Equal(t, want, got["claude"])
 }
 
 func TestParseEngineArgs_UnterminatedQuote(t *testing.T) {
 	_, err := ai.ParseEngineArgs(map[string]string{
 		"claude": `--model "unterminated`,
 	})
-	if err == nil {
-		t.Fatal("expected parse error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestMergeEngineArgs_AppendsOverrideArgs(t *testing.T) {
@@ -71,10 +58,8 @@ func TestMergeEngineArgs_AppendsOverrideArgs(t *testing.T) {
 	}
 	got := ai.MergeEngineArgs(base, override)
 
-	if want := []string{"--model", "sonnet", "--verbose", "--model", "opus"}; !slices.Equal(got["claude"], want) {
-		t.Fatalf("claude args = %v, want %v", got["claude"], want)
-	}
-	if want := []string{"--model", "o3"}; !slices.Equal(got["codex"], want) {
-		t.Fatalf("codex args = %v, want %v", got["codex"], want)
-	}
+	wantClaude := []string{"--model", "sonnet", "--verbose", "--model", "opus"}
+	require.Equal(t, wantClaude, got["claude"])
+	wantCodex := []string{"--model", "o3"}
+	require.Equal(t, wantCodex, got["codex"])
 }

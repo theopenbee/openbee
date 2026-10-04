@@ -3,6 +3,9 @@ package feishu
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsePostContent_DirectFormat(t *testing.T) {
@@ -15,19 +18,11 @@ func TestParsePostContent_DirectFormat(t *testing.T) {
 		]]
 	}`
 	result, err := ParsePostContent(content)
-	if err != nil {
-		t.Fatalf("ParsePostContent: %v", err)
-	}
-	if result.TextContent == "" {
-		t.Fatal("expected non-empty text")
-	}
-	if len(result.ImageKeys) != 0 {
-		t.Errorf("expected 0 image keys, got %d", len(result.ImageKeys))
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, result.TextContent)
+	assert.Empty(t, result.ImageKeys)
 	want := "Test Title\nHello **world**[link](https://example.com)"
-	if result.TextContent != want {
-		t.Errorf("TextContent = %q, want %q", result.TextContent, want)
-	}
+	assert.Equal(t, want, result.TextContent)
 }
 
 func TestParsePostContent_LocaleFormat(t *testing.T) {
@@ -38,12 +33,8 @@ func TestParsePostContent_LocaleFormat(t *testing.T) {
 		}
 	}`
 	result, err := ParsePostContent(content)
-	if err != nil {
-		t.Fatalf("ParsePostContent: %v", err)
-	}
-	if result.TextContent != "Chinese Title\nhello" {
-		t.Errorf("TextContent = %q", result.TextContent)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Chinese Title\nhello", result.TextContent)
 }
 
 func TestParsePostContent_DoubleWrapped(t *testing.T) {
@@ -56,12 +47,8 @@ func TestParsePostContent_DoubleWrapped(t *testing.T) {
 		}
 	}`
 	result, err := ParsePostContent(content)
-	if err != nil {
-		t.Fatalf("ParsePostContent: %v", err)
-	}
-	if result.TextContent != "Title\nhello" {
-		t.Errorf("TextContent = %q", result.TextContent)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Title\nhello", result.TextContent)
 }
 
 func TestParsePostContent_WithMedia(t *testing.T) {
@@ -74,15 +61,10 @@ func TestParsePostContent_WithMedia(t *testing.T) {
 		]]
 	}`
 	result, err := ParsePostContent(content)
-	if err != nil {
-		t.Fatalf("ParsePostContent: %v", err)
-	}
-	if len(result.ImageKeys) != 1 || result.ImageKeys[0] != "img_v3_abc" {
-		t.Errorf("ImageKeys = %v, want [img_v3_abc]", result.ImageKeys)
-	}
-	if len(result.MediaKeys) != 1 || result.MediaKeys[0].FileKey != "file_v3_xyz" {
-		t.Errorf("MediaKeys = %v", result.MediaKeys)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"img_v3_abc"}, result.ImageKeys)
+	require.Len(t, result.MediaKeys, 1) // guard: MediaKeys[0] accessed below
+	assert.Equal(t, "file_v3_xyz", result.MediaKeys[0].FileKey)
 }
 
 func TestParsePostContent_AllElementTypes(t *testing.T) {
@@ -102,35 +84,26 @@ func TestParsePostContent_AllElementTypes(t *testing.T) {
 		]]
 	}`
 	result, err := ParsePostContent(content)
-	if err != nil {
-		t.Fatalf("ParsePostContent: %v", err)
-	}
+	require.NoError(t, err)
 	_ = result
 	t.Logf("TextContent:\n%s", result.TextContent)
 }
 
 func TestParsePostContent_EmptyContent(t *testing.T) {
 	_, err := ParsePostContent("")
-	if err == nil {
-		t.Error("expected error for empty content")
-	}
+	assert.Error(t, err)
 }
 
 func TestBuildPostContent(t *testing.T) {
 	t.Run("basic markdown", func(t *testing.T) {
 		got := BuildPostContent("## Hello\n- item")
-		if got == "" {
-			t.Fatal("expected non-empty output")
-		}
+		require.NotEmpty(t, got)
 		// Must be valid JSON
 		var raw map[string]any
-		if err := json.Unmarshal([]byte(got), &raw); err != nil {
-			t.Fatalf("invalid JSON: %v", err)
-		}
+		require.NoError(t, json.Unmarshal([]byte(got), &raw))
 		// Must have zh_cn key
-		if _, ok := raw["zh_cn"]; !ok {
-			t.Error("expected zh_cn key")
-		}
+		_, ok := raw["zh_cn"]
+		assert.True(t, ok, "expected zh_cn key")
 	})
 
 	t.Run("md tag and text preserved", func(t *testing.T) {
@@ -138,35 +111,21 @@ func TestBuildPostContent(t *testing.T) {
 		got := BuildPostContent(markdown)
 		// Verify the md tag and content are present
 		var outer map[string]map[string]any
-		if err := json.Unmarshal([]byte(got), &outer); err != nil {
-			t.Fatalf("invalid JSON: %v", err)
-		}
+		require.NoError(t, json.Unmarshal([]byte(got), &outer))
 		lang := outer["zh_cn"]
 		paragraphs, _ := lang["content"].([]any)
-		if len(paragraphs) == 0 {
-			t.Fatal("expected at least one paragraph")
-		}
+		require.NotEmpty(t, paragraphs)
 		elems, _ := paragraphs[0].([]any)
-		if len(elems) == 0 {
-			t.Fatal("expected at least one element")
-		}
+		require.NotEmpty(t, elems)
 		elem, _ := elems[0].(map[string]any)
-		if elem["tag"] != "md" {
-			t.Errorf("tag = %q, want \"md\"", elem["tag"])
-		}
-		if elem["text"] != markdown {
-			t.Errorf("text = %q, want %q", elem["text"], markdown)
-		}
+		assert.Equal(t, "md", elem["tag"])
+		assert.Equal(t, markdown, elem["text"])
 	})
 
 	t.Run("empty string", func(t *testing.T) {
 		got := BuildPostContent("")
-		if got == "" {
-			t.Fatal("expected non-empty output even for empty markdown")
-		}
+		require.NotEmpty(t, got)
 		var raw map[string]any
-		if err := json.Unmarshal([]byte(got), &raw); err != nil {
-			t.Fatalf("invalid JSON: %v", err)
-		}
+		require.NoError(t, json.Unmarshal([]byte(got), &raw))
 	})
 }

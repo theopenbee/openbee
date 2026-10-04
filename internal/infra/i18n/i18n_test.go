@@ -3,60 +3,38 @@ package i18n_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func TestLoad_zh(t *testing.T) {
-	if err := i18n.Load("zh"); err != nil {
-		t.Fatalf("Load zh: %v", err)
-	}
-	if i18n.M == nil {
-		t.Fatal("M is nil after Load")
-	}
-	if i18n.M.Cmd.Root.Short == "" {
-		t.Error("Cmd.Root.Short is empty for zh")
-	}
-	if i18n.M.Prompt.ServerPort == "" {
-		t.Error("Prompt.ServerPort is empty for zh")
-	}
+	require.NoError(t, i18n.Load("zh"))
+	require.NotNil(t, i18n.M)
+	assert.NotEmpty(t, i18n.M.Cmd.Root.Short)
+	assert.NotEmpty(t, i18n.M.Prompt.ServerPort)
 }
 
 func TestLoad_en(t *testing.T) {
-	if err := i18n.Load("en"); err != nil {
-		t.Fatalf("Load en: %v", err)
-	}
-	if i18n.M.Cmd.Root.Short != "OpenBee core service" {
-		t.Errorf("Cmd.Root.Short: got %q, want %q", i18n.M.Cmd.Root.Short, "OpenBee core service")
-	}
-	if i18n.M.Prompt.ServerPort != "Server port:" {
-		t.Errorf("Prompt.ServerPort: got %q, want %q", i18n.M.Prompt.ServerPort, "Server port:")
-	}
-	if got := i18n.M.Cmd.CtlWorker.Sub("list"); got != "List all workers" {
-		t.Errorf("CtlWorker.Sub(list): got %q, want %q", got, "List all workers")
-	}
-	if i18n.M.Cmd.CtlDepartment.Short != "Manage departments" {
-		t.Errorf("CtlDepartment.Short: got %q, want %q", i18n.M.Cmd.CtlDepartment.Short, "Manage departments")
-	}
+	require.NoError(t, i18n.Load("en"))
+	assert.Equal(t, "OpenBee core service", i18n.M.Cmd.Root.Short)
+	assert.Equal(t, "Server port:", i18n.M.Prompt.ServerPort)
+	got := i18n.M.Cmd.CtlWorker.Sub("list")
+	assert.Equal(t, "List all workers", got)
+	assert.Equal(t, "Manage departments", i18n.M.Cmd.CtlDepartment.Short)
 }
 
 func TestLoad_unsupported_fallbacks_to_zh(t *testing.T) {
 	// load zh as baseline
-	if err := i18n.Load("zh"); err != nil {
-		t.Fatalf("Load zh: %v", err)
-	}
+	require.NoError(t, i18n.Load("zh"))
 	zhShort := i18n.M.Cmd.Root.Short
 
 	// loading an unsupported language should fall back to zh
-	if err := i18n.Load("fr"); err != nil {
-		t.Fatalf("Load fr (fallback): %v", err)
-	}
-	if i18n.M.Cmd.Root.Short != zhShort {
-		t.Errorf("fallback: got %q, want zh value %q", i18n.M.Cmd.Root.Short, zhShort)
-	}
+	require.NoError(t, i18n.Load("fr"))
+	assert.Equal(t, zhShort, i18n.M.Cmd.Root.Short, "fallback to zh")
 }
 
 func TestSupportedLangs(t *testing.T) {
-	if len(i18n.SupportedLangs) < 2 {
-		t.Errorf("SupportedLangs: expected at least 2, got %d", len(i18n.SupportedLangs))
-	}
+	assert.GreaterOrEqual(t, len(i18n.SupportedLangs), 2)
 }

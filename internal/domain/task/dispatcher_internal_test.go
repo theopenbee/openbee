@@ -1,8 +1,9 @@
 package task
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -22,15 +23,9 @@ func TestBuildInstruction_WithPlatformContext(t *testing.T) {
 	}
 	got := buildInstruction(task)
 
-	if !strings.Contains(got, `"platform_context"`) {
-		t.Errorf("expected platform_context in task_meta, got: %q", got)
-	}
-	if !strings.Contains(got, `"ou_abc"`) {
-		t.Errorf("expected open_id value in task_meta, got: %q", got)
-	}
-	if !strings.Contains(got, "do something") {
-		t.Errorf("expected instruction in output, got: %q", got)
-	}
+	assert.Contains(t, got, `"platform_context"`)
+	assert.Contains(t, got, `"ou_abc"`)
+	assert.Contains(t, got, "do something")
 }
 
 func TestBuildInstruction_NoPlatformContext(t *testing.T) {
@@ -41,7 +36,5 @@ func TestBuildInstruction_NoPlatformContext(t *testing.T) {
 	}
 	got := buildInstruction(task)
 
-	if strings.Contains(got, `"platform_context"`) {
-		t.Errorf("platform_context should be omitted when empty, got: %q", got)
-	}
+	assert.NotContains(t, got, `"platform_context"`, "platform_context should be omitted when empty")
 }

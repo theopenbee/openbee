@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -108,21 +111,15 @@ func TestStatusCommand_IsCommand(t *testing.T) {
 		"":          false,
 	}
 	for input, want := range cases {
-		if got := h.IsCommand(input); got != want {
-			t.Errorf("IsCommand(%q) = %v, want %v", input, got, want)
-		}
+		assert.Equal(t, want, h.IsCommand(input))
 	}
 }
 
 func TestStatusCommand_UsageOnExtraArgs(t *testing.T) {
 	h, sender := makeStatusHandler(nil, nil, nil)
 	handled := h.HandleCommand(context.Background(), "/status x", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 || sender.sent[0] != i18n.M.Runtime.StatusCommand.Usage {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	assert.Equal(t, []string{i18n.M.Runtime.StatusCommand.Usage}, sender.sent)
 }
 
 func TestStatusCommand_HappyPath(t *testing.T) {
@@ -143,12 +140,8 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 	h, sender := makeStatusHandler(agents, tasks, workers, withClock(fixedClock(clock)),
 		withStatusRunningExecs(fakeRunningExecs{"t1": "a1b2c3d4e5f6", "t2": "e5f6a7b89999"}))
 	handled := h.HandleCommand(context.Background(), "/status", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1)
 	out := sender.sent[0]
 
 	for _, want := range []string{
@@ -160,9 +153,7 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 		"- [貂蝉] 新增 /status 指令的实现   已运行 1m   exec: a1b2c3d4",
 		"- [吕布] 修复登录 bug   已运行 12s   exec: e5f6a7b8",
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
@@ -176,30 +167,22 @@ func TestStatusCommand_FallsBackToWorkerIDOnLookupFailure(t *testing.T) {
 		withStatusRunningExecs(fakeRunningExecs{"t1": "abc12345xx"}))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
-	if !strings.Contains(out, "[missing] do thing") {
-		t.Errorf("expected raw worker id fallback, got:\n%s", out)
-	}
+	assert.Contains(t, out, "[missing] do thing")
 }
 
 func TestStatusCommand_EmptyBeesAndTasks(t *testing.T) {
 	h, sender := makeStatusHandler(nil, nil, nil)
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.Len(t, sender.sent, 1)
 	out := sender.sent[0]
 	for _, want := range []string{
 		"已激活 bee（0）：",
 		"进行中任务（0）：",
 		"  (无)",
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
-	if strings.Count(out, "  (无)") != 2 {
-		t.Errorf("expected exactly two empty markers, got:\n%s", out)
-	}
+	assert.Equal(t, 2, strings.Count(out, "  (无)"))
 }
 
 func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
@@ -210,15 +193,9 @@ func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {
 	h, sender := makeStatusHandler(agents, nil, map[string]model.Worker{"w1": {ID: "w1", Name: "貂蝉"}}, withClock(fixedClock(clock)))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
-	if !strings.Contains(out, "已激活 bee（1）：") {
-		t.Errorf("missing bees header\n%s", out)
-	}
-	if !strings.Contains(out, "进行中任务（0）：") {
-		t.Errorf("missing tasks header\n%s", out)
-	}
-	if strings.Count(out, "  (无)") != 1 {
-		t.Errorf("expected exactly one empty marker, got:\n%s", out)
-	}
+	assert.Contains(t, out, "已激活 bee（1）：")
+	assert.Contains(t, out, "进行中任务（0）：")
+	assert.Equal(t, 1, strings.Count(out, "  (无)"))
 }
 
 func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
@@ -230,38 +207,22 @@ func TestStatusCommand_TasksOnly_NoBees(t *testing.T) {
 	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)), withStatusRunningExecs(fakeRunningExecs{"t1": "deadbeef0000"}))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
 	out := sender.sent[0]
-	if !strings.Contains(out, "已激活 bee（0）：") {
-		t.Errorf("missing bees header\n%s", out)
-	}
-	if !strings.Contains(out, "进行中任务（1）：") {
-		t.Errorf("missing tasks header\n%s", out)
-	}
-	if !strings.Contains(out, "[貂蝉] do thing") {
-		t.Errorf("missing task line\n%s", out)
-	}
-	if strings.Count(out, "  (无)") != 1 {
-		t.Errorf("expected exactly one empty marker, got:\n%s", out)
-	}
+	assert.Contains(t, out, "已激活 bee（0）：")
+	assert.Contains(t, out, "进行中任务（1）：")
+	assert.Contains(t, out, "[貂蝉] do thing")
+	assert.Equal(t, 1, strings.Count(out, "  (无)"))
 }
 
 func TestStatusCommand_SessionListErr(t *testing.T) {
 	h, sender := makeStatusHandler(nil, nil, nil, withSessionsErr(errors.New("boom")))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-	if sender.sent[0] != i18n.M.Runtime.StatusCommand.LookupFailed {
-		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
-	}
+	require.Len(t, sender.sent, 1)
+	assert.Equal(t, i18n.M.Runtime.StatusCommand.LookupFailed, sender.sent[0])
 }
 
 func TestStatusCommand_TaskListErr(t *testing.T) {
 	h, sender := makeStatusHandler(nil, nil, nil, withTasksErr(errors.New("boom")))
 	h.HandleCommand(context.Background(), "/status", makeReplyTo())
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-	if sender.sent[0] != i18n.M.Runtime.StatusCommand.LookupFailed {
-		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
-	}
+	require.Len(t, sender.sent, 1)
+	assert.Equal(t, i18n.M.Runtime.StatusCommand.LookupFailed, sender.sent[0])
 }

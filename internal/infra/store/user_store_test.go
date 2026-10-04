@@ -4,65 +4,48 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func setupUserStore(t *testing.T) *UserStore {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return NewUserStore(db)
+	return NewUserStore(newTestDB(t))
 }
 
 // makeRole creates a custom role with the given permissions and returns its ID.
 func makeRole(t *testing.T, us *UserStore, name string, perms []string) string {
 	t.Helper()
 	r, err := NewRoleStore(us.db).Create(model.Role{Name: name}, perms)
-	if err != nil {
-		t.Fatalf("create role %s: %v", name, err)
-	}
+	require.NoError(t, err, "create role %s", name)
 	return r.ID
 }
 
 func TestUserStore_CreateAndAuthenticate(t *testing.T) {
 	us := setupUserStore(t)
 	u, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if u.ID == "" || len(u.Roles) != 1 {
-		t.Fatalf("unexpected user: %+v", u)
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, u.ID)
+	require.Len(t, u.Roles, 1)
 
 	got, err := us.Authenticate("alice", "s3cret")
-	if err != nil {
-		t.Fatalf("Authenticate: %v", err)
-	}
-	if got.ID != u.ID {
-		t.Fatal("authenticated wrong user")
-	}
-	if _, err := us.Authenticate("alice", "wrong"); err == nil {
-		t.Fatal("expected wrong password to fail")
-	}
+	require.NoError(t, err)
+	require.Equal(t, u.ID, got.ID, "authenticated wrong user")
+
+	_, err = us.Authenticate("alice", "wrong")
+	require.Error(t, err, "expected wrong password to fail")
 }
 
 func TestUserStore_Count(t *testing.T) {
 	us := setupUserStore(t)
 	n, err := us.Count()
-	if err != nil {
-		t.Fatalf("Count: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("expected 0 users, got %d", n)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
 	_, _ = us.Create("bob", "pw", "Bob", "", []string{model.RoleIDSuperAdmin})
 	n, _ = us.Count()
-	if n != 1 {
-		t.Fatalf("expected 1 user, got %d", n)
-	}
+	require.Equal(t, 1, n)
 }
 
 func TestUserStore_PermissionsUnion(t *testing.T) {
@@ -71,21 +54,15 @@ func TestUserStore_PermissionsUnion(t *testing.T) {
 	reader := makeRole(t, us, "reader", []string{"contacts:read"})
 	u, _ := us.Create("carol", "pw", "Carol", "", []string{writer, reader})
 	perms, err := us.PermissionsForUser(u.ID)
-	if err != nil {
-		t.Fatalf("PermissionsForUser: %v", err)
-	}
-	if !slices.Contains(perms, "contacts:write") || !slices.Contains(perms, "users:manage") {
-		t.Fatalf("expected union perms, got %v", perms)
-	}
+	require.NoError(t, err)
+	require.True(t, slices.Contains(perms, "contacts:write") && slices.Contains(perms, "users:manage"), "expected union perms, got %v", perms)
 }
 
 func TestUserStore_SuperAdminWildcard(t *testing.T) {
 	us := setupUserStore(t)
 	u, _ := us.Create("root", "pw", "Root", "", []string{model.RoleIDSuperAdmin})
 	perms, _ := us.PermissionsForUser(u.ID)
-	if !slices.Contains(perms, "*") {
-		t.Fatalf("expected wildcard, got %v", perms)
-	}
+	require.True(t, slices.Contains(perms, "*"), "expected wildcard, got %v", perms)
 }
 
 func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
@@ -94,28 +71,18 @@ func TestUserStore_SetRolesAndStatusAndPassword(t *testing.T) {
 	elevated := makeRole(t, us, "elevated", []string{"users:manage"})
 	u, _ := us.Create("dave", "pw", "Dave", "", []string{basic})
 
-	if err := us.SetRoles(u.ID, []string{elevated}); err != nil {
-		t.Fatalf("SetRoles: %v", err)
-	}
+	require.NoError(t, us.SetRoles(u.ID, []string{elevated}))
 	perms, _ := us.PermissionsForUser(u.ID)
-	if !slices.Contains(perms, "users:manage") {
-		t.Fatal("expected elevated perms after SetRoles")
-	}
+	require.True(t, slices.Contains(perms, "users:manage"), "expected elevated perms after SetRoles")
 
-	if err := us.SetStatus(u.ID, model.UserStatusDisabled); err != nil {
-		t.Fatalf("SetStatus: %v", err)
-	}
-	if _, err := us.Authenticate("dave", "pw"); err == nil {
-		t.Fatal("disabled user must not authenticate")
-	}
+	require.NoError(t, us.SetStatus(u.ID, model.UserStatusDisabled))
+	_, err := us.Authenticate("dave", "pw")
+	require.Error(t, err, "disabled user must not authenticate")
 
-	if err := us.SetPassword(u.ID, "newpw"); err != nil {
-		t.Fatalf("SetPassword: %v", err)
-	}
+	require.NoError(t, us.SetPassword(u.ID, "newpw"))
 	_ = us.SetStatus(u.ID, model.UserStatusActive)
-	if _, err := us.Authenticate("dave", "newpw"); err != nil {
-		t.Fatalf("expected new password to work: %v", err)
-	}
+	_, err = us.Authenticate("dave", "newpw")
+	require.NoError(t, err, "expected new password to work")
 }
 
 func TestUserStore_SetPasswordBumpsPasswordChangedAt(t *testing.T) {
@@ -123,35 +90,20 @@ func TestUserStore_SetPasswordBumpsPasswordChangedAt(t *testing.T) {
 	u, _ := us.Create("erin", "pw", "Erin", "", nil)
 
 	status, before, err := us.UserAuthState(u.ID)
-	if err != nil {
-		t.Fatalf("UserAuthState: %v", err)
-	}
-	if status != model.UserStatusActive {
-		t.Fatalf("expected active status, got %q", status)
-	}
+	require.NoError(t, err)
+	require.Equal(t, model.UserStatusActive, status)
 
-	if err := us.SetPassword(u.ID, "newpw"); err != nil {
-		t.Fatalf("SetPassword: %v", err)
-	}
+	require.NoError(t, us.SetPassword(u.ID, "newpw"))
 	_, after, err := us.UserAuthState(u.ID)
-	if err != nil {
-		t.Fatalf("UserAuthState after: %v", err)
-	}
-	if after < before {
-		t.Fatalf("password_changed_at must advance on SetPassword: before=%d after=%d", before, after)
-	}
-	if after%1000 != 0 {
-		t.Fatalf("password_changed_at must be floored to the second, got %d", after)
-	}
+	require.NoError(t, err, "UserAuthState after")
+	require.True(t, after >= before, "password_changed_at must advance on SetPassword: before=%d after=%d", before, after)
+	require.True(t, after%1000 == 0, "password_changed_at must be floored to the second, got %d", after)
 }
 
 func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	us := setupUserStore(t)
 	u, _ := us.Create("erin", "pw", "Erin", "", []string{model.RoleIDSuperAdmin})
-	if err := us.Delete(u.ID); err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
-	if _, err := us.GetByID(u.ID); err == nil {
-		t.Fatal("expected user gone")
-	}
+	require.NoError(t, us.Delete(u.ID))
+	_, err := us.GetByID(u.ID)
+	assert.Error(t, err, "expected user gone")
 }

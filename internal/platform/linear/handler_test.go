@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -172,26 +175,15 @@ func TestReceiver_TickOnce_FirstSightDispatchesMergedInitial(t *testing.T) {
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
 
-	if len(received) != 1 {
-		t.Fatalf("expected exactly 1 InboundMessage, got %d", len(received))
-	}
+	require.Len(t, received, 1)
 	got := received[0]
-	if got.PlatformMessageID != "issue:I1" {
-		t.Errorf("PlatformMessageID = %q", got.PlatformMessageID)
-	}
+	assert.Equal(t, "issue:I1", got.PlatformMessageID)
 	wantContent := "Fix login\n\nUsers get 401 sporadically.\n\n---\nComments (2):\n\n[Alice]: Saw it on Safari too\n[Bob]: Probably the cookie domain"
-	if got.Content != wantContent {
-		t.Errorf("Content mismatch.\nwant:\n%s\n\ngot:\n%s", wantContent, got.Content)
-	}
-	if !seenIssues.Contains("I1") {
-		t.Error("seenIssues missing I1 after dispatch")
-	}
-	if !seenComments.Contains("C1") || !seenComments.Contains("C2") {
-		t.Error("seenComments missing folded comment IDs after merged dispatch")
-	}
-	if seenComments.Contains("C-bot") {
-		t.Error("seenComments wrongly contains bot comment ID")
-	}
+	assert.Equal(t, wantContent, got.Content)
+	assert.True(t, seenIssues.Contains("I1"), "seenIssues missing I1 after dispatch")
+	assert.True(t, seenComments.Contains("C1"), "seenComments missing folded comment IDs after merged dispatch")
+	assert.True(t, seenComments.Contains("C2"), "seenComments missing folded comment IDs after merged dispatch")
+	assert.False(t, seenComments.Contains("C-bot"), "seenComments wrongly contains bot comment ID")
 }
 
 func TestReceiver_Start_ViewerFailureDoesNotStopPolling(t *testing.T) {
@@ -241,9 +233,7 @@ func TestReceiver_Start_ViewerFailureDoesNotStopPolling(t *testing.T) {
 
 	select {
 	case err := <-errCh:
-		if err != nil {
-			t.Fatalf("Start after cancellation returned error: %v", err)
-		}
+		require.NoError(t, err, "Start after cancellation returned error")
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("receiver did not stop after context cancellation")
 	}
@@ -288,12 +278,8 @@ func TestReceiver_TickOnce_KnownIssueDispatchesNewCommentsOnly(t *testing.T) {
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
 
-	if len(received) != 1 {
-		t.Fatalf("expected 1 InboundMessage for new comment, got %d", len(received))
-	}
-	if received[0].PlatformMessageID != "comment:C2" {
-		t.Errorf("expected comment:C2, got %s", received[0].PlatformMessageID)
-	}
+	require.Len(t, received, 1)
+	assert.Equal(t, "comment:C2", received[0].PlatformMessageID)
 }
 
 func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.T) {
@@ -335,12 +321,8 @@ func TestReceiver_TickOnce_BotCommentExcludedFromMergedAndPerComment(t *testing.
 
 	// Issue A: merged dispatch but with zero non-bot comments → still dispatch
 	// the title/description (the issue itself is new).
-	if len(received) != 1 {
-		t.Fatalf("expected exactly 1 dispatch (issue A initial, no per-comment), got %d", len(received))
-	}
-	if received[0].PlatformMessageID != "issue:IA" {
-		t.Errorf("got %s", received[0].PlatformMessageID)
-	}
+	require.Len(t, received, 1)
+	assert.Equal(t, "issue:IA", received[0].PlatformMessageID)
 }
 
 func TestReceiver_TickOnce_EmptyStatesSkipsTick(t *testing.T) {
@@ -404,78 +386,77 @@ func TestReceiver_TickOnce_FiltersEmptyConfiguredValues(t *testing.T) {
 
 	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 
-	if fc.calls != 1 {
-		t.Fatalf("expected one Linear query, got %d", fc.calls)
-	}
-	if got, want := strings.Join(fc.lastProjects, ","), "proj-a"; got != want {
-		t.Errorf("projects = %q, want %q", got, want)
-	}
-	if got, want := strings.Join(fc.lastStates, ","), "Todo,In Progress"; got != want {
-		t.Errorf("states = %q, want %q", got, want)
-	}
+	require.Equal(t, 1, fc.calls)
+	assert.Equal(t, "proj-a", strings.Join(fc.lastProjects, ","))
+	assert.Equal(t, "Todo,In Progress", strings.Join(fc.lastStates, ","))
 }
 
-func TestReceiver_TickOnce_MergedFormatOmitsCommentsHeaderWhenZero(t *testing.T) {
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-42",
-		Title: "Title only", Description: "Body line",
-		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
-	}
-	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	r := &LinearReceiver{
-		client:       fc,
-		seenIssues:   newFakeSeenSet(),
-		seenComments: newFakeSeenSet(),
-		labelName:    "openbee",
-		pollInterval: time.Hour,
-		projectsList: testProjects(),
-		statesList:   testStates(),
-		resolver: &resolver{
-			client:  fc,
-			media:   media.NewService(),
-			maxSize: 10 * 1024 * 1024,
-		}}
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-	if len(got) != 1 {
-		t.Fatalf("got %d", len(got))
-	}
-	if got[0].Content != "Title only\n\nBody line" {
-		t.Errorf("merged content with no comments should equal title+desc only; got %q", got[0].Content)
-	}
-}
-
-func TestReceiver_TickOnce_MergedFormatOmitsDescriptionWhenEmpty(t *testing.T) {
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-42",
-		Title: "Title only",
-		Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
-		Comments: []Comment{
-			{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}},
+// TestReceiver_TickOnce_MergedFormat covers the merged-dispatch content
+// formatting edge cases: zero comments, empty description, and inclusion of
+// the project header on first sight.
+func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
+	cases := []struct {
+		name  string
+		issue Issue
+		want  string
+	}{
+		{
+			name: "OmitsCommentsHeaderWhenZero",
+			issue: Issue{
+				ID: "I1", Identifier: "ENG-42",
+				Title: "Title only", Description: "Body line",
+				Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+			},
+			want: "Title only\n\nBody line",
+		},
+		{
+			name: "OmitsDescriptionWhenEmpty",
+			issue: Issue{
+				ID: "I1", Identifier: "ENG-42",
+				Title: "Title only",
+				Team:  Team{Key: "ENG"}, Creator: User{ID: "U2"},
+				Comments: []Comment{
+					{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}},
+				},
+			},
+			want: "Title only\n\n---\nComments (1):\n\n[Alice]: hi",
+		},
+		{
+			name: "FirstSightWithProjectIncludesProjectHeader",
+			issue: Issue{
+				ID: "I1", Identifier: "ENG-42",
+				Title: "Fix login", Description: "Users get 401.",
+				Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+				Project: &Project{ID: "P1", Name: "Backend"},
+			},
+			want: "[Project: Backend]\n\nFix login\n\nUsers get 401.",
 		},
 	}
-	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	r := &LinearReceiver{
-		client:       fc,
-		seenIssues:   newFakeSeenSet(),
-		seenComments: newFakeSeenSet(),
-		labelName:    "openbee",
-		pollInterval: time.Hour,
-		projectsList: testProjects(),
-		statesList:   testStates(),
-		resolver: &resolver{
-			client:  fc,
-			media:   media.NewService(),
-			maxSize: 10 * 1024 * 1024,
-		}}
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-	if len(got) != 1 {
-		t.Fatalf("got %d", len(got))
-	}
-	want := "Title only\n\n---\nComments (1):\n\n[Alice]: hi"
-	if got[0].Content != want {
-		t.Errorf("merged content mismatch.\nwant: %q\ngot:  %q", want, got[0].Content)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{tc.issue}, nil }}
+			r := &LinearReceiver{
+				client:       fc,
+				seenIssues:   newFakeSeenSet(),
+				seenComments: newFakeSeenSet(),
+				labelName:    "openbee",
+				pollInterval: time.Hour,
+				projectsList: testProjects(),
+				statesList:   testStates(),
+				resolver: &resolver{
+					client:  fc,
+					media:   media.NewService(),
+					maxSize: 10 * 1024 * 1024,
+				},
+			}
+
+			var got []platform.InboundMessage
+			r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
+
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0].Content)
+		})
 	}
 }
 
@@ -524,24 +505,12 @@ func TestReceiver_TickOnce_MixedNewAndKnownIssues(t *testing.T) {
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
 
-	if len(received) != 2 {
-		t.Fatalf("expected 2 dispatches (issue:IA + comment:CB-new), got %d", len(received))
-	}
-	if received[0].PlatformMessageID != "issue:IA" {
-		t.Errorf("first dispatch PlatformMessageID = %q, want issue:IA", received[0].PlatformMessageID)
-	}
-	if received[1].PlatformMessageID != "comment:CB-new" {
-		t.Errorf("second dispatch PlatformMessageID = %q, want comment:CB-new", received[1].PlatformMessageID)
-	}
-	if !seenIssues.Contains("IA") {
-		t.Error("seenIssues missing IA")
-	}
-	if !seenComments.Contains("CA1") {
-		t.Error("seenComments missing folded CA1")
-	}
-	if !seenComments.Contains("CB-new") {
-		t.Error("seenComments missing CB-new")
-	}
+	require.Len(t, received, 2)
+	assert.Equal(t, "issue:IA", received[0].PlatformMessageID)
+	assert.Equal(t, "comment:CB-new", received[1].PlatformMessageID)
+	assert.True(t, seenIssues.Contains("IA"), "seenIssues missing IA")
+	assert.True(t, seenComments.Contains("CA1"), "seenComments missing folded CA1")
+	assert.True(t, seenComments.Contains("CB-new"), "seenComments missing CB-new")
 }
 
 func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
@@ -575,19 +544,12 @@ func TestReceiver_TickOnce_KnownIssueCommentRetainsParentID(t *testing.T) {
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
 
-	if len(received) != 1 {
-		t.Fatalf("expected 1 dispatch, got %d", len(received))
-	}
+	require.Len(t, received, 1)
 	var got replyTarget
-	if err := json.Unmarshal([]byte(received[0].Raw), &got); err != nil {
-		t.Fatalf("unmarshal Raw: %v", err)
-	}
-	if got.IssueID != "I1" {
-		t.Errorf("Raw IssueID = %q, want I1", got.IssueID)
-	}
-	if got.ParentCommentID == nil || *got.ParentCommentID != "C-parent" {
-		t.Errorf("Raw ParentCommentID = %v, want \"C-parent\"", got.ParentCommentID)
-	}
+	require.NoError(t, json.Unmarshal([]byte(received[0].Raw), &got))
+	assert.Equal(t, "I1", got.IssueID)
+	require.NotNil(t, got.ParentCommentID) // guard: dereferenced below
+	assert.Equal(t, "C-parent", *got.ParentCommentID)
 }
 
 func TestMergeIssueContent_WithProject(t *testing.T) {
@@ -599,10 +561,7 @@ func TestMergeIssueContent_WithProject(t *testing.T) {
 		Project:     proj,
 	}
 	got := mergeIssueContent(issue, nil)
-	want := "[Project: Backend]\n\nFix login\n\nUsers get 401."
-	if got != want {
-		t.Errorf("mergeIssueContent with project mismatch.\nwant: %q\ngot:  %q", want, got)
-	}
+	assert.Equal(t, "[Project: Backend]\n\nFix login\n\nUsers get 401.", got)
 }
 
 func TestMergeIssueContent_WithoutProject(t *testing.T) {
@@ -613,46 +572,7 @@ func TestMergeIssueContent_WithoutProject(t *testing.T) {
 		Project:     nil,
 	}
 	got := mergeIssueContent(issue, nil)
-	want := "Fix login\n\nUsers get 401."
-	if got != want {
-		t.Errorf("mergeIssueContent without project mismatch.\nwant: %q\ngot:  %q", want, got)
-	}
-}
-
-func TestReceiver_TickOnce_FirstSightWithProjectIncludesProjectHeader(t *testing.T) {
-	proj := &Project{ID: "P1", Name: "Backend"}
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-42",
-		Title: "Fix login", Description: "Users get 401.",
-		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
-		Project: proj,
-	}
-	fc := &fakeClient{viewer: User{ID: "BOT"}, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	r := &LinearReceiver{
-		client:       fc,
-		seenIssues:   newFakeSeenSet(),
-		seenComments: newFakeSeenSet(),
-		labelName:    "openbee",
-		pollInterval: time.Hour,
-		projectsList: testProjects(),
-		statesList:   testStates(),
-		resolver: &resolver{
-			client:  fc,
-			media:   media.NewService(),
-			maxSize: 10 * 1024 * 1024,
-		},
-	}
-
-	var got []platform.InboundMessage
-	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
-
-	if len(got) != 1 {
-		t.Fatalf("expected 1 dispatch, got %d", len(got))
-	}
-	want := "[Project: Backend]\n\nFix login\n\nUsers get 401."
-	if got[0].Content != want {
-		t.Errorf("Content mismatch.\nwant: %q\ngot:  %q", want, got[0].Content)
-	}
+	assert.Equal(t, "Fix login\n\nUsers get 401.", got)
 }
 
 func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
@@ -687,15 +607,9 @@ func TestReceiver_TickOnce_CommentDispatchHasNoProjectHeader(t *testing.T) {
 	var got []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 
-	if len(got) != 1 {
-		t.Fatalf("expected 1 dispatch, got %d", len(got))
-	}
-	if got[0].PlatformMessageID != "comment:C1" {
-		t.Errorf("expected comment:C1, got %s", got[0].PlatformMessageID)
-	}
-	if strings.Contains(got[0].Content, "[Project:") {
-		t.Errorf("comment dispatch should not contain project header, got: %q", got[0].Content)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "comment:C1", got[0].PlatformMessageID)
+	assert.NotContains(t, got[0].Content, "[Project:")
 }
 
 func TestReceiver_TickOnce_ResolvesAssetURLsInDescriptionAndComments(t *testing.T) {
@@ -735,119 +649,92 @@ func TestReceiver_TickOnce_ResolvesAssetURLsInDescriptionAndComments(t *testing.
 
 	var received []platform.InboundMessage
 	r.tickOnce(context.Background(), func(m platform.InboundMessage) { received = append(received, m) })
-	if len(received) != 1 {
-		t.Fatalf("got %d", len(received))
-	}
+	require.Len(t, received, 1)
 	body := received[0].Content
-	if strings.Contains(body, descURL) {
-		t.Errorf("description URL not replaced: %q", body)
-	}
-	if strings.Contains(body, commURL) {
-		t.Errorf("comment URL not replaced: %q", body)
-	}
-	if !strings.Contains(body, "<media:image") {
-		t.Errorf("expected placeholders in body: %q", body)
-	}
+	assert.NotContains(t, body, descURL)
+	assert.NotContains(t, body, commURL)
+	assert.Contains(t, body, "<media:image")
 }
 
-func TestReceiver_TickOnce_AddsReactionForInitialIssue(t *testing.T) {
-	bot := User{ID: "BOT"}
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-42", Title: "T",
-		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
-	}
-	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	r := &LinearReceiver{
-		client:       fc,
-		seenIssues:   newFakeSeenSet(),
-		seenComments: newFakeSeenSet(),
-		labelName:    "openbee",
-		pollInterval: time.Hour,
-		projectsList: testProjects(),
-		statesList:   testStates(),
-		resolver: &resolver{
-			client:  fc,
-			media:   media.NewService(),
-			maxSize: 10 * 1024 * 1024,
+// TestReceiver_TickOnce_AddsReaction covers the async reaction-creation call
+// triggered both by a brand-new issue and by a new comment on a known issue.
+func TestReceiver_TickOnce_AddsReaction(t *testing.T) {
+	cases := []struct {
+		name       string
+		known      bool
+		comments   []Comment
+		wantTarget string
+	}{
+		{
+			name:       "ForInitialIssue",
+			known:      false,
+			wantTarget: "I1",
+		},
+		{
+			name:  "ForNewComment",
+			known: true,
+			comments: []Comment{
+				{ID: "C1", Body: "new", User: User{ID: "U3"}},
+			},
+			wantTarget: "C1",
 		},
 	}
 
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bot := User{ID: "BOT"}
+			issue := Issue{
+				ID: "I1", Identifier: "ENG-42", Title: "T",
+				Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
+				Comments: tc.comments,
+			}
+			seenIssues := newFakeSeenSet()
+			if tc.known {
+				seenIssues.ids["I1"] = struct{}{}
+			}
+			fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
+			r := &LinearReceiver{
+				client:       fc,
+				seenIssues:   seenIssues,
+				seenComments: newFakeSeenSet(),
+				labelName:    "openbee",
+				pollInterval: time.Hour,
+				projectsList: testProjects(),
+				statesList:   testStates(),
+				resolver: &resolver{
+					client:  fc,
+					media:   media.NewService(),
+					maxSize: 10 * 1024 * 1024,
+				},
+			}
 
-	// reaction goroutine is async; wait briefly for it to record the call.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		fc.mu.Lock()
-		n := len(fc.reactionCreated)
-		fc.mu.Unlock()
-		if n == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+			r.tickOnce(context.Background(), func(platform.InboundMessage) {})
 
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-	if len(fc.reactionCreated) != 1 {
-		t.Fatalf("expected 1 CreateReaction call, got %d", len(fc.reactionCreated))
-	}
-	got := fc.reactionCreated[0]
-	if got.Target.IssueID != "I1" || got.Target.CommentID != "" {
-		t.Errorf("target = %+v, want IssueID=I1", got.Target)
-	}
-	if got.Emoji != ":eyes:" {
-		t.Errorf("emoji = %q, want :eyes:", got.Emoji)
-	}
-}
+			// reaction goroutine is async; wait briefly for it to record the call.
+			deadline := time.Now().Add(2 * time.Second)
+			for time.Now().Before(deadline) {
+				fc.mu.Lock()
+				n := len(fc.reactionCreated)
+				fc.mu.Unlock()
+				if n == 1 {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
 
-func TestReceiver_TickOnce_AddsReactionForNewComment(t *testing.T) {
-	bot := User{ID: "BOT"}
-	issue := Issue{
-		ID: "I1", Identifier: "ENG-42", Title: "T",
-		Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
-		Comments: []Comment{
-			{ID: "C1", Body: "new", User: User{ID: "U3"}},
-		},
-	}
-	seenIssues := newFakeSeenSet()
-	seenIssues.ids["I1"] = struct{}{}
-	fc := &fakeClient{viewer: bot, issues: func() ([]Issue, error) { return []Issue{issue}, nil }}
-	r := &LinearReceiver{
-		client:       fc,
-		seenIssues:   seenIssues,
-		seenComments: newFakeSeenSet(),
-		labelName:    "openbee",
-		pollInterval: time.Hour,
-		projectsList: testProjects(),
-		statesList:   testStates(),
-		resolver: &resolver{
-			client:  fc,
-			media:   media.NewService(),
-			maxSize: 10 * 1024 * 1024,
-		},
-	}
-
-	r.tickOnce(context.Background(), func(platform.InboundMessage) {})
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		fc.mu.Lock()
-		n := len(fc.reactionCreated)
-		fc.mu.Unlock()
-		if n == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-	if len(fc.reactionCreated) != 1 {
-		t.Fatalf("expected 1 CreateReaction call, got %d", len(fc.reactionCreated))
-	}
-	got := fc.reactionCreated[0]
-	if got.Target.CommentID != "C1" || got.Target.IssueID != "" {
-		t.Errorf("target = %+v, want CommentID=C1", got.Target)
+			fc.mu.Lock()
+			defer fc.mu.Unlock()
+			require.Len(t, fc.reactionCreated, 1)
+			got := fc.reactionCreated[0]
+			assert.Equal(t, ":eyes:", got.Emoji)
+			if tc.known {
+				assert.Equal(t, tc.wantTarget, got.Target.CommentID)
+				assert.Empty(t, got.Target.IssueID)
+			} else {
+				assert.Equal(t, tc.wantTarget, got.Target.IssueID)
+				assert.Empty(t, got.Target.CommentID)
+			}
+		})
 	}
 }
 
@@ -886,7 +773,5 @@ func TestReceiver_TickOnce_ReactionCreateFails_DoesNotBlockDispatch(t *testing.T
 	var dispatched []platform.InboundMessage
 	r.tickOnce(ctx, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
 
-	if len(dispatched) != 1 {
-		t.Fatalf("dispatch must run regardless of reaction failure; got %d", len(dispatched))
-	}
+	require.Len(t, dispatched, 1, "dispatch must run regardless of reaction failure")
 }

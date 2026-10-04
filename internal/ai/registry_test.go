@@ -3,8 +3,10 @@ package ai_test
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -28,23 +30,15 @@ func TestRegistry_NewReturnsRegisteredEngine(t *testing.T) {
 		return &stubAdapter{}, nil
 	})
 	eng, err := r.New("stub", ai.EngineConfig{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if eng == nil {
-		t.Error("expected non-nil adapter")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, eng)
 }
 
 func TestRegistry_NewUnknownEngineReturnsError(t *testing.T) {
 	r := ai.NewRegistry()
 	_, err := r.New("unknown", ai.EngineConfig{})
-	if err == nil {
-		t.Fatal("expected error for unknown engine")
-	}
-	if !errors.Is(err, ai.ErrUnknownEngine) {
-		t.Errorf("expected ErrUnknownEngine, got: %v", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ai.ErrUnknownEngine)
 }
 
 func TestRegistry_NewCallsFactory(t *testing.T) {
@@ -55,7 +49,5 @@ func TestRegistry_NewCallsFactory(t *testing.T) {
 		return &stubAdapter{}, nil
 	})
 	r.New("called", ai.EngineConfig{})
-	if !called {
-		t.Error("factory was not called")
-	}
+	assert.True(t, called, "factory was not called")
 }

@@ -1,9 +1,11 @@
 package cli
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestDetectLang_default(t *testing.T) {
-	if got := DetectLang(); got != "en" {
-		t.Errorf("DetectLang default: got %q, want en", got)
-	}
+	assert.Equal(t, "en", DetectLang())
 }

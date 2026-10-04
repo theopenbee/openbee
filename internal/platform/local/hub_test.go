@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
@@ -16,9 +18,7 @@ func TestSSEHub_SubscribeAndBroadcast(t *testing.T) {
 
 	select {
 	case got := <-ch:
-		if got != `{"id":"r1"}` {
-			t.Errorf("expected JSON, got %q", got)
-		}
+		assert.Equal(t, `{"id":"r1"}`, got)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("timeout waiting for broadcast")
 	}
@@ -74,9 +74,7 @@ func TestSSEHub_MultipleSubscribers(t *testing.T) {
 	for _, ch := range []<-chan string{ch1, ch2} {
 		select {
 		case got := <-ch:
-			if got != "hello" {
-				t.Errorf("expected hello, got %q", got)
-			}
+			assert.Equal(t, "hello", got)
 		case <-time.After(100 * time.Millisecond):
 			t.Fatal("timeout: both subscribers should receive")
 		}

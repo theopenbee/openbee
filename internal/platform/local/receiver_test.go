@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
@@ -38,9 +40,7 @@ func TestLocalReceiver_EnqueueAndDispatch(t *testing.T) {
 		t.Fatal("timeout: dispatch not called")
 	}
 
-	if dispatched[0].Content != "hello" {
-		t.Errorf("expected hello, got %q", dispatched[0].Content)
-	}
+	assert.Equal(t, "hello", dispatched[0].Content)
 }
 
 func TestLocalReceiver_Start_ReturnsNilOnCancel(t *testing.T) {
@@ -56,9 +56,7 @@ func TestLocalReceiver_Start_ReturnsNilOnCancel(t *testing.T) {
 
 	select {
 	case err := <-errCh:
-		if err != nil {
-			t.Errorf("expected nil error on cancel, got %v", err)
-		}
+		assert.NoError(t, err)
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("Start did not return after context cancel")
 	}

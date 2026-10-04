@@ -1,6 +1,10 @@
 package command
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestFormatRelative(t *testing.T) {
 	cases := []struct {
@@ -18,17 +22,13 @@ func TestFormatRelative(t *testing.T) {
 		{172800, "2d"},
 	}
 	for _, c := range cases {
-		if got := formatRelative(c.seconds); got != c.want {
-			t.Errorf("formatRelative(%d) = %q, want %q", c.seconds, got, c.want)
-		}
+		assert.Equal(t, c.want, formatRelative(c.seconds))
 	}
 }
 
 func TestFormatRelative_NegativeOrZero(t *testing.T) {
 	// Clock skew or future timestamps must not panic; clamp to "0s".
-	if got := formatRelative(-5); got != "0s" {
-		t.Errorf("formatRelative(-5) = %q, want %q", got, "0s")
-	}
+	assert.Equal(t, "0s", formatRelative(-5))
 }
 
 func TestShortExecID(t *testing.T) {
@@ -42,8 +42,6 @@ func TestShortExecID(t *testing.T) {
 		{"abcdef1234567890", "abcdef12"},
 	}
 	for _, c := range cases {
-		if got := shortExecID(c.in); got != c.want {
-			t.Errorf("shortExecID(%q) = %q, want %q", c.in, got, c.want)
-		}
+		assert.Equal(t, c.want, shortExecID(c.in))
 	}
 }

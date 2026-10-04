@@ -1,16 +1,20 @@
 package rpc
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNormalizeTaskExecutionLimit(t *testing.T) {
 	intPtr := func(v int) *int { return &v }
 
 	cases := []struct {
-		name         string
-		raw          *int
-		matched      int
-		want         int
-		wantErr      bool
+		name    string
+		raw     *int
+		matched int
+		want    int
+		wantErr bool
 	}{
 		{"nil uses default", nil, 5, defaultTaskExecutionLimit, false},
 		{"zero with single match", intPtr(0), 1, 0, false},
@@ -24,12 +28,12 @@ func TestNormalizeTaskExecutionLimit(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got, err := normalizeTaskExecutionLimit(c.raw, c.matched)
-			if (err != nil) != c.wantErr {
-				t.Fatalf("err: got %v, wantErr=%v", err, c.wantErr)
+			if c.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-			if got != c.want {
-				t.Fatalf("value: got %d, want %d", got, c.want)
-			}
+			require.Equal(t, c.want, got)
 		})
 	}
 }

@@ -1,6 +1,10 @@
 package utils
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestTruncateRunes(t *testing.T) {
 	cases := []struct {
@@ -20,9 +24,8 @@ func TestTruncateRunes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := TruncateRunes(c.in, c.max); got != c.want {
-				t.Errorf("TruncateRunes(%q, %d) = %q, want %q", c.in, c.max, got, c.want)
-			}
+			got := TruncateRunes(c.in, c.max)
+			assert.Equal(t, c.want, got)
 		})
 	}
 }

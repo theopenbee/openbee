@@ -5,10 +5,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // archiveEntry is one file written into a test archive.
@@ -20,53 +21,33 @@ type archiveEntry struct {
 func writeTestZip(t *testing.T, path string, entries []archiveEntry) {
 	t.Helper()
 	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("create zip: %v", err)
-	}
+	require.NoError(t, err, "create zip")
 	zw := zip.NewWriter(f)
 	for _, e := range entries {
 		w, err := zw.Create(e.name)
-		if err != nil {
-			t.Fatalf("zip create %s: %v", e.name, err)
-		}
-		if _, err := w.Write([]byte(e.body)); err != nil {
-			t.Fatalf("zip write %s: %v", e.name, err)
-		}
+		require.NoError(t, err, "zip create %s", e.name)
+		_, err = w.Write([]byte(e.body))
+		require.NoError(t, err, "zip write %s", e.name)
 	}
-	if err := zw.Close(); err != nil {
-		t.Fatalf("close zip writer: %v", err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatalf("close zip file: %v", err)
-	}
+	require.NoError(t, zw.Close(), "close zip writer")
+	require.NoError(t, f.Close(), "close zip file")
 }
 
 func writeTestTarGz(t *testing.T, path string, entries []archiveEntry) {
 	t.Helper()
 	f, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("create tar.gz: %v", err)
-	}
+	require.NoError(t, err, "create tar.gz")
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	for _, e := range entries {
 		hdr := &tar.Header{Name: e.name, Mode: 0o755, Size: int64(len(e.body)), Typeflag: tar.TypeReg}
-		if err := tw.WriteHeader(hdr); err != nil {
-			t.Fatalf("tar header %s: %v", e.name, err)
-		}
-		if _, err := tw.Write([]byte(e.body)); err != nil {
-			t.Fatalf("tar write %s: %v", e.name, err)
-		}
+		require.NoError(t, tw.WriteHeader(hdr), "tar header %s", e.name)
+		_, err = tw.Write([]byte(e.body))
+		require.NoError(t, err, "tar write %s", e.name)
 	}
-	if err := tw.Close(); err != nil {
-		t.Fatalf("close tar writer: %v", err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatalf("close gzip writer: %v", err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatalf("close tar.gz file: %v", err)
-	}
+	require.NoError(t, tw.Close(), "close tar writer")
+	require.NoError(t, gz.Close(), "close gzip writer")
+	require.NoError(t, f.Close(), "close tar.gz file")
 }
 
 func TestReleaseArchiveName(t *testing.T) {
@@ -80,57 +61,67 @@ func TestReleaseArchiveName(t *testing.T) {
 		{"darwin", "arm64", "openbee-0.0.42-darwin-arm64.tar.gz"},
 	}
 	for _, tc := range cases {
-		if got := releaseArchiveName("0.0.42", tc.goos, tc.goarch); got != tc.want {
-			t.Fatalf("releaseArchiveName(0.0.42, %s, %s) = %q, want %q", tc.goos, tc.goarch, got, tc.want)
-		}
+		got := releaseArchiveName("0.0.42", tc.goos, tc.goarch)
+		require.Equal(t, tc.want, got, "releaseArchiveName(0.0.42, %s, %s)", tc.goos, tc.goarch)
 	}
 }
 
-func TestExtractBinaryFromZip(t *testing.T) {
-	// Same layout as the real Windows release zip: files at the root.
-	path := filepath.Join(t.TempDir(), "openbee-1.0.0-windows-amd64.zip")
-	writeTestZip(t, path, []archiveEntry{
-		{"LICENSE", "license"},
-		{"README.md", "readme"},
-		{"openbee.exe", "windows-binary"},
-	})
-	var buf bytes.Buffer
-	if err := extractBinary(path, &buf); err != nil {
-		t.Fatalf("extractBinary(zip): %v", err)
+// TestExtractBinary merges the zip, tar.gz, and nested-zip variants of
+// "extraction finds the binary": each builds a different archive layout and
+// expects extractBinary to recover the same binary bytes.
+func TestExtractBinary(t *testing.T) {
+	cases := []struct {
+		name  string
+		build func(t *testing.T, dir string) string
+		want  string
+	}{
+		{
+			// Same layout as the real Windows release zip: files at the root.
+			name: "FromZip",
+			build: func(t *testing.T, dir string) string {
+				path := filepath.Join(dir, "openbee-1.0.0-windows-amd64.zip")
+				writeTestZip(t, path, []archiveEntry{
+					{"LICENSE", "license"},
+					{"README.md", "readme"},
+					{"openbee.exe", "windows-binary"},
+				})
+				return path
+			},
+			want: "windows-binary",
+		},
+		{
+			name: "FromTarGz",
+			build: func(t *testing.T, dir string) string {
+				path := filepath.Join(dir, "openbee-1.0.0-linux-amd64.tar.gz")
+				writeTestTarGz(t, path, []archiveEntry{
+					{"LICENSE", "license"},
+					{"openbee", "unix-binary"},
+				})
+				return path
+			},
+			want: "unix-binary",
+		},
+		{
+			// goreleaser's wrap_in_directory would nest the binary; extraction must still find it.
+			name: "FromZipSubdirectory",
+			build: func(t *testing.T, dir string) string {
+				path := filepath.Join(dir, "openbee-1.0.0-windows-amd64.zip")
+				writeTestZip(t, path, []archiveEntry{
+					{"openbee-1.0.0-windows-amd64/LICENSE", "license"},
+					{"openbee-1.0.0-windows-amd64/openbee.exe", "nested-binary"},
+				})
+				return path
+			},
+			want: "nested-binary",
+		},
 	}
-	if buf.String() != "windows-binary" {
-		t.Fatalf("extracted %q, want %q", buf.String(), "windows-binary")
-	}
-}
-
-func TestExtractBinaryFromTarGz(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "openbee-1.0.0-linux-amd64.tar.gz")
-	writeTestTarGz(t, path, []archiveEntry{
-		{"LICENSE", "license"},
-		{"openbee", "unix-binary"},
-	})
-	var buf bytes.Buffer
-	if err := extractBinary(path, &buf); err != nil {
-		t.Fatalf("extractBinary(tar.gz): %v", err)
-	}
-	if buf.String() != "unix-binary" {
-		t.Fatalf("extracted %q, want %q", buf.String(), "unix-binary")
-	}
-}
-
-func TestExtractBinaryFromZipSubdirectory(t *testing.T) {
-	// goreleaser's wrap_in_directory would nest the binary; extraction must still find it.
-	path := filepath.Join(t.TempDir(), "openbee-1.0.0-windows-amd64.zip")
-	writeTestZip(t, path, []archiveEntry{
-		{"openbee-1.0.0-windows-amd64/LICENSE", "license"},
-		{"openbee-1.0.0-windows-amd64/openbee.exe", "nested-binary"},
-	})
-	var buf bytes.Buffer
-	if err := extractBinary(path, &buf); err != nil {
-		t.Fatalf("extractBinary(nested zip): %v", err)
-	}
-	if buf.String() != "nested-binary" {
-		t.Fatalf("extracted %q, want %q", buf.String(), "nested-binary")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := tc.build(t, t.TempDir())
+			var buf bytes.Buffer
+			require.NoError(t, extractBinary(path, &buf))
+			require.Equal(t, tc.want, buf.String())
+		})
 	}
 }
 
@@ -138,7 +129,5 @@ func TestExtractBinaryMissingFromZip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "openbee-1.0.0-windows-amd64.zip")
 	writeTestZip(t, path, []archiveEntry{{"LICENSE", "license"}})
 	err := extractBinary(path, &bytes.Buffer{})
-	if !errors.Is(err, errBinaryNotFound) {
-		t.Fatalf("extractBinary on zip without binary: err = %v, want errBinaryNotFound", err)
-	}
+	require.ErrorIs(t, err, errBinaryNotFound)
 }

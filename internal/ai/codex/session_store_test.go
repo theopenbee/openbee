@@ -4,32 +4,27 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSessionStore_GetMissing(t *testing.T) {
 	dir := t.TempDir()
 	store := &SessionStore{dir: dir}
 	_, ok := store.Get("nonexistent-uuid")
-	if ok {
-		t.Fatal("expected ok=false for missing session")
-	}
+	require.False(t, ok, "expected ok=false for missing session")
 }
 
 func TestSessionStore_SetAndGet(t *testing.T) {
 	dir := t.TempDir()
 	store := &SessionStore{dir: dir}
 
-	if err := store.Set("openbee-uuid-1", "codex-thread-abc"); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
+	require.NoError(t, store.Set("openbee-uuid-1", "codex-thread-abc"))
 
 	threadID, ok := store.Get("openbee-uuid-1")
-	if !ok {
-		t.Fatal("expected ok=true after Set")
-	}
-	if threadID != "codex-thread-abc" {
-		t.Errorf("got %q, want %q", threadID, "codex-thread-abc")
-	}
+	require.True(t, ok, "expected ok=true after Set")
+	assert.Equal(t, "codex-thread-abc", threadID)
 }
 
 func TestSessionStore_SetOverwrite(t *testing.T) {
@@ -40,25 +35,20 @@ func TestSessionStore_SetOverwrite(t *testing.T) {
 	store.Set("uuid-1", "thread-v2")
 
 	threadID, ok := store.Get("uuid-1")
-	if !ok || threadID != "thread-v2" {
-		t.Errorf("got (%q, %v), want (thread-v2, true)", threadID, ok)
-	}
+	assert.True(t, ok)
+	assert.Equal(t, "thread-v2", threadID)
 }
 
 func TestSessionStore_AtomicWrite(t *testing.T) {
 	dir := t.TempDir()
 	store := &SessionStore{dir: dir}
 
-	if err := store.Set("uuid-atomic", "thread-xyz"); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
+	require.NoError(t, store.Set("uuid-atomic", "thread-xyz"))
 
 	// No temp files should be left behind
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
-		if filepath.Ext(e.Name()) == ".tmp" {
-			t.Errorf("temp file left behind: %s", e.Name())
-		}
+		assert.NotEqual(t, ".tmp", filepath.Ext(e.Name()), "temp file left behind: %s", e.Name())
 	}
 }
 
@@ -67,10 +57,7 @@ func TestNewSessionStore(t *testing.T) {
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "deep", "sessions")
 	store, err := newSessionStoreAt(dir)
-	if err != nil {
-		t.Fatalf("newSessionStoreAt: %v", err)
-	}
-	if _, statErr := os.Stat(store.dir); statErr != nil {
-		t.Errorf("sessions dir not created: %v", statErr)
-	}
+	require.NoError(t, err)
+	_, statErr := os.Stat(store.dir)
+	assert.NoError(t, statErr, "sessions dir not created")
 }

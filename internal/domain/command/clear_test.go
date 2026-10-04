@@ -2,9 +2,11 @@ package command_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -184,12 +186,8 @@ func TestClearCommand_ConfirmPromptListsTasksAndAgents(t *testing.T) {
 		withClearRunningExecs(fakeRunningExecs{"t1": "a1b2c3d4e5f6", "t2": "e5f6a7b89999"}))
 
 	handled := fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(fx.sender.sent))
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, fx.sender.sent, 1)
 	out := fx.sender.sent[0]
 
 	for _, want := range []string{
@@ -202,86 +200,80 @@ func TestClearCommand_ConfirmPromptListsTasksAndAgents(t *testing.T) {
 		"- [bee] 总结今天的会议纪要   已运行 12s   exec: e5f6a7b8",
 		"30s 内再发一次 /clear 确认。",
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 
 	// Pending must be set; tasks must NOT have been stopped or cancelled yet.
-	if len(fx.stopper.stopped) != 0 {
-		t.Errorf("expected no executions stopped on first /clear, got %v", fx.stopper.stopped)
-	}
-	if len(fx.disp.cleared) != 0 {
-		t.Errorf("expected no session cleared on first /clear, got %v", fx.disp.cleared)
-	}
+	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped on first /clear")
+	assert.Empty(t, fx.disp.cleared, "expected no session cleared on first /clear")
 }
 
-func TestClearCommand_ConfirmedWithin30sStopsAndClears(t *testing.T) {
-	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
-	nowMs := clock.UnixMilli()
-	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
-	}
-	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
-	}
-	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
-	fx := makeClearFixture(agents, tasks, workers, withClearClock(fixedClock(clock)), withClearCancelled(1),
-		withClearRunningExecs(fakeRunningExecs{"t1": "exec-1234abcd"}))
-
-	// First /clear -> confirmation prompt.
-	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
-	}
-
-	// Second /clear within 30s -> actually stop & clear.
-	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if len(fx.sender.sent) != 2 {
-		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
-	}
-	if got, want := fx.stopper.stopped, []string{"exec-1234abcd"}; len(got) != 1 || got[0] != want[0] {
-		t.Errorf("expected stopped=%v, got %v", want, got)
-	}
-	if len(fx.disp.cleared) != 1 {
-		t.Errorf("expected ClearSession called once, got %d", len(fx.disp.cleared))
-	}
-	if !strings.Contains(fx.sender.sent[1], "✅ 已清除：") {
-		t.Errorf("expected cleared message, got: %s", fx.sender.sent[1])
-	}
-}
-
-func TestClearCommand_ConfirmExpiresAfter30s(t *testing.T) {
-	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
-	nowMs := clock.UnixMilli()
-	agents := []store.SessionAgent{
-		{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
-	}
-	tasks := []model.Task{
-		{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
-	}
-	workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
-	current := clock
-	fx := makeClearFixture(agents, tasks, workers, withClearClock(func() time.Time { return current }))
-
-	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
+// TestClearCommand_Confirm merges the two confirm-window scenarios: a second
+// /clear within 30s executes the stop+clear, a second /clear after 30s treats
+// it as a fresh request and reprints the confirmation prompt.
+func TestClearCommand_Confirm(t *testing.T) {
+	cases := []struct {
+		name         string
+		cancelled    int64
+		runningExecs fakeRunningExecs
+		advance      time.Duration
+		wantCleared  bool
+	}{
+		{
+			name:         "ConfirmedWithin30sStopsAndClears",
+			cancelled:    1,
+			runningExecs: fakeRunningExecs{"t1": "exec-1234abcd"},
+			advance:      0,
+			wantCleared:  true,
+		},
+		{
+			name:        "ConfirmExpiresAfter30s",
+			advance:     31 * time.Second,
+			wantCleared: false,
+		},
 	}
 
-	current = clock.Add(31 * time.Second)
-	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if len(fx.sender.sent) != 2 {
-		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
-	}
-	if len(fx.stopper.stopped) != 0 {
-		t.Errorf("expected no execution stopped after window expired, got %v", fx.stopper.stopped)
-	}
-	if len(fx.disp.cleared) != 0 {
-		t.Errorf("expected no session cleared after window expired, got %v", fx.disp.cleared)
-	}
-	if !strings.Contains(fx.sender.sent[1], "30s 内再发一次 /clear 确认。") {
-		t.Errorf("expected new confirm prompt after expiry, got: %s", fx.sender.sent[1])
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+			nowMs := clock.UnixMilli()
+			agents := []store.SessionAgent{
+				{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000},
+			}
+			tasks := []model.Task{
+				{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+			}
+			workers := map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}}
+			current := clock
+			opts := []clearFixtureOpt{withClearClock(func() time.Time { return current })}
+			if tc.cancelled != 0 {
+				opts = append(opts, withClearCancelled(tc.cancelled))
+			}
+			if tc.runningExecs != nil {
+				opts = append(opts, withClearRunningExecs(tc.runningExecs))
+			}
+			fx := makeClearFixture(agents, tasks, workers, opts...)
+
+			// First /clear -> confirmation prompt.
+			fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+			require.Len(t, fx.sender.sent, 1, "expected 1 reply after first /clear")
+
+			current = current.Add(tc.advance)
+
+			// Second /clear -> stop & clear within 30s, or a fresh prompt after expiry.
+			fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+			require.Len(t, fx.sender.sent, 2, "expected 2 replies total")
+
+			if tc.wantCleared {
+				assert.Equal(t, []string{"exec-1234abcd"}, fx.stopper.stopped)
+				assert.Len(t, fx.disp.cleared, 1)
+				assert.Contains(t, fx.sender.sent[1], "✅ 已清除：")
+			} else {
+				assert.Empty(t, fx.stopper.stopped)
+				assert.Empty(t, fx.disp.cleared)
+				assert.Contains(t, fx.sender.sent[1], "30s 内再发一次 /clear 确认。")
+			}
+		})
 	}
 }
 
@@ -311,21 +303,11 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
 
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(fx.sender.sent))
-	}
-	if !strings.Contains(fx.sender.sent[0], "✅ 已清除 徐晃") {
-		t.Errorf("expected worker_cleared message, got: %s", fx.sender.sent[0])
-	}
-	if len(fx.stopper.stopped) != 0 {
-		t.Errorf("expected no executions stopped when no running tasks, got %v", fx.stopper.stopped)
-	}
-	if got := fx.disp.clearedWorkers; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
-		t.Errorf("expected ClearWorker(session, w1), got %v", got)
-	}
-	if got := fx.tasks.workerCancelCalls; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
-		t.Errorf("expected CancelBySessionAndWorker(session, w1), got %v", got)
-	}
+	require.Len(t, fx.sender.sent, 1)
+	assert.Contains(t, fx.sender.sent[0], "✅ 已清除 徐晃")
+	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped when no running tasks")
+	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.disp.clearedWorkers)
+	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.tasks.workerCancelCalls)
 }
 
 func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
@@ -361,9 +343,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 
 	// First /clear 徐晃 → confirm prompt; no destructive action yet.
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply after first /clear, got %d", len(fx.sender.sent))
-	}
+	require.Len(t, fx.sender.sent, 1, "expected 1 reply after first /clear")
 	first := fx.sender.sent[0]
 	for _, want := range []string{
 		"⚠️ 将清除 徐晃",
@@ -371,31 +351,18 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 		"[徐晃] do something",
 		"30s 内再发一次 /clear 徐晃 确认。",
 	} {
-		if !strings.Contains(first, want) {
-			t.Errorf("confirm prompt missing %q, got:\n%s", want, first)
-		}
+		assert.Contains(t, first, want)
 	}
-	if len(fx.stopper.stopped) != 0 {
-		t.Errorf("expected no executions stopped on first /clear, got %v", fx.stopper.stopped)
-	}
-	if len(fx.disp.clearedWorkers) != 0 {
-		t.Errorf("expected ClearWorker not yet called, got %v", fx.disp.clearedWorkers)
-	}
+	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped on first /clear")
+	assert.Empty(t, fx.disp.clearedWorkers, "expected ClearWorker not yet called")
 
 	// Second /clear 徐晃 within 30s → execute the clear.
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
-	if len(fx.sender.sent) != 2 {
-		t.Fatalf("expected 2 replies total, got %d", len(fx.sender.sent))
-	}
-	if got, want := fx.stopper.stopped, []string{"exec-w1-task1"}; len(got) != 1 || got[0] != want[0] {
-		t.Errorf("expected stopped=%v, got %v", want, got)
-	}
-	if got := fx.disp.clearedWorkers; len(got) != 1 || got[0] != "feishu:chat1:user1::w1" {
-		t.Errorf("expected ClearWorker(session, w1) once, got %v", got)
-	}
-	if !strings.Contains(fx.sender.sent[1], "✅ 已清除 徐晃") || !strings.Contains(fx.sender.sent[1], "取消了 1 个任务") {
-		t.Errorf("expected worker_cleared_with_tasks message, got: %s", fx.sender.sent[1])
-	}
+	require.Len(t, fx.sender.sent, 2, "expected 2 replies total")
+	assert.Equal(t, []string{"exec-w1-task1"}, fx.stopper.stopped)
+	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.disp.clearedWorkers)
+	assert.Contains(t, fx.sender.sent[1], "✅ 已清除 徐晃")
+	assert.Contains(t, fx.sender.sent[1], "取消了 1 个任务")
 }
 
 func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
@@ -443,19 +410,9 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
 
 	// Only 徐晃's exec should have been stopped — 貂蝉's must be untouched.
-	if got, want := fx.stopper.stopped, []string{"exec-w1"}; len(got) != 1 || got[0] != want[0] {
-		t.Errorf("expected only exec-w1 stopped, got %v", got)
-	}
-	for _, call := range fx.tasks.workerCancelCalls {
-		if call == "feishu:chat1:user1::w2" {
-			t.Errorf("貂蝉 must not have tasks cancelled, got cancel call %s", call)
-		}
-	}
-	for _, call := range fx.disp.clearedWorkers {
-		if call == "feishu:chat1:user1::w2" {
-			t.Errorf("貂蝉 queue must not be cleared, got %s", call)
-		}
-	}
+	assert.Equal(t, []string{"exec-w1"}, fx.stopper.stopped)
+	assert.NotContains(t, fx.tasks.workerCancelCalls, "feishu:chat1:user1::w2", "貂蝉 must not have tasks cancelled")
+	assert.NotContains(t, fx.disp.clearedWorkers, "feishu:chat1:user1::w2", "貂蝉 queue must not be cleared")
 }
 
 func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
@@ -470,11 +427,7 @@ func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 	fx := makeClearFixture(agents, tasks, nil, withClearClock(fixedClock(clock)))
 
 	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	if len(fx.sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(fx.sender.sent))
-	}
+	require.Len(t, fx.sender.sent, 1)
 	out := fx.sender.sent[0]
-	if !strings.Contains(out, "[ghost] do something") {
-		t.Errorf("expected raw worker id fallback in task line, got:\n%s", out)
-	}
+	assert.Contains(t, out, "[ghost] do something")
 }

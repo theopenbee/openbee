@@ -4,10 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -25,46 +26,9 @@ func TestMain(m *testing.M) {
 func TestNewInvoker(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	inv := NewInvoker("/usr/bin/claude", nil)
-	if inv.binary != "/usr/bin/claude" {
-		t.Errorf("binary: want /usr/bin/claude, got %s", inv.binary)
-	}
+	assert.Equal(t, "/usr/bin/claude", inv.binary)
 	wantURL := "OPENBEE_URL=http://localhost:8080"
-	if !slices.Contains(inv.baseEnv, wantURL) {
-		t.Errorf("baseEnv missing %s", wantURL)
-	}
-}
-
-func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
-	inv := NewInvoker("echo", nil)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	logPath := filepath.Join(t.TempDir(), "test.log")
-	proc, ch, err := inv.Run(ctx, t.TempDir(), "hello", ai.RunOptions{}, logPath)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if proc.PID() == 0 {
-		t.Error("expected non-zero PID")
-	}
-
-	var gotDone bool
-	for out := range ch {
-		if out.Type == ai.OutputDone {
-			gotDone = true
-		}
-	}
-	if !gotDone {
-		t.Error("expected done signal")
-	}
-
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log file: %v", err)
-	}
-	if len(data) == 0 {
-		t.Error("expected non-empty log file after echo")
-	}
+	assert.Contains(t, inv.baseEnv, wantURL)
 }
 
 func TestInvoker_Run_SessionFlags(t *testing.T) {
@@ -78,9 +42,8 @@ func TestInvoker_Run_SessionFlags(t *testing.T) {
 	}
 	data, _ := os.ReadFile(logPath1)
 	output := string(data)
-	if !strings.Contains(output, "--session-id") || !strings.Contains(output, "s1") {
-		t.Errorf("expected --session-id s1 in log file, got: %s", output)
-	}
+	assert.Contains(t, output, "--session-id")
+	assert.Contains(t, output, "s1")
 
 	// Test --resume flag written to log file
 	logPath2 := filepath.Join(t.TempDir(), "s2.log")
@@ -89,9 +52,8 @@ func TestInvoker_Run_SessionFlags(t *testing.T) {
 	}
 	data2, _ := os.ReadFile(logPath2)
 	output2 := string(data2)
-	if !strings.Contains(output2, "--resume") || !strings.Contains(output2, "s2") {
-		t.Errorf("expected --resume s2 in log file, got: %s", output2)
-	}
+	assert.Contains(t, output2, "--resume")
+	assert.Contains(t, output2, "s2")
 }
 
 func TestProcess_Stop(t *testing.T) {
@@ -100,13 +62,9 @@ func TestProcess_Stop(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "stop.log")
 	proc, ch, err := inv.Run(ctx, t.TempDir(), "60", ai.RunOptions{}, logPath)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
+	require.NoError(t, err)
 
-	if err := proc.Stop(); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
+	require.NoError(t, proc.Stop())
 
 	// Drain channel — should get OutputError since process was killed
 	for range ch {
@@ -121,22 +79,26 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 	logPath2 := filepath.Join(t.TempDir(), "two.log")
 
 	proc1, ch1, err1 := inv.Run(ctx, t.TempDir(), "one", ai.RunOptions{SessionID: "s1"}, logPath1)
-	if err1 != nil {
-		t.Fatalf("Run 1: %v", err1)
-	}
+	require.NoError(t, err1)
+	assert.NotZero(t, proc1.PID())
 	proc2, ch2, err2 := inv.Run(ctx, t.TempDir(), "two", ai.RunOptions{SessionID: "s2"}, logPath2)
-	if err2 != nil {
-		t.Fatalf("Run 2: %v", err2)
-	}
+	require.NoError(t, err2)
 
-	if proc1.PID() == proc2.PID() {
-		t.Error("concurrent runs should have different PIDs")
-	}
+	assert.NotEqual(t, proc1.PID(), proc2.PID(), "concurrent runs should have different PIDs")
 
-	for range ch1 {
+	var gotDone bool
+	for out := range ch1 {
+		if out.Type == ai.OutputDone {
+			gotDone = true
+		}
 	}
+	assert.True(t, gotDone, "expected done signal")
 	for range ch2 {
 	}
+
+	data, err := os.ReadFile(logPath1)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data, "expected non-empty log file after echo")
 }
 
 func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
@@ -152,9 +114,7 @@ func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "run.log")
 	_, ch, err := inv.Run(ctx, dir, "", ai.RunOptions{}, logPath)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
+	require.NoError(t, err)
 
 	var gotError bool
 	var errorContent string
@@ -164,56 +124,33 @@ func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {
 			errorContent = out.Content
 		}
 	}
-	if !gotError {
-		t.Error("want OutputError, got none")
-	}
-	if !strings.Contains(errorContent, "API Error: 400") {
-		t.Errorf("want error content to contain 'API Error: 400', got %q", errorContent)
-	}
+	assert.True(t, gotError, "want OutputError, got none")
+	assert.Contains(t, errorContent, "API Error: 400")
 }
 
 func TestScanResultLog_IsError(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"result","is_error":true,"result":"API Error: 400 {\"error\":\"操作失败\"}"}` + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(logPath, []byte(content), 0o644))
 	result, isError, _ := scanResultLog(logPath)
-	if !isError {
-		t.Error("want isError=true, got false")
-	}
-	if result != `API Error: 400 {"error":"操作失败"}` {
-		t.Errorf("want API Error string, got %q", result)
-	}
+	assert.True(t, isError)
+	assert.Equal(t, `API Error: 400 {"error":"操作失败"}`, result)
 }
 
 func TestScanResultLog_NoError(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"result","is_error":false,"result":"all good"}` + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(logPath, []byte(content), 0o644))
 	result, isError, _ := scanResultLog(logPath)
-	if isError {
-		t.Error("want isError=false, got true")
-	}
-	if result != "all good" {
-		t.Errorf("want 'all good', got %q", result)
-	}
+	assert.False(t, isError)
+	assert.Equal(t, "all good", result)
 }
 
 func TestScanResultLog_NoResultEvent(t *testing.T) {
 	logPath := filepath.Join(t.TempDir(), "run.log")
 	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}` + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(logPath, []byte(content), 0o644))
 	result, isError, _ := scanResultLog(logPath)
-	if isError {
-		t.Error("want isError=false when no result event, got true")
-	}
-	if result != "" {
-		t.Errorf("want empty result, got %q", result)
-	}
+	assert.False(t, isError, "no result event present")
+	assert.Empty(t, result)
 }
-

@@ -2,14 +2,17 @@ package api
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEncodeMediaPaths(t *testing.T) {
 	tests := []struct {
-		name   string
-		paths  []string
-		text   string
-		want   string
+		name  string
+		paths []string
+		text  string
+		want  string
 	}{
 		{
 			name:  "no files",
@@ -39,9 +42,7 @@ func TestEncodeMediaPaths(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := encodeMediaPaths(tc.paths, tc.text)
-			if got != tc.want {
-				t.Errorf("encodeMediaPaths(%v, %q) = %q, want %q", tc.paths, tc.text, got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -99,17 +100,11 @@ func TestDecodeMediaPaths(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gotPaths, gotText := decodeMediaPaths(tc.content)
-			if len(gotPaths) != len(tc.wantPaths) {
-				t.Fatalf("decodeMediaPaths paths len = %d, want %d", len(gotPaths), len(tc.wantPaths))
-			}
+			require.Len(t, gotPaths, len(tc.wantPaths))
 			for i, p := range gotPaths {
-				if p != tc.wantPaths[i] {
-					t.Errorf("paths[%d] = %q, want %q", i, p, tc.wantPaths[i])
-				}
+				assert.Equal(t, tc.wantPaths[i], p)
 			}
-			if gotText != tc.wantText {
-				t.Errorf("text = %q, want %q", gotText, tc.wantText)
-			}
+			assert.Equal(t, tc.wantText, gotText)
 		})
 	}
 }

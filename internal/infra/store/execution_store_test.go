@@ -8,68 +8,37 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func newTestExecutionStore(t *testing.T) *ExecutionStore {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-	// Insert a worker so FK constraints are satisfied
-	if _, err := db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`); err != nil {
-		t.Fatalf("seed worker: %v", err)
-	}
+	db := newTestDB(t, seedWorkerSQL("w1"))
 	return NewExecutionStore(db, t.TempDir())
-}
-
-func TestExecutionStore_CreateWritesTaskID(t *testing.T) {
-	s := newTestExecutionStore(t)
-	exec, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "trigger", SessionID: "sess-1", Engine: "claude"})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	got, err := s.GetByID(exec.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.TaskID != "task-1" {
-		t.Errorf("task_id: want task-1 got %q", got.TaskID)
-	}
 }
 
 func TestExecutionStore_GetRunningByTaskID(t *testing.T) {
 	s := newTestExecutionStore(t)
 	running, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "in", SessionID: "sess-1", Engine: "claude"})
-	if err := s.UpdateStatus(running.ID, model.ExecStatusRunning); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
+	require.NoError(t, s.UpdateStatus(running.ID, model.ExecStatusRunning))
+
 	got, err := s.GetRunningByTaskID(context.Background(), "task-1")
-	if err != nil {
-		t.Fatalf("GetRunningByTaskID: %v", err)
-	}
-	if got == nil || got.ID != running.ID {
-		t.Fatalf("want running exec %s, got %+v", running.ID, got)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, running.ID, got.ID)
+
 	none, err := s.GetRunningByTaskID(context.Background(), "task-x")
-	if err != nil {
-		t.Fatalf("GetRunningByTaskID(none): %v", err)
-	}
-	if none != nil {
-		t.Errorf("want nil for unknown task, got %+v", none)
-	}
+	require.NoError(t, err)
+	assert.Nil(t, none, "want nil for unknown task")
+
 	// A pending (never-running) execution must not be returned.
-	pending, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "in", SessionID: "sess-2", Engine: "claude"})
+	_, _ = s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "in", SessionID: "sess-2", Engine: "claude"})
 	got2, err := s.GetRunningByTaskID(context.Background(), "task-2")
-	if err != nil {
-		t.Fatalf("GetRunningByTaskID(pending): %v", err)
-	}
-	if got2 != nil {
-		t.Errorf("want nil for task with only a pending execution, got %+v", got2)
-	}
-	_ = pending
+	require.NoError(t, err)
+	assert.Nil(t, got2, "want nil for task with only a pending execution")
 }
 
 func TestExecutionStore_ListByTaskIDs(t *testing.T) {
@@ -77,55 +46,38 @@ func TestExecutionStore_ListByTaskIDs(t *testing.T) {
 	e1, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"})
 	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "second", SessionID: "sess-2", Engine: "claude"})
 	_, _ = s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "other", SessionID: "sess-3", Engine: "claude"})
+
 	m, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"}, 0)
-	if err != nil {
-		t.Fatalf("ListByTaskIDs: %v", err)
-	}
-	if len(m["task-1"]) != 2 {
-		t.Fatalf("task-1 want 2 execs, got %d", len(m["task-1"]))
-	}
+	require.NoError(t, err)
+	require.Len(t, m["task-1"], 2)
 	// Newest-first: e2 was inserted after e1; the rowid DESC tiebreak makes this
 	// deterministic even when both rows share the same started_at millisecond.
-	if m["task-1"][0].ID != e2.ID || m["task-1"][1].ID != e1.ID {
-		t.Errorf("expected newest-first ordering; got %s,%s", m["task-1"][0].ID, m["task-1"][1].ID)
-	}
-	if len(m["task-2"]) != 1 {
-		t.Errorf("task-2 want 1 exec, got %d", len(m["task-2"]))
-	}
+	assert.Equal(t, e2.ID, m["task-1"][0].ID)
+	assert.Equal(t, e1.ID, m["task-1"][1].ID)
+	assert.Len(t, m["task-2"], 1)
+
 	// Task ids with no executions are absent from the returned map.
 	withMissing, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-none"}, 0)
-	if err != nil {
-		t.Fatalf("ListByTaskIDs(missing): %v", err)
-	}
-	if got, ok := withMissing["task-none"]; ok {
-		t.Errorf("want task-none absent, got %#v", got)
-	}
+	require.NoError(t, err)
+	_, ok := withMissing["task-none"]
+	assert.False(t, ok, "want task-none absent")
 }
 
 func TestExecutionStore_ListByTaskIDs_LimitsExecutionsPerTask(t *testing.T) {
 	s := newTestExecutionStore(t)
-	if _, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"}); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+	_, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "first", SessionID: "sess-1", Engine: "claude"})
+	require.NoError(t, err)
 	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "second", SessionID: "sess-2", Engine: "claude"})
 	e3, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "third", SessionID: "sess-3", Engine: "claude"})
-	if _, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "other", SessionID: "sess-4", Engine: "claude"}); err != nil {
-		t.Fatalf("Create task-2 execution: %v", err)
-	}
+	_, err = s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-2", TriggerInput: "other", SessionID: "sess-4", Engine: "claude"})
+	require.NoError(t, err)
 
 	got, err := s.ListByTaskIDs(context.Background(), []string{"task-1", "task-2"}, 2)
-	if err != nil {
-		t.Fatalf("ListByTaskIDs: %v", err)
-	}
-	if len(got["task-1"]) != 2 {
-		t.Fatalf("task-1 expected 2 executions, got %d", len(got["task-1"]))
-	}
-	if got["task-1"][0].ID != e3.ID || got["task-1"][1].ID != e2.ID {
-		t.Fatalf("expected newest two executions %s,%s; got %+v", e3.ID, e2.ID, got["task-1"])
-	}
-	if len(got["task-2"]) != 1 {
-		t.Fatalf("task-2 expected 1 execution, got %d", len(got["task-2"]))
-	}
+	require.NoError(t, err)
+	require.Len(t, got["task-1"], 2)
+	require.Equal(t, e3.ID, got["task-1"][0].ID)
+	require.Equal(t, e2.ID, got["task-1"][1].ID)
+	require.Len(t, got["task-2"], 1)
 }
 
 func TestExecutionStore_ListByTaskIDs_ZeroLimitReturnsAll(t *testing.T) {
@@ -135,15 +87,11 @@ func TestExecutionStore_ListByTaskIDs_ZeroLimitReturnsAll(t *testing.T) {
 	e3, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "third", SessionID: "sess-3", Engine: "claude"})
 
 	got, err := s.ListByTaskIDs(context.Background(), []string{"task-1"}, 0)
-	if err != nil {
-		t.Fatalf("ListByTaskIDs: %v", err)
-	}
-	if len(got["task-1"]) != 3 {
-		t.Fatalf("expected all 3 executions, got %d", len(got["task-1"]))
-	}
-	if got["task-1"][0].ID != e3.ID || got["task-1"][1].ID != e2.ID || got["task-1"][2].ID != e1.ID {
-		t.Fatalf("unexpected newest-first order: %+v", got["task-1"])
-	}
+	require.NoError(t, err)
+	require.Len(t, got["task-1"], 3)
+	require.Equal(t, e3.ID, got["task-1"][0].ID)
+	require.Equal(t, e2.ID, got["task-1"][1].ID)
+	require.Equal(t, e1.ID, got["task-1"][2].ID)
 }
 
 func TestExecutionStore_RunningExecIDsByTaskIDs_ChunksLargeInput(t *testing.T) {
@@ -157,24 +105,14 @@ func TestExecutionStore_RunningExecIDsByTaskIDs_ChunksLargeInput(t *testing.T) {
 	}
 
 	hitA, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[1], TriggerInput: "a", SessionID: "sess-a", Engine: "claude"})
-	if err := s.UpdateStatus(hitA.ID, model.ExecStatusRunning); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
+	require.NoError(t, s.UpdateStatus(hitA.ID, model.ExecStatusRunning))
 	hitB, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[n-2], TriggerInput: "b", SessionID: "sess-b", Engine: "claude"})
-	if err := s.UpdateStatus(hitB.ID, model.ExecStatusRunning); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
+	require.NoError(t, s.UpdateStatus(hitB.ID, model.ExecStatusRunning))
 
 	got, err := s.RunningExecIDsByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		t.Fatalf("RunningExecIDsByTaskIDs: %v", err)
-	}
-	if got[taskIDs[1]] != hitA.ID {
-		t.Errorf("expected hit for %s = %s, got %q", taskIDs[1], hitA.ID, got[taskIDs[1]])
-	}
-	if got[taskIDs[n-2]] != hitB.ID {
-		t.Errorf("expected hit for %s = %s, got %q", taskIDs[n-2], hitB.ID, got[taskIDs[n-2]])
-	}
+	require.NoError(t, err)
+	assert.Equal(t, hitA.ID, got[taskIDs[1]])
+	assert.Equal(t, hitB.ID, got[taskIDs[n-2]])
 }
 
 func TestExecutionStore_ListByTaskIDs_ChunksLargeInput(t *testing.T) {
@@ -191,143 +129,69 @@ func TestExecutionStore_ListByTaskIDs_ChunksLargeInput(t *testing.T) {
 	e2, _ := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: taskIDs[n-1], TriggerInput: "last", SessionID: "sess-2", Engine: "claude"})
 
 	got, err := s.ListByTaskIDs(ctx, taskIDs, 5)
-	if err != nil {
-		t.Fatalf("ListByTaskIDs: %v", err)
+	require.NoError(t, err)
+	if assert.Len(t, got[taskIDs[0]], 1) {
+		assert.Equal(t, e1.ID, got[taskIDs[0]][0].ID)
 	}
-	if len(got[taskIDs[0]]) != 1 || got[taskIDs[0]][0].ID != e1.ID {
-		t.Errorf("expected %s -> %s, got %+v", taskIDs[0], e1.ID, got[taskIDs[0]])
-	}
-	if len(got[taskIDs[n-1]]) != 1 || got[taskIDs[n-1]][0].ID != e2.ID {
-		t.Errorf("expected %s -> %s, got %+v", taskIDs[n-1], e2.ID, got[taskIDs[n-1]])
+	if assert.Len(t, got[taskIDs[n-1]], 1) {
+		assert.Equal(t, e2.ID, got[taskIDs[n-1]][0].ID)
 	}
 }
 
 func TestExecutionStore_CreateAndGet(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	s := newTestExecutionStore(t)
+	exec, err := s.Create(ExecutionCreate{WorkerID: "w1", TaskID: "task-1", TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
+	require.NoError(t, err)
+	assert.Equal(t, model.ExecStatusPending, exec.Status)
+	assert.NotEmpty(t, exec.SessionID)
 
-	ws := NewWorkerStore(db)
-	es := NewExecutionStore(db, t.TempDir())
-
-	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-
-	exec, err := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if exec.Status != model.ExecStatusPending {
-		t.Errorf("expected pending, got %s", exec.Status)
-	}
-	if exec.SessionID == "" {
-		t.Error("expected non-empty session_id")
-	}
-
-	got, err := es.GetByID(exec.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.WorkerID == nil || *got.WorkerID != w.ID {
-		gotStr := "<nil>"
-		if got.WorkerID != nil {
-			gotStr = *got.WorkerID
-		}
-		t.Errorf("expected worker_id %s, got %s", w.ID, gotStr)
-	}
-	if got.Engine != "claude" {
-		t.Errorf("expected engine claude, got %q", got.Engine)
-	}
+	got, err := s.GetByID(exec.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.WorkerID)
+	assert.Equal(t, "w1", *got.WorkerID)
+	assert.Equal(t, "claude", got.Engine)
+	assert.Equal(t, "task-1", got.TaskID)
 }
 
 func TestExecutionStore_UpdateStatus(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	ws := NewWorkerStore(db)
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
 
-	err = es.UpdateStatus(exec.ID, model.ExecStatusRunning)
-	if err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
+	err := es.UpdateStatus(exec.ID, model.ExecStatusRunning)
+	require.NoError(t, err)
 	got, _ := es.GetByID(exec.ID)
-	if got.Status != model.ExecStatusRunning {
-		t.Errorf("expected running, got %s", got.Status)
-	}
+	assert.Equal(t, model.ExecStatusRunning, got.Status)
 }
 
-func TestExecutionStore_Create_StartedAtMillisecondPrecision(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.T) {
+	db := newTestDB(t)
 	ws := NewWorkerStore(db)
 	es := NewExecutionStore(db, t.TempDir())
 
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	exec, err := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, exec.StartedAt, "exec.StartedAt must not be nil")
 
 	var startedAt int64
 	err = db.QueryRow(`SELECT started_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&startedAt)
-	if err != nil {
-		t.Fatalf("scan started_at: %v", err)
-	}
-	if startedAt <= 0 {
-		t.Errorf("started_at %d: want positive Unix millisecond timestamp", startedAt)
-	}
+	require.NoError(t, err)
+	assert.Positive(t, startedAt, "want positive Unix millisecond timestamp")
 
-	if exec.StartedAt == nil {
-		t.Error("exec.StartedAt must not be nil")
-	}
-}
-
-func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	ws := NewWorkerStore(db)
-	es := NewExecutionStore(db, t.TempDir())
-
-	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test", SessionID: uuid.New().String(), Engine: "claude"})
-
-	if err := es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted); err != nil {
-		t.Fatalf("UpdateResult: %v", err)
-	}
+	require.NoError(t, es.UpdateResult(exec.ID, "output", model.ExecStatusCompleted))
 
 	var completedAt int64
 	err = db.QueryRow(`SELECT completed_at FROM bee_executions WHERE id = ?`, exec.ID).Scan(&completedAt)
-	if err != nil {
-		t.Fatalf("scan completed_at: %v", err)
-	}
-	if completedAt <= 0 {
-		t.Errorf("completed_at %d: want positive Unix millisecond timestamp", completedAt)
-	}
+	require.NoError(t, err)
+	assert.Positive(t, completedAt, "want positive Unix millisecond timestamp")
 }
 
 func TestExecutionStore_ListBySessionID(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	ws := NewWorkerStore(db)
 	es := NewExecutionStore(db, t.TempDir())
 
@@ -335,67 +199,33 @@ func TestExecutionStore_ListBySessionID(t *testing.T) {
 	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
 
 	got, err := es.ListBySessionID(exec.SessionID)
-	if err != nil {
-		t.Fatalf("ListBySessionID: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 execution, got %d", len(got))
-	}
-	if got[0].ID != exec.ID {
-		t.Errorf("expected ID %s, got %s", exec.ID, got[0].ID)
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, exec.ID, got[0].ID)
 }
 
 func TestExecutionStore_Create_EmptyWorkerID(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	es := NewExecutionStore(db, t.TempDir())
 
 	sessionID := uuid.New().String()
 	exec, err := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: sessionID, Engine: "claude-sonnet-4-5"})
-	if err != nil {
-		t.Fatalf("Create bee execution: %v", err)
-	}
-	if exec.ID == "" {
-		t.Error("expected non-empty ID")
-	}
-	if exec.WorkerID != nil {
-		t.Errorf("expected nil WorkerID for bee execution, got %v", exec.WorkerID)
-	}
-	if exec.Status != model.ExecStatusPending {
-		t.Errorf("expected pending, got %s", exec.Status)
-	}
-	if exec.Engine != "claude-sonnet-4-5" {
-		t.Errorf("expected engine claude-sonnet-4-5, got %s", exec.Engine)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, exec.ID)
+	assert.Nil(t, exec.WorkerID, "expected nil WorkerID for bee execution")
+	assert.Equal(t, model.ExecStatusPending, exec.Status)
+	assert.Equal(t, "claude-sonnet-4-5", exec.Engine)
 
 	// GetByID must scan NULL worker_id without error and preserve engine
 	got, err := es.GetByID(exec.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.WorkerID != nil {
-		t.Errorf("expected nil WorkerID from DB, got %v", got.WorkerID)
-	}
-	if got.SessionID != sessionID {
-		t.Errorf("expected session_id %s, got %s", sessionID, got.SessionID)
-	}
-	if got.Engine != "claude-sonnet-4-5" {
-		t.Errorf("expected engine claude-sonnet-4-5 from DB, got %s", got.Engine)
-	}
+	require.NoError(t, err)
+	assert.Nil(t, got.WorkerID, "expected nil WorkerID from DB")
+	assert.Equal(t, sessionID, got.SessionID)
+	assert.Equal(t, "claude-sonnet-4-5", got.Engine)
 }
 
 func TestExecutionStore_ReadLogSince(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
@@ -403,196 +233,119 @@ func TestExecutionStore_ReadLogSince(t *testing.T) {
 
 	// No log path yet → zero slice, no error.
 	slice, err := es.ReadLogSince(exec.ID, 0)
-	if err != nil {
-		t.Fatalf("ReadLogSince (no log_path): %v", err)
-	}
-	if slice.Content != "" || slice.Size != 0 || slice.Truncated {
-		t.Errorf("expected zero slice, got %+v", slice)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, slice.Content)
+	assert.Zero(t, slice.Size)
+	assert.False(t, slice.Truncated)
 
 	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// File not yet created → zero slice.
 	slice, err = es.ReadLogSince(exec.ID, 0)
-	if err != nil {
-		t.Fatalf("ReadLogSince (file missing): %v", err)
-	}
-	if slice.Content != "" || slice.Size != 0 || slice.Truncated {
-		t.Errorf("expected zero slice, got %+v", slice)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, slice.Content)
+	assert.Zero(t, slice.Size)
+	assert.False(t, slice.Truncated)
 
 	// Write initial content; since=0 must return everything.
 	initial := []byte("line1\nline2\n")
-	if err := os.WriteFile(logPath, initial, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(logPath, initial, 0o644))
 	slice, err = es.ReadLogSince(exec.ID, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slice.Content != string(initial) || slice.Size != int64(len(initial)) || slice.Truncated {
-		t.Errorf("full read mismatch: %+v", slice)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, string(initial), slice.Content)
+	assert.EqualValues(t, len(initial), slice.Size)
+	assert.False(t, slice.Truncated)
 
 	// Append; since=len(initial) must return only the tail.
 	tail := []byte("line3\n")
 	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write(tail); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = f.Write(tail)
+	require.NoError(t, err)
 	f.Close()
 
 	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slice.Content != string(tail) {
-		t.Errorf("tail content mismatch: got %q want %q", slice.Content, string(tail))
-	}
-	if slice.Size != int64(len(initial)+len(tail)) {
-		t.Errorf("size mismatch: got %d want %d", slice.Size, len(initial)+len(tail))
-	}
-	if slice.Truncated {
-		t.Error("should not be truncated")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, string(tail), slice.Content)
+	assert.EqualValues(t, len(initial)+len(tail), slice.Size)
+	assert.False(t, slice.Truncated, "should not be truncated")
 
 	// since == size → empty content.
 	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)+len(tail)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slice.Content != "" || slice.Truncated {
-		t.Errorf("caught-up read mismatch: %+v", slice)
-	}
-	if slice.Size != int64(len(initial)+len(tail)) {
-		t.Errorf("size should still match: got %d", slice.Size)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, slice.Content)
+	assert.False(t, slice.Truncated)
+	assert.EqualValues(t, len(initial)+len(tail), slice.Size, "size should still match")
 
 	// since > size → truncated=true with full content.
 	slice, err = es.ReadLogSince(exec.ID, 99999)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slice.Truncated {
-		t.Error("expected truncated=true when since > size")
-	}
-	if slice.Content != string(initial)+string(tail) {
-		t.Errorf("truncated content mismatch: got %q", slice.Content)
-	}
+	require.NoError(t, err)
+	assert.True(t, slice.Truncated, "expected truncated=true when since > size")
+	assert.Equal(t, string(initial)+string(tail), slice.Content)
 }
 
 func TestExecutionStore_PrepareLogPath(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	logsDir := t.TempDir()
 	es := NewExecutionStore(db, logsDir)
 
 	exec, _ := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: "session1"})
 
 	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
-	if err != nil {
-		t.Fatalf("PrepareLogPath: %v", err)
-	}
-	if logPath == "" {
-		t.Fatal("expected non-empty logPath")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, logPath)
 
 	// Directory must exist
-	if _, err := os.Stat(filepath.Dir(logPath)); err != nil {
-		t.Errorf("log directory should exist: %v", err)
-	}
+	_, err = os.Stat(filepath.Dir(logPath))
+	assert.NoError(t, err, "log directory should exist")
 
 	// DB must have log_path set
 	got, err := es.GetByID(exec.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.LogPath != logPath {
-		t.Errorf("DB log_path mismatch: want %q got %q", logPath, got.LogPath)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, logPath, got.LogPath)
 }
 
 func TestExecutionStore_HasActiveBeeExecutions(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t)
 	es := NewExecutionStore(db, t.TempDir())
 	ctx := context.Background()
 
 	// no executions → false
 	active, err := es.HasActiveBeeExecutions(ctx)
-	if err != nil {
-		t.Fatalf("HasActiveBeeExecutions: %v", err)
-	}
-	if active {
-		t.Error("expected false with no executions")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false with no executions")
 
 	// create a bee execution (worker_id IS NULL), status pending
 	bee, _ := es.Create(ExecutionCreate{TriggerInput: "prompt", SessionID: "s1", Engine: "claude"})
 	active, err = es.HasActiveBeeExecutions(ctx)
-	if err != nil {
-		t.Fatalf("HasActiveBeeExecutions: %v", err)
-	}
-	if !active {
-		t.Error("expected true with pending bee execution")
-	}
+	require.NoError(t, err)
+	assert.True(t, active, "expected true with pending bee execution")
 
 	// transition to running → still true
 	_ = es.UpdateStatus(bee.ID, model.ExecStatusRunning)
 	active, err = es.HasActiveBeeExecutions(ctx)
-	if err != nil {
-		t.Fatalf("HasActiveBeeExecutions: %v", err)
-	}
-	if !active {
-		t.Error("expected true with running bee execution")
-	}
+	require.NoError(t, err)
+	assert.True(t, active, "expected true with running bee execution")
 
 	// complete the bee execution → false again
 	_ = es.UpdateStatus(bee.ID, model.ExecStatusCompleted)
 	active, err = es.HasActiveBeeExecutions(ctx)
-	if err != nil {
-		t.Fatalf("HasActiveBeeExecutions: %v", err)
-	}
-	if active {
-		t.Error("expected false after completing bee execution")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false after completing bee execution")
 
 	// worker execution (worker_id NOT NULL) must not count
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
+	db.Exec(seedWorkerSQL("w1"))
 	_, _ = es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "task", SessionID: "s2", Engine: "claude"})
 	active, err = es.HasActiveBeeExecutions(ctx)
-	if err != nil {
-		t.Fatalf("HasActiveBeeExecutions: %v", err)
-	}
-	if active {
-		t.Error("worker execution must not affect HasActiveBeeExecutions")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "worker execution must not affect HasActiveBeeExecutions")
 }
 
 func TestExecutionStore_MarkAbandoned_OnlyUpdatesActive(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t, seedWorkerSQL("w1"))
 	es := NewExecutionStore(db, t.TempDir())
 	ctx := context.Background()
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
 	pending, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "p", SessionID: uuid.New().String(), Engine: "claude"})
 	running, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "r", SessionID: uuid.New().String(), Engine: "claude"})
@@ -603,55 +356,34 @@ func TestExecutionStore_MarkAbandoned_OnlyUpdatesActive(t *testing.T) {
 	_ = es.UpdateResult(failed.ID, "boom", model.ExecStatusFailed)
 
 	ok, err := es.MarkAbandoned(ctx, pending.ID, "cancelled by user")
-	if err != nil || !ok {
-		t.Fatalf("pending: ok=%v err=%v", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 	got, _ := es.GetByID(pending.ID)
-	if got.Status != model.ExecStatusFailed {
-		t.Errorf("pending → expected failed, got %s", got.Status)
-	}
-	if got.Result != "cancelled by user" {
-		t.Errorf("pending result: got %q", got.Result)
-	}
-	if got.CompletedAt == nil || *got.CompletedAt <= 0 {
-		t.Error("pending completed_at should be set")
+	assert.Equal(t, model.ExecStatusFailed, got.Status, "pending → expected failed")
+	assert.Equal(t, "cancelled by user", got.Result)
+	if assert.NotNil(t, got.CompletedAt) {
+		assert.Positive(t, *got.CompletedAt, "pending completed_at should be set")
 	}
 
 	ok, _ = es.MarkAbandoned(ctx, running.ID, "process exited")
-	if !ok {
-		t.Error("running should be updated")
-	}
+	assert.True(t, ok, "running should be updated")
 
 	// Terminal states must be left untouched and the call must report no update.
 	ok, _ = es.MarkAbandoned(ctx, completed.ID, "should not change")
-	if ok {
-		t.Error("completed row must not be updated")
-	}
+	assert.False(t, ok, "completed row must not be updated")
 	got, _ = es.GetByID(completed.ID)
-	if got.Result != "done" {
-		t.Errorf("completed result clobbered: got %q", got.Result)
-	}
+	assert.Equal(t, "done", got.Result, "completed result clobbered")
 
 	ok, _ = es.MarkAbandoned(ctx, failed.ID, "should not change")
-	if ok {
-		t.Error("failed row must not be updated")
-	}
+	assert.False(t, ok, "failed row must not be updated")
 	got, _ = es.GetByID(failed.ID)
-	if got.Result != "boom" {
-		t.Errorf("failed result clobbered: got %q", got.Result)
-	}
+	assert.Equal(t, "boom", got.Result, "failed result clobbered")
 }
 
 func TestExecutionStore_ResetRunningExecutions(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t, seedWorkerSQL("w1"))
 	es := NewExecutionStore(db, t.TempDir())
 	ctx := context.Background()
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','bot','/','idle',0,0)`)
 
 	p, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "p", SessionID: uuid.New().String(), Engine: "claude"})
 	r, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "r", SessionID: uuid.New().String(), Engine: "claude"})
@@ -660,96 +392,52 @@ func TestExecutionStore_ResetRunningExecutions(t *testing.T) {
 	_ = es.UpdateResult(c.ID, "done", model.ExecStatusCompleted)
 
 	n, err := es.ResetRunningExecutions(ctx)
-	if err != nil {
-		t.Fatalf("ResetRunningExecutions: %v", err)
-	}
-	if n != 2 {
-		t.Errorf("expected 2 rows updated (pending+running), got %d", n)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n, "expected 2 rows updated (pending+running)")
 
 	pg, _ := es.GetByID(p.ID)
-	if pg.Status != model.ExecStatusFailed {
-		t.Errorf("pending → failed: got %s", pg.Status)
-	}
-	if pg.Result != "abandoned: server restarted" {
-		t.Errorf("pending result: got %q", pg.Result)
-	}
-	if pg.CompletedAt == nil {
-		t.Error("pending completed_at must be set")
-	}
+	assert.Equal(t, model.ExecStatusFailed, pg.Status, "pending → failed")
+	assert.Equal(t, "abandoned: server restarted", pg.Result)
+	assert.NotNil(t, pg.CompletedAt, "pending completed_at must be set")
 
 	rg, _ := es.GetByID(r.ID)
-	if rg.Status != model.ExecStatusFailed {
-		t.Errorf("running → failed: got %s", rg.Status)
-	}
+	assert.Equal(t, model.ExecStatusFailed, rg.Status, "running → failed")
 
 	cg, _ := es.GetByID(c.ID)
-	if cg.Status != model.ExecStatusCompleted {
-		t.Errorf("completed must be untouched: got %s", cg.Status)
-	}
-	if cg.Result != "done" {
-		t.Errorf("completed result clobbered: got %q", cg.Result)
-	}
+	assert.Equal(t, model.ExecStatusCompleted, cg.Status, "completed must be untouched")
+	assert.Equal(t, "done", cg.Result, "completed result clobbered")
 }
 
 func TestExecutionStore_HasActiveExecutionsByWorkerID(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t, seedWorkerSQL("w1"), seedWorkerSQL("w2"))
 	es := NewExecutionStore(db, t.TempDir())
 	ctx := context.Background()
 
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','alice','/','idle',0,0)`)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','bob','/','idle',0,0)`)
-
 	// no executions → false for both workers
 	active, err := es.HasActiveExecutionsByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
-	}
-	if active {
-		t.Error("expected false with no executions")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false with no executions")
 
 	// create pending execution for w1
 	exec1, _ := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: "task", SessionID: "s1", Engine: "claude"})
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
-	}
-	if !active {
-		t.Error("expected true for w1 with pending execution")
-	}
+	require.NoError(t, err)
+	assert.True(t, active, "expected true for w1 with pending execution")
 
 	// w2 must not be affected by w1's execution
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w2")
-	if err != nil {
-		t.Fatalf("HasActiveExecutionsByWorkerID w2: %v", err)
-	}
-	if active {
-		t.Error("w2 should not be affected by w1's execution")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "w2 should not be affected by w1's execution")
 
 	// transition to running → still true
 	_ = es.UpdateStatus(exec1.ID, model.ExecStatusRunning)
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveExecutionsByWorkerID (running): %v", err)
-	}
-	if !active {
-		t.Error("expected true for w1 with running execution")
-	}
+	require.NoError(t, err)
+	assert.True(t, active, "expected true for w1 with running execution")
 
 	// complete w1's execution → false
 	_ = es.UpdateStatus(exec1.ID, model.ExecStatusCompleted)
 	active, err = es.HasActiveExecutionsByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveExecutionsByWorkerID: %v", err)
-	}
-	if active {
-		t.Error("expected false after completing w1 execution")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false after completing w1 execution")
 }

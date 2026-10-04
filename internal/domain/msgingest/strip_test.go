@@ -3,6 +3,8 @@ package msgingest
 import (
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func buildREs(plat, name string) map[string]*regexp.Regexp {
@@ -75,7 +77,7 @@ func TestStripBotMention(t *testing.T) {
 			platform:    "other",
 			regPlatform: "test", // bot registered for "test"; message from "other" → no-op
 			botName:     "机器人",
-			want:         "@机器人 /clear",
+			want:        "@机器人 /clear",
 		},
 		{
 			name:     "case sensitive no match",
@@ -144,9 +146,7 @@ func TestStripBotMention(t *testing.T) {
 			}
 			g := &Gateway{botNameREs: buildREs(regPlatform, tt.botName)}
 			got := g.stripBotMention(tt.content, tt.platform)
-			if got != tt.want {
-				t.Errorf("stripBotMention(%q, %q) = %q, want %q", tt.content, tt.platform, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

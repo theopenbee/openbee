@@ -1,61 +1,86 @@
 package upgradecmd
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func writeTestFile(t *testing.T, path, body string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o644), "write %s", path)
 }
 
 func assertFileContent(t *testing.T, path, want string) {
 	t.Helper()
 	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	if string(got) != want {
-		t.Fatalf("%s = %q, want %q", path, got, want)
-	}
+	require.NoError(t, err, "read %s", path)
+	require.Equal(t, want, string(got), "%s", path)
 }
 
+// TestReplaceByMovingAside merges the basic replace and the two leftover-file
+// variants: each pre-seeds zero or more stale "<execPath><suffix>" files
+// before replacing, then expects the new binary to land at execPath and the
+// previous binary to land at execPath+".old".
 func TestReplaceByMovingAside(t *testing.T) {
-	dir := t.TempDir()
-	execPath := filepath.Join(dir, "openbee.exe")
-	newPath := filepath.Join(dir, ".openbee-new-123")
-	writeTestFile(t, execPath, "old")
-	writeTestFile(t, newPath, "new")
-
-	if err := replaceByMovingAside(newPath, execPath); err != nil {
-		t.Fatalf("replaceByMovingAside: %v", err)
+	cases := []struct {
+		name string
+		// leftovers are pre-existing "<execPath><suffix>" files written before
+		// replacing; each must either be overwritten (".old") or removed.
+		leftovers []string
+		// unrelatedFile, if set, is a differently-named file (not an
+		// execPath-prefixed leftover) that must survive untouched.
+		unrelatedFile string
+	}{
+		{
+			name: "Basic",
+		},
+		{
+			name:      "RemovesLeftover",
+			leftovers: []string{".old"},
+		},
+		{
+			name:          "RemovesUniqueLeftovers",
+			leftovers:     []string{".old-1700000000"},
+			unrelatedFile: "openbee.exe.older",
+		},
 	}
-	assertFileContent(t, execPath, "new")
-	assertFileContent(t, execPath+".old", "old")
-	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
-		t.Fatalf("new binary should have been moved, stat err = %v", err)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			execPath := filepath.Join(dir, "openbee.exe")
+			newPath := filepath.Join(dir, ".openbee-new-123")
+			writeTestFile(t, execPath, "old")
+			writeTestFile(t, newPath, "new")
+			for _, suffix := range tc.leftovers {
+				writeTestFile(t, execPath+suffix, "stale-from-previous-upgrade")
+			}
+			var unrelated string
+			if tc.unrelatedFile != "" {
+				unrelated = filepath.Join(dir, tc.unrelatedFile)
+				writeTestFile(t, unrelated, "keep")
+			}
 
-func TestReplaceByMovingAsideRemovesLeftover(t *testing.T) {
-	dir := t.TempDir()
-	execPath := filepath.Join(dir, "openbee.exe")
-	newPath := filepath.Join(dir, ".openbee-new-123")
-	writeTestFile(t, execPath, "old")
-	writeTestFile(t, newPath, "new")
-	writeTestFile(t, execPath+".old", "stale-from-previous-upgrade")
-
-	if err := replaceByMovingAside(newPath, execPath); err != nil {
-		t.Fatalf("replaceByMovingAside with leftover .old: %v", err)
+			err := replaceByMovingAside(newPath, execPath)
+			require.NoError(t, err)
+			assertFileContent(t, execPath, "new")
+			assertFileContent(t, execPath+".old", "old")
+			_, err = os.Stat(newPath)
+			require.True(t, os.IsNotExist(err), "new binary should have been moved, stat err = %v", err)
+			for _, suffix := range tc.leftovers {
+				if suffix == ".old" {
+					continue // already verified above: its stale content was replaced
+				}
+				_, err := os.Stat(execPath + suffix)
+				require.True(t, os.IsNotExist(err), "leftover %s should have been removed, stat err = %v", suffix, err)
+			}
+			if unrelated != "" {
+				assertFileContent(t, unrelated, "keep")
+			}
+		})
 	}
-	assertFileContent(t, execPath, "new")
-	assertFileContent(t, execPath+".old", "old")
 }
 
 func TestReplaceByMovingAsideRestoresOnFailure(t *testing.T) {
@@ -65,13 +90,11 @@ func TestReplaceByMovingAsideRestoresOnFailure(t *testing.T) {
 	missingNew := filepath.Join(dir, "does-not-exist")
 
 	err := replaceByMovingAside(missingNew, execPath)
-	if err == nil || errors.Is(err, errBinaryStranded) {
-		t.Fatalf("replaceByMovingAside with missing new binary: err = %v, want a restored failure", err)
-	}
+	require.Error(t, err, "replaceByMovingAside with missing new binary: want a restored failure")
+	require.NotErrorIs(t, err, errBinaryStranded, "replaceByMovingAside with missing new binary: want a restored failure")
 	assertFileContent(t, execPath, "old")
-	if _, err := os.Stat(execPath + ".old"); !os.IsNotExist(err) {
-		t.Fatalf(".old should not remain after restore, stat err = %v", err)
-	}
+	_, err = os.Stat(execPath + ".old")
+	require.True(t, os.IsNotExist(err), ".old should not remain after restore, stat err = %v", err)
 }
 
 func TestReplaceByMovingAsideLeftoverStillInUse(t *testing.T) {
@@ -83,43 +106,17 @@ func TestReplaceByMovingAsideLeftoverStillInUse(t *testing.T) {
 	// A non-empty directory can't be removed on any OS, standing in for a
 	// Windows .old file still locked by a running process.
 	locked := filepath.Join(execPath+".old", "locked")
-	if err := os.MkdirAll(locked, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(locked, 0o755))
 
-	if err := replaceByMovingAside(newPath, execPath); err != nil {
-		t.Fatalf("replaceByMovingAside with undeletable .old: %v", err)
-	}
+	err := replaceByMovingAside(newPath, execPath)
+	require.NoError(t, err, "replaceByMovingAside with undeletable .old")
 	assertFileContent(t, execPath, "new")
-	if _, err := os.Stat(locked); err != nil {
-		t.Fatalf("locked .old should be left alone, stat err = %v", err)
-	}
+	_, err = os.Stat(locked)
+	require.NoError(t, err, "locked .old should be left alone")
 	aside, err := filepath.Glob(execPath + ".old-*")
-	if err != nil || len(aside) != 1 {
-		t.Fatalf("want exactly one %s.old-* file, got %v (err %v)", execPath, aside, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, aside, 1, "want exactly one %s.old-* file, got %v", execPath, aside)
 	assertFileContent(t, aside[0], "old")
-}
-
-func TestReplaceByMovingAsideRemovesUniqueLeftovers(t *testing.T) {
-	dir := t.TempDir()
-	execPath := filepath.Join(dir, "openbee.exe")
-	newPath := filepath.Join(dir, ".openbee-new-123")
-	writeTestFile(t, execPath, "old")
-	writeTestFile(t, newPath, "new")
-	writeTestFile(t, execPath+".old-1700000000", "stale")
-	unrelated := filepath.Join(dir, "openbee.exe.older")
-	writeTestFile(t, unrelated, "keep")
-
-	if err := replaceByMovingAside(newPath, execPath); err != nil {
-		t.Fatalf("replaceByMovingAside: %v", err)
-	}
-	assertFileContent(t, execPath, "new")
-	assertFileContent(t, execPath+".old", "old")
-	if _, err := os.Stat(execPath + ".old-1700000000"); !os.IsNotExist(err) {
-		t.Fatalf("leftover .old-* should have been removed, stat err = %v", err)
-	}
-	assertFileContent(t, unrelated, "keep")
 }
 
 func TestReplaceByMovingAsideKeepsBothBinariesWhenRestoreFails(t *testing.T) {
@@ -140,13 +137,9 @@ func TestReplaceByMovingAsideKeepsBothBinariesWhenRestoreFails(t *testing.T) {
 	t.Cleanup(func() { renameFile = orig })
 
 	err := replaceByMovingAside(newPath, execPath)
-	if !errors.Is(err, errBinaryStranded) {
-		t.Fatalf("replaceByMovingAside with failed restore: err = %v, want errBinaryStranded", err)
-	}
+	require.ErrorIs(t, err, errBinaryStranded, "replaceByMovingAside with failed restore")
 	for _, p := range []string{newPath, execPath + ".old"} {
-		if !strings.Contains(err.Error(), p) {
-			t.Fatalf("error %q does not name %s", err, p)
-		}
+		require.Contains(t, err.Error(), p)
 	}
 	assertFileContent(t, newPath, "new")
 	assertFileContent(t, execPath+".old", "old")

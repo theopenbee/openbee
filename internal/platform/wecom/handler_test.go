@@ -50,7 +50,7 @@ func newTestReceiver(mock *mockWsConn) *WeComReceiver {
 	var ps sync.Map
 	r := &WeComReceiver{
 		pendingStreams: &ps,
-		mediaSvc:      media.NewService(),
+		mediaSvc:       media.NewService(),
 	}
 	// Inject mock send function
 	r.sendReplyFn = mock.sendReply
@@ -87,80 +87,192 @@ func TestProcessMessage_Text(t *testing.T) {
 	assert.Equal(t, WsCmdResponse, mock.replies[0].cmd)
 }
 
-func TestProcessMessage_Voice(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiver(mock)
+// TestProcessMessage merges the single-field-check scenarios of processMessage
+// into one table; cases needing a download stub set withDownload.
+func TestProcessMessage(t *testing.T) {
+	cases := []struct {
+		name         string
+		reqID        string
+		body         messageBody
+		withDownload bool
+		check        func(t *testing.T, dispatched []platform.InboundMessage, mock *mockWsConn)
+	}{
+		{
+			name:  "Voice",
+			reqID: "req-002",
+			body: messageBody{
+				MsgID:    "msg-002",
+				ChatType: "single",
+				From:     messageFrom{UserID: "user2"},
+				MsgType:  "voice",
+				Voice:    &voiceContent{Content: "transcribed text"},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Equal(t, "transcribed text", dispatched[0].Content)
+				assert.Equal(t, "transcribed text", dispatched[0].RawContent)
+			},
+		},
+		{
+			name:  "GroupChat",
+			reqID: "req-003",
+			body: messageBody{
+				MsgID:    "msg-003",
+				ChatType: "group",
+				ChatID:   "group-chat-1",
+				From:     messageFrom{UserID: "user3"},
+				MsgType:  "text",
+				Text:     &textContent{Content: "group message"},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Equal(t, "wecom:group-chat-1:user3", dispatched[0].SessionKey)
+			},
+		},
+		{
+			name:  "EmptyText_Skipped",
+			reqID: "req-004",
+			body: messageBody{
+				MsgID:    "msg-004",
+				ChatType: "single",
+				From:     messageFrom{UserID: "user4"},
+				MsgType:  "text",
+				Text:     &textContent{Content: ""},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, mock *mockWsConn) {
+				assert.Empty(t, dispatched)
+				assert.Empty(t, mock.replies) // no thinking message either
+			},
+		},
+		{
+			name:  "UnsupportedMsgType_Skipped",
+			reqID: "req-005",
+			body: messageBody{
+				MsgID:    "msg-005",
+				ChatType: "single",
+				From:     messageFrom{UserID: "user5"},
+				MsgType:  "link", // unsupported
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				assert.Empty(t, dispatched)
+			},
+		},
+		{
+			name:         "Image",
+			reqID:        "req-010",
+			withDownload: true,
+			body: messageBody{
+				MsgID:    "msg-010",
+				ChatType: "single",
+				From:     messageFrom{UserID: "u1"},
+				MsgType:  "image",
+				Image:    &encryptedMedia{URL: "https://example.com/img.jpg", AesKey: "key1"},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Contains(t, dispatched[0].Content, "image")
+				assert.Equal(t, "", dispatched[0].RawContent)
+			},
+		},
+		{
+			name:         "File",
+			reqID:        "req-011",
+			withDownload: true,
+			body: messageBody{
+				MsgID:    "msg-011",
+				ChatType: "single",
+				From:     messageFrom{UserID: "u1"},
+				MsgType:  "file",
+				File:     &encryptedMedia{URL: "https://example.com/doc.pdf", AesKey: "key2"},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Contains(t, dispatched[0].Content, "document")
+			},
+		},
+		{
+			name:         "Mixed",
+			reqID:        "req-012",
+			withDownload: true,
+			body: messageBody{
+				MsgID:    "msg-012",
+				ChatType: "single",
+				From:     messageFrom{UserID: "u1"},
+				MsgType:  "mixed",
+				Mixed: &mixedContent{MsgItem: []mixedItem{
+					{MsgType: "text", Text: &textContent{Content: "look at this:"}},
+					{MsgType: "image", Image: &encryptedMedia{URL: "https://example.com/x.png", AesKey: "key3"}},
+				}},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Contains(t, dispatched[0].Content, "look at this:")
+				assert.Contains(t, dispatched[0].Content, "image")
+				assert.Equal(t, "look at this:", dispatched[0].RawContent)
+			},
+		},
+		{
+			name:         "TextWithQuote",
+			reqID:        "req-013",
+			withDownload: true,
+			body: messageBody{
+				MsgID:    "msg-013",
+				ChatType: "single",
+				From:     messageFrom{UserID: "u1"},
+				MsgType:  "text",
+				Text:     &textContent{Content: "my reply"},
+				Quote: &quoteContent{
+					MsgType: "text",
+					Text:    &textContent{Content: "quoted original"},
+				},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Contains(t, dispatched[0].Content, "my reply")
+				assert.Contains(t, dispatched[0].Content, "quoted original")
+			},
+		},
+		{
+			name:         "QuoteFile",
+			reqID:        "req-014",
+			withDownload: true,
+			body: messageBody{
+				MsgID:    "msg-014",
+				ChatType: "single",
+				From:     messageFrom{UserID: "u1"},
+				MsgType:  "text",
+				Text:     &textContent{Content: "see attached"},
+				Quote: &quoteContent{
+					MsgType: "file",
+					File:    &encryptedMedia{URL: "https://example.com/q.pdf", AesKey: "key4"},
+				},
+			},
+			check: func(t *testing.T, dispatched []platform.InboundMessage, _ *mockWsConn) {
+				require.Len(t, dispatched, 1)
+				assert.Contains(t, dispatched[0].Content, "see attached")
+				assert.Contains(t, dispatched[0].Content, "document")
+			},
+		},
+	}
 
-	frame := buildFrame(t, "req-002", messageBody{
-		MsgID:    "msg-002",
-		ChatType: "single",
-		From:     messageFrom{UserID: "user2"},
-		MsgType:  "voice",
-		Voice:    &voiceContent{Content: "transcribed text"},
-	})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &mockWsConn{}
+			var r *WeComReceiver
+			if tc.withDownload {
+				r = newTestReceiverWithDownload(mock)
+			} else {
+				r = newTestReceiver(mock)
+			}
 
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
+			frame := buildFrame(t, tc.reqID, tc.body)
 
-	require.Len(t, dispatched, 1)
-	assert.Equal(t, "transcribed text", dispatched[0].Content)
-	assert.Equal(t, "transcribed text", dispatched[0].RawContent)
-}
+			var dispatched []platform.InboundMessage
+			r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
 
-func TestProcessMessage_GroupChat(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiver(mock)
-
-	frame := buildFrame(t, "req-003", messageBody{
-		MsgID:    "msg-003",
-		ChatType: "group",
-		ChatID:   "group-chat-1",
-		From:     messageFrom{UserID: "user3"},
-		MsgType:  "text",
-		Text:     &textContent{Content: "group message"},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Equal(t, "wecom:group-chat-1:user3", dispatched[0].SessionKey)
-}
-
-func TestProcessMessage_EmptyText_Skipped(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiver(mock)
-
-	frame := buildFrame(t, "req-004", messageBody{
-		MsgID:    "msg-004",
-		ChatType: "single",
-		From:     messageFrom{UserID: "user4"},
-		MsgType:  "text",
-		Text:     &textContent{Content: ""},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	assert.Empty(t, dispatched)
-	assert.Empty(t, mock.replies) // no thinking message either
-}
-
-func TestProcessMessage_UnsupportedMsgType_Skipped(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiver(mock)
-
-	frame := buildFrame(t, "req-005", messageBody{
-		MsgID:    "msg-005",
-		ChatType: "single",
-		From:     messageFrom{UserID: "user5"},
-		MsgType:  "link", // unsupported
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	assert.Empty(t, dispatched)
+			tc.check(t, dispatched, mock)
+		})
+	}
 }
 
 func TestProcessMessage_PendingStreams(t *testing.T) {
@@ -194,117 +306,6 @@ func newTestReceiverWithDownload(mock *mockWsConn) *WeComReceiver {
 		return r.mediaSvc.BuildPlaceholder(mediaType, "/tmp/fake-"+mediaType, filename)
 	}
 	return r
-}
-
-func TestProcessMessage_Image(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiverWithDownload(mock)
-
-	frame := buildFrame(t, "req-010", messageBody{
-		MsgID:    "msg-010",
-		ChatType: "single",
-		From:     messageFrom{UserID: "u1"},
-		MsgType:  "image",
-		Image:    &encryptedMedia{URL: "https://example.com/img.jpg", AesKey: "key1"},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Contains(t, dispatched[0].Content, "image")
-	assert.Equal(t, "", dispatched[0].RawContent)
-}
-
-func TestProcessMessage_File(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiverWithDownload(mock)
-
-	frame := buildFrame(t, "req-011", messageBody{
-		MsgID:    "msg-011",
-		ChatType: "single",
-		From:     messageFrom{UserID: "u1"},
-		MsgType:  "file",
-		File:     &encryptedMedia{URL: "https://example.com/doc.pdf", AesKey: "key2"},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Contains(t, dispatched[0].Content, "document")
-}
-
-func TestProcessMessage_Mixed(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiverWithDownload(mock)
-
-	frame := buildFrame(t, "req-012", messageBody{
-		MsgID:    "msg-012",
-		ChatType: "single",
-		From:     messageFrom{UserID: "u1"},
-		MsgType:  "mixed",
-		Mixed: &mixedContent{MsgItem: []mixedItem{
-			{MsgType: "text", Text: &textContent{Content: "look at this:"}},
-			{MsgType: "image", Image: &encryptedMedia{URL: "https://example.com/x.png", AesKey: "key3"}},
-		}},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Contains(t, dispatched[0].Content, "look at this:")
-	assert.Contains(t, dispatched[0].Content, "image")
-	assert.Equal(t, "look at this:", dispatched[0].RawContent)
-}
-
-func TestProcessMessage_TextWithQuote(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiverWithDownload(mock)
-
-	frame := buildFrame(t, "req-013", messageBody{
-		MsgID:    "msg-013",
-		ChatType: "single",
-		From:     messageFrom{UserID: "u1"},
-		MsgType:  "text",
-		Text:     &textContent{Content: "my reply"},
-		Quote: &quoteContent{
-			MsgType: "text",
-			Text:    &textContent{Content: "quoted original"},
-		},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Contains(t, dispatched[0].Content, "my reply")
-	assert.Contains(t, dispatched[0].Content, "quoted original")
-}
-
-func TestProcessMessage_QuoteFile(t *testing.T) {
-	mock := &mockWsConn{}
-	r := newTestReceiverWithDownload(mock)
-
-	frame := buildFrame(t, "req-014", messageBody{
-		MsgID:    "msg-014",
-		ChatType: "single",
-		From:     messageFrom{UserID: "u1"},
-		MsgType:  "text",
-		Text:     &textContent{Content: "see attached"},
-		Quote: &quoteContent{
-			MsgType: "file",
-			File:    &encryptedMedia{URL: "https://example.com/q.pdf", AesKey: "key4"},
-		},
-	})
-
-	var dispatched []platform.InboundMessage
-	r.processMessage(frame, func(m platform.InboundMessage) { dispatched = append(dispatched, m) })
-
-	require.Len(t, dispatched, 1)
-	assert.Contains(t, dispatched[0].Content, "see attached")
-	assert.Contains(t, dispatched[0].Content, "document")
 }
 
 // mockSendReply records all SendReply calls and returns a configurable response.
@@ -436,58 +437,37 @@ func TestExtractContext_SingleChat(t *testing.T) {
 	body := `{"msgid":"msg1","aibotid":"bot1","chatid":"","chattype":"single","from":{"userid":"user1"},"msgtype":"text","create_time":1700000000}`
 	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":` + body + `}`
 	got := ExtractContext(frame)
-	if got == "" {
-		t.Fatal("expected non-empty context")
-	}
+	require.NotEmpty(t, got)
 	// from must be a nested object, not flattened
-	if !strings.Contains(got, `"from"`) {
-		t.Errorf("expected 'from' key in context, got: %q", got)
-	}
-	if !strings.Contains(got, `"userid":"user1"`) {
-		t.Errorf("expected userid inside from, got: %q", got)
-	}
+	assert.Contains(t, got, `"from"`)
+	assert.Contains(t, got, `"userid":"user1"`)
 	// single chat: chatid must be empty string, NOT overridden with userid
-	if !strings.Contains(got, `"chatid":""`) {
-		t.Errorf("expected empty chatid for single chat, got: %q", got)
-	}
+	assert.Contains(t, got, `"chatid":""`)
 	// msgtype must be present
-	if !strings.Contains(got, `"msgtype":"text"`) {
-		t.Errorf("expected msgtype in context, got: %q", got)
-	}
+	assert.Contains(t, got, `"msgtype":"text"`)
 	// userid must NOT appear as a top-level key (old flattened field)
-	if strings.Contains(got, `"userid":"user1","`) || strings.HasPrefix(got, `{"wecom":{"userid"`) {
-		t.Errorf("userid should not be a top-level context field, got: %q", got)
-	}
+	assert.NotContains(t, got, `"userid":"user1","`)
+	assert.False(t, strings.HasPrefix(got, `{"wecom":{"userid"`), "userid should not be a top-level context field")
 }
 
 func TestExtractContext_GroupChat(t *testing.T) {
 	body := `{"msgid":"msg2","aibotid":"bot1","chatid":"group1","chattype":"group","from":{"userid":"user1"},"msgtype":"text","create_time":1700000000}`
 	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":` + body + `}`
 	got := ExtractContext(frame)
-	if got == "" {
-		t.Fatal("expected non-empty context")
-	}
+	require.NotEmpty(t, got)
 	// group chat: chatid must be the group ID
-	if !strings.Contains(got, `"chatid":"group1"`) {
-		t.Errorf("expected group chatid, got: %q", got)
-	}
-	if !strings.Contains(got, `"chattype":"group"`) {
-		t.Errorf("expected chattype group, got: %q", got)
-	}
+	assert.Contains(t, got, `"chatid":"group1"`)
+	assert.Contains(t, got, `"chattype":"group"`)
 }
 
 func TestExtractContext_InvalidRaw(t *testing.T) {
 	got := ExtractContext("not-json")
-	if got != "" {
-		t.Errorf("expected empty string for invalid raw, got %q", got)
-	}
+	assert.Empty(t, got)
 }
 
 func TestExtractContext_InvalidBody(t *testing.T) {
 	// Valid WsFrame but body is not a messageBody
 	frame := `{"cmd":"aibot_callback","headers":{"req_id":"req1"},"body":"not-an-object"}`
 	got := ExtractContext(frame)
-	if got != "" {
-		t.Errorf("expected empty string for invalid body, got %q", got)
-	}
+	assert.Empty(t, got)
 }

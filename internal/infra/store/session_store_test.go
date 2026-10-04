@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
@@ -12,43 +15,48 @@ import (
 func setupSessionDB(t *testing.T) (*sql.DB, *store.SessionStore) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return db, store.NewSessionStore(db)
 }
 
-func TestSessionStore_GetSessionContext_MissReturnsEmpty(t *testing.T) {
-	_, ss := setupSessionDB(t)
-	got, engine, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// TestSessionStore_GetSessionContext merges the former MissReturnsEmpty,
+// UpsertAndGet, and GetSessionContextForEngine_EngineMismatch tests: all three
+// upsert (optionally) then read back a session, differing only in which
+// lookup method is used and what they expect to find.
+func TestSessionStore_GetSessionContext(t *testing.T) {
+	tests := []struct {
+		name       string
+		upsert     bool
+		forEngine  string // non-empty uses GetSessionContextForEngine instead of GetSessionContext
+		wantSessID string
+	}{
+		{name: "MissReturnsEmpty"},
+		{name: "UpsertAndGet", upsert: true, wantSessID: "sess-abc"},
+		{name: "EngineMismatch", upsert: true, forEngine: "codex"},
 	}
-	if got != "" {
-		t.Errorf("expected empty string on miss, got %q", got)
-	}
-	if engine != "" {
-		t.Errorf("expected empty engine on miss, got %q", engine)
-	}
-}
-
-func TestSessionStore_UpsertAndGet(t *testing.T) {
-	_, ss := setupSessionDB(t)
-	ctx := context.Background()
-
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "sess-abc", "claude"); err != nil {
-		t.Fatalf("upsert: %v", err)
-	}
-	got, engine, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if got != "sess-abc" {
-		t.Errorf("expected sess-abc, got %q", got)
-	}
-	if engine != "claude" {
-		t.Errorf("expected claude, got %q", engine)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, ss := setupSessionDB(t)
+			ctx := context.Background()
+			if tt.upsert {
+				require.NoError(t, ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "sess-abc", "claude"))
+			}
+			if tt.forEngine != "" {
+				got, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, tt.forEngine)
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantSessID, got)
+				return
+			}
+			got, engine, err := ss.GetSessionContext(ctx, "sk", store.BeeAgentID)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSessID, got)
+			wantEngine := ""
+			if tt.upsert {
+				wantEngine = "claude"
+			}
+			assert.Equal(t, wantEngine, engine)
+		})
 	}
 }
 
@@ -60,12 +68,8 @@ func TestSessionStore_Upsert_Overwrites(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "new", "claude") //nolint:errcheck
 
 	got, engine, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
-	if got != "new" {
-		t.Errorf("expected new, got %q", got)
-	}
-	if engine != "claude" {
-		t.Errorf("expected claude, got %q", engine)
-	}
+	assert.Equal(t, "new", got)
+	assert.Equal(t, "claude", engine)
 }
 
 func TestSessionStore_AgentsAreIsolated(t *testing.T) {
@@ -77,12 +81,8 @@ func TestSessionStore_AgentsAreIsolated(t *testing.T) {
 
 	beeSess, _, _ := ss.GetSessionContext(ctx, "k", store.BeeAgentID)
 	workerSess, _, _ := ss.GetSessionContext(ctx, "k", "worker-1")
-	if beeSess != "bee-sess" {
-		t.Errorf("bee: expected bee-sess, got %q", beeSess)
-	}
-	if workerSess != "worker-sess" {
-		t.Errorf("worker: expected worker-sess, got %q", workerSess)
-	}
+	assert.Equal(t, "bee-sess", beeSess, "bee")
+	assert.Equal(t, "worker-sess", workerSess, "worker")
 }
 
 func TestSessionStore_ClearSessionContexts(t *testing.T) {
@@ -92,14 +92,10 @@ func TestSessionStore_ClearSessionContexts(t *testing.T) {
 
 	// worker-explicit: engine explicitly set to "claude" in bee_workers.
 	wExplicit, err := ws.Create(model.Worker{Name: "explicit", WorkDir: t.TempDir(), Engine: "claude"})
-	if err != nil {
-		t.Fatalf("create worker explicit: %v", err)
-	}
+	require.NoError(t, err, "create worker explicit")
 	// worker-fallback: no engine set in bee_workers → falls back to beeEngine.
 	wFallback, err := ws.Create(model.Worker{Name: "fallback", WorkDir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("create worker fallback: %v", err)
-	}
+	require.NoError(t, err, "create worker fallback")
 
 	// bee: two engines.
 	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "claude") //nolint:errcheck
@@ -115,60 +111,38 @@ func TestSessionStore_ClearSessionContexts(t *testing.T) {
 	// unrelated session: must survive.
 	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "claude") //nolint:errcheck
 
-	if err := ss.ClearSessionContexts(ctx, "k", "claude"); err != nil {
-		t.Fatalf("clear: %v", err)
-	}
+	require.NoError(t, ss.ClearSessionContexts(ctx, "k", "claude"))
 
 	// bee/claude → cleared.
 	beeClaude, _ := ss.GetSessionContextForEngine(ctx, "k", store.BeeAgentID, "claude")
-	if beeClaude != "" {
-		t.Errorf("bee/claude should be cleared, got %q", beeClaude)
-	}
+	assert.Equal(t, "", beeClaude, "bee/claude should be cleared")
 	// bee/codex → retained.
 	beeCodex, _ := ss.GetSessionContextForEngine(ctx, "k", store.BeeAgentID, "codex")
-	if beeCodex != "bee-codex" {
-		t.Errorf("bee/codex should be retained, got %q", beeCodex)
-	}
+	assert.Equal(t, "bee-codex", beeCodex, "bee/codex should be retained")
 	// worker-explicit/claude → cleared (engine matches bee_workers.engine).
 	wexClaude, _ := ss.GetSessionContextForEngine(ctx, "k", wExplicit.ID, "claude")
-	if wexClaude != "" {
-		t.Errorf("worker-explicit/claude should be cleared, got %q", wexClaude)
-	}
+	assert.Equal(t, "", wexClaude, "worker-explicit/claude should be cleared")
 	// worker-explicit/codex → retained (engine mismatch).
 	wexCodex, _ := ss.GetSessionContextForEngine(ctx, "k", wExplicit.ID, "codex")
-	if wexCodex != "wex-codex" {
-		t.Errorf("worker-explicit/codex should be retained, got %q", wexCodex)
-	}
+	assert.Equal(t, "wex-codex", wexCodex, "worker-explicit/codex should be retained")
 	// worker-fallback/claude → cleared (engine="" falls back to beeEngine "claude").
 	wfbClaude, _ := ss.GetSessionContextForEngine(ctx, "k", wFallback.ID, "claude")
-	if wfbClaude != "" {
-		t.Errorf("worker-fallback/claude should be cleared, got %q", wfbClaude)
-	}
+	assert.Equal(t, "", wfbClaude, "worker-fallback/claude should be cleared")
 	// ghost worker → all records cleared (orphan cleanup).
 	ghostClaude, _ := ss.GetSessionContextForEngine(ctx, "k", "ghost-id", "claude")
 	ghostCodex, _ := ss.GetSessionContextForEngine(ctx, "k", "ghost-id", "codex")
-	if ghostClaude != "" {
-		t.Errorf("ghost/claude should be cleared, got %q", ghostClaude)
-	}
-	if ghostCodex != "" {
-		t.Errorf("ghost/codex should be cleared, got %q", ghostCodex)
-	}
+	assert.Equal(t, "", ghostClaude, "ghost/claude should be cleared")
+	assert.Equal(t, "", ghostCodex, "ghost/codex should be cleared")
 	// unrelated session → untouched.
 	otherSess, _, _ := ss.GetSessionContext(ctx, "other", store.BeeAgentID)
-	if otherSess != "other-sess" {
-		t.Errorf("other session must not be cleared, got %q", otherSess)
-	}
+	assert.Equal(t, "other-sess", otherSess, "other session must not be cleared")
 }
 
 func TestSessionStore_ListSessionContexts_Empty(t *testing.T) {
 	_, ss := setupSessionDB(t)
 	got, err := ss.ListSessionContexts(context.Background(), "no-such-session")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 0 {
-		t.Errorf("expected empty slice, got %v", got)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }
 
 func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
@@ -177,20 +151,14 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 
 	ws := store.NewWorkerStore(db)
 	w, err := ws.Create(model.Worker{Name: "TianTian", WorkDir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("create worker: %v", err)
-	}
+	require.NoError(t, err, "create worker")
 
 	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "bee-sid", "claude") //nolint:errcheck
 	ss.UpsertSessionContext(ctx, "sk", w.ID, "worker-sid", "claude")          //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 entries, got %d: %+v", len(got), got)
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 2)
 
 	byAgent := make(map[string]store.SessionAgent)
 	for _, a := range got {
@@ -198,14 +166,14 @@ func TestSessionStore_ListSessionContexts_BeeAndWorker(t *testing.T) {
 	}
 
 	bee := byAgent[store.BeeAgentID]
-	if bee.AgentType != "bee" || bee.Name != "bee" || bee.Engine != "claude" {
-		t.Errorf("bee entry: got type=%q name=%q engine=%q", bee.AgentType, bee.Name, bee.Engine)
-	}
+	assert.Equal(t, "bee", bee.AgentType, "bee entry")
+	assert.Equal(t, "bee", bee.Name, "bee entry")
+	assert.Equal(t, "claude", bee.Engine, "bee entry")
 
 	wkr := byAgent[w.ID]
-	if wkr.AgentType != "worker" || wkr.Name != "TianTian" || wkr.Engine != "claude" {
-		t.Errorf("worker entry: got type=%q name=%q engine=%q", wkr.AgentType, wkr.Name, wkr.Engine)
-	}
+	assert.Equal(t, "worker", wkr.AgentType, "worker entry")
+	assert.Equal(t, "TianTian", wkr.Name, "worker entry")
+	assert.Equal(t, "claude", wkr.Engine, "worker entry")
 }
 
 func TestSessionStore_ListSessionContexts_DeletedWorker(t *testing.T) {
@@ -215,21 +183,11 @@ func TestSessionStore_ListSessionContexts_DeletedWorker(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", "ghost-worker-id", "sid", "claude") //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(got))
-	}
-	if got[0].Name != "(deleted)" {
-		t.Errorf("expected (deleted), got %q", got[0].Name)
-	}
-	if got[0].AgentType != "worker" {
-		t.Errorf("expected type=worker, got %q", got[0].AgentType)
-	}
-	if got[0].Engine != "claude" {
-		t.Errorf("expected engine=claude, got %q", got[0].Engine)
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "(deleted)", got[0].Name)
+	assert.Equal(t, "worker", got[0].AgentType)
+	assert.Equal(t, "claude", got[0].Engine)
 }
 
 func TestSessionStore_ListSessionContexts_MultipleEngines(t *testing.T) {
@@ -240,20 +198,15 @@ func TestSessionStore_ListSessionContexts_MultipleEngines(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", "worker-1", "codex-sid", "codex")   //nolint:errcheck
 
 	got, err := ss.ListSessionContexts(ctx, "sk")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(got))
-	}
+	require.NoError(t, err)
+	require.Len(t, got, 2)
 
 	engines := map[string]bool{}
 	for _, entry := range got {
 		engines[entry.Engine] = true
 	}
-	if !engines["claude"] || !engines["codex"] {
-		t.Fatalf("expected both claude and codex entries, got %+v", got)
-	}
+	require.True(t, engines["claude"], "expected claude entry, got %+v", got)
+	require.True(t, engines["codex"], "expected codex entry, got %+v", got)
 }
 
 func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
@@ -262,17 +215,11 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 	ws := store.NewWorkerStore(db)
 
 	wExplicitClaude, err := ws.Create(model.Worker{Name: "explicit-claude", WorkDir: t.TempDir(), Engine: "claude"})
-	if err != nil {
-		t.Fatalf("create wExplicitClaude: %v", err)
-	}
+	require.NoError(t, err, "create wExplicitClaude")
 	wExplicitCodex, err := ws.Create(model.Worker{Name: "explicit-codex", WorkDir: t.TempDir(), Engine: "codex"})
-	if err != nil {
-		t.Fatalf("create wExplicitCodex: %v", err)
-	}
+	require.NoError(t, err, "create wExplicitCodex")
 	wFallback, err := ws.Create(model.Worker{Name: "fallback", WorkDir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("create wFallback: %v", err)
-	}
+	require.NoError(t, err, "create wFallback")
 
 	// bee under two engines.
 	ss.UpsertSessionContext(ctx, "k", store.BeeAgentID, "bee-claude", "claude") //nolint:errcheck
@@ -292,9 +239,7 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "other", store.BeeAgentID, "other-sess", "claude") //nolint:errcheck
 
 	got, err := ss.ListActiveSessionContexts(ctx, "k", "claude")
-	if err != nil {
-		t.Fatalf("list active: %v", err)
-	}
+	require.NoError(t, err, "list active")
 
 	type key struct{ agent, engine string }
 	active := make(map[key]store.SessionAgent)
@@ -311,9 +256,8 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 		{"ghost-id", "codex"},
 	}
 	for _, k := range wantActive {
-		if _, ok := active[k]; !ok {
-			t.Errorf("expected active entry for %+v, not returned", k)
-		}
+		_, ok := active[k]
+		assert.True(t, ok, "expected active entry for %+v, not returned", k)
 	}
 
 	wantInactive := []key{
@@ -322,25 +266,21 @@ func TestSessionStore_ListActiveSessionContexts(t *testing.T) {
 		{wExplicitCodex.ID, "claude"},
 	}
 	for _, k := range wantInactive {
-		if _, ok := active[k]; ok {
-			t.Errorf("expected inactive entry %+v to be filtered out", k)
-		}
+		_, ok := active[k]
+		assert.False(t, ok, "expected inactive entry %+v to be filtered out", k)
 	}
 
 	for _, a := range got {
 		switch a.AgentID {
 		case store.BeeAgentID:
-			if a.AgentType != "bee" || a.Name != "bee" {
-				t.Errorf("bee row: got type=%q name=%q", a.AgentType, a.Name)
-			}
+			assert.Equal(t, "bee", a.AgentType, "bee row")
+			assert.Equal(t, "bee", a.Name, "bee row")
 		case "ghost-id":
-			if a.AgentType != "worker" || a.Name != "(deleted)" {
-				t.Errorf("ghost row: got type=%q name=%q", a.AgentType, a.Name)
-			}
+			assert.Equal(t, "worker", a.AgentType, "ghost row")
+			assert.Equal(t, "(deleted)", a.Name, "ghost row")
 		default:
-			if a.AgentType != "worker" || a.Name == "" {
-				t.Errorf("worker row %s: got type=%q name=%q", a.AgentID, a.AgentType, a.Name)
-			}
+			assert.Equal(t, "worker", a.AgentType, "worker row %s", a.AgentID)
+			assert.NotEmpty(t, a.Name, "worker row %s", a.AgentID)
 		}
 	}
 }
@@ -352,37 +292,13 @@ func TestSessionStore_DeleteSessionContextForEngine_Basic(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-claude", "claude") //nolint:errcheck
 	ss.UpsertSessionContext(ctx, "sk", "worker-1", "w1-codex", "codex")   //nolint:errcheck
 
-	if _, err := ss.DeleteSessionContextForEngine(ctx, "sk", "worker-1", "codex"); err != nil {
-		t.Fatalf("delete by engine: %v", err)
-	}
+	_, err := ss.DeleteSessionContextForEngine(ctx, "sk", "worker-1", "codex")
+	require.NoError(t, err, "delete by engine")
 
 	claude, _ := ss.GetSessionContextForEngine(ctx, "sk", "worker-1", "claude")
 	codex, _ := ss.GetSessionContextForEngine(ctx, "sk", "worker-1", "codex")
-	if claude != "w1-claude" {
-		t.Errorf("expected claude context preserved, got %q", claude)
-	}
-	if codex != "" {
-		t.Errorf("expected codex context cleared, got %q", codex)
-	}
-}
-
-func TestSessionStore_GetSessionContextForEngine_EngineMismatch(t *testing.T) {
-	_, ss := setupSessionDB(t)
-	ctx := context.Background()
-
-	// Store a claude session
-	if err := ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "claude-sid", "claude"); err != nil {
-		t.Fatalf("upsert: %v", err)
-	}
-
-	// Switching to codex must not reuse the claude session
-	got, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "codex")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "" {
-		t.Errorf("expected empty session for codex after claude stored, got %q", got)
-	}
+	assert.Equal(t, "w1-claude", claude, "expected claude context preserved")
+	assert.Equal(t, "", codex, "expected codex context cleared")
 }
 
 func TestSessionStore_DifferentEnginesCoexist(t *testing.T) {
@@ -393,17 +309,9 @@ func TestSessionStore_DifferentEnginesCoexist(t *testing.T) {
 	ss.UpsertSessionContext(ctx, "sk", store.BeeAgentID, "codex-sid", "codex")   //nolint:errcheck
 
 	claude, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "claude")
-	if err != nil {
-		t.Fatalf("get claude: %v", err)
-	}
+	require.NoError(t, err, "get claude")
 	codex, err := ss.GetSessionContextForEngine(ctx, "sk", store.BeeAgentID, "codex")
-	if err != nil {
-		t.Fatalf("get codex: %v", err)
-	}
-	if claude != "claude-sid" {
-		t.Errorf("expected claude-sid, got %q", claude)
-	}
-	if codex != "codex-sid" {
-		t.Errorf("expected codex-sid, got %q", codex)
-	}
+	require.NoError(t, err, "get codex")
+	assert.Equal(t, "claude-sid", claude)
+	assert.Equal(t, "codex-sid", codex)
 }

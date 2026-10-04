@@ -6,69 +6,84 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/utils"
 )
 
 var errFake = errors.New("fake error")
 
-func TestRetryWithBackoff_SuccessOnFirst(t *testing.T) {
-	calls := 0
-	err := utils.RetryWithBackoff(context.Background(), func() error {
-		calls++
-		return nil
-	}, 5, time.Millisecond)
-	if err != nil {
-		t.Fatalf("expected nil, got %v", err)
+// TestRetryWithBackoff merges the retry-outcome scenarios (success on first/third
+// attempt, exhausting all retries, and context cancellation mid-retry) into one
+// table. Each case builds its own context/counter so state is never shared.
+func TestRetryWithBackoff(t *testing.T) {
+	cases := []struct {
+		name       string
+		maxRetries int
+		fn         func(calls *int, cancel func()) error
+		wantErrIs  error // nil means expect success
+		wantCalls  int
+	}{
+		{
+			name:       "SuccessOnFirst",
+			maxRetries: 5,
+			fn: func(calls *int, _ func()) error {
+				*calls++
+				return nil
+			},
+			wantCalls: 1,
+		},
+		{
+			name:       "SuccessOnThird",
+			maxRetries: 5,
+			fn: func(calls *int, _ func()) error {
+				*calls++
+				if *calls < 3 {
+					return errFake
+				}
+				return nil
+			},
+			wantCalls: 3,
+		},
+		{
+			name:       "AllFail",
+			maxRetries: 5,
+			fn: func(calls *int, _ func()) error {
+				*calls++
+				return errFake
+			},
+			wantErrIs: errFake,
+			wantCalls: 5,
+		},
+		{
+			name:       "ContextCancelled",
+			maxRetries: 5,
+			fn: func(calls *int, cancel func()) error {
+				*calls++
+				cancel() // cancel after first failure
+				return errFake
+			},
+			wantErrIs: context.Canceled,
+			wantCalls: 1,
+		},
 	}
-	if calls != 1 {
-		t.Fatalf("expected 1 call, got %d", calls)
-	}
-}
 
-func TestRetryWithBackoff_SuccessOnThird(t *testing.T) {
-	calls := 0
-	err := utils.RetryWithBackoff(context.Background(), func() error {
-		calls++
-		if calls < 3 {
-			return errFake
-		}
-		return nil
-	}, 5, time.Millisecond)
-	if err != nil {
-		t.Fatalf("expected nil, got %v", err)
-	}
-	if calls != 3 {
-		t.Fatalf("expected 3 calls, got %d", calls)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			err := utils.RetryWithBackoff(ctx, func() error {
+				return tc.fn(&calls, cancel)
+			}, tc.maxRetries, time.Millisecond)
 
-func TestRetryWithBackoff_AllFail(t *testing.T) {
-	calls := 0
-	err := utils.RetryWithBackoff(context.Background(), func() error {
-		calls++
-		return errFake
-	}, 5, time.Millisecond)
-	if !errors.Is(err, errFake) {
-		t.Fatalf("expected errFake, got %v", err)
-	}
-	if calls != 5 {
-		t.Fatalf("expected 5 calls, got %d", calls)
-	}
-}
-
-func TestRetryWithBackoff_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	calls := 0
-	err := utils.RetryWithBackoff(ctx, func() error {
-		calls++
-		cancel() // cancel after first failure
-		return errFake
-	}, 5, time.Millisecond)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("expected context.Canceled, got %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("expected 1 call before cancel, got %d", calls)
+			if tc.wantErrIs != nil {
+				require.ErrorIs(t, err, tc.wantErrIs)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantCalls, calls)
+		})
 	}
 }
 
@@ -78,10 +93,6 @@ func TestRetryWithBackoff_ZeroMaxRetries(t *testing.T) {
 		called = true
 		return errFake
 	}, 0, time.Millisecond)
-	if !errors.Is(err, errFake) {
-		t.Fatalf("expected errFake, got %v", err)
-	}
-	if !called {
-		t.Fatal("expected fn to be called once")
-	}
+	require.ErrorIs(t, err, errFake)
+	require.True(t, called, "expected fn to be called once")
 }
