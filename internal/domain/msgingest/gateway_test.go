@@ -97,7 +97,6 @@ func TestGateway_DebounceMerge(t *testing.T) {
 		msgs         []platform.InboundMessage
 		wantContent  string
 		waitTimeout  time.Duration
-		checkNoExtra bool
 		extraTimeout time.Duration
 	}{
 		{
@@ -109,7 +108,6 @@ func TestGateway_DebounceMerge(t *testing.T) {
 			},
 			wantContent:  "hello\n\n---\n\nworld",
 			waitTimeout:  500 * time.Millisecond,
-			checkNoExtra: true,
 			extraTimeout: 200 * time.Millisecond,
 		},
 		{
@@ -128,7 +126,6 @@ func TestGateway_DebounceMerge(t *testing.T) {
 			},
 			wantContent:  "hello\n\n---\n\nclear",
 			waitTimeout:  500 * time.Millisecond,
-			checkNoExtra: true,
 			extraTimeout: 300 * time.Millisecond,
 		},
 	}
@@ -152,7 +149,7 @@ func TestGateway_DebounceMerge(t *testing.T) {
 				t.Fatal("timeout waiting for debounced message")
 			}
 
-			if tc.checkNoExtra {
+			if tc.extraTimeout > 0 {
 				select {
 				case extra := <-g.Out():
 					t.Fatalf("expected only one message, got extra: %+v", extra)

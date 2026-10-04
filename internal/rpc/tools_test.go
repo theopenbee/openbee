@@ -409,55 +409,89 @@ func TestCallTool_ClearSession_EmptySession_ReturnsNoContext(t *testing.T) {
 	assert.Empty(t, clearer.cleared, "ClearSession must not be called when session is empty")
 }
 
-func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
-	s, db, stopper, clearer := setupServerWithClear(t)
-	ctx := context.Background()
+func TestCallTool_ClearSession_StopsRunningTask(t *testing.T) {
+	cases := []struct {
+		name             string
+		sessionKey       string
+		msgID            string
+		execID           string
+		extraPendingTask bool
+		check            func(t *testing.T, m map[string]any)
+	}{
+		{
+			name:             "CancelsAndStopsTasks",
+			sessionKey:       "session-Y",
+			msgID:            "msg-c1",
+			execID:           "exec-running-1",
+			extraPendingTask: true,
+			check: func(t *testing.T, m map[string]any) {
+				cancelled, ok := m["cancelled_tasks"].(int64)
+				assert.True(t, ok)
+				assert.GreaterOrEqual(t, cancelled, int64(1))
+			},
+		},
+		{
+			name:       "ForceSkipsTaskDetection",
+			sessionKey: "session-FSD",
+			msgID:      "msg-fsd1",
+			execID:     "exec-fsd-1",
+			check: func(t *testing.T, m map[string]any) {
+				assert.Equal(t, true, m["cleared"])
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db, stopper, clearer := setupServerWithClear(t)
+			ctx := context.Background()
 
-	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-c1", "session-Y", "feishu", "hi", `{}`, "", 0) //nolint
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
 
-	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
-	// Create a running task with a running execution in bee_executions.
-	ts := store.NewTaskStore(db)
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "msg-c1", WorkerID: w.ID, Instruction: "long task",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-	// Insert a corresponding execution row so GetRunningByTaskID can find it.
-	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-running-1", id, w.ID, model.ExecStatusRunning) //nolint
+			// Create a running task with a running execution in bee_executions.
+			ts := store.NewTaskStore(db)
+			id, _ := ts.Create(ctx, model.Task{
+				MessageID: tc.msgID, WorkerID: w.ID, Instruction: "long task",
+				Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+				CreatedAt: 1, UpdatedAt: 1,
+			})
+			// Insert a corresponding execution row so GetRunningByTaskID can find it.
+			db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, tc.execID, id, w.ID, model.ExecStatusRunning) //nolint
 
-	// Create a pending task.
-	ts.Create(ctx, model.Task{
-		MessageID: "msg-c1", WorkerID: w.ID, Instruction: "queued task",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
+			if tc.extraPendingTask {
+				// Create a pending task.
+				ts.Create(ctx, model.Task{ //nolint
+					MessageID: tc.msgID, WorkerID: w.ID, Instruction: "queued task",
+					Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+					CreatedAt: 1, UpdatedAt: 1,
+				})
+			}
 
-	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
-		"session_key": "session-Y",
-		"force":       true,
-	}))
-	require.NoError(t, err)
-	m := result.(map[string]any)
-	cancelled, ok := m["cancelled_tasks"].(int64)
-	assert.True(t, ok)
-	assert.GreaterOrEqual(t, cancelled, int64(1))
+			result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+				"session_key": tc.sessionKey,
+				"force":       true,
+			}))
+			require.NoError(t, err)
+			m := result.(map[string]any)
+			tc.check(t, m)
 
-	// StopExecution should have been called for the running task.
-	// guard: length check protects the stopper.stopped[0] index below.
-	stopper.mu.Lock()
-	defer stopper.mu.Unlock()
-	require.Len(t, stopper.stopped, 1)
-	assert.Equal(t, "exec-running-1", stopper.stopped[0])
+			// StopExecution should have been called for the running task.
+			// guard: length check protects the stopper.stopped[0] index below.
+			stopper.mu.Lock()
+			defer stopper.mu.Unlock()
+			require.Len(t, stopper.stopped, 1)
+			assert.Equal(t, tc.execID, stopper.stopped[0])
 
-	// ClearSession should have been called.
-	// guard: length check protects the clearer.cleared[0] index below.
-	clearer.mu.Lock()
-	defer clearer.mu.Unlock()
-	require.Len(t, clearer.cleared, 1)
-	assert.Equal(t, "session-Y", clearer.cleared[0])
+			// ClearSession should have been called.
+			// guard: length check protects the clearer.cleared[0] index below.
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			require.Len(t, clearer.cleared, 1)
+			assert.Equal(t, tc.sessionKey, clearer.cleared[0])
+		})
+	}
 }
 
 func TestCallTool_ClearSession_MissingSessionKey(t *testing.T) {
@@ -843,45 +877,6 @@ func TestCallTool_ClearSession_ActiveTask(t *testing.T) {
 			assert.Empty(t, clearer.cleared, "ClearSession must not be called on confirmation prompt")
 		})
 	}
-}
-
-func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
-	s, db, stopper, clearer := setupServerWithClear(t)
-	ctx := context.Background()
-
-	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-fsd1", "session-FSD", "feishu", "hi", `{}`, "", 0) //nolint
-
-	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
-
-	ts := store.NewTaskStore(db)
-	taskID, _ := ts.Create(ctx, model.Task{
-		MessageID: "msg-fsd1", WorkerID: w.ID, Instruction: "long task",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-	// Insert a corresponding execution row so GetRunningByTaskID can find it.
-	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-fsd-1", taskID, w.ID, model.ExecStatusRunning) //nolint
-
-	result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
-		"session_key": "session-FSD",
-		"force":       true,
-	}))
-	require.NoError(t, err)
-	m := result.(map[string]any)
-	assert.Equal(t, true, m["cleared"])
-
-	// guard: length check protects the stopper.stopped[0] index below.
-	stopper.mu.Lock()
-	defer stopper.mu.Unlock()
-	require.Len(t, stopper.stopped, 1)
-	assert.Equal(t, "exec-fsd-1", stopper.stopped[0])
-
-	// guard: length check protects the clearer.cleared[0] index below.
-	clearer.mu.Lock()
-	defer clearer.mu.Unlock()
-	require.Len(t, clearer.cleared, 1)
-	assert.Equal(t, "session-FSD", clearer.cleared[0])
 }
 
 func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {

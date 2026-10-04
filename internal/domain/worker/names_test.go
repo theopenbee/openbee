@@ -12,13 +12,7 @@ func TestPickRandomName_AllUnused(t *testing.T) {
 	used := map[string]struct{}{}
 	name, ok := PickRandomName(pool, used)
 	require.True(t, ok, "expected ok=true, got false")
-	found := false
-	for _, p := range pool {
-		if p == name {
-			found = true
-		}
-	}
-	assert.True(t, found, "returned name %q not in pool", name)
+	assert.Contains(t, pool, name, "returned name %q not in pool", name)
 }
 
 func TestPickRandomName_SomeUsed(t *testing.T) {
