@@ -55,7 +55,7 @@ func runUpgrade(current string, checkOnly bool) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
-	latest, err := fetchLatestVersion(githubAPILatest)
+	tag, latest, err := fetchLatestVersion(githubAPILatest)
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
@@ -74,14 +74,17 @@ func runUpgrade(current string, checkOnly bool) error {
 		return nil
 	}
 
-	return doUpgrade(latest)
+	return doUpgrade(tag, latest)
 }
 
-func fetchLatestVersion(apiURL string) (string, error) {
+// fetchLatestVersion returns the latest release's tag exactly as published and its
+// normalized version (see normalizeVersionTag). Download paths must use the tag:
+// GitHub tags are case-sensitive. The version is for comparison and display.
+func fetchLatestVersion(apiURL string) (tag, version string, err error) {
 	token := strings.TrimSpace(os.Getenv(githubTokenEnv))
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	if token != "" {
@@ -89,18 +92,22 @@ func fetchLatestVersion(apiURL string) (string, error) {
 	}
 	resp, err := apiClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return "", apiStatusError(resp, token != "")
+		return "", "", apiStatusError(resp, token != "")
 	}
 	var rel githubRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
-		return "", fmt.Errorf("parse response: %w", err)
+		return "", "", fmt.Errorf("parse response: %w", err)
 	}
-	return normalizeVersionTag(rel.TagName)
+	tag = strings.TrimSpace(rel.TagName)
+	if version, err = normalizeVersionTag(tag); err != nil {
+		return "", "", err
+	}
+	return tag, version, nil
 }
 
 // apiStatusError explains a non-200 GitHub API response, calling out rate limiting
@@ -136,15 +143,15 @@ func isRateLimited(resp *http.Response) bool {
 	return false
 }
 
-// normalizeVersionTag trims whitespace, validates the tag is non-empty, and
-// ensures it carries a lowercase "v" prefix ("1.2.3" and "V1.2.3" → "v1.2.3").
+// normalizeVersionTag trims whitespace, validates the tag holds more than a "v"
+// prefix, and ensures it carries a lowercase "v" ("1.2.3" and "V1.2.3" → "v1.2.3").
 func normalizeVersionTag(tag string) (string, error) {
 	tag = strings.TrimSpace(tag)
+	if tag != "" && (tag[0] == 'v' || tag[0] == 'V') {
+		tag = tag[1:]
+	}
 	if tag == "" {
 		return "", fmt.Errorf("empty version tag")
-	}
-	if tag[0] == 'v' || tag[0] == 'V' {
-		tag = tag[1:]
 	}
 	return "v" + tag, nil
 }
@@ -186,11 +193,16 @@ func parseSemver(v string) []int {
 	return nums
 }
 
-func doUpgrade(newVersion string) error {
-	versionNum := strings.TrimPrefix(newVersion, "v")
-	archiveName := releaseArchiveName(versionNum, runtime.GOOS, runtime.GOARCH)
+// releaseDownload returns the download base URL and archive name for a release tag.
+// Both use the tag as published, like goreleaser does: GitHub tags are
+// case-sensitive, and {{ .Version }} in the archive name is the tag minus only a
+// lowercase "v" prefix.
+func releaseDownload(tag, goos, goarch string) (relBase, archiveName string) {
+	return githubRelBase + "/" + tag, releaseArchiveName(strings.TrimPrefix(tag, "v"), goos, goarch)
+}
 
-	relBase := fmt.Sprintf("%s/%s", githubRelBase, newVersion)
+func doUpgrade(tag, newVersion string) error {
+	relBase, archiveName := releaseDownload(tag, runtime.GOOS, runtime.GOARCH)
 
 	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
 
@@ -219,7 +231,12 @@ func doUpgrade(newVersion string) error {
 		return fmt.Errorf("create temp file in %s (may need sudo): %w", dir, err)
 	}
 	tmpBinPath := tmpBin.Name()
-	defer os.Remove(tmpBinPath)
+	keepTmpBin := false
+	defer func() {
+		if !keepTmpBin {
+			os.Remove(tmpBinPath)
+		}
+	}()
 
 	if err := extractBinary(archivePath, tmpBin); err != nil {
 		tmpBin.Close()
@@ -232,6 +249,9 @@ func doUpgrade(newVersion string) error {
 		return fmt.Errorf("set permissions: %w", err)
 	}
 	if err := replaceExecutable(tmpBinPath, execPath); err != nil {
+		// With nothing left at execPath, the new binary is one of the two copies
+		// the user can restore by hand.
+		keepTmpBin = errors.Is(err, errBinaryStranded)
 		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 

@@ -14,7 +14,7 @@
 
 ### Fixed
 - Fix `openbee ctl` failing with `unauthorized` for the remainder of a long-running worker execution. The worker token is minted once at process launch, so a TTL shorter than the execution left every subsequent call rejected; the default `bee.rpc.token_ttl` is now 48h instead of 2h.
-- Fix `openbee upgrade` on Windows: it now downloads the `.zip` release asset and moves the running `openbee.exe` aside (kept as `openbee.exe.old` until the next upgrade) before installing the new one. Windows installs on v0.0.42 or earlier still run the old upgrade code, so update them manually once, using the same channel they were installed with: `npm install -g @theopenbee/cli@latest`, `scoop update openbee`, or download the zip from GitHub Releases.
+- Fix `openbee upgrade` on Windows: it now downloads the `.zip` release asset and moves the running `openbee.exe` aside (kept as `openbee.exe.old`, or `openbee.exe.old-<n>` while an old process still holds that file, until a later upgrade removes it) before installing the new one. Windows installs on v0.0.42 or earlier still run the old upgrade code, so update them manually once, using the same channel they were installed with: `npm install -g @theopenbee/cli@latest`, `scoop update openbee`, or download the zip from GitHub Releases.
 - Fix `openbee upgrade` rejecting `checksums.txt` entries in `sha256sum -b` (`*name`) format or with uppercase hex digits, rejecting a download of exactly 512 MiB, and turning a `V1.2.3` tag into `vV1.2.3`.
 
 ## [0.0.42] - 2026-07-01

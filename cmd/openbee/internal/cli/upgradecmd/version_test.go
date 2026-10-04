@@ -42,6 +42,9 @@ func TestNormalizeVersionTag(t *testing.T) {
 		{"\t1.2.3 ", "v1.2.3", false},
 		{"", "", true},
 		{"   \n", "", true},
+		{"v", "", true},
+		{"V", "", true},
+		{" v\n", "", true},
 	}
 	for _, tc := range cases {
 		got, err := normalizeVersionTag(tc.in)
@@ -70,12 +73,60 @@ func TestFetchLatestVersion(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := fetchLatestVersion(srv.URL)
+	tag, version, err := fetchLatestVersion(srv.URL)
 	if err != nil {
 		t.Fatalf("fetchLatestVersion: %v", err)
 	}
-	if got != "v1.2.3" {
-		t.Fatalf("fetchLatestVersion = %q, want %q", got, "v1.2.3")
+	if tag != "v1.2.3" || version != "v1.2.3" {
+		t.Fatalf("fetchLatestVersion = (%q, %q), want (%q, %q)", tag, version, "v1.2.3", "v1.2.3")
+	}
+}
+
+func TestFetchLatestVersionKeepsTagVerbatim(t *testing.T) {
+	t.Setenv(githubTokenEnv, "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tag_name":" V1.2.3\n"}`))
+	}))
+	defer srv.Close()
+
+	tag, version, err := fetchLatestVersion(srv.URL)
+	if err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+	if tag != "V1.2.3" || version != "v1.2.3" {
+		t.Fatalf("fetchLatestVersion = (%q, %q), want (%q, %q)", tag, version, "V1.2.3", "v1.2.3")
+	}
+}
+
+func TestFetchLatestVersionRejectsBarePrefixTag(t *testing.T) {
+	t.Setenv(githubTokenEnv, "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tag_name":"V"}`))
+	}))
+	defer srv.Close()
+
+	if tag, _, err := fetchLatestVersion(srv.URL); err == nil {
+		t.Fatalf("fetchLatestVersion with tag \"V\" = %q, want error", tag)
+	}
+}
+
+func TestReleaseDownload(t *testing.T) {
+	cases := []struct {
+		tag             string
+		wantBase        string
+		wantArchiveName string
+	}{
+		{"v0.0.43", githubRelBase + "/v0.0.43", "openbee-0.0.43-linux-amd64.tar.gz"},
+		// GitHub tags are case-sensitive and goreleaser's {{ .Version }} strips only
+		// a lowercase "v", so an uppercase tag must reach both paths unchanged.
+		{"V0.0.43", githubRelBase + "/V0.0.43", "openbee-V0.0.43-linux-amd64.tar.gz"},
+		{"0.0.43", githubRelBase + "/0.0.43", "openbee-0.0.43-linux-amd64.tar.gz"},
+	}
+	for _, tc := range cases {
+		base, archiveName := releaseDownload(tc.tag, "linux", "amd64")
+		if base != tc.wantBase || archiveName != tc.wantArchiveName {
+			t.Fatalf("releaseDownload(%q) = (%q, %q), want (%q, %q)", tc.tag, base, archiveName, tc.wantBase, tc.wantArchiveName)
+		}
 	}
 }
 
@@ -89,7 +140,7 @@ func TestFetchLatestVersionSendsToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := fetchLatestVersion(srv.URL); err != nil {
+	if _, _, err := fetchLatestVersion(srv.URL); err != nil {
 		t.Fatalf("fetchLatestVersion: %v", err)
 	}
 }
@@ -103,7 +154,7 @@ func TestFetchLatestVersionRateLimited(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := fetchLatestVersion(srv.URL)
+	_, _, err := fetchLatestVersion(srv.URL)
 	if err == nil {
 		t.Fatalf("fetchLatestVersion on rate limit returned nil error")
 	}
@@ -121,7 +172,7 @@ func TestFetchLatestVersionPlainForbidden(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := fetchLatestVersion(srv.URL)
+	_, _, err := fetchLatestVersion(srv.URL)
 	if err == nil || strings.Contains(err.Error(), "rate limit") || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("plain 403: err = %v, want a non-rate-limit error mentioning 403", err)
 	}
@@ -134,7 +185,7 @@ func TestFetchLatestVersionBadToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := fetchLatestVersion(srv.URL)
+	_, _, err := fetchLatestVersion(srv.URL)
 	if err == nil || !strings.Contains(err.Error(), githubTokenEnv) {
 		t.Fatalf("401 with token set: err = %v, want an error pointing at %s", err, githubTokenEnv)
 	}
@@ -155,7 +206,7 @@ func TestFetchLatestVersionTimesOut(t *testing.T) {
 	apiClient = &http.Client{Timeout: 100 * time.Millisecond}
 	t.Cleanup(func() { apiClient = orig })
 
-	_, err := fetchLatestVersion(srv.URL)
+	_, _, err := fetchLatestVersion(srv.URL)
 	var netErr net.Error
 	if !errors.As(err, &netErr) || !netErr.Timeout() {
 		t.Fatalf("fetchLatestVersion against a stalled server: err = %v, want a timeout", err)
