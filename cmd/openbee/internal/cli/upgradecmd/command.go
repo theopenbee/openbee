@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -28,6 +29,9 @@ const (
 )
 
 const executablePerm = 0o755
+
+// apiClient is the HTTP client for short GitHub API calls (version check).
+var apiClient = &http.Client{Timeout: 15 * time.Second}
 
 type githubRelease struct {
 	TagName string `json:"tag_name"`
@@ -74,7 +78,7 @@ func runUpgrade(current string, checkOnly bool) error {
 }
 
 func fetchLatestVersion() (string, error) {
-	resp, err := utils.APIClient.Get(githubAPILatest)
+	resp, err := apiClient.Get(githubAPILatest)
 	if err != nil {
 		return "", err
 	}
@@ -87,7 +91,20 @@ func fetchLatestVersion() (string, error) {
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
-	return utils.NormalizeVersionTag(rel.TagName)
+	return normalizeVersionTag(rel.TagName)
+}
+
+// normalizeVersionTag trims whitespace, validates the tag is non-empty, and
+// ensures it carries a "v" prefix (e.g. "1.2.3" → "v1.2.3").
+func normalizeVersionTag(tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return "", fmt.Errorf("empty version tag")
+	}
+	if !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+	return tag, nil
 }
 
 // isNewer returns true when latest is strictly newer than current.
@@ -147,14 +164,14 @@ func doUpgrade(newVersion string) error {
 	// This avoids a second read of the archive for checksum verification.
 	checksumPath := filepath.Join(tmpDir, "checksums.txt")
 	checksumAvailable := true
-	if err := utils.DownloadFile(checksumURL, checksumPath, nil); err != nil {
+	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
 		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
 	}
 
 	h := sha256.New()
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := utils.DownloadFile(archiveURL, archivePath, h); err != nil {
+	if err := downloadFile(archiveURL, archivePath, h); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
@@ -164,7 +181,7 @@ func doUpgrade(newVersion string) error {
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
 		}
-		expected, err := utils.ParseChecksumFile(data, archiveName)
+		expected, err := parseChecksumFile(data, archiveName)
 		if err != nil {
 			return fmt.Errorf("%w in checksums.txt", err)
 		}
