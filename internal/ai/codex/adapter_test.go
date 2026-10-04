@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/codex"
 )
@@ -12,31 +15,22 @@ import (
 func TestAdapter_Prepare_NoOp(t *testing.T) {
 	dir := t.TempDir()
 	a, err := codex.NewAdapter("echo", nil)
-	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
-	}
+	require.NoError(t, err)
 
-	if err := a.Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	require.NoError(t, a.Prepare(dir, ai.PrepareOptions{Role: ai.RoleBee}))
 	// Prepare must not create any files
 	entries, _ := os.ReadDir(dir)
-	if len(entries) != 0 {
-		t.Errorf("Prepare must not create files, found: %v", entries)
-	}
+	assert.Empty(t, entries, "Prepare must not create files")
 	_ = filepath.Join(dir, "AGENTS.md") // Ensure path helpers compile
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
 	a, err := codex.NewAdapter("echo", nil)
-	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
-	}
+	require.NoError(t, err)
 	for _, role := range []ai.Role{ai.RoleBee, ai.RoleWorker} {
 		dir := t.TempDir()
-		if err := a.Prepare(dir, ai.PrepareOptions{Role: role}); err != nil {
-			t.Errorf("Prepare(%s): %v", role, err)
-		}
+		err := a.Prepare(dir, ai.PrepareOptions{Role: role})
+		assert.NoError(t, err, "Prepare(%s)", role)
 	}
 }
 
@@ -44,8 +38,6 @@ func TestAdapter_ExtraEnvInBaseEnv(t *testing.T) {
 	a, err := codex.NewAdapter("echo", map[string]string{
 		"CODEX_CUSTOM": "value",
 	})
-	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
-	}
+	require.NoError(t, err)
 	var _ ai.EngineAdapter = a
 }

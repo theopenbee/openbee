@@ -2,10 +2,12 @@ package claude_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/claude"
@@ -13,12 +15,8 @@ import (
 
 func writeClaudeTempFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0644))
 }
 
 func TestClaudeCollector_Collect_AggregatesByModel(t *testing.T) {
@@ -32,9 +30,7 @@ func TestClaudeCollector_Collect_AggregatesByModel(t *testing.T) {
 	collector := claude.NewCollector()
 
 	usages, err := collector.Collect(context.Background(), "test-session")
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
+	require.NoError(t, err)
 
 	byModel := map[string]ai.TokenUsage{}
 	for _, u := range usages {
@@ -42,23 +38,13 @@ func TestClaudeCollector_Collect_AggregatesByModel(t *testing.T) {
 	}
 
 	sonnet := byModel["claude-3-5-sonnet"]
-	if sonnet.InputTokens != 300 {
-		t.Errorf("sonnet InputTokens: want 300, got %d", sonnet.InputTokens)
-	}
-	if sonnet.OutputTokens != 150 {
-		t.Errorf("sonnet OutputTokens: want 150, got %d", sonnet.OutputTokens)
-	}
-	if sonnet.CacheCreationTokens != 20 {
-		t.Errorf("sonnet CacheCreationTokens: want 20, got %d", sonnet.CacheCreationTokens)
-	}
-	if sonnet.CacheReadTokens != 15 {
-		t.Errorf("sonnet CacheReadTokens: want 15, got %d", sonnet.CacheReadTokens)
-	}
+	assert.Equal(t, int64(300), sonnet.InputTokens)
+	assert.Equal(t, int64(150), sonnet.OutputTokens)
+	assert.Equal(t, int64(20), sonnet.CacheCreationTokens)
+	assert.Equal(t, int64(15), sonnet.CacheReadTokens)
 
 	opus := byModel["claude-3-opus"]
-	if opus.InputTokens != 300 {
-		t.Errorf("opus InputTokens: want 300, got %d", opus.InputTokens)
-	}
+	assert.Equal(t, int64(300), opus.InputTokens)
 }
 
 func TestClaudeCollector_Collect_FastSpeedSuffix(t *testing.T) {
@@ -68,15 +54,9 @@ func TestClaudeCollector_Collect_FastSpeedSuffix(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
 
 	usages, err := claude.NewCollector().Collect(context.Background(), "fast-session")
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
-	if len(usages) != 1 {
-		t.Fatalf("expected 1 usage, got %d", len(usages))
-	}
-	if usages[0].Model != "claude-3-5-sonnet-fast" {
-		t.Errorf("Model: want claude-3-5-sonnet-fast, got %s", usages[0].Model)
-	}
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	assert.Equal(t, "claude-3-5-sonnet-fast", usages[0].Model)
 }
 
 func TestClaudeCollector_Collect_SkipsSyntheticModel(t *testing.T) {
@@ -87,24 +67,14 @@ func TestClaudeCollector_Collect_SkipsSyntheticModel(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", base)
 
 	usages, err := claude.NewCollector().Collect(context.Background(), "syn-session")
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
-	if len(usages) != 1 {
-		t.Fatalf("expected 1 usage, got %d", len(usages))
-	}
-	if usages[0].Model != "claude-3-5-sonnet" {
-		t.Errorf("Model: want claude-3-5-sonnet, got %s", usages[0].Model)
-	}
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	assert.Equal(t, "claude-3-5-sonnet", usages[0].Model)
 }
 
 func TestClaudeCollector_Collect_FileNotFound(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	_, err := claude.NewCollector().Collect(context.Background(), "nonexistent-session")
-	if err == nil {
-		t.Error("expected error for missing file, got nil")
-	}
-	if !errors.Is(err, ai.ErrSessionDataNotFound) {
-		t.Errorf("expected ErrSessionDataNotFound, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ai.ErrSessionDataNotFound)
 }

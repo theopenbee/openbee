@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMediaTypeFromMIME(t *testing.T) {
@@ -25,9 +28,8 @@ func TestMediaTypeFromMIME(t *testing.T) {
 		{"", "document"},
 	}
 	for _, tt := range tests {
-		if got := MediaTypeFromMIME(tt.mime); got != tt.want {
-			t.Errorf("MediaTypeFromMIME(%q) = %q, want %q", tt.mime, got, tt.want)
-		}
+		got := MediaTypeFromMIME(tt.mime)
+		assert.Equal(t, tt.want, got, "mime=%q", tt.mime)
 	}
 }
 
@@ -49,9 +51,7 @@ func TestBuildPlaceholder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got := s.BuildPlaceholder(tt.mediaType, tt.path, tt.fileName)
-		if got != tt.want {
-			t.Errorf("BuildPlaceholder(%q, %q, %q) = %q, want %q", tt.mediaType, tt.path, tt.fileName, got, tt.want)
-		}
+		assert.Equal(t, tt.want, got, "mediaType=%q path=%q fileName=%q", tt.mediaType, tt.path, tt.fileName)
 	}
 }
 
@@ -73,9 +73,8 @@ func TestExtensionFromMIME(t *testing.T) {
 		{"", ".bin"},
 	}
 	for _, tt := range tests {
-		if got := s.ExtensionFromMIME(tt.mime); got != tt.want {
-			t.Errorf("ExtensionFromMIME(%q) = %q, want %q", tt.mime, got, tt.want)
-		}
+		got := s.ExtensionFromMIME(tt.mime)
+		assert.Equal(t, tt.want, got, "mime=%q", tt.mime)
 	}
 }
 
@@ -84,30 +83,20 @@ func TestDetectMIME(t *testing.T) {
 
 	// PNG magic bytes
 	png := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
-	if got := s.DetectMIME(png, ""); got != "image/png" {
-		t.Errorf("DetectMIME(png) = %q, want image/png", got)
-	}
+	assert.Equal(t, "image/png", s.DetectMIME(png, ""))
 
 	// Fallback to extension
-	if got := s.DetectMIME([]byte("hello"), "file.pdf"); got != "application/pdf" {
-		t.Errorf("DetectMIME(text, file.pdf) = %q, want application/pdf", got)
-	}
+	assert.Equal(t, "application/pdf", s.DetectMIME([]byte("hello"), "file.pdf"))
 
 	// Plain text with no filename — stdlib detects as text/plain
-	if got := s.DetectMIME([]byte("hello"), ""); got != "text/plain; charset=utf-8" {
-		t.Errorf("DetectMIME(text, empty) = %q, want text/plain; charset=utf-8", got)
-	}
+	assert.Equal(t, "text/plain; charset=utf-8", s.DetectMIME([]byte("hello"), ""))
 
 	// OGG magic bytes (Opus audio in OGG container)
 	ogg := []byte{'O', 'g', 'g', 'S', 0x00, 0x02, 0x00, 0x00}
-	if got := s.DetectMIME(ogg, ""); got != "audio/ogg" {
-		t.Errorf("DetectMIME(ogg) = %q, want audio/ogg", got)
-	}
+	assert.Equal(t, "audio/ogg", s.DetectMIME(ogg, ""))
 
 	// OGG detection should take priority even with a filename
-	if got := s.DetectMIME(ogg, "voice.bin"); got != "audio/ogg" {
-		t.Errorf("DetectMIME(ogg, voice.bin) = %q, want audio/ogg", got)
-	}
+	assert.Equal(t, "audio/ogg", s.DetectMIME(ogg, "voice.bin"))
 }
 
 func TestSaveInbound(t *testing.T) {
@@ -116,20 +105,10 @@ func TestSaveInbound(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "inbound"), 0o755)
 
 	path, err := s.SaveInbound(context.Background(), []byte("hello"), ".txt")
-	if err != nil {
-		t.Fatalf("SaveInbound: %v", err)
-	}
-	if !strings.HasPrefix(path, filepath.Join(dir, "inbound")) {
-		t.Errorf("path %q not under inbound dir", path)
-	}
-	if !strings.HasSuffix(path, ".txt") {
-		t.Errorf("path %q should end with .txt", path)
-	}
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(path, filepath.Join(dir, "inbound")), "path %q not under inbound dir", path)
+	assert.True(t, strings.HasSuffix(path, ".txt"), "path %q should end with .txt", path)
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	if string(data) != "hello" {
-		t.Errorf("file content = %q, want hello", string(data))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(data))
 }

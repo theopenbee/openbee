@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeUserLoader struct {
@@ -41,9 +42,7 @@ func TestAuthMiddleware_RejectsDisabledUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden && rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected disabled user rejected, got %d", rec.Code)
-	}
+	require.Contains(t, []int{http.StatusForbidden, http.StatusUnauthorized}, rec.Code)
 }
 
 func TestAuthMiddleware_RejectsTokenIssuedBeforePasswordChange(t *testing.T) {
@@ -59,9 +58,7 @@ func TestAuthMiddleware_RejectsTokenIssuedBeforePasswordChange(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for token issued before password change, got %d", rec.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 
 	// A password change well in the past leaves the current token valid.
 	past := time.Now().Add(-time.Hour).UnixMilli()
@@ -70,9 +67,7 @@ func TestAuthMiddleware_RejectsTokenIssuedBeforePasswordChange(t *testing.T) {
 	req2 := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req2.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r2.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusOK {
-		t.Fatalf("expected 200 for token issued after last password change, got %d", rec2.Code)
-	}
+	require.Equal(t, http.StatusOK, rec2.Code)
 }
 
 func TestRequirePermission_AnyOf(t *testing.T) {
@@ -97,9 +92,7 @@ func TestRequirePermission_AnyOf(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected users:manage to read roles (200), got %d", rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Neither perm -> 403.
 	resolverNone := NewPermissionResolver(func(string) ([]string, error) { return []string{PermContactsRead}, nil })
@@ -107,9 +100,7 @@ func TestRequirePermission_AnyOf(t *testing.T) {
 	req2 := httptest.NewRequest(http.MethodGet, "/api/roles", nil)
 	req2.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r2.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 without roles:manage or users:manage, got %d", rec2.Code)
-	}
+	require.Equal(t, http.StatusForbidden, rec2.Code)
 }
 
 func TestRequirePermission_AllowsAndDenies(t *testing.T) {
@@ -123,9 +114,7 @@ func TestRequirePermission_AllowsAndDenies(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
 	// lacks permission
 	resolverNo := NewPermissionResolver(func(string) ([]string, error) { return []string{PermTasksRead}, nil })
@@ -133,7 +122,5 @@ func TestRequirePermission_AllowsAndDenies(t *testing.T) {
 	req2 := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
 	req2.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	r2.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", rec2.Code)
-	}
+	require.Equal(t, http.StatusForbidden, rec2.Code)
 }

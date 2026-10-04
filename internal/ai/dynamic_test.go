@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
@@ -34,12 +37,9 @@ func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
 	b := &stubEngine{name: "b"}
 	cfg := enginecfg.NewStore("a")
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
-	if err := d.Prepare("/work", ai.PrepareOptions{}); err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	if len(a.prepared) != 1 || len(b.prepared) != 1 {
-		t.Errorf("expected each engine prepared once; a=%d b=%d", len(a.prepared), len(b.prepared))
-	}
+	require.NoError(t, d.Prepare("/work", ai.PrepareOptions{}))
+	assert.Len(t, a.prepared, 1)
+	assert.Len(t, b.prepared, 1)
 }
 
 func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
@@ -49,15 +49,13 @@ func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
 
 	_, err := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
-	if err == nil || err.Error() != "a run called" {
-		t.Errorf("expected 'a run called', got %v", err)
-	}
+	require.Error(t, err) // guard: err.Error() below would panic if err were nil
+	assert.Equal(t, "a run called", err.Error())
 
 	cfg.Set("b")
 	_, err = d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
-	if err == nil || err.Error() != "b run called" {
-		t.Errorf("expected 'b run called', got %v", err)
-	}
+	require.Error(t, err) // guard: err.Error() below would panic if err were nil
+	assert.Equal(t, "b run called", err.Error())
 }
 
 func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
@@ -71,16 +69,13 @@ func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
 	// Simulate /engine switch mid-execution.
 	cfg.Set("b")
 
-	if got := res.ExtractResult("/log"); got != "a-result" {
-		t.Errorf("expected Run-time engine 'a' extractor; got %s", got)
-	}
+	got := res.ExtractResult("/log")
+	assert.Equal(t, "a-result", got)
 }
 
 func TestDynamicAdapter_RunUnknownEngine(t *testing.T) {
 	cfg := enginecfg.NewStore("missing")
 	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": &stubEngine{name: "a"}}, cfg)
 	_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	if err == nil {
-		t.Error("expected error for unknown engine")
-	}
+	assert.Error(t, err)
 }

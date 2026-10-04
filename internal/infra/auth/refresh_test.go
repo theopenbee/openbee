@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -20,7 +22,7 @@ func (f fakeAuthenticator) Authenticate(string, string) (model.UserWithRoles, er
 	return f.user, f.err
 }
 func (f fakeAuthenticator) GetByID(string) (model.UserWithRoles, error) { return f.user, f.err }
-func (f fakeAuthenticator) SetPassword(string, string) error           { return nil }
+func (f fakeAuthenticator) SetPassword(string, string) error            { return nil }
 func (f fakeAuthenticator) UserAuthState(string) (string, int64, error) {
 	return f.user.Status, f.user.PasswordChangedAt, f.err
 }
@@ -45,14 +47,12 @@ func TestRefresh_RejectsRefreshTokenIssuedBeforePasswordChange(t *testing.T) {
 	// the stale session cannot keep minting access tokens.
 	changed := model.UserWithRoles{User: model.User{ID: "u1", PasswordChangedAt: time.Now().Add(time.Hour).UnixMilli()}}
 	h := NewAuthHandler(fakeAuthenticator{user: changed}, jwt, nil, nil)
-	if rec := serveRefresh(h, pair.RefreshToken); rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for refresh token issued before password change, got %d", rec.Code)
-	}
+	rec := serveRefresh(h, pair.RefreshToken)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 
 	// Password change in the past -> the refresh token still works.
 	ok := model.UserWithRoles{User: model.User{ID: "u1", PasswordChangedAt: time.Now().Add(-time.Hour).UnixMilli()}}
 	h2 := NewAuthHandler(fakeAuthenticator{user: ok}, jwt, nil, nil)
-	if rec := serveRefresh(h2, pair.RefreshToken); rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for valid refresh token, got %d", rec.Code)
-	}
+	rec2 := serveRefresh(h2, pair.RefreshToken)
+	require.Equal(t, http.StatusOK, rec2.Code)
 }

@@ -12,18 +12,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func TestConfigureCmd_SetsPgid(t *testing.T) {
 	cmd := exec.Command("true")
 	ConfigureCmd(cmd)
-	if cmd.SysProcAttr == nil {
-		t.Fatal("SysProcAttr is nil after ConfigureCmd")
-	}
-	if !cmd.SysProcAttr.Setpgid {
-		t.Error("Setpgid should be true after ConfigureCmd")
-	}
+	require.NotNil(t, cmd.SysProcAttr)
+	assert.True(t, cmd.SysProcAttr.Setpgid)
 }
 
 func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
@@ -33,9 +32,7 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 	cmd := exec.Command("sh", "-c", script)
 	ConfigureCmd(cmd)
 
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
+	require.NoError(t, cmd.Start())
 
 	proc := NewCmdProcess(cmd)
 
@@ -51,18 +48,12 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if childPID == 0 {
-		t.Fatal("child PID was not written to file within 2 seconds")
-	}
+	require.NotZero(t, childPID, "child PID was not written to file within 2 seconds")
 
-	if err := proc.Stop(); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
+	require.NoError(t, proc.Stop())
 	cmd.Wait() //nolint:errcheck
 
 	time.Sleep(50 * time.Millisecond)
 
-	if utils.IsProcessAlive(childPID) {
-		t.Errorf("child process %d still alive after Stop() — process group kill failed", childPID)
-	}
+	assert.False(t, utils.IsProcessAlive(childPID), "child process %d still alive after Stop() — process group kill failed", childPID)
 }

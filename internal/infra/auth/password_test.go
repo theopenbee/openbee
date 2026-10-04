@@ -1,19 +1,16 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestHashAndCheckPassword(t *testing.T) {
 	hash, err := HashPassword("s3cret")
-	if err != nil {
-		t.Fatalf("HashPassword: %v", err)
-	}
-	if hash == "s3cret" || hash == "" {
-		t.Fatal("hash must not equal plaintext or be empty")
-	}
-	if !CheckPassword(hash, "s3cret") {
-		t.Fatal("expected correct password to match")
-	}
-	if CheckPassword(hash, "wrong") {
-		t.Fatal("expected wrong password to fail")
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, "s3cret", hash, "hash must not equal plaintext")
+	require.NotEmpty(t, hash, "hash must not be empty")
+	require.True(t, CheckPassword(hash, "s3cret"), "expected correct password to match")
+	require.False(t, CheckPassword(hash, "wrong"), "expected wrong password to fail")
 }

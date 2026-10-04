@@ -3,6 +3,7 @@ package logger_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -11,32 +12,24 @@ import (
 
 func TestInit_JSONFormat(t *testing.T) {
 	err := logger.Init(logger.Config{Level: "debug", Format: "json"})
-	if err != nil {
-		t.Fatalf("Init() returned error: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestInit_ConsoleFormat(t *testing.T) {
 	err := logger.Init(logger.Config{Level: "info", Format: "console"})
-	if err != nil {
-		t.Fatalf("Init() returned error: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestInit_InvalidLevel_DefaultsToInfo(t *testing.T) {
 	// should not error even with invalid level
 	err := logger.Init(logger.Config{Level: "nonsense", Format: "json"})
-	if err != nil {
-		t.Fatalf("Init() returned error: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestWith_ReturnsChildLogger(t *testing.T) {
 	logger.Init(logger.Config{Level: "debug", Format: "json"})
 	sub := logger.With(zap.String("component", "test"))
-	if sub == nil {
-		t.Fatal("With() returned nil")
-	}
+	require.NotNil(t, sub)
 	sub.Info("from child logger", zap.String("key", "value"))
 }
 
@@ -64,7 +57,5 @@ func TestInit_WithSampling(t *testing.T) {
 			Thereafter: 10,
 		},
 	})
-	if err != nil {
-		t.Fatalf("Init() with sampling returned error: %v", err)
-	}
+	require.NoError(t, err)
 }

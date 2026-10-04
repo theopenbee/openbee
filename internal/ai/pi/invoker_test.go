@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
@@ -13,17 +15,13 @@ import (
 func TestBuildArgs_NewSession(t *testing.T) {
 	args := buildArgs("", "/tmp/session.jsonl", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", ""}
-	if !slices.Equal(args, want) {
-		t.Errorf("got %v, want %v", args, want)
-	}
+	assert.Equal(t, want, args)
 }
 
 func TestBuildArgs_WithPrompt(t *testing.T) {
 	args := buildArgs("hello world", "/tmp/session.jsonl", nil)
 	want := []string{"--mode", "json", "--session", "/tmp/session.jsonl", "-p", "hello world"}
-	if !slices.Equal(args, want) {
-		t.Errorf("got %v, want %v", args, want)
-	}
+	assert.Equal(t, want, args)
 }
 
 func TestExtractResultFromLog_BasicResult(t *testing.T) {
@@ -32,9 +30,7 @@ func TestExtractResultFromLog_BasicResult(t *testing.T) {
 `
 	path := writeTemp(t, log)
 	result := ExtractResultFromLog(path)
-	if result != "final answer" {
-		t.Errorf("got %q, want %q", result, "final answer")
-	}
+	assert.Equal(t, "final answer", result)
 }
 
 func TestExtractResultFromLog_LastAgentEndWins(t *testing.T) {
@@ -43,9 +39,7 @@ func TestExtractResultFromLog_LastAgentEndWins(t *testing.T) {
 `
 	path := writeTemp(t, log)
 	result := ExtractResultFromLog(path)
-	if result != "last" {
-		t.Errorf("got %q, want %q", result, "last")
-	}
+	assert.Equal(t, "last", result)
 }
 
 func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
@@ -53,55 +47,41 @@ func TestExtractResultFromLog_SkipsNonTextContent(t *testing.T) {
 `
 	path := writeTemp(t, log)
 	result := ExtractResultFromLog(path)
-	if result != "answer" {
-		t.Errorf("got %q, want %q", result, "answer")
-	}
+	assert.Equal(t, "answer", result)
 }
 
 func TestExtractResultFromLog_Empty(t *testing.T) {
 	path := writeTemp(t, "")
 	result := ExtractResultFromLog(path)
-	if result != "" {
-		t.Errorf("got %q, want %q", result, "")
-	}
+	assert.Empty(t, result)
 }
 
 func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 	path := writeTemp(t, `{"type":"turn.started"}`+"\n")
 	result := ExtractResultFromLog(path)
-	if result != "" {
-		t.Errorf("got %q, want %q", result, "")
-	}
+	assert.Empty(t, result)
 }
 
 func TestResolveSessionPath_UsesUUID(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	sessionID := "4d0ce91b-0856-44e2-b0d7-7765d824bba3"
 	inv, err := NewInvoker("true", nil)
-	if err != nil {
-		t.Fatalf("NewInvoker: %v", err)
-	}
+	require.NoError(t, err)
 	got := inv.sessionFilePath(sessionID)
 	home, _ := os.UserHomeDir()
 	want := filepath.Join(home, ".openbee", ".pi", "sessions", sessionID+".jsonl")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestInvoker_Run_ExitsCleanly(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	inv, err := NewInvoker("true", nil)
-	if err != nil {
-		t.Fatalf("NewInvoker: %v", err)
-	}
+	require.NoError(t, err)
 	logPath := filepath.Join(t.TempDir(), "pi.log")
 
 	_, ch, err := inv.Run(context.Background(), t.TempDir(), "hello",
 		ai.RunOptions{SessionID: "4d0ce91b-0856-44e2-b0d7-7765d824bba3"}, logPath)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
+	require.NoError(t, err)
 
 	for range ch {
 	}
@@ -122,9 +102,8 @@ func TestIsStreamingDelta(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := isStreamingDelta([]byte(tc.line)); got != tc.want {
-				t.Errorf("isStreamingDelta(%q) = %v, want %v", tc.line, got, tc.want)
-			}
+			got := isStreamingDelta([]byte(tc.line))
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -136,9 +115,7 @@ func TestCheckAgentError_AuthError(t *testing.T) {
 	path := writeTemp(t, log)
 	got := checkAgentError(path)
 	want := `401 {"error":{"type":"authentication_error","message":"The API Key appears to be invalid or may have expired."}}`
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestCheckAgentError_NoError(t *testing.T) {
@@ -146,17 +123,13 @@ func TestCheckAgentError_NoError(t *testing.T) {
 `
 	path := writeTemp(t, log)
 	got := checkAgentError(path)
-	if got != "" {
-		t.Errorf("got %q, want empty", got)
-	}
+	assert.Empty(t, got)
 }
 
 func TestCheckAgentError_EmptyLog(t *testing.T) {
 	path := writeTemp(t, "")
 	got := checkAgentError(path)
-	if got != "" {
-		t.Errorf("got %q, want empty", got)
-	}
+	assert.Empty(t, got)
 }
 
 func TestExtractPiError_NonJSONLine(t *testing.T) {
@@ -165,35 +138,26 @@ No API key found for unknown.
 Use /login or set an API key environment variable.`
 	got := extractPiError(stderr, "exit status 1")
 	want := "No API key found for unknown."
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestExtractPiError_FallbackOnAllJSON(t *testing.T) {
 	stderr := `{"type":"session","version":3}`
 	got := extractPiError(stderr, "exit status 1")
-	if got != "exit status 1" {
-		t.Errorf("got %q, want %q", got, "exit status 1")
-	}
+	assert.Equal(t, "exit status 1", got)
 }
 
 func TestExtractPiError_EmptyStderr(t *testing.T) {
 	got := extractPiError("", "exit status 1")
-	if got != "exit status 1" {
-		t.Errorf("got %q, want %q", got, "exit status 1")
-	}
+	assert.Equal(t, "exit status 1", got)
 }
 
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	f, err := os.CreateTemp(t.TempDir(), "pi-log-*.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer f.Close()
-	if _, err := f.WriteString(content); err != nil {
-		t.Fatal(err)
-	}
+	_, err = f.WriteString(content)
+	require.NoError(t, err)
 	return f.Name()
 }

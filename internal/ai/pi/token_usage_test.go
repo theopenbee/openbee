@@ -2,10 +2,12 @@ package pi_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/pi"
@@ -13,12 +15,8 @@ import (
 
 func writePiTempFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0644))
 }
 
 func TestPiCollector_Collect_AggregatesByModel(t *testing.T) {
@@ -35,32 +33,20 @@ func TestPiCollector_Collect_AggregatesByModel(t *testing.T) {
 	collector := pi.NewCollector()
 
 	usages, err := collector.Collect(context.Background(), sessionID)
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
+	require.NoError(t, err)
 	byModel := map[string]ai.TokenUsage{}
 	for _, u := range usages {
 		byModel[u.Model] = u
 	}
 
 	sonnet := byModel["claude-3-5-sonnet"]
-	if sonnet.InputTokens != 300 {
-		t.Errorf("sonnet InputTokens: want 300, got %d", sonnet.InputTokens)
-	}
-	if sonnet.OutputTokens != 130 {
-		t.Errorf("sonnet OutputTokens: want 130, got %d", sonnet.OutputTokens)
-	}
-	if sonnet.CacheCreationTokens != 10 {
-		t.Errorf("sonnet CacheCreationTokens: want 10, got %d", sonnet.CacheCreationTokens)
-	}
-	if sonnet.CacheReadTokens != 20 {
-		t.Errorf("sonnet CacheReadTokens: want 20, got %d", sonnet.CacheReadTokens)
-	}
+	assert.Equal(t, int64(300), sonnet.InputTokens)
+	assert.Equal(t, int64(130), sonnet.OutputTokens)
+	assert.Equal(t, int64(10), sonnet.CacheCreationTokens)
+	assert.Equal(t, int64(20), sonnet.CacheReadTokens)
 
 	opus := byModel["claude-3-opus"]
-	if opus.InputTokens != 300 {
-		t.Errorf("opus InputTokens: want 300, got %d", opus.InputTokens)
-	}
+	assert.Equal(t, int64(300), opus.InputTokens)
 }
 
 func TestPiCollector_Collect_SkipsNonAssistantAndWrongType(t *testing.T) {
@@ -74,31 +60,21 @@ func TestPiCollector_Collect_SkipsNonAssistantAndWrongType(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", sessionsDir)
 
 	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
-	if len(usages) != 1 {
-		t.Fatalf("expected 1 usage (only assistant+message), got %d", len(usages))
-	}
-	if usages[0].InputTokens != 100 {
-		t.Errorf("InputTokens: want 100, got %d", usages[0].InputTokens)
-	}
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	assert.Equal(t, int64(100), usages[0].InputTokens)
 }
 
 func TestPiCollector_Collect_FileNotFound(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", t.TempDir())
 	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
-	if !errors.Is(err, ai.ErrSessionDataNotFound) {
-		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
-	}
+	require.ErrorIs(t, err, ai.ErrSessionDataNotFound)
 }
 
 func TestPiCollector_Collect_DirectoryNotFound(t *testing.T) {
 	t.Setenv("PI_AGENT_DIR", t.TempDir()+"/missing")
 	_, err := pi.NewCollector().Collect(context.Background(), "nonexistent-session")
-	if !errors.Is(err, ai.ErrSessionDataNotFound) {
-		t.Fatalf("expected ErrSessionDataNotFound, got %v", err)
-	}
+	require.ErrorIs(t, err, ai.ErrSessionDataNotFound)
 }
 
 func TestPiCollector_Collect_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
@@ -110,13 +86,8 @@ func TestPiCollector_Collect_UsesOpenbeeDefaultSessionsDir(t *testing.T) {
 	writePiTempFile(t, home, ".openbee/.pi/sessions/"+sessionID+".jsonl", `{"type":"message","message":{"role":"assistant","model":"claude-3-5-sonnet","usage":{"input":100,"output":50}}}`)
 
 	usages, err := pi.NewCollector().Collect(context.Background(), sessionID)
-	if err != nil {
-		t.Fatalf("Collect: %v", err)
-	}
-	if len(usages) != 1 {
-		t.Fatalf("expected 1 usage, got %d", len(usages))
-	}
-	if usages[0].InputTokens != 100 || usages[0].OutputTokens != 50 {
-		t.Fatalf("unexpected usage: %+v", usages[0])
-	}
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	require.Equal(t, int64(100), usages[0].InputTokens)
+	require.Equal(t, int64(50), usages[0].OutputTokens)
 }
