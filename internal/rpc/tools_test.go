@@ -448,9 +448,9 @@ func TestCallTool_ClearSession_CancelsAndStopsTasks(t *testing.T) {
 	// StopExecution should have been called for the running task.
 	// guard: length check protects the stopper.stopped[0] index below.
 	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
 	require.Len(t, stopper.stopped, 1)
 	assert.Equal(t, "exec-running-1", stopper.stopped[0])
-	stopper.mu.Unlock()
 
 	// ClearSession should have been called.
 	// guard: length check protects the clearer.cleared[0] index below.
@@ -631,9 +631,9 @@ func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
 
 	// guard: length check protects the stopper.stopped[0] index below.
 	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
 	require.Len(t, stopper.stopped, 1)
 	assert.Equal(t, "exec-cw-1", stopper.stopped[0])
-	stopper.mu.Unlock()
 
 	// guard: length check protects the disp.clearedWorkers[0] index below.
 	disp.mu.Lock()
@@ -873,9 +873,9 @@ func TestCallTool_ClearSession_ForceSkipsTaskDetection(t *testing.T) {
 
 	// guard: length check protects the stopper.stopped[0] index below.
 	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
 	require.Len(t, stopper.stopped, 1)
 	assert.Equal(t, "exec-fsd-1", stopper.stopped[0])
-	stopper.mu.Unlock()
 
 	// guard: length check protects the clearer.cleared[0] index below.
 	clearer.mu.Lock()
@@ -1218,6 +1218,7 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 		mustMarshal(t, map[string]any{"department_id": parent.ID, "recursive": false}))
 	require.NoError(t, err)
 	items2, _ := decodeListWorkersResult(t, result2)
+	// guard: length check protects the items2[0] index below.
 	require.Len(t, items2, 1)
 	item2 := items2[0].(map[string]any)
 	assert.Equal(t, "Alice", item2["name"].(string))
@@ -1373,17 +1374,22 @@ func TestCallTool_CreateWorker_WithEngine(t *testing.T) {
 
 func TestCallTool_UpdateWorker_Engine(t *testing.T) {
 	cases := []struct {
-		name       string
-		engine     string
-		wantEngine string
+		name         string
+		createEngine string
+		engine       string
+		wantEngine   string
 	}{
-		{"WithEngine", "claude", "claude"},
-		{"ClearEngine", "", ""},
+		{"WithEngine", "", "claude", "claude"},
+		{"ClearEngine", "claude", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			s := setupServerWithMessaging(t)
-			w := mustCreateWorker(t, s, map[string]any{"name": "Bot", "engine": "claude"})
+			createArgs := map[string]any{"name": "Bot"}
+			if tc.createEngine != "" {
+				createArgs["engine"] = tc.createEngine
+			}
+			w := mustCreateWorker(t, s, createArgs)
 
 			result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
 				"worker_id": w.ID,
