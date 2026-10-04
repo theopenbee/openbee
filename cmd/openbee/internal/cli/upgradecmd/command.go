@@ -49,7 +49,6 @@ func NewCommand(currentVersion string) *cobra.Command {
 
 func runUpgrade(current string, checkOnly bool) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
-
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
 	latest, err := fetchLatestVersion()
