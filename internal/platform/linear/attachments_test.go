@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/infra/media"
 )
@@ -24,80 +26,56 @@ func TestExtractAssetURLs_Image(t *testing.T) {
 		altOrName: "diagram",
 		isImage:   true,
 	}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %+v, want %+v", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestExtractAssetURLs_Link(t *testing.T) {
 	in := "doc: [spec.pdf](https://uploads.linear.app/a/b/c.pdf)"
 	got := extractAssetURLs(in)
-	if len(got) != 1 {
-		t.Fatalf("got %d matches, want 1", len(got))
-	}
-	if got[0].isImage {
-		t.Error("link form should have isImage=false")
-	}
-	if got[0].url != "https://uploads.linear.app/a/b/c.pdf" {
-		t.Errorf("url = %q", got[0].url)
-	}
-	if got[0].altOrName != "spec.pdf" {
-		t.Errorf("altOrName = %q", got[0].altOrName)
-	}
+	require.Len(t, got, 1)
+	assert.False(t, got[0].isImage, "link form should have isImage=false")
+	assert.Equal(t, "https://uploads.linear.app/a/b/c.pdf", got[0].url)
+	assert.Equal(t, "spec.pdf", got[0].altOrName)
 }
 
 func TestExtractAssetURLs_MultipleMixed(t *testing.T) {
 	in := "a ![one](https://uploads.linear.app/x.png) b [two](https://uploads.linear.app/y.pdf) c"
 	got := extractAssetURLs(in)
-	if len(got) != 2 {
-		t.Fatalf("got %d, want 2", len(got))
-	}
-	if !got[0].isImage || got[1].isImage {
-		t.Errorf("expected first image, second link; got %+v", got)
-	}
+	require.Len(t, got, 2)
+	assert.True(t, got[0].isImage, "expected first match to be an image")
+	assert.False(t, got[1].isImage, "expected second match to be a link")
 }
 
 func TestExtractAssetURLs_SkipsForeignHost(t *testing.T) {
 	in := "![x](https://example.com/foo.png)"
-	if got := extractAssetURLs(in); len(got) != 0 {
-		t.Errorf("expected 0 matches for foreign host, got %d", len(got))
-	}
+	got := extractAssetURLs(in)
+	assert.Empty(t, got)
 }
 
 func TestExtractAssetURLs_SkipsFencedCode(t *testing.T) {
 	in := "before\n```\n![inside](https://uploads.linear.app/x.png)\n```\nafter"
-	if got := extractAssetURLs(in); len(got) != 0 {
-		t.Errorf("expected 0 matches inside fenced block, got %+v", got)
-	}
+	got := extractAssetURLs(in)
+	assert.Empty(t, got)
 }
 
 func TestExtractAssetURLs_SkipsInlineCode(t *testing.T) {
 	in := "type `![x](https://uploads.linear.app/x.png)` to test"
-	if got := extractAssetURLs(in); len(got) != 0 {
-		t.Errorf("expected 0 matches inside inline code, got %+v", got)
-	}
+	got := extractAssetURLs(in)
+	assert.Empty(t, got)
 }
 
 func TestExtractAssetURLs_AltWithUnicodeAndSpaces(t *testing.T) {
 	in := "![中文 alt](https://uploads.linear.app/u.png)"
 	got := extractAssetURLs(in)
-	if len(got) != 1 {
-		t.Fatalf("got %d", len(got))
-	}
-	if got[0].altOrName != "中文 alt" {
-		t.Errorf("altOrName = %q", got[0].altOrName)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "中文 alt", got[0].altOrName)
 }
 
 func TestExtractAssetURLs_AltCanBeEmpty(t *testing.T) {
 	in := "![](https://uploads.linear.app/u.png)"
 	got := extractAssetURLs(in)
-	if len(got) != 1 {
-		t.Fatalf("got %d", len(got))
-	}
-	if got[0].altOrName != "" {
-		t.Errorf("altOrName = %q, want empty", got[0].altOrName)
-	}
+	require.Len(t, got, 1)
+	assert.Empty(t, got[0].altOrName)
 }
 
 // fakeAssetClient is a Client double for resolver tests; it overrides
@@ -130,9 +108,8 @@ func TestResolver_Resolve_NoMatchesReturnsOriginal(t *testing.T) {
 		maxSize: 10 * 1024 * 1024,
 	}
 	in := "plain text without any media"
-	if got := r.Resolve(context.Background(), in); got != in {
-		t.Errorf("got %q, want %q", got, in)
-	}
+	got := r.Resolve(context.Background(), in)
+	assert.Equal(t, in, got)
 }
 
 func TestResolver_Resolve_ImageSuccessReplacesWithPlaceholder(t *testing.T) {
@@ -145,71 +122,71 @@ func TestResolver_Resolve_ImageSuccessReplacesWithPlaceholder(t *testing.T) {
 	}
 	in := "see ![diagram](https://uploads.linear.app/a/b.png)!"
 	out := r.Resolve(context.Background(), in)
-	if !strings.HasPrefix(out, "see <media:image ") {
-		t.Errorf("expected placeholder prefix, got %q", out)
-	}
-	if !strings.HasSuffix(out, "!") {
-		t.Errorf("expected suffix preserved, got %q", out)
-	}
-	if !strings.Contains(out, `name="diagram"`) {
-		t.Errorf("placeholder missing name: %q", out)
-	}
-	if !strings.Contains(out, `path="`) {
-		t.Errorf("placeholder missing path: %q", out)
-	}
+	assert.True(t, strings.HasPrefix(out, "see <media:image "), "expected placeholder prefix, got %q", out)
+	assert.True(t, strings.HasSuffix(out, "!"), "expected suffix preserved, got %q", out)
+	assert.Contains(t, out, `name="diagram"`)
+	assert.Contains(t, out, `path="`)
 }
 
-func TestResolver_Resolve_HTTPFailureFallsBackToOriginalURL(t *testing.T) {
-	r := &resolver{
-		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
-			return nil, "", errors.New("403 forbidden")
-		}),
-		media:   media.NewService(),
-		maxSize: 10 * 1024 * 1024,
+// TestResolver_Resolve_Fallback covers the cases where Resolve cannot inline
+// the asset (HTTP failure, over size limit) and must fall back to a
+// placeholder that retains the original URL, as well as the link-vs-image
+// placeholder type selection.
+func TestResolver_Resolve_Fallback(t *testing.T) {
+	cases := []struct {
+		name            string
+		download        func(url string) ([]byte, string, error)
+		maxSize         int
+		in              string
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name: "HTTPFailureFallsBackToOriginalURL",
+			download: func(url string) ([]byte, string, error) {
+				return nil, "", errors.New("403 forbidden")
+			},
+			maxSize:         10 * 1024 * 1024,
+			in:              "look ![pic](https://uploads.linear.app/x.png)",
+			wantContains:    []string{"<media:image", "Original: https://uploads.linear.app/x.png"},
+			wantNotContains: []string{`path="`},
+		},
+		{
+			name: "LinkFallbackUsesDocumentType",
+			download: func(url string) ([]byte, string, error) {
+				return nil, "", errors.New("timeout")
+			},
+			maxSize:      10 * 1024 * 1024,
+			in:           "ref [spec.pdf](https://uploads.linear.app/x.pdf)",
+			wantContains: []string{"<media:document"},
+		},
+		{
+			name: "SizeLimitExceededFallsBack",
+			download: func(url string) ([]byte, string, error) {
+				return make([]byte, 11), "image/png", nil
+			},
+			maxSize:         10,
+			in:              "x ![big](https://uploads.linear.app/big.png)",
+			wantContains:    []string{"Original: https://uploads.linear.app/big.png"},
+			wantNotContains: []string{`path="`},
+		},
 	}
-	in := "look ![pic](https://uploads.linear.app/x.png)"
-	out := r.Resolve(context.Background(), in)
-	if !strings.Contains(out, "<media:image") {
-		t.Errorf("expected fallback placeholder, got %q", out)
-	}
-	if strings.Contains(out, `path="`) {
-		t.Errorf("fallback should not have path: %q", out)
-	}
-	if !strings.Contains(out, "Original: https://uploads.linear.app/x.png") {
-		t.Errorf("fallback should retain original URL: %q", out)
-	}
-}
 
-func TestResolver_Resolve_LinkFallbackUsesDocumentType(t *testing.T) {
-	r := &resolver{
-		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
-			return nil, "", errors.New("timeout")
-		}),
-		media:   media.NewService(),
-		maxSize: 10 * 1024 * 1024,
-	}
-	in := "ref [spec.pdf](https://uploads.linear.app/x.pdf)"
-	out := r.Resolve(context.Background(), in)
-	if !strings.Contains(out, "<media:document") {
-		t.Errorf("expected document fallback, got %q", out)
-	}
-}
-
-func TestResolver_Resolve_SizeLimitExceededFallsBack(t *testing.T) {
-	r := &resolver{
-		client: newFakeResolverClient(func(url string) ([]byte, string, error) {
-			return make([]byte, 11), "image/png", nil
-		}),
-		media:   media.NewService(),
-		maxSize: 10,
-	}
-	in := "x ![big](https://uploads.linear.app/big.png)"
-	out := r.Resolve(context.Background(), in)
-	if strings.Contains(out, `path="`) {
-		t.Errorf("oversize should not save, got %q", out)
-	}
-	if !strings.Contains(out, "Original: https://uploads.linear.app/big.png") {
-		t.Errorf("oversize fallback missing Original: %q", out)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &resolver{
+				client:  newFakeResolverClient(tc.download),
+				media:   media.NewService(),
+				maxSize: tc.maxSize,
+			}
+			out := r.Resolve(context.Background(), tc.in)
+			for _, s := range tc.wantContains {
+				assert.Contains(t, out, s)
+			}
+			for _, s := range tc.wantNotContains {
+				assert.NotContains(t, out, s)
+			}
+		})
 	}
 }
 
@@ -226,15 +203,10 @@ func TestResolver_Resolve_MultipleMatchesPartialFailure(t *testing.T) {
 	}
 	in := "a ![ok](https://uploads.linear.app/good.png) b ![bad](https://uploads.linear.app/bad.png) c"
 	out := r.Resolve(context.Background(), in)
-	if !strings.Contains(out, `path="`) {
-		t.Errorf("expected one success placeholder with path: %q", out)
-	}
-	if !strings.Contains(out, "Original: https://uploads.linear.app/bad.png") {
-		t.Errorf("expected fallback for bad URL: %q", out)
-	}
-	if !strings.HasPrefix(out, "a ") || !strings.HasSuffix(out, " c") {
-		t.Errorf("surrounding text not preserved: %q", out)
-	}
+	assert.Contains(t, out, `path="`)
+	assert.Contains(t, out, "Original: https://uploads.linear.app/bad.png")
+	assert.True(t, strings.HasPrefix(out, "a "), "surrounding text not preserved: %q", out)
+	assert.True(t, strings.HasSuffix(out, " c"), "surrounding text not preserved: %q", out)
 }
 
 // fakeUploaderClient lets the test inject a FileUpload implementation.
@@ -266,15 +238,13 @@ func TestUploader_UploadImage_ReturnsImageMarkdown(t *testing.T) {
 
 	tmp := t.TempDir()
 	imgPath := tmp + "/foo.png"
-	if err := os.WriteFile(imgPath, []byte("PNGBYTES"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(imgPath, []byte("PNGBYTES"), 0o644))
 
 	u := &uploader{
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(name, mime string, size int) (FileUploadTicket, error) {
-			if name != "foo.png" || mime == "" || size != len("PNGBYTES") {
-				t.Errorf("FileUpload args: name=%q mime=%q size=%d", name, mime, size)
-			}
+			assert.Equal(t, "foo.png", name)
+			assert.NotEmpty(t, mime)
+			assert.Equal(t, len("PNGBYTES"), size)
 			return FileUploadTicket{
 				AssetURL:  "https://uploads.linear.app/asset.png",
 				UploadURL: s3.URL + "/sig",
@@ -287,21 +257,11 @@ func TestUploader_UploadImage_ReturnsImageMarkdown(t *testing.T) {
 	}
 
 	md, err := u.Upload(context.Background(), imgPath)
-	if err != nil {
-		t.Fatalf("Upload: %v", err)
-	}
-	if md != "![foo.png](https://uploads.linear.app/asset.png)" {
-		t.Errorf("md = %q", md)
-	}
-	if gotMethod != http.MethodPut {
-		t.Errorf("S3 method = %q, want PUT", gotMethod)
-	}
-	if string(gotBody) != "PNGBYTES" {
-		t.Errorf("S3 body = %q", string(gotBody))
-	}
-	if gotHeaders["X-Test"] != "yes" {
-		t.Errorf("S3 headers missing X-Test: %v", gotHeaders)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "![foo.png](https://uploads.linear.app/asset.png)", md)
+	assert.Equal(t, http.MethodPut, gotMethod)
+	assert.Equal(t, "PNGBYTES", string(gotBody))
+	assert.Equal(t, "yes", gotHeaders["X-Test"])
 }
 
 func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
@@ -312,9 +272,7 @@ func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
 
 	tmp := t.TempDir()
 	pdf := tmp + "/spec.pdf"
-	if err := os.WriteFile(pdf, []byte("%PDF-1.4 ..."), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(pdf, []byte("%PDF-1.4 ..."), 0o644))
 
 	u := &uploader{
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
@@ -329,12 +287,8 @@ func TestUploader_UploadDocument_ReturnsLinkMarkdown(t *testing.T) {
 	}
 
 	md, err := u.Upload(context.Background(), pdf)
-	if err != nil {
-		t.Fatalf("Upload: %v", err)
-	}
-	if md != "[spec.pdf](https://uploads.linear.app/spec.pdf)" {
-		t.Errorf("md = %q", md)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "[spec.pdf](https://uploads.linear.app/spec.pdf)", md)
 }
 
 func TestUploader_FileMissing_ReturnsError(t *testing.T) {
@@ -345,17 +299,13 @@ func TestUploader_FileMissing_ReturnsError(t *testing.T) {
 		http:    http.DefaultClient,
 	}
 	_, err := u.Upload(context.Background(), "/no/such/file.png")
-	if err == nil {
-		t.Fatal("expected error for missing file")
-	}
+	require.Error(t, err)
 }
 
 func TestUploader_FileTooLarge_RejectsBeforeMutation(t *testing.T) {
 	tmp := t.TempDir()
 	p := tmp + "/big.png"
-	if err := os.WriteFile(p, make([]byte, 11), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(p, make([]byte, 11), 0o644))
 	called := false
 	u := &uploader{
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
@@ -367,12 +317,8 @@ func TestUploader_FileTooLarge_RejectsBeforeMutation(t *testing.T) {
 		http:    http.DefaultClient,
 	}
 	_, err := u.Upload(context.Background(), p)
-	if err == nil {
-		t.Fatal("expected error for oversized file")
-	}
-	if called {
-		t.Error("FileUpload should not be invoked when over limit")
-	}
+	require.Error(t, err)
+	assert.False(t, called, "FileUpload should not be invoked when over limit")
 }
 
 func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
@@ -383,9 +329,7 @@ func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
 
 	tmp := t.TempDir()
 	p := tmp + "/foo.png"
-	if err := os.WriteFile(p, []byte("PNG"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(p, []byte("PNG"), 0o644))
 
 	u := &uploader{
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
@@ -399,17 +343,13 @@ func TestUploader_PUTNon2xx_ReturnsError(t *testing.T) {
 		http:    http.DefaultClient,
 	}
 	_, err := u.Upload(context.Background(), p)
-	if err == nil {
-		t.Fatal("expected error on PUT 5xx")
-	}
+	require.Error(t, err)
 }
 
 func TestUploader_FileUploadMutationFails_ReturnsError(t *testing.T) {
 	tmp := t.TempDir()
 	p := tmp + "/foo.png"
-	if err := os.WriteFile(p, []byte("PNG"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(p, []byte("PNG"), 0o644))
 	u := &uploader{
 		client: &fakeUploaderClient{fakeClient: &fakeClient{}, upload: func(string, string, int) (FileUploadTicket, error) {
 			return FileUploadTicket{}, errors.New("graphql denied")
@@ -419,7 +359,5 @@ func TestUploader_FileUploadMutationFails_ReturnsError(t *testing.T) {
 		http:    http.DefaultClient,
 	}
 	_, err := u.Upload(context.Background(), p)
-	if err == nil {
-		t.Fatal("expected error when fileUpload mutation fails")
-	}
+	require.Error(t, err)
 }

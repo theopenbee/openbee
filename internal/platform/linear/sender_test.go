@@ -8,6 +8,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
 )
@@ -22,20 +25,14 @@ func TestSender_PostsCommentWithParentID(t *testing.T) {
 		Content: "hello",
 		ReplyTo: platform.InboundMessage{Raw: string(rawBytes)},
 	})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if len(fc.created) != 1 {
-		t.Fatalf("expected 1 CreateComment call, got %d", len(fc.created))
-	}
+	require.NoError(t, err)
+	require.Len(t, fc.created, 1)
 	c := fc.created[0]
-	if c.IssueID != "I1" || c.ParentID == nil || *c.ParentID != "C0" {
-		t.Errorf("unexpected call: %+v", c)
-	}
+	assert.Equal(t, "I1", c.IssueID)
+	require.NotNil(t, c.ParentID) // guard: dereferenced below
+	assert.Equal(t, "C0", *c.ParentID)
 	// Body must begin with the self-marker prefix and end with the caller's content.
-	if c.Body != "[openbee-bot]\n\nhello" {
-		t.Errorf("body = %q, want %q", c.Body, "[openbee-bot]\n\nhello")
-	}
+	assert.Equal(t, "[openbee-bot]\n\nhello", c.Body)
 }
 
 func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
@@ -43,9 +40,7 @@ func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
 
 	tmp := t.TempDir()
 	imgPath := tmp + "/snap.png"
-	if err := os.WriteFile(imgPath, []byte("PNG"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(imgPath, []byte("PNG"), 0o644))
 
 	s3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -70,15 +65,8 @@ func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
 		MediaPath: imgPath,
 		ReplyTo:   platform.InboundMessage{Raw: string(rawBytes)},
 	})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if len(fc.created) != 1 {
-		t.Fatalf("expected 1 CreateComment, got %d", len(fc.created))
-	}
+	require.NoError(t, err)
+	require.Len(t, fc.created, 1)
 	wantBody := "[openbee-bot]\n\nsee attached\n\n![snap.png](https://uploads.linear.app/snap.png)"
-	if fc.created[0].Body != wantBody {
-		t.Errorf("body = %q, want %q", fc.created[0].Body, wantBody)
-	}
+	assert.Equal(t, wantBody, fc.created[0].Body)
 }
-
