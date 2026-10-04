@@ -165,14 +165,14 @@ type FeishuConfig struct {
 	AppID        string `yaml:"app_id"`
 	AppSecret    string `yaml:"app_secret"`
 	MaxMediaSize int    `yaml:"max_media_size"`
-	BotName      string `yaml:"bot_name"`      
+	BotName      string `yaml:"bot_name"`
 }
 
 type DingTalkConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
-	BotName      string `yaml:"bot_name"` 
+	BotName      string `yaml:"bot_name"`
 }
 
 type WeComConfig struct {
@@ -181,13 +181,14 @@ type WeComConfig struct {
 	Secret       string `yaml:"secret"`
 	WebSocketURL string `yaml:"websocket_url"`
 	BotName      string `yaml:"bot_name"`
+}
 
 type TelegramConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	Token        string `yaml:"token"`
-	MaxMediaSize int    `yaml:"max_media_size"` 
-	AuthCode     string `yaml:"auth_code"`    
-	BotName      string `yaml:"bot_name"`     
+	MaxMediaSize int    `yaml:"max_media_size"`
+	AuthCode     string `yaml:"auth_code"`
+	BotName      string `yaml:"bot_name"`
 }
 
 type WeixinConfig struct {
@@ -197,39 +198,39 @@ type WeixinConfig struct {
 	CDNBaseURL   string `yaml:"cdn_base_url"`
 	RouteTag     int    `yaml:"route_tag"`
 	UserID       string `yaml:"user_id"`
-	MaxMediaSize int    `yaml:"max_media_size"` 
-	BotName      string `yaml:"bot_name"`      
+	MaxMediaSize int    `yaml:"max_media_size"`
+	BotName      string `yaml:"bot_name"`
 }
 
 type LinearConfig struct {
 	Enabled      bool          `yaml:"enabled"`
-	APIKey       string        `yaml:"api_key"`       
-	LabelName    string        `yaml:"label_name"`    
-	PollInterval time.Duration `yaml:"poll_interval"`  
-	Projects     []string      `yaml:"projects"`      
-	States       []string      `yaml:"states"`        
-	MaxMediaSize int           `yaml:"max_media_size"` 
+	APIKey       string        `yaml:"api_key"`
+	LabelName    string        `yaml:"label_name"`
+	PollInterval time.Duration `yaml:"poll_interval"`
+	Projects     []string      `yaml:"projects"`
+	States       []string      `yaml:"states"`
+	MaxMediaSize int           `yaml:"max_media_size"`
 }
 
 type RPCConfig struct {
 	TokenSecret string        `yaml:"token_secret"`
-	TokenTTL    time.Duration `yaml:"token_ttl"` 
+	TokenTTL    time.Duration `yaml:"token_ttl"`
 }
 
 type AuthConfig struct {
-	Username        string        `yaml:"username"`          
-	Password        string        `yaml:"password"`         
-	JWTSecret       string        `yaml:"jwt_secret"`       
-	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"` 
+	Username        string        `yaml:"username"`
+	Password        string        `yaml:"password"`
+	JWTSecret       string        `yaml:"jwt_secret"`
+	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
 }
 
 type ServerConfig struct {
-	Port  int        `yaml:"port"`
-	Host  string     `yaml:"host"`
-	Debug bool       `yaml:"debug"`
-	Auth  AuthConfig `yaml:"auth"`
-	EnvSecret string `yaml:"env_secret"`
+	Port      int        `yaml:"port"`
+	Host      string     `yaml:"host"`
+	Debug     bool       `yaml:"debug"`
+	Auth      AuthConfig `yaml:"auth"`
+	EnvSecret string     `yaml:"env_secret"`
 }
 
 type DatabaseConfig struct {
