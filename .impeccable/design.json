@@ -1,0 +1,825 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T06:55:32.578Z",
+  "title": "Design System: OpenBee Console",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Control Blue",
+        "canonical": "oklch(0.5772 0.2324 260)",
+        "tonalRamp": [
+          "oklch(0.15 0.232 260)",
+          "oklch(0.264 0.232 260)",
+          "oklch(0.379 0.232 260)",
+          "oklch(0.493 0.232 260)",
+          "oklch(0.607 0.232 260)",
+          "oklch(0.721 0.232 260)",
+          "oklch(0.836 0.232 260)",
+          "oklch(0.95 0.232 260)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Pressed Blue",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "tonalRamp": [
+          "oklch(0.15 0.243 264.38)",
+          "oklch(0.264 0.243 264.38)",
+          "oklch(0.379 0.243 264.38)",
+          "oklch(0.493 0.243 264.38)",
+          "oklch(0.607 0.243 264.38)",
+          "oklch(0.721 0.243 264.38)",
+          "oklch(0.836 0.243 264.38)",
+          "oklch(0.95 0.243 264.38)"
+        ]
+      },
+      "primary-edge": {
+        "role": "primary",
+        "displayName": "Blue Edge",
+        "canonical": "oklch(0.5 0.21 260)",
+        "tonalRamp": [
+          "oklch(0.15 0.21 260)",
+          "oklch(0.264 0.21 260)",
+          "oklch(0.379 0.21 260)",
+          "oklch(0.493 0.21 260)",
+          "oklch(0.607 0.21 260)",
+          "oklch(0.721 0.21 260)",
+          "oklch(0.836 0.21 260)",
+          "oklch(0.95 0.21 260)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "On-Blue White",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "link": {
+        "role": "primary",
+        "displayName": "Link Ink",
+        "canonical": "oklch(0.424 0.199 265.638)",
+        "tonalRamp": [
+          "oklch(0.15 0.199 265.64)",
+          "oklch(0.264 0.199 265.64)",
+          "oklch(0.379 0.199 265.64)",
+          "oklch(0.493 0.199 265.64)",
+          "oklch(0.607 0.199 265.64)",
+          "oklch(0.721 0.199 265.64)",
+          "oklch(0.836 0.199 265.64)",
+          "oklch(0.95 0.199 265.64)"
+        ]
+      },
+      "brand": {
+        "role": "secondary",
+        "displayName": "OpenBee Orange (mark only)",
+        "canonical": "oklch(0.700 0.161 49)",
+        "tonalRamp": [
+          "oklch(0.15 0.161 49)",
+          "oklch(0.264 0.161 49)",
+          "oklch(0.379 0.161 49)",
+          "oklch(0.493 0.161 49)",
+          "oklch(0.607 0.161 49)",
+          "oklch(0.721 0.161 49)",
+          "oklch(0.836 0.161 49)",
+          "oklch(0.95 0.161 49)"
+        ]
+      },
+      "logo-ink": {
+        "role": "secondary",
+        "displayName": "Logo Ink",
+        "canonical": "#1d2126",
+        "tonalRamp": [
+          "oklch(0.15 0.011 254.05)",
+          "oklch(0.264 0.011 254.05)",
+          "oklch(0.379 0.011 254.05)",
+          "oklch(0.493 0.011 254.05)",
+          "oklch(0.607 0.011 254.05)",
+          "oklch(0.721 0.011 254.05)",
+          "oklch(0.836 0.011 254.05)",
+          "oklch(0.95 0.011 254.05)"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "canonical": "oklch(0.9875 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Base White",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "elevated": {
+        "role": "neutral",
+        "displayName": "Elevated Gray",
+        "canonical": "oklch(0.98 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "recessed": {
+        "role": "neutral",
+        "displayName": "Recessed Gray",
+        "canonical": "oklch(0.96 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Gray",
+        "canonical": "oklch(0.97 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "strong": {
+        "role": "neutral",
+        "displayName": "Strong Ink",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Body Ink",
+        "canonical": "oklch(0.21 0.006 285.885)",
+        "tonalRamp": [
+          "oklch(0.15 0.006 285.88)",
+          "oklch(0.264 0.006 285.88)",
+          "oklch(0.379 0.006 285.88)",
+          "oklch(0.493 0.006 285.88)",
+          "oklch(0.607 0.006 285.88)",
+          "oklch(0.721 0.006 285.88)",
+          "oklch(0.836 0.006 285.88)",
+          "oklch(0.95 0.006 285.88)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Subtle Ink",
+        "canonical": "oklch(0.54 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Line (10% black)",
+        "canonical": "oklch(0.145 0 0 / 0.1)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.935 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Input Line (14% black)",
+        "canonical": "oklch(0.145 0 0 / 0.14)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "focus": {
+        "role": "neutral",
+        "displayName": "Focus Ink",
+        "canonical": "oklch(0.15 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.264 0 0)",
+          "oklch(0.379 0 0)",
+          "oklch(0.493 0 0)",
+          "oklch(0.607 0 0)",
+          "oklch(0.721 0 0)",
+          "oklch(0.836 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Idle Green",
+        "canonical": "oklch(0.508 0.118 165.612)",
+        "tonalRamp": [
+          "oklch(0.15 0.118 165.61)",
+          "oklch(0.264 0.118 165.61)",
+          "oklch(0.379 0.118 165.61)",
+          "oklch(0.493 0.118 165.61)",
+          "oklch(0.607 0.118 165.61)",
+          "oklch(0.721 0.118 165.61)",
+          "oklch(0.836 0.118 165.61)",
+          "oklch(0.95 0.118 165.61)"
+        ]
+      },
+      "success-tint": {
+        "role": "status",
+        "displayName": "Idle Tint",
+        "canonical": "oklch(0.962 0.043 156.7 / 0.8)",
+        "tonalRamp": [
+          "oklch(0.15 0.043 156.7)",
+          "oklch(0.264 0.043 156.7)",
+          "oklch(0.379 0.043 156.7)",
+          "oklch(0.493 0.043 156.7)",
+          "oklch(0.607 0.043 156.7)",
+          "oklch(0.721 0.043 156.7)",
+          "oklch(0.836 0.043 156.7)",
+          "oklch(0.95 0.043 156.7)"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Warning Amber",
+        "canonical": "oklch(0.51 0.125 55)",
+        "tonalRamp": [
+          "oklch(0.15 0.125 55)",
+          "oklch(0.264 0.125 55)",
+          "oklch(0.379 0.125 55)",
+          "oklch(0.493 0.125 55)",
+          "oklch(0.607 0.125 55)",
+          "oklch(0.721 0.125 55)",
+          "oklch(0.836 0.125 55)",
+          "oklch(0.95 0.125 55)"
+        ]
+      },
+      "warning-tint": {
+        "role": "status",
+        "displayName": "Warning Tint",
+        "canonical": "oklch(0.931 0.107 94.6 / 0.35)",
+        "tonalRamp": [
+          "oklch(0.15 0.107 94.6)",
+          "oklch(0.264 0.107 94.6)",
+          "oklch(0.379 0.107 94.6)",
+          "oklch(0.493 0.107 94.6)",
+          "oklch(0.607 0.107 94.6)",
+          "oklch(0.721 0.107 94.6)",
+          "oklch(0.836 0.107 94.6)",
+          "oklch(0.95 0.107 94.6)"
+        ]
+      },
+      "info": {
+        "role": "status",
+        "displayName": "Working Blue Ink",
+        "canonical": "oklch(0.424 0.199 265.638)",
+        "tonalRamp": [
+          "oklch(0.15 0.199 265.64)",
+          "oklch(0.264 0.199 265.64)",
+          "oklch(0.379 0.199 265.64)",
+          "oklch(0.493 0.199 265.64)",
+          "oklch(0.607 0.199 265.64)",
+          "oklch(0.721 0.199 265.64)",
+          "oklch(0.836 0.199 265.64)",
+          "oklch(0.95 0.199 265.64)"
+        ]
+      },
+      "info-tint": {
+        "role": "status",
+        "displayName": "Working Tint",
+        "canonical": "oklch(0.932 0.032 255.6 / 0.7)",
+        "tonalRamp": [
+          "oklch(0.15 0.032 255.6)",
+          "oklch(0.264 0.032 255.6)",
+          "oklch(0.379 0.032 255.6)",
+          "oklch(0.493 0.032 255.6)",
+          "oklch(0.607 0.032 255.6)",
+          "oklch(0.721 0.032 255.6)",
+          "oklch(0.836 0.032 255.6)",
+          "oklch(0.95 0.032 255.6)"
+        ]
+      },
+      "destructive": {
+        "role": "status",
+        "displayName": "Destructive Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.15 0.245 27.32)",
+          "oklch(0.264 0.245 27.32)",
+          "oklch(0.379 0.245 27.32)",
+          "oklch(0.493 0.245 27.32)",
+          "oklch(0.607 0.245 27.32)",
+          "oklch(0.721 0.245 27.32)",
+          "oklch(0.836 0.245 27.32)",
+          "oklch(0.95 0.245 27.32)"
+        ]
+      },
+      "destructive-foreground": {
+        "role": "status",
+        "displayName": "Danger Ink",
+        "canonical": "oklch(0.505 0.213 27.518)",
+        "tonalRamp": [
+          "oklch(0.15 0.213 27.52)",
+          "oklch(0.264 0.213 27.52)",
+          "oklch(0.379 0.213 27.52)",
+          "oklch(0.493 0.213 27.52)",
+          "oklch(0.607 0.213 27.52)",
+          "oklch(0.721 0.213 27.52)",
+          "oklch(0.836 0.213 27.52)",
+          "oklch(0.95 0.213 27.52)"
+        ]
+      },
+      "danger-tint": {
+        "role": "status",
+        "displayName": "Danger Tint",
+        "canonical": "oklch(0.936 0.032 17.7 / 0.6)",
+        "tonalRamp": [
+          "oklch(0.15 0.032 17.7)",
+          "oklch(0.264 0.032 17.7)",
+          "oklch(0.379 0.032 17.7)",
+          "oklch(0.493 0.032 17.7)",
+          "oklch(0.607 0.032 17.7)",
+          "oklch(0.721 0.032 17.7)",
+          "oklch(0.836 0.032 17.7)",
+          "oklch(0.95 0.032 17.7)"
+        ]
+      },
+      "status-idle": {
+        "role": "status",
+        "displayName": "Idle Dot",
+        "canonical": "oklch(0.508 0.118 165.612)",
+        "tonalRamp": [
+          "oklch(0.15 0.118 165.61)",
+          "oklch(0.264 0.118 165.61)",
+          "oklch(0.379 0.118 165.61)",
+          "oklch(0.493 0.118 165.61)",
+          "oklch(0.607 0.118 165.61)",
+          "oklch(0.721 0.118 165.61)",
+          "oklch(0.836 0.118 165.61)",
+          "oklch(0.95 0.118 165.61)"
+        ]
+      },
+      "status-working": {
+        "role": "status",
+        "displayName": "Working Dot",
+        "canonical": "oklch(0.546 0.245 262.881)",
+        "tonalRamp": [
+          "oklch(0.15 0.245 262.88)",
+          "oklch(0.264 0.245 262.88)",
+          "oklch(0.379 0.245 262.88)",
+          "oklch(0.493 0.245 262.88)",
+          "oklch(0.607 0.245 262.88)",
+          "oklch(0.721 0.245 262.88)",
+          "oklch(0.836 0.245 262.88)",
+          "oklch(0.95 0.245 262.88)"
+        ]
+      },
+      "status-error": {
+        "role": "status",
+        "displayName": "Error Dot",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.15 0.245 27.32)",
+          "oklch(0.264 0.245 27.32)",
+          "oklch(0.379 0.245 27.32)",
+          "oklch(0.493 0.245 27.32)",
+          "oklch(0.607 0.245 27.32)",
+          "oklch(0.721 0.245 27.32)",
+          "oklch(0.836 0.245 27.32)",
+          "oklch(0.95 0.245 27.32)"
+        ]
+      },
+      "chart-1": {
+        "role": "primary",
+        "displayName": "Series Blue",
+        "canonical": "oklch(0.5772 0.2324 260)",
+        "tonalRamp": [
+          "oklch(0.15 0.232 260)",
+          "oklch(0.264 0.232 260)",
+          "oklch(0.379 0.232 260)",
+          "oklch(0.493 0.232 260)",
+          "oklch(0.607 0.232 260)",
+          "oklch(0.721 0.232 260)",
+          "oklch(0.836 0.232 260)",
+          "oklch(0.95 0.232 260)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page title, one per page, left in the page header or full-bleed header strip."
+      },
+      "metric": {
+        "displayName": "Metric",
+        "purpose": "Headline counts in stat tiles and token-usage metrics; tabular numerals; 20px under 640px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Dialog titles, card titles, empty-state titles."
+      },
+      "title-sm": {
+        "displayName": "Title Small",
+        "purpose": "Panel header titles, table heads, rail and section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text, table cells, form values, descriptions."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Button labels, form labels, list primary names, quick links."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Secondary meta under a primary line, breadcrumbs, key/value terms, pagination counts."
+      },
+      "nav-label": {
+        "displayName": "Nav Label",
+        "purpose": "Sidebar and rail item labels; 600 when active."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Sentence-case field labels above metrics and key/value pairs, badges, small buttons."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Session IDs, env keys, versions, commit hashes, engine slugs (12px)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "popover",
+        "value": "0 0 0 1px var(--shadow-edge), 0 4px 8px -2px var(--shadow-drop), 0 12px 32px -8px var(--shadow-drop)",
+        "purpose": "Floating layers only: dropdown menus, select lists, dialogs, sheets. The 1px edge replaces a border. Light: edge oklch(0 0 0 / 0.1), drop oklch(0 0 0 / 0.08); dark: edge oklch(1 0 0 / 0.1), drop oklch(0 0 0 / 0.4)."
+      },
+      {
+        "name": "control-hairline",
+        "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "purpose": "Under filled and outline buttons, text inputs, select triggers, the active default-tab segment and the chat composer."
+      },
+      {
+        "name": "switch-thumb",
+        "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "purpose": "Switch thumb only."
+      },
+      {
+        "name": "scrim",
+        "value": "rgb(0 0 0 / 0.3)",
+        "purpose": "Backdrop behind dialogs and sheets."
+      },
+      {
+        "name": "table-edge-fade",
+        "value": "linear-gradient(to right, var(--shadow-edge), transparent) 0.75rem, scroll-attached, masked by local var(--card) covers",
+        "purpose": "Horizontal-scroll affordance on wide tables; appears only on the side with more content (scroll-shadow-x utility)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fade-in",
+        "value": "fade-in 0.2s ease-out both (opacity 0 to 1, translateY 4px to 0)",
+        "purpose": "Route and empty-state entry."
+      },
+      {
+        "name": "control-transition",
+        "value": "color, background-color, box-shadow 150ms",
+        "purpose": "Buttons, rows, links, quick links."
+      },
+      {
+        "name": "popover-in",
+        "value": "fade-in + zoom-in-95, 100ms",
+        "purpose": "Menus, select lists, dialogs, tooltips."
+      },
+      {
+        "name": "sheet-slide",
+        "value": "200ms ease-in-out, 2.5rem translate + opacity",
+        "purpose": "Side sheets and the mobile sidebar."
+      },
+      {
+        "name": "chevron-rotate",
+        "value": "transform 200ms",
+        "purpose": "Sidebar group disclosure."
+      },
+      {
+        "name": "working-pulse",
+        "value": "pulse-amber 1.5s ease-in-out infinite (opacity 1 to 0.3), staggered 300ms",
+        "purpose": "Three working dots while the Bee processes in chat; presence dot uses animate-ping."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation and transition durations 0.01ms, iteration 1",
+        "purpose": "Global prefers-reduced-motion override."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "container-md",
+        "value": "28rem (448px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one Control Blue action per view, top-right of the page header.",
+      "html": "<button class=\"ds-btn-primary\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg><span>Create worker</span></button>",
+      "css": ".ds-btn-primary { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 0.1875rem; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; cursor: pointer; outline: none; transition: color 150ms, background-color 150ms, box-shadow 150ms; color: var(--primary-foreground); background-color: var(--primary); background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.08), transparent); box-shadow: 0 0 0 1px var(--primary-edge), 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-btn-primary:hover { background-color: var(--primary-hover); } .ds-btn-primary:focus-visible { box-shadow: 0 0 0 1px var(--background), 0 0 0 3px var(--ring); } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions and pagination: white with a 1px Line ring and a hairline drop.",
+      "html": "<button class=\"ds-btn-outline\">Edit info</button>",
+      "css": ".ds-btn-outline { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 0.1875rem; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; cursor: pointer; outline: none; transition: color 150ms, background-color 150ms, box-shadow 150ms; color: var(--foreground); background: var(--background); box-shadow: 0 0 0 1px var(--border), 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-btn-outline:hover { background: var(--accent); color: var(--strong); } .ds-btn-outline:focus-visible { box-shadow: 0 0 0 2px var(--ring); }"
+    },
+    {
+      "name": "Ghost Icon Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Row actions, close buttons and toggles: no fill until hover.",
+      "html": "<button class=\"ds-btn-ghost\" aria-label=\"More actions\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/><circle cx=\"5\" cy=\"12\" r=\"1\"/></svg></button>",
+      "css": ".ds-btn-ghost { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 0.1875rem; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; cursor: pointer; outline: none; transition: color 150ms, background-color 150ms, box-shadow 150ms; width: 28px; height: 28px; padding: 0; color: var(--foreground); background: transparent; } .ds-btn-ghost:hover { background: var(--accent); color: var(--strong); } .ds-btn-ghost:focus-visible { box-shadow: 0 0 0 2px var(--ring); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "36px field with the 14% Input Line ring; focuses with Kumo's neutral ring, not blue.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Username</span><input class=\"ds-input\" placeholder=\"Enter username\" /></label>",
+      "css": ".ds-field { display: grid; gap: 6px; max-width: 320px; } .ds-field-label { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; font-size: 14px; line-height: 1; font-weight: 500; color: var(--foreground); } .ds-input { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; height: 36px; width: 100%; padding: 4px 12px; border: 0; border-radius: 0.1875rem; background: var(--background); color: var(--foreground); font-size: 14px; outline: none; box-shadow: 0 0 0 1px var(--input), 0 1px 2px 0 rgb(0 0 0 / 0.05); transition: box-shadow 150ms; } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:focus-visible { box-shadow: 0 0 0 1.5px color-mix(in oklch, var(--focus) 50%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-input[aria-invalid=\"true\"] { box-shadow: 0 0 0 1.5px color-mix(in oklch, var(--destructive) 60%, transparent); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-status-idle",
+      "description": "Tint + 6px dot + label for idle, working, error and pending; state never rides on color alone.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge ds-badge--idle\"><span class=\"ds-dot\"></span>Idle</span><span class=\"ds-badge ds-badge--working\"><span class=\"ds-dot\"></span>Working</span><span class=\"ds-badge ds-badge--error\"><span class=\"ds-dot\"></span>Error</span><span class=\"ds-badge ds-badge--pending\"><span class=\"ds-dot\"></span>Pending</span></div>",
+      "css": ".ds-badges { display: flex; gap: 8px; flex-wrap: wrap; } .ds-badge { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border-radius: 0.1875rem; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; } .ds-dot { width: 6px; height: 6px; border-radius: 9999px; } .ds-badge--idle { background: var(--success-tint); color: var(--success); } .ds-badge--idle .ds-dot { background: var(--status-idle); } .ds-badge--working { background: var(--info-tint); color: var(--info); } .ds-badge--working .ds-dot { background: var(--status-working); } .ds-badge--error { background: var(--danger-tint); color: var(--destructive-foreground); } .ds-badge--error .ds-dot { background: var(--status-error); } .ds-badge--pending { background: var(--muted); color: var(--foreground); } .ds-badge--pending .ds-dot { background: var(--muted-foreground); }"
+    },
+    {
+      "name": "LayerCard Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Signature section container: an Elevated Gray header strip over a flush white body, one squared surface.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><h2>System info</h2><a class=\"ds-panel-action\" href=\"#\">View all</a></header><dl class=\"ds-panel-body\"><div class=\"ds-kv\"><dt>Version</dt><dd>v0.0.42</dd></div><div class=\"ds-kv\"><dt>Commit</dt><dd>71f6001</dd></div><div class=\"ds-kv\"><dt>Platform</dt><dd>darwin/arm64</dd></div></dl></section>",
+      "css": ".ds-panel { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: flex; flex-direction: column; overflow: hidden; max-width: 360px; border-radius: 0.1875rem; background: var(--elevated); box-shadow: 0 0 0 1px var(--border); } .ds-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 16px; } .ds-panel-head h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--strong); } .ds-panel-action { font-size: 13px; color: var(--link); text-decoration: none; text-underline-offset: 4px; border-radius: 0.1875rem; outline: none; } .ds-panel-action:hover { text-decoration: underline; } .ds-panel-action:focus-visible { box-shadow: 0 0 0 2px var(--ring); } .ds-panel-body { margin: 0; border-radius: 0.1875rem; background: var(--card); box-shadow: 0 0 0 1px var(--border); } .ds-kv { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--hairline); } .ds-kv:first-child { border-top: 0; } .ds-kv dt { font-size: 13px; color: var(--muted-foreground); } .ds-kv dd { margin: 0; font-family: \"JetBrains Mono Variable\", ui-monospace, monospace; font-size: 12px; letter-spacing: normal; color: var(--foreground); }"
+    },
+    {
+      "name": "Stat Tile Row",
+      "kind": "card",
+      "refersTo": "stat-tile",
+      "description": "Plain headline counts: white base, 1px Line, 12px field label over a 24px tabular value.",
+      "html": "<dl class=\"ds-stats\"><div class=\"ds-stat\"><dt>Departments</dt><dd>5</dd></div><div class=\"ds-stat\"><dt>Workers</dt><dd>6</dd></div><div class=\"ds-stat\"><dt>Scheduled tasks</dt><dd>4</dd></div></dl>",
+      "css": ".ds-stats { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; } .ds-stat { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 0.1875rem; background: var(--card); box-shadow: 0 0 0 1px var(--border); } .ds-stat dt { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--muted-foreground); } .ds-stat dd { margin: 0; height: 32px; display: flex; align-items: center; font-size: 24px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--strong); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "260px white sidebar: 34px rows, 13px medium labels, gray fill plus semibold for the active item (never blue).",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Main\"><a class=\"ds-nav-item is-active\" href=\"#\" aria-current=\"page\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/></svg><span>Overview</span></a><a class=\"ds-nav-item\" href=\"#\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\"/></svg><span>Chat</span></a><a class=\"ds-nav-item\" href=\"#\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\"/></svg><span>Sessions</span></a><a class=\"ds-nav-item\" href=\"#\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg><span>Scheduled tasks</span></a></nav>",
+      "css": ".ds-nav { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: flex; flex-direction: column; gap: 2px; width: 260px; padding: 8px; background: var(--sidebar); box-shadow: 1px 0 0 var(--sidebar-border); } .ds-nav-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 0.1875rem; font-size: 13px; font-weight: 500; color: var(--sidebar-foreground); text-decoration: none; outline: none; transition: background-color 150ms, color 150ms; } .ds-nav-item svg { flex-shrink: 0; } .ds-nav-item:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); } .ds-nav-item:focus-visible { box-shadow: 0 0 0 2px var(--sidebar-ring); } .ds-nav-item.is-active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font-weight: 600; }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-head",
+      "description": "Workers table: white base surface, 40px semibold head, hairline rows that tint Elevated Gray on hover, avatar + name + 13px meta.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>Name</th><th>Status</th><th class=\"ds-num\">Active</th></tr></thead><tbody><tr><td><div class=\"ds-who\"><span class=\"ds-avatar\">Q<span class=\"ds-presence ds-presence--working\"></span></span><div><a href=\"#\" class=\"ds-name\">Xiao Qiao</a><div class=\"ds-meta\">Frontend and design system upkeep</div></div></div></td><td><span class=\"ds-tag ds-tag--working\"><span class=\"ds-tag-dot\"></span>Working</span></td><td class=\"ds-num ds-meta\">2 hours ago</td></tr><tr><td><div class=\"ds-who\"><span class=\"ds-avatar\">ZY<span class=\"ds-presence ds-presence--idle\"></span></span><div><a href=\"#\" class=\"ds-name\">Zhou Yu</a><div class=\"ds-meta\">Backend services and migrations</div></div></div></td><td><span class=\"ds-tag ds-tag--idle\"><span class=\"ds-tag-dot\"></span>Idle</span></td><td class=\"ds-num ds-meta\">2 hours ago</td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; overflow: hidden; border-radius: 0.1875rem; background: var(--card); box-shadow: 0 0 0 1px var(--border); } .ds-table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; color: var(--foreground); } .ds-table th { height: 40px; padding: 0 12px; text-align: left; font-weight: 600; color: var(--strong); border-bottom: 1px solid var(--border); white-space: nowrap; } .ds-table td { padding: 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; } .ds-table tr:last-child td { border-bottom: 0; } .ds-table th:first-child, .ds-table td:first-child { padding-left: 16px; } .ds-table th:last-child, .ds-table td:last-child { padding-right: 16px; } .ds-table tbody tr { transition: background-color 150ms; } .ds-table tbody tr:hover { background: var(--elevated); } .ds-num { text-align: right; font-variant-numeric: tabular-nums; } .ds-who { display: flex; align-items: center; gap: 12px; } .ds-avatar { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px; background: var(--muted); color: var(--muted-foreground); font-size: 13px; font-weight: 500; box-shadow: inset 0 0 0 1px var(--border); } .ds-presence { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 9999px; box-shadow: 0 0 0 2px var(--background); } .ds-presence--working { background: var(--status-working); } .ds-presence--idle { background: var(--status-idle); } .ds-name { font-weight: 500; color: var(--strong); text-decoration: none; text-underline-offset: 4px; border-radius: 0.1875rem; outline: none; } .ds-name:hover { color: var(--link); text-decoration: underline; } .ds-name:focus-visible { box-shadow: 0 0 0 2px var(--ring); } .ds-meta { font-size: 13px; line-height: 20px; color: var(--muted-foreground); } .ds-tag { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border-radius: 0.1875rem; font-size: 12px; font-weight: 500; } .ds-tag-dot { width: 6px; height: 6px; border-radius: 9999px; } .ds-tag--working { background: var(--info-tint); color: var(--info); } .ds-tag--working .ds-tag-dot { background: var(--status-working); } .ds-tag--idle { background: var(--success-tint); color: var(--success); } .ds-tag--idle .ds-tag-dot { background: var(--status-idle); }"
+    },
+    {
+      "name": "Empty State",
+      "kind": "custom",
+      "refersTo": "panel-body",
+      "description": "Muted honeycomb geometry (Subtle Ink at 35%), a 16px title, one short line and an optional action. Never brand-colored.",
+      "html": "<div class=\"ds-empty\"><svg class=\"ds-empty-hive\" width=\"120\" height=\"100\" viewBox=\"0 0 120 100\" fill=\"none\" aria-hidden=\"true\"><path d=\"M30 10 L45 2 L60 10 L60 26 L45 34 L30 26Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/><path d=\"M60 10 L75 2 L90 10 L90 26 L75 34 L60 26Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/><path d=\"M15 34 L30 26 L45 34 L45 50 L30 58 L15 50Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/><path d=\"M45 34 L60 26 L75 34 L75 50 L60 58 L45 50Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.08\"/><path d=\"M75 34 L90 26 L105 34 L105 50 L90 58 L75 50Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/><path d=\"M30 58 L45 50 L60 58 L60 74 L45 82 L30 74Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/><path d=\"M60 58 L75 50 L90 58 L90 74 L75 82 L60 74Z\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"currentColor\" fill-opacity=\"0.05\"/></svg><h2>No workers yet</h2><p>Create a worker to start assigning work.</p><button class=\"ds-empty-action\">Create worker</button></div>",
+      "css": ".ds-empty { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 56px 24px; animation: ds-fade-in 0.2s ease-out both; } .ds-empty-hive { color: color-mix(in oklch, var(--muted-foreground) 35%, transparent); } .ds-empty h2 { margin: 16px 0 0; font-size: 16px; font-weight: 600; color: var(--strong); } .ds-empty p { margin: 4px 0 0; max-width: 384px; font-size: 14px; line-height: 20px; color: var(--muted-foreground); } .ds-empty-action { font-family: \"Inter Variable\", \"Noto Sans SC\", system-ui, sans-serif; letter-spacing: -0.01em; font-feature-settings: \"cv02\", \"cv03\", \"cv04\", \"calt\"; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 0.1875rem; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; cursor: pointer; outline: none; transition: color 150ms, background-color 150ms, box-shadow 150ms; margin-top: 16px; color: var(--foreground); background: var(--background); box-shadow: 0 0 0 1px var(--border), 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-empty-action:hover { background: var(--accent); color: var(--strong); } .ds-empty-action:focus-visible { box-shadow: 0 0 0 2px var(--ring); } @keyframes ds-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .ds-empty { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Workforce Control Plane",
+    "overview": "The OpenBee console is a control plane for a digital workforce, written in the grammar of Cloudflare's Kumo design system. It reads like infrastructure you trust: a near-white canvas, white working surfaces drawn with a single 1px line, gray header strips that name each section, and one blue that marks the action you came to take. Workers keep their colleague standing through identity (initials avatar, presence dot, history), not through decoration. The hive metaphor shows up only as geometry, never as a mascot or a brand wash.\n\nDensity is operational. Controls sit at 36px, table rows breathe at 12px of cell padding, and every metric, timestamp and count sets in tabular numerals so columns line up at a glance. Type stays on a tight Kumo ramp (12/13/14/16px) with Inter's open digits and slight negative tracking, set beside Noto Sans SC so Chinese and English carry equal weight. Corners are squared to 3px, a deliberate translation of Kumo's 8px under the project's strict radius cap.\n\nThe system turns down the generic shadcn admin look: soft gray cards floating on white, brand color spent on every button. It also turns down playful consumer chrome (cartoon shapes, emoji UI) and drab enterprise heaviness (thick borders, dated grays, bloated navigation). Light is the default theme; dark is a full peer with its own values, listed under Colors.",
+    "keyCharacteristics": [
+      "Kumo tonal layering: canvas ground, white base surfaces with a 10%-black line, gray elevated header strips.",
+      "One blue for primary action, links, focus-visible and selection; OpenBee orange appears only in the logo.",
+      "Status shown as tint + dot + label, never by color alone.",
+      "Squared corners (3px), with full circles kept for avatars, dots and switches.",
+      "A 12/13/14/16px type ramp in Inter + Noto Sans SC, tabular numerals for all data.",
+      "Flat surfaces. Shadows appear only on floating layers and as a hairline under controls."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "Control Blue means \"act here\" and nothing else: primary action, link, focus-visible, selection. Navigation selection, decoration, icons and headings never use it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mark-Only Orange Rule",
+        "body": "OpenBee orange lives inside the logo SVG and nowhere else: no orange buttons, washes, chart series or highlights. (chart-2 aliases the orange and stays unused.)",
+        "section": "colors"
+      },
+      {
+        "name": "The Tint, Dot, Label Rule",
+        "body": "Every state renders as a soft tint, a solid 6px dot and a translated text label together. Color alone never carries state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Neutral Delta Rule",
+        "body": "Token-usage change is a measurement, not a verdict: the day-over-day delta sets in Strong Ink with an arrow icon, never in success green or danger red.",
+        "section": "colors"
+      },
+      {
+        "name": "The Four-Step Ramp Rule",
+        "body": "Running text uses only 12, 13, 14 and 16px. 20px is the page title; 20 to 24px is reserved for metric numerals. Nothing else.",
+        "section": "typography"
+      },
+      {
+        "name": "The Three Weights Rule",
+        "body": "Weights are 400, 500 and 600 only, matching the Noto Sans SC cuts the console loads. Never 700.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence-Case Label Rule",
+        "body": "Captions and field labels are 12px medium in Subtle Ink, sentence case, with no uppercase or wide tracking, so CJK labels set evenly.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Data Rule",
+        "body": "Every number a user compares (counts, tokens, durations, timestamps, page numbers) sets in tabular numerals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Canvas-Is-Ground Rule",
+        "body": "Content never sits loose on the canvas. It always lives on a Base White surface outlined by the Line, or inside a full-bleed white strip.",
+        "section": "layout"
+      },
+      {
+        "name": "The Earned Purpose Line Rule",
+        "body": "The page-header subtitle is optional. It appears only where the product already carries that copy or a live count. Never write a purpose line just to fill the slot.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Surface Rule",
+        "body": "Panels, stat tiles, tables and detail sections are flat at rest. If something casts a shadow, it floats.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Layered Strip Rule",
+        "body": "A section is named by an Elevated Gray header strip sitting over its white body (the Kumo LayerCard), never by a heading floating above a shadowed card.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Squared Corner Rule",
+        "body": "Corner radius is 3px or none. Never use rounded-md or larger, arbitrary radii above 3px, or Kumo's native 8px.",
+        "section": "shapes"
+      },
+      {
+        "name": "The True-Circle Rule",
+        "body": "A full radius is allowed only on things that are actually circles or pills: avatars, dots, switches, icon chips.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Gray Selection Rule",
+        "body": "Navigation selection (sidebar, rails, menu focus) is a gray fill plus semibold Strong Ink, never Control Blue and never orange.",
+        "section": "components"
+      },
+      {
+        "name": "The Two Focus Rings Rule",
+        "body": "Text inputs focus with a neutral 50% Focus Ink ring; every other interactive control focuses with the 2px Control Blue ring. Focus is always visible.",
+        "section": "components"
+      },
+      {
+        "name": "The Ring-Not-Border Rule",
+        "body": "Surfaces and controls are outlined with 1px rings so outlines never shift layout; borders are only for structural dividers.",
+        "section": "components"
+      },
+      {
+        "name": "The Muted Hive Rule",
+        "body": "The hive appears as muted hexagon geometry in empty states, never as a brand-colored pattern, mascot or illustration.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** place exactly one primary (Control Blue) button per view, at the right end of the page header or the header strip.",
+      "**Do** wrap every titled section in the LayerCard panel: Elevated Gray header strip (44px minimum) over a flush white body.",
+      "**Do** render every status with StatusBadge (tint + 6px dot + translated label) or the labeled presence dot.",
+      "**Do** use 3px corners by default, and a full radius only for avatars, dots, switches and icon chips.",
+      "**Do** set counts, tokens, durations and timestamps in tabular numerals, and IDs, keys and versions in JetBrains Mono.",
+      "**Do** keep field labels at 12px medium, sentence case, in Subtle Ink.",
+      "**Do** divide cells inside a surface with Hairline lines instead of nesting outlined tiles.",
+      "**Do** test every surface in Chinese and English, light and dark."
+    ],
+    "donts": [
+      "**Don't** use rounded-md, rounded-lg or larger, arbitrary radii above 3px, or Kumo's native 8px corners.",
+      "**Don't** use Control Blue for navigation selection, icons, headings or decoration; it means \"act here\".",
+      "**Don't** use OpenBee orange anywhere outside the logo: no orange buttons, badges, washes, highlights or chart series.",
+      "**Don't** convey state by color alone, and don't color the token-usage delta green or red.",
+      "**Don't** put shadows on resting panels, tiles or tables; shadows are for floating layers and the control hairline only.",
+      "**Don't** add gradients beyond the 8% white top sheen on filled buttons.",
+      "**Don't** use uppercase, wide-tracked eyebrows or kickers above titles.",
+      "**Don't** set text at 700 weight or outside the 12/13/14/16px ramp (titles at 20px and metric numerals at 20 to 24px excepted).",
+      "**Don't** give text inputs the blue focus ring; they focus neutral.",
+      "**Don't** add a page purpose line where the product has no such copy."
+    ]
+  }
+}
