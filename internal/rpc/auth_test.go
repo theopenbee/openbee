@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/rpc"
 )
@@ -24,89 +26,103 @@ func newRouter(secret string, extra ...gin.HandlerFunc) *gin.Engine {
 	return r
 }
 
-func TestJWTAuthMiddleware_NoToken(t *testing.T) {
-	r := newRouter(testSecret)
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+func TestJWTAuthMiddleware(t *testing.T) {
+	cases := []struct {
+		name     string
+		token    func(t *testing.T) string
+		via      string
+		extra    []gin.HandlerFunc
+		wantCode int
+	}{
+		{
+			name:     "NoToken",
+			token:    func(t *testing.T) string { return "" },
+			via:      "header",
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "InvalidToken",
+			token:    func(t *testing.T) string { return "not-a-jwt" },
+			via:      "header",
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name: "ValidBeeToken",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "header",
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "ValidWorkerToken",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "header",
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "TokenViaQueryParam",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "query",
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "AllowsBeeToken",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "header",
+			extra:    []gin.HandlerFunc{rpc.RequireBeeOrWorker()},
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "AllowsWorkerToken",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "header",
+			extra:    []gin.HandlerFunc{rpc.RequireBeeOrWorker()},
+			wantCode: http.StatusOK,
+		},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRouter(testSecret, tc.extra...)
+			w := httptest.NewRecorder()
+			tok := tc.token(t)
 
-func TestJWTAuthMiddleware_InvalidToken(t *testing.T) {
-	r := newRouter(testSecret)
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", "not-a-jwt")
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestJWTAuthMiddleware_ValidBeeToken(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newRouter(testSecret)
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestJWTAuthMiddleware_ValidWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
-	r := newRouter(testSecret)
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestJWTAuthMiddleware_TokenViaQueryParam(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newRouter(testSecret)
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test?api_key="+tok, nil)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 via query param, got %d", w.Code)
-	}
-}
-
-
-func TestRequireBeeOrWorker_AllowsBeeToken(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken(testSecret, time.Hour)
-	r := newRouter(testSecret, rpc.RequireBeeOrWorker())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestRequireBeeOrWorker_AllowsWorkerToken(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
-	r := newRouter(testSecret, rpc.RequireBeeOrWorker())
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", tok)
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+			var req *http.Request
+			if tc.via == "query" {
+				req, _ = http.NewRequest(http.MethodGet, "/test?api_key="+tok, nil)
+			} else {
+				req, _ = http.NewRequest(http.MethodGet, "/test", nil)
+				if tok != "" {
+					req.Header.Set("X-API-Key", tok)
+				}
+			}
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.wantCode, w.Code)
+		})
 	}
 }
 
 func TestWorkerIDStoredInContext(t *testing.T) {
-	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-999", nil, time.Hour)
+	tok, err := auth.GenerateWorkerToken(testSecret, "worker-999", nil, time.Hour)
+	require.NoError(t, err)
 	r := gin.New()
 	r.Use(rpc.JWTAuthMiddleware(testSecret))
 	r.GET("/test", func(c *gin.Context) {
@@ -121,14 +137,13 @@ func TestWorkerIDStoredInContext(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestWorkerScopesStoredInContext(t *testing.T) {
 	scopes := []string{auth.ScopeReadWorkers, auth.ScopeReadTasks}
-	tok, _ := auth.GenerateWorkerToken(testSecret, "worker-scoped", scopes, time.Hour)
+	tok, err := auth.GenerateWorkerToken(testSecret, "worker-scoped", scopes, time.Hour)
+	require.NoError(t, err)
 	r := gin.New()
 	r.Use(rpc.JWTAuthMiddleware(testSecret))
 	r.GET("/test", func(c *gin.Context) {
@@ -144,7 +159,5 @@ func TestWorkerScopesStoredInContext(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", tok)
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
