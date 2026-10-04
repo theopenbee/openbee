@@ -16,9 +16,9 @@ export function TokenStatsInfoButton({
       <TooltipTrigger
         type="button"
         aria-label="Token breakdown"
-        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Info className="size-3" />
+        <Info className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent side={side} align={align}>
         <TokenStatsTooltip stats={stats} />
@@ -27,29 +27,31 @@ export function TokenStatsInfoButton({
   )
 }
 
+// Rendered inside the inverted tooltip surface (bg-strong / text-background),
+// so secondary text steps down via the background tone's opacity.
 export function TokenStatsTooltip({ stats }: { stats: SessionTokenStats }) {
   const sorted = [...stats.by_model].sort((a, b) => b.total_tokens - a.total_tokens)
   return (
-    <div className="flex flex-col gap-1.5 font-mono text-xs min-w-[160px]">
-      <div className="flex justify-between gap-4 font-semibold">
+    <div className="flex min-w-44 flex-col gap-2 py-0.5 text-xs">
+      <div className="flex justify-between gap-6 font-semibold">
         <span>Total</span>
-        <span>{stats.total_tokens.toLocaleString()}</span>
+        <span className="tabular-nums">{stats.total_tokens.toLocaleString()}</span>
       </div>
-      <div className="border-t border-background/20 pt-1 flex flex-col gap-2">
+      <div className="flex flex-col gap-2 border-t border-background/20 pt-2">
         {sorted.length === 0 ? (
-          <span className="opacity-60">No model data</span>
+          <span className="text-background/70">No model data</span>
         ) : sorted.map((m) => (
           <div key={m.model} className="flex flex-col gap-0.5">
-            <div className="flex justify-between gap-4">
-              <span className="opacity-90">{m.model}</span>
-              <span>{m.total_tokens.toLocaleString()}</span>
+            <div className="flex justify-between gap-6">
+              <span className="font-mono">{m.model}</span>
+              <span className="font-medium tabular-nums">{m.total_tokens.toLocaleString()}</span>
             </div>
-            <div className="flex gap-3 opacity-60 pl-1">
+            <div className="flex gap-3 text-background/70 tabular-nums">
               <span>In {m.input_tokens.toLocaleString()}</span>
               <span>Out {m.output_tokens.toLocaleString()}</span>
             </div>
             {(m.cache_creation_tokens > 0 || m.cache_read_tokens > 0) && (
-              <div className="flex gap-3 opacity-60 pl-1">
+              <div className="flex gap-3 text-background/70 tabular-nums">
                 <span>Cache↑ {m.cache_creation_tokens.toLocaleString()}</span>
                 <span>Cache↓ {m.cache_read_tokens.toLocaleString()}</span>
               </div>

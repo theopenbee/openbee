@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
+import { CircleAlert, LoaderCircle } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -48,39 +48,13 @@ export function Login() {
   }
 
   return (
-    <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-background px-4 py-10 text-foreground">
-      {/* Tonal base: a quiet off-paper field so the white card lifts without a shadow. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to bottom, var(--background), color-mix(in oklch, var(--background) 90%, var(--muted) 10%))",
-        }}
-      />
-      {/* Blueprint grid, hairline-thin and vignetted toward the edges. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: [
-            "linear-gradient(color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
-            "linear-gradient(90deg, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
-          ].join(", "),
-          backgroundSize: "32px 32px, 32px 32px",
-          maskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
-        }}
-      />
-
-      <main className="animate-fade-in motion-reduce:animate-none relative w-full max-w-sm">
-        <section className="rounded-sm border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
-          <header className="space-y-5">
-            <LogoFull className="h-9" />
-            <div className="space-y-1.5">
-              <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="grid min-h-dvh place-items-center bg-canvas px-4 py-10 text-foreground">
+      <main className="animate-fade-in motion-reduce:animate-none w-full max-w-sm">
+        <section className="rounded-sm bg-card p-8 ring-1 ring-border">
+          <header>
+            <LogoFull className="h-7" />
+            <div className="mt-6 space-y-1">
+              <h1 className="text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
                 {t("login.title")}
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -93,19 +67,19 @@ export function Login() {
             <div
               role="alert"
               aria-live="polite"
-              className={cn(ALERT_DESTRUCTIVE, "mt-6 flex items-start gap-2.5 px-3.5 py-3")}
+              className={cn(ALERT_DESTRUCTIVE, "mt-6 flex items-start gap-2.5 px-3 py-2.5")}
             >
               <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-              <p className="leading-6">{error}</p>
+              <p className="leading-5">{error}</p>
             </div>
           ) : null}
 
           <form
             onSubmit={handleSubmit}
-            className="mt-6 space-y-5"
+            className="mt-6 space-y-4"
             aria-busy={loading}
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="username">{t("login.username")}</Label>
               <Input
                 id="username"
@@ -115,12 +89,11 @@ export function Login() {
                 autoFocus={username.length === 0}
                 aria-invalid={error ? true : undefined}
                 placeholder={t("login.usernamePlaceholder")}
-                className="h-11 px-3.5"
                 required
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
@@ -130,7 +103,6 @@ export function Login() {
                 autoComplete="current-password"
                 aria-invalid={error ? true : undefined}
                 placeholder={t("login.passwordPlaceholder")}
-                className="h-11 px-3.5"
                 required
               />
             </div>
@@ -138,7 +110,7 @@ export function Login() {
             <Button
               type="submit"
               disabled={!canSubmit}
-              className="h-11 w-full text-sm font-semibold"
+              className="mt-2 w-full"
             >
               {loading ? (
                 <>
@@ -149,10 +121,7 @@ export function Login() {
                   <span>{t("login.submitting")}</span>
                 </>
               ) : (
-                <>
-                  <span>{t("login.submit")}</span>
-                  <ArrowRight aria-hidden="true" className="size-4" />
-                </>
+                <span>{t("login.submit")}</span>
               )}
             </Button>
           </form>

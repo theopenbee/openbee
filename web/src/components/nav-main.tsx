@@ -67,17 +67,17 @@ function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }
       <CollapsibleTrigger
         render={
           <SidebarMenuButton
-            className="group/collapsible h-9"
+            className="group/collapsible"
             tooltip={item.title}
           >
             {item.icon}
             <span>{item.title}</span>
-            <ChevronDownIcon className="ml-auto text-sidebar-foreground/60 transition-transform duration-200 group-data-[panel-open]/collapsible:rotate-180" />
+            <ChevronDownIcon className="ml-auto text-muted-foreground transition-transform duration-200 group-data-[panel-open]/collapsible:rotate-180" />
           </SidebarMenuButton>
         }
       />
       <CollapsibleContent>
-        <SidebarMenuSub className="mx-0 gap-1 border-l-0 px-0 pl-[2.125rem]">
+        <SidebarMenuSub className="mx-0 gap-0.5 border-l-0 px-0 py-0.5 pl-[1.625rem]">
           {item.items.map((sub, i) => {
             // Render a small section header whenever this sub-item's
             // section differs from the previous (already permission-
@@ -87,15 +87,14 @@ function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }
             return (
               <React.Fragment key={sub.title}>
                 {showSection && (
-                  <SidebarGroupLabel className="h-7 px-0 text-sidebar-foreground/60">
+                  <SidebarGroupLabel className="h-7 px-3 text-muted-foreground">
                     {sub.section}
                   </SidebarGroupLabel>
                 )}
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
                     isActive={isActive(sub.url)}
-                    className="h-8 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary"
-                    render={<Link to={sub.url} />}
+                                        render={<Link to={sub.url} />}
                   >
                     <span>{sub.title}</span>
                   </SidebarMenuSubButton>
@@ -124,15 +123,14 @@ export function NavMain({
   return (
     <SidebarGroup>
       {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
-      <SidebarMenu className="gap-1">
+      <SidebarMenu className="gap-0.5">
         {items.map((item) =>
           isGroup(item) ? (
             <NavGroup key={item.title} item={item} isActive={isActive} />
           ) : (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
-                className="h-9 data-active:bg-transparent data-active:text-sidebar-primary [&_svg]:data-active:text-sidebar-primary"
-                tooltip={item.title}
+                                tooltip={item.title}
                 isActive={isActive(item.url)}
                 render={<Link to={item.url} />}
               >

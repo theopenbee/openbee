@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   Check,
+  ChevronRight,
   ClipboardCheck,
   MessageSquareText,
   Pencil,
@@ -12,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { DetailSection } from "@/components/detail-primitives"
+import { Panel } from "@/components/panel"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { CopyButton } from "@/components/copy-button"
@@ -55,17 +57,8 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   // ---- Edit state ----
   if (isEditing) {
     return (
-      <DetailSection className="p-5 sm:p-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-sm bg-muted text-muted-foreground">
-              <ScrollText className="size-4" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">{t("workerDetail.editConstraints")}</p>
-            </div>
-          </div>
-
+      <Panel title={t("workerDetail.editConstraints")}>
+        <div className="flex flex-col gap-3">
           <Textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -75,45 +68,48 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
             }}
             autoFocus
             rows={14}
+            aria-label={t("workerDetail.editConstraints")}
             placeholder={t("workers.form.constraintsPlaceholder")}
-            className="text-sm leading-7"
+            className="min-h-72 text-sm leading-6"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground tabular-nums">
               {t("workerDetail.constraintsPanel.charCount", { count: draft.length })}
-              <span aria-hidden="true" className="mx-2 text-border">·</span>
+              <span aria-hidden="true" className="mx-2">·</span>
               {t("workerDetail.constraintsPanel.shortcuts")}
             </p>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => void save()} disabled={updateWorker.isPending}>
-                <Check className="size-4" />
-                {t("common.save")}
-              </Button>
-              <Button size="sm" variant="outline" onClick={cancelEditing}>
+              <Button variant="outline" onClick={cancelEditing}>
                 <X className="size-4" />
                 {t("common.cancel")}
+              </Button>
+              <Button onClick={() => void save()} disabled={updateWorker.isPending}>
+                <Check className="size-4" />
+                {t("common.save")}
               </Button>
             </div>
           </div>
         </div>
-      </DetailSection>
+      </Panel>
     )
   }
 
   // ---- View state (configured) ----
+  // The section header already names the content, so the text sits on a plain
+  // surface with its actions top-right instead of under a repeated title strip.
   if (constraints) {
     return (
-      <DetailSection className="px-5 py-5 sm:px-6">
+      <DetailSection className="p-4">
         <div className="flex items-start justify-between gap-4">
-          <p className="min-w-0 max-w-[70ch] whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+          <p className="min-w-0 max-w-[72ch] text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
             {constraints}
           </p>
           <div className="flex shrink-0 items-center gap-1">
-            <CopyButton value={constraints} />
+            <CopyButton value={constraints} className="flex size-7 items-center justify-center" />
             {canWrite && (
-              <Button size="sm" variant="ghost" onClick={() => startEditing(constraints)}>
-                <Pencil className="size-4" />
+              <Button size="sm" variant="outline" onClick={() => startEditing(constraints)}>
+                <Pencil className="size-3.5" />
                 {t("workerDetail.editConstraints")}
               </Button>
             )}
@@ -128,12 +124,12 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   // editing affordances (add button + templates) and show a plain notice.
   if (!canWrite) {
     return (
-      <DetailSection className="px-5 py-12 sm:px-6">
+      <DetailSection className="px-6 py-12">
         <div className="mx-auto flex max-w-md flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-sm bg-muted text-muted-foreground">
-            <ScrollText className="size-6" aria-hidden="true" />
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <ScrollText className="size-5" aria-hidden="true" />
           </span>
-          <p className="mt-4 text-sm leading-6 text-muted-foreground">
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             {t("workerDetail.constraintsPanel.emptyReadonly")}
           </p>
         </div>
@@ -142,51 +138,54 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
   }
 
   // ---- Empty state ----
+  // The call to action sits on its own surface; the starter templates follow
+  // as a layered panel whose rows are plain dividers, not nested cards.
   return (
-    <DetailSection className="px-5 py-12 sm:px-6">
-      <div className="mx-auto flex max-w-md flex-col items-center text-center">
-        <span className="flex size-12 items-center justify-center rounded-sm bg-muted text-muted-foreground">
-          <ScrollText className="size-6" aria-hidden="true" />
-        </span>
-        <h2 className="mt-4 text-base font-medium text-foreground">
-          {t("workerDetail.constraintsPanel.emptyTitle", { name: worker.name })}
-        </h2>
-        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-          {t("workerDetail.constraintsPanel.emptyDescription")}
-        </p>
-        <Button className="mt-5" onClick={() => startEditing("")}>
-          <Plus className="size-4" />
-          {t("workerDetail.constraintsPanel.add")}
-        </Button>
-      </div>
-
-      <div className="mx-auto mt-9 max-w-md">
-        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-          {t("workerDetail.constraintsPanel.templatesLabel")}
-        </p>
-        <div className="mt-2.5 flex flex-col gap-2">
-          {TEMPLATES.map(({ id, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => startEditing(t(`workerDetail.constraintsPanel.templates.${id}.body`))}
-              className="group flex items-start gap-3 rounded-sm border border-border/70 bg-background/60 px-3.5 py-3 text-left transition-colors hover:border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground transition-colors group-hover:bg-background">
-                <Icon className="size-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">
-                  {t(`workerDetail.constraintsPanel.templates.${id}.title`)}
-                </span>
-                <span className="block text-xs leading-5 text-muted-foreground">
-                  {t(`workerDetail.constraintsPanel.templates.${id}.desc`)}
-                </span>
-              </span>
-            </button>
-          ))}
+    <div className="space-y-6">
+      <DetailSection className="px-6 py-10">
+        <div className="mx-auto flex max-w-md flex-col items-center text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <ScrollText className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="mt-3 text-base font-semibold text-strong">
+            {t("workerDetail.constraintsPanel.emptyTitle", { name: worker.name })}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {t("workerDetail.constraintsPanel.emptyDescription")}
+          </p>
+          <Button className="mt-4" onClick={() => startEditing("")}>
+            <Plus className="size-4" />
+            {t("workerDetail.constraintsPanel.add")}
+          </Button>
         </div>
-      </div>
-    </DetailSection>
+      </DetailSection>
+
+      <Panel title={t("workerDetail.constraintsPanel.templatesLabel")} flush>
+        <ul className="divide-y divide-hairline">
+          {TEMPLATES.map(({ id, icon: Icon }) => (
+            <li key={id}>
+              <button
+                type="button"
+                onClick={() => startEditing(t(`workerDetail.constraintsPanel.templates.${id}.body`))}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Icon className="size-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-strong">
+                    {t(`workerDetail.constraintsPanel.templates.${id}.title`)}
+                  </span>
+                  <span className="block text-[13px] leading-5 text-muted-foreground">
+                    {t(`workerDetail.constraintsPanel.templates.${id}.desc`)}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </div>
   )
 }

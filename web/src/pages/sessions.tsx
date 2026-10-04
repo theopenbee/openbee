@@ -2,7 +2,6 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useExecutions } from "@/hooks/use-executions"
-import type { WorkerExecution } from "@/lib/types"
 import {
   Table,
   TableBody,
@@ -20,34 +19,9 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus } from "@/lib/format"
 
 const PAGE_SIZE = 20
-
-const TURN_DOT: Record<string, string> = {
-  running: "bg-status-working",
-  completed: "bg-status-idle",
-  failed: "bg-status-error",
-  pending: "bg-muted-foreground/30",
-}
-
-function TurnPips({ executions }: { executions: WorkerExecution[] }) {
-  const ordered = [...executions].reverse()
-  return (
-    <div className="flex items-center gap-0.5 flex-wrap max-w-[120px]">
-      {ordered.map((e, i) => (
-        <div
-          key={e.id}
-          title={`Turn ${i + 1}: ${e.status}`}
-          className={cn(
-            "size-2 rounded-full shrink-0",
-            TURN_DOT[e.status] ?? "bg-muted-foreground/30"
-          )}
-        />
-      ))}
-    </div>
-  )
-}
 
 export function Sessions() {
   const { t } = useTranslation()
@@ -82,23 +56,25 @@ export function Sessions() {
       {isLoading ? (
         <SkeletonTable />
       ) : sessionGroups.length === 0 && !error ? (
-        <EmptyState
-          title={t("emptyState.noExecutions")}
-          description={t("emptyState.noExecutionsDesc")}
-        />
+        <div className="rounded-sm bg-card ring-1 ring-border">
+          <EmptyState
+            title={t("emptyState.noExecutions")}
+            description={t("emptyState.noExecutionsDesc")}
+          />
+        </div>
       ) : (
         <>
-          <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
-            <Table>
+          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+            <Table className="md:min-w-[760px]">
               <TableHeader>
-                <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  <TableHead className="pl-5 w-28">{t("sessions.columns.session")}</TableHead>
-                  <TableHead className="w-36">{t("sessions.columns.worker")}</TableHead>
-                  <TableHead>{t("sessions.columns.turns")}</TableHead>
-                  <TableHead className="w-28">{t("sessions.columns.latestStatus")}</TableHead>
-                  <TableHead className="w-24">{t("sessions.columns.started")}</TableHead>
-                  <TableHead className="w-20">{t("sessions.columns.duration")}</TableHead>
-                  <TableHead className="w-24">{t("sessions.columns.tokens")}</TableHead>
+                <TableRow>
+                  <TableHead className="w-32 pl-4">{t("sessions.columns.session")}</TableHead>
+                  <TableHead>{t("sessions.columns.worker")}</TableHead>
+                  <TableHead className="hidden w-24 md:table-cell">{t("sessions.columns.turns")}</TableHead>
+                  <TableHead className="hidden w-32 md:table-cell">{t("sessions.columns.latestStatus")}</TableHead>
+                  <TableHead className="w-32">{t("sessions.columns.started")}</TableHead>
+                  <TableHead className="hidden w-28 md:table-cell">{t("sessions.columns.duration")}</TableHead>
+                  <TableHead className="w-32 pr-4 text-right">{t("sessions.columns.tokens")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -111,53 +87,45 @@ export function Sessions() {
                   const tokenStats = data?.token_stats?.[latest.session_id] ?? null
 
                   return (
-                    <TableRow
-                      key={latest.session_id}
-                      className="hover:bg-primary/5 transition-colors"
-                    >
-                      <TableCell
-                        className={cn(
-                          "pl-4 border-l-2",
-                          STATUS_ROW_BORDER[latest.status] ?? "border-l-transparent"
-                        )}
-                      >
+                    <TableRow key={latest.session_id}>
+                      <TableCell className="pl-4">
                         <Link
                           to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
                           aria-label={t("sessions.viewSession", { id: latest.session_id })}
-                          className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
+                          className="rounded-sm font-mono text-[13px] font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {latest.session_id.slice(0, 8)}
                         </Link>
+                        {/* Below md the status column folds in here, so state
+                            stays visible without scrolling. */}
+                        <div className="mt-1.5 md:hidden">
+                          <StatusBadge status={latest.status} />
+                        </div>
                       </TableCell>
 
                       <TableCell>
                         {latest.worker_id ? (
                           <Link
                             to={`/workers/${latest.worker_id}`}
-                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            className="text-sm text-foreground underline-offset-4 transition-colors hover:text-link hover:underline"
                           >
                             {latest.worker_name || latest.worker_id.slice(0, 8)}
                           </Link>
                         ) : (
-                          <span className="text-sm text-muted-foreground/50">—</span>
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
 
-                      <TableCell>
-                        <div className="flex flex-col gap-1.5">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            {t("sessions.turnCount", { count: group.length })}
-                          </span>
-                          <TurnPips executions={group} />
-                        </div>
+                      <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                        {t("sessions.turnCount", { count: group.length })}
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <StatusBadge status={latest.status} />
                       </TableCell>
 
                       <TableCell
-                        className="text-xs font-mono text-muted-foreground"
+                        className="text-[13px] text-muted-foreground tabular-nums"
                         title={
                           oldest.started_at
                             ? new Date(oldest.started_at).toLocaleString()
@@ -167,22 +135,18 @@ export function Sessions() {
                         {formatRelative(oldest.started_at, t)}
                       </TableCell>
 
-                      <TableCell className="text-xs font-mono">
-                        {isActive ? (
-                          <span className="text-status-working animate-pulse-amber">live</span>
-                        ) : (
-                          <span className="text-muted-foreground">{duration}</span>
-                        )}
+                      <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                        {isActive ? t("sessionDetail.live") : duration}
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="pr-4 text-right">
                         {tokenStats ? (
-                          <div className="flex items-center gap-1 text-xs font-mono">
-                            <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
+                          <div className="inline-flex items-center justify-end gap-1 text-[13px] text-foreground tabular-nums">
+                            <span>{formatTokenCount(tokenStats.total_tokens)}</span>
                             <TokenStatsInfoButton stats={tokenStats} side="left" align="center" />
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground/40">—</span>
+                          <span className="text-[13px] text-muted-foreground">—</span>
                         )}
                       </TableCell>
                     </TableRow>

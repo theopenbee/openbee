@@ -2,10 +2,18 @@ import { Fragment, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
+import { FIELD_LABEL } from "@/lib/styles"
 import type { DepartmentTree as DepartmentTreeType } from "@/lib/types"
 
 export const UNGROUPED_FILTER = "ungrouped" as const
+
+// Rail items mirror the main sidebar: 34px rows, 13px medium labels, a gray
+// accent fill on hover, and the same gray fill plus semibold for the selection
+// (never the action blue or the brand orange).
+const RAIL_ITEM =
+  "flex h-8.5 w-full items-center gap-2.5 rounded-sm px-3 text-left text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+const RAIL_ITEM_IDLE = "text-foreground hover:bg-accent hover:text-strong"
+const RAIL_ITEM_SELECTED = "bg-accent font-semibold text-strong"
 
 interface DepartmentTreeProps {
   departments: DepartmentTreeType[]
@@ -20,34 +28,28 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
         <button
+          type="button"
           onClick={() => onSelect(null)}
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm transition-colors",
-            selectedId === null
-              ? "bg-primary/10 font-medium text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
+          aria-pressed={selectedId === null}
+          className={cn(RAIL_ITEM, selectedId === null ? RAIL_ITEM_SELECTED : RAIL_ITEM_IDLE)}
         >
           <UsersIcon className="size-4 shrink-0" />
-          {t("departments.allWorkers")}
+          <span className="truncate">{t("departments.allWorkers")}</span>
         </button>
 
         <button
+          type="button"
           onClick={() => onSelect(UNGROUPED_FILTER)}
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm transition-colors",
-            selectedId === UNGROUPED_FILTER
-              ? "bg-primary/10 font-medium text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
+          aria-pressed={selectedId === UNGROUPED_FILTER}
+          className={cn(RAIL_ITEM, selectedId === UNGROUPED_FILTER ? RAIL_ITEM_SELECTED : RAIL_ITEM_IDLE)}
         >
           <InboxIcon className="size-4 shrink-0" />
-          {t("departments.ungrouped")}
+          <span className="truncate">{t("departments.ungrouped")}</span>
         </button>
 
         {departments.length > 0 && (
           <div className="pt-4">
-            <p className={cn(EYEBROW_LABEL, "px-2.5 pb-2")}>
+            <p className={cn(FIELD_LABEL, "px-3 pb-1.5")}>
               {t("departments.title")}
             </p>
             <div className="space-y-0.5">
@@ -81,18 +83,21 @@ function DepartmentNode({
 }) {
   const [expanded, setExpanded] = useState(true)
   const hasChildren = dept.children.length > 0
+  const isSelected = selectedId === dept.id
 
   return (
     <Fragment>
       <div
-        className="flex w-full items-center gap-1 pr-2 text-sm"
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        className="flex w-full items-center gap-0.5"
+        style={{ paddingLeft: `${depth * 16}px` }}
       >
         {hasChildren ? (
           <button
+            type="button"
             onClick={() => setExpanded(!expanded)}
             aria-label={dept.name}
-            className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-expanded={expanded}
+            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <ChevronRightIcon
               className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
@@ -102,13 +107,10 @@ function DepartmentNode({
           <span className="w-6 shrink-0" />
         )}
         <button
+          type="button"
           onClick={() => onSelect(dept.id)}
-          className={cn(
-            "flex flex-1 items-center gap-2 rounded-sm px-2 py-2 text-left transition-colors",
-            selectedId === dept.id
-              ? "bg-primary/10 font-medium text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
+          aria-pressed={isSelected}
+          className={cn(RAIL_ITEM, "min-w-0 flex-1 px-2", isSelected ? RAIL_ITEM_SELECTED : RAIL_ITEM_IDLE)}
         >
           {expanded && hasChildren ? (
             <FolderOpenIcon className="size-4 shrink-0" />

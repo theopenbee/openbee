@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
@@ -20,9 +19,8 @@ import {
   Select,
   SelectContent,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
-import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
@@ -116,19 +114,17 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
-        <SheetHeader className="px-6 pt-6 pb-4">
-          <SheetTitle>{t("workerDetail.workerInfo")}</SheetTitle>
+      <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[28rem]">
+        <SheetHeader className="border-b border-border px-6 py-4 pr-12">
+          <SheetTitle className="text-base font-semibold text-strong">{t("workerDetail.workerInfo")}</SheetTitle>
         </SheetHeader>
-
-        <Separator />
 
         <form
           id="edit-worker-info-form"
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto"
         >
-          <div className="px-6 py-5 space-y-5">
+          <div className="space-y-5 px-6 py-5">
             {submitError && (
               <div role="alert" className={ALERT_DESTRUCTIVE}>
                 {submitError}
@@ -162,6 +158,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
+                className="font-mono text-[13px]"
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.workDirEditHelper")}</p>
             </div>
@@ -169,8 +166,8 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
             <div className="space-y-1.5">
               <Label htmlFor="ewis-engine">{t("workers.form.engine")}</Label>
               <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
-                <SelectTrigger id="ewis-engine">
-                  <SelectValue />
+                <SelectTrigger id="ewis-engine" className="w-full">
+                  <EngineSelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <EngineSelectItems engines={enabledEngines} />
@@ -187,33 +184,34 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           </div>
 
           {flatDepts.length > 0 && (
-            <div className="border-t border-border/60 px-6 py-5 space-y-3">
+            <div className="space-y-3 border-t border-hairline px-6 py-5">
               <SectionHeading
                 text={t("workers.form.sectionDepartment")}
                 badge={selectedDeptIds.size}
               />
 
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={deptSearch}
                   onChange={(e) => setDeptSearch(e.target.value)}
                   placeholder={t("workers.form.searchDepartments")}
-                  className="pl-8 h-8 text-xs"
+                  aria-label={t("workers.form.searchDepartments")}
+                  className="pl-8"
                 />
               </div>
 
-              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
+              <div className="-mx-1.5 max-h-56 overflow-y-auto">
                 {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-xs text-muted-foreground text-center">
+                  <p className="py-4 text-center text-[13px] text-muted-foreground">
                     {t("workers.form.noMatchingDepartments")}
                   </p>
                 ) : (
                   filteredDepts.map(({ dept, depth }) => (
                     <label
                       key={dept.id}
-                      className="flex items-center gap-2 rounded-sm px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
+                      className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
+                      style={{ paddingLeft: `${12 + depth * 16}px` }}
                     >
                       <input
                         type="checkbox"
@@ -224,9 +222,9 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
+                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
                       />
-                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
+                      <span className="truncate text-sm text-foreground">{dept.name}</span>
                     </label>
                   ))
                 )}
@@ -237,12 +235,10 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
           )}
         </form>
 
-        <Separator />
-        <SheetFooter className="px-6 py-4 flex-row gap-2">
+        <SheetFooter className="mt-0 flex-row justify-end gap-2 border-t border-border bg-elevated px-6 py-3">
           <Button
             type="button"
             variant="outline"
-            className="flex-1"
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
@@ -252,7 +248,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
             type="submit"
             form="edit-worker-info-form"
             disabled={isPending || !name.trim() || !trimmedWorkDir}
-            className="flex-1"
           >
             {t("common.save")}
           </Button>

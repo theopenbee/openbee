@@ -20,7 +20,7 @@ import {
   FileText,
   FileVideo,
   Paperclip,
-  Send,
+  SendHorizontal,
   X,
 } from "lucide-react"
 import {
@@ -38,12 +38,13 @@ import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, STREAMDOWN_BLOCKS } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
 import { hasPermission, Perm } from "@/lib/permissions"
 import { MentionTextarea } from "@/components/mention-textarea"
+import { LogoMark } from "@/components/brand/logo"
 
 const EMPTY_WORKERS: Worker[] = []
 
@@ -51,6 +52,15 @@ const EMPTY_WORKERS: Worker[] = []
 // module-level reference so Streamdown's memoization isn't defeated by a new
 // object on every render.
 const STREAMDOWN_PLUGINS = { code }
+
+// The Bee's 24px identity chip: the OpenBee mark on a white disc.
+function BeeAvatar() {
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border" aria-hidden="true">
+      <LogoMark className="size-4.5" />
+    </span>
+  )
+}
 
 // Convert isolated single newlines to double newlines so Markdown renders them
 // as paragraph breaks. Fenced code blocks are left untouched.
@@ -105,10 +115,9 @@ const AttachmentPreview = memo(function AttachmentPreview({
 }) {
   const filename = basename(mediaPath)
   const url = mediaUrl(mediaPath)
-  const frameClass = "border-border/70 bg-background/70"
 
   if (isImage(mediaPath)) {
-    return <ImageLightbox src={url} alt={filename} className={frameClass} />
+    return <ImageLightbox src={url} alt={filename} />
   }
 
   return (
@@ -116,15 +125,11 @@ const AttachmentPreview = memo(function AttachmentPreview({
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={cn(
-        "inline-flex items-center gap-2 rounded-sm border px-3 py-2 text-sm transition-colors",
-        frameClass,
-        "text-foreground hover:bg-muted/40"
-      )}
+      className="inline-flex items-center gap-2 rounded-sm bg-background px-3 py-2 text-sm text-foreground ring-1 ring-border transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <FileCategoryIcon filePath={mediaPath} />
+      <FileCategoryIcon filePath={mediaPath} className="size-4 shrink-0 text-muted-foreground" />
       <span className="break-all">{filename}</span>
-      <ArrowUpRight className="size-4 shrink-0 opacity-70" />
+      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
     </a>
   )
 })
@@ -150,18 +155,18 @@ const CollapsibleContent = memo(function CollapsibleContent({
   return (
     <div>
       <div
-        className={cn("overflow-hidden transition-[max-height] duration-300", collapsed && overflows ? "relative" : "")}
+        className={cn(
+          "overflow-hidden transition-[max-height] duration-300",
+          collapsed && overflows && "border-b border-dashed border-border"
+        )}
         style={{ maxHeight: collapsed && overflows ? COLLAPSE_HEIGHT : undefined }}
       >
         <div ref={innerRef}>{children}</div>
-        {collapsed && overflows && (
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/95 to-transparent" />
-        )}
       </div>
       {overflows && (
         <button
           type="button"
-          className="mt-2 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
+          className="mt-2 rounded-sm text-[13px] font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setCollapsed((prev) => !prev)}
         >
           {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
@@ -190,79 +195,75 @@ const MessageBubble = memo(function MessageBubble({
     [message.content]
   )
 
-  return (
-    <div
-      className={cn(
-        "group flex flex-col first:mt-0",
-        isUser ? "items-end" : "items-start",
-        isGroupStart ? "mt-4" : "mt-1"
-      )}
-    >
-      {isGroupStart && (
-        <div
-          className={cn(
-            "mb-1 flex items-center gap-2 px-0.5 text-xs",
-            isUser && "flex-row-reverse"
-          )}
-        >
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              isUser ? "bg-muted-foreground/40" : "bg-primary"
-            )}
-          />
-          <span className="font-medium text-muted-foreground">
-            {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
-          </span>
-          <time className="text-muted-foreground/60">
-            {formatMessageTimestamp(message.ts, i18n.language)}
-          </time>
+  const body = (
+    <>
+      {hasMedia && (
+        <div className="space-y-2">
+          {message.media_paths!.map((path) => (
+            <AttachmentPreview key={path} mediaPath={path} />
+          ))}
         </div>
       )}
 
-      <div
-        className={cn(
-          "relative min-w-0",
-          isUser ? "max-w-[min(100%,42rem)]" : "max-w-[min(100%,52rem)]"
+      {hasContent && (
+        <CollapsibleContent>
+          <div className={cn("min-w-0 break-words", STREAMDOWN_BLOCKS, hasMedia && "mt-2")}>
+            <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizedContent}</Streamdown>
+          </div>
+        </CollapsibleContent>
+      )}
+    </>
+  )
+
+  const timestamp = (
+    <time className="text-xs text-muted-foreground tabular-nums">
+      {formatMessageTimestamp(message.ts, i18n.language)}
+    </time>
+  )
+
+  if (isUser) {
+    return (
+      <div className={cn("group flex flex-col items-end first:mt-0", isGroupStart ? "mt-5" : "mt-1.5")}>
+        {isGroupStart && (
+          <div className="mb-1.5 flex items-center gap-2">
+            {timestamp}
+            <span className="text-[13px] font-medium text-muted-foreground">{t("localChat.operatorLabel")}</span>
+          </div>
         )}
-      >
-        <div
-          className={cn(
-            "overflow-hidden",
-            isUser
-              ? "rounded-sm bg-muted/50 px-3.5 py-2"
-              : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
-          )}
-        >
-          {hasMedia && (
-            <div className="space-y-2">
-              {message.media_paths!.map((path) => (
-                <AttachmentPreview key={path} mediaPath={path} />
-              ))}
-            </div>
-          )}
+
+        <div className="relative max-w-[min(100%,40rem)] min-w-0">
+          <div className="overflow-hidden rounded-sm bg-background px-3.5 py-2 ring-1 ring-border">
+            {body}
+          </div>
 
           {hasContent && (
-            <CollapsibleContent>
-              <div
-                className={cn(
-                  "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
-                  hasMedia && "mt-2"
-                )}
-              >
-                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizedContent}</Streamdown>
-              </div>
-            </CollapsibleContent>
+            <CopyButton
+              value={message.content}
+              className="absolute top-1.5 -left-7 p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            />
           )}
         </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("group flex flex-col items-start first:mt-0", isGroupStart ? "mt-5" : "mt-1.5")}>
+      {isGroupStart && (
+        <div className="mb-1 flex items-center gap-2">
+          <BeeAvatar />
+          <span className="text-[13px] font-semibold text-strong">{t("localChat.beeLabel")}</span>
+          {timestamp}
+        </div>
+      )}
+
+      <div className="relative w-full max-w-[52rem] min-w-0 pl-8">
+        {body}
 
         {hasContent && (
           <CopyButton
             value={message.content}
-            className={cn(
-              "absolute top-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-              isUser ? "-left-7" : "-right-7"
-            )}
+            className="absolute top-0.5 -right-7 p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           />
         )}
       </div>
@@ -418,19 +419,19 @@ export function LocalChat() {
   const isEmpty = !isLoading && messageCount === 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col animate-fade-in">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6">
+    <div className="flex h-full min-h-0 animate-fade-in flex-col bg-canvas">
+      <div ref={scrollContainerRef} className="flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
             {isLoading ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="rounded-sm border border-border/70 bg-background/80 px-4 py-4"
-                  >
-                    <div className="skeleton h-4 w-28" />
-                    <div className="skeleton mt-4 h-4 w-full" />
-                    <div className="skeleton mt-2 h-4 w-4/5" />
+                  <div key={index} className="flex gap-2">
+                    <div className="skeleton size-6 shrink-0 rounded-full" />
+                    <div className="flex-1 space-y-2 pt-1">
+                      <div className="skeleton h-3.5 w-24" />
+                      <div className="skeleton h-3.5 w-full" />
+                      <div className="skeleton h-3.5 w-4/5" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -443,14 +444,14 @@ export function LocalChat() {
               <div role="log" aria-live="polite" aria-relevant="additions">
                 {hasMore && (
                   <div className="flex justify-center pb-4">
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={isLoadingMore}
                       onClick={handleLoadMore}
-                      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                     >
                       {isLoadingMore ? t("localChat.loadingMore") : t("localChat.loadMore")}
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {localMessages.map((message, index) => {
@@ -467,16 +468,16 @@ export function LocalChat() {
                 })}
 
                 {isProcessing && (
-                  <div className="mt-4 flex flex-col items-start">
-                    <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
-                      <span className="size-1.5 rounded-full bg-primary" />
-                      <span className="font-medium">{t("localChat.beeLabel")}</span>
-                      <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                  <div className="mt-5 flex flex-col items-start">
+                    <div className="mb-1 flex items-center gap-2">
+                      <BeeAvatar />
+                      <span className="text-[13px] font-semibold text-strong">{t("localChat.beeLabel")}</span>
+                      <span className="text-xs text-muted-foreground">{t("localChat.processing")}</span>
                     </div>
-                    <div className="flex gap-1.5 px-0.5 py-1">
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
+                    <div className="flex gap-1.5 py-1.5 pl-8" aria-hidden="true">
+                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "0ms" }} />
+                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "300ms" }} />
+                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "600ms" }} />
                     </div>
                   </div>
                 )}
@@ -487,42 +488,42 @@ export function LocalChat() {
           </div>
       </div>
 
-      <div className="border-t border-border/70 bg-card">
-        <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-6">
+      <div className="shrink-0">
+        <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-4 sm:px-6">
             {uploadError && (
               <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-2 px-3 py-2")}>
                 {uploadError}
               </div>
             )}
 
-            {pendingMediaPaths.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {pendingMediaPaths.map((path) => (
-                  <span
-                    key={path}
-                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
-                  >
-                    <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="max-w-52 truncate">{basename(path)}</span>
-                    <button
-                      type="button"
-                      className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label={`${t("localChat.removeAttachment")}: ${basename(path)}`}
-                      onClick={() =>
-                        setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
-                      }
+            <div className="rounded-sm bg-background shadow-xs ring-1 ring-border transition-shadow focus-within:ring-[1.5px] focus-within:ring-focus/50">
+              {pendingMediaPaths.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 border-b border-hairline px-2.5 py-2">
+                  {pendingMediaPaths.map((path) => (
+                    <span
+                      key={path}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-sm bg-recessed pr-1 pl-2 text-xs text-foreground"
                     >
-                      <X className="size-3.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+                      <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="max-w-52 truncate">{basename(path)}</span>
+                      <button
+                        type="button"
+                        className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`${t("localChat.removeAttachment")}: ${basename(path)}`}
+                        onClick={() =>
+                          setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
+                        }
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
 
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2">
               <MentionTextarea
                 textareaRef={textareaRef}
-                className="max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
+                className="block max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
                 onChange={setInput}
@@ -532,12 +533,8 @@ export function LocalChat() {
                 disabled={isProcessing}
               />
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {t("localChat.composerHint")}
-                </span>
-
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 px-2 pb-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -546,24 +543,29 @@ export function LocalChat() {
                     onChange={handleFileChange}
                   />
                   <Button
-                    variant="outline"
-                    className="h-9 rounded-sm"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t("localChat.uploadFile")}
+                    title={t("localChat.uploadFile")}
                   >
-                    <Paperclip className="size-4" />
-                    <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
+                    <Paperclip />
                   </Button>
-                  <Button
-                    className="h-9 rounded-sm"
-                    onClick={() => void handleSend()}
-                    disabled={!canSend || sendMessage.isPending}
-                    aria-label={t("localChat.send")}
-                  >
-                    <Send className="size-4" />
-                    <span>{t("localChat.send")}</span>
-                  </Button>
+                  <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                    {t("localChat.composerHint")}
+                  </span>
                 </div>
+
+                <Button
+                  size="icon-sm"
+                  onClick={() => void handleSend()}
+                  disabled={!canSend || sendMessage.isPending}
+                  aria-label={t("localChat.send")}
+                  title={t("localChat.send")}
+                >
+                  <SendHorizontal />
+                </Button>
               </div>
             </div>
           </div>

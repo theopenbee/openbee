@@ -2,11 +2,13 @@ import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-const statusStyles: Record<string, string> = {
-  idle: "bg-status-idle/15 text-status-idle border-status-idle/20",
-  working: "bg-status-working/15 text-status-working border-status-working/20",
-  error: "bg-status-error/15 text-status-error border-status-error/20",
-  pending: "bg-muted text-muted-foreground border-border",
+// Kumo status badges: a soft tint of the state's hue with darker text, plus a
+// dot so state never rides on color alone (the label carries it too).
+const statusVariants: Record<string, "success" | "info" | "destructive" | "secondary"> = {
+  idle: "success",
+  working: "info",
+  error: "destructive",
+  pending: "secondary",
 }
 
 const dotStyles: Record<string, string> = {
@@ -26,7 +28,7 @@ export function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation()
   const key = statusAliases[status] ?? status
   return (
-    <Badge variant="outline" className={statusStyles[key] || "bg-muted text-muted-foreground"}>
+    <Badge variant={statusVariants[key] ?? "secondary"}>
       <span className={cn("size-1.5 rounded-full", dotStyles[key] ?? "bg-muted-foreground")} aria-hidden="true" />
       {t(`statuses.${status}`, status)}
     </Badge>

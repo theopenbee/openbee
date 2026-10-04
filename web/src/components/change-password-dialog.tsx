@@ -78,7 +78,7 @@ export function ChangePasswordDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("account.changePassword")}</DialogTitle>
           <DialogDescription>{t("account.changePasswordDescription")}</DialogDescription>

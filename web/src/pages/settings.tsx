@@ -1,19 +1,17 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
-import { DetailSection } from "@/components/detail-primitives"
-import { EYEBROW_LABEL } from "@/lib/styles"
+import { Panel } from "@/components/panel"
 import {
   Select,
   SelectContent,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import { SystemConfigSaveButton } from "@/components/system-config-save-button"
-import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { useCan } from "@/hooks/use-can"
@@ -60,18 +58,38 @@ function EngineArgsConfigSection({
     pendingValue !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingValue), savedValue)
 
   return (
-    <DetailSection className="p-5 sm:p-6 space-y-4">
-      <p className={EYEBROW_LABEL}>{title}</p>
-      <EngineArgsSection
-        engines={enabledEngines}
-        value={value}
-        onChange={setPendingValue}
-        showLabel={false}
-      />
-      <SystemConfigSaveButton onClick={() => save(value)} disabled={isPending || !isDirty}>
-        {t("common.save")}
-      </SystemConfigSaveButton>
-    </DetailSection>
+    <Panel title={title} flush>
+      <div className="p-4">
+        <EngineArgsSection
+          engines={enabledEngines}
+          value={value}
+          onChange={setPendingValue}
+          showLabel={false}
+        />
+      </div>
+      <SettingsPanelFooter>
+        <SystemConfigSaveButton
+          onClick={() => save(value)}
+          disabled={!isDirty}
+          saving={isPending}
+        >
+          {t("common.save")}
+        </SystemConfigSaveButton>
+      </SettingsPanelFooter>
+    </Panel>
+  )
+}
+
+// Footer strip of a settings Panel: a gray bar under the white body that holds
+// the section's save action bottom-right (Kumo LayerCard footer). Rendered only
+// for users who can write, so read-only viewers don't see an empty bar.
+function SettingsPanelFooter({ children }: { children: ReactNode }) {
+  const canWrite = useCan(Perm.SystemConfigWrite)
+  if (!canWrite) return null
+  return (
+    <div className="flex items-center justify-end gap-2 rounded-b-sm border-t border-border bg-elevated px-4 py-2.5">
+      {children}
+    </div>
   )
 }
 
@@ -108,57 +126,61 @@ export function SystemSettings() {
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="w-full max-w-3xl">
         <PageHeader title={t("systemSettings.title")} />
 
         {!canWrite && (
-          <p className="text-sm leading-6 text-muted-foreground">
+          <div
+            role="status"
+            className="mb-6 rounded-sm bg-info-tint px-4 py-3 text-sm text-info ring-1 ring-info/25 ring-inset"
+          >
             {t("systemSettings.readonlyHint")}
-          </p>
+          </div>
         )}
 
-        <fieldset disabled={!canWrite} className="min-w-0 space-y-6 border-0 p-0 m-0">
-        <DetailSection className="p-5 sm:p-6 space-y-4">
-          <p className={EYEBROW_LABEL}>{t("systemSettings.engineSection.title")}</p>
-          <div className="flex items-center gap-3">
-            <Select
-              value={engine}
-              onValueChange={setPendingEngine}
-              disabled={isPending}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <EngineSelectItems engines={enabledEngines} />
-              </SelectContent>
-            </Select>
-            <SystemConfigSaveButton
-              onClick={() => saveEngine(engine)}
-              disabled={
-                isPending ||
-                pendingEngine === null ||
-                pendingEngine === savedEngine
-              }
-            >
-              {t("common.save")}
-            </SystemConfigSaveButton>
-          </div>
-        </DetailSection>
+        <fieldset disabled={!canWrite} className="m-0 min-w-0 space-y-6 border-0 p-0">
+          <Panel title={t("systemSettings.engineSection.title")} flush>
+            <div className="p-4">
+              <Select
+                value={engine}
+                onValueChange={setPendingEngine}
+                disabled={isPending}
+              >
+                <SelectTrigger
+                  className="w-full sm:w-64"
+                  aria-label={t("systemSettings.engineSection.title")}
+                >
+                  <EngineSelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <EngineSelectItems engines={enabledEngines} />
+                </SelectContent>
+              </Select>
+            </div>
+            <SettingsPanelFooter>
+              <SystemConfigSaveButton
+                onClick={() => saveEngine(engine)}
+                disabled={pendingEngine === null || pendingEngine === savedEngine}
+                saving={isPending}
+              >
+                {t("common.save")}
+              </SystemConfigSaveButton>
+            </SettingsPanelFooter>
+          </Panel>
 
-        <EngineArgsConfigSection
-          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
-          savedValue={savedGlobalArgs}
-          title={t("systemSettings.globalArgsSection.title")}
-          successMessage={t("systemSettings.globalArgsSection.updated")}
-        />
+          <EngineArgsConfigSection
+            configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
+            savedValue={savedGlobalArgs}
+            title={t("systemSettings.globalArgsSection.title")}
+            successMessage={t("systemSettings.globalArgsSection.updated")}
+          />
 
-        <EngineArgsConfigSection
-          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
-          savedValue={savedBeeArgs}
-          title={t("systemSettings.beeArgsSection.title")}
-          successMessage={t("systemSettings.beeArgsSection.updated")}
-        />
+          <EngineArgsConfigSection
+            configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
+            savedValue={savedBeeArgs}
+            title={t("systemSettings.beeArgsSection.title")}
+            successMessage={t("systemSettings.beeArgsSection.updated")}
+          />
         </fieldset>
       </div>
     </FadeIn>

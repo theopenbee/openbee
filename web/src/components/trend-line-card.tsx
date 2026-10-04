@@ -7,25 +7,38 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
 import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
 export type DayOption = typeof DAY_OPTIONS[number]
 
+// Tooltip as a popover surface: white (popover) ground, the popover edge+drop
+// shadow token, squared corners, 12px text.
 export const CHART_TOOLTIP_STYLE = {
-  background: "var(--card)",
-  border: "1px solid var(--border)",
+  background: "var(--popover)",
+  border: "none",
   borderRadius: "var(--radius-sm)",
-  color: "var(--card-foreground)",
+  boxShadow: "var(--shadow-popover)",
+  color: "var(--popover-foreground)",
   fontSize: 12,
+  padding: "6px 10px",
 } as const
+
+const CHART_TOOLTIP_LABEL_STYLE = {
+  color: "var(--muted-foreground)",
+  marginBottom: 2,
+} as const
+
+const CHART_TOOLTIP_ITEM_STYLE = {
+  color: "var(--popover-foreground)",
+  padding: 0,
+} as const
+
+const AXIS_TICK = { fontSize: 12, fill: "var(--muted-foreground)" } as const
 
 type TrendLineCardBase = {
   title: string
@@ -62,51 +75,68 @@ export function TrendLineCard({
   const { t } = useTranslation()
 
   // Bare block (no card wrapper): embeds beneath a Panel's own title and
-  // hairline divider. The subtitle reads as a quiet section label, with the
-  // day-range toggle aligned to its right.
+  // hairline divider. A quiet 13px label on the left, the Kumo segmented
+  // day-range control on the right.
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className={cn(EYEBROW_LABEL, "min-w-0 truncate")}>{title}</h3>
-        <div className="flex gap-1 shrink-0" role="group" aria-label={title}>
-          {DAY_OPTIONS.map((d) => (
-            <Button
-              key={d}
-              variant={days === d ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              aria-pressed={days === d}
-              aria-label={t("dashboard.daysLabel", { count: d })}
-              onClick={() => onDaysChange(d)}
-            >
-              {d}{t("dashboard.days")}
-            </Button>
-          ))}
+        <h3 className="min-w-0 truncate text-[13px] font-medium text-muted-foreground">{title}</h3>
+        <div
+          className="inline-flex h-8 shrink-0 items-stretch rounded-sm bg-recessed p-0.5"
+          role="group"
+          aria-label={title}
+        >
+          {DAY_OPTIONS.map((d) => {
+            const selected = days === d
+            return (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={selected}
+                aria-label={t("dashboard.daysLabel", { count: d })}
+                onClick={() => onDaysChange(d)}
+                className={cn(
+                  "inline-flex items-center rounded-sm px-2.5 text-[13px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  selected
+                    ? "bg-background text-strong shadow-xs ring-1 ring-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {d}{t("dashboard.days")}
+              </button>
+            )
+          })}
         </div>
       </div>
       <div>
         {isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-[200px] w-full" />
         ) : chartData.length === 0 ? (
           <EmptyState title={emptyTitle} description={emptyDesc} />
         ) : (
-          // left: -20 offsets the YAxis tick label width so the chart aligns flush with card edges
           <div role="img" aria-label={ariaLabel}>
             {children ?? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="var(--hairline)" />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11 }}
+                    tick={AXIS_TICK}
                     tickFormatter={(v: string) => v.slice(5)}
-                    className="text-muted-foreground"
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--border)" }}
+                    tickMargin={8}
+                    minTickGap={16}
+                    interval="equidistantPreserveStart"
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={AXIS_TICK}
                     allowDecimals={false}
                     tickFormatter={yAxisFormatter}
-                    className="text-muted-foreground"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={4}
+                    width={48}
                   />
                   <Tooltip
                     labelFormatter={(label) => String(label)}
@@ -115,15 +145,18 @@ export function TrendLineCard({
                       tooltipLabel,
                     ]}
                     contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                    itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                    cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <Line
                     type="monotone"
                     dataKey={dataKey}
                     name={tooltipLabel}
                     strokeWidth={2}
                     dot={false}
-                    stroke="var(--primary)"
+                    activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--background)", fill: "var(--chart-1)" }}
+                    stroke="var(--chart-1)"
                   />
                 </LineChart>
               </ResponsiveContainer>

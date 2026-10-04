@@ -21,6 +21,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -53,12 +61,12 @@ function PermissionBadges({ role, t }: { role: Role; t: (key: string) => string 
   }
   const perms = role.permissions ?? []
   if (perms.length === 0) {
-    return <span className="text-xs text-muted-foreground">{t("roles.noPermissions")}</span>
+    return <span className="text-[13px] text-muted-foreground">{t("roles.noPermissions")}</span>
   }
   return (
     <>
       {perms.map((p) => (
-        <Badge key={p} variant="outline" className="font-mono text-[11px]">
+        <Badge key={p} variant="outline" className="font-mono font-normal">
           {p}
         </Badge>
       ))}
@@ -151,7 +159,7 @@ export function Roles() {
 
   const createButton = (
     <Button onClick={openCreate}>
-      <PlusIcon className="size-4 mr-1" />
+      <PlusIcon />
       {t("roles.create")}
     </Button>
   )
@@ -160,69 +168,86 @@ export function Roles() {
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="w-full">
         <PageHeader title={t("nav.roles")} actions={createButton} />
 
         {roles.length === 0 ? (
-          <EmptyState title={t("roles.empty")} action={createButton} />
+          <div className="rounded-sm bg-card ring-1 ring-border">
+            <EmptyState title={t("roles.empty")} action={createButton} />
+          </div>
         ) : (
-          <div className="space-y-3">
-            {roles.map((role) => (
-                <div key={role.id} className="rounded-sm border border-border p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{roleLabel(role, t)}</span>
+          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">{t("roles.form.name")}</TableHead>
+                  <TableHead>{t("roles.form.permissions")}</TableHead>
+                  <TableHead className="w-0 pr-4">
+                    <span className="sr-only">{t("roles.rowActions")}</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {roles.map((role) => (
+                  <TableRow key={role.id}>
+                    <TableCell className="w-[38%] py-3 pl-4 align-top whitespace-normal md:min-w-44">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-strong">{roleLabel(role, t)}</span>
                         {role.is_system && (
                           <Badge variant="outline">
-                            <LockIcon className="size-3" />
+                            <LockIcon aria-hidden="true" />
                             {t("roles.system")}
                           </Badge>
                         )}
                       </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
+                      <p className="mt-0.5 text-[13px] text-muted-foreground">
                         {roleDescription(role, t) || t("common.noDescription")}
                       </p>
-                    </div>
-                    {!role.is_system && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              className="text-muted-foreground"
-                              aria-label={t("roles.rowActions")}
-                            />
-                          }
-                        >
-                          <MoreHorizontalIcon className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-40">
-                          <DropdownMenuItem onClick={() => openEdit(role)}>
-                            <PencilIcon className="size-3.5" />
-                            {t("common.edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="destructive" onClick={() => openDelete(role)}>
-                            <Trash2Icon className="size-3.5" />
-                            {t("common.delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <PermissionBadges role={role} t={t} />
-                  </div>
-                </div>
-              ))}
+                    </TableCell>
+                    <TableCell className="py-3 align-top whitespace-normal md:min-w-56">
+                      <div className="flex w-full min-w-0 flex-wrap gap-1">
+                        <PermissionBadges role={role} t={t} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2.5 pr-4 text-right align-top">
+                      {!role.is_system && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground"
+                                aria-label={t("roles.rowActions")}
+                              />
+                            }
+                          >
+                            <MoreHorizontalIcon className="size-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-40">
+                            <DropdownMenuItem onClick={() => openEdit(role)}>
+                              <PencilIcon className="size-3.5" />
+                              {t("common.edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={() => openDelete(role)}>
+                              <Trash2Icon className="size-3.5" />
+                              {t("common.delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
 
         {/* Create / edit */}
         <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>
                 {mode === "create" ? t("roles.create") : t("roles.edit")}
@@ -252,8 +277,8 @@ export function Roles() {
                   rows={2}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>{t("roles.form.permissions")}</Label>
+              <div role="group" aria-labelledby="role-permissions-label" className="space-y-1.5">
+                <Label id="role-permissions-label">{t("roles.form.permissions")}</Label>
                 <PermissionPicker
                   groups={groups}
                   selected={perms}
@@ -277,14 +302,14 @@ export function Roles() {
 
         {/* Delete */}
         <Dialog open={mode === "delete"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("roles.deleteConfirm.title")}</DialogTitle>
               <DialogDescription>
                 {t("roles.deleteConfirm.description", { name: target?.name })}
               </DialogDescription>
             </DialogHeader>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}
@@ -313,32 +338,32 @@ function PermissionPicker({
   if (groups.every((g) => g.permissions.length === 0)) {
     return <p className="text-sm text-muted-foreground">{t("roles.noPermissionsAvailable")}</p>
   }
+  // Grouped by resource: each group is a gray caption strip over its
+  // permission rows, all hairline-divided inside one outlined well.
   return (
-    <div className="max-h-72 space-y-3 overflow-y-auto rounded-sm border border-border p-3">
+    <div className="max-h-80 overflow-y-auto rounded-sm bg-background ring-1 ring-border">
       {groups.map((group) => (
-        <div key={group.resource} className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground">
+        <div key={group.resource} className="border-b border-hairline last:border-b-0">
+          <p className="sticky top-0 z-10 border-b border-hairline bg-elevated px-3 py-1.5 text-xs font-medium text-muted-foreground">
             {t(`roles.permissionGroups.${group.resource}`, group.resource)}
           </p>
-          <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+          <div className="divide-y divide-hairline">
             {group.permissions.map((perm) => (
               <label
                 key={perm}
-                className="flex cursor-pointer items-start gap-2 rounded-sm px-1.5 py-1 hover:bg-muted/50"
+                className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-elevated"
               >
                 <input
                   type="checkbox"
-                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  className="size-4 shrink-0 cursor-pointer accent-primary dark:[color-scheme:dark]"
                   checked={selected.includes(perm)}
                   onChange={() => onToggle(perm)}
                 />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs">
-                    {t(`roles.permissionItems.${perm.replace(":", ".")}`, perm)}
-                  </span>
-                  <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                    {perm}
-                  </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {t(`roles.permissionItems.${perm.replace(":", ".")}`, perm)}
+                </span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                  {perm}
                 </span>
               </label>
             ))}

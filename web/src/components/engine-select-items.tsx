@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { SelectItem } from "@/components/ui/select"
+import { SelectItem, SelectValue } from "@/components/ui/select"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
@@ -22,5 +22,25 @@ export function EngineSelectItems({ engines = ENGINES }: EngineSelectItemsProps)
         </SelectItem>
       ))}
     </>
+  )
+}
+
+// Trigger value for an engine Select: the same icon + display name as the
+// items, instead of the raw engine id.
+export function EngineSelectValue({ placeholder }: { placeholder?: string }) {
+  const { t } = useTranslation()
+  return (
+    <SelectValue placeholder={placeholder}>
+      {(value: Engine | null) =>
+        value ? (
+          <span className="flex items-center gap-2">
+            <EngineIcon engine={value} className="size-4" />
+            {formatEngineLabel(value, t)}
+          </span>
+        ) : (
+          placeholder
+        )
+      }
+    </SelectValue>
   )
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
-import { DashboardHeroCard } from "@/components/dashboard-hero-card"
+import { DashboardStats } from "@/components/dashboard-hero-card"
 import { QuickLinks } from "@/components/quick-links"
 import { TokenUsageCard } from "@/components/token-usage-card"
 import { SupportedAgentsCard } from "@/components/supported-agents-card"
@@ -14,16 +14,16 @@ export function Dashboard() {
     <FadeIn>
       <PageHeader title={t("dashboard.title")} />
 
-      <div className="grid grid-cols-1 gap-x-6 gap-y-8 lg:grid-cols-3">
-        {/* Left 2/3: identity, launchers, token usage */}
-        <div className="space-y-8 lg:col-span-2">
-          <DashboardHeroCard />
-          <QuickLinks />
+      {/* Main column (headline counts, usage, launchers) beside a fixed side
+          column (engines, build info); one column under lg. The stat row lives
+          in the main column so its edges line up with the panels below it. */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <DashboardStats />
           <TokenUsageCard />
+          <QuickLinks />
         </div>
-
-        {/* Right 1/3: supported engines, system info */}
-        <div className="space-y-8">
+        <div className="flex min-w-0 flex-col gap-4">
           <SupportedAgentsCard />
           <SystemInfoCard />
         </div>

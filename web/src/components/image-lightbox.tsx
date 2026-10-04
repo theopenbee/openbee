@@ -8,11 +8,13 @@ import { cn } from "@/lib/utils"
 const OVERLAY_ANIMATION =
   "duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
 
-// The circular icon buttons floating over the viewer (open-original, close).
+// The squared icon buttons floating over the viewer (open-original, close).
+// They sit on the fixed dark scrim rather than a themed surface, so they use
+// light-on-dark values in both themes.
 const VIEWER_ICON_BUTTON =
-  "inline-flex size-9 items-center justify-center rounded-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+  "inline-flex size-9 items-center justify-center rounded-sm text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70"
 
-// A click-to-zoom image: renders a bordered thumbnail that opens the image
+// A click-to-zoom image: renders an outlined thumbnail that opens the image
 // full-screen in a dialog overlay. Uses base-ui's Dialog primitives directly
 // (rather than the small centered DialogContent card) so the viewer can fill
 // the viewport. The portal renders at the document root, so the message
@@ -33,7 +35,7 @@ export function ImageLightbox({
       <DialogPrimitive.Trigger
         render={<button type="button" />}
         className={cn(
-          "block cursor-zoom-in overflow-hidden rounded-sm border",
+          "block max-w-full cursor-zoom-in overflow-hidden rounded-sm bg-background ring-1 ring-border outline-none transition-shadow hover:ring-foreground/20 focus-visible:ring-2 focus-visible:ring-ring",
           className
         )}
       >

@@ -25,9 +25,9 @@ import { PaginationControls } from "@/components/pagination-controls"
 import type { Task } from "@/lib/types"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
+import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { STATUS_ROW_BORDER } from "@/lib/format"
 
 export const TASK_PAGE_SIZE = 20
 
@@ -40,21 +40,21 @@ interface TaskListProps {
 
 function CronCell({ task }: { task: Task }) {
   if (task.type === "scheduled" && task.cron_expr) {
-    return <p className="font-mono text-xs text-foreground/80">{task.cron_expr}</p>
+    return <span className="font-mono text-[13px] text-foreground">{task.cron_expr}</span>
   }
-  return <span className="text-sm text-muted-foreground">—</span>
+  return <span className="text-muted-foreground">—</span>
 }
 
 function NextRunCell({ task }: { task: Task }) {
   const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
   if (timestamp) {
     return (
-      <p className="font-mono text-xs text-foreground/80">
+      <span className="text-[13px] text-foreground tabular-nums">
         {new Date(timestamp).toLocaleString()}
-      </p>
+      </span>
     )
   }
-  return <span className="text-sm text-muted-foreground">—</span>
+  return <span className="text-muted-foreground">—</span>
 }
 
 export function TaskList({
@@ -83,12 +83,13 @@ export function TaskList({
   return (
     <div>
       {workerId && canWrite && !isLoading && tasks.length > 0 && (
-        <div className="flex justify-end mb-4">
+        <div className="mb-3 flex justify-end">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setConfirmCancelAll(true)}
             disabled={cancelAll.isPending}
+            className="text-destructive-foreground hover:text-destructive-foreground"
           >
             {t("tasks.cancelAll")}
           </Button>
@@ -104,34 +105,33 @@ export function TaskList({
       {isLoading ? (
         <SkeletonTable />
       ) : tasks.length === 0 && !error ? (
-        <EmptyState title={t("emptyState.noTasks")} />
+        <div className="rounded-sm bg-card ring-1 ring-border">
+          <EmptyState title={t("emptyState.noTasks")} />
+        </div>
       ) : (
         <>
-          <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
-            <Table className="min-w-[920px]">
+          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+            <Table className="md:min-w-[960px]">
               <TableHeader>
-                <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  {!workerId && <TableHead className="pl-5 w-40">{t("tasks.columns.worker")}</TableHead>}
-                  <TableHead className={cn("min-w-[24rem]", workerId && "pl-5")}>{t("tasks.columns.instruction")}</TableHead>
-                  <TableHead className="w-44">{t("tasks.columns.cron")}</TableHead>
-                  <TableHead className="w-48">{t("tasks.columns.nextRunAt")}</TableHead>
-                  <TableHead className="w-28 text-right">{t("tasks.columns.actions")}</TableHead>
+                <TableRow>
+                  {!workerId && <TableHead className="pl-4 md:w-40">{t("tasks.columns.worker")}</TableHead>}
+                  <TableHead className={cn("md:min-w-[20rem]", workerId && "pl-4")}>{t("tasks.columns.instruction")}</TableHead>
+                  {/* No tasks-scoped "Status" key exists yet; the generic users.table.status label reads the same in en/zh. */}
+                  <TableHead className="hidden w-28 md:table-cell">{t("users.table.status")}</TableHead>
+                  <TableHead className="hidden w-40 md:table-cell">{t("tasks.columns.cron")}</TableHead>
+                  <TableHead className="hidden w-48 md:table-cell">{t("tasks.columns.nextRunAt")}</TableHead>
+                  <TableHead className="pr-4 text-right md:w-24">{t("tasks.columns.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => {
-                  const borderClass = cn(
-                    "pl-4 border-l-2",
-                    STATUS_ROW_BORDER[task.status] ?? "border-l-transparent"
-                  )
-                  return (
-                  <TableRow key={task.id} className="hover:bg-primary/5 transition-colors">
+                {tasks.map((task) => (
+                  <TableRow key={task.id}>
                     {!workerId && (
-                      <TableCell className={borderClass}>
+                      <TableCell className="pl-4">
                         {task.worker_id ? (
                           <Link
                             to={`/workers/${task.worker_id}`}
-                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            className="text-sm text-foreground underline-offset-4 transition-colors hover:text-link hover:underline"
                           >
                             {task.worker_name || task.worker_id.slice(0, 8) + "..."}
                           </Link>
@@ -140,38 +140,49 @@ export function TaskList({
                         )}
                       </TableCell>
                     )}
-                    <TableCell className={cn("max-w-[32rem] whitespace-normal", workerId && borderClass)}>
+                    <TableCell className={cn("max-w-[32rem] whitespace-normal", workerId && "pl-4")}>
                       <p
-                        className="line-clamp-2 break-words text-sm leading-5 text-foreground"
+                        className="line-clamp-2 text-sm leading-5 break-words text-foreground"
                         title={task.instruction}
                       >
                         {task.instruction}
                       </p>
+                      {/* Below md the status and next-run columns fold in
+                          under the instruction so state stays in view. */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
+                        <StatusBadge status={task.status} />
+                        <span className="text-[13px]">
+                          <span className="text-muted-foreground">{t("tasks.columns.nextRunAt")} </span>
+                          <NextRunCell task={task} />
+                        </span>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <StatusBadge status={task.status} />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <CronCell task={task} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <NextRunCell task={task} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="pr-4 text-right">
                       {task.status === "pending" && canWrite ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setConfirmCancelId(task.id)}
                           disabled={cancelTask.isPending}
-                          className="text-destructive hover:text-destructive"
+                          className="text-destructive-foreground hover:bg-danger-tint hover:text-destructive-foreground"
                         >
                           {t("tasks.cancel")}
                         </Button>
                       ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                   </TableRow>
-                  )
-                })}
+                ))}
               </TableBody>
             </Table>
           </div>

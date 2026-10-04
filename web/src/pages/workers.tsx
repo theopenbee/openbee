@@ -8,7 +8,7 @@ import { Perm } from "@/lib/permissions"
 import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, FIELD_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,7 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
+import { StatusBadge } from "@/components/status-badge"
 
 type DeleteStep = 1 | 2
 
@@ -102,30 +103,37 @@ export function Workers() {
     setDeleteTarget(target)
   }
 
+  // The department filter rail renders twice: as a fixed left rail from md up,
+  // and stacked under the page header on narrow screens (where a side rail
+  // would starve the table). Selection state is lifted, so both stay in sync.
+  const departmentFilter = (
+    <DepartmentTreeSidebar
+      departments={departments}
+      selectedId={selectedDeptId}
+      onSelect={setSelectedDeptId}
+    />
+  )
+
   return (
     <FadeIn className="h-full">
       <div className="flex h-full">
-        {/* Left pane: department filter, flush to the layout edge with its own scroll. */}
-        <aside className="flex w-60 shrink-0 flex-col border-r">
-          <div className="flex h-16 items-center border-b px-4">
-            <h2 className="text-sm font-semibold tracking-tight">{t("departments.filter")}</h2>
+        {/* Left rail: department filter, flush to the layout edge with its own scroll. */}
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
+          <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
+            <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
           </div>
-          <div className="min-h-0 flex-1">
-            <DepartmentTreeSidebar
-              departments={departments}
-              selectedId={selectedDeptId}
-              onSelect={setSelectedDeptId}
-            />
-          </div>
+          <div className="min-h-0 flex-1">{departmentFilter}</div>
         </aside>
 
-        {/* Right pane: worker list, fills remaining width with its own scroll. */}
+        {/* Content pane: header row on the base surface, worker table on the canvas. */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">{t("workers.title")}</h1>
+          <header className="flex min-h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-background px-6 py-3">
+            <div className="min-w-0">
+              <h1 className="text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
+                {t("workers.title")}
+              </h1>
               {displayedWorkers.length > 0 && (
-                <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
+                <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
                   {t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })}
                 </p>
               )}
@@ -137,125 +145,146 @@ export function Workers() {
                 </Button>
               </div>
             )}
+          </header>
+
+          <div className="min-w-0 flex-1 overflow-auto">
+            <div className="border-b border-border bg-background md:hidden">
+              <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+              <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
+            </div>
+
+            <div className="p-6">
+              {error && (
+                <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4")}>
+                  {error}
+                </div>
+              )}
+
+              {isLoading ? (
+                <SkeletonTable rows={6} columns={4} />
+              ) : displayedWorkers.length === 0 && !error ? (
+                <div className="rounded-sm bg-card ring-1 ring-border">
+                  <EmptyState
+                    title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+                    description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
+                    action={
+                      selectedDeptId === null && canWrite ? (
+                        <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
+                      ) : undefined
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+                  <Table className="table-fixed md:min-w-[760px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-4">{t("workers.columns.name")}</TableHead>
+                        <TableHead className="hidden w-[120px] md:table-cell">{t("users.table.status")}</TableHead>
+                        <TableHead className="hidden w-[150px] md:table-cell">{t("workers.columns.engine")}</TableHead>
+                        <TableHead className="hidden w-[136px] md:table-cell">{t("workers.columns.activeTime")}</TableHead>
+                        <TableHead className="w-20 pr-4 text-right">{t("workers.columns.actions")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedWorkers.map((w) => {
+                        const rowActions: WorkerRowAction[] = [
+                          { key: "view", icon: EyeIcon, label: t("common.view"), onClick: () => navigate(`/workers/${w.id}`) },
+                          ...(canWrite
+                            ? [
+                                { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
+                                { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
+                              ]
+                            : []),
+                        ]
+                        return (
+                          <TableRow key={w.id}>
+                            <TableCell className="pl-4">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <WorkerAvatar name={w.name} status={w.status} />
+                                <div className="min-w-0 flex-1">
+                                  <Link
+                                    to={`/workers/${w.id}`}
+                                    className="block truncate rounded-sm text-sm font-medium text-strong underline-offset-4 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                  >
+                                    {w.name}
+                                  </Link>
+                                  <p
+                                    className="truncate text-[13px] leading-5 text-muted-foreground"
+                                    title={w.description || undefined}
+                                  >
+                                    {w.description || "—"}
+                                  </p>
+                                  {/* Below md the status column folds in here. */}
+                                  <div className="mt-1 md:hidden">
+                                    <StatusBadge status={w.status} />
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              <StatusBadge status={w.status} />
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {w.engine ? (
+                                <span className="flex min-w-0 items-center gap-2 text-[13px] text-foreground">
+                                  <EngineIcon engine={w.engine} className="size-4 text-foreground" />
+                                  <span className="truncate">{formatEngineLabel(w.engine, t)}</span>
+                                </span>
+                              ) : (
+                                <span className="text-[13px] text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                              <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
+                                {formatRelative(w.updated_at, t)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="pr-4 text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      aria-label={t("workers.columns.actions")}
+                                    />
+                                  }
+                                >
+                                  <MoreHorizontalIcon className="size-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-36">
+                                  {rowActions.map((action, i) => (
+                                    <Fragment key={action.key}>
+                                      {i > 0 && <DropdownMenuSeparator />}
+                                      <DropdownMenuItem
+                                        variant={action.destructive ? "destructive" : undefined}
+                                        onClick={action.onClick}
+                                      >
+                                        <action.icon className="size-4" />
+                                        {action.label}
+                                      </DropdownMenuItem>
+                                    </Fragment>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
-      {error && (
-        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4 mx-auto w-full max-w-6xl")}>
-          {error}
         </div>
-      )}
-
-      {isLoading ? (
-        <SkeletonTable rows={6} columns={4} />
-      ) : displayedWorkers.length === 0 && !error ? (
-        <EmptyState
-          title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
-          description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
-          action={
-            selectedDeptId === null && canWrite ? (
-              <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
-          <Table className="min-w-[680px]">
-            <TableHeader>
-              <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead className="w-[112px]">{t("workers.columns.engine")}</TableHead>
-                <TableHead className="w-[124px]">{t("workers.columns.activeTime")}</TableHead>
-                <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayedWorkers.map((w) => {
-                const rowActions: WorkerRowAction[] = [
-                  { key: "view", icon: EyeIcon, label: t("common.view"), onClick: () => navigate(`/workers/${w.id}`) },
-                  ...(canWrite
-                    ? [
-                        { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
-                        { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
-                      ]
-                    : []),
-                ]
-                return (
-                <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell>
-                    <div className="flex items-center gap-3 py-1">
-                      <WorkerAvatar name={w.name} status={w.status} />
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <Link
-                          to={`/workers/${w.id}`}
-                          className="font-medium text-foreground transition-colors hover:text-primary"
-                        >
-                          {w.name}
-                        </Link>
-                        <p className="max-w-[34rem] text-xs leading-5 text-muted-foreground line-clamp-2">
-                          {w.description || "—"}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {w.engine ? (
-                      <EngineIcon
-                        engine={w.engine}
-                        title={formatEngineLabel(w.engine, t)}
-                        className="size-5 text-foreground/80"
-                      />
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm font-mono text-muted-foreground">
-                    <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
-                      {formatRelative(w.updated_at, t)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("workers.columns.actions")}
-                          />
-                        }
-                      >
-                        <MoreHorizontalIcon className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-36">
-                        {rowActions.map((action, i) => (
-                          <Fragment key={action.key}>
-                            {i > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuItem
-                              variant={action.destructive ? "destructive" : undefined}
-                              onClick={action.onClick}
-                            >
-                              <action.icon className="size-4" />
-                              {action.label}
-                            </DropdownMenuItem>
-                          </Fragment>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
       </div>
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
         <DialogContent>
           <DialogHeader>
-            <p className={EYEBROW_LABEL}>
+            <p className={FIELD_LABEL}>
               {deleteStep === 1 ? t("workers.deleteDialog.stepOne") : t("workers.deleteDialog.stepTwo")}
             </p>
             <DialogTitle>{t("workers.deleteDialog.title")}</DialogTitle>
@@ -299,7 +328,7 @@ export function Workers() {
                   id="delete-work-dir"
                   checked={deleteWorkDir}
                   onChange={(e) => setDeleteWorkDir(e.target.checked)}
-                  className="size-4 cursor-pointer rounded accent-primary"
+                  className="size-4 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
                 />
                 <Label htmlFor="delete-work-dir" className="cursor-pointer">
                   {t("workers.deleteDialog.deleteWorkDir")}
@@ -321,8 +350,6 @@ export function Workers() {
           )}
         </DialogContent>
       </Dialog>
-        </div>
-      </div>
     </FadeIn>
   )
 }

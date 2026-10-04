@@ -58,7 +58,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" {...props}>
-      <SidebarContent className="pt-2">
+      <SidebarContent className="pt-1">
         <NavMain items={navItems} />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>

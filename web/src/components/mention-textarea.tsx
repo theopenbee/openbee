@@ -160,26 +160,26 @@ function MentionPanel({
 }) {
   return (
     <div
-      className="absolute bottom-full left-0 min-w-[12rem] max-w-xs w-max mb-1 z-50 rounded-sm border border-border/70 bg-popover shadow-lg overflow-hidden"
+      className="absolute bottom-full left-0 z-50 mb-2 w-max max-w-xs min-w-48 overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-popover"
     >
-      <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
+      <ul role="listbox" className="max-h-[280px] overflow-y-auto p-1">
         {workers.map((worker, index) => (
           <li
             key={worker.id}
             role="option"
             aria-selected={index === activeIndex}
             className={cn(
-              "flex items-center px-3 py-2 text-sm cursor-pointer transition-colors",
+              "flex h-8 cursor-pointer items-center rounded-sm px-2.5 text-sm transition-colors",
               index === activeIndex
-                ? "bg-accent text-accent-foreground"
-                : "hover:bg-accent/50"
+                ? "bg-accent font-medium text-strong"
+                : "text-foreground hover:bg-accent"
             )}
             onMouseDown={(e) => {
               e.preventDefault()
               onSelect(worker)
             }}
           >
-            <span className="font-medium truncate">{worker.name}</span>
+            <span className="truncate">{worker.name}</span>
           </li>
         ))}
       </ul>

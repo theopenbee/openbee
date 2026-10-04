@@ -14,16 +14,16 @@ export function NoAccessLanding() {
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <LockIcon className="size-7" />
+      <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <LockIcon className="size-5" aria-hidden />
       </div>
-      <h1 className="mt-5 text-xl font-semibold text-foreground">
+      <h1 className="mt-4 text-base font-semibold text-strong">
         {t("permission.noAccessTitle")}
       </h1>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+      <p className="mt-1 max-w-md text-sm text-balance text-muted-foreground">
         {t("permission.noAccessDescription")}
       </p>
-      <Button variant="outline" className="mt-6" onClick={logout}>
+      <Button variant="outline" className="mt-5" onClick={logout}>
         {t("permission.logout")}
       </Button>
     </div>

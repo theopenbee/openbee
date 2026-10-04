@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType, type FormEvent } from "react"
+import { Fragment, useMemo, useState, type ComponentType, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, FolderOpenIcon, ChevronRightIcon, KeyRoundIcon, MoreHorizontalIcon } from "lucide-react"
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
@@ -144,7 +144,7 @@ export function Departments() {
   const isDeleteOpen = mode === "delete"
   const createButton = canWrite ? (
     <Button onClick={() => openCreate()}>
-      <PlusIcon className="size-4 mr-1" />
+      <PlusIcon />
       {t("departments.create")}
     </Button>
   ) : null
@@ -155,23 +155,26 @@ export function Departments() {
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="w-full">
         <PageHeader
           title={t("nav.departments")}
           actions={createButton}
         />
 
         {departments.length === 0 ? (
-          <EmptyState
-            title={t("departments.empty")}
-            action={createButton}
-          />
+          <div className="rounded-sm bg-card ring-1 ring-border">
+            <EmptyState
+              title={t("departments.empty")}
+              action={createButton}
+            />
+          </div>
         ) : (
-          <div className="rounded-sm border border-border p-1.5">
+          <div className="divide-y divide-hairline overflow-hidden rounded-sm bg-card ring-1 ring-border">
             {departments.map((node) => (
               <DepartmentRow
                 key={node.id}
                 node={node}
+                depth={0}
                 onEnv={setEnvTarget}
                 onCreateChild={openCreate}
                 onEdit={openEdit}
@@ -182,7 +185,7 @@ export function Departments() {
         )}
 
         <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {mode === "create" ? t("departments.create") : t("departments.rename")}
@@ -203,12 +206,12 @@ export function Departments() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>{t("departments.form.parent")}</Label>
+                <Label id="dept-parent-label">{t("departments.form.parent")}</Label>
                 <Select
                   value={formParentId ?? NO_PARENT_VALUE}
                   onValueChange={(v) => setFormParentId(v === NO_PARENT_VALUE ? null : v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full" aria-labelledby="dept-parent-label">
                     <SelectValue>
                       {(value: string) =>
                         value === NO_PARENT_VALUE
@@ -250,7 +253,7 @@ export function Departments() {
                 {t("departments.deleteConfirm.description", { name: targetDept?.name })}
               </DialogDescription>
             </DialogHeader>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}
@@ -278,7 +281,7 @@ export function Departments() {
                 {envTarget?.name}
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto -mx-4 px-4">
+            <div className="-mx-5 max-h-[60vh] overflow-y-auto px-5 pb-1">
               {envTarget && (
                 <EnvConfigPanel scope="department" scopeId={envTarget.id} />
               )}
@@ -293,13 +296,19 @@ export function Departments() {
 
 interface DepartmentRowProps {
   node: DepartmentTree
+  depth: number
   onEnv: (dept: Department) => void
   onCreateChild: (parentId: string) => void
   onEdit: (dept: Department) => void
   onDelete: (dept: Department) => void
 }
 
-function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: DepartmentRowProps) {
+// Indentation per tree level, on top of the row's base 16px inset. Rows are
+// rendered as flat siblings (row, then its expanded children) so the parent
+// list's hairline dividers run edge to edge under every row.
+const INDENT_PX = 24
+
+function DepartmentRow({ node, depth, onEnv, onCreateChild, onEdit, onDelete }: DepartmentRowProps) {
   const { t } = useTranslation()
   const canWrite = useCan(Perm.ContactsWrite)
   const canReadEnv = useCan(Perm.EnvRead)
@@ -322,36 +331,46 @@ function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: Departm
   const dangerActions = actions.filter((a) => a.destructive)
 
   return (
-    <div>
-      <div className="group flex items-center gap-2 rounded-sm px-2 py-2 transition-colors hover:bg-muted/50">
+    <Fragment>
+      <div
+        className="group flex min-h-11 items-center gap-2 py-1.5 pr-3 transition-colors hover:bg-elevated"
+        style={{ paddingLeft: `${12 + depth * INDENT_PX}px` }}
+      >
         {hasChildren ? (
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             aria-label={node.name}
-            className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-strong focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronRightIcon
-              className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
+              className={cn("size-4 transition-transform motion-reduce:transition-none", expanded && "rotate-90")}
             />
           </button>
         ) : (
-          <span className="size-5 shrink-0" />
+          <span className="size-6 shrink-0" aria-hidden="true" />
         )}
         {expanded && hasChildren ? (
-          <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" />
+          <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : (
-          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+          <FolderIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         )}
-        <span className="flex-1 truncate text-sm">{node.name}</span>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm",
+            depth === 0 ? "font-medium text-strong" : "text-foreground"
+          )}
+        >
+          {node.name}
+        </span>
         {actions.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   className="text-muted-foreground"
                   aria-label={t("departments.rowActions")}
                 />
@@ -359,7 +378,7 @@ function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: Departm
             >
               <MoreHorizontalIcon className="size-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuContent align="end" className="min-w-44">
               {normalActions.map((action) => (
                 <DropdownMenuItem key={action.key} onClick={action.onClick}>
                   <action.icon className="size-3.5" />
@@ -378,20 +397,18 @@ function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: Departm
         )}
       </div>
 
-      {expanded && hasChildren && (
-        <div className="ml-[1.0625rem] border-l border-border pl-2">
-          {node.children.map((child) => (
-            <DepartmentRow
-              key={child.id}
-              node={child}
-              onEnv={onEnv}
-              onCreateChild={onCreateChild}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      {expanded && hasChildren &&
+        node.children.map((child) => (
+          <DepartmentRow
+            key={child.id}
+            node={child}
+            depth={depth + 1}
+            onEnv={onEnv}
+            onCreateChild={onCreateChild}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+    </Fragment>
   )
 }

@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   Building2,
-  CalendarIcon,
   Clock,
   Copy,
   Hash,
@@ -18,10 +17,12 @@ import {
 } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { DetailSection } from "@/components/detail-primitives"
+import { Panel } from "@/components/panel"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
-import { WorkerAvatar, initials, presenceColor } from "@/components/worker-avatar"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
@@ -30,7 +31,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
@@ -71,13 +72,10 @@ const SECTIONS = [
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
 
-// Static Tailwind class lookup for the overview activity band, whose column
-// count shrinks when the session metrics are hidden (no sessions:read).
-const GRID_COLS: Record<number, string> = {
-  1: "sm:grid-cols-1",
-  2: "sm:grid-cols-2",
-  3: "sm:grid-cols-3",
-}
+// Section rail items mirror the main sidebar: 34px rows, 13px medium labels,
+// gray accent fill on hover and for the selection (never blue or orange).
+const RAIL_ITEM =
+  "flex h-8.5 w-full items-center gap-2.5 rounded-sm px-3 text-left text-[13px] font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
 // Env source is a configuration layer, not a presence status, so it stays in the
 // achromatic field: muted by default, with the effective (worker-level) override
@@ -114,61 +112,40 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
     return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [globalEnvs, workerEnvs, deptEnvsList])
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
-        {t("envConfig.noEffective")}
-      </div>
-    )
-  }
-
   return (
-    <div className="rounded-sm border border-border/70 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("envConfig.key")}</TableHead>
-            <TableHead>{t("envConfig.masked")}</TableHead>
-            <TableHead>{t("envConfig.source")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map(([key, { masked, source }]) => {
-            const cfg = SOURCE_CONFIG[source]
-            return (
-              <TableRow key={key}>
-                <TableCell className="font-mono text-sm">{key}</TableCell>
-                <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
-                <TableCell>
-                  <span className={cn("text-xs font-medium", cfg?.color)}>
-                    {cfg ? t(cfg.labelKey) : source}
-                  </span>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-// Masthead avatar: larger than the roster avatar to anchor the profile, carrying
-// the same presence dot and presence-color language. Flat fill, no shadow.
-function ProfileAvatar({ name, status }: { name: string; status: string }) {
-  const color = presenceColor[status] ?? "bg-muted-foreground"
-  return (
-    <span className="relative inline-flex shrink-0">
-      <span className="flex size-16 select-none items-center justify-center rounded-full bg-muted text-xl font-medium text-muted-foreground ring-1 ring-border">
-        {initials(name)}
-      </span>
-      <span className="absolute right-1 bottom-1 inline-flex size-3.5 items-center justify-center rounded-full ring-2 ring-background">
-        {status === "working" && (
-          <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />
-        )}
-        <span className={cn("relative inline-flex size-full rounded-full", color)} />
-      </span>
-    </span>
+    <Panel title={t("envConfig.effectiveTitle")} flush>
+      {rows.length === 0 ? (
+        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+          {t("envConfig.noEffective")}
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-4">{t("envConfig.key")}</TableHead>
+              <TableHead>{t("envConfig.masked")}</TableHead>
+              <TableHead className="pr-4">{t("envConfig.source")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(([key, { masked, source }]) => {
+              const cfg = SOURCE_CONFIG[source]
+              return (
+                <TableRow key={key}>
+                  <TableCell className="pl-4 font-mono text-[13px] text-strong">{key}</TableCell>
+                  <TableCell className="font-mono text-[13px] text-muted-foreground">{masked}</TableCell>
+                  <TableCell className="pr-4">
+                    <span className={cn("text-[13px] font-medium", cfg?.color)}>
+                      {cfg ? t(cfg.labelKey) : source}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </Panel>
   )
 }
 
@@ -176,8 +153,8 @@ function ProfileAvatar({ name, status }: { name: string; status: string }) {
 // The canonical enterprise dossier row, not a card.
 function RecordRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
-      <dt className="shrink-0 text-xs font-medium text-muted-foreground sm:w-40 sm:pt-0.5">{label}</dt>
+    <div className="flex min-h-11 flex-col gap-1 px-4 py-2.5 @md:flex-row @md:items-center @md:gap-6">
+      <dt className="shrink-0 text-[13px] text-muted-foreground @md:w-40">{label}</dt>
       <dd className="min-w-0 flex-1 text-sm text-foreground">{children}</dd>
     </div>
   )
@@ -266,64 +243,45 @@ export function WorkerDetail() {
     )
   }
 
-  if (!worker) return <SkeletonPage />
-
-  // The session metrics live in the sessions domain, so they only appear with
-  // sessions:read; the band collapses to the remaining columns otherwise.
-  const overviewStats = [
-    ...(canSessions
-      ? [
-          {
-            icon: Logs,
-            label: t("workerDetail.sessions"),
-            value: data?.total ?? 0,
-            valueClass: "text-lg font-medium tabular-nums",
-          },
-          {
-            icon: Clock,
-            label: t("workerDetail.lastActive"),
-            value: latestExecution
-              ? formatTimestamp(latestExecution.started_at)
-              : t("sessions.noExecutions"),
-            valueClass: "text-sm",
-          },
-        ]
-      : []),
-    {
-      icon: CalendarIcon,
-      label: t("workerDetail.created"),
-      value: formatTimestamp(worker.created_at),
-      valueClass: "text-sm",
-    },
-  ]
+  if (!worker) {
+    return (
+      <div className="p-6">
+        <SkeletonPage />
+      </div>
+    )
+  }
 
   return (
     <FadeIn className="h-full">
-      <div className="flex h-full">
-        {/* Left rail: worker identity + vertical section menu. */}
-        <aside className="flex w-60 shrink-0 flex-col border-r">
-          <div className="flex h-16 items-center gap-3 border-b px-4">
+      <div className="flex h-full flex-col md:flex-row">
+        {/* Left rail: worker identity + section menu. Below md it stacks above
+            the content and the menu scrolls horizontally. */}
+        <aside className="flex shrink-0 flex-col border-b border-border bg-background md:w-60 md:border-r md:border-b-0">
+          <div className="flex h-18 shrink-0 items-center gap-3 px-4 md:border-b md:border-border">
             <WorkerAvatar name={worker.name} status={worker.status} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-strong">{worker.name}</p>
+              <div className="mt-1">
+                <StatusBadge status={worker.status} />
+              </div>
             </div>
           </div>
-          <nav className="min-h-0 flex-1 overflow-auto p-2">
-            <ul className="space-y-1">
+          <nav className="min-h-0 overflow-x-auto px-2 pb-2 md:flex-1 md:overflow-x-hidden md:overflow-y-auto md:py-3">
+            <ul className="flex gap-0.5 md:flex-col">
               {visibleSections.map((section) => {
                 const isActive = section.key === activeSection
                 const Icon = section.icon
                 return (
-                  <li key={section.key}>
+                  <li key={section.key} className="shrink-0">
                     <button
                       type="button"
                       onClick={() => setActiveSection(section.key)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                        RAIL_ITEM,
                         isActive
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          ? "bg-accent font-semibold text-strong"
+                          : "text-foreground hover:bg-accent hover:text-strong",
                       )}
                     >
                       <Icon className="size-4 shrink-0" />
@@ -336,72 +294,58 @@ export function WorkerDetail() {
           </nav>
         </aside>
 
-        {/* Right pane: section header + scrollable content. */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
-            <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
+        {/* Content pane: section header on the base surface, content on the canvas. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="flex min-h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-background px-6 py-3">
+            {/* The colleague's name titles the page; the active section is a
+                quiet sub-line, since the rail already shows the selection. */}
+            <div className="min-w-0">
+              <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
+                {worker.name}
+              </h1>
+              <p className="text-[13px] leading-5 text-muted-foreground">{t(activeLabelKey)}</p>
+            </div>
             <Can perm={Perm.ContactsWrite}>
               <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
+                <Button variant="outline" onClick={() => setEditInfoSheetOpen(true)}>
                   <Pencil className="size-4" />
                   {t("common.edit")}
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
+                <Button variant="outline" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
                   <Copy className="size-4" />
                   {t("common.copy")}
                 </Button>
               </div>
             </Can>
-          </div>
+          </header>
 
-          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+          <div className="@container min-h-0 min-w-0 flex-1 overflow-auto p-6">
             {/* Section-scoped boundary: a 403 from a cross-domain panel degrades
                 only the active section, not the whole page. Keyed by section so
                 switching tabs clears a prior forbidden state. */}
             <ForbiddenBoundary key={activeSection}>
             <div className="mx-auto max-w-5xl space-y-6">
               {workerError ? (
-                <p className="text-destructive">{workerError.message}</p>
+                <div role="alert" className={ALERT_DESTRUCTIVE}>{workerError.message}</div>
               ) : null}
 
               {activeSection === "overview" && (
-                <div className="flex flex-col gap-8">
-                  {/* (1) Masthead: the identity hero — avatar with presence, name,
-                      status, and the worker's role read as a profile bio. */}
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                    <ProfileAvatar name={worker.name} status={worker.status} />
-                    <div className="min-w-0 flex-1 space-y-2.5">
-                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {worker.name}
-                      </h2>
-                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {worker.description || t("common.noDescription")}
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex flex-col gap-6">
+                  {/* One record, label-left / value-right. Identity (avatar,
+                      name, presence) already heads the left rail on every
+                      section, so the overview doesn't repeat it; activity
+                      timestamps read as facts here rather than as KPI tiles. */}
+                  <Panel title={t("workerDetail.workerInfo")} flush>
+                    <dl className="divide-y divide-hairline">
+                      <RecordRow label={t("workers.form.description")}>
+                        <span className={cn(!worker.description && "text-muted-foreground")}>
+                          {worker.description || t("common.noDescription")}
+                        </span>
+                      </RecordRow>
 
-                  {/* (2) Activity band: at-a-glance presence facts, divided by
-                      hairlines into equal columns — no cards, no hero metric. */}
-                  <div className={cn("grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:divide-x sm:divide-y-0", GRID_COLS[overviewStats.length])}>
-                    {overviewStats.map(({ icon: Icon, label, value, valueClass }, i) => (
-                      <div key={label} className={cn("py-4", i === 0 ? "sm:pr-6" : "sm:px-6")}>
-                        <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
-                          <Icon className="size-3.5" />
-                          <span>{label}</span>
-                        </div>
-                        <p className={cn("mt-2 font-mono text-foreground", valueClass)}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* (3) Record: the structured attribute dossier, label-left and
-                      value-right, the canonical enterprise profile pattern. */}
-                  <div>
-                    <p className={EYEBROW_LABEL}>{t("workerDetail.workerInfo")}</p>
-                    <dl className="mt-2 divide-y divide-border/60 border-t border-border/60">
                       <RecordRow label={t("workerDetail.id")}>
                         <div className="flex items-center gap-1.5">
-                          <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+                          <span className="min-w-0 font-mono text-[13px] break-all text-foreground">
                             {worker.id}
                           </span>
                           <CopyButton value={worker.id} />
@@ -410,13 +354,12 @@ export function WorkerDetail() {
 
                       <RecordRow label={t("workers.form.engine")}>
                         {worker.engine ? (
-                          <EngineIcon
-                            engine={worker.engine}
-                            title={formatEngineLabel(worker.engine, t)}
-                            className="size-5 text-foreground"
-                          />
+                          <span className="inline-flex items-center gap-2">
+                            <EngineIcon engine={worker.engine} className="size-4 text-foreground" />
+                            {formatEngineLabel(worker.engine, t)}
+                          </span>
                         ) : (
-                          "—"
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </RecordRow>
 
@@ -424,13 +367,10 @@ export function WorkerDetail() {
                         {worker.departments && worker.departments.length > 0 ? (
                           <div className="flex flex-wrap items-center gap-1.5">
                             {worker.departments.map((d) => (
-                              <span
-                                key={d.id}
-                                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground"
-                              >
-                                <Building2 className="size-3 shrink-0" />
+                              <Badge key={d.id} variant="outline">
+                                <Building2 />
                                 {d.name}
-                              </span>
+                              </Badge>
                             ))}
                           </div>
                         ) : (
@@ -441,7 +381,7 @@ export function WorkerDetail() {
                       <RecordRow label={t("workerDetail.workDir")}>
                         {worker.work_dir ? (
                           <div className="flex items-center gap-1.5">
-                            <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+                            <span className="min-w-0 font-mono text-[13px] break-all text-foreground">
                               {worker.work_dir}
                             </span>
                             <CopyButton value={worker.work_dir} />
@@ -450,80 +390,95 @@ export function WorkerDetail() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </RecordRow>
+
+                      {/* Session metrics live in the sessions domain, so they
+                          only appear with sessions:read. */}
+                      {canSessions && (
+                        <>
+                          <RecordRow label={t("workerDetail.sessions")}>
+                            <span className="tabular-nums">{data?.total ?? 0}</span>
+                          </RecordRow>
+                          <RecordRow label={t("workerDetail.lastActive")}>
+                            <span className="tabular-nums">
+                              {latestExecution
+                                ? formatTimestamp(latestExecution.started_at)
+                                : t("sessions.noExecutions")}
+                            </span>
+                          </RecordRow>
+                        </>
+                      )}
+
+                      <RecordRow label={t("workerDetail.created")}>
+                        <span className="tabular-nums">{formatTimestamp(worker.created_at)}</span>
+                      </RecordRow>
                     </dl>
-                  </div>
+                  </Panel>
                 </div>
               )}
 
               {activeSection === "sessions" && (
-                <div className="space-y-4">
-            <DetailSection>
-              {sessionGroups.length === 0 ? (
-                <div className="px-5 py-10 sm:px-6">
-                  <EmptyState title={t("sessions.noExecutions")} />
-                </div>
-              ) : (
-                <div className="divide-y divide-border/70">
-                  {sessionGroups.map((group) => {
-                    const latest = group[0]
-                    const oldest = group[group.length - 1]
-                    const isRunning = latest.status === "running"
-                    const intent = extractMessageContent(oldest.trigger_input)
-                    const shortId = latest.session_id.slice(0, 8)
+                <div>
+                  <DetailSection>
+                    {sessionGroups.length === 0 ? (
+                      <EmptyState title={t("sessions.noExecutions")} />
+                    ) : (
+                      <div className="divide-y divide-hairline">
+                        {sessionGroups.map((group) => {
+                          const latest = group[0]
+                          const oldest = group[group.length - 1]
+                          const intent = extractMessageContent(oldest.trigger_input)
+                          const shortId = latest.session_id.slice(0, 8)
 
-                    return (
-                      <div
-                        key={latest.session_id}
-                        className={cn(
-                          "group relative flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
-                          isRunning && "bg-status-working/[0.04]"
-                        )}
-                      >
-                        {/* Whole-row click target; the copy chip below is raised above it. */}
-                        <Link
-                          to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
-                          aria-label={intent || t("sessions.noTriggerContent")}
-                          className="absolute inset-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        />
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {intent || t("sessions.noTriggerContent")}
-                          </p>
-
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span
-                              className="inline-flex items-center gap-1"
-                              title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
+                          return (
+                            <div
+                              key={latest.session_id}
+                              className="group relative flex items-center gap-4 px-4 py-3 transition-colors hover:bg-elevated"
                             >
-                              <Clock className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
-                              {formatRelative(oldest.started_at, t)}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Hash className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
-                              <span className="font-mono">{shortId}</span>
-                              <CopyButton
-                                value={latest.session_id}
-                                className="relative z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              {/* Whole-row click target; the copy chip below is raised above it. */}
+                              <Link
+                                to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
+                                aria-label={intent || t("sessions.noTriggerContent")}
+                                className="absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
                               />
-                            </span>
-                          </div>
-                        </div>
 
-                        <StatusBadge status={latest.status} />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-strong">
+                                  {intent || t("sessions.noTriggerContent")}
+                                </p>
+
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+                                  <span
+                                    className="inline-flex items-center gap-1 tabular-nums"
+                                    title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
+                                  >
+                                    <Clock className="size-3.5" aria-hidden="true" />
+                                    {formatRelative(oldest.started_at, t)}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Hash className="size-3.5" aria-hidden="true" />
+                                    <span className="font-mono text-xs">{shortId}</span>
+                                    <CopyButton
+                                      value={latest.session_id}
+                                      className="relative z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                                    />
+                                  </span>
+                                </div>
+                              </div>
+
+                              <StatusBadge status={latest.status} />
+                            </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </DetailSection>
+                    )}
+                  </DetailSection>
 
-            <PaginationControls
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
-            />
+                  <PaginationControls
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
+                  />
                 </div>
               )}
 
@@ -536,14 +491,14 @@ export function WorkerDetail() {
               )}
 
               {activeSection === "permissions" && (
-                <div className="max-w-2xl space-y-4">
-                  <p className="text-sm leading-6 text-muted-foreground">
+                <div className="max-w-3xl space-y-3">
+                  <p className="text-[13px] leading-5 text-muted-foreground">
                     {canWriteContacts
                       ? t("workers.form.permissionsHelper")
                       : t("workerDetail.permissionsReadonly")}
                   </p>
 
-                  <DetailSection className="divide-y divide-border/70">
+                  <DetailSection className="divide-y divide-hairline">
                     {KNOWN_SCOPES.map((scope) => (
                       <ScopeToggleCard
                         key={scope.id}
@@ -566,26 +521,17 @@ export function WorkerDetail() {
               )}
 
               {activeSection === "env" && (
-                <div className="max-w-3xl space-y-6">
-                  <DetailSection className="p-5 sm:p-6">
-                    <EnvConfigPanel
-                      scope="worker"
-                      scopeId={id!}
-                      title={t("envConfig.workerTitle")}
-                    />
-                  </DetailSection>
+                <div className="max-w-4xl space-y-6">
+                  <EnvConfigPanel
+                    scope="worker"
+                    scopeId={id!}
+                    title={t("envConfig.workerTitle")}
+                  />
 
-                  <DetailSection className="p-5 sm:p-6 space-y-4">
-                    <div>
-                      <p className={EYEBROW_LABEL}>
-                        {t("envConfig.effectiveTitle")}
-                      </p>
-                    </div>
-                    <EffectiveEnvPreview
-                      workerId={id!}
-                      departmentIds={workerDeptIds}
-                    />
-                  </DetailSection>
+                  <EffectiveEnvPreview
+                    workerId={id!}
+                    departmentIds={workerDeptIds}
+                  />
                 </div>
               )}
             </div>

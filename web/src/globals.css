@@ -23,12 +23,21 @@
 --font-serif: ui-serif, Georgia, serif;
 --color-background: var(--background);
 --color-foreground: var(--foreground);
+--color-strong: var(--strong);
+--color-canvas: var(--canvas);
+--color-elevated: var(--elevated);
+--color-recessed: var(--recessed);
+--color-hairline: var(--hairline);
+--color-focus: var(--focus);
 --color-card: var(--card);
 --color-card-foreground: var(--card-foreground);
 --color-popover: var(--popover);
 --color-popover-foreground: var(--popover-foreground);
 --color-primary: var(--primary);
+--color-primary-hover: var(--primary-hover);
+--color-primary-edge: var(--primary-edge);
 --color-primary-foreground: var(--primary-foreground);
+--color-link: var(--link);
 --color-brand: var(--brand);
 --color-brand-foreground: var(--brand-foreground);
 --color-secondary: var(--secondary);
@@ -39,6 +48,13 @@
 --color-accent-foreground: var(--accent-foreground);
 --color-destructive: var(--destructive);
 --color-destructive-foreground: var(--destructive-foreground);
+--color-success: var(--success);
+--color-success-tint: var(--success-tint);
+--color-warning: var(--warning);
+--color-warning-tint: var(--warning-tint);
+--color-info: var(--info);
+--color-info-tint: var(--info-tint);
+--color-danger-tint: var(--danger-tint);
 --color-border: var(--border);
 --color-input: var(--input);
 --color-ring: var(--ring);
@@ -58,7 +74,8 @@
 --color-status-idle: var(--status-idle);
 --color-status-working: var(--status-working);
 --color-status-error: var(--status-error);
---radius-sm: calc(var(--radius) * 0.5);
+--shadow-popover: 0 0 0 1px var(--shadow-edge), 0 4px 8px -2px var(--shadow-drop), 0 12px 32px -8px var(--shadow-drop);
+--radius-sm: 0.1875rem;
 /* Radius is capped at `sm` per CLAUDE.md (Design System › Border radius).
    md and above are collapsed to sm so any legacy class still renders squared. */
 --radius-md: var(--radius-sm);
@@ -69,100 +86,165 @@
 --radius-4xl: var(--radius-sm);
 }
 
+/* Palette follows Cloudflare's Kumo design system (github.com/cloudflare/kumo):
+   a near-white canvas under white base surfaces, 10%-black lines, one blue for
+   action / link / focus / selection, and the OpenBee orange kept to the mark. */
 :root {
-  --background: oklch(1 0 0);
---foreground: oklch(0.145 0 0);
+color-scheme: light;
+--canvas: oklch(0.9875 0 0);
+--background: oklch(1 0 0);
+--elevated: oklch(0.98 0 0);
+--recessed: oklch(0.96 0 0);
+--foreground: oklch(0.21 0.006 285.885);
+--strong: oklch(0.145 0 0);
 --card: oklch(1 0 0);
---card-foreground: oklch(0.145 0 0);
+--card-foreground: oklch(0.21 0.006 285.885);
 --popover: oklch(1 0 0);
---popover-foreground: oklch(0.145 0 0);
---primary: oklch(0.555 0.135 49);
---primary-foreground: oklch(0.985 0.005 60);
+--popover-foreground: oklch(0.21 0.006 285.885);
+--primary: oklch(0.5772 0.2324 260);
+--primary-hover: oklch(0.488 0.243 264.376);
+--primary-edge: oklch(0.5 0.21 260);
+--primary-foreground: oklch(1 0 0);
+--link: oklch(0.424 0.199 265.638);
 --brand: oklch(0.700 0.161 49);
---brand-foreground: oklch(0.985 0.005 60);
+--brand-foreground: oklch(1 0 0);
+--logo-ink: #1d2126;
 --secondary: oklch(0.97 0 0);
---secondary-foreground: oklch(0.205 0 0);
+--secondary-foreground: oklch(0.21 0.006 285.885);
 --muted: oklch(0.97 0 0);
---muted-foreground: oklch(0.556 0 0);
+--muted-foreground: oklch(0.54 0 0);
 --accent: oklch(0.97 0 0);
---accent-foreground: oklch(0.205 0 0);
+--accent-foreground: oklch(0.145 0 0);
 --destructive: oklch(0.577 0.245 27.325);
---border: oklch(0.922 0 0);
---input: oklch(0.922 0 0);
---ring: oklch(0.700 0.161 49);
---chart-1: oklch(0.87 0 0);
---chart-2: oklch(0.556 0 0);
---chart-3: oklch(0.439 0 0);
---chart-4: oklch(0.371 0 0);
---chart-5: oklch(0.269 0 0);
---radius: 0.375rem;
---status-idle: oklch(0.527 0.154 150.069);
---status-working: oklch(0.546 0.185 264.376);
+--destructive-foreground: oklch(0.505 0.213 27.518);
+--danger-tint: oklch(0.936 0.032 17.7 / 0.6);
+--success: oklch(0.508 0.118 165.612);
+--success-tint: oklch(0.962 0.043 156.7 / 0.8);
+--warning: oklch(0.51 0.125 55);
+--warning-tint: oklch(0.931 0.107 94.6 / 0.35);
+--info: oklch(0.424 0.199 265.638);
+--info-tint: oklch(0.932 0.032 255.6 / 0.7);
+--border: oklch(0.145 0 0 / 0.1);
+--hairline: oklch(0.935 0 0);
+--input: oklch(0.145 0 0 / 0.14);
+--focus: oklch(0.15 0 0);
+--ring: oklch(0.5772 0.2324 260);
+--shadow-edge: oklch(0 0 0 / 0.1);
+--shadow-drop: oklch(0 0 0 / 0.08);
+--chart-1: oklch(0.5772 0.2324 260);
+--chart-2: oklch(0.700 0.161 49);
+--chart-3: oklch(0.549 0.096 184.565);
+--chart-4: oklch(0.558 0.288 302.321);
+--chart-5: oklch(0.556 0 0);
+--status-idle: oklch(0.508 0.118 165.612);
+--status-working: oklch(0.546 0.245 262.881);
 --status-error: oklch(0.577 0.245 27.325);
---sidebar: oklch(0.985 0 0);
---sidebar-foreground: oklch(0.145 0 0);
---sidebar-primary: oklch(0.555 0.135 49);
---sidebar-primary-foreground: oklch(0.985 0.005 60);
---sidebar-accent: oklch(0.97 0 0);
---sidebar-accent-foreground: oklch(0.205 0 0);
---sidebar-border: oklch(0.922 0 0);
---sidebar-ring: oklch(0.700 0.161 49);
+--sidebar: oklch(1 0 0);
+--sidebar-foreground: oklch(0.21 0.006 285.885);
+--sidebar-primary: oklch(0.5772 0.2324 260);
+--sidebar-primary-foreground: oklch(1 0 0);
+--sidebar-accent: oklch(0.96 0 0);
+--sidebar-accent-foreground: oklch(0.145 0 0);
+--sidebar-border: oklch(0.145 0 0 / 0.1);
+--sidebar-ring: oklch(0.5772 0.2324 260);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
---foreground: oklch(0.985 0 0);
---card: oklch(0.205 0 0);
---card-foreground: oklch(0.985 0 0);
+color-scheme: dark;
+--canvas: oklch(0.1 0 0);
+--background: oklch(0.17 0 0);
+--elevated: oklch(0.12 0 0);
+--recessed: oklch(0.15 0 0);
+--foreground: oklch(0.97 0 0);
+--strong: oklch(0.985 0 0);
+--card: oklch(0.17 0 0);
+--card-foreground: oklch(0.97 0 0);
 --popover: oklch(0.205 0 0);
---popover-foreground: oklch(0.985 0 0);
---primary: oklch(0.555 0.135 49);
---primary-foreground: oklch(0.985 0.005 60);
+--popover-foreground: oklch(0.97 0 0);
+--primary: oklch(0.53 0.215 260);
+--primary-hover: oklch(0.488 0.243 264.376);
+--primary-edge: oklch(0.45 0.2 260);
+--primary-foreground: oklch(1 0 0);
+--link: oklch(0.707 0.165 254.624);
 --brand: oklch(0.753 0.135 51);
---brand-foreground: oklch(0.985 0.005 60);
+--brand-foreground: oklch(0.145 0 0);
+--logo-ink: oklch(0.95 0 0);
 --secondary: oklch(0.269 0 0);
---secondary-foreground: oklch(0.985 0 0);
+--secondary-foreground: oklch(0.97 0 0);
 --muted: oklch(0.269 0 0);
 --muted-foreground: oklch(0.708 0 0);
 --accent: oklch(0.269 0 0);
 --accent-foreground: oklch(0.985 0 0);
---destructive: oklch(0.704 0.191 22.216);
---border: oklch(1 0 0 / 10%);
---input: oklch(1 0 0 / 15%);
---ring: oklch(0.753 0.135 51);
---chart-1: oklch(0.87 0 0);
---chart-2: oklch(0.556 0 0);
---chart-3: oklch(0.439 0 0);
---chart-4: oklch(0.371 0 0);
---chart-5: oklch(0.269 0 0);
---status-idle: oklch(0.696 0.171 150.069);
---status-working: oklch(0.693 0.17 264.376);
+--destructive: oklch(0.577 0.245 27.325);
+--destructive-foreground: oklch(0.704 0.191 22.216);
+--danger-tint: oklch(0.429 0.176 28.7 / 0.25);
+--success: oklch(0.765 0.177 163.223);
+--success-tint: oklch(0.393 0.096 152.3 / 0.3);
+--warning: oklch(0.75 0.183 55.934);
+--warning-tint: oklch(0.353 0.079 65 / 0.45);
+--info: oklch(0.707 0.165 254.624);
+--info-tint: oklch(0.38 0.145 265.5 / 0.3);
+--border: oklch(0.32 0 0);
+--hairline: oklch(0.269 0 0);
+--input: oklch(0.32 0 0);
+--focus: oklch(0.935 0 0);
+--ring: oklch(0.707 0.165 254.624);
+--shadow-edge: oklch(1 0 0 / 0.1);
+--shadow-drop: oklch(0 0 0 / 0.4);
+--chart-1: oklch(0.707 0.165 254.624);
+--chart-2: oklch(0.753 0.135 51);
+--chart-3: oklch(0.704 0.14 182.503);
+--chart-4: oklch(0.714 0.203 305.504);
+--chart-5: oklch(0.708 0 0);
+--status-idle: oklch(0.765 0.177 163.223);
+--status-working: oklch(0.707 0.165 254.624);
 --status-error: oklch(0.704 0.191 22.216);
---sidebar: oklch(0.205 0 0);
---sidebar-foreground: oklch(0.985 0 0);
---sidebar-primary: oklch(0.555 0.135 49);
---sidebar-primary-foreground: oklch(0.985 0.005 60);
+--sidebar: oklch(0.17 0 0);
+--sidebar-foreground: oklch(0.97 0 0);
+--sidebar-primary: oklch(0.53 0.215 260);
+--sidebar-primary-foreground: oklch(1 0 0);
 --sidebar-accent: oklch(0.269 0 0);
 --sidebar-accent-foreground: oklch(0.985 0 0);
---sidebar-border: oklch(1 0 0 / 10%);
---sidebar-ring: oklch(0.753 0.135 51);
+--sidebar-border: oklch(0.32 0 0);
+--sidebar-ring: oklch(0.707 0.165 254.624);
 }
 
 @layer base {
 * {
   @apply border-border outline-ring/50;
 }
+html {
+  /* Kumo's type tuning: slight negative tracking and Inter's open-digit
+     alternates. Code and data in mono reset the tracking below. */
+  letter-spacing: -0.01em;
+  font-feature-settings: "cv02", "cv03", "cv04", "calt";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scrollbar-color: var(--border) transparent;
+}
+pre,
+code,
+kbd,
+.font-mono {
+  letter-spacing: normal;
+}
 html,
 body,
 #root {
   min-height: 100%;
-  background: var(--background);
+  background: var(--canvas);
 }
 body {
-  @apply bg-background text-foreground;
+  @apply bg-canvas text-sm text-foreground;
 }
 #root {
   min-height: 100dvh;
+}
+::selection {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
+}
+:focus-visible {
+  outline-color: var(--ring);
 }
 }
 
@@ -190,8 +272,19 @@ body {
   50% { opacity: 0.3; }
 }
 
+/* Horizontal scroll affordance for wide tables (Kumo's table edge fade): soft
+   edge shadows appear only on the side that has more content, using local vs
+   scroll background attachment, so no JS is needed. */
+@utility scroll-shadow-x {
+  background:
+    linear-gradient(to right, var(--card) 30%, transparent) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--card) 30%, transparent) right center / 2rem 100% no-repeat local,
+    linear-gradient(to right, var(--shadow-edge), transparent) left center / 0.75rem 100% no-repeat scroll,
+    linear-gradient(to left, var(--shadow-edge), transparent) right center / 0.75rem 100% no-repeat scroll;
+}
+
 @utility skeleton {
-  @apply animate-pulse rounded-md bg-muted;
+  @apply animate-pulse rounded-sm bg-muted;
 }
 
 @media (prefers-reduced-motion: reduce) {

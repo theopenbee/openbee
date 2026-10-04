@@ -74,22 +74,22 @@ function RoleCheckboxes({
     return <p className="text-sm text-muted-foreground">{t("users.noRoles")}</p>
   }
   return (
-    <div className="max-h-60 space-y-1 overflow-y-auto rounded-sm border border-border p-2">
+    <div className="max-h-60 divide-y divide-hairline overflow-y-auto rounded-sm bg-background ring-1 ring-border">
       {roles.map((role) => (
         <label
           key={role.id}
-          className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 hover:bg-muted/50"
+          className="flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors hover:bg-elevated"
         >
           <input
             type="checkbox"
-            className="mt-0.5 size-4 shrink-0 accent-primary"
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary dark:[color-scheme:dark]"
             checked={selected.includes(role.id)}
             onChange={() => onToggle(role.id)}
           />
           <span className="min-w-0">
-            <span className="block text-sm">{roleLabel(role, t)}</span>
+            <span className="block text-sm font-medium text-strong">{roleLabel(role, t)}</span>
             {role.description && (
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
                 {roleDescription(role, t)}
               </span>
             )}
@@ -251,7 +251,7 @@ export function Users() {
 
   const createButton = (
     <Button onClick={openCreate}>
-      <PlusIcon className="size-4 mr-1" />
+      <PlusIcon />
       {t("users.create")}
     </Button>
   )
@@ -260,34 +260,45 @@ export function Users() {
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="w-full">
         <PageHeader title={t("nav.users")} actions={createButton} />
 
         {users.length === 0 ? (
-          <EmptyState title={t("users.empty")} action={createButton} />
+          <div className="rounded-sm bg-card ring-1 ring-border">
+            <EmptyState title={t("users.empty")} action={createButton} />
+          </div>
         ) : (
-          <div className="rounded-sm border border-border">
+          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("users.table.username")}</TableHead>
-                  <TableHead>{t("users.table.displayName")}</TableHead>
+                  <TableHead className="pl-4">{t("nav.users")}</TableHead>
                   <TableHead>{t("users.table.roles")}</TableHead>
                   <TableHead>{t("users.table.status")}</TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-0 pr-4">
+                    <span className="sr-only">{t("users.rowActions")}</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.username}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.display_name || "—"}
+                    <TableCell className="py-2.5 pl-4">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-strong">
+                          {user.display_name || user.username}
+                        </div>
+                        {user.display_name && (
+                          <div className="mt-0.5 text-[13px] text-muted-foreground">
+                            {user.username}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {user.roles.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-[13px] text-muted-foreground">—</span>
                         ) : (
                           user.roles.map((r) => (
                             <Badge key={r.id} variant="outline">
@@ -298,24 +309,23 @@ export function Users() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.status === "active" ? "secondary" : "destructive"}>
+                      <Badge variant={user.status === "active" ? "success" : "secondary"}>
                         <span
-                          className={`mr-1 inline-block size-1.5 rounded-full ${
-                            user.status === "active" ? "bg-emerald-500" : "bg-destructive"
-                          }`}
+                          aria-hidden="true"
+                          className="size-1.5 rounded-full bg-current"
                         />
                         {user.status === "active"
                           ? t("users.status.active")
                           : t("users.status.disabled")}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 pr-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               className="text-muted-foreground"
                               aria-label={t("users.rowActions")}
                             />
@@ -369,7 +379,7 @@ export function Users() {
 
         {/* Create user */}
         <Dialog open={mode === "create"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t("users.create")}</DialogTitle>
               <DialogDescription>{t("users.createDescription")}</DialogDescription>
@@ -408,8 +418,8 @@ export function Users() {
                   placeholder={t("users.form.displayNamePlaceholder")}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>{t("users.form.roles")}</Label>
+              <div role="group" aria-labelledby="user-roles-label" className="space-y-1.5">
+                <Label id="user-roles-label">{t("users.form.roles")}</Label>
                 <RoleCheckboxes roles={roles} selected={roleIds} onToggle={toggleRole} />
               </div>
               <DialogFooter>
@@ -426,7 +436,7 @@ export function Users() {
 
         {/* Edit profile */}
         <Dialog open={mode === "edit"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t("users.editProfile")}</DialogTitle>
               <DialogDescription>
@@ -469,7 +479,7 @@ export function Users() {
 
         {/* Edit roles */}
         <Dialog open={mode === "roles"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t("users.editRoles")}</DialogTitle>
               <DialogDescription>
@@ -493,7 +503,7 @@ export function Users() {
 
         {/* Reset password */}
         <Dialog open={mode === "password"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("users.resetPassword")}</DialogTitle>
               <DialogDescription>
@@ -532,14 +542,14 @@ export function Users() {
 
         {/* Delete */}
         <Dialog open={mode === "delete"} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("users.deleteConfirm.title")}</DialogTitle>
               <DialogDescription>
                 {t("users.deleteConfirm.description", { name: target?.username })}
               </DialogDescription>
             </DialogHeader>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
             <DialogFooter>
               <Button variant="outline" onClick={resetForm}>
                 {t("common.cancel")}

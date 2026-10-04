@@ -18,8 +18,8 @@ export function PaginationControls({ page, totalPages, onPageChange, leadingLabe
   const hasPages = totalPages > 1
 
   return (
-    <div className="flex items-center justify-between mt-4">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground tabular-nums">
         {leadingLabel && <span>{leadingLabel}</span>}
         {leadingLabel && hasPages && <span aria-hidden="true" className="text-border">·</span>}
         {hasPages && <span>{t("sessions.pagination.page", { page, totalPages })}</span>}
@@ -28,6 +28,7 @@ export function PaginationControls({ page, totalPages, onPageChange, leadingLabe
         <div className="flex gap-2">
           <Button
             variant="outline"
+            size="sm"
             disabled={page <= 1}
             onClick={() => onPageChange(Math.max(1, page - 1))}
           >
@@ -36,6 +37,7 @@ export function PaginationControls({ page, totalPages, onPageChange, leadingLabe
           </Button>
           <Button
             variant="outline"
+            size="sm"
             disabled={page >= totalPages}
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           >

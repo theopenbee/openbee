@@ -11,15 +11,15 @@ export function PermissionDenied({ description }: { description?: string }) {
   return (
     <div
       role="alert"
-      className="animate-fade-in flex flex-col items-center justify-center py-16 text-center"
+      className="animate-fade-in flex flex-col items-center justify-center px-6 py-16 text-center"
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <ShieldAlertIcon className="size-6" />
+      <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <ShieldAlertIcon className="size-5" aria-hidden />
       </div>
-      <h2 className="mt-4 text-lg font-medium text-foreground">
+      <h2 className="mt-4 text-base font-semibold text-strong">
         {t("permission.deniedTitle")}
       </h2>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+      <p className="mt-1 max-w-md text-sm text-balance text-muted-foreground">
         {description ?? t("permission.deniedDescription")}
       </p>
     </div>

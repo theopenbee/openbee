@@ -7,6 +7,9 @@ import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departm
 import { useEnabledEngines } from "@/hooks/use-config"
 import { FadeIn } from "@/components/fade-in"
 import { DetailSection } from "@/components/detail-primitives"
+import { PageHeader } from "@/components/page-header"
+import { Panel } from "@/components/panel"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,15 +19,13 @@ import {
   Select,
   SelectContent,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
-import { EngineSelectItems } from "@/components/engine-select-items"
+import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
-import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
-import { getErrorMessage } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
@@ -140,26 +141,32 @@ export function CreateWorker() {
       )
     : flatDepts
 
+  // Panel titles carry an optional selection count, shown as a neutral badge.
+  const countTitle = (text: string, count: number) => (
+    <span className="flex items-center gap-2">
+      {text}
+      {count > 0 && (
+        <Badge variant="secondary" className="tabular-nums">
+          {count}
+        </Badge>
+      )}
+    </span>
+  )
+
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-2xl space-y-6">
-        <div className="space-y-3">
-          <Link
-            to="/workers"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            {t("workers.backToList")}
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
-            </h1>
-          </div>
-        </div>
+      <div className="w-full max-w-3xl">
+        <Link
+          to="/workers"
+          className="mb-3 inline-flex items-center gap-1.5 rounded-sm text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <ArrowLeft className="size-3.5" />
+          {t("workers.backToList")}
+        </Link>
+        <PageHeader title={isCopy ? t("workers.copyWorker") : t("workers.createWorker")} />
 
         {submitError && (
-          <div ref={errorRef} role="alert" className={ALERT_DESTRUCTIVE}>
+          <div ref={errorRef} role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-6")}>
             {submitError}
           </div>
         )}
@@ -167,18 +174,16 @@ export function CreateWorker() {
         {isCopyLoading ? (
           <div className="space-y-6" aria-hidden>
             {[0, 1, 2].map((i) => (
-              <DetailSection key={i} className="space-y-4 p-5 sm:p-6">
+              <DetailSection key={i} className="space-y-4 p-4">
                 <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-3/4" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-3/4" />
               </DetailSection>
             ))}
           </div>
         ) : (
         <form id="create-worker-form" onSubmit={handleSubmit} className="space-y-6">
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionBasic")} />
-
+          <Panel title={t("workers.form.sectionBasic")} bodyClassName="space-y-5">
             <div className="max-w-sm">
               <WorkerNameField
                 id="cw-name"
@@ -193,19 +198,17 @@ export function CreateWorker() {
             <div className="space-y-1.5">
               <Label htmlFor="cw-engine">{t("workers.form.engine")}</Label>
               <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
-                <SelectTrigger id="cw-engine">
-                  <SelectValue placeholder={t("workers.form.engineDefault")} />
+                <SelectTrigger id="cw-engine" className="w-full max-w-sm">
+                  <EngineSelectValue placeholder={t("workers.form.engineDefault")} />
                 </SelectTrigger>
                 <SelectContent>
                   <EngineSelectItems engines={enabledEngines} />
                 </SelectContent>
               </Select>
             </div>
-          </DetailSection>
+          </Panel>
 
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionEnhancement")} />
-
+          <Panel title={t("workers.form.sectionEnhancement")} bodyClassName="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="cw-desc">{t("workers.form.description")}</Label>
               <Textarea
@@ -228,36 +231,37 @@ export function CreateWorker() {
                 rows={4}
               />
             </div>
-          </DetailSection>
+          </Panel>
 
           {flatDepts.length > 0 && (
-            <DetailSection className="space-y-3 p-5 sm:p-6">
-              <SectionHeading
-                text={t("workers.form.sectionDepartment")}
-                badge={selectedDeptIds.size}
-              />
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  className="h-8 pl-8 text-xs"
-                />
+            <Panel
+              title={countTitle(t("workers.form.sectionDepartment"), selectedDeptIds.size)}
+              flush
+            >
+              <div className="border-b border-hairline p-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={deptSearch}
+                    onChange={(e) => setDeptSearch(e.target.value)}
+                    placeholder={t("workers.form.searchDepartments")}
+                    aria-label={t("workers.form.searchDepartments")}
+                    className="pl-8"
+                  />
+                </div>
               </div>
 
-              <div className="-mx-1 max-h-48 space-y-0.5 overflow-y-auto">
+              <div className="max-h-56 overflow-y-auto p-1.5">
                 {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-muted-foreground">
+                  <p className="py-4 text-center text-[13px] text-muted-foreground">
                     {t("workers.form.noMatchingDepartments")}
                   </p>
                 ) : (
                   filteredDepts.map(({ dept, depth }) => (
                     <label
                       key={dept.id}
-                      className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
+                      className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
+                      style={{ paddingLeft: `${12 + depth * 16}px` }}
                     >
                       <input
                         type="checkbox"
@@ -269,19 +273,17 @@ export function CreateWorker() {
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
+                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
                       />
-                      <span className="text-sm leading-snug text-foreground/75">{dept.name}</span>
+                      <span className="truncate text-sm text-foreground">{dept.name}</span>
                     </label>
                   ))
                 )}
               </div>
-            </DetailSection>
+            </Panel>
           )}
 
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionOther")} />
-
+          <Panel title={t("workers.form.sectionOther")} bodyClassName="space-y-5">
             <EngineArgsSection
               engines={[engine]}
               value={engineArgs}
@@ -295,22 +297,21 @@ export function CreateWorker() {
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-xs"
+                className="font-mono text-[13px]"
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
             </div>
-          </DetailSection>
+          </Panel>
 
-          <DetailSection className="space-y-3 p-5 sm:p-6">
-            <SectionHeading
-              text={t("workers.form.sectionPermissions")}
-              badge={selectedScopes.length}
-            />
-            <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+          <Panel
+            title={countTitle(t("workers.form.sectionPermissions"), selectedScopes.length)}
+            bodyClassName="p-1.5"
+          >
+            <div className="grid grid-cols-1 gap-x-2 sm:grid-cols-2">
               {KNOWN_SCOPES.map((scope) => (
                 <label
                   key={scope.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
+                  className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
                 >
                   <input
                     type="checkbox"
@@ -319,17 +320,17 @@ export function CreateWorker() {
                       setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
                     }
                     disabled={isPending}
-                    className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
+                    className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
                   />
-                  <span className="text-sm leading-snug text-foreground/75">
+                  <span className="truncate text-sm text-foreground">
                     {t(scope.titleKey)}
                   </span>
                 </label>
               ))}
             </div>
-          </DetailSection>
+          </Panel>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
             <Button
               type="button"
               variant="outline"

@@ -7,7 +7,7 @@ function HoneycombSvg() {
       height="100"
       viewBox="0 0 120 100"
       fill="none"
-      className="text-primary/20"
+      className="text-muted-foreground/35"
     >
       <path
         d="M30 10 L45 2 L60 10 L60 26 L45 34 L30 26Z"
@@ -70,11 +70,11 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <div className="animate-fade-in flex flex-col items-center justify-center py-16 text-center">
+    <div className="animate-fade-in flex flex-col items-center justify-center px-6 py-14 text-center">
       <HoneycombSvg />
-      <h2 className="mt-4 text-lg font-medium text-foreground">{title}</h2>
+      <h2 className="mt-4 text-base font-semibold text-strong">{title}</h2>
       {description && (
-        <p className="mt-1 text-sm text-muted-foreground max-w-sm">{description}</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
       )}
       {action && <div className="mt-4">{action}</div>}
     </div>
