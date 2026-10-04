@@ -164,14 +164,14 @@ func doUpgrade(newVersion string) error {
 	// This avoids a second read of the archive for checksum verification.
 	checksumPath := filepath.Join(tmpDir, "checksums.txt")
 	checksumAvailable := true
-	if err := utils.DownloadFile(checksumURL, checksumPath, nil); err != nil {
+	if err := downloadFile(checksumURL, checksumPath, nil); err != nil {
 		checksumAvailable = false
 		fmt.Printf(i18n.M.Output.Upgrade.ChecksumWarning+"\n", err)
 	}
 
 	h := sha256.New()
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := utils.DownloadFile(archiveURL, archivePath, h); err != nil {
+	if err := downloadFile(archiveURL, archivePath, h); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
@@ -181,7 +181,7 @@ func doUpgrade(newVersion string) error {
 		if err != nil {
 			return fmt.Errorf("read checksums: %w", err)
 		}
-		expected, err := utils.ParseChecksumFile(data, archiveName)
+		expected, err := parseChecksumFile(data, archiveName)
 		if err != nil {
 			return fmt.Errorf("%w in checksums.txt", err)
 		}

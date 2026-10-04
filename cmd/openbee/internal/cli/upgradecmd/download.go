@@ -1,18 +1,19 @@
-package utils
+package upgradecmd
 
 import (
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 const maxDownloadBytes = 512 * 1024 * 1024 // 512 MB guard against runaway responses
 
-// DownloadFile fetches url and writes the response body to dest.
+// downloadFile fetches url and writes the response body to dest.
 // If extra is non-nil, all downloaded bytes are also written to it (e.g. for hashing).
-func DownloadFile(url, dest string, extra io.Writer) error {
+func downloadFile(url, dest string, extra io.Writer) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -39,4 +40,15 @@ func DownloadFile(url, dest string, extra io.Writer) error {
 		return fmt.Errorf("download exceeded %d byte limit", maxDownloadBytes)
 	}
 	return nil
+}
+
+// parseChecksumFile looks up assetName in a checksum file (one "hash  filename" pair per line)
+// and returns the expected hex digest. Returns an error if the entry is not found.
+func parseChecksumFile(data []byte, assetName string) (string, error) {
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if parts := strings.Fields(line); len(parts) == 2 && parts[1] == assetName {
+			return parts[0], nil
+		}
+	}
+	return "", fmt.Errorf("no checksum for %s found", assetName)
 }
