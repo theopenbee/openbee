@@ -2,6 +2,7 @@ package upgradecmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,9 @@ const (
 	githubRelBase        = "https://github.com/theopenbee/openbee/releases/download"
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
+	// githubTokenEnv names the env var whose token, if set, authenticates GitHub API
+	// calls (anonymous requests are limited to 60 per hour per IP).
+	githubTokenEnv = "GITHUB_TOKEN"
 )
 
 const executablePerm = 0o755
@@ -51,7 +55,7 @@ func runUpgrade(current string, checkOnly bool) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
-	latest, err := fetchLatestVersion()
+	latest, err := fetchLatestVersion(githubAPILatest)
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
@@ -73,21 +77,63 @@ func runUpgrade(current string, checkOnly bool) error {
 	return doUpgrade(latest)
 }
 
-func fetchLatestVersion() (string, error) {
-	resp, err := apiClient.Get(githubAPILatest)
+func fetchLatestVersion(apiURL string) (string, error) {
+	token := strings.TrimSpace(os.Getenv(githubTokenEnv))
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := apiClient.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		return "", apiStatusError(resp, token != "")
 	}
 	var rel githubRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&rel); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
 	return normalizeVersionTag(rel.TagName)
+}
+
+// apiStatusError explains a non-200 GitHub API response, calling out rate limiting
+// and rejected tokens, which would otherwise surface only as a bare 403 or 401.
+func apiStatusError(resp *http.Response, withToken bool) error {
+	switch {
+	case isRateLimited(resp):
+		msg := fmt.Sprintf("GitHub API rate limit exceeded (HTTP %d)", resp.StatusCode)
+		if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+			msg += ", resets at " + time.Unix(reset, 0).Format(time.DateTime)
+		}
+		if !withToken {
+			msg += "; set " + githubTokenEnv + " to raise the limit"
+		}
+		return errors.New(msg)
+	case resp.StatusCode == http.StatusUnauthorized && withToken:
+		return fmt.Errorf("GitHub API returned 401: check %s", githubTokenEnv)
+	default:
+		return fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+	}
+}
+
+// isRateLimited reports whether resp is a GitHub rate-limit rejection. The primary
+// limit answers 403 with X-RateLimit-Remaining: 0; secondary limits answer 403 or
+// 429, usually with Retry-After.
+func isRateLimited(resp *http.Response) bool {
+	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		return true
+	case http.StatusForbidden:
+		return resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != ""
+	}
+	return false
 }
 
 // normalizeVersionTag trims whitespace, validates the tag is non-empty, and

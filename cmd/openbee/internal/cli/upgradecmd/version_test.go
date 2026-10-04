@@ -1,6 +1,11 @@
 package upgradecmd
 
 import (
+	"errors"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -53,8 +58,104 @@ func TestNormalizeVersionTag(t *testing.T) {
 	}
 }
 
-func TestAPIClientTimeout(t *testing.T) {
-	if apiClient.Timeout != 15*time.Second {
-		t.Fatalf("apiClient.Timeout = %v, want 15s", apiClient.Timeout)
+func TestFetchLatestVersion(t *testing.T) {
+	t.Setenv(githubTokenEnv, "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("Authorization = %q, want none without %s", got, githubTokenEnv)
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
+	}))
+	defer srv.Close()
+
+	got, err := fetchLatestVersion(srv.URL)
+	if err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+	if got != "v1.2.3" {
+		t.Fatalf("fetchLatestVersion = %q, want %q", got, "v1.2.3")
+	}
+}
+
+func TestFetchLatestVersionSendsToken(t *testing.T) {
+	t.Setenv(githubTokenEnv, "test-token")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Errorf("Authorization = %q, want %q", got, "Bearer test-token")
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
+	}))
+	defer srv.Close()
+
+	if _, err := fetchLatestVersion(srv.URL); err != nil {
+		t.Fatalf("fetchLatestVersion: %v", err)
+	}
+}
+
+func TestFetchLatestVersionRateLimited(t *testing.T) {
+	t.Setenv(githubTokenEnv, "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1767225600")
+		http.Error(w, `{"message":"API rate limit exceeded"}`, http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	_, err := fetchLatestVersion(srv.URL)
+	if err == nil {
+		t.Fatalf("fetchLatestVersion on rate limit returned nil error")
+	}
+	for _, want := range []string{"rate limit", githubTokenEnv} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("rate-limit error %q does not mention %q", err, want)
+		}
+	}
+}
+
+func TestFetchLatestVersionPlainForbidden(t *testing.T) {
+	t.Setenv(githubTokenEnv, "")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	_, err := fetchLatestVersion(srv.URL)
+	if err == nil || strings.Contains(err.Error(), "rate limit") || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("plain 403: err = %v, want a non-rate-limit error mentioning 403", err)
+	}
+}
+
+func TestFetchLatestVersionBadToken(t *testing.T) {
+	t.Setenv(githubTokenEnv, "expired-token")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"Bad credentials"}`, http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	_, err := fetchLatestVersion(srv.URL)
+	if err == nil || !strings.Contains(err.Error(), githubTokenEnv) {
+		t.Fatalf("401 with token set: err = %v, want an error pointing at %s", err, githubTokenEnv)
+	}
+}
+
+func TestFetchLatestVersionTimesOut(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	orig := apiClient
+	apiClient = &http.Client{Timeout: 100 * time.Millisecond}
+	t.Cleanup(func() { apiClient = orig })
+
+	_, err := fetchLatestVersion(srv.URL)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("fetchLatestVersion against a stalled server: err = %v, want a timeout", err)
 	}
 }
