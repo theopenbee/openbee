@@ -187,7 +187,7 @@ func TestClearCommand_ConfirmPromptListsTasksAndAgents(t *testing.T) {
 
 	handled := fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
-	require.Len(t, fx.sender.sent, 1) // guard: avoid index panic on fx.sender.sent[0]
+	require.Len(t, fx.sender.sent, 1)
 	out := fx.sender.sent[0]
 
 	for _, want := range []string{
@@ -303,7 +303,7 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
 
-	require.Len(t, fx.sender.sent, 1) // guard: avoid index panic on fx.sender.sent[0]
+	require.Len(t, fx.sender.sent, 1)
 	assert.Contains(t, fx.sender.sent[0], "✅ 已清除 徐晃")
 	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped when no running tasks")
 	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.disp.clearedWorkers)
@@ -427,7 +427,7 @@ func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 	fx := makeClearFixture(agents, tasks, nil, withClearClock(fixedClock(clock)))
 
 	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
-	require.Len(t, fx.sender.sent, 1) // guard: avoid index panic on fx.sender.sent[0]
+	require.Len(t, fx.sender.sent, 1)
 	out := fx.sender.sent[0]
 	assert.Contains(t, out, "[ghost] do something")
 }

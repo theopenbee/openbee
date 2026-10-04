@@ -431,8 +431,8 @@ func TestGateway_BotMention(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.wantContent, emitted.Content)
-			require.Len(t, st.batches, 1)                        // guard: avoid index panic on st.batches[0]
-			require.Len(t, st.batches[0], len(tc.wantBatchRows)) // guard: avoid index panic below
+			require.Len(t, st.batches, 1)
+			require.Len(t, st.batches[0], len(tc.wantBatchRows))
 			for i, want := range tc.wantBatchRows {
 				assert.Equal(t, want, st.batches[0][i].Content)
 			}

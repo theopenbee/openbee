@@ -73,7 +73,7 @@ func TestStop_BeeRunning_PendingMessages(t *testing.T) {
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	assert.True(t, stopper.stopped, "expected StopSession to be called")
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	require.Len(t, sender.sent, 1)
 	assert.NotEmpty(t, sender.sent[0], "expected non-empty reply")
 }
 
@@ -144,7 +144,7 @@ func TestStop_Worker_StopsTasks(t *testing.T) {
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
 
 	require.Equal(t, []string{"feishu:chat1:userA::w-1"}, stop.calls)
-	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	require.Len(t, sender.sent, 1)
 	assert.Contains(t, sender.sent[0], "alice")
 }
 
