@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -64,10 +66,10 @@ func (s *reconTaskStore) UpdateStatusIfRunning(_ context.Context, taskID, next s
 type reconExecStore struct {
 	mu sync.Mutex
 	// byTask holds the latest execution recorded for each taskID.
-	byTask                  map[string]model.WorkerExecution
-	abandoned               []string
-	listByTaskIDsCalls      int
-	runningExecIDsCalls     int
+	byTask              map[string]model.WorkerExecution
+	abandoned           []string
+	listByTaskIDsCalls  int
+	runningExecIDsCalls int
 }
 
 func (s *reconExecStore) ListByTaskIDs(_ context.Context, taskIDs []string, _ int) (map[string][]model.WorkerExecution, error) {
@@ -142,12 +144,8 @@ func TestReconciler_CompletesStaleRunningTask(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, nil)
 	task.ReconcileForTest(r, context.Background())
 
-	if len(tasks.completed) != 1 || tasks.completed[0] != "t1" {
-		t.Fatalf("expected t1 completed, got %v", tasks.completed)
-	}
-	if len(tasks.failed) != 0 {
-		t.Fatalf("expected no failed, got %v", tasks.failed)
-	}
+	require.Equal(t, []string{"t1"}, tasks.completed)
+	require.Empty(t, tasks.failed)
 }
 
 func TestReconciler_FailsStaleRunningTask(t *testing.T) {
@@ -160,9 +158,7 @@ func TestReconciler_FailsStaleRunningTask(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, nil)
 	task.ReconcileForTest(r, context.Background())
 
-	if len(tasks.failed) != 1 || tasks.failed[0] != "t1" {
-		t.Fatalf("expected t1 failed, got %v", tasks.failed)
-	}
+	require.Equal(t, []string{"t1"}, tasks.failed)
 }
 
 func TestReconciler_SweepsOrphanedExecWhenProcessDead(t *testing.T) {
@@ -175,12 +171,8 @@ func TestReconciler_SweepsOrphanedExecWhenProcessDead(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return false })
 	task.ReconcileForTest(r, context.Background())
 
-	if len(execs.abandoned) != 1 || execs.abandoned[0] != "e1" {
-		t.Fatalf("expected e1 abandoned, got %v", execs.abandoned)
-	}
-	if len(tasks.failed) != 1 || tasks.failed[0] != "t1" {
-		t.Fatalf("expected t1 failed, got %v", tasks.failed)
-	}
+	require.Equal(t, []string{"e1"}, execs.abandoned)
+	require.Equal(t, []string{"t1"}, tasks.failed)
 }
 
 func TestReconciler_LeavesLiveRunningExecAlone(t *testing.T) {
@@ -193,10 +185,9 @@ func TestReconciler_LeavesLiveRunningExecAlone(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return true })
 	task.ReconcileForTest(r, context.Background())
 
-	if len(execs.abandoned) != 0 || len(tasks.failed) != 0 || len(tasks.completed) != 0 {
-		t.Fatalf("expected no changes, got abandoned=%v failed=%v completed=%v",
-			execs.abandoned, tasks.failed, tasks.completed)
-	}
+	require.Empty(t, execs.abandoned)
+	require.Empty(t, tasks.failed)
+	require.Empty(t, tasks.completed)
 }
 
 func TestReconciler_SkipsTaskWithoutExecution(t *testing.T) {
@@ -207,10 +198,8 @@ func TestReconciler_SkipsTaskWithoutExecution(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, nil)
 	task.ReconcileForTest(r, context.Background())
 
-	if len(tasks.completed) != 0 || len(tasks.failed) != 0 {
-		t.Fatalf("expected no changes for unstarted task, got completed=%v failed=%v",
-			tasks.completed, tasks.failed)
-	}
+	require.Empty(t, tasks.completed)
+	require.Empty(t, tasks.failed)
 }
 
 func TestReconciler_SkipsListByTaskIDsWhenAllRunningKnown(t *testing.T) {
@@ -227,9 +216,7 @@ func TestReconciler_SkipsListByTaskIDsWhenAllRunningKnown(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return true })
 	task.ReconcileForTest(r, context.Background())
 
-	if execs.listByTaskIDsCalls != 0 {
-		t.Fatalf("expected 0 ListByTaskIDs calls when every task has a known running exec, got %d", execs.listByTaskIDsCalls)
-	}
+	require.Equal(t, 0, execs.listByTaskIDsCalls, "expected 0 ListByTaskIDs calls when every task has a known running exec")
 }
 
 func TestReconciler_BatchesExecStoreCalls(t *testing.T) {
@@ -248,10 +235,6 @@ func TestReconciler_BatchesExecStoreCalls(t *testing.T) {
 	r := newReconcilerForTest(tasks, execs, func(_ int) bool { return true })
 	task.ReconcileForTest(r, context.Background())
 
-	if execs.listByTaskIDsCalls != 1 {
-		t.Fatalf("expected 1 ListByTaskIDs call, got %d", execs.listByTaskIDsCalls)
-	}
-	if execs.runningExecIDsCalls != 1 {
-		t.Fatalf("expected 1 RunningExecIDsByTaskIDs call, got %d", execs.runningExecIDsCalls)
-	}
+	require.Equal(t, 1, execs.listByTaskIDsCalls)
+	require.Equal(t, 1, execs.runningExecIDsCalls)
 }
