@@ -82,6 +82,13 @@ func Restore(opts RestoreOptions) error {
 	if err := os.MkdirAll(filepath.Dir(opts.DBPath), 0755); err != nil {
 		return fmt.Errorf("create db dir: %w", err)
 	}
+	// A -wal/-journal left by the previous database would be replayed over
+	// the restored file on next open.
+	for _, f := range sqliteSidecars(opts.DBPath) {
+		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove stale %s: %w", filepath.Base(f), err)
+		}
+	}
 	if err := copyFile(filepath.Join(extractDir, "openbee.db"), opts.DBPath); err != nil {
 		return fmt.Errorf("restore database: %w", err)
 	}
@@ -93,7 +100,9 @@ func Restore(opts RestoreOptions) error {
 		return fmt.Errorf("restore config: %w", err)
 	}
 
-	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir); err != nil {
+	// Archives made before the database was snapshotted separately also carry
+	// a raw copy of it under dot-openbee; never let that overwrite openbee.db.
+	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir, dbFilesUnder(opts.StateDir, opts.DBPath)); err != nil {
 		return fmt.Errorf("restore state dir: %w", err)
 	}
 

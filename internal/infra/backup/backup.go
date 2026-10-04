@@ -1,13 +1,16 @@
 package backup
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	_ "modernc.org/sqlite"
 )
 
 // BackupOptions configures a Backup call.
@@ -33,7 +36,7 @@ func Backup(opts BackupOptions) (string, error) {
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		if err := copyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
+		if err := snapshotDB(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
 			return fmt.Errorf("copy database: %w", err)
 		}
 		return nil
@@ -45,7 +48,7 @@ func Backup(opts BackupOptions) (string, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee")); err != nil {
+		if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee"), dbFilesUnder(opts.StateDir, opts.DBPath)); err != nil {
 			return fmt.Errorf("copy state dir: %w", err)
 		}
 		return nil
@@ -103,6 +106,54 @@ func Backup(opts BackupOptions) (string, error) {
 	return finalName, nil
 }
 
+// snapshotDB writes a transactionally consistent copy of the SQLite database
+// at src to dst. A plain file copy is unsafe while the daemon runs: in WAL
+// mode committed pages may live only in the -wal file, and any copy can catch
+// a write half-done.
+func snapshotDB(src, dst string) error {
+	// Opening a missing path would silently create an empty database.
+	if _, err := os.Stat(src); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", src+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec(`VACUUM INTO ?`, dst)
+	return err
+}
+
+// sqliteSidecars lists the files SQLite keeps next to dbPath.
+func sqliteSidecars(dbPath string) []string {
+	return []string{dbPath + "-wal", dbPath + "-shm", dbPath + "-journal"}
+}
+
+// dbFilesUnder returns the paths, relative to dir, of dbPath and its SQLite
+// sidecars when dbPath lies inside dir (the default ./data/openbee.db under
+// ~/.openbee does). The state-dir copy must skip them: the database travels
+// separately as a snapshot, and a raw copy of a live database — or a stale
+// -wal replayed over a restored one — can corrupt it.
+func dbFilesUnder(dir, dbPath string) map[string]bool {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil
+	}
+	absDB, err := filepath.Abs(dbPath)
+	if err != nil {
+		return nil
+	}
+	rel, err := filepath.Rel(absDir, absDB)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil
+	}
+	skip := map[string]bool{rel: true}
+	for _, f := range sqliteSidecars(rel) {
+		skip[f] = true
+	}
+	return skip
+}
+
 // copyFile copies the file at src to dst.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
@@ -122,9 +173,10 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// copyDir recursively copies srcDir to dstDir.
+// copyDir recursively copies srcDir to dstDir, leaving out files whose path
+// relative to srcDir is in skip.
 // Symlinks are copied as symlinks; their targets are not followed.
-func copyDir(srcDir, dstDir string) error {
+func copyDir(srcDir, dstDir string, skip map[string]bool) error {
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -132,6 +184,9 @@ func copyDir(srcDir, dstDir string) error {
 		rel, err := filepath.Rel(srcDir, path)
 		if err != nil {
 			return err
+		}
+		if skip[rel] && !info.IsDir() {
+			return nil
 		}
 		dst := filepath.Join(dstDir, rel)
 		if info.IsDir() {

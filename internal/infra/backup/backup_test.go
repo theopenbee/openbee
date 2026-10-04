@@ -1,6 +1,7 @@
 package backup_test
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,7 +9,37 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/infra/backup"
+	_ "modernc.org/sqlite"
 )
+
+// writeTestDB creates a WAL-mode SQLite database at path holding value and
+// returns the still-open handle. Auto-checkpointing is off, so until the
+// handle closes the row lives only in the -wal file — what a running daemon
+// leaves on disk.
+func writeTestDB(t *testing.T, path, value string) *sql.DB {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=wal_autocheckpoint(0)")
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { db.Close() })
+	_, err = db.Exec(`CREATE TABLE kv (v TEXT NOT NULL)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO kv (v) VALUES (?)`, value)
+	require.NoError(t, err)
+	return db
+}
+
+// readTestDB returns the value stored by writeTestDB.
+func readTestDB(t *testing.T, path string) string {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	require.NoError(t, err)
+	defer db.Close()
+	var v string
+	require.NoError(t, db.QueryRow(`SELECT v FROM kv`).Scan(&v))
+	return v
+}
 
 func TestManifestRoundTrip(t *testing.T) {
 	dir := t.TempDir()
@@ -95,18 +126,18 @@ func TestBackupCreatesArchive(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	stateDir := filepath.Join(t.TempDir(), "dot-openbee")
 
-	require.NoError(t, os.WriteFile(dbPath, []byte("fake-db"), 0644))
+	writeTestDB(t, dbPath, "fake-db")
 	require.NoError(t, os.WriteFile(cfgPath, []byte("server:\n  port: 8080\n"), 0644))
 	require.NoError(t, os.MkdirAll(stateDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(stateDir, "openbee.log"), []byte("log"), 0644))
 
 	outDir := t.TempDir()
 	archivePath, err := backup.Backup(backup.BackupOptions{
-		DBPath:      dbPath,
-		ConfigPath:  cfgPath,
-		StateDir:    stateDir,
-		OutputDir:   outDir,
-		AppVersion:  "0.5.0",
+		DBPath:     dbPath,
+		ConfigPath: cfgPath,
+		StateDir:   stateDir,
+		OutputDir:  outDir,
+		AppVersion: "0.5.0",
 	})
 	require.NoError(t, err)
 	require.FileExists(t, archivePath)
@@ -126,7 +157,7 @@ func TestBackupEncrypted(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	stateDir := filepath.Join(t.TempDir(), "dot-openbee")
 
-	require.NoError(t, os.WriteFile(dbPath, []byte("fake-db"), 0644))
+	writeTestDB(t, dbPath, "fake-db")
 	require.NoError(t, os.WriteFile(cfgPath, []byte("server:\n  port: 8080\n"), 0644))
 	require.NoError(t, os.MkdirAll(stateDir, 0755))
 
@@ -149,7 +180,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
 	srcState := filepath.Join(t.TempDir(), "dot-openbee")
 
-	require.NoError(t, os.WriteFile(srcDB, []byte("fake-db-content"), 0644))
+	writeTestDB(t, srcDB, "fake-db-content")
 	require.NoError(t, os.WriteFile(srcCfg, []byte("server:\n  port: 8080\n"), 0644))
 	require.NoError(t, os.MkdirAll(srcState, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcState, "openbee.log"), []byte("log-content"), 0644))
@@ -179,9 +210,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	gotDB, err := os.ReadFile(dstDB)
-	require.NoError(t, err)
-	require.Equal(t, "fake-db-content", string(gotDB))
+	require.Equal(t, "fake-db-content", readTestDB(t, dstDB))
 
 	gotCfg, err := os.ReadFile(dstCfg)
 	require.NoError(t, err)
@@ -197,7 +226,7 @@ func TestRestoreBlockedWithoutForce(t *testing.T) {
 	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
 	srcState := filepath.Join(t.TempDir(), "dot-openbee")
 
-	require.NoError(t, os.WriteFile(srcDB, []byte("db"), 0644))
+	writeTestDB(t, srcDB, "db")
 	require.NoError(t, os.WriteFile(srcCfg, []byte("cfg"), 0644))
 	require.NoError(t, os.MkdirAll(srcState, 0755))
 
@@ -231,7 +260,7 @@ func TestRestoreEncryptedRoundTrip(t *testing.T) {
 	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
 	srcState := filepath.Join(t.TempDir(), "dot-openbee")
 
-	require.NoError(t, os.WriteFile(srcDB, []byte("db-enc"), 0644))
+	writeTestDB(t, srcDB, "db-enc")
 	require.NoError(t, os.WriteFile(srcCfg, []byte("cfg-enc"), 0644))
 	require.NoError(t, os.MkdirAll(srcState, 0755))
 
@@ -257,7 +286,115 @@ func TestRestoreEncryptedRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, err := os.ReadFile(dstDB)
+	require.Equal(t, "db-enc", readTestDB(t, dstDB))
+}
+
+// The backup must capture rows a running daemon has committed but not yet
+// checkpointed out of the -wal file; a raw copy of openbee.db loses them.
+func TestBackupSnapshotsUncheckpointedWAL(t *testing.T) {
+	srcDB := filepath.Join(t.TempDir(), "openbee.db")
+	writeTestDB(t, srcDB, "only-in-wal") // handle stays open: no checkpoint
+	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(srcCfg, []byte("cfg"), 0644))
+
+	archivePath, err := backup.Backup(backup.BackupOptions{
+		DBPath:     srcDB,
+		ConfigPath: srcCfg,
+		StateDir:   t.TempDir(),
+		OutputDir:  t.TempDir(),
+		AppVersion: "0.5.0",
+	})
 	require.NoError(t, err)
-	require.Equal(t, "db-enc", string(got))
+
+	extractDir := t.TempDir()
+	require.NoError(t, backup.UnpackTarGz(archivePath, extractDir))
+	require.Equal(t, "only-in-wal", readTestDB(t, filepath.Join(extractDir, "openbee.db")))
+}
+
+// With the default layout the database sits inside the state dir. Its raw
+// files must not travel in dot-openbee, and on restore a raw copy carried by
+// an older archive must not overwrite the restored openbee.db.
+func TestBackupRestore_DBInsideStateDir(t *testing.T) {
+	srcState := t.TempDir()
+	srcDB := filepath.Join(srcState, "data", "openbee.db")
+	writeTestDB(t, srcDB, "snapshot")
+	require.NoError(t, os.WriteFile(filepath.Join(srcState, "openbee.log"), []byte("log"), 0644))
+	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(srcCfg, []byte("cfg"), 0644))
+
+	archivePath, err := backup.Backup(backup.BackupOptions{
+		DBPath:     srcDB,
+		ConfigPath: srcCfg,
+		StateDir:   srcState,
+		OutputDir:  t.TempDir(),
+		AppVersion: "0.5.0",
+	})
+	require.NoError(t, err)
+	extractDir := t.TempDir()
+	require.NoError(t, backup.UnpackTarGz(archivePath, extractDir))
+	require.FileExists(t, filepath.Join(extractDir, "dot-openbee", "openbee.log"))
+	for _, name := range []string{"openbee.db", "openbee.db-wal", "openbee.db-shm"} {
+		require.NoFileExists(t, filepath.Join(extractDir, "dot-openbee", "data", name))
+	}
+
+	// Older archives: the database was outside the skip set, so dot-openbee
+	// carries data/openbee.db. Build one by backing up with DBPath elsewhere.
+	legacyState := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(legacyState, "data"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyState, "data", "openbee.db"), []byte("raw-copy"), 0644))
+	legacyArchive, err := backup.Backup(backup.BackupOptions{
+		DBPath:     srcDB,
+		ConfigPath: srcCfg,
+		StateDir:   legacyState,
+		OutputDir:  t.TempDir(),
+		AppVersion: "0.5.0",
+	})
+	require.NoError(t, err)
+
+	dstState := t.TempDir()
+	dstDB := filepath.Join(dstState, "data", "openbee.db")
+	require.NoError(t, backup.Restore(backup.RestoreOptions{
+		ArchivePath: legacyArchive,
+		DBPath:      dstDB,
+		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
+		StateDir:    dstState,
+		AppVersion:  "0.5.0",
+	}))
+	require.Equal(t, "snapshot", readTestDB(t, dstDB))
+}
+
+// A -wal left by the replaced database would be replayed over the restored
+// file on the next open.
+func TestRestoreRemovesStaleSidecars(t *testing.T) {
+	srcDB := filepath.Join(t.TempDir(), "openbee.db")
+	writeTestDB(t, srcDB, "restored")
+	srcCfg := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(srcCfg, []byte("cfg"), 0644))
+	archivePath, err := backup.Backup(backup.BackupOptions{
+		DBPath:     srcDB,
+		ConfigPath: srcCfg,
+		StateDir:   t.TempDir(),
+		OutputDir:  t.TempDir(),
+		AppVersion: "0.5.0",
+	})
+	require.NoError(t, err)
+
+	dstDB := filepath.Join(t.TempDir(), "openbee.db")
+	require.NoError(t, os.WriteFile(dstDB, []byte("old"), 0644))
+	for _, suffix := range []string{"-wal", "-shm", "-journal"} {
+		require.NoError(t, os.WriteFile(dstDB+suffix, []byte("stale"), 0644))
+	}
+
+	require.NoError(t, backup.Restore(backup.RestoreOptions{
+		ArchivePath: archivePath,
+		DBPath:      dstDB,
+		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
+		StateDir:    t.TempDir(),
+		AppVersion:  "0.5.0",
+		Force:       true,
+	}))
+	for _, suffix := range []string{"-wal", "-shm", "-journal"} {
+		require.NoFileExists(t, dstDB+suffix)
+	}
+	require.Equal(t, "restored", readTestDB(t, dstDB))
 }
