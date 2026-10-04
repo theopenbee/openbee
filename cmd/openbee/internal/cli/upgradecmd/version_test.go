@@ -36,6 +36,8 @@ func TestNormalizeVersionTag(t *testing.T) {
 	}{
 		{"v1.2.3", "v1.2.3", false},
 		{"1.2.3", "v1.2.3", false},
+		{"V1.2.3", "v1.2.3", false},
+		{" V1.2.3\n", "v1.2.3", false},
 		{"  v1.2.3\n", "v1.2.3", false},
 		{"\t1.2.3 ", "v1.2.3", false},
 		{"", "", true},

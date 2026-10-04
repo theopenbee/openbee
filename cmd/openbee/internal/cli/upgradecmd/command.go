@@ -137,16 +137,16 @@ func isRateLimited(resp *http.Response) bool {
 }
 
 // normalizeVersionTag trims whitespace, validates the tag is non-empty, and
-// ensures it carries a "v" prefix (e.g. "1.2.3" → "v1.2.3").
+// ensures it carries a lowercase "v" prefix ("1.2.3" and "V1.2.3" → "v1.2.3").
 func normalizeVersionTag(tag string) (string, error) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
 		return "", fmt.Errorf("empty version tag")
 	}
-	if !strings.HasPrefix(tag, "v") {
-		tag = "v" + tag
+	if tag[0] == 'v' || tag[0] == 'V' {
+		tag = tag[1:]
 	}
-	return tag, nil
+	return "v" + tag, nil
 }
 
 // isNewer returns true when latest is strictly newer than current.
