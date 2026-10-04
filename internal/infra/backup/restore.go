@@ -79,6 +79,21 @@ func Restore(opts RestoreOptions) error {
 		}
 	}
 
+	if err := os.MkdirAll(filepath.Dir(opts.ConfigPath), 0755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	if err := copyFile(filepath.Join(extractDir, "config.yaml"), opts.ConfigPath); err != nil {
+		return fmt.Errorf("restore config: %w", err)
+	}
+
+	// Archives made before the database was snapshotted separately also carry
+	// a raw copy of it under dot-openbee; skip it here.
+	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir, dbFilesUnder(opts.StateDir, opts.DBPath)); err != nil {
+		return fmt.Errorf("restore state dir: %w", err)
+	}
+
+	// The database goes last so the snapshot wins even if the skip above
+	// missed (e.g. DBPath reaches the state dir through a symlink).
 	if err := os.MkdirAll(filepath.Dir(opts.DBPath), 0755); err != nil {
 		return fmt.Errorf("create db dir: %w", err)
 	}
@@ -91,19 +106,6 @@ func Restore(opts RestoreOptions) error {
 	}
 	if err := copyFile(filepath.Join(extractDir, "openbee.db"), opts.DBPath); err != nil {
 		return fmt.Errorf("restore database: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(opts.ConfigPath), 0755); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
-	}
-	if err := copyFile(filepath.Join(extractDir, "config.yaml"), opts.ConfigPath); err != nil {
-		return fmt.Errorf("restore config: %w", err)
-	}
-
-	// Archives made before the database was snapshotted separately also carry
-	// a raw copy of it under dot-openbee; never let that overwrite openbee.db.
-	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir, dbFilesUnder(opts.StateDir, opts.DBPath)); err != nil {
-		return fmt.Errorf("restore state dir: %w", err)
 	}
 
 	return nil
