@@ -396,10 +396,9 @@ func TestReceiver_TickOnce_FiltersEmptyConfiguredValues(t *testing.T) {
 // the project header on first sight.
 func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
 	cases := []struct {
-		name            string
-		issue           Issue
-		wantContains    []string
-		wantNotContains []string
+		name  string
+		issue Issue
+		want  string
 	}{
 		{
 			name: "OmitsCommentsHeaderWhenZero",
@@ -408,8 +407,7 @@ func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
 				Title: "Title only", Description: "Body line",
 				Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 			},
-			wantContains:    []string{"Title only\n\nBody line"},
-			wantNotContains: []string{"Comments ("},
+			want: "Title only\n\nBody line",
 		},
 		{
 			name: "OmitsDescriptionWhenEmpty",
@@ -421,8 +419,7 @@ func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
 					{ID: "C1", Body: "hi", User: User{ID: "U2", Name: "Alice"}},
 				},
 			},
-			wantContains:    []string{"Title only\n\n---\nComments (1):\n\n[Alice]: hi"},
-			wantNotContains: []string{"\n\n\n"},
+			want: "Title only\n\n---\nComments (1):\n\n[Alice]: hi",
 		},
 		{
 			name: "FirstSightWithProjectIncludesProjectHeader",
@@ -432,7 +429,7 @@ func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
 				Team: Team{Key: "ENG"}, Creator: User{ID: "U2"},
 				Project: &Project{ID: "P1", Name: "Backend"},
 			},
-			wantContains: []string{"[Project: Backend]\n\nFix login\n\nUsers get 401."},
+			want: "[Project: Backend]\n\nFix login\n\nUsers get 401.",
 		},
 	}
 
@@ -458,12 +455,7 @@ func TestReceiver_TickOnce_MergedFormat(t *testing.T) {
 			r.tickOnce(context.Background(), func(m platform.InboundMessage) { got = append(got, m) })
 
 			require.Len(t, got, 1)
-			for _, s := range tc.wantContains {
-				assert.Contains(t, got[0].Content, s)
-			}
-			for _, s := range tc.wantNotContains {
-				assert.NotContains(t, got[0].Content, s)
-			}
+			assert.Equal(t, tc.want, got[0].Content)
 		})
 	}
 }
