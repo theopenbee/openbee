@@ -333,7 +333,7 @@ Dark mode keeps the same roles with its own values: canvas oklch(0.1 0 0), base 
 ### Named Rules
 **The One Blue Rule.** Control Blue means "act here" and nothing else: primary action, link, focus-visible, selection. Navigation selection, decoration, icons and headings never use it.
 
-**The Mark-Only Orange Rule.** OpenBee orange lives inside the logo SVG and nowhere else: no orange buttons, washes, chart series or highlights. (chart-2 aliases the orange and stays unused.)
+**The Mark-Only Orange Rule.** OpenBee orange lives inside the logo SVG and nowhere else: no orange buttons, washes, chart series or highlights.
 
 **The Tint, Dot, Label Rule.** Every state renders as a soft tint, a solid 6px dot and a translated text label together. Color alone never carries state.
 

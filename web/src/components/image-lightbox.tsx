@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { ArrowUpRight, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 
@@ -28,6 +29,7 @@ export function ImageLightbox({
   alt: string
   className?: string
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   return (
@@ -73,14 +75,14 @@ export function ImageLightbox({
             className={cn("absolute top-4 right-16", VIEWER_ICON_BUTTON)}
           >
             <ArrowUpRight className="size-5" />
-            <span className="sr-only">Open original in new tab</span>
+            <span className="sr-only">{t("common.openInNewTab")}</span>
           </a>
 
           <DialogPrimitive.Close
             className={cn("absolute top-4 right-4", VIEWER_ICON_BUTTON)}
           >
             <X className="size-5" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t("common.close")}</span>
           </DialogPrimitive.Close>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>

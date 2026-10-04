@@ -47,7 +47,7 @@ const LOG_WELL =
 // Small mono tag naming the tool family (SH, FS, WEB, TOOL).
 function ToolTag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-5 shrink-0 items-center rounded-sm bg-recessed px-1.5 font-mono text-[11px] font-medium text-muted-foreground">
+    <span className="inline-flex h-5 shrink-0 items-center rounded-sm bg-recessed px-1.5 font-mono text-xs font-medium text-muted-foreground">
       {children}
     </span>
   )
@@ -519,7 +519,7 @@ export function LogViewer({
         {isActiveStatus(status) &&
           (followLive ? (
             <Badge variant="info">
-              <span className="size-1.5 animate-pulse-amber rounded-full bg-current" aria-hidden="true" />
+              <span className="size-1.5 animate-presence-pulse rounded-full bg-current" aria-hidden="true" />
               {t("logViewer.followLive")}
             </Badge>
           ) : (
@@ -538,7 +538,7 @@ export function LogViewer({
           <div className="px-4 py-10 text-center text-sm text-muted-foreground">
             {isActiveStatus(status) ? (
               <span className="inline-flex items-center gap-2">
-                <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" aria-hidden="true" />
+                <span className="size-1.5 animate-presence-pulse rounded-full bg-status-working" aria-hidden="true" />
                 {t("logViewer.waiting")}
               </span>
             ) : (

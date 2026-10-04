@@ -475,9 +475,9 @@ export function LocalChat() {
                       <span className="text-xs text-muted-foreground">{t("localChat.processing")}</span>
                     </div>
                     <div className="flex gap-1.5 py-1.5 pl-8" aria-hidden="true">
-                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "0ms" }} />
-                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "300ms" }} />
-                      <span className="size-1.5 animate-pulse-amber rounded-full bg-status-working" style={{ animationDelay: "600ms" }} />
+                      <span className="size-1.5 animate-presence-pulse rounded-full bg-status-working" style={{ animationDelay: "0ms" }} />
+                      <span className="size-1.5 animate-presence-pulse rounded-full bg-status-working" style={{ animationDelay: "300ms" }} />
+                      <span className="size-1.5 animate-presence-pulse rounded-full bg-status-working" style={{ animationDelay: "600ms" }} />
                     </div>
                   </div>
                 )}

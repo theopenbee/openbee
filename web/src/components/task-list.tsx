@@ -117,7 +117,7 @@ export function TaskList({
                   {!workerId && <TableHead className="pl-4 md:w-40">{t("tasks.columns.worker")}</TableHead>}
                   <TableHead className={cn("md:min-w-[20rem]", workerId && "pl-4")}>{t("tasks.columns.instruction")}</TableHead>
                   {/* No tasks-scoped "Status" key exists yet; the generic users.table.status label reads the same in en/zh. */}
-                  <TableHead className="hidden w-28 md:table-cell">{t("users.table.status")}</TableHead>
+                  <TableHead className="hidden w-28 md:table-cell">{t("tasks.columns.status")}</TableHead>
                   <TableHead className="hidden w-40 md:table-cell">{t("tasks.columns.cron")}</TableHead>
                   <TableHead className="hidden w-48 md:table-cell">{t("tasks.columns.nextRunAt")}</TableHead>
                   <TableHead className="pr-4 text-right md:w-24">{t("tasks.columns.actions")}</TableHead>

@@ -180,7 +180,7 @@ export function Workers() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="pl-4">{t("workers.columns.name")}</TableHead>
-                        <TableHead className="hidden w-[120px] md:table-cell">{t("users.table.status")}</TableHead>
+                        <TableHead className="hidden w-[120px] md:table-cell">{t("workers.columns.status")}</TableHead>
                         <TableHead className="hidden w-[150px] md:table-cell">{t("workers.columns.engine")}</TableHead>
                         <TableHead className="hidden w-[136px] md:table-cell">{t("workers.columns.activeTime")}</TableHead>
                         <TableHead className="w-20 pr-4 text-right">{t("workers.columns.actions")}</TableHead>

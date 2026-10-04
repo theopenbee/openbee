@@ -132,9 +132,9 @@ color-scheme: light;
 --shadow-edge: oklch(0 0 0 / 0.1);
 --shadow-drop: oklch(0 0 0 / 0.08);
 --chart-1: oklch(0.5772 0.2324 260);
---chart-2: oklch(0.700 0.161 49);
---chart-3: oklch(0.549 0.096 184.565);
---chart-4: oklch(0.558 0.288 302.321);
+--chart-2: oklch(0.549 0.096 184.565);
+--chart-3: oklch(0.558 0.288 302.321);
+--chart-4: oklch(0.815 0.197 76);
 --chart-5: oklch(0.556 0 0);
 --status-idle: oklch(0.508 0.118 165.612);
 --status-working: oklch(0.546 0.245 262.881);
@@ -192,9 +192,9 @@ color-scheme: dark;
 --shadow-edge: oklch(1 0 0 / 0.1);
 --shadow-drop: oklch(0 0 0 / 0.4);
 --chart-1: oklch(0.707 0.165 254.624);
---chart-2: oklch(0.753 0.135 51);
---chart-3: oklch(0.704 0.14 182.503);
---chart-4: oklch(0.714 0.203 305.504);
+--chart-2: oklch(0.704 0.14 182.503);
+--chart-3: oklch(0.714 0.203 305.504);
+--chart-4: oklch(0.815 0.197 76);
 --chart-5: oklch(0.708 0 0);
 --status-idle: oklch(0.765 0.177 163.223);
 --status-working: oklch(0.707 0.165 254.624);
@@ -263,11 +263,14 @@ body {
   }
 }
 
-@utility animate-pulse-amber {
-  animation: pulse-amber 1.5s ease-in-out infinite;
+/* Soft presence pulse for live/working indicators (worker presence, running
+   log streams, the Bee "typing" dots). Neutral name: it runs on whatever
+   status color the element carries. */
+@utility animate-presence-pulse {
+  animation: presence-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse-amber {
+@keyframes presence-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }

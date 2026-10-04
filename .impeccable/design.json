@@ -582,7 +582,7 @@
       },
       {
         "name": "working-pulse",
-        "value": "pulse-amber 1.5s ease-in-out infinite (opacity 1 to 0.3), staggered 300ms",
+        "value": "presence-pulse 1.5s ease-in-out infinite (opacity 1 to 0.3), staggered 300ms",
         "purpose": "Three working dots while the Bee processes in chat; presence dot uses animate-ping."
       },
       {
@@ -715,7 +715,7 @@
       },
       {
         "name": "The Mark-Only Orange Rule",
-        "body": "OpenBee orange lives inside the logo SVG and nowhere else: no orange buttons, washes, chart series or highlights. (chart-2 aliases the orange and stays unused.)",
+        "body": "OpenBee orange lives inside the logo SVG and nowhere else: no orange buttons, washes, chart series or highlights.",
         "section": "colors"
       },
       {

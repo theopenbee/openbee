@@ -32,7 +32,18 @@
     "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "close": "Close",
+    "openInNewTab": "Open original in new tab"
+  },
+  "tokenStats": {
+    "breakdown": "Token breakdown",
+    "total": "Total",
+    "noModelData": "No model data",
+    "input": "In",
+    "output": "Out",
+    "cacheWrite": "Cache write",
+    "cacheRead": "Cache read"
   },
   "statuses": {
     "idle": "Idle",
@@ -85,6 +96,7 @@
       "name": "Name",
       "engine": "Engine",
       "activeTime": "Active Time",
+      "status": "Status",
       "actions": "Actions"
     },
     "form": {
@@ -267,6 +279,7 @@
       "instruction": "Instruction",
       "cron": "Cron expression",
       "nextRunAt": "Next run",
+      "status": "Status",
       "actions": "Actions"
     },
     "cancel": "Cancel",

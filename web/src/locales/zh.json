@@ -32,7 +32,18 @@
     "create": "创建",
     "noDescription": "无描述",
     "loadError": "加载数据失败。",
-    "retry": "重试"
+    "retry": "重试",
+    "close": "关闭",
+    "openInNewTab": "在新标签页打开原图"
+  },
+  "tokenStats": {
+    "breakdown": "Token 明细",
+    "total": "合计",
+    "noModelData": "暂无模型数据",
+    "input": "输入",
+    "output": "输出",
+    "cacheWrite": "缓存写入",
+    "cacheRead": "缓存读取"
   },
   "statuses": {
     "idle": "空闲",
@@ -85,6 +96,7 @@
       "name": "名称",
       "engine": "引擎",
       "activeTime": "活跃时间",
+      "status": "状态",
       "actions": "操作"
     },
     "form": {
@@ -267,6 +279,7 @@
       "instruction": "指令",
       "cron": "Cron 表达式",
       "nextRunAt": "下次执行时间",
+      "status": "状态",
       "actions": "操作"
     },
     "cancel": "取消",
