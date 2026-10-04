@@ -31,29 +31,6 @@ func TestNewInvoker(t *testing.T) {
 	assert.Contains(t, inv.baseEnv, wantURL)
 }
 
-func TestInvoker_Run_WritesOutputToFile(t *testing.T) {
-	inv := NewInvoker("echo", nil)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	logPath := filepath.Join(t.TempDir(), "test.log")
-	proc, ch, err := inv.Run(ctx, t.TempDir(), "hello", ai.RunOptions{}, logPath)
-	require.NoError(t, err)
-	assert.NotZero(t, proc.PID())
-
-	var gotDone bool
-	for out := range ch {
-		if out.Type == ai.OutputDone {
-			gotDone = true
-		}
-	}
-	assert.True(t, gotDone, "expected done signal")
-
-	data, err := os.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.NotEmpty(t, data, "expected non-empty log file after echo")
-}
-
 func TestInvoker_Run_SessionFlags(t *testing.T) {
 	inv := NewInvoker("echo", nil)
 	ctx := context.Background()
@@ -103,15 +80,25 @@ func TestInvoker_ConcurrentRuns(t *testing.T) {
 
 	proc1, ch1, err1 := inv.Run(ctx, t.TempDir(), "one", ai.RunOptions{SessionID: "s1"}, logPath1)
 	require.NoError(t, err1)
+	assert.NotZero(t, proc1.PID())
 	proc2, ch2, err2 := inv.Run(ctx, t.TempDir(), "two", ai.RunOptions{SessionID: "s2"}, logPath2)
 	require.NoError(t, err2)
 
 	assert.NotEqual(t, proc1.PID(), proc2.PID(), "concurrent runs should have different PIDs")
 
-	for range ch1 {
+	var gotDone bool
+	for out := range ch1 {
+		if out.Type == ai.OutputDone {
+			gotDone = true
+		}
 	}
+	assert.True(t, gotDone, "expected done signal")
 	for range ch2 {
 	}
+
+	data, err := os.ReadFile(logPath1)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data, "expected non-empty log file after echo")
 }
 
 func TestInvoker_Run_IsErrorEmitsOutputError(t *testing.T) {

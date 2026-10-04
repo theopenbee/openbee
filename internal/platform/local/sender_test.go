@@ -19,6 +19,8 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	ch, unsub := hub.Subscribe("local:sess-1")
 	defer unsub()
 
+	// OutboundMessage.SessionKey is intentionally left empty — Send reads the
+	// session key from ReplyTo.SessionKey only.
 	msg := platform.OutboundMessage{
 		ReplyTo: platform.InboundMessage{SessionKey: "local:sess-1"},
 		Content: "Reply content",
@@ -32,28 +34,5 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 		assert.Equal(t, "Reply content", payload["content"])
 	default:
 		t.Fatal("expected SSE broadcast but channel was empty")
-	}
-}
-
-func TestLocalSender_Send_UsesReplyToSessionKey(t *testing.T) {
-	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(hub)
-
-	ch, unsub := hub.Subscribe("local:correct-session")
-	defer unsub()
-
-	// OutboundMessage.SessionKey is empty — only ReplyTo.SessionKey should be used
-	msg := platform.OutboundMessage{
-		SessionKey: "",
-		ReplyTo:    platform.InboundMessage{SessionKey: "local:correct-session"},
-		Content:    "test",
-	}
-	require.NoError(t, sender.Send(context.Background(), msg))
-
-	select {
-	case <-ch:
-		// broadcast received on the correct session — pass
-	default:
-		t.Error("expected SSE broadcast on correct session but channel was empty")
 	}
 }

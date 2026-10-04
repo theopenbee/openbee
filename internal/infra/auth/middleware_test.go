@@ -102,25 +102,3 @@ func TestRequirePermission_AnyOf(t *testing.T) {
 	r2.ServeHTTP(rec2, req2)
 	require.Equal(t, http.StatusForbidden, rec2.Code)
 }
-
-func TestRequirePermission_AllowsAndDenies(t *testing.T) {
-	jwt := NewJWTService("s", time.Hour, time.Hour)
-	pair, _ := jwt.GenerateUserTokenPair("u1")
-	loader := fakeUserLoader{status: "active"}
-
-	// has permission
-	resolverYes := NewPermissionResolver(func(string) ([]string, error) { return []string{PermContactsRead}, nil })
-	r, rec := newTestContext(jwt, loader, resolverYes, pair.AccessToken)
-	req := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
-	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
-	r.ServeHTTP(rec, req)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	// lacks permission
-	resolverNo := NewPermissionResolver(func(string) ([]string, error) { return []string{PermTasksRead}, nil })
-	r2, rec2 := newTestContext(jwt, loader, resolverNo, pair.AccessToken)
-	req2 := httptest.NewRequest(http.MethodGet, "/api/secured", nil)
-	req2.Header.Set("Authorization", "Bearer "+pair.AccessToken)
-	r2.ServeHTTP(rec2, req2)
-	require.Equal(t, http.StatusForbidden, rec2.Code)
-}
