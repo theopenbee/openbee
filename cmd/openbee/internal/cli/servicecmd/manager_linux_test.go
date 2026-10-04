@@ -271,13 +271,17 @@ func TestResolveInstallOptions_NotExecutableWarning(t *testing.T) {
 }
 
 // TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser verifies the production helper
-// invokes runuser with the expected argv and trims the PATH it prints.
+// invokes runuser with the expected argv and extracts the marked PATH line
+// from output polluted by shell chatter on stdout/stderr.
 func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
 	prev := runCommand
 	var got []string
 	runCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		got = append([]string{name}, args...)
-		return []byte("/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin\n"), nil
+		return []byte("bash: cannot set terminal process group (1): Inappropriate ioctl for device\n" +
+			"bash: no job control in this shell\n" +
+			"Welcome from .bashrc\n" +
+			runAsPathMarker + "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin\n"), nil
 	}
 	t.Cleanup(func() { runCommand = prev })
 
@@ -285,8 +289,20 @@ func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
 	require.NoError(t, err)
 	want := "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin"
 	assert.Equal(t, want, p)
-	wantArgs := []string{"runuser", "-l", "openbee", "-c", `bash -ic 'printf %s "$PATH"'`}
+	wantArgs := []string{"runuser", "-l", "openbee", "-c", `bash -ic 'printf "__OPENBEE_PATH__=%s\n" "$PATH"'`}
 	assert.Equal(t, wantArgs, got, "runuser argv")
+}
+
+func TestLinuxLookupRunAsEnvPath_MissingMarker(t *testing.T) {
+	prev := runCommand
+	runCommand = func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("bash: no job control in this shell\n"), nil
+	}
+	t.Cleanup(func() { runCommand = prev })
+
+	_, err := linuxLookupRunAsEnvPath(context.Background(), "openbee")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no PATH line")
 }
 
 func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {

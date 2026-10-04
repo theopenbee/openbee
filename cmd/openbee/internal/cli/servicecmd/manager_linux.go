@@ -6,6 +6,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -20,6 +21,8 @@ func init() {
 	verifyNodeForRunAsUser = linuxVerifyNodeForRunAsUser
 }
 
+const runAsPathMarker = "__OPENBEE_PATH__="
+
 // linuxLookupRunAsEnvPath returns the interactive-login-shell PATH for
 // username. We pair runuser's `-l` (login: sources /etc/profile and
 // ~/.bash_profile / ~/.profile) with an inner `bash -ic` (interactive: sources
@@ -27,15 +30,24 @@ func init() {
 // `/bin/bash -ilc`. Without the interactive layer, nvm setups that only patch
 // PATH in ~/.bashrc (the default on many distros) leak through as the daemon
 // "/usr/bin/env: 'node': No such file or directory" failure.
+//
+// The PATH is printed behind runAsPathMarker because the output also carries
+// shell chatter: `bash -i` without a TTY writes "no job control in this shell"
+// to stderr, and profile/rc scripts may echo to stdout.
 func linuxLookupRunAsEnvPath(ctx context.Context, username string) (string, error) {
 	if username == "" {
 		return "", nil
 	}
-	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `bash -ic 'printf %s "$PATH"'`)
+	out, err := runCommand(ctx, "runuser", "-l", username, "-c", `bash -ic 'printf "`+runAsPathMarker+`%s\n" "$PATH"'`)
 	if err != nil {
 		return "", wrapRunErr("runuser", err, out)
 	}
-	p := strings.TrimSpace(string(out))
+	i := strings.LastIndex(string(out), runAsPathMarker)
+	if i < 0 {
+		return "", fmt.Errorf("runuser output has no PATH line: %q", strings.TrimSpace(string(out)))
+	}
+	p, _, _ := strings.Cut(string(out)[i+len(runAsPathMarker):], "\n")
+	p = strings.TrimSpace(p)
 	if p == "" {
 		return "", errors.New("runuser returned an empty PATH")
 	}
