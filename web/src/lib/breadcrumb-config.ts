@@ -26,13 +26,15 @@ const SUBPAGE_LABEL: Record<string, (params: URLSearchParams) => string> = {
 }
 
 export function resolveCrumbs(pathname: string, search = ""): CrumbDef[] {
-  const page = navTrail(pathname, false)
+  // The router matches /workers/ to /workers but keeps the slash in pathname.
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname
+  const page = navTrail(path, false)
   if (page.length > 0) return page
 
   // Below a nav page (/workers/:id, /sessions/detail, ...): link the parent
   // page's trail and name the leaf.
-  const parent = navTrail(`/${pathname.split("/")[1]}`, true)
+  const parent = navTrail(`/${path.split("/")[1]}`, true)
   if (parent.length === 0) return []
-  const leaf = SUBPAGE_LABEL[pathname]?.(new URLSearchParams(search)) ?? "breadcrumb.detail"
+  const leaf = SUBPAGE_LABEL[path]?.(new URLSearchParams(search)) ?? "breadcrumb.detail"
   return [...parent, { labelKey: leaf }]
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
-import { SURFACE } from "@/lib/styles"
+import { SURFACE_FRAME } from "@/lib/styles"
 
 // Kumo LayerCard: an elevated gray frame whose header strip carries the title
 // (and optional action), over a white body that sits flush inside the frame.
@@ -47,8 +47,8 @@ export function Panel({
       </header>
       <div
         className={cn(
-          SURFACE,
-          "flex-1 overflow-visible",
+          SURFACE_FRAME,
+          "flex-1",
           flush ? "py-0" : "p-4",
           bodyClassName
         )}

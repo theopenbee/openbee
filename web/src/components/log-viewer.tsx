@@ -168,13 +168,13 @@ function ExpandedDetails({ input, output }: { input: ReactNode; output: ReactNod
   )
 }
 
-function resultBadgeVariant(entry: Extract<ParsedEntry, { kind: "result" }>) {
-  if (entry.isError || entry.subtype.startsWith("error")) return "destructive"
-  return entry.subtype === "success" ? "success" : "secondary"
-}
-
 function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }> }) {
   const { t } = useTranslation()
+  const namedError = entry.subtype.startsWith("error")
+  const failed = entry.isError || namedError
+  // Claude reports API failures as subtype "success" with is_error set, so an
+  // error flag without an error subtype is labelled "Failed" instead.
+  const unnamedError = entry.isError && !namedError
 
   return (
     <div className="px-4 py-3">
@@ -182,14 +182,27 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
         <p className={FIELD_LABEL}>
           {t("logViewer.result")}
         </p>
-        {entry.subtype && (
-          <Badge variant={resultBadgeVariant(entry)} className="font-mono">
-            {entry.subtype}
-          </Badge>
+        {unnamedError ? (
+          <Badge variant="destructive">{t("logViewer.failed")}</Badge>
+        ) : (
+          entry.subtype && (
+            <Badge
+              variant={failed ? "destructive" : entry.subtype === "success" ? "success" : "secondary"}
+              className="font-mono"
+            >
+              {entry.subtype}
+            </Badge>
+          )
         )}
       </div>
 
-      <pre className={cn(LOG_WELL, "mt-1.5 text-body-sm leading-6 text-foreground")}>
+      <pre
+        className={cn(
+          LOG_WELL,
+          "mt-1.5 text-body-sm leading-6",
+          failed ? "text-destructive-foreground" : "text-foreground"
+        )}
+      >
         {entry.text || "—"}
       </pre>
     </div>
@@ -334,6 +347,7 @@ export function LogViewer({
   variant = "standalone",
 }: LogViewerProps) {
   const { t } = useTranslation()
+  const live = isActiveStatus(status)
   const [entries, setEntries] = useState<ParsedEntry[]>([])
   const [filter, setFilter] = useState<LogFilter>("all")
   const [followLive, setFollowLive] = useState(autoScroll)
@@ -419,7 +433,7 @@ export function LogViewer({
         const { content, size, truncated } = await api.executions.logs(executionId, parsedLengthRef.current)
         if (disposed) return
 
-        const flushTail = !isActiveStatus(status)
+        const flushTail = !live
         if (truncated) {
           rebuildEntries(content, flushTail)
           parsedLengthRef.current = size
@@ -442,7 +456,7 @@ export function LogViewer({
 
     fetchLogs()
 
-    if (isActiveStatus(status)) {
+    if (live) {
       const interval = setInterval(fetchLogs, 500)
       return () => {
         disposed = true
@@ -453,7 +467,7 @@ export function LogViewer({
     return () => {
       disposed = true
     }
-  }, [executionId, status])
+  }, [executionId, live])
 
   useEffect(() => {
     if (isActiveStatus(prevStatusRef.current) && !isActiveStatus(status)) {
@@ -494,7 +508,7 @@ export function LogViewer({
   }, [entries, filter, t])
 
   const handleViewportScroll = () => {
-    if (!autoScroll || !isActiveStatus(status)) return
+    if (!autoScroll || !live) return
     const viewport = viewportRef.current
     if (!viewport) return
 
@@ -511,7 +525,6 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" })
   }
 
-  const live = isActiveStatus(status)
   const shellClassName = variant === "embedded" ? "overflow-hidden" : SURFACE
 
   return (
@@ -532,7 +545,7 @@ export function LogViewer({
           }))}
         />
 
-        {isActiveStatus(status) &&
+        {live &&
           (followLive ? (
             <Badge variant="info">
               <span className="size-1.5 animate-presence-pulse rounded-full bg-current" aria-hidden="true" />
@@ -552,7 +565,7 @@ export function LogViewer({
       >
         {entries.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-            {isActiveStatus(status) ? (
+            {live ? (
               <span className="inline-flex items-center gap-2">
                 <span className="size-1.5 animate-presence-pulse rounded-full bg-status-working" aria-hidden="true" />
                 {t("logViewer.waiting")}

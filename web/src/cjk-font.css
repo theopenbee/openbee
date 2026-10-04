@@ -1,0 +1,12 @@
+/* Noto Sans SC medium, declared over 500–600 so semibold titles and table
+   headers reuse it rather than pulling in a third ~1.2 MB CJK file (or getting
+   faux-bolded). Same files as @fontsource/noto-sans-sc/chinese-simplified-500.css. */
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500 600;
+  src:
+    url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-500-normal.woff2") format("woff2"),
+    url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-500-normal.woff") format("woff");
+}

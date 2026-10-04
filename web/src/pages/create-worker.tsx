@@ -9,7 +9,7 @@ import { FadeIn } from "@/components/fade-in"
 import { DetailSection } from "@/components/detail-primitives"
 import { PageHeader } from "@/components/page-header"
 import { Panel } from "@/components/panel"
-import { Badge } from "@/components/ui/badge"
+import { CountBadge } from "@/components/section-heading"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -139,11 +139,7 @@ export function CreateWorker() {
   const countTitle = (text: string, count: number) => (
     <span className="flex items-center gap-2">
       {text}
-      {count > 0 && (
-        <Badge variant="secondary" className="tabular-nums">
-          {count}
-        </Badge>
-      )}
+      <CountBadge count={count} />
     </span>
   )
 

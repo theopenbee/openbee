@@ -54,6 +54,18 @@ function TurnPips({ executions }: { executions: WorkerExecution[] }) {
   )
 }
 
+function TurnSummary({ executions }: { executions: WorkerExecution[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-body-sm text-muted-foreground tabular-nums">
+        {t("sessions.turnCount", { count: executions.length })}
+      </span>
+      <TurnPips executions={executions} />
+    </div>
+  )
+}
+
 export function Sessions() {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
@@ -126,10 +138,12 @@ export function Sessions() {
                         >
                           {latest.session_id.slice(0, 8)}
                         </Link>
-                        {/* Below md the status column folds in here, so state
-                            stays visible without scrolling. */}
-                        <div className="mt-1.5 md:hidden">
+                        {/* Below md the status and turns columns fold in
+                            here (duration under the start time), so nothing
+                            drops out of view. */}
+                        <div className="mt-1.5 flex flex-col items-start gap-1.5 md:hidden">
                           <StatusBadge status={latest.status} />
+                          <TurnSummary executions={group} />
                         </div>
                       </TableCell>
 
@@ -147,12 +161,7 @@ export function Sessions() {
                       </TableCell>
 
                       <TableCell className="hidden md:table-cell">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="text-body-sm text-muted-foreground tabular-nums">
-                            {t("sessions.turnCount", { count: group.length })}
-                          </span>
-                          <TurnPips executions={group} />
-                        </div>
+                        <TurnSummary executions={group} />
                       </TableCell>
 
                       <TableCell className="hidden md:table-cell">
@@ -168,6 +177,10 @@ export function Sessions() {
                         }
                       >
                         {formatRelative(oldest.started_at, t)}
+                        <div className="mt-1.5 md:hidden">
+                          {t("sessions.columns.duration")}{" "}
+                          <span className="text-foreground">{isActive ? t("sessionDetail.live") : duration}</span>
+                        </div>
                       </TableCell>
 
                       <TableCell className="hidden text-body-sm text-muted-foreground tabular-nums md:table-cell">

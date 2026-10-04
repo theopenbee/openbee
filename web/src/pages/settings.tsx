@@ -15,8 +15,11 @@ import { Button } from "@/components/ui/button"
 import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
+import { Can } from "@/components/guard"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
+import { ALERT_INFO } from "@/lib/styles"
+import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
 import {
@@ -88,17 +91,17 @@ function SettingsSaveFooter({
   saving: boolean
 }) {
   const { t } = useTranslation()
-  const canWrite = useCan(Perm.SystemConfigWrite)
-  if (!canWrite) return null
   return (
-    <div className="flex items-center justify-end gap-2 rounded-b-sm border-t border-border bg-elevated px-4 py-2.5">
-      <Button onClick={onSave} disabled={disabled || saving} aria-busy={saving || undefined}>
-        {saving && (
-          <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-        )}
-        {t("common.save")}
-      </Button>
-    </div>
+    <Can perm={Perm.SystemConfigWrite}>
+      <div className="flex items-center justify-end gap-2 rounded-b-sm border-t border-border bg-elevated px-4 py-2.5">
+        <Button onClick={onSave} disabled={disabled || saving} aria-busy={saving || undefined}>
+          {saving && (
+            <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+          )}
+          {t("common.save")}
+        </Button>
+      </div>
+    </Can>
   )
 }
 
@@ -139,10 +142,7 @@ export function SystemSettings() {
         <PageHeader title={t("systemSettings.title")} />
 
         {!canWrite && (
-          <div
-            role="status"
-            className="mb-6 rounded-sm bg-info-tint px-4 py-3 text-sm text-info ring-1 ring-info/25 ring-inset"
-          >
+          <div role="status" className={cn(ALERT_INFO, "mb-6")}>
             {t("systemSettings.readonlyHint")}
           </div>
         )}

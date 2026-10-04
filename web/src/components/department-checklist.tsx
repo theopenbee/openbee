@@ -41,6 +41,10 @@ export function DepartmentChecklist({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            // Both hosts render this inside a <form>; Enter here only filters.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.preventDefault()
+            }}
             placeholder={t("workers.form.searchDepartments")}
             aria-label={t("workers.form.searchDepartments")}
             className="pl-8"

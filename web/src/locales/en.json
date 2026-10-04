@@ -19,7 +19,10 @@
     "systemSettings": "Settings",
     "systemConfig": "System",
     "collapseNav": "Collapse navigation",
-    "expandNav": "Expand navigation"
+    "expandNav": "Expand navigation",
+    "toggleNav": "Toggle navigation",
+    "mobileNavTitle": "Navigation",
+    "mobileNavDescription": "Main console navigation"
   },
   "common": {
     "save": "Save",
@@ -310,6 +313,7 @@
     "loadingMore": "Loading…"
   },
   "breadcrumb": {
+    "label": "Breadcrumb",
     "detail": "Detail"
   },
   "theme": {

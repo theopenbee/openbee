@@ -3,6 +3,8 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// The scroll edge fades paint the card colour by default; a table on another
+// surface sets --scroll-shadow-cover on an ancestor (see globals.css).
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div

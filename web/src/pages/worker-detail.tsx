@@ -31,7 +31,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, HEADER_BAR, PAGE_TITLE, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, HEADER_BAR, KV_KEY, KV_ROW, PAGE_TITLE, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
 import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
@@ -148,8 +148,8 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
 // The canonical enterprise dossier row, not a card.
 function RecordRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-11 flex-col gap-1 px-4 py-2.5 @md:flex-row @md:items-center @md:gap-6">
-      <dt className="shrink-0 text-body-sm text-muted-foreground @md:w-40">{label}</dt>
+    <div className={cn(KV_ROW, "flex flex-col gap-1 @md:flex-row @md:items-center @md:gap-6")}>
+      <dt className={cn(KV_KEY, "@md:w-40")}>{label}</dt>
       <dd className="min-w-0 flex-1 text-sm text-foreground">{children}</dd>
     </div>
   )

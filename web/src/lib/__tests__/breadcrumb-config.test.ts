@@ -30,6 +30,12 @@ describe("resolveCrumbs", () => {
     ])
   })
 
+  it("treats a trailing slash as the same page", () => {
+    expect(resolveCrumbs("/workers/")).toEqual(resolveCrumbs("/workers"))
+    expect(resolveCrumbs("/sessions/")).toEqual(resolveCrumbs("/sessions"))
+    expect(resolveCrumbs("/workers/abc/")).toEqual(resolveCrumbs("/workers/abc"))
+  })
+
   it("names the create route after the copy flow when ?copy is set", () => {
     expect(resolveCrumbs("/workers/create")[2]).toEqual({ labelKey: "workers.createWorker" })
     expect(resolveCrumbs("/workers/create", "?copy=w1")[2]).toEqual({ labelKey: "workers.copyWorker" })

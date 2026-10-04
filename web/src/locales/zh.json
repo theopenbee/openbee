@@ -19,7 +19,10 @@
     "systemSettings": "系统设置",
     "systemConfig": "系统",
     "collapseNav": "收起导航",
-    "expandNav": "展开导航"
+    "expandNav": "展开导航",
+    "toggleNav": "切换导航",
+    "mobileNavTitle": "导航",
+    "mobileNavDescription": "控制台主导航"
   },
   "common": {
     "save": "保存",
@@ -309,6 +312,7 @@
     "loadingMore": "加载中…"
   },
   "breadcrumb": {
+    "label": "面包屑导航",
     "detail": "详情"
   },
   "theme": {

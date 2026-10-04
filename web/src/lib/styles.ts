@@ -20,7 +20,16 @@ export const HEADER_BAR =
 // Surface: the white working panel drawn with a single 1px Line ring (tables,
 // lists, detail sections, empty states). Clips its content to the corners so
 // row hover fills and dividers stay inside the ring.
-export const SURFACE = "overflow-hidden rounded-sm bg-card ring-1 ring-border"
+// SURFACE_FRAME is the same ring and fill without the clip, for bodies that
+// must not clip (Panel bodies, whose frame already clips their outer edges).
+export const SURFACE_FRAME = "rounded-sm bg-card ring-1 ring-border"
+export const SURFACE = `overflow-hidden ${SURFACE_FRAME}`
+
+// Key/value rows (worker record, system info): a 13px muted key beside its
+// value, in rows at least 44px tall divided by hairlines. Call sites choose the
+// layout (stacked below a container breakpoint, or key left / value right).
+export const KV_ROW = "min-h-11 px-4 py-2.5"
+export const KV_KEY = "shrink-0 text-body-sm text-muted-foreground"
 
 // Rail items (department filter, worker-detail section nav) mirror the main
 // sidebar: 34px rows, 13px medium labels, a gray accent fill on hover, and the
@@ -37,6 +46,10 @@ export const RAIL_ITEM_SELECTED = "bg-accent font-semibold text-strong"
 // via cn/twMerge) for context.
 export const ALERT_DESTRUCTIVE =
   "rounded-sm bg-danger-tint px-4 py-3 text-sm text-destructive-foreground ring-1 ring-destructive/25 ring-inset"
+
+// Informational inline alert: the same banner in the info tones, for neutral
+// notices such as a read-only hint.
+export const ALERT_INFO = "rounded-sm bg-info-tint px-4 py-3 text-sm text-info ring-1 ring-info/25 ring-inset"
 
 // Streamdown fenced code: one recessed block (mono 13px) with a hairline under
 // the language strip, instead of the library's nested bordered boxes. Shared by

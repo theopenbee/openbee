@@ -1,11 +1,12 @@
 import "@fontsource-variable/inter"
 import "@fontsource-variable/jetbrains-mono"
-// Bundled CJK fallback — only the simplified-Chinese subset at the weights we use (400 body, 500 labels, 600 titles).
+// Bundled CJK fallback — only the simplified-Chinese subset: 400 for body, and
+// one medium face that also serves 600 titles (see cjk-font.css).
 import "@fontsource/noto-sans-sc/chinese-simplified-400.css"
-import "@fontsource/noto-sans-sc/chinese-simplified-500.css"
-import "@fontsource/noto-sans-sc/chinese-simplified-600.css"
+import "./cjk-font.css"
 import "./i18n"
-import { getStoredTheme, applyTheme } from "./lib/theme"
+import { getStoredTheme, applyTheme, dropLegacyTheme } from "./lib/theme"
+dropLegacyTheme()
 applyTheme(getStoredTheme())
 import i18n from "./i18n"
 import { StrictMode } from "react"

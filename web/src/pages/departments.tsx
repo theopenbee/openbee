@@ -280,7 +280,9 @@ export function Departments() {
                 {envTarget?.name}
               </DialogDescription>
             </DialogHeader>
-            <div className="-mx-5 max-h-[60vh] overflow-y-auto px-5 pb-1">
+            {/* py-1 keeps the env surface's outward ring inside the scroller,
+                which would clip its top edge when the panel has no header row. */}
+            <div className="-mx-5 max-h-[60vh] overflow-y-auto px-5 py-1">
               {envTarget && (
                 <EnvConfigPanel scope="department" scopeId={envTarget.id} />
               )}

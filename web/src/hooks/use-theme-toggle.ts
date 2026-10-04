@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react"
-import { type Theme, getStoredTheme, applyTheme } from "@/lib/theme"
+import { type Theme, getStoredTheme, applyTheme, persistTheme } from "@/lib/theme"
 
 export function useThemeToggle() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -11,6 +11,7 @@ export function useThemeToggle() {
     setTheme((current) => {
       const next: Theme = current === "dark" ? "light" : "dark"
       applyTheme(next)
+      persistTheme(next)
       return next
     })
   }, [])

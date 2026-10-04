@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
-import { DashboardStats } from "@/components/dashboard-hero-card"
+import { DashboardStats } from "@/components/dashboard-stats"
 import { QuickLinks } from "@/components/quick-links"
 import { TokenUsageCard } from "@/components/token-usage-card"
 import { SupportedAgentsCard } from "@/components/supported-agents-card"

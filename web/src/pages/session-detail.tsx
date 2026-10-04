@@ -18,36 +18,39 @@ import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE, FIELD_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, isActiveStatus, extractMessageContent } from "@/lib/format"
 
-// One cell of the overview metric strip: 12px caption over a 16px value.
-// Cells share hairline gutters (gap-px over bg-hairline) instead of carrying
-// their own outlines, so the strip reads as one surface inside the Panel.
-function OverviewCell({
+// One cell of a hairline-gutter grid (gap-px over bg-hairline, so the grid
+// reads as one surface rather than outlined boxes): a 12px caption over its
+// value. The overview strip uses size="metric" for a 16px semibold figure with
+// an optional hint line; the execution metadata keeps the 13px default, with
+// `mono` for ids.
+function GridCell({
   label,
   value,
   hint,
+  mono = false,
+  size = "meta",
   className,
 }: {
   label: string
   value: ReactNode
   hint?: ReactNode
+  mono?: boolean
+  size?: "metric" | "meta"
   className?: string
 }) {
+  const metric = size === "metric"
   return (
-    <div className={cn("min-w-0 bg-card px-4 py-3.5", className)}>
+    <div className={cn("min-w-0 bg-card px-4", metric ? "py-3.5" : "py-2.5", className)}>
       <dt className={FIELD_LABEL}>{label}</dt>
-      <dd className="mt-1.5 text-base leading-6 font-semibold break-words text-strong tabular-nums">{value}</dd>
+      <dd
+        className={cn(
+          metric ? "mt-1.5 text-base leading-6 font-semibold text-strong" : "mt-0.5 text-body-sm text-foreground",
+          mono ? "font-mono break-all" : "break-words tabular-nums"
+        )}
+      >
+        {value}
+      </dd>
       {hint ? <dd className="mt-0.5 text-body-sm text-muted-foreground tabular-nums">{hint}</dd> : null}
-    </div>
-  )
-}
-
-// Key/value cell for the execution metadata grid: caption above a 13px value,
-// cells separated by hairline gutters like the overview strip.
-function MetaCell({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }) {
-  return (
-    <div className="min-w-0 bg-card px-4 py-2.5">
-      <dt className={FIELD_LABEL}>{label}</dt>
-      <dd className={cn("mt-0.5 text-body-sm text-foreground", mono ? "font-mono break-all" : "break-words tabular-nums")}>{value}</dd>
     </div>
   )
 }
@@ -151,11 +154,13 @@ export function SessionDetail() {
           </div>
 
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-b-sm bg-hairline xl:grid-cols-5">
-            <OverviewCell
+            <GridCell
+              size="metric"
               label={t("sessions.columns.turns")}
               value={t("sessions.turnCount", { count: executions.length })}
             />
-            <OverviewCell
+            <GridCell
+              size="metric"
               label={t("sessionDetail.worker")}
               value={
                 hasWorker ? (
@@ -170,11 +175,13 @@ export function SessionDetail() {
                 )
               }
             />
-            <OverviewCell
+            <GridCell
+              size="metric"
               label={t("sessions.columns.started")}
               value={formatTimestamp(firstExecution.started_at)}
             />
-            <OverviewCell
+            <GridCell
+              size="metric"
               label={t("sessions.columns.duration")}
               value={sessionDuration}
               hint={
@@ -183,7 +190,8 @@ export function SessionDetail() {
                   : formatCompactTimestamp(latestExecution.completed_at)
               }
             />
-            <OverviewCell
+            <GridCell
+              size="metric"
               className="col-span-2 xl:col-span-1"
               label={t("sessionDetail.tokens")}
               value={
@@ -273,8 +281,8 @@ export function SessionDetail() {
                 aria-label={t("sessionDetail.metadata")}
                 className="grid grid-cols-2 gap-px border-b border-hairline bg-hairline lg:grid-cols-3"
               >
-                <MetaCell label={t("sessionDetail.execution")} value={selectedExecution.id} mono />
-                <MetaCell
+                <GridCell label={t("sessionDetail.execution")} value={selectedExecution.id} mono />
+                <GridCell
                   label={t("sessionDetail.worker")}
                   value={
                     selectedExecution.worker_id ? (
@@ -289,10 +297,10 @@ export function SessionDetail() {
                     )
                   }
                 />
-                <MetaCell label={t("executionDetail.pid")} value={selectedExecution.ai_process_pid || "—"} mono />
-                <MetaCell label={t("executionDetail.started")} value={formatTimestamp(selectedExecution.started_at)} />
-                <MetaCell label={t("executionDetail.completed")} value={formatTimestamp(selectedExecution.completed_at)} />
-                <MetaCell label={t("sessions.columns.duration")} value={selectedDuration} />
+                <GridCell label={t("executionDetail.pid")} value={selectedExecution.ai_process_pid || "—"} mono />
+                <GridCell label={t("executionDetail.started")} value={formatTimestamp(selectedExecution.started_at)} />
+                <GridCell label={t("executionDetail.completed")} value={formatTimestamp(selectedExecution.completed_at)} />
+                <GridCell label={t("sessions.columns.duration")} value={selectedDuration} />
               </dl>
 
               <div className="space-y-4 p-4">

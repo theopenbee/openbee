@@ -4,6 +4,7 @@ import { useTranslation, Trans } from "react-i18next"
 import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Perm } from "@/lib/permissions"
 import { useDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
@@ -45,6 +46,16 @@ import { StatusBadge } from "@/components/status-badge"
 
 type DeleteStep = 1 | 2
 
+function EngineLabel({ engine }: { engine: string }) {
+  const { t } = useTranslation()
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-body-sm text-foreground">
+      <EngineIcon engine={engine} className="size-4 text-foreground" />
+      <span className="truncate">{formatEngineLabel(engine, t)}</span>
+    </span>
+  )
+}
+
 // One row action in the worker dropdown. Read actions (View) are always present;
 // write actions (Copy, Delete) are appended only when the user holds
 // contacts:write, so the menu is built by filtering rather than per-item guards.
@@ -59,6 +70,7 @@ type WorkerRowAction = {
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const canWrite = useCan(Perm.ContactsWrite)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [collapsedDeptIds, setCollapsedDeptIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -115,8 +127,8 @@ export function Workers() {
 
   // The department filter is a fixed left rail from md up, and stacks under the
   // page header on narrow screens (where a side rail would starve the table).
-  // Both placements stay mounted and CSS picks one; selection and expansion
-  // live here, so the two copies never disagree.
+  // Only the placement for the current breakpoint is mounted; the responsive
+  // classes on each container cover the first paint before useIsMobile settles.
   const departmentFilter = (
     <DepartmentTreeSidebar
       departments={departments}
@@ -131,12 +143,14 @@ export function Workers() {
     <FadeIn className="h-full">
       <div className="flex h-full">
         {/* Left rail: department filter, flush to the layout edge with its own scroll. */}
-        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
-          <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
-            <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-          </div>
-          <div className="min-h-0 flex-1">{departmentFilter}</div>
-        </aside>
+        {!isMobile && (
+          <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
+            <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
+              <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+            </div>
+            <div className="min-h-0 flex-1">{departmentFilter}</div>
+          </aside>
+        )}
 
         {/* Content pane: header row on the base surface, worker table on the canvas. */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -161,10 +175,12 @@ export function Workers() {
           </header>
 
           <div className="min-w-0 flex-1 overflow-auto">
-            <div className="border-b border-border bg-background md:hidden">
-              <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-              <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
-            </div>
+            {isMobile && (
+              <div className="border-b border-border bg-background md:hidden">
+                <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+                <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
+              </div>
+            )}
 
             <div className="p-6">
               {error && (
@@ -227,9 +243,17 @@ export function Workers() {
                                   >
                                     {w.description || "—"}
                                   </p>
-                                  {/* Below md the status column folds in here. */}
-                                  <div className="mt-1 md:hidden">
+                                  {/* Below md the status, engine and active-time
+                                      columns fold in here. */}
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 md:hidden">
                                     <StatusBadge status={w.status} />
+                                    {w.engine && <EngineLabel engine={w.engine} />}
+                                    <span
+                                      className="text-body-sm text-muted-foreground tabular-nums"
+                                      title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}
+                                    >
+                                      {formatRelative(w.updated_at, t)}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -239,10 +263,7 @@ export function Workers() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               {w.engine ? (
-                                <span className="flex min-w-0 items-center gap-2 text-body-sm text-foreground">
-                                  <EngineIcon engine={w.engine} className="size-4 text-foreground" />
-                                  <span className="truncate">{formatEngineLabel(w.engine, t)}</span>
-                                </span>
+                                <EngineLabel engine={w.engine} />
                               ) : (
                                 <span className="text-body-sm text-muted-foreground">—</span>
                               )}

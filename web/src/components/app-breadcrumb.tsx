@@ -17,7 +17,7 @@ export function AppBreadcrumb() {
   const crumbs = useMemo(() => resolveCrumbs(pathname, search), [pathname, search])
 
   return (
-    <Breadcrumb>
+    <Breadcrumb aria-label={t("breadcrumb.label")}>
       <BreadcrumbList>
         {crumbs.map((crumb, i) => (
           <Fragment key={i}>

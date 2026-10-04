@@ -40,7 +40,7 @@ interface TaskListProps {
 
 function CronCell({ task }: { task: Task }) {
   if (task.type === "scheduled" && task.cron_expr) {
-    return <span className="font-mono text-body-sm text-foreground">{task.cron_expr}</span>
+    return <span className="font-mono text-body-sm whitespace-nowrap text-foreground">{task.cron_expr}</span>
   }
   return <span className="text-muted-foreground">—</span>
 }
@@ -144,10 +144,16 @@ export function TaskList({
                       >
                         {task.instruction}
                       </p>
-                      {/* Below md the status and next-run columns fold in
-                          under the instruction so state stays in view. */}
+                      {/* Below md the status, cron and next-run columns fold
+                          in under the instruction so they stay in view. */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={task.status} />
+                        {task.type === "scheduled" && task.cron_expr && (
+                          <span className="text-body-sm">
+                            <span className="text-muted-foreground">{t("tasks.columns.cron")} </span>
+                            <CronCell task={task} />
+                          </span>
+                        )}
                         <span className="text-body-sm">
                           <span className="text-muted-foreground">{t("tasks.columns.nextRunAt")} </span>
                           <NextRunCell task={task} />

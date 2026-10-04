@@ -284,11 +284,13 @@ body {
 
 /* Horizontal scroll affordance for wide tables (Kumo's table edge fade): soft
    edge shadows appear only on the side that has more content, using local vs
-   scroll background attachment, so no JS is needed. */
+   scroll background attachment, so no JS is needed. The covers must match the
+   background behind the scroller: card by default (every table sits on a
+   SURFACE); set --scroll-shadow-cover on an ancestor for other surfaces. */
 @utility scroll-shadow-x {
   background:
-    linear-gradient(to right, var(--card) 30%, transparent) left center / 2rem 100% no-repeat local,
-    linear-gradient(to left, var(--card) 30%, transparent) right center / 2rem 100% no-repeat local,
+    linear-gradient(to right, var(--scroll-shadow-cover, var(--card)) 30%, transparent) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--scroll-shadow-cover, var(--card)) 30%, transparent) right center / 2rem 100% no-repeat local,
     linear-gradient(to right, var(--shadow-edge), transparent) left center / 0.75rem 100% no-repeat scroll,
     linear-gradient(to left, var(--shadow-edge), transparent) right center / 0.75rem 100% no-repeat scroll;
 }
