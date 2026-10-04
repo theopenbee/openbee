@@ -305,9 +305,3 @@ func (s *DepartmentStore) GetWorkerIDsForDepartments(deptIDs []string) ([]string
 	}
 	return ids, rows.Err()
 }
-
-// DeleteWorkerDepartments removes all department associations for a worker.
-func (s *DepartmentStore) DeleteWorkerDepartments(workerID string) error {
-	_, err := s.db.Exec(`DELETE FROM bee_worker_departments WHERE worker_id = ?`, workerID)
-	return err
-}

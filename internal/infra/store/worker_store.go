@@ -244,9 +244,25 @@ func (s *WorkerStore) UpdateEngine(id, engine string) error {
 	return nil
 }
 
+// Delete removes the worker along with the rows that reference it through
+// foreign keys (department links and tasks), which would otherwise block the
+// delete. Executions keep their history: their worker_id is not a foreign key.
 func (s *WorkerStore) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM bee_workers WHERE id=?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin delete worker: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	for _, q := range []string{
+		`DELETE FROM bee_worker_departments WHERE worker_id=?`,
+		`DELETE FROM bee_tasks WHERE worker_id=?`,
+		`DELETE FROM bee_workers WHERE id=?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return fmt.Errorf("delete worker: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *WorkerStore) CountByStatus() (map[string]int, error) {

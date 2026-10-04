@@ -49,8 +49,8 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 		uuid.New().String(), w1.ID, "sess3", "hi", "completed", "", 0, todayMS)
 	require.NoError(t, err)
 
-	// One inbound message today
-	ms.Create(ctx, uuid.New().String(), "sk1", "feishu", "hello", "{}", "", todayMS)
+	// One inbound message today (also the parent of the task created below)
+	ms.Create(ctx, "m1", "sk1", "feishu", "hello", "{}", "", todayMS)
 
 	// One outbound message today
 	_, err = db.Exec(`INSERT INTO bee_outbound_messages (id,session_key,platform,content,media_path,status,platform_msg_id,source_type,source_id,inbound_msg_id,error,retry_count,sent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -59,11 +59,12 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 
 	// Active countdown task
 	now := time.Now().UnixMilli()
-	ts.Create(ctx, model.Task{
+	_, err = ts.Create(ctx, model.Task{
 		MessageID: "m1", WorkerID: w1.ID, Instruction: "count",
 		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
 		CreatedAt: now, UpdatedAt: now,
 	})
+	require.NoError(t, err)
 
 	// Completed executions with token stats, used below to check today/yesterday totals.
 	yestStart, _ := dayBounds(-1)

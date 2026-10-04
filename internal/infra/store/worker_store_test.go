@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,6 +62,35 @@ func TestWorkerStore_Delete(t *testing.T) {
 	require.NoError(t, s.Delete(w.ID))
 	_, err := s.GetByID(w.ID)
 	assert.Error(t, err)
+}
+
+// With foreign_keys on, a worker referenced by department links or tasks can
+// only be deleted if those rows go first; executions keep their history.
+func TestWorkerStore_Delete_RemovesReferencingRows(t *testing.T) {
+	db := newTestDB(t, seedWorkerSQL("w1"), seedWorkerSQL("w2"), seedMessageSQL("m1", "s"))
+	ws, ds, ts, es := NewWorkerStore(db), NewDepartmentStore(db), NewTaskStore(db), NewExecutionStore(db, t.TempDir())
+	dept, err := ds.Create(model.Department{Name: "Dept"})
+	require.NoError(t, err)
+	require.NoError(t, ds.SetWorkerDepartments("w1", []string{dept.ID}))
+	require.NoError(t, ds.SetWorkerDepartments("w2", []string{dept.ID}))
+	seedTask(t, ts, model.Task{WorkerID: "w1", Status: model.TaskStatusCompleted})
+	keptTask := seedTask(t, ts, model.Task{WorkerID: "w2"})
+	exec, err := es.Create(ExecutionCreate{WorkerID: "w1", SessionID: "s1"})
+	require.NoError(t, err)
+
+	require.NoError(t, ws.Delete("w1"))
+
+	_, err = ws.GetByID("w1")
+	assert.Error(t, err, "worker should be gone")
+	depts, err := ds.GetWorkerDepartments("w1")
+	require.NoError(t, err)
+	assert.Empty(t, depts, "department links should be gone")
+	tasks, err := ts.List(context.Background(), TaskFilter{})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1, "only the other worker's task should remain")
+	assert.Equal(t, keptTask, tasks[0].ID)
+	_, err = es.GetByID(exec.ID)
+	assert.NoError(t, err, "execution history should be kept")
 }
 
 func TestWorkerStore_GetByName_ExactMatch(t *testing.T) {

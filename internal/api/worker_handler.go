@@ -228,10 +228,6 @@ func (h *WorkerHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.departments.DeleteWorkerDepartments(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 

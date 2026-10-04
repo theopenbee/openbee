@@ -131,17 +131,6 @@ func TestDepartmentStore_GetWorkerIDsForDepartments(t *testing.T) {
 	assert.Len(t, ids, 2)
 }
 
-func TestDepartmentStore_DeleteWorkerDepartments(t *testing.T) {
-	ds, ws := setupDeptTestDB(t)
-	dept, _ := ds.Create(model.Department{Name: "Dept"})
-	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	ds.SetWorkerDepartments(w.ID, []string{dept.ID})
-
-	require.NoError(t, ds.DeleteWorkerDepartments(w.ID))
-	depts, _ := ds.GetWorkerDepartments(w.ID)
-	assert.Empty(t, depts)
-}
-
 func TestDepartmentStore_CheckCircularReference(t *testing.T) {
 	ds, _ := setupDeptTestDB(t)
 	a, _ := ds.Create(model.Department{Name: "A"})

@@ -471,6 +471,25 @@ UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission =
 		name:    "add_password_changed_at_to_bee_users",
 		sql:     `ALTER TABLE bee_users ADD COLUMN password_changed_at INTEGER NOT NULL DEFAULT 0`,
 	},
+	{
+		// Until foreign_keys was actually enabled, ON DELETE CASCADE never
+		// fired, so deleting a role/user/worker/department left its link rows
+		// behind — a deleted role's permissions were still granted to its
+		// former members. Enforcement only covers future writes; purge the
+		// existing orphans once.
+		version: 50,
+		name:    "purge_orphaned_link_rows",
+		sql: `
+DELETE FROM bee_user_roles
+ WHERE user_id NOT IN (SELECT id FROM bee_users)
+    OR role_id NOT IN (SELECT id FROM bee_roles);
+DELETE FROM bee_role_permissions
+ WHERE role_id NOT IN (SELECT id FROM bee_roles);
+DELETE FROM bee_worker_departments
+ WHERE worker_id NOT IN (SELECT id FROM bee_workers)
+    OR department_id NOT IN (SELECT id FROM bee_departments);
+`,
+	},
 }
 
 type whereBuilder struct {
@@ -525,7 +544,11 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
+	// modernc.org/sqlite only honours `_pragma=name(value)`; the mattn-style
+	// `_journal_mode=`/`_foreign_keys=`/`_busy_timeout=` keys are silently
+	// ignored. The driver runs these on every new connection, busy_timeout
+	// first so the WAL switch itself can wait on a lock.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}

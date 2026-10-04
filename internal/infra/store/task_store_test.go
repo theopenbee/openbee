@@ -265,7 +265,7 @@ func TestTaskStore_CancelBySessionKey(t *testing.T) {
 }
 
 func TestTaskStore_ListBySessionAndWorker(t *testing.T) {
-	ts := newTaskStoreWithTwoSessions(t)
+	ts := newTaskStoreWithTwoWorkers(t)
 	ctx := context.Background()
 
 	// session-A: w1 (pending+running), w2 (running)
@@ -289,7 +289,7 @@ func TestTaskStore_ListBySessionAndWorker(t *testing.T) {
 }
 
 func TestTaskStore_CancelBySessionAndWorker(t *testing.T) {
-	ts := newTaskStoreWithTwoSessions(t)
+	ts := newTaskStoreWithTwoWorkers(t)
 	ctx := context.Background()
 
 	// session-A/w1: pending + running + completed

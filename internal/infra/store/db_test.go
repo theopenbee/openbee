@@ -166,6 +166,23 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 		UNIQUE(scope, key)
 	)`)
 	require.NoError(t, err)
+	// bee_departments / bee_worker_departments are required by migration 50 (purge orphaned link rows).
+	_, err = db.Exec(`CREATE TABLE bee_departments (
+		id         TEXT PRIMARY KEY,
+		name       TEXT NOT NULL,
+		parent_id  TEXT,
+		sort_order INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE bee_worker_departments (
+		worker_id     TEXT NOT NULL REFERENCES bee_workers(id),
+		department_id TEXT NOT NULL REFERENCES bee_departments(id),
+		created_at    INTEGER NOT NULL,
+		PRIMARY KEY (worker_id, department_id)
+	)`)
+	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at)
 		VALUES ('sk', 'bee', 'legacy-sid', 1)`)
 	require.NoError(t, err)

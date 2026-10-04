@@ -100,6 +100,21 @@ func TestUserStore_SetPasswordBumpsPasswordChangedAt(t *testing.T) {
 	require.True(t, after%1000 == 0, "password_changed_at must be floored to the second, got %d", after)
 }
 
+// Deleting a role must revoke its permissions from former members. This relies
+// on ON DELETE CASCADE, which only fires with foreign_keys enabled.
+func TestUserStore_DeletedRoleRevokesPermissions(t *testing.T) {
+	us := setupUserStore(t)
+	roleID := makeRole(t, us, "ops", []string{"contacts:read"})
+	u, err := us.Create("frank", "pw", "Frank", "", []string{roleID})
+	require.NoError(t, err)
+
+	require.NoError(t, NewRoleStore(us.db).Delete(roleID))
+
+	perms, err := us.PermissionsForUser(u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, perms, "deleted role's permissions must not be granted")
+}
+
 func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	us := setupUserStore(t)
 	u, _ := us.Create("erin", "pw", "Erin", "", []string{model.RoleIDSuperAdmin})
