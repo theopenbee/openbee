@@ -11,7 +11,7 @@ import {
 } from "@/hooks/use-roles"
 import { getErrorMessage } from "@/lib/utils"
 import { roleLabel, roleDescription } from "@/lib/roles"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -61,7 +61,7 @@ function PermissionBadges({ role, t }: { role: Role; t: (key: string) => string 
   }
   const perms = role.permissions ?? []
   if (perms.length === 0) {
-    return <span className="text-[13px] text-muted-foreground">{t("roles.noPermissions")}</span>
+    return <span className="text-body-sm text-muted-foreground">{t("roles.noPermissions")}</span>
   }
   return (
     <>
@@ -172,11 +172,9 @@ export function Roles() {
         <PageHeader title={t("nav.roles")} actions={createButton} />
 
         {roles.length === 0 ? (
-          <div className="rounded-sm bg-card ring-1 ring-border">
-            <EmptyState title={t("roles.empty")} action={createButton} />
-          </div>
+          <EmptyState framed title={t("roles.empty")} action={createButton} />
         ) : (
-          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+          <div className={SURFACE}>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -200,7 +198,7 @@ export function Roles() {
                           </Badge>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[13px] text-muted-foreground">
+                      <p className="mt-0.5 text-body-sm text-muted-foreground">
                         {roleDescription(role, t) || t("common.noDescription")}
                       </p>
                     </TableCell>
@@ -355,7 +353,7 @@ function PermissionPicker({
               >
                 <input
                   type="checkbox"
-                  className="size-4 shrink-0 cursor-pointer accent-primary dark:[color-scheme:dark]"
+                  className="size-4 shrink-0 cursor-pointer accent-primary"
                   checked={selected.includes(perm)}
                   onChange={() => onToggle(perm)}
                 />

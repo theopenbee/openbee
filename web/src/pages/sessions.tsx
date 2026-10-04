@@ -18,7 +18,7 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus } from "@/lib/format"
 
 const PAGE_SIZE = 20
@@ -56,15 +56,14 @@ export function Sessions() {
       {isLoading ? (
         <SkeletonTable />
       ) : sessionGroups.length === 0 && !error ? (
-        <div className="rounded-sm bg-card ring-1 ring-border">
-          <EmptyState
-            title={t("emptyState.noExecutions")}
-            description={t("emptyState.noExecutionsDesc")}
-          />
-        </div>
+        <EmptyState
+          framed
+          title={t("emptyState.noExecutions")}
+          description={t("emptyState.noExecutionsDesc")}
+        />
       ) : (
         <>
-          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+          <div className={SURFACE}>
             <Table className="md:min-w-[760px]">
               <TableHeader>
                 <TableRow>
@@ -92,7 +91,7 @@ export function Sessions() {
                         <Link
                           to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
                           aria-label={t("sessions.viewSession", { id: latest.session_id })}
-                          className="rounded-sm font-mono text-[13px] font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                          className="rounded-sm font-mono text-body-sm font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {latest.session_id.slice(0, 8)}
                         </Link>
@@ -116,7 +115,7 @@ export function Sessions() {
                         )}
                       </TableCell>
 
-                      <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                      <TableCell className="hidden text-body-sm text-muted-foreground tabular-nums md:table-cell">
                         {t("sessions.turnCount", { count: group.length })}
                       </TableCell>
 
@@ -125,7 +124,7 @@ export function Sessions() {
                       </TableCell>
 
                       <TableCell
-                        className="text-[13px] text-muted-foreground tabular-nums"
+                        className="text-body-sm text-muted-foreground tabular-nums"
                         title={
                           oldest.started_at
                             ? new Date(oldest.started_at).toLocaleString()
@@ -135,18 +134,18 @@ export function Sessions() {
                         {formatRelative(oldest.started_at, t)}
                       </TableCell>
 
-                      <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                      <TableCell className="hidden text-body-sm text-muted-foreground tabular-nums md:table-cell">
                         {isActive ? t("sessionDetail.live") : duration}
                       </TableCell>
 
                       <TableCell className="pr-4 text-right">
                         {tokenStats ? (
-                          <div className="inline-flex items-center justify-end gap-1 text-[13px] text-foreground tabular-nums">
+                          <div className="inline-flex items-center justify-end gap-1 text-body-sm text-foreground tabular-nums">
                             <span>{formatTokenCount(tokenStats.total_tokens)}</span>
                             <TokenStatsInfoButton stats={tokenStats} side="left" align="center" />
                           </div>
                         ) : (
-                          <span className="text-[13px] text-muted-foreground">—</span>
+                          <span className="text-body-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
                     </TableRow>

@@ -6,7 +6,7 @@ import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { cn, getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -162,14 +162,13 @@ export function Departments() {
         />
 
         {departments.length === 0 ? (
-          <div className="rounded-sm bg-card ring-1 ring-border">
-            <EmptyState
-              title={t("departments.empty")}
-              action={createButton}
-            />
-          </div>
+          <EmptyState
+            framed
+            title={t("departments.empty")}
+            action={createButton}
+          />
         ) : (
-          <div className="divide-y divide-hairline overflow-hidden rounded-sm bg-card ring-1 ring-border">
+          <div className={cn(SURFACE, "divide-y divide-hairline")}>
             {departments.map((node) => (
               <DepartmentRow
                 key={node.id}

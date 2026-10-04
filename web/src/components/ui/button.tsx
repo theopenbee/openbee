@@ -6,13 +6,16 @@ import { cn } from "@/lib/utils"
 
 // Kumo button grammar: a 1px ring instead of a border, a hairline drop shadow,
 // one blue emphasis fill for the primary action, and squared corners (≤ sm).
+// Filled variants shade toward the bottom rather than carrying a white top
+// sheen: Control Blue sits at 4.53:1 against white, so any lightening drops
+// the label under AA.
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm text-sm font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-150 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "bg-primary bg-linear-to-b from-white/8 to-transparent text-primary-foreground shadow-xs ring-1 ring-primary-edge hover:bg-primary-hover focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+          "bg-primary bg-linear-to-b from-transparent to-black/8 text-primary-foreground shadow-xs ring-1 ring-primary-edge hover:bg-primary-hover focus-visible:ring-offset-1 focus-visible:ring-offset-background",
         outline:
           "bg-background text-foreground shadow-xs ring-1 ring-border hover:bg-accent hover:text-strong aria-expanded:bg-accent",
         secondary:
@@ -20,7 +23,7 @@ const buttonVariants = cva(
         ghost:
           "text-foreground hover:bg-accent hover:text-strong aria-expanded:bg-accent",
         destructive:
-          "bg-destructive bg-linear-to-b from-white/8 to-transparent text-white shadow-xs ring-1 ring-destructive hover:bg-[color-mix(in_oklch,var(--destructive),black_10%)] focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+          "bg-destructive bg-linear-to-b from-transparent to-black/8 text-white shadow-xs ring-1 ring-destructive hover:bg-[color-mix(in_oklch,var(--destructive),black_10%)] focus-visible:ring-offset-1 focus-visible:ring-offset-background",
         link: "text-link underline-offset-4 hover:underline",
       },
       size: {

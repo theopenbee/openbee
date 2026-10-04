@@ -31,7 +31,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
 import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
@@ -71,11 +71,6 @@ const SECTIONS = [
 ] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon; perm?: string }>
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
-
-// Section rail items mirror the main sidebar: 34px rows, 13px medium labels,
-// gray accent fill on hover and for the selection (never blue or orange).
-const RAIL_ITEM =
-  "flex h-8.5 w-full items-center gap-2.5 rounded-sm px-3 text-left text-[13px] font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
 // Env source is a configuration layer, not a presence status, so it stays in the
 // achromatic field: muted by default, with the effective (worker-level) override
@@ -132,10 +127,10 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
               const cfg = SOURCE_CONFIG[source]
               return (
                 <TableRow key={key}>
-                  <TableCell className="pl-4 font-mono text-[13px] text-strong">{key}</TableCell>
-                  <TableCell className="font-mono text-[13px] text-muted-foreground">{masked}</TableCell>
+                  <TableCell className="pl-4 font-mono text-body-sm text-strong">{key}</TableCell>
+                  <TableCell className="font-mono text-body-sm text-muted-foreground">{masked}</TableCell>
                   <TableCell className="pr-4">
-                    <span className={cn("text-[13px] font-medium", cfg?.color)}>
+                    <span className={cn("text-body-sm font-medium", cfg?.color)}>
                       {cfg ? t(cfg.labelKey) : source}
                     </span>
                   </TableCell>
@@ -154,7 +149,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
 function RecordRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 flex-col gap-1 px-4 py-2.5 @md:flex-row @md:items-center @md:gap-6">
-      <dt className="shrink-0 text-[13px] text-muted-foreground @md:w-40">{label}</dt>
+      <dt className="shrink-0 text-body-sm text-muted-foreground @md:w-40">{label}</dt>
       <dd className="min-w-0 flex-1 text-sm text-foreground">{children}</dd>
     </div>
   )
@@ -277,12 +272,7 @@ export function WorkerDetail() {
                       type="button"
                       onClick={() => setActiveSection(section.key)}
                       aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        RAIL_ITEM,
-                        isActive
-                          ? "bg-accent font-semibold text-strong"
-                          : "text-foreground hover:bg-accent hover:text-strong",
-                      )}
+                      className={cn(RAIL_ITEM, isActive ? RAIL_ITEM_SELECTED : RAIL_ITEM_IDLE)}
                     >
                       <Icon className="size-4 shrink-0" />
                       <span className="truncate">{t(section.labelKey)}</span>
@@ -303,7 +293,7 @@ export function WorkerDetail() {
               <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
                 {worker.name}
               </h1>
-              <p className="text-[13px] leading-5 text-muted-foreground">{t(activeLabelKey)}</p>
+              <p className="text-body-sm leading-5 text-muted-foreground">{t(activeLabelKey)}</p>
             </div>
             <Can perm={Perm.ContactsWrite}>
               <div className="flex shrink-0 items-center gap-2">
@@ -345,7 +335,7 @@ export function WorkerDetail() {
 
                       <RecordRow label={t("workerDetail.id")}>
                         <div className="flex items-center gap-1.5">
-                          <span className="min-w-0 font-mono text-[13px] break-all text-foreground">
+                          <span className="min-w-0 font-mono text-body-sm break-all text-foreground">
                             {worker.id}
                           </span>
                           <CopyButton value={worker.id} />
@@ -381,7 +371,7 @@ export function WorkerDetail() {
                       <RecordRow label={t("workerDetail.workDir")}>
                         {worker.work_dir ? (
                           <div className="flex items-center gap-1.5">
-                            <span className="min-w-0 font-mono text-[13px] break-all text-foreground">
+                            <span className="min-w-0 font-mono text-body-sm break-all text-foreground">
                               {worker.work_dir}
                             </span>
                             <CopyButton value={worker.work_dir} />
@@ -446,7 +436,7 @@ export function WorkerDetail() {
                                   {intent || t("sessions.noTriggerContent")}
                                 </p>
 
-                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-muted-foreground">
                                   <span
                                     className="inline-flex items-center gap-1 tabular-nums"
                                     title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
@@ -492,7 +482,7 @@ export function WorkerDetail() {
 
               {activeSection === "permissions" && (
                 <div className="max-w-3xl space-y-3">
-                  <p className="text-[13px] leading-5 text-muted-foreground">
+                  <p className="text-body-sm leading-5 text-muted-foreground">
                     {canWriteContacts
                       ? t("workers.form.permissionsHelper")
                       : t("workerDetail.permissionsReadonly")}

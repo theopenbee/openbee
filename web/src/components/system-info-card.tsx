@@ -39,7 +39,7 @@ export function SystemInfoCard() {
             ))
           : rows.map(({ label, value }) => (
               <div key={label} className={ROW}>
-                <dt className="shrink-0 text-[13px] text-muted-foreground">{label}</dt>
+                <dt className="shrink-0 text-body-sm text-muted-foreground">{label}</dt>
                 <dd className="min-w-0 truncate font-mono text-xs text-foreground" title={value}>
                   {value}
                 </dd>

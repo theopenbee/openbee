@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { SkeletonLine } from "@/components/skeleton-loader"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
@@ -238,7 +238,7 @@ function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) 
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{t("envConfig.editTitle")}</DialogTitle>
-          <DialogDescription className="font-mono text-[13px] break-all text-foreground">
+          <DialogDescription className="font-mono text-body-sm break-all text-foreground">
             {target?.key}
           </DialogDescription>
         </DialogHeader>
@@ -319,7 +319,7 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+      <div className={SURFACE}>
         {isLoading ? (
           <div className="space-y-3 px-3 py-4" aria-hidden="true">
             <SkeletonLine className="w-2/3" />
@@ -346,7 +346,7 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
             <TableBody>
               {envs.map((env) => (
                 <TableRow key={env.id}>
-                  <TableCell className="max-w-0 font-mono text-[13px] font-medium text-strong sm:max-w-none">
+                  <TableCell className="max-w-0 font-mono text-body-sm font-medium text-strong sm:max-w-none">
                     <div className="truncate">{env.key}</div>
                     {/* Below sm the value folds under the key so the row
                         actions stay on screen. */}
@@ -354,7 +354,7 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
                       {env.masked}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden font-mono text-[13px] text-muted-foreground sm:table-cell">
+                  <TableCell className="hidden font-mono text-body-sm text-muted-foreground sm:table-cell">
                     {env.masked}
                   </TableCell>
                   {canWrite && (

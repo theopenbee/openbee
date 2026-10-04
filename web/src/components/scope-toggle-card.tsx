@@ -18,7 +18,7 @@ export function ScopeToggleCard({ scope, checked, onToggle, disabled }: ScopeTog
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-strong">{t(scope.titleKey)}</p>
-        <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">{t(scope.descriptionKey)}</p>
+        <p className="mt-0.5 text-body-sm leading-5 text-muted-foreground">{t(scope.descriptionKey)}</p>
       </div>
       <Switch
         checked={checked}

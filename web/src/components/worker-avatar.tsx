@@ -21,8 +21,7 @@ export function initials(name: string): string {
 interface WorkerAvatarProps {
   name: string
   status: string
-  // `xl` (56px) anchors a profile header; the others follow the Avatar scale.
-  size?: "default" | "sm" | "lg" | "xl"
+  size?: "default" | "sm" | "lg"
   className?: string
 }
 
@@ -32,20 +31,14 @@ export function WorkerAvatar({ name, status, size = "default", className }: Work
   const { t } = useTranslation()
   const color = presenceColor[status] ?? "bg-muted-foreground"
   const statusLabel = t(`statuses.${status}`, status)
-  const isXl = size === "xl"
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
-      <Avatar size={isXl ? "lg" : size} className={cn(isXl && "size-14 data-[size=lg]:size-14")}>
-        <AvatarFallback className={cn("font-medium uppercase", isXl && "text-xl")}>
-          {initials(name)}
-        </AvatarFallback>
+      <Avatar size={size}>
+        <AvatarFallback className="font-medium uppercase">{initials(name)}</AvatarFallback>
       </Avatar>
       <span
-        className={cn(
-          "absolute inline-flex items-center justify-center rounded-full ring-2 ring-background",
-          isXl ? "right-0.5 bottom-0.5 size-3.5" : "-right-0.5 -bottom-0.5 size-2.5"
-        )}
+        className="absolute -right-0.5 -bottom-0.5 inline-flex size-2.5 items-center justify-center rounded-full ring-2 ring-background"
         title={statusLabel}
         role="img"
         aria-label={statusLabel}

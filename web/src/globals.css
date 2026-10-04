@@ -21,6 +21,10 @@
 --font-heading: "Inter Variable", "Noto Sans SC", system-ui, sans-serif;
 --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 --font-serif: ui-serif, Georgia, serif;
+/* The 13px step of the Kumo type ramp (DESIGN.md body-sm / nav-label / mono),
+   between text-xs (12) and text-sm (14). Size only, like the arbitrary value it
+   replaces: line height still comes from context or a leading-* utility. */
+--text-body-sm: 0.8125rem;
 --color-background: var(--background);
 --color-foreground: var(--foreground);
 --color-strong: var(--strong);
@@ -127,6 +131,7 @@ color-scheme: light;
 --border: oklch(0.145 0 0 / 0.1);
 --hairline: oklch(0.935 0 0);
 --input: oklch(0.145 0 0 / 0.14);
+--scrollbar: oklch(0.65 0 0);
 --focus: oklch(0.15 0 0);
 --ring: oklch(0.5772 0.2324 260);
 --shadow-edge: oklch(0 0 0 / 0.1);
@@ -187,6 +192,7 @@ color-scheme: dark;
 --border: oklch(0.32 0 0);
 --hairline: oklch(0.269 0 0);
 --input: oklch(0.32 0 0);
+--scrollbar: oklch(0.52 0 0);
 --focus: oklch(0.935 0 0);
 --ring: oklch(0.707 0.165 254.624);
 --shadow-edge: oklch(1 0 0 / 0.1);
@@ -214,13 +220,14 @@ color-scheme: dark;
   @apply border-border outline-ring/50;
 }
 html {
-  /* Kumo's type tuning: slight negative tracking and Inter's open-digit
-     alternates. Code and data in mono reset the tracking below. */
+  /* Kumo's type tuning: slight negative tracking. Code and data in mono reset
+     it below. (The @fontsource Inter subsets ship no cv* alternates, so
+     Inter's open digits are not available here.) */
   letter-spacing: -0.01em;
-  font-feature-settings: "cv02", "cv03", "cv04", "calt";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  scrollbar-color: var(--border) transparent;
+  /* Own token, not --border: a 10%-black line is ~1.2:1 as a thumb. */
+  scrollbar-color: var(--scrollbar) transparent;
 }
 pre,
 code,

@@ -23,7 +23,7 @@ import {
 import { useRoles } from "@/hooks/use-roles"
 import { getErrorMessage } from "@/lib/utils"
 import { roleLabel, roleDescription } from "@/lib/roles"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -82,14 +82,14 @@ function RoleCheckboxes({
         >
           <input
             type="checkbox"
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary dark:[color-scheme:dark]"
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary"
             checked={selected.includes(role.id)}
             onChange={() => onToggle(role.id)}
           />
           <span className="min-w-0">
             <span className="block text-sm font-medium text-strong">{roleLabel(role, t)}</span>
             {role.description && (
-              <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+              <span className="mt-0.5 block truncate text-body-sm text-muted-foreground">
                 {roleDescription(role, t)}
               </span>
             )}
@@ -264,11 +264,9 @@ export function Users() {
         <PageHeader title={t("nav.users")} actions={createButton} />
 
         {users.length === 0 ? (
-          <div className="rounded-sm bg-card ring-1 ring-border">
-            <EmptyState title={t("users.empty")} action={createButton} />
-          </div>
+          <EmptyState framed title={t("users.empty")} action={createButton} />
         ) : (
-          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+          <div className={SURFACE}>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -289,7 +287,7 @@ export function Users() {
                           {user.display_name || user.username}
                         </div>
                         {user.display_name && (
-                          <div className="mt-0.5 text-[13px] text-muted-foreground">
+                          <div className="mt-0.5 text-body-sm text-muted-foreground">
                             {user.username}
                           </div>
                         )}
@@ -298,7 +296,7 @@ export function Users() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {user.roles.length === 0 ? (
-                          <span className="text-[13px] text-muted-foreground">—</span>
+                          <span className="text-body-sm text-muted-foreground">—</span>
                         ) : (
                           user.roles.map((r) => (
                             <Badge key={r.id} variant="outline">

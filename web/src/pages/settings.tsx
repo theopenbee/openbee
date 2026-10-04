@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { LoaderCircle } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
 import { Panel } from "@/components/panel"
@@ -10,7 +11,7 @@ import {
   SelectContent,
   SelectTrigger,
 } from "@/components/ui/select"
-import { SystemConfigSaveButton } from "@/components/system-config-save-button"
+import { Button } from "@/components/ui/button"
 import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -67,28 +68,36 @@ function EngineArgsConfigSection({
           showLabel={false}
         />
       </div>
-      <SettingsPanelFooter>
-        <SystemConfigSaveButton
-          onClick={() => save(value)}
-          disabled={!isDirty}
-          saving={isPending}
-        >
-          {t("common.save")}
-        </SystemConfigSaveButton>
-      </SettingsPanelFooter>
+      <SettingsSaveFooter onSave={() => save(value)} disabled={!isDirty} saving={isPending} />
     </Panel>
   )
 }
 
 // Footer strip of a settings Panel: a gray bar under the white body that holds
-// the section's save action bottom-right (Kumo LayerCard footer). Rendered only
-// for users who can write, so read-only viewers don't see an empty bar.
-function SettingsPanelFooter({ children }: { children: ReactNode }) {
+// the section's save action bottom-right (Kumo LayerCard footer). This is the
+// single system_config:write gate for saving: read-only viewers get neither the
+// bar nor the button. Pass `saving` while the mutation is in flight to show a
+// spinner and hold the button disabled.
+function SettingsSaveFooter({
+  onSave,
+  disabled,
+  saving,
+}: {
+  onSave: () => void
+  disabled: boolean
+  saving: boolean
+}) {
+  const { t } = useTranslation()
   const canWrite = useCan(Perm.SystemConfigWrite)
   if (!canWrite) return null
   return (
     <div className="flex items-center justify-end gap-2 rounded-b-sm border-t border-border bg-elevated px-4 py-2.5">
-      {children}
+      <Button onClick={onSave} disabled={disabled || saving} aria-busy={saving || undefined}>
+        {saving && (
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+        )}
+        {t("common.save")}
+      </Button>
     </div>
   )
 }
@@ -157,15 +166,11 @@ export function SystemSettings() {
                 </SelectContent>
               </Select>
             </div>
-            <SettingsPanelFooter>
-              <SystemConfigSaveButton
-                onClick={() => saveEngine(engine)}
-                disabled={pendingEngine === null || pendingEngine === savedEngine}
-                saving={isPending}
-              >
-                {t("common.save")}
-              </SystemConfigSaveButton>
-            </SettingsPanelFooter>
+            <SettingsSaveFooter
+              onSave={() => saveEngine(engine)}
+              disabled={pendingEngine === null || pendingEngine === savedEngine}
+              saving={isPending}
+            />
           </Panel>
 
           <EngineArgsConfigSection

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { SURFACE } from "@/lib/styles"
 
 function HoneycombSvg() {
   return (
@@ -66,10 +67,12 @@ interface EmptyStateProps {
   title: string
   description?: string
   action?: ReactNode
+  /** Draw the empty state on its own surface, standing in for the list or table it replaces. */
+  framed?: boolean
 }
 
-export function EmptyState({ title, description, action }: EmptyStateProps) {
-  return (
+export function EmptyState({ title, description, action, framed = false }: EmptyStateProps) {
+  const content = (
     <div className="animate-fade-in flex flex-col items-center justify-center px-6 py-14 text-center">
       <HoneycombSvg />
       <h2 className="mt-4 text-base font-semibold text-strong">{title}</h2>
@@ -79,4 +82,5 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
       {action && <div className="mt-4">{action}</div>}
     </div>
   )
+  return framed ? <div className={SURFACE}>{content}</div> : content
 }

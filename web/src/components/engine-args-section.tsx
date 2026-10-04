@@ -29,7 +29,7 @@ export function EngineArgsSection({ engines, value, onChange, showLabel = true }
         <div key={engine} className="flex items-center gap-3">
           <span
             className={cn(
-              "flex shrink-0 items-center gap-2 text-[13px] text-foreground",
+              "flex shrink-0 items-center gap-2 text-body-sm text-foreground",
               engines.length > 1 && "w-28"
             )}
           >
@@ -43,7 +43,7 @@ export function EngineArgsSection({ engines, value, onChange, showLabel = true }
               onChange({ ...value, [engine]: e.target.value })
             }
             placeholder={t("workers.form.engineArgsPlaceholder")}
-            className="min-w-0 flex-1 font-mono text-[13px]"
+            className="min-w-0 flex-1 font-mono text-base md:text-body-sm"
           />
         </div>
       ))}

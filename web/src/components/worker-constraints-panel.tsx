@@ -70,7 +70,7 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
             rows={14}
             aria-label={t("workerDetail.editConstraints")}
             placeholder={t("workers.form.constraintsPlaceholder")}
-            className="min-h-72 text-sm leading-6"
+            className="min-h-72 text-base leading-6 md:text-sm"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -176,7 +176,7 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
                   <span className="block text-sm font-medium text-strong">
                     {t(`workerDetail.constraintsPanel.templates.${id}.title`)}
                   </span>
-                  <span className="block text-[13px] leading-5 text-muted-foreground">
+                  <span className="block text-body-sm leading-5 text-muted-foreground">
                     {t(`workerDetail.constraintsPanel.templates.${id}.desc`)}
                   </span>
                 </span>

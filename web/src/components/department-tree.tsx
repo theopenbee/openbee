@@ -2,18 +2,10 @@ import { Fragment, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { FIELD_LABEL } from "@/lib/styles"
+import { FIELD_LABEL, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
 import type { DepartmentTree as DepartmentTreeType } from "@/lib/types"
 
 export const UNGROUPED_FILTER = "ungrouped" as const
-
-// Rail items mirror the main sidebar: 34px rows, 13px medium labels, a gray
-// accent fill on hover, and the same gray fill plus semibold for the selection
-// (never the action blue or the brand orange).
-const RAIL_ITEM =
-  "flex h-8.5 w-full items-center gap-2.5 rounded-sm px-3 text-left text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-const RAIL_ITEM_IDLE = "text-foreground hover:bg-accent hover:text-strong"
-const RAIL_ITEM_SELECTED = "bg-accent font-semibold text-strong"
 
 interface DepartmentTreeProps {
   departments: DepartmentTreeType[]

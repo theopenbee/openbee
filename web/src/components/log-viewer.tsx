@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import { Streamdown } from "streamdown"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { SegmentedControl } from "@/components/segmented-control"
 import { api } from "@/lib/api"
 import type { ExecutionStatus } from "@/lib/types"
 import { isActiveStatus } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { FIELD_LABEL, STREAMDOWN_BLOCKS } from "@/lib/styles"
+import { FIELD_LABEL, STREAMDOWN_BLOCKS, SURFACE } from "@/lib/styles"
 import type { ParsedEntry, StreamParser } from "./log-viewer/types"
 import { detectEngine } from "./log-viewer/detect-engine"
 import { ClaudeParser, getToolMeta, stringify } from "./log-viewer/claude-parser"
@@ -61,6 +63,14 @@ function Chevron({ open }: { open: boolean }) {
   )
 }
 
+// Accessible name for an entry's expand/collapse toggle. The visible state
+// badge (Failed / Running) sits inside the button, but aria-label overrides the
+// button's content, so the state is folded into the label itself.
+function toggleLabel(t: TFunction, open: boolean, name: string, state?: string | null): string {
+  const label = t(open ? "logViewer.collapse" : "logViewer.expand", { name })
+  return state ? t("logViewer.toggleWithState", { label, state }) : label
+}
+
 // Header row of a collapsible entry (tool call, command, thinking).
 const TOGGLE_ROW =
   "flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors outline-none hover:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
@@ -89,20 +99,26 @@ function AssistantEntry({ text }: { text: string }) {
 
 function ToolEntry({
   entry,
+  live,
 }: {
   entry: Extract<ParsedEntry, { kind: "tool" }>
+  live: boolean
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(Boolean(entry.isError))
   const meta = getToolMeta(entry.name)
   const summary = meta.summary(entry.input)
+  // A call with no result yet is only "running" while the execution is live;
+  // once it ends, a missing result means the call never reported back.
+  const pending = live && entry.result === undefined && !entry.isError
+  const state = entry.isError ? t("logViewer.failed") : pending ? t("logViewer.running") : null
 
   return (
     <div>
       <button
         type="button"
         aria-expanded={open}
-        aria-label={open ? t("logViewer.collapse", { name: entry.name }) : t("logViewer.expand", { name: entry.name })}
+        aria-label={toggleLabel(t, open, entry.name, state)}
         onClick={() => setOpen((current) => !current)}
         className={TOGGLE_ROW}
       >
@@ -110,6 +126,7 @@ function ToolEntry({
         <span className="shrink-0 text-sm font-medium text-strong">{entry.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{summary}</span>
         {entry.isError && <Badge variant="destructive">{t("logViewer.failed")}</Badge>}
+        {pending && <Badge variant="info">{t("logViewer.running")}</Badge>}
         <Chevron open={open} />
       </button>
 
@@ -122,7 +139,7 @@ function ToolEntry({
                 {entry.result}
               </pre>
             ) : (
-              <p className="rounded-sm bg-recessed px-3 py-2.5 text-[13px] text-muted-foreground">{t("logViewer.waiting")}</p>
+              <p className="rounded-sm bg-recessed px-3 py-2.5 text-body-sm text-muted-foreground">{t("logViewer.waiting")}</p>
             )
           }
         />
@@ -167,7 +184,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
         )}
       </div>
 
-      <pre className={cn(LOG_WELL, "mt-1.5 text-[13px] leading-6 text-foreground")}>
+      <pre className={cn(LOG_WELL, "mt-1.5 text-body-sm leading-6 text-foreground")}>
         {entry.text || "—"}
       </pre>
     </div>
@@ -191,11 +208,12 @@ function CodexCommandEntry({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={
-          open
-            ? t("logViewer.collapse", { name: t("logViewer.commandExecution") })
-            : t("logViewer.expand", { name: t("logViewer.commandExecution") })
-        }
+        aria-label={toggleLabel(
+          t,
+          open,
+          t("logViewer.commandExecution"),
+          entry.inProgress ? t("logViewer.running") : null,
+        )}
         onClick={() => setOpen((current) => !current)}
         className={TOGGLE_ROW}
       >
@@ -211,7 +229,7 @@ function CodexCommandEntry({
           input={<pre className={cn(LOG_WELL, "text-foreground")}>{entry.command}</pre>}
           output={
             entry.inProgress ? (
-              <p className="rounded-sm bg-recessed px-3 py-2.5 text-[13px] text-muted-foreground">{t("logViewer.running")}</p>
+              <p className="rounded-sm bg-recessed px-3 py-2.5 text-body-sm text-muted-foreground">{t("logViewer.running")}</p>
             ) : (
               <pre className={cn(LOG_WELL, "text-foreground")}>{entry.output || "—"}</pre>
             )
@@ -256,11 +274,11 @@ function PiThinkingEntry({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={t(open ? "logViewer.collapse" : "logViewer.expand", { name: t("logViewer.thinking") })}
+        aria-label={toggleLabel(t, open, t("logViewer.thinking"))}
         onClick={() => setOpen((current) => !current)}
         className={TOGGLE_ROW}
       >
-        <span className="min-w-0 flex-1 text-[13px] font-medium text-muted-foreground">
+        <span className="min-w-0 flex-1 text-body-sm font-medium text-muted-foreground">
           {t("logViewer.thinking")}
         </span>
         <Chevron open={open} />
@@ -483,38 +501,24 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" })
   }
 
-  const shellClassName =
-    variant === "embedded"
-      ? "overflow-hidden"
-      : "overflow-hidden rounded-sm bg-card ring-1 ring-border"
+  const shellClassName = variant === "embedded" ? "overflow-hidden" : SURFACE
 
   return (
     <div className={shellClassName}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-4 py-2.5">
-        <div
-          className="inline-flex h-8 max-w-full items-center overflow-x-auto rounded-sm bg-recessed p-0.5"
-        >
-          {filterOptions.map((option) => {
-            const active = filter === option.key
-            return (
-              <button
-                key={option.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setFilter(option.key)}
-                className={cn(
-                  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2.5 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active
-                    ? "bg-background text-strong shadow-xs ring-1 ring-border"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
+        <SegmentedControl
+          value={filter}
+          onChange={setFilter}
+          options={filterOptions.map((option) => ({
+            value: option.key,
+            label: (
+              <>
                 {option.label}
-                <span className="text-xs font-normal text-muted-foreground tabular-nums">{option.count}</span>
-              </button>
-            )
-          })}
-        </div>
+                <span className="text-xs font-normal text-muted-foreground">{option.count}</span>
+              </>
+            ),
+          }))}
+        />
 
         {isActiveStatus(status) &&
           (followLive ? (
@@ -554,7 +558,7 @@ export function LogViewer({
             {visibleItems.map(({ entry, index: k }) => {
               if (entry.kind === "pi-thinking") return <PiThinkingEntry key={entry.id} entry={entry} />
               if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
-              if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} />
+              if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} live={isActiveStatus(status)} />
               if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
               if (entry.kind === "codex-command") return <CodexCommandEntry key={entry.id} entry={entry} />
               if (entry.kind === "codex-turn") return <CodexTurnEntry key={`codex-turn-${k}`} entry={entry} />

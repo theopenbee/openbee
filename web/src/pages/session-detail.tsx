@@ -36,7 +36,7 @@ function OverviewCell({
     <div className={cn("min-w-0 bg-card px-4 py-3.5", className)}>
       <dt className={FIELD_LABEL}>{label}</dt>
       <dd className="mt-1.5 text-base leading-6 font-semibold break-words text-strong tabular-nums">{value}</dd>
-      {hint ? <dd className="mt-0.5 text-[13px] text-muted-foreground tabular-nums">{hint}</dd> : null}
+      {hint ? <dd className="mt-0.5 text-body-sm text-muted-foreground tabular-nums">{hint}</dd> : null}
     </div>
   )
 }
@@ -47,7 +47,7 @@ function MetaCell({ label, value, mono = false }: { label: string; value: ReactN
   return (
     <div className="min-w-0 bg-card px-4 py-2.5">
       <dt className={FIELD_LABEL}>{label}</dt>
-      <dd className={cn("mt-0.5 text-[13px] text-foreground", mono ? "font-mono break-all" : "break-words tabular-nums")}>{value}</dd>
+      <dd className={cn("mt-0.5 text-body-sm text-foreground", mono ? "font-mono break-all" : "break-words tabular-nums")}>{value}</dd>
     </div>
   )
 }
@@ -145,7 +145,7 @@ export function SessionDetail() {
           <div className="flex items-start gap-2 border-b border-hairline px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className={FIELD_LABEL}>{t("executionDetail.session")}</p>
-              <p className="mt-0.5 font-mono text-[13px] break-all text-foreground">{currentSessionId}</p>
+              <p className="mt-0.5 font-mono text-body-sm break-all text-foreground">{currentSessionId}</p>
             </div>
             <CopyButton value={currentSessionId} className="mt-4 p-1" />
           </div>
@@ -241,7 +241,7 @@ export function SessionDetail() {
                         <StatusBadge status={exec.status} />
                       </div>
 
-                      <p className="mt-1 truncate text-[13px] text-foreground">
+                      <p className="mt-1 truncate text-body-sm text-foreground">
                         {extractMessageContent(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
                       </p>
 
@@ -311,7 +311,7 @@ export function SessionDetail() {
 
                 <section>
                   <h3 className={FIELD_LABEL}>{t("executionDetail.result")}</h3>
-                  <pre className="mt-1.5 max-h-72 overflow-auto rounded-sm bg-recessed px-3 py-2.5 font-mono text-[13px] leading-6 break-words whitespace-pre-wrap text-foreground">
+                  <pre className="mt-1.5 max-h-72 overflow-auto rounded-sm bg-recessed px-3 py-2.5 font-mono text-body-sm leading-6 break-words whitespace-pre-wrap text-foreground">
                     {selectedExecution.result || t("executionDetail.noResult")}
                   </pre>
                 </section>

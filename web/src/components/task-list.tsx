@@ -27,7 +27,7 @@ import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
 import { StatusBadge } from "@/components/status-badge"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 
 export const TASK_PAGE_SIZE = 20
 
@@ -40,7 +40,7 @@ interface TaskListProps {
 
 function CronCell({ task }: { task: Task }) {
   if (task.type === "scheduled" && task.cron_expr) {
-    return <span className="font-mono text-[13px] text-foreground">{task.cron_expr}</span>
+    return <span className="font-mono text-body-sm text-foreground">{task.cron_expr}</span>
   }
   return <span className="text-muted-foreground">—</span>
 }
@@ -49,7 +49,7 @@ function NextRunCell({ task }: { task: Task }) {
   const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
   if (timestamp) {
     return (
-      <span className="text-[13px] text-foreground tabular-nums">
+      <span className="text-body-sm text-foreground tabular-nums">
         {new Date(timestamp).toLocaleString()}
       </span>
     )
@@ -105,18 +105,15 @@ export function TaskList({
       {isLoading ? (
         <SkeletonTable />
       ) : tasks.length === 0 && !error ? (
-        <div className="rounded-sm bg-card ring-1 ring-border">
-          <EmptyState title={t("emptyState.noTasks")} />
-        </div>
+        <EmptyState framed title={t("emptyState.noTasks")} />
       ) : (
         <>
-          <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+          <div className={SURFACE}>
             <Table className="md:min-w-[960px]">
               <TableHeader>
                 <TableRow>
                   {!workerId && <TableHead className="pl-4 md:w-40">{t("tasks.columns.worker")}</TableHead>}
                   <TableHead className={cn("md:min-w-[20rem]", workerId && "pl-4")}>{t("tasks.columns.instruction")}</TableHead>
-                  {/* No tasks-scoped "Status" key exists yet; the generic users.table.status label reads the same in en/zh. */}
                   <TableHead className="hidden w-28 md:table-cell">{t("tasks.columns.status")}</TableHead>
                   <TableHead className="hidden w-40 md:table-cell">{t("tasks.columns.cron")}</TableHead>
                   <TableHead className="hidden w-48 md:table-cell">{t("tasks.columns.nextRunAt")}</TableHead>
@@ -151,7 +148,7 @@ export function TaskList({
                           under the instruction so state stays in view. */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={task.status} />
-                        <span className="text-[13px]">
+                        <span className="text-body-sm">
                           <span className="text-muted-foreground">{t("tasks.columns.nextRunAt")} </span>
                           <NextRunCell task={task} />
                         </span>

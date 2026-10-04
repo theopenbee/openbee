@@ -158,7 +158,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-[13px]"
+                className="font-mono text-base md:text-body-sm"
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.workDirEditHelper")}</p>
             </div>
@@ -203,7 +203,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
               <div className="-mx-1.5 max-h-56 overflow-y-auto">
                 {filteredDepts.length === 0 ? (
-                  <p className="py-4 text-center text-[13px] text-muted-foreground">
+                  <p className="py-4 text-center text-body-sm text-muted-foreground">
                     {t("workers.form.noMatchingDepartments")}
                   </p>
                 ) : (
@@ -222,7 +222,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
+                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
                       />
                       <span className="truncate text-sm text-foreground">{dept.name}</span>
                     </label>

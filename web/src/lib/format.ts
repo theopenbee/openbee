@@ -23,22 +23,6 @@ export function formatDuration(
   return formatTotalDuration(diff)
 }
 
-export function statusTone(status: string) {
-  switch (status) {
-    case "idle":
-    case "completed":
-      return "text-status-idle"
-    case "working":
-    case "running":
-      return "text-status-working"
-    case "error":
-    case "failed":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
-
 export function isActiveStatus(status: string) {
   return status === "running" || status === "pending"
 }
@@ -87,14 +71,6 @@ export function formatChange(ratio: number | null): string | null {
   if (ratio === null) return null
   const pct = (ratio * 100).toFixed(1)
   return ratio >= 0 ? `+${pct}%` : `${pct}%`
-}
-
-export const STATUS_ROW_BORDER: Record<string, string> = {
-  pending: "border-l-transparent",
-  running: "border-l-status-working",
-  completed: "border-l-status-idle",
-  failed: "border-l-status-error",
-  cancelled: "border-l-transparent",
 }
 
 const CONTENT_TAG_RE = /<(message_content|task_content)>([\s\S]*?)<\/\1>/

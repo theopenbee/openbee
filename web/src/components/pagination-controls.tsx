@@ -19,7 +19,7 @@ export function PaginationControls({ page, totalPages, onPageChange, leadingLabe
 
   return (
     <div className="mt-3 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground tabular-nums">
+      <div className="flex items-center gap-2 text-body-sm text-muted-foreground tabular-nums">
         {leadingLabel && <span>{leadingLabel}</span>}
         {leadingLabel && hasPages && <span aria-hidden="true" className="text-border">·</span>}
         {hasPages && <span>{t("sessions.pagination.page", { page, totalPages })}</span>}

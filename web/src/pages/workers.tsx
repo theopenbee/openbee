@@ -6,9 +6,10 @@ import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
 import { useDepartments } from "@/hooks/use-departments"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, FIELD_LABEL } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, FIELD_LABEL, SURFACE } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,7 @@ export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const canWrite = useCan(Perm.ContactsWrite)
+  const isMobile = useIsMobile()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const { data: departments = [] } = useDepartments()
   const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
@@ -103,9 +105,10 @@ export function Workers() {
     setDeleteTarget(target)
   }
 
-  // The department filter rail renders twice: as a fixed left rail from md up,
-  // and stacked under the page header on narrow screens (where a side rail
-  // would starve the table). Selection state is lifted, so both stay in sync.
+  // The department filter is a fixed left rail from md up, and stacks under the
+  // page header on narrow screens (where a side rail would starve the table).
+  // Only one placement is mounted, so the tree (and each node's expanded
+  // state) exists once; the CSS breakpoints just cover the first paint.
   const departmentFilter = (
     <DepartmentTreeSidebar
       departments={departments}
@@ -118,12 +121,14 @@ export function Workers() {
     <FadeIn className="h-full">
       <div className="flex h-full">
         {/* Left rail: department filter, flush to the layout edge with its own scroll. */}
-        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
-          <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
-            <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-          </div>
-          <div className="min-h-0 flex-1">{departmentFilter}</div>
-        </aside>
+        {!isMobile && (
+          <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
+            <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
+              <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+            </div>
+            <div className="min-h-0 flex-1">{departmentFilter}</div>
+          </aside>
+        )}
 
         {/* Content pane: header row on the base surface, worker table on the canvas. */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -148,10 +153,12 @@ export function Workers() {
           </header>
 
           <div className="min-w-0 flex-1 overflow-auto">
-            <div className="border-b border-border bg-background md:hidden">
-              <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-              <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
-            </div>
+            {isMobile && (
+              <div className="border-b border-border bg-background md:hidden">
+                <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+                <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
+              </div>
+            )}
 
             <div className="p-6">
               {error && (
@@ -163,19 +170,18 @@ export function Workers() {
               {isLoading ? (
                 <SkeletonTable rows={6} columns={4} />
               ) : displayedWorkers.length === 0 && !error ? (
-                <div className="rounded-sm bg-card ring-1 ring-border">
-                  <EmptyState
-                    title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
-                    description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
-                    action={
-                      selectedDeptId === null && canWrite ? (
-                        <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
-                      ) : undefined
-                    }
-                  />
-                </div>
+                <EmptyState
+                  framed
+                  title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+                  description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
+                  action={
+                    selectedDeptId === null && canWrite ? (
+                      <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
+                    ) : undefined
+                  }
+                />
               ) : (
-                <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+                <div className={SURFACE}>
                   <Table className="table-fixed md:min-w-[760px]">
                     <TableHeader>
                       <TableRow>
@@ -210,7 +216,7 @@ export function Workers() {
                                     {w.name}
                                   </Link>
                                   <p
-                                    className="truncate text-[13px] leading-5 text-muted-foreground"
+                                    className="truncate text-body-sm leading-5 text-muted-foreground"
                                     title={w.description || undefined}
                                   >
                                     {w.description || "—"}
@@ -227,15 +233,15 @@ export function Workers() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               {w.engine ? (
-                                <span className="flex min-w-0 items-center gap-2 text-[13px] text-foreground">
+                                <span className="flex min-w-0 items-center gap-2 text-body-sm text-foreground">
                                   <EngineIcon engine={w.engine} className="size-4 text-foreground" />
                                   <span className="truncate">{formatEngineLabel(w.engine, t)}</span>
                                 </span>
                               ) : (
-                                <span className="text-[13px] text-muted-foreground">—</span>
+                                <span className="text-body-sm text-muted-foreground">—</span>
                               )}
                             </TableCell>
-                            <TableCell className="hidden text-[13px] text-muted-foreground tabular-nums md:table-cell">
+                            <TableCell className="hidden text-body-sm text-muted-foreground tabular-nums md:table-cell">
                               <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
                                 {formatRelative(w.updated_at, t)}
                               </span>
@@ -328,7 +334,7 @@ export function Workers() {
                   id="delete-work-dir"
                   checked={deleteWorkDir}
                   onChange={(e) => setDeleteWorkDir(e.target.checked)}
-                  className="size-4 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
+                  className="size-4 cursor-pointer rounded-sm accent-primary"
                 />
                 <Label htmlFor="delete-work-dir" className="cursor-pointer">
                   {t("workers.deleteDialog.deleteWorkDir")}

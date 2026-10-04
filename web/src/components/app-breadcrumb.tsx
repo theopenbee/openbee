@@ -12,9 +12,9 @@ import {
 import { resolveCrumbs } from "@/lib/breadcrumb-config"
 
 export function AppBreadcrumb() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { t } = useTranslation()
-  const crumbs = useMemo(() => resolveCrumbs(pathname), [pathname])
+  const crumbs = useMemo(() => resolveCrumbs(pathname, search), [pathname, search])
 
   return (
     <Breadcrumb>
@@ -23,12 +23,16 @@ export function AppBreadcrumb() {
           <Fragment key={i}>
             {i > 0 && <BreadcrumbSeparator />}
             <BreadcrumbItem>
-              {crumb.to ? (
+              {i === crumbs.length - 1 ? (
+                <BreadcrumbPage>{t(crumb.labelKey)}</BreadcrumbPage>
+              ) : crumb.to ? (
                 <BreadcrumbLink render={<Link to={crumb.to} />}>
                   {t(crumb.labelKey)}
                 </BreadcrumbLink>
               ) : (
-                <BreadcrumbPage>{t(crumb.labelKey)}</BreadcrumbPage>
+                // Group labels (e.g. Digital Employees) only locate the page in
+                // the sidebar tree; they are neither links nor the current page.
+                <span className="truncate">{t(crumb.labelKey)}</span>
               )}
             </BreadcrumbItem>
           </Fragment>

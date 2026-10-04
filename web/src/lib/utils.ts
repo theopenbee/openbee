@@ -1,7 +1,12 @@
 import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
 import i18n from "i18next"
 import { ApiError } from "./api"
+
+// Register the custom text-body-sm font size (globals.css @theme). Unknown
+// text-* classes are otherwise read as text colors, so cn("text-body-sm
+// text-muted-foreground") would silently drop the size.
+const twMerge = extendTailwindMerge({ extend: { theme: { text: ["body-sm"] } } })
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

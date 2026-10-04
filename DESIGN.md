@@ -20,6 +20,7 @@ colors:
   border: "oklch(0.145 0 0 / 0.1)"
   hairline: "oklch(0.935 0 0)"
   input: "oklch(0.145 0 0 / 0.14)"
+  scrollbar: "oklch(0.65 0 0)"
   focus: "oklch(0.15 0 0)"
   success: "oklch(0.508 0.118 165.612)"
   success-tint: "oklch(0.962 0.043 156.7 / 0.8)"
@@ -66,7 +67,6 @@ typography:
     fontWeight: 400
     lineHeight: "20px"
     letterSpacing: "-0.01em"
-    fontFeature: "\"cv02\", \"cv03\", \"cv04\", \"calt\""
   body-strong:
     fontFamily: "Inter Variable, Noto Sans SC, system-ui, sans-serif"
     fontSize: "14px"
@@ -286,7 +286,7 @@ components:
 
 The OpenBee console is a control plane for a digital workforce, written in the grammar of Cloudflare's Kumo design system. It reads like infrastructure you trust: a near-white canvas, white working surfaces drawn with a single 1px line, gray header strips that name each section, and one blue that marks the action you came to take. Workers keep their colleague standing through identity (initials avatar, presence dot, history), not through decoration. The hive metaphor shows up only as geometry, never as a mascot or a brand wash.
 
-Density is operational. Controls sit at 36px, table rows breathe at 12px of cell padding, and every metric, timestamp and count sets in tabular numerals so columns line up at a glance. Type stays on a tight Kumo ramp (12/13/14/16px) with Inter's open digits and slight negative tracking, set beside Noto Sans SC so Chinese and English carry equal weight. Corners are squared to 3px, a deliberate translation of Kumo's 8px under the project's strict radius cap.
+Density is operational. Controls sit at 36px, table rows breathe at 12px of cell padding, and every metric, timestamp and count sets in tabular numerals so columns line up at a glance. Type stays on a tight Kumo ramp (12/13/14/16px) with slight negative tracking, set beside Noto Sans SC so Chinese and English carry equal weight. Corners are squared to 3px, a deliberate translation of Kumo's 8px under the project's strict radius cap.
 
 The system turns down the generic shadcn admin look: soft gray cards floating on white, brand color spent on every button. It also turns down playful consumer chrome (cartoon shapes, emoji UI) and drab enterprise heaviness (thick borders, dated grays, bloated navigation). Light is the default theme; dark is a full peer with its own values, listed under Colors.
 
@@ -322,6 +322,7 @@ A neutral, almost colorless field where a single saturated blue does all the poi
 - **Hairline** (hairline): opaque dividers inside a surface: table rows, divided lists, metric splits, menu separators.
 - **Input Line** (input): the slightly heavier 14% outline of text fields and select triggers.
 - **Focus Ink** (focus): the neutral focus ring of text inputs, used at 50%.
+- **Scrollbar Gray** (scrollbar): the opaque scrollbar thumb, kept at 3:1 against white; Line is too faint to find or grab.
 
 ### Status
 - **Idle / Success** (success on success-tint), **Working / Info** (info on info-tint), **Error / Danger** (destructive-foreground on danger-tint), **Warning** (warning on warning-tint): tint-on-text pairs for badges and inline alerts. The tints are translucent so they sit cleanly on white and on elevated strips.
@@ -345,7 +346,7 @@ Dark mode keeps the same roles with its own values: canvas oklch(0.1 0 0), base 
 **Body Font:** Inter Variable (with Noto Sans SC for CJK, then system-ui)
 **Label/Mono Font:** JetBrains Mono Variable (with ui-monospace) for IDs, keys, versions, engine names and code
 
-**Character:** A neutral, engineered sans tuned the Kumo way: -0.01em tracking on everything, Inter's open-digit alternates (cv02, cv03, cv04) and contextual alternates on globally, and Noto Sans SC at matching weights so mixed Chinese and English lines sit level. Mono resets tracking to normal.
+**Character:** A neutral, engineered sans tuned the Kumo way: -0.01em tracking on everything and Noto Sans SC at matching weights so mixed Chinese and English lines sit level. Mono resets tracking to normal. Inter's open-digit alternates (cv02 to cv04) are not used: the bundled @fontsource subsets do not include them.
 
 ### Hierarchy
 - **Headline** (600, 20px, 28px, -0.015em): the page title, left-aligned in the page header or the full-bleed header strip. One per page.
@@ -353,7 +354,7 @@ Dark mode keeps the same roles with its own values: canvas oklch(0.1 0 0), base 
 - **Title** (600, 16px, 1.375): dialog titles, card titles, empty-state titles.
 - **Title Small** (600, 14px, 20px): panel header titles, table heads, rail and section headings, list primary names at 500.
 - **Body** (400, 14px, 20px): default text, table cells, form values, descriptions. Chat transcripts use 24px line-height.
-- **Body Small** (400, 13px, 20px): secondary meta under a primary line (worker descriptions, timestamps, durations), breadcrumbs, key/value terms, pagination counts. **Nav Label** is the same 13px at 500 for sidebar and rail items (600 when active).
+- **Body Small** (400, 13px, 20px): secondary meta under a primary line (worker descriptions, timestamps, durations), breadcrumbs, key/value terms, pagination counts. **Nav Label** is the same 13px at 500 for sidebar and rail items (600 when active). In code the 13px step is the `text-body-sm` utility (a `--text-body-sm` theme token in globals.css), never an arbitrary `text-[13px]`.
 - **Label** (500, 12px, 16px, sentence case): field labels above metrics and key/value pairs, badges, small buttons.
 - **Mono** (400, 13px, 20px, normal tracking): session IDs, env keys, versions, commit hashes; 12px for engine slugs and build info.
 
@@ -416,7 +417,7 @@ Edges are drawn with 1px rings rather than borders, so outlines never change a c
 ### Buttons
 Quiet and exact; one filled blue button per view.
 - **Shape:** squared (3px), 36px tall with 12px side padding; small is 28px with 12px text; icon buttons are 36px or 28px squares.
-- **Primary:** Control Blue fill, white 14px medium label, a 1px Blue Edge ring, a faint 8% white top sheen and the control hairline shadow. Hover deepens to Pressed Blue over 150ms.
+- **Primary:** Control Blue fill, white 14px medium label, a 1px Blue Edge ring, a faint 8% black shade toward the bottom and the control hairline shadow. A white top sheen is ruled out: Control Blue holds white text at only 4.53:1, so any lightening drops the label under AA. Hover deepens to Pressed Blue over 150ms.
 - **Focus:** a 2px Control Blue ring with a 1px offset in the base color on filled buttons; a 2px blue ring on the rest.
 - **Outline:** Base White with a 1px Line ring and the control hairline shadow; hover fills Muted Gray and lifts the label to Strong Ink. Used for secondary actions and pagination.
 - **Ghost:** no fill; hover fills Muted Gray. Used for row actions (the "more" menu), close buttons and the sidebar trigger.
@@ -500,7 +501,7 @@ Motion is brief and functional: content fades up 4px over 200ms on route entry, 
 - **Don't** use OpenBee orange anywhere outside the logo: no orange buttons, badges, washes, highlights or chart series.
 - **Don't** convey state by color alone, and don't color the token-usage delta green or red.
 - **Don't** put shadows on resting panels, tiles or tables; shadows are for floating layers and the control hairline only.
-- **Don't** add gradients beyond the 8% white top sheen on filled buttons.
+- **Don't** add gradients beyond the 8% bottom shade on filled buttons, and never lighten a fill under white text.
 - **Don't** use uppercase, wide-tracked eyebrows or kickers above titles.
 - **Don't** set text at 700 weight or outside the 12/13/14/16px ramp (titles at 20px and metric numerals at 20 to 24px excepted).
 - **Don't** give text inputs the blue focus ring; they focus neutral.

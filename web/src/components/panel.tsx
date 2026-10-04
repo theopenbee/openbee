@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
+import { SURFACE } from "@/lib/styles"
 
 // Kumo LayerCard: an elevated gray frame whose header strip carries the title
 // (and optional action), over a white body that sits flush inside the frame.
@@ -39,14 +40,15 @@ export function Panel({
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-strong">{title}</h2>
           {description ? (
-            <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">{description}</p>
+            <p className="mt-0.5 text-body-sm leading-5 text-muted-foreground">{description}</p>
           ) : null}
         </div>
         {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </header>
       <div
         className={cn(
-          "flex-1 rounded-sm bg-card ring-1 ring-border",
+          SURFACE,
+          "flex-1 overflow-visible",
           flush ? "py-0" : "p-4",
           bodyClassName
         )}

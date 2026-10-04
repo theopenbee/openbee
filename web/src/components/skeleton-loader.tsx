@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { SURFACE } from "@/lib/styles"
 
 export function SkeletonLine({ className }: { className?: string }) {
   return <div className={cn("skeleton h-4 w-full", className)} />
@@ -19,7 +20,7 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="overflow-hidden rounded-sm bg-card ring-1 ring-border">
+    <div className={SURFACE}>
       <div className="flex gap-8 border-b border-border px-3 py-3">
         {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-4 w-20" />

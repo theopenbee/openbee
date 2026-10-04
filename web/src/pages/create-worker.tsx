@@ -158,7 +158,7 @@ export function CreateWorker() {
       <div className="w-full max-w-3xl">
         <Link
           to="/workers"
-          className="mb-3 inline-flex items-center gap-1.5 rounded-sm text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="mb-3 inline-flex items-center gap-1.5 rounded-sm text-body-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <ArrowLeft className="size-3.5" />
           {t("workers.backToList")}
@@ -253,7 +253,7 @@ export function CreateWorker() {
 
               <div className="max-h-56 overflow-y-auto p-1.5">
                 {filteredDepts.length === 0 ? (
-                  <p className="py-4 text-center text-[13px] text-muted-foreground">
+                  <p className="py-4 text-center text-body-sm text-muted-foreground">
                     {t("workers.form.noMatchingDepartments")}
                   </p>
                 ) : (
@@ -273,7 +273,7 @@ export function CreateWorker() {
                           else next.delete(dept.id)
                           setSelectedDeptIds(next)
                         }}
-                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
+                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
                       />
                       <span className="truncate text-sm text-foreground">{dept.name}</span>
                     </label>
@@ -297,7 +297,7 @@ export function CreateWorker() {
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-[13px]"
+                className="font-mono text-base md:text-body-sm"
               />
               <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
             </div>
@@ -320,7 +320,7 @@ export function CreateWorker() {
                       setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
                     }
                     disabled={isPending}
-                    className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary dark:scheme-dark"
+                    className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
                   />
                   <span className="truncate text-sm text-foreground">
                     {t(scope.titleKey)}

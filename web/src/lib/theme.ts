@@ -2,9 +2,10 @@ export type Theme = "dark" | "light"
 
 const THEME_KEY = "theme"
 
+// Light is the default theme (DESIGN.md › Overview); dark is opt-in.
 export function getStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
-  return stored === "light" ? "light" : "dark"
+  return stored === "dark" ? "dark" : "light"
 }
 
 export function applyTheme(theme: Theme) {

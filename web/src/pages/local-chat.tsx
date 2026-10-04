@@ -166,7 +166,7 @@ const CollapsibleContent = memo(function CollapsibleContent({
       {overflows && (
         <button
           type="button"
-          className="mt-2 rounded-sm text-[13px] font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-2 rounded-sm text-body-sm font-medium text-link underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setCollapsed((prev) => !prev)}
         >
           {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
@@ -227,7 +227,7 @@ const MessageBubble = memo(function MessageBubble({
         {isGroupStart && (
           <div className="mb-1.5 flex items-center gap-2">
             {timestamp}
-            <span className="text-[13px] font-medium text-muted-foreground">{t("localChat.operatorLabel")}</span>
+            <span className="text-body-sm font-medium text-muted-foreground">{t("localChat.operatorLabel")}</span>
           </div>
         )}
 
@@ -252,7 +252,7 @@ const MessageBubble = memo(function MessageBubble({
       {isGroupStart && (
         <div className="mb-1 flex items-center gap-2">
           <BeeAvatar />
-          <span className="text-[13px] font-semibold text-strong">{t("localChat.beeLabel")}</span>
+          <span className="text-body-sm font-semibold text-strong">{t("localChat.beeLabel")}</span>
           {timestamp}
         </div>
       )}
@@ -471,7 +471,7 @@ export function LocalChat() {
                   <div className="mt-5 flex flex-col items-start">
                     <div className="mb-1 flex items-center gap-2">
                       <BeeAvatar />
-                      <span className="text-[13px] font-semibold text-strong">{t("localChat.beeLabel")}</span>
+                      <span className="text-body-sm font-semibold text-strong">{t("localChat.beeLabel")}</span>
                       <span className="text-xs text-muted-foreground">{t("localChat.processing")}</span>
                     </div>
                     <div className="flex gap-1.5 py-1.5 pl-8" aria-hidden="true">
@@ -523,7 +523,7 @@ export function LocalChat() {
 
               <MentionTextarea
                 textareaRef={textareaRef}
-                className="block max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
+                className="block max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-base leading-6 text-foreground md:text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
                 placeholder={t("localChat.inputPlaceholder")}
                 value={input}
                 onChange={setInput}

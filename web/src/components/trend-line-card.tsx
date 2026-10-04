@@ -11,7 +11,7 @@ import {
 } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
-import { cn } from "@/lib/utils"
+import { SegmentedControl } from "@/components/segmented-control"
 
 export const DAY_OPTIONS = [7, 15, 30] as const
 export type DayOption = typeof DAY_OPTIONS[number]
@@ -80,33 +80,17 @@ export function TrendLineCard({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="min-w-0 truncate text-[13px] font-medium text-muted-foreground">{title}</h3>
-        <div
-          className="inline-flex h-8 shrink-0 items-stretch rounded-sm bg-recessed p-0.5"
-          role="group"
-          aria-label={title}
-        >
-          {DAY_OPTIONS.map((d) => {
-            const selected = days === d
-            return (
-              <button
-                key={d}
-                type="button"
-                aria-pressed={selected}
-                aria-label={t("dashboard.daysLabel", { count: d })}
-                onClick={() => onDaysChange(d)}
-                className={cn(
-                  "inline-flex items-center rounded-sm px-2.5 text-[13px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  selected
-                    ? "bg-background text-strong shadow-xs ring-1 ring-border"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {d}{t("dashboard.days")}
-              </button>
-            )
-          })}
-        </div>
+        <h3 className="min-w-0 truncate text-body-sm font-medium text-muted-foreground">{title}</h3>
+        <SegmentedControl
+          ariaLabel={title}
+          value={days}
+          onChange={onDaysChange}
+          options={DAY_OPTIONS.map((d) => ({
+            value: d,
+            label: `${d}${t("dashboard.days")}`,
+            ariaLabel: t("dashboard.daysLabel", { count: d }),
+          }))}
+        />
       </div>
       <div>
         {isLoading ? (
