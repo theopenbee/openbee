@@ -8,6 +8,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -105,7 +108,7 @@ func (f *fakeWorkerBusyChecker) HasActiveImmediateTasksByWorkerID(_ context.Cont
 }
 
 var defaultValidator = &fakeValidator{engines: ai.AllEngines()}
-var notBeeBusy    = &fakeBeeBusyChecker{}
+var notBeeBusy = &fakeBeeBusyChecker{}
 var notWorkerBusy = &fakeWorkerBusyChecker{}
 
 func makeReplyTo() platform.InboundMessage {
@@ -132,203 +135,140 @@ func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler
 func TestEngineCommand_NotACommand(t *testing.T) {
 	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "hello world", makeReplyTo())
-	if handled {
-		t.Error("should not handle non-command")
-	}
-	if len(sender.sent) != 0 {
-		t.Error("should not send reply for non-command")
-	}
+	assert.False(t, handled, "should not handle non-command")
+	assert.Empty(t, sender.sent, "should not send reply for non-command")
 }
 
 func TestEngineCommand_SwitchBeeEngine(t *testing.T) {
 	h, sender, cfg, engineCfg := makeHandler(nil)
 	engineCfg.Set("claude")
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if engineCfg.Get() != "codex" {
-		t.Errorf("expected engineCfg=codex, got %s", engineCfg.Get())
-	}
-	if cfg.vals[model.SystemConfigKeyDefaultEngine] != "codex" {
-		t.Errorf("expected DB updated to codex, got %s", cfg.vals[model.SystemConfigKeyDefaultEngine])
-	}
-	if len(sender.sent) != 1 {
-		t.Fatal("expected one reply")
-	}
-	if sender.sent[0] != "已将默认 engine 切换为 codex" {
-		t.Errorf("unexpected reply: %s", sender.sent[0])
-	}
+	require.True(t, handled, "expected handled=true")
+	assert.Equal(t, "codex", engineCfg.Get())
+	assert.Equal(t, "codex", cfg.vals[model.SystemConfigKeyDefaultEngine])
+	require.Len(t, sender.sent, 1, "expected one reply")
+	assert.Equal(t, "已将默认 engine 切换为 codex", sender.sent[0])
 }
 
 func TestEngineCommand_SwitchWorkerEngine(t *testing.T) {
 	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
 	h, sender, _, _ := makeHandler(workers)
 	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 || sender.sent[0] != `已将员工 "alice" 的 engine 切换为 codex` {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Equal(t, `已将员工 "alice" 的 engine 切换为 codex`, sender.sent[0])
 }
 
 func TestEngineCommand_InvalidEngine(t *testing.T) {
 	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine xyz", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 {
-		t.Fatal("expected one reply")
-	}
-	want := "未知的 engine: xyz，支持的 engine：claude / codex / pi"
-	if sender.sent[0] != want {
-		t.Errorf("unexpected reply:\ngot  %s\nwant %s", sender.sent[0], want)
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1, "expected one reply")
+	assert.Equal(t, "未知的 engine: xyz，支持的 engine：claude / codex / pi", sender.sent[0])
 }
 
 func TestEngineCommand_WorkerNotFound(t *testing.T) {
 	h, sender, _, _ := makeHandler(map[string]model.Worker{})
 	handled := h.HandleCommand(context.Background(), "/engine claude nobody", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := `员工 "nobody" 不存在`
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Equal(t, `员工 "nobody" 不存在`, sender.sent[0])
 }
 
 func TestEngineCommand_NoArgs(t *testing.T) {
 	h, sender, _, _ := makeHandler(nil)
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Equal(t, "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine", sender.sent[0])
 }
 
-func TestEngineCommand_BeeBusy_ActiveMessages(t *testing.T) {
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true}, notBeeBusy)
-	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
+// TestEngineCommand_Busy merges the busy-checker scenarios that used to be
+// separate tests: each case builds its own bee/worker busy checkers and
+// verifies the resulting reply.
+func TestEngineCommand_Busy(t *testing.T) {
+	cases := []struct {
+		name       string
+		workers    map[string]model.Worker
+		beeBusy    command.BeeBusyChecker
+		workerBusy command.WorkerBusyChecker
+		updateErr  error
+		cmd        string
+		wantReply  string
+	}{
+		{
+			name:       "BeeBusy_ActiveMessages",
+			workers:    map[string]model.Worker{},
+			beeBusy:    command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true}, notBeeBusy),
+			workerBusy: command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy),
+			cmd:        "/engine codex",
+			wantReply:  "当前有消息正在接收或处理中，无法切换引擎，请等待完成后再试。",
+		},
+		{
+			name:       "BeeBusy_ActiveBeeExecutions",
+			workers:    map[string]model.Worker{},
+			beeBusy:    command.NewBeeBusyChecker(notBeeBusy, &fakeBeeBusyChecker{activeBeeExecs: true}),
+			workerBusy: command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy),
+			cmd:        "/engine codex",
+			wantReply:  "当前有执行中的 execution，无法切换引擎，请等待完成后再试。",
+		},
+		{
+			name:       "WorkerBusy_ActiveExecutions",
+			workers:    map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}},
+			beeBusy:    command.NewBeeBusyChecker(notBeeBusy, notBeeBusy),
+			workerBusy: command.NewWorkerBusyChecker(&fakeWorkerBusyChecker{activeExecs: true}, notWorkerBusy),
+			cmd:        "/engine codex alice",
+			wantReply:  "当前有执行中的 execution，无法切换引擎，请等待完成后再试。",
+		},
+		{
+			name:       "WorkerBusy_ActiveTasks",
+			workers:    map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}},
+			beeBusy:    command.NewBeeBusyChecker(notBeeBusy, notBeeBusy),
+			workerBusy: command.NewWorkerBusyChecker(notWorkerBusy, &fakeWorkerBusyChecker{activeTasks: true}),
+			cmd:        "/engine codex alice",
+			wantReply:  "当前有即时任务正在等待或执行中，无法切换引擎，请等待完成后再试。",
+		},
+		{
+			// KEY scenario: alice is free, but bee is busy — alice's switch must succeed.
+			name:       "WorkerSwitch_NotBlockedByOtherWorker",
+			workers:    map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}},
+			beeBusy:    command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true}, notBeeBusy),
+			workerBusy: command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy),
+			cmd:        "/engine codex alice",
+			wantReply:  `已将员工 "alice" 的 engine 切换为 codex`,
+		},
+		{
+			// No target (bee or worker) is named, so busy checks never run.
+			name:       "BusyDoesNotBlockUsage",
+			beeBusy:    command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true, activeBeeExecs: true}, &fakeBeeBusyChecker{activeBeeExecs: true}),
+			workerBusy: command.NewWorkerBusyChecker(&fakeWorkerBusyChecker{activeExecs: true}, &fakeWorkerBusyChecker{activeTasks: true}),
+			cmd:        "/engine",
+			wantReply:  "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine",
+		},
+		{
+			name:       "SwitchWorkerEngine_UpdateError",
+			workers:    map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}},
+			beeBusy:    command.NewBeeBusyChecker(notBeeBusy, notBeeBusy),
+			workerBusy: command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy),
+			updateErr:  errors.New("update error"),
+			cmd:        "/engine codex alice",
+			wantReply:  "切换失败，请稍后重试",
+		},
 	}
-	want := "当前有消息正在接收或处理中，无法切换引擎，请等待完成后再试。"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
 
-func TestEngineCommand_BeeBusy_ActiveBeeExecutions(t *testing.T) {
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(notBeeBusy, &fakeBeeBusyChecker{activeBeeExecs: true})
-	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &fakeSender{}
+			cfg := &fakeSysConfig{vals: make(map[string]string)}
+			repo := &fakeWorkerRepo{workers: tc.workers, updateErr: tc.updateErr}
+			senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+			h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, tc.beeBusy, tc.workerBusy, enginecfg.NewStore(""))
 
-	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "当前有执行中的 execution，无法切换引擎，请等待完成后再试。"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
-
-func TestEngineCommand_WorkerBusy_ActiveExecutions(t *testing.T) {
-	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: workers}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
-	workerBusy := command.NewWorkerBusyChecker(&fakeWorkerBusyChecker{activeExecs: true}, notWorkerBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "当前有执行中的 execution，无法切换引擎，请等待完成后再试。"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
-
-func TestEngineCommand_WorkerBusy_ActiveTasks(t *testing.T) {
-	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: workers}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
-	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, &fakeWorkerBusyChecker{activeTasks: true})
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "当前有即时任务正在等待或执行中，无法切换引擎，请等待完成后再试。"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
-
-func TestEngineCommand_WorkerSwitch_NotBlockedByOtherWorker(t *testing.T) {
-	// KEY scenario: alice is free, but bee is busy — alice's switch must succeed
-	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: workers}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	// beeBusy has active messages (bee is busy) — but worker switch should not care
-	beeBusy := command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true}, notBeeBusy)
-	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	// Should succeed, not be blocked
-	want := `已将员工 "alice" 的 engine 切换为 codex`
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
-
-func TestEngineCommand_BusyDoesNotBlockUsage(t *testing.T) {
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true, activeBeeExecs: true}, &fakeBeeBusyChecker{activeBeeExecs: true})
-	workerBusy := command.NewWorkerBusyChecker(&fakeWorkerBusyChecker{activeExecs: true}, &fakeWorkerBusyChecker{activeTasks: true})
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
+			handled := h.HandleCommand(context.Background(), tc.cmd, makeReplyTo())
+			require.True(t, handled, "expected handled=true")
+			require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+			assert.Equal(t, tc.wantReply, sender.sent[0])
+		})
 	}
 }
 
@@ -343,34 +283,8 @@ func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
 	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, engineCfg)
 
 	handled := h.HandleCommand(context.Background(), "/engine codex", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if engineCfg.Get() != "claude" {
-		t.Errorf("expected engineCfg to remain claude, got %s", engineCfg.Get())
-	}
-	want := "切换失败，请稍后重试"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
-}
-
-func TestEngineCommand_SwitchWorkerEngine_UpdateError(t *testing.T) {
-	workers := map[string]model.Worker{"alice": {ID: "w1", Name: "alice", Engine: "claude"}}
-	sender := &fakeSender{}
-	cfg := &fakeSysConfig{vals: make(map[string]string)}
-	repo := &fakeWorkerRepo{workers: workers, updateErr: errors.New("update error")}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
-	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
-	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
-	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, enginecfg.NewStore(""))
-
-	handled := h.HandleCommand(context.Background(), "/engine codex alice", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	want := "切换失败，请稍后重试"
-	if len(sender.sent) != 1 || sender.sent[0] != want {
-		t.Errorf("unexpected reply: %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	assert.Equal(t, "claude", engineCfg.Get())
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Equal(t, "切换失败，请稍后重试", sender.sent[0])
 }

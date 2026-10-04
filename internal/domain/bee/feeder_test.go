@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -22,9 +25,7 @@ import (
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return db, store.NewMessageStore(db), store.NewTaskStore(db), store.NewSessionStore(db), store.NewExecutionStore(db, t.TempDir())
 }
@@ -37,9 +38,7 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 		 VALUES (?, ?, 'feishu', ?, 'received', ?, ?, ?)`,
 		id, sessionKey, content, now, now, now,
 	)
-	if err != nil {
-		t.Fatalf("insert message: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 type mockProcess struct{}
@@ -120,39 +119,26 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	calls := runner.getCalls()
-	if len(calls) == 0 {
-		t.Fatal("expected bee runner to be called")
-	}
+	require.NotEmpty(t, calls, "expected bee runner to be called")
 	call := calls[0]
-	if call.opts.SessionID == "" {
-		t.Error("expected non-empty sessionID on first call")
-	}
-	if call.opts.Resume {
-		t.Error("expected resume=false on first call")
-	}
+	assert.NotEmpty(t, call.opts.SessionID, "expected non-empty sessionID on first call")
+	assert.False(t, call.opts.Resume, "expected resume=false on first call")
 
 	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
-	if err != nil {
-		t.Fatalf("get session context: %v", err)
-	}
-	if got != call.opts.SessionID {
-		t.Errorf("persisted sessionID mismatch: want %q got %q", call.opts.SessionID, got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, call.opts.SessionID, got)
 
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
-	if status != "bee_processed" {
-		t.Errorf("expected bee_processed, got %q", status)
-	}
+	assert.Equal(t, "bee_processed", status)
 }
 
 func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude"); err != nil {
-		t.Fatalf("seed session: %v", err)
-	}
+	err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude")
+	require.NoError(t, err)
 
 	insertMessage(t, db, "m1", "feishu:c:u", "follow-up")
 
@@ -165,25 +151,18 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	calls := runner.getCalls()
-	if len(calls) == 0 {
-		t.Fatal("expected bee runner to be called")
-	}
+	require.NotEmpty(t, calls, "expected bee runner to be called")
 	call := calls[0]
-	if call.opts.SessionID != "existing-session" {
-		t.Errorf("expected existing-session, got %q", call.opts.SessionID)
-	}
-	if !call.opts.Resume {
-		t.Error("expected resume=true on second call")
-	}
+	assert.Equal(t, "existing-session", call.opts.SessionID)
+	assert.True(t, call.opts.Resume, "expected resume=true on second call")
 }
 
 func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	if err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude"); err != nil {
-		t.Fatalf("seed session: %v", err)
-	}
+	err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude")
+	require.NoError(t, err)
 
 	insertMessage(t, db, "m1", "feishu:c:u", "switch to codex")
 
@@ -195,31 +174,17 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	codexCalls := codexRunner.getCalls()
-	if len(codexCalls) == 0 {
-		t.Fatal("expected codex bee runner to be called")
-	}
+	require.NotEmpty(t, codexCalls, "expected codex bee runner to be called")
 	codexCall := codexCalls[0]
-	if codexCall.opts.Resume {
-		t.Error("expected codex run to start fresh on engine switch")
-	}
-	if codexCall.opts.SessionID == "claude-session" {
-		t.Error("expected codex run to use a new session ID")
-	}
+	assert.False(t, codexCall.opts.Resume, "expected codex run to start fresh on engine switch")
+	assert.NotEqual(t, "claude-session", codexCall.opts.SessionID, "expected codex run to use a new session ID")
 
 	claudeSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "claude")
-	if err != nil {
-		t.Fatalf("get claude session: %v", err)
-	}
+	require.NoError(t, err)
 	codexSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "codex")
-	if err != nil {
-		t.Fatalf("get codex session: %v", err)
-	}
-	if claudeSID != "claude-session" {
-		t.Errorf("expected claude session preserved, got %q", claudeSID)
-	}
-	if codexSID != codexCall.opts.SessionID {
-		t.Errorf("expected codex session persisted, got %q want %q", codexSID, codexCall.opts.SessionID)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "claude-session", claudeSID)
+	assert.Equal(t, codexCall.opts.SessionID, codexSID)
 
 	cancel()
 	time.Sleep(100 * time.Millisecond)
@@ -235,15 +200,9 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	claudeCalls := claudeRunner.getCalls()
-	if len(claudeCalls) == 0 {
-		t.Fatal("expected claude bee runner to be called")
-	}
-	if !claudeCalls[0].opts.Resume {
-		t.Error("expected claude run to resume original claude session")
-	}
-	if claudeCalls[0].opts.SessionID != "claude-session" {
-		t.Errorf("expected original claude session, got %q", claudeCalls[0].opts.SessionID)
-	}
+	require.NotEmpty(t, claudeCalls, "expected claude bee runner to be called")
+	assert.True(t, claudeCalls[0].opts.Resume, "expected claude run to resume original claude session")
+	assert.Equal(t, "claude-session", claudeCalls[0].opts.SessionID)
 }
 
 func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
@@ -260,14 +219,10 @@ func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
 
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
-	if status != "failed" {
-		t.Errorf("expected status=failed on bee failure, got %q", status)
-	}
+	assert.Equal(t, "failed", status)
 
 	got, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
-	if got != "" {
-		t.Errorf("session context should not be written on failure, got %q", got)
-	}
+	assert.Empty(t, got, "session context should not be written on failure")
 }
 
 func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
@@ -284,21 +239,13 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	time.Sleep(1200 * time.Millisecond)
 
 	calls := runner.getCalls()
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 bee invocations (one per sessionKey), got %d", len(calls))
-	}
+	require.Len(t, calls, 2, "expected 2 bee invocations (one per sessionKey)")
 
 	sess1, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
 	sess2, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
-	if sess1 == "" {
-		t.Error("session context for u1 should be set")
-	}
-	if sess2 == "" {
-		t.Error("session context for u2 should be set")
-	}
-	if sess1 == sess2 {
-		t.Error("session IDs for different sessionKeys must differ")
-	}
+	assert.NotEmpty(t, sess1, "session context for u1 should be set")
+	assert.NotEmpty(t, sess2, "session context for u2 should be set")
+	assert.NotEqual(t, sess1, sess2, "session IDs for different sessionKeys must differ")
 }
 
 func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
@@ -314,9 +261,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	rows, err := db.Query(`SELECT id, worker_id, status, log_path FROM bee_executions`)
-	if err != nil {
-		t.Fatalf("query executions: %v", err)
-	}
+	require.NoError(t, err)
 	defer rows.Close()
 
 	var execs []struct {
@@ -332,25 +277,15 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 			status   string
 			logPath  string
 		}
-		if err := rows.Scan(&e.id, &e.workerID, &e.status, &e.logPath); err != nil {
-			t.Fatalf("scan: %v", err)
-		}
+		require.NoError(t, rows.Scan(&e.id, &e.workerID, &e.status, &e.logPath))
 		execs = append(execs, e)
 	}
 
-	if len(execs) != 1 {
-		t.Fatalf("expected 1 execution row, got %d", len(execs))
-	}
+	require.Len(t, execs, 1)
 	e := execs[0]
-	if e.workerID != nil {
-		t.Errorf("expected nil worker_id for bee execution, got %v", e.workerID)
-	}
-	if e.status != string(model.ExecStatusCompleted) {
-		t.Errorf("expected status=completed, got %q", e.status)
-	}
-	if e.logPath == "" {
-		t.Error("expected non-empty log_path — PrepareLogPath should set it before process runs")
-	}
+	assert.Nil(t, e.workerID, "expected nil worker_id for bee execution")
+	assert.Equal(t, string(model.ExecStatusCompleted), e.status)
+	assert.NotEmpty(t, e.logPath, "expected non-empty log_path — PrepareLogPath should set it before process runs")
 }
 
 func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
@@ -369,18 +304,13 @@ func TestFeeder_LogPathSetBeforeProcessRuns(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	calls := runner.getCalls()
-	if len(calls) == 0 {
-		t.Fatal("expected runner to be called")
-	}
+	require.NotEmpty(t, calls, "expected runner to be called")
 	capturedLogPath = calls[0].logPath
-	if capturedLogPath == "" {
-		t.Error("logPath passed to runner must be non-empty")
-	}
+	assert.NotEmpty(t, capturedLogPath, "logPath passed to runner must be non-empty")
 
 	// Verify the directory exists (PrepareLogPath creates it)
-	if _, err := os.Stat(filepath.Dir(capturedLogPath)); err != nil {
-		t.Errorf("log directory should exist before process runs: %v", err)
-	}
+	_, err := os.Stat(filepath.Dir(capturedLogPath))
+	assert.NoError(t, err, "log directory should exist before process runs")
 }
 
 func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
@@ -397,12 +327,8 @@ func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 
 	var status string
 	err := db.QueryRow(`SELECT status FROM bee_executions`).Scan(&status)
-	if err != nil {
-		t.Fatalf("query executions: %v", err)
-	}
-	if status != "failed" {
-		t.Errorf("expected status=failed, got %q", status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "failed", status)
 }
 
 type failureNotifyCall struct {
@@ -448,20 +374,12 @@ func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 
 	var status string
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
-	if status != "failed" {
-		t.Errorf("expected status=failed immediately after one failure, got %q", status)
-	}
+	assert.Equal(t, "failed", status, "expected status=failed immediately after one failure")
 
 	calls := notifier.getCalls()
-	if len(calls) != 1 {
-		t.Fatalf("expected notifier called once, got %d calls", len(calls))
-	}
-	if calls[0].messageID != "m1" {
-		t.Errorf("expected notifier called with messageID m1, got %q", calls[0].messageID)
-	}
-	if calls[0].info.Reason == "" {
-		t.Error("expected non-empty Reason in FailureInfo")
-	}
+	require.Len(t, calls, 1, "expected notifier called once")
+	assert.Equal(t, "m1", calls[0].messageID)
+	assert.NotEmpty(t, calls[0].info.Reason, "expected non-empty Reason in FailureInfo")
 }
 
 func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
@@ -502,9 +420,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	n := len(startTimes)
 	mu.Unlock()
 
-	if n != 3 {
-		t.Fatalf("expected 3 concurrent bee invocations, got %d", n)
-	}
+	require.Equal(t, 3, n, "expected 3 concurrent bee invocations")
 
 	// All 3 should have started within a short window (concurrent, not serial).
 	mu.Lock()
@@ -518,9 +434,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 		}
 	}
 	mu.Unlock()
-	if last.Sub(first) > 100*time.Millisecond {
-		t.Errorf("bee invocations should start nearly simultaneously (concurrent), spread was %v", last.Sub(first))
-	}
+	assert.LessOrEqual(t, last.Sub(first), 100*time.Millisecond, "bee invocations should start nearly simultaneously (concurrent)")
 }
 
 func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
@@ -565,15 +479,11 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	peak := maxActive
 	mu.Unlock()
 
-	if peak > 3 {
-		t.Errorf("semaphore should cap concurrent bee at 3, peak was %d", peak)
-	}
+	assert.LessOrEqual(t, peak, 3, "semaphore should cap concurrent bee at 3")
 	// All 6 messages should eventually be processed.
 	var processed int
 	db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages WHERE status = 'bee_processed'`).Scan(&processed)
-	if processed != 6 {
-		t.Errorf("expected all 6 messages processed, got %d", processed)
-	}
+	assert.Equal(t, 6, processed, "expected all 6 messages processed")
 }
 
 // callbackBeeRunner invokes fn synchronously inside Run, then signals done.
@@ -621,9 +531,7 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	// Bee must have been called (normal flow)
-	if len(runner.getCalls()) == 0 {
-		t.Error("expected bee runner to be called for non-direct-dispatch message")
-	}
+	assert.NotEmpty(t, runner.getCalls(), "expected bee runner to be called for non-direct-dispatch message")
 }
 
 func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
@@ -644,9 +552,7 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	go f.Run(ctx)
 	time.Sleep(700 * time.Millisecond)
 
-	if len(runner.getCalls()) == 0 {
-		t.Error("expected bee runner to be called when worker not found")
-	}
+	assert.NotEmpty(t, runner.getCalls(), "expected bee runner to be called when worker not found")
 }
 
 func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
@@ -679,9 +585,7 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 		t.Fatal("timed out waiting for runner.Run() to be called")
 	}
 
-	if !upsertCalledBeforeRun.Load() {
-		t.Error("expected session context to be written before runner.Run() is called")
-	}
+	assert.True(t, upsertCalledBeforeRun.Load(), "expected session context to be written before runner.Run() is called")
 }
 
 func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
@@ -701,9 +605,7 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 			runner := &mockBeeRunner{}
 			ws := store.NewWorkerStore(db)
 			w, err := ws.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
-			if err != nil {
-				t.Fatalf("create worker: %v", err)
-			}
+			require.NoError(t, err)
 
 			cfg := config.BeeConfig{}
 			cfg.Engine.Timeout.Bee = 5 * time.Second
@@ -716,27 +618,17 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 			go f.Run(ctx)
 			time.Sleep(700 * time.Millisecond)
 
-			if len(runner.getCalls()) != 0 {
-				t.Error("expected bee runner NOT to be called for direct dispatch")
-			}
+			assert.Empty(t, runner.getCalls(), "expected bee runner NOT to be called for direct dispatch")
 
 			var workerID, instruction, status string
 			db.QueryRow(`SELECT worker_id, instruction, status FROM bee_tasks WHERE message_id='m1'`).Scan(&workerID, &instruction, &status)
-			if workerID != w.ID {
-				t.Errorf("expected task workerID %s, got %q", w.ID, workerID)
-			}
-			if instruction != "write a report" {
-				t.Errorf("expected instruction 'write a report', got %q", instruction)
-			}
-			if status != model.TaskStatusPending {
-				t.Errorf("expected task status %q, got %q", model.TaskStatusPending, status)
-			}
+			assert.Equal(t, w.ID, workerID)
+			assert.Equal(t, "write a report", instruction)
+			assert.Equal(t, model.TaskStatusPending, status)
 
 			var msgStatus string
 			db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&msgStatus)
-			if msgStatus != store.MsgStatusBeeProcessed {
-				t.Errorf("expected %q, got %q", store.MsgStatusBeeProcessed, msgStatus)
-			}
+			assert.Equal(t, store.MsgStatusBeeProcessed, msgStatus)
 		})
 	}
 }

@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -49,8 +52,10 @@ func (m *mockMsgStore) CreateBatch(_ context.Context, msgs []store.BatchMsg) (in
 // noopHandler is a pass-through CommandHandler for tests that don't exercise command handling.
 type noopHandler struct{}
 
-func (noopHandler) IsCommand(_ string) bool                                                   { return false }
-func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool { return false }
+func (noopHandler) IsCommand(_ string) bool { return false }
+func (noopHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool {
+	return false
+}
 
 func inbound(sessionKey, content, platformMsgID string) platform.InboundMessage {
 	return platform.InboundMessage{
@@ -79,40 +84,82 @@ func TestGateway_Dedup_InMemory(t *testing.T) {
 		t.Fatal("timeout waiting for debounced message")
 	}
 
-	if len(st.batches) != 1 {
-		t.Fatalf("expected 1 CreateBatch call, got %d", len(st.batches))
-	}
-	if len(st.batches[0]) != 1 {
-		t.Fatalf("expected 1 row in batch (duplicate dropped), got %d", len(st.batches[0]))
-	}
+	require.Len(t, st.batches, 1)
+	require.Len(t, st.batches[0], 1, "duplicate dropped")
 }
 
-// TestGateway_Debounce_EmitsSingleMergedMessage verifies that two messages in
-// one debounce window are merged into one IngestedMessage with combined content.
-func TestGateway_Debounce_EmitsSingleMergedMessage(t *testing.T) {
-	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	g.Dispatch(inbound("s1", "hello", "m1"))
-	g.Dispatch(inbound("s1", "world", "m2"))
-
-	select {
-	case msg := <-g.Out():
-		if msg.Content != "hello\n\n---\n\nworld" {
-			t.Fatalf("expected merged content, got %q", msg.Content)
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for debounced message")
+// TestGateway_DebounceMerge merges the debounce-window scenarios: plain
+// messages and a "clear" message, with and without a preceding merge.
+func TestGateway_DebounceMerge(t *testing.T) {
+	cases := []struct {
+		name         string
+		debounce     time.Duration
+		msgs         []platform.InboundMessage
+		wantContent  string
+		waitTimeout  time.Duration
+		checkNoExtra bool
+		extraTimeout time.Duration
+	}{
+		{
+			name:     "EmitsSingleMergedMessage",
+			debounce: 100 * time.Millisecond,
+			msgs: []platform.InboundMessage{
+				inbound("s1", "hello", "m1"),
+				inbound("s1", "world", "m2"),
+			},
+			wantContent:  "hello\n\n---\n\nworld",
+			waitTimeout:  500 * time.Millisecond,
+			checkNoExtra: true,
+			extraTimeout: 200 * time.Millisecond,
+		},
+		{
+			name:        "ClearMessage_DebounceAsNormal",
+			debounce:    100 * time.Millisecond,
+			msgs:        []platform.InboundMessage{inbound("s1", "clear", "cmd-1")},
+			wantContent: "clear",
+			waitTimeout: 500 * time.Millisecond,
+		},
+		{
+			name:     "ClearMessage_MergedWithDebounce",
+			debounce: 200 * time.Millisecond,
+			msgs: []platform.InboundMessage{
+				inbound("s1", "hello", "m1"),
+				inbound("s1", "clear", "cmd-1"),
+			},
+			wantContent:  "hello\n\n---\n\nclear",
+			waitTimeout:  500 * time.Millisecond,
+			checkNoExtra: true,
+			extraTimeout: 300 * time.Millisecond,
+		},
 	}
 
-	// Only one message
-	select {
-	case extra := <-g.Out():
-		t.Fatalf("expected only one message, got extra: %+v", extra)
-	case <-time.After(200 * time.Millisecond):
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newMock()
+			g := msgingest.New(st, tc.debounce, noopHandler{})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go g.Run(ctx)
+
+			for _, m := range tc.msgs {
+				g.Dispatch(m)
+			}
+
+			select {
+			case msg := <-g.Out():
+				require.Equal(t, tc.wantContent, msg.Content)
+			case <-time.After(tc.waitTimeout):
+				t.Fatal("timeout waiting for debounced message")
+			}
+
+			if tc.checkNoExtra {
+				select {
+				case extra := <-g.Out():
+					t.Fatalf("expected only one message, got extra: %+v", extra)
+				case <-time.After(tc.extraTimeout):
+				}
+			}
+		})
 	}
 }
 
@@ -136,34 +183,20 @@ func TestGateway_Debounce_BatchWrite(t *testing.T) {
 		t.Fatal("timeout waiting for debounced message")
 	}
 
-	if len(st.batches) != 1 {
-		t.Fatalf("expected 1 CreateBatch call, got %d", len(st.batches))
-	}
+	require.Len(t, st.batches, 1)
 	batch := st.batches[0]
-	if len(batch) != 3 {
-		t.Fatalf("expected 3 rows in batch, got %d", len(batch))
-	}
+	require.Len(t, batch, 3)
 
 	// Last row is the primary (received)
 	primary := batch[2]
-	if primary.Status != "received" {
-		t.Errorf("primary row: want status=received, got %q", primary.Status)
-	}
-	if primary.MergedInto != "" {
-		t.Errorf("primary row: want merged_into empty, got %q", primary.MergedInto)
-	}
-	if primary.ID != emitted.MsgID {
-		t.Errorf("primary ID %q != emitted MsgID %q", primary.ID, emitted.MsgID)
-	}
+	assert.Equal(t, "received", primary.Status)
+	assert.Empty(t, primary.MergedInto)
+	assert.Equal(t, emitted.MsgID, primary.ID)
 
 	// First two rows are merged
-	for i, row := range batch[:2] {
-		if row.Status != "merged" {
-			t.Errorf("row[%d]: want status=merged, got %q", i, row.Status)
-		}
-		if row.MergedInto != primary.ID {
-			t.Errorf("row[%d]: want merged_into=%q, got %q", i, primary.ID, row.MergedInto)
-		}
+	for _, row := range batch[:2] {
+		assert.Equal(t, "merged", row.Status)
+		assert.Equal(t, primary.ID, row.MergedInto)
 	}
 }
 
@@ -184,15 +217,9 @@ func TestGateway_Debounce_SingleMessage(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if len(st.batches) != 1 {
-		t.Fatalf("expected 1 CreateBatch call, got %d", len(st.batches))
-	}
-	if len(st.batches[0]) != 1 {
-		t.Fatalf("expected 1 row, got %d", len(st.batches[0]))
-	}
-	if st.batches[0][0].Status != "received" {
-		t.Errorf("want status=received, got %q", st.batches[0][0].Status)
-	}
+	require.Len(t, st.batches, 1)
+	require.Len(t, st.batches[0], 1)
+	assert.Equal(t, "received", st.batches[0][0].Status)
 }
 
 // TestGateway_BatchWrite_Error_NormalPath verifies that a CreateBatch error
@@ -236,33 +263,12 @@ func TestGateway_BatchWrite_PartialInsert(t *testing.T) {
 	}
 }
 
-// TestGateway_ClearMessage_DebounceAsNormal verifies that a "clear" message is
-// debounced normally (no special command handling).
-func TestGateway_ClearMessage_DebounceAsNormal(t *testing.T) {
-	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond, noopHandler{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	g.Dispatch(inbound("s1", "clear", "cmd-1"))
-
-	select {
-	case msg := <-g.Out():
-		if msg.Content != "clear" {
-			t.Fatalf("expected content 'clear', got %q", msg.Content)
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for debounced message")
-	}
-}
-
 // mockCommandHandler records whether HandleCommand was called and what to return.
 type mockCommandHandler struct {
-	mu       sync.Mutex
-	handled  bool
-	contents []string
-	called   chan struct{} // closed on first HandleCommand invocation
+	mu        sync.Mutex
+	handled   bool
+	contents  []string
+	called    chan struct{} // closed on first HandleCommand invocation
 	closeOnce sync.Once
 }
 
@@ -291,184 +297,145 @@ func (m *mockCommandHandler) getContents() []string {
 	return cp
 }
 
-func TestGateway_CommandHandlerInterceptsBeforeDB(t *testing.T) {
-	st := newMock()
-	handler := newMockCommandHandler(true)
-	g := msgingest.New(st, 0, handler)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	g.Dispatch(platform.InboundMessage{
-		Platform:   "feishu",
-		SessionKey: "feishu:c1:u1",
-		Content:    "/engine claude",
-	})
-
-	// Wait for the command handler to be called.
-	select {
-	case <-handler.called:
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for command handler to be called")
+// TestGateway_Command merges the command-handling scenarios: interception
+// before any DB write, pass-through for non-commands, and bypassing the
+// debounce window entirely.
+func TestGateway_Command(t *testing.T) {
+	cases := []struct {
+		name         string
+		debounce     time.Duration
+		handled      bool
+		msg          platform.InboundMessage
+		waitTimeout  time.Duration
+		wantBatches  int
+		wantContents []string // nil => skip
+		checkFast    bool     // BypassesDebounce: assert the handler fires well under the debounce window
+	}{
+		{
+			name:         "InterceptsBeforeDB",
+			debounce:     0,
+			handled:      true,
+			msg:          platform.InboundMessage{Platform: "feishu", SessionKey: "feishu:c1:u1", Content: "/engine claude"},
+			waitTimeout:  500 * time.Millisecond,
+			wantBatches:  0,
+			wantContents: []string{"/engine claude"},
+		},
+		{
+			name:        "PassesThroughNonCommands",
+			debounce:    0,
+			handled:     false,
+			msg:         platform.InboundMessage{Platform: "feishu", SessionKey: "feishu:c1:u1", Content: "hello"},
+			waitTimeout: 500 * time.Millisecond,
+			wantBatches: 1,
+		},
+		{
+			name:        "BypassesDebounce",
+			debounce:    500 * time.Millisecond,
+			handled:     true,
+			msg:         platform.InboundMessage{Platform: "feishu", SessionKey: "feishu:c1:u1", Content: "/engine claude"},
+			waitTimeout: 200 * time.Millisecond,
+			wantBatches: 0,
+			checkFast:   true,
+		},
 	}
 
-	if len(st.batches) != 0 {
-		t.Errorf("expected 0 DB writes when command handled, got %d", len(st.batches))
-	}
-	contents := handler.getContents()
-	if len(contents) != 1 || contents[0] != "/engine claude" {
-		t.Errorf("expected handler called with '/engine claude', got %v", contents)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newMock()
+			handler := newMockCommandHandler(tc.handled)
+			g := msgingest.New(st, tc.debounce, handler)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go g.Run(ctx)
 
-func TestGateway_CommandHandlerPassesThroughNonCommands(t *testing.T) {
-	st := newMock()
-	handler := newMockCommandHandler(false)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	g := msgingest.New(st, 0, handler)
-	go g.Run(ctx)
+			start := time.Now()
+			g.Dispatch(tc.msg)
 
-	g.Dispatch(platform.InboundMessage{
-		Platform:   "feishu",
-		SessionKey: "feishu:c1:u1",
-		Content:    "hello",
-	})
+			if tc.handled {
+				select {
+				case <-handler.called:
+				case <-time.After(tc.waitTimeout):
+					t.Fatal("timeout waiting for command handler to be called")
+				}
+			} else {
+				select {
+				case <-g.Out():
+				case <-time.After(tc.waitTimeout):
+					t.Fatal("timeout waiting for message to be emitted")
+				}
+			}
 
-	select {
-	case <-g.Out():
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for message to be emitted")
-	}
-
-	if len(st.batches) != 1 {
-		t.Errorf("expected 1 DB write for non-command, got %d", len(st.batches))
-	}
-}
-
-// TestGateway_ClearMessage_MergedWithDebounce verifies that "clear" sent after
-// a normal message within the debounce window is merged into one message.
-// TestGateway_Command_BypassesDebounce verifies that a recognized command is
-// handled immediately in Dispatch (no debounce wait) and never written to DB.
-func TestGateway_Command_BypassesDebounce(t *testing.T) {
-	st := newMock()
-	handler := newMockCommandHandler(true)
-	g := msgingest.New(st, 500*time.Millisecond, handler)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	start := time.Now()
-	g.Dispatch(platform.InboundMessage{
-		Platform:   "feishu",
-		SessionKey: "feishu:c1:u1",
-		Content:    "/engine claude",
-	})
-
-	select {
-	case <-handler.called:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("command handler not called within 200ms — debounce not bypassed")
-	}
-
-	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
-		t.Errorf("command took %v, expected < 200ms (debounce is 500ms)", elapsed)
-	}
-	if len(st.batches) != 0 {
-		t.Errorf("expected 0 DB writes for command, got %d", len(st.batches))
+			if tc.checkFast {
+				assert.Less(t, time.Since(start), 200*time.Millisecond)
+			}
+			assert.Len(t, st.batches, tc.wantBatches)
+			if tc.wantContents != nil {
+				assert.Equal(t, tc.wantContents, handler.getContents())
+			}
+		})
 	}
 }
 
-func TestGateway_ClearMessage_MergedWithDebounce(t *testing.T) {
-	st := newMock()
-	g := msgingest.New(st, 200*time.Millisecond, noopHandler{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	g.Dispatch(inbound("s1", "hello", "m1"))
-	g.Dispatch(inbound("s1", "clear", "cmd-1"))
-
-	select {
-	case msg := <-g.Out():
-		if msg.Content != "hello\n\n---\n\nclear" {
-			t.Fatalf("expected merged content, got %q", msg.Content)
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for debounced message")
+// TestGateway_BotMention merges the bot-mention-stripping scenarios for a
+// single message and for messages merged by the debounce window.
+func TestGateway_BotMention(t *testing.T) {
+	cases := []struct {
+		name          string
+		debounce      time.Duration
+		botNames      map[string]string
+		msgs          []platform.InboundMessage
+		waitTimeout   time.Duration
+		wantContent   string
+		wantBatchRows []string // expected Content per batch row, in order
+	}{
+		{
+			name:          "StrippedInEmitAndDB",
+			debounce:      100 * time.Millisecond,
+			botNames:      map[string]string{"test": "OpenBee"},
+			msgs:          []platform.InboundMessage{inbound("s1", "@OpenBee hello world", "m1")},
+			waitTimeout:   500 * time.Millisecond,
+			wantContent:   "hello world",
+			wantBatchRows: []string{"hello world"},
+		},
+		{
+			name:     "MergedMessagesStripped",
+			debounce: 150 * time.Millisecond,
+			botNames: map[string]string{"test": "Bot"},
+			msgs: []platform.InboundMessage{
+				inbound("s1", "@Bot hello", "m1"),
+				inbound("s1", "world @Bot", "m2"),
+			},
+			waitTimeout:   500 * time.Millisecond,
+			wantContent:   "hello\n\n---\n\nworld",
+			wantBatchRows: []string{"hello", "world"},
+		},
 	}
 
-	// No extra messages
-	select {
-	case extra := <-g.Out():
-		t.Fatalf("unexpected extra message: %+v", extra)
-	case <-time.After(300 * time.Millisecond):
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newMock()
+			g := msgingest.New(st, tc.debounce, noopHandler{}, msgingest.WithPlatformBotNames(tc.botNames))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go g.Run(ctx)
 
-// TestGateway_BotMention_StrippedInEmitAndDB verifies that @BotName mentions are
-// stripped from both IngestedMessage.Content and BatchMsg.Content for normal messages.
-func TestGateway_BotMention_StrippedInEmitAndDB(t *testing.T) {
-	st := newMock()
-	g := msgingest.New(st, 100*time.Millisecond, noopHandler{},
-		msgingest.WithPlatformBotNames(map[string]string{"test": "OpenBee"}),
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
+			for _, m := range tc.msgs {
+				g.Dispatch(m)
+			}
 
-	g.Dispatch(inbound("s1", "@OpenBee hello world", "m1"))
+			var emitted msgingest.IngestedMessage
+			select {
+			case emitted = <-g.Out():
+			case <-time.After(tc.waitTimeout):
+				t.Fatal("timeout waiting for debounced message")
+			}
 
-	var emitted msgingest.IngestedMessage
-	select {
-	case emitted = <-g.Out():
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for debounced message")
-	}
-
-	if emitted.Content != "hello world" {
-		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, "hello world")
-	}
-	if len(st.batches) != 1 || len(st.batches[0]) != 1 {
-		t.Fatalf("expected 1 batch with 1 row, got %v", st.batches)
-	}
-	if got := st.batches[0][0].Content; got != "hello world" {
-		t.Errorf("BatchMsg.Content = %q, want %q", got, "hello world")
-	}
-}
-
-// TestGateway_BotMention_MergedMessagesStripped verifies that merged messages each
-// have their bot mentions stripped before being combined.
-func TestGateway_BotMention_MergedMessagesStripped(t *testing.T) {
-	st := newMock()
-	g := msgingest.New(st, 150*time.Millisecond, noopHandler{},
-		msgingest.WithPlatformBotNames(map[string]string{"test": "Bot"}),
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go g.Run(ctx)
-
-	g.Dispatch(inbound("s1", "@Bot hello", "m1"))
-	g.Dispatch(inbound("s1", "world @Bot", "m2"))
-
-	var emitted msgingest.IngestedMessage
-	select {
-	case emitted = <-g.Out():
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout waiting for debounced message")
-	}
-
-	const want = "hello\n\n---\n\nworld"
-	if emitted.Content != want {
-		t.Errorf("IngestedMessage.Content = %q, want %q", emitted.Content, want)
-	}
-	if len(st.batches) != 1 || len(st.batches[0]) != 2 {
-		t.Fatalf("expected 1 batch with 2 rows, got %v", st.batches)
-	}
-	if got := st.batches[0][0].Content; got != "hello" {
-		t.Errorf("batch[0].Content = %q, want %q", got, "hello")
-	}
-	if got := st.batches[0][1].Content; got != "world" {
-		t.Errorf("batch[1].Content = %q, want %q", got, "world")
+			assert.Equal(t, tc.wantContent, emitted.Content)
+			require.Len(t, st.batches, 1)                        // guard: avoid index panic on st.batches[0]
+			require.Len(t, st.batches[0], len(tc.wantBatchRows)) // guard: avoid index panic below
+			for i, want := range tc.wantBatchRows {
+				assert.Equal(t, want, st.batches[0][i].Content)
+			}
+		})
 	}
 }

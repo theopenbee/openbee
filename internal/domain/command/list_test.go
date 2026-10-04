@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -39,38 +42,27 @@ func TestListCommand_IsCommand(t *testing.T) {
 		"":              false,
 	}
 	for input, want := range cases {
-		if got := h.IsCommand(input); got != want {
-			t.Errorf("IsCommand(%q) = %v, want %v", input, got, want)
-		}
+		assert.Equal(t, want, h.IsCommand(input))
 	}
 }
 
 func TestListCommand_UsageOnExtraArgs(t *testing.T) {
 	h, sender := makeListHandler(nil, nil)
 	handled := h.HandleCommand(context.Background(), "/list a b", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 || sender.sent[0] != i18n.M.Runtime.ListCommand.Usage {
-		t.Errorf("expected usage reply, got %v", sender.sent)
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Equal(t, i18n.M.Runtime.ListCommand.Usage, sender.sent[0])
 }
 
 func TestListCommand_EmptyDirectory(t *testing.T) {
 	h, sender := makeListHandler(nil, nil)
 	handled := h.HandleCommand(context.Background(), "/list", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1)
 	out := sender.sent[0]
 	m := i18n.M.Runtime.ListCommand
 	for _, want := range []string{fmt.Sprintf(m.HeaderAll, 0), m.EmptyAll} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
@@ -85,28 +77,22 @@ func TestListCommand_AllWorkersSortedByName(t *testing.T) {
 	out := sender.sent[0]
 	m := i18n.M.Runtime.ListCommand
 
-	if !strings.Contains(out, fmt.Sprintf(m.HeaderAll, 3)) {
-		t.Errorf("missing header\n%s", out)
-	}
+	assert.Contains(t, out, fmt.Sprintf(m.HeaderAll, 3))
 	// expected sort: 小乔 < 张三 < 李四 (by Go's default string < on UTF-8 bytes)
 	idxXiao := strings.Index(out, "小乔")
 	idxZhang := strings.Index(out, "张三")
 	idxLi := strings.Index(out, "李四")
-	if idxXiao < 0 || idxZhang < 0 || idxLi < 0 {
-		t.Fatalf("missing one of the worker names:\n%s", out)
-	}
-	if !(idxXiao < idxZhang && idxZhang < idxLi) {
-		t.Errorf("workers not in expected sort order; got positions xiao=%d zhang=%d li=%d\n%s",
-			idxXiao, idxZhang, idxLi, out)
-	}
+	require.GreaterOrEqual(t, idxXiao, 0)
+	require.GreaterOrEqual(t, idxZhang, 0)
+	require.GreaterOrEqual(t, idxLi, 0)
+	assert.Less(t, idxXiao, idxZhang)
+	assert.Less(t, idxZhang, idxLi)
 	for _, want := range []string{
 		fmt.Sprintf(m.Line, "小乔", m.StatusIdle, "负责 openbee 开发"),
 		fmt.Sprintf(m.Line, "张三", m.StatusWorking, "前端开发"),
 		fmt.Sprintf(m.Line, "李四", m.StatusError, "后端开发"),
 	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing line %q\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
@@ -121,15 +107,10 @@ func TestListCommand_KeywordSubstringMatch(t *testing.T) {
 	out := sender.sent[0]
 
 	wantHeader := fmt.Sprintf(i18n.M.Runtime.ListCommand.HeaderSearch, "openbee", 2)
-	if !strings.Contains(out, wantHeader) {
-		t.Errorf("missing search header %q\n%s", wantHeader, out)
-	}
-	if strings.Contains(out, "alice") {
-		t.Errorf("alice should be filtered out\n%s", out)
-	}
-	if !strings.Contains(out, "bob") || !strings.Contains(out, "carol") {
-		t.Errorf("expected bob and carol\n%s", out)
-	}
+	assert.Contains(t, out, wantHeader)
+	assert.NotContains(t, out, "alice", "alice should be filtered out")
+	assert.Contains(t, out, "bob")
+	assert.Contains(t, out, "carol")
 }
 
 func TestListCommand_KeywordCaseInsensitive(t *testing.T) {
@@ -139,9 +120,7 @@ func TestListCommand_KeywordCaseInsensitive(t *testing.T) {
 	h, sender := makeListHandler(workers, nil)
 	h.HandleCommand(context.Background(), "/list OPENBEE", makeReplyTo())
 	out := sender.sent[0]
-	if !strings.Contains(out, "alice") {
-		t.Errorf("expected case-insensitive match for OPENBEE\n%s", out)
-	}
+	assert.Contains(t, out, "alice")
 }
 
 func TestListCommand_KeywordNoMatch(t *testing.T) {
@@ -153,24 +132,16 @@ func TestListCommand_KeywordNoMatch(t *testing.T) {
 	out := sender.sent[0]
 	m := i18n.M.Runtime.ListCommand
 	for _, want := range []string{fmt.Sprintf(m.HeaderSearch, "zzznope", 0), m.EmptySearch} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %q\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
 func TestListCommand_LookupError(t *testing.T) {
 	h, sender := makeListHandler(nil, errors.New("boom"))
 	handled := h.HandleCommand(context.Background(), "/list", makeReplyTo())
-	if !handled {
-		t.Fatal("expected handled=true")
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-	if sender.sent[0] != i18n.M.Runtime.ListCommand.LookupFailed {
-		t.Errorf("expected lookup_failed reply, got %q", sender.sent[0])
-	}
+	require.True(t, handled, "expected handled=true")
+	require.Len(t, sender.sent, 1)
+	assert.Equal(t, i18n.M.Runtime.ListCommand.LookupFailed, sender.sent[0])
 }
 
 func TestListCommand_StatusLabels(t *testing.T) {
@@ -184,9 +155,7 @@ func TestListCommand_StatusLabels(t *testing.T) {
 	out := sender.sent[0]
 	m := i18n.M.Runtime.ListCommand
 	for _, want := range []string{m.StatusIdle, m.StatusWorking, m.StatusError} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing status label %q\n%s", want, out)
-		}
+		assert.Contains(t, out, want)
 	}
 }
 
@@ -197,7 +166,5 @@ func TestListCommand_UnknownStatusFallsBack(t *testing.T) {
 	h, sender := makeListHandler(workers, nil)
 	h.HandleCommand(context.Background(), "/list", makeReplyTo())
 	out := sender.sent[0]
-	if !strings.Contains(out, "paused") {
-		t.Errorf("expected unknown status to fall through verbatim\n%s", out)
-	}
+	assert.Contains(t, out, "paused")
 }

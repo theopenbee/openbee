@@ -3,8 +3,10 @@ package command_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -56,15 +58,9 @@ func TestStop_IsCommand(t *testing.T) {
 		nil,
 		nil,
 	)
-	if !h.IsCommand("/stop") {
-		t.Error("expected IsCommand('/stop') = true")
-	}
-	if h.IsCommand("/stopp") {
-		t.Error("expected IsCommand('/stopp') = false")
-	}
-	if h.IsCommand("/clear") {
-		t.Error("expected IsCommand('/clear') = false")
-	}
+	assert.True(t, h.IsCommand("/stop"), "expected IsCommand('/stop') = true")
+	assert.False(t, h.IsCommand("/stopp"), "expected IsCommand('/stopp') = false")
+	assert.False(t, h.IsCommand("/clear"), "expected IsCommand('/clear') = false")
 }
 
 func TestStop_BeeRunning_PendingMessages(t *testing.T) {
@@ -76,15 +72,9 @@ func TestStop_BeeRunning_PendingMessages(t *testing.T) {
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
-	if !stopper.stopped {
-		t.Error("expected StopSession to be called")
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-	if sender.sent[0] == "" {
-		t.Error("expected non-empty reply")
-	}
+	assert.True(t, stopper.stopped, "expected StopSession to be called")
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.NotEmpty(t, sender.sent[0], "expected non-empty reply")
 }
 
 func TestStop_BeeRunning_NoMessages(t *testing.T) {
@@ -96,9 +86,7 @@ func TestStop_BeeRunning_NoMessages(t *testing.T) {
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.Len(t, sender.sent, 1)
 }
 
 func TestStop_NothingToStop(t *testing.T) {
@@ -110,9 +98,7 @@ func TestStop_NothingToStop(t *testing.T) {
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.Len(t, sender.sent, 1)
 }
 
 func TestStop_OnlyMessages(t *testing.T) {
@@ -124,9 +110,7 @@ func TestStop_OnlyMessages(t *testing.T) {
 		map[string]platform.PlatformSenderAdapter{"feishu": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.Len(t, sender.sent, 1)
 }
 
 type fakeWorkerStopper struct {
@@ -159,15 +143,9 @@ func TestStop_Worker_StopsTasks(t *testing.T) {
 
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
 
-	if len(stop.calls) != 1 || stop.calls[0] != "feishu:chat1:userA::w-1" {
-		t.Fatalf("expected StopWorker called for w-1, got %v", stop.calls)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-	if !strings.Contains(sender.sent[0], "alice") {
-		t.Errorf("expected reply to name the worker, got %q", sender.sent[0])
-	}
+	require.Equal(t, []string{"feishu:chat1:userA::w-1"}, stop.calls)
+	require.Len(t, sender.sent, 1) // guard: avoid index panic on sender.sent[0]
+	assert.Contains(t, sender.sent[0], "alice")
 }
 
 func TestStop_Worker_NothingToStop(t *testing.T) {
@@ -177,59 +155,49 @@ func TestStop_Worker_NothingToStop(t *testing.T) {
 
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
 
-	if len(stop.calls) != 1 {
-		t.Fatalf("expected StopWorker to be called, got %v", stop.calls)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
+	require.Len(t, stop.calls, 1)
+	require.Len(t, sender.sent, 1)
 }
 
-func TestStop_Worker_NotFound(t *testing.T) {
-	sender := &fakeStopSender{}
-	stop := &fakeWorkerStopper{}
-	h := newStopWorkerHandler(workerLookup("alice" /* no workers */), stop, sender)
-
-	h.HandleCommand(context.Background(), "/stop bob", makeStopReplyTo())
-
-	if len(stop.calls) != 0 {
-		t.Errorf("expected StopWorker NOT to be called, got %v", stop.calls)
+// TestStop_Worker_Errors merges the three /stop-worker error paths that must
+// not call StopWorker: unknown name, ambiguous (duplicate) name, and a
+// lookup-store error.
+func TestStop_Worker_Errors(t *testing.T) {
+	cases := []struct {
+		name   string
+		lookup *fakeClearWorkerLookup
+		cmd    string
+	}{
+		{
+			name:   "NotFound",
+			lookup: workerLookup("alice" /* no workers */),
+			cmd:    "/stop bob",
+		},
+		{
+			name: "Duplicate",
+			lookup: workerLookup("alice",
+				model.Worker{ID: "w-1", Name: "alice"},
+				model.Worker{ID: "w-2", Name: "alice"}),
+			cmd: "/stop alice",
+		},
+		{
+			name:   "LookupError",
+			lookup: &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{err: errors.New("db down")}},
+			cmd:    "/stop alice",
+		},
 	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-}
 
-func TestStop_Worker_Duplicate(t *testing.T) {
-	sender := &fakeStopSender{}
-	stop := &fakeWorkerStopper{}
-	h := newStopWorkerHandler(workerLookup("alice",
-		model.Worker{ID: "w-1", Name: "alice"},
-		model.Worker{ID: "w-2", Name: "alice"}), stop, sender)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &fakeStopSender{}
+			stop := &fakeWorkerStopper{}
+			h := newStopWorkerHandler(tc.lookup, stop, sender)
 
-	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
+			h.HandleCommand(context.Background(), tc.cmd, makeStopReplyTo())
 
-	if len(stop.calls) != 0 {
-		t.Errorf("expected StopWorker NOT to be called on ambiguous name, got %v", stop.calls)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
-	}
-}
-
-func TestStop_Worker_LookupError(t *testing.T) {
-	sender := &fakeStopSender{}
-	stop := &fakeWorkerStopper{}
-	lookup := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{err: errors.New("db down")}}
-	h := newStopWorkerHandler(lookup, stop, sender)
-
-	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
-
-	if len(stop.calls) != 0 {
-		t.Errorf("expected StopWorker NOT to be called on lookup error, got %v", stop.calls)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 reply, got %d", len(sender.sent))
+			assert.Empty(t, stop.calls, "expected StopWorker NOT to be called")
+			require.Len(t, sender.sent, 1)
+		})
 	}
 }
 
@@ -240,13 +208,7 @@ func TestStop_TooManyArgs(t *testing.T) {
 
 	handled := h.HandleCommand(context.Background(), "/stop alice bob", makeStopReplyTo())
 
-	if !handled {
-		t.Error("expected /stop with extra args to be handled")
-	}
-	if len(stop.calls) != 0 {
-		t.Errorf("expected StopWorker NOT to be called, got %v", stop.calls)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 usage reply, got %d", len(sender.sent))
-	}
+	assert.True(t, handled, "expected /stop with extra args to be handled")
+	assert.Empty(t, stop.calls)
+	require.Len(t, sender.sent, 1)
 }
