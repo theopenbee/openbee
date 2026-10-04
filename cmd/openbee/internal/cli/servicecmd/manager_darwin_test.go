@@ -7,9 +7,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDarwinStatus_ParsesLastExitInfo(t *testing.T) {
@@ -17,12 +18,8 @@ func TestDarwinStatus_ParsesLastExitInfo(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	plistDir := filepath.Join(tmp, "Library", "LaunchAgents")
-	if err := os.MkdirAll(plistDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(plistDir, launchdLabel+".plist"), []byte("ignored"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(plistDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(plistDir, launchdLabel+".plist"), []byte("ignored"), 0o644))
 
 	const sample = `com.theopenbee.openbee = {
 	active count = 0
@@ -39,21 +36,11 @@ func TestDarwinStatus_ParsesLastExitInfo(t *testing.T) {
 	t.Cleanup(func() { runCommand = prevRun })
 
 	st, err := (darwinManager{}).Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !st.Installed {
-		t.Errorf("Installed = false, want true")
-	}
-	if st.RunState != RunStateStopped {
-		t.Errorf("RunState = %v, want stopped", st.RunState)
-	}
-	if st.LastExitCode != "78" {
-		t.Errorf("LastExitCode = %q, want %q", st.LastExitCode, "78")
-	}
-	if st.LastExitReason != "killed by signal: 9" {
-		t.Errorf("LastExitReason = %q", st.LastExitReason)
-	}
+	require.NoError(t, err)
+	assert.True(t, st.Installed, "Installed = false, want true")
+	assert.Equal(t, RunStateStopped, st.RunState)
+	assert.Equal(t, "78", st.LastExitCode)
+	assert.Equal(t, "killed by signal: 9", st.LastExitReason)
 }
 
 func TestRenderLaunchdPlist(t *testing.T) {
@@ -65,9 +52,7 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		Home:       "/Users/me",
 		EnvPath:    "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, want := range []string{
 		"<string>com.theopenbee.openbee</string>",
 		"<string>/usr/local/bin/openbee</string>",
@@ -82,9 +67,7 @@ func TestRenderLaunchdPlist(t *testing.T) {
 		"<key>PATH</key>",
 		"<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>",
 	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("rendered plist missing %q\nfull:\n%s", want, got)
-		}
+		assert.Contains(t, got, want)
 	}
 }
 
@@ -97,13 +80,9 @@ func TestDarwinStop_UnloadsViaBootout(t *testing.T) {
 	}
 	t.Cleanup(func() { runCommand = prevRun })
 
-	if err := (darwinManager{}).Stop(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, (darwinManager{}).Stop(context.Background()))
 	want := []string{"launchctl", "bootout", launchdTarget()}
-	if !slices.Equal(got, want) {
-		t.Errorf("Stop invoked %v, want %v", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestDarwinStart_KickstartsWhenLoaded(t *testing.T) {
@@ -115,16 +94,10 @@ func TestDarwinStart_KickstartsWhenLoaded(t *testing.T) {
 	}
 	t.Cleanup(func() { runCommand = prevRun })
 
-	if err := (darwinManager{}).Start(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if len(calls) != 2 {
-		t.Fatalf("calls = %v, want 2 (print + kickstart)", calls)
-	}
+	require.NoError(t, (darwinManager{}).Start(context.Background()))
+	require.Len(t, calls, 2, "calls = %v, want 2 (print + kickstart)", calls)
 	wantKickstart := []string{"launchctl", "kickstart", launchdTarget()}
-	if !slices.Equal(calls[1], wantKickstart) {
-		t.Errorf("second call = %v, want %v", calls[1], wantKickstart)
-	}
+	assert.Equal(t, wantKickstart, calls[1])
 }
 
 func TestDarwinStart_BootstrapsWhenNotLoaded(t *testing.T) {
@@ -142,17 +115,11 @@ func TestDarwinStart_BootstrapsWhenNotLoaded(t *testing.T) {
 	}
 	t.Cleanup(func() { runCommand = prevRun })
 
-	if err := (darwinManager{}).Start(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if len(calls) != 2 {
-		t.Fatalf("calls = %v, want 2 (print + bootstrap)", calls)
-	}
+	require.NoError(t, (darwinManager{}).Start(context.Background()))
+	require.Len(t, calls, 2, "calls = %v, want 2 (print + bootstrap)", calls)
 	plistPath := filepath.Join(tmp, "Library", "LaunchAgents", launchdLabel+".plist")
 	wantBootstrap := []string{"launchctl", "bootstrap", guiTarget(), plistPath}
-	if !slices.Equal(calls[1], wantBootstrap) {
-		t.Errorf("second call = %v, want %v", calls[1], wantBootstrap)
-	}
+	assert.Equal(t, wantBootstrap, calls[1])
 }
 
 func TestDarwinInstall_WritesPlist(t *testing.T) {
@@ -170,19 +137,17 @@ func TestDarwinInstall_WritesPlist(t *testing.T) {
 	_ = os.WriteFile(cfg, []byte("{}"), 0o600)
 	log := filepath.Join(tmp, "daemon.log")
 
-	if err := mgr.Install(context.Background(), InstallOptions{
+	err := mgr.Install(context.Background(), InstallOptions{
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: cfg,
 		LogPath:    log,
 		EnvPath:    "/opt/homebrew/bin:/usr/bin:/bin",
 		AutoStart:  false,
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
+	require.NoError(t, err)
 	// Content checks live in TestRenderLaunchdPlist; this test only confirms
 	// the install path actually drops the plist under ~/Library/LaunchAgents.
 	plistPath := filepath.Join(tmp, "Library", "LaunchAgents", "com.theopenbee.openbee.plist")
-	if _, err := os.Stat(plistPath); err != nil {
-		t.Fatalf("plist not written: %v", err)
-	}
+	_, err = os.Stat(plistPath)
+	require.NoError(t, err, "plist not written")
 }

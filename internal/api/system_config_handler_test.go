@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -83,17 +85,10 @@ func TestSystemConfigHandler_Get_Empty(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	var resp map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if resp[model.SystemConfigKeyDefaultEngine] != "" {
-		t.Errorf("expected empty default_engine, got %q", resp[model.SystemConfigKeyDefaultEngine])
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Empty(t, resp[model.SystemConfigKeyDefaultEngine])
 }
 
 func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
@@ -103,17 +98,10 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	var resp map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if resp[model.SystemConfigKeyDefaultEngine] != "claude" {
-		t.Errorf("expected claude, got %q", resp[model.SystemConfigKeyDefaultEngine])
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "claude", resp[model.SystemConfigKeyDefaultEngine])
 }
 
 func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
@@ -126,16 +114,9 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if store.vals[model.SystemConfigKeyDefaultEngine] != "claude" {
-		t.Errorf("expected store to have claude, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
-	}
-	if got := cfg.Get(); got != "claude" {
-		t.Errorf("engineCfg not updated: got %q", got)
-	}
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "claude", store.vals[model.SystemConfigKeyDefaultEngine])
+	assert.Equal(t, "claude", cfg.Get(), "engineCfg not updated")
 }
 
 func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
@@ -147,13 +128,8 @@ func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 when clearing to system default, got %d: %s", w.Code, w.Body.String())
-	}
-	if store.vals[model.SystemConfigKeyDefaultEngine] != "" {
-		t.Errorf("expected store to have empty value, got %q", store.vals[model.SystemConfigKeyDefaultEngine])
-	}
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Empty(t, store.vals[model.SystemConfigKeyDefaultEngine])
 }
 
 func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
@@ -166,10 +142,7 @@ func TestSystemConfigHandler_Set_InvalidEngine(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 }
 
 func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
@@ -180,10 +153,7 @@ func TestSystemConfigHandler_Set_UnknownKey(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/unknown_key", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 }
 
 func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
@@ -192,9 +162,7 @@ func TestSystemConfigHandler_Get_StoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
 	router.ServeHTTP(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
@@ -206,7 +174,5 @@ func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyDefaultEngine, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

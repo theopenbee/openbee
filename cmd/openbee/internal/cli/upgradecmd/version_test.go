@@ -1,13 +1,14 @@
 package upgradecmd
 
 import (
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsNewer(t *testing.T) {
@@ -22,9 +23,8 @@ func TestIsNewer(t *testing.T) {
 		{"dev", "dev", false},
 	}
 	for _, tc := range cases {
-		if got := isNewer(tc.latest, tc.current); got != tc.want {
-			t.Fatalf("isNewer(%q, %q) = %v, want %v", tc.latest, tc.current, got, tc.want)
-		}
+		got := isNewer(tc.latest, tc.current)
+		require.Equal(t, tc.want, got, "isNewer(%q, %q)", tc.latest, tc.current)
 	}
 }
 
@@ -49,37 +49,26 @@ func TestNormalizeVersionTag(t *testing.T) {
 	for _, tc := range cases {
 		got, err := normalizeVersionTag(tc.in)
 		if tc.wantErr {
-			if err == nil {
-				t.Fatalf("normalizeVersionTag(%q) = %q, want error", tc.in, got)
-			}
+			require.Error(t, err, "normalizeVersionTag(%q) = %q, want error", tc.in, got)
 			continue
 		}
-		if err != nil {
-			t.Fatalf("normalizeVersionTag(%q) unexpected error: %v", tc.in, err)
-		}
-		if got != tc.want {
-			t.Fatalf("normalizeVersionTag(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		require.NoError(t, err, "normalizeVersionTag(%q)", tc.in)
+		require.Equal(t, tc.want, got, "normalizeVersionTag(%q)", tc.in)
 	}
 }
 
 func TestFetchLatestVersion(t *testing.T) {
 	t.Setenv(githubTokenEnv, "")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "" {
-			t.Errorf("Authorization = %q, want none without %s", got, githubTokenEnv)
-		}
+		assert.Empty(t, r.Header.Get("Authorization"), "want none without %s", githubTokenEnv)
 		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
 	}))
 	defer srv.Close()
 
 	tag, version, err := fetchLatestVersion(srv.URL)
-	if err != nil {
-		t.Fatalf("fetchLatestVersion: %v", err)
-	}
-	if tag != "v1.2.3" || version != "v1.2.3" {
-		t.Fatalf("fetchLatestVersion = (%q, %q), want (%q, %q)", tag, version, "v1.2.3", "v1.2.3")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "v1.2.3", tag)
+	require.Equal(t, "v1.2.3", version)
 }
 
 func TestFetchLatestVersionKeepsTagVerbatim(t *testing.T) {
@@ -90,12 +79,9 @@ func TestFetchLatestVersionKeepsTagVerbatim(t *testing.T) {
 	defer srv.Close()
 
 	tag, version, err := fetchLatestVersion(srv.URL)
-	if err != nil {
-		t.Fatalf("fetchLatestVersion: %v", err)
-	}
-	if tag != "V1.2.3" || version != "v1.2.3" {
-		t.Fatalf("fetchLatestVersion = (%q, %q), want (%q, %q)", tag, version, "V1.2.3", "v1.2.3")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "V1.2.3", tag)
+	require.Equal(t, "v1.2.3", version)
 }
 
 func TestFetchLatestVersionRejectsBarePrefixTag(t *testing.T) {
@@ -105,9 +91,8 @@ func TestFetchLatestVersionRejectsBarePrefixTag(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if tag, _, err := fetchLatestVersion(srv.URL); err == nil {
-		t.Fatalf("fetchLatestVersion with tag \"V\" = %q, want error", tag)
-	}
+	tag, _, err := fetchLatestVersion(srv.URL)
+	require.Error(t, err, "fetchLatestVersion with tag \"V\" = %q, want error", tag)
 }
 
 func TestReleaseDownload(t *testing.T) {
@@ -124,25 +109,21 @@ func TestReleaseDownload(t *testing.T) {
 	}
 	for _, tc := range cases {
 		base, archiveName := releaseDownload(tc.tag, "linux", "amd64")
-		if base != tc.wantBase || archiveName != tc.wantArchiveName {
-			t.Fatalf("releaseDownload(%q) = (%q, %q), want (%q, %q)", tc.tag, base, archiveName, tc.wantBase, tc.wantArchiveName)
-		}
+		require.Equal(t, tc.wantBase, base, "releaseDownload(%q) base", tc.tag)
+		require.Equal(t, tc.wantArchiveName, archiveName, "releaseDownload(%q) archiveName", tc.tag)
 	}
 }
 
 func TestFetchLatestVersionSendsToken(t *testing.T) {
 	t.Setenv(githubTokenEnv, "test-token")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
-			t.Errorf("Authorization = %q, want %q", got, "Bearer test-token")
-		}
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
 	}))
 	defer srv.Close()
 
-	if _, _, err := fetchLatestVersion(srv.URL); err != nil {
-		t.Fatalf("fetchLatestVersion: %v", err)
-	}
+	_, _, err := fetchLatestVersion(srv.URL)
+	require.NoError(t, err)
 }
 
 func TestFetchLatestVersionRateLimited(t *testing.T) {
@@ -155,13 +136,9 @@ func TestFetchLatestVersionRateLimited(t *testing.T) {
 	defer srv.Close()
 
 	_, _, err := fetchLatestVersion(srv.URL)
-	if err == nil {
-		t.Fatalf("fetchLatestVersion on rate limit returned nil error")
-	}
+	require.Error(t, err, "fetchLatestVersion on rate limit returned nil error")
 	for _, want := range []string{"rate limit", githubTokenEnv} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("rate-limit error %q does not mention %q", err, want)
-		}
+		require.Contains(t, err.Error(), want, "rate-limit error does not mention %q", want)
 	}
 }
 
@@ -173,9 +150,9 @@ func TestFetchLatestVersionPlainForbidden(t *testing.T) {
 	defer srv.Close()
 
 	_, _, err := fetchLatestVersion(srv.URL)
-	if err == nil || strings.Contains(err.Error(), "rate limit") || !strings.Contains(err.Error(), "403") {
-		t.Fatalf("plain 403: err = %v, want a non-rate-limit error mentioning 403", err)
-	}
+	require.Error(t, err, "plain 403: want a non-rate-limit error mentioning 403")
+	require.NotContains(t, err.Error(), "rate limit")
+	require.Contains(t, err.Error(), "403")
 }
 
 func TestFetchLatestVersionBadToken(t *testing.T) {
@@ -186,9 +163,8 @@ func TestFetchLatestVersionBadToken(t *testing.T) {
 	defer srv.Close()
 
 	_, _, err := fetchLatestVersion(srv.URL)
-	if err == nil || !strings.Contains(err.Error(), githubTokenEnv) {
-		t.Fatalf("401 with token set: err = %v, want an error pointing at %s", err, githubTokenEnv)
-	}
+	require.Error(t, err, "401 with token set: want an error pointing at %s", githubTokenEnv)
+	require.Contains(t, err.Error(), githubTokenEnv)
 }
 
 func TestFetchLatestVersionTimesOut(t *testing.T) {
@@ -208,7 +184,6 @@ func TestFetchLatestVersionTimesOut(t *testing.T) {
 
 	_, _, err := fetchLatestVersion(srv.URL)
 	var netErr net.Error
-	if !errors.As(err, &netErr) || !netErr.Timeout() {
-		t.Fatalf("fetchLatestVersion against a stalled server: err = %v, want a timeout", err)
-	}
+	require.ErrorAs(t, err, &netErr, "fetchLatestVersion against a stalled server: want a timeout")
+	require.True(t, netErr.Timeout())
 }

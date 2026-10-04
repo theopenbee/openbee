@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubLookupRunAsEnvPath swaps in a deterministic PATH resolver so tests can
@@ -52,9 +55,7 @@ func stubChown(t *testing.T) {
 // require write access to /etc/systemd/system.
 func stubUnitDir(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(dir, 0o755))
 	prev := systemdUnitDir
 	systemdUnitDir = dir
 	t.Cleanup(func() { systemdUnitDir = prev })
@@ -69,9 +70,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		RunAsUser:  "me",
 		RunAsGroup: "me",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, want := range []string{
 		// ExecStart goes through `bash -ilc` so the daemon inherits the run-as
 		// user's interactive-login PATH (nvm/conda sourced from ~/.bashrc as
@@ -87,9 +86,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		"User=me",
 		"Group=me",
 	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("unit missing %q\nfull:\n%s", want, got)
-		}
+		assert.Contains(t, got, want)
 	}
 	// PATH/HOME must NOT be frozen into the unit — that defeats the bash -ilc
 	// design and brings back the install-time snapshot bugs.
@@ -97,9 +94,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 		"Environment=PATH=",
 		"Environment=HOME=",
 	} {
-		if strings.Contains(got, forbidden) {
-			t.Errorf("unit must not bake %q into the unit (use bash -lc instead)\nfull:\n%s", forbidden, got)
-		}
+		assert.NotContains(t, got, forbidden, "unit must not bake %q into the unit (use bash -lc instead)", forbidden)
 	}
 }
 
@@ -120,13 +115,11 @@ func TestLinuxInstall_WritesSystemUnit(t *testing.T) {
 	t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
 
 	mgr, err := NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	cfg := filepath.Join(tmp, "config.yaml")
 	_ = os.WriteFile(cfg, []byte("{}"), 0o600)
 
-	if err := mgr.Install(context.Background(), InstallOptions{
+	err = mgr.Install(context.Background(), InstallOptions{
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: cfg,
 		LogPath:    filepath.Join(tmp, "daemon.log"),
@@ -136,26 +129,17 @@ func TestLinuxInstall_WritesSystemUnit(t *testing.T) {
 		RunAsUser:  "openbee",
 		RunAsGroup: "openbee",
 		AutoStart:  false,
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
+	require.NoError(t, err)
 	unitPath := filepath.Join(tmp, "systemd", "openbee.service")
 	data, err := os.ReadFile(unitPath)
-	if err != nil {
-		t.Fatalf("unit not written: %v", err)
-	}
-	if !strings.Contains(string(data), cfg) {
-		t.Errorf("unit missing config path")
-	}
-	if !strings.Contains(string(data), "User=openbee") {
-		t.Errorf("unit missing User= directive")
-	}
+	require.NoError(t, err, "unit not written")
+	assert.Contains(t, string(data), cfg, "unit missing config path")
+	assert.Contains(t, string(data), "User=openbee", "unit missing User= directive")
 	// Sanity check that we never passed --user to systemctl.
 	for _, args := range seen {
 		for _, a := range args {
-			if a == "--user" {
-				t.Errorf("unexpected --user in systemctl call: %v", args)
-			}
+			assert.NotEqual(t, "--user", a, "unexpected --user in systemctl call: %v", args)
 		}
 	}
 }
@@ -170,9 +154,7 @@ func TestLinuxInstall_RefusesWithoutRoot(t *testing.T) {
 	t.Cleanup(func() { execLookPath = prevLook })
 
 	mgr, err := NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = mgr.Install(context.Background(), InstallOptions{
 		ExePath:    "/usr/local/bin/openbee",
 		ConfigPath: "/tmp/config.yaml",
@@ -181,94 +163,69 @@ func TestLinuxInstall_RefusesWithoutRoot(t *testing.T) {
 		RunAsUser:  "openbee",
 		RunAsGroup: "openbee",
 	})
-	if err == nil {
-		t.Fatal("expected refusal when not root")
-	}
-	if !strings.Contains(err.Error(), "root") {
-		t.Errorf("expected root-required error, got %v", err)
-	}
+	require.Error(t, err, "expected refusal when not root")
+	assert.Contains(t, err.Error(), "root")
 }
 
-func TestLinuxInstall_RollbackOnDaemonReloadFailure(t *testing.T) {
-	stubRoot(t)
-	stubChown(t)
-	tmp := t.TempDir()
-	stubUnitDir(t, filepath.Join(tmp, "systemd"))
+// TestLinuxInstall_FailureHandling merges the plain and --force variants of a
+// daemon-reload failure during install: both inject a systemctl daemon-reload
+// error and differ only in whether Force is set and, consequently, whether
+// the just-written unit file is rolled back or left in place.
+func TestLinuxInstall_FailureHandling(t *testing.T) {
+	cases := []struct {
+		name           string
+		force          bool
+		wantUnitExists bool
+	}{
+		{name: "RollbackOnDaemonReloadFailure", force: false, wantUnitExists: false},
+		{name: "ForcePreservesUnitOnFailure", force: true, wantUnitExists: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stubRoot(t)
+			stubChown(t)
+			tmp := t.TempDir()
+			unitDir := filepath.Join(tmp, "systemd")
+			stubUnitDir(t, unitDir)
+			unitPath := filepath.Join(unitDir, "openbee.service")
+			if tc.force {
+				require.NoError(t, os.WriteFile(unitPath, []byte("# preexisting\n"), 0o644))
+			}
 
-	prevLook := execLookPath
-	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
-	prevRun := runCommand
-	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "daemon-reload" {
-			return []byte("boom"), errors.New("exit status 1")
-		}
-		return nil, nil
-	}
-	t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
+			prevLook := execLookPath
+			execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
+			prevRun := runCommand
+			runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				if len(args) >= 1 && args[0] == "daemon-reload" {
+					return []byte("boom"), errors.New("exit status 1")
+				}
+				return nil, nil
+			}
+			t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
 
-	mgr, err := NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mgr.Install(context.Background(), InstallOptions{
-		ExePath:    "/usr/local/bin/openbee",
-		ConfigPath: filepath.Join(tmp, "config.yaml"),
-		LogPath:    filepath.Join(tmp, "daemon.log"),
-		WorkingDir: tmp,
-		RunAsUser:  "openbee",
-		RunAsGroup: "openbee",
-	})
-	if err == nil {
-		t.Fatal("expected error when daemon-reload fails")
-	}
-	unitPath := filepath.Join(tmp, "systemd", "openbee.service")
-	if _, err := os.Stat(unitPath); !os.IsNotExist(err) {
-		t.Errorf("unit file should be rolled back; stat err = %v", err)
-	}
-}
+			mgr, err := NewManager()
+			require.NoError(t, err)
+			err = mgr.Install(context.Background(), InstallOptions{
+				ExePath:    "/usr/local/bin/openbee",
+				ConfigPath: filepath.Join(tmp, "config.yaml"),
+				LogPath:    filepath.Join(tmp, "daemon.log"),
+				WorkingDir: tmp,
+				RunAsUser:  "openbee",
+				RunAsGroup: "openbee",
+				Force:      tc.force,
+			})
+			require.Error(t, err, "expected error when daemon-reload fails")
 
-func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
-	stubRoot(t)
-	stubChown(t)
-	tmp := t.TempDir()
-	unitDir := filepath.Join(tmp, "systemd")
-	stubUnitDir(t, unitDir)
-	unitPath := filepath.Join(unitDir, "openbee.service")
-	if err := os.WriteFile(unitPath, []byte("# preexisting\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	prevLook := execLookPath
-	execLookPath = func(_ string) (string, error) { return "/usr/bin/systemctl", nil }
-	prevRun := runCommand
-	runCommand = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "daemon-reload" {
-			return []byte("boom"), errors.New("exit status 1")
-		}
-		return nil, nil
-	}
-	t.Cleanup(func() { execLookPath = prevLook; runCommand = prevRun })
-
-	mgr, err := NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = mgr.Install(context.Background(), InstallOptions{
-		ExePath:    "/usr/local/bin/openbee",
-		ConfigPath: filepath.Join(tmp, "config.yaml"),
-		LogPath:    filepath.Join(tmp, "daemon.log"),
-		WorkingDir: tmp,
-		RunAsUser:  "openbee",
-		RunAsGroup: "openbee",
-		Force:      true,
-	})
-	if err == nil {
-		t.Fatal("expected error when daemon-reload fails")
-	}
-	// With Force, the user accepted overwriting; we should not delete the new
-	// unit (which would otherwise be more surprising than the failure itself).
-	if _, err := os.Stat(unitPath); err != nil {
-		t.Errorf("unit file should remain after force-overwrite failure; got %v", err)
+			_, statErr := os.Stat(unitPath)
+			if tc.wantUnitExists {
+				// With Force, the user accepted overwriting; we should not delete
+				// the new unit (which would otherwise be more surprising than the
+				// failure itself).
+				assert.NoError(t, statErr, "unit file should remain after force-overwrite failure")
+			} else {
+				assert.True(t, os.IsNotExist(statErr), "unit file should be rolled back; stat err = %v", statErr)
+			}
+		})
 	}
 }
 
@@ -279,9 +236,7 @@ func TestLinuxInstall_ForcePreservesUnitOnFailure(t *testing.T) {
 func TestResolveInstallOptions_UsesRunAsUserPath(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 	const userPath = "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin:/bin"
 	stubLookupRunAsEnvPath(t, func(_ context.Context, _ string) (string, error) {
 		return userPath, nil
@@ -291,23 +246,15 @@ func TestResolveInstallOptions_UsesRunAsUserPath(t *testing.T) {
 	})
 
 	opts, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("resolveInstallOptions: %v", err)
-	}
-	if opts.EnvPath != userPath {
-		t.Errorf("EnvPath = %q, want run-as user path %q", opts.EnvPath, userPath)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("expected no warnings when lookup + verify succeed, got %v", warnings)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, userPath, opts.EnvPath, "want run-as user path")
+	assert.Empty(t, warnings, "expected no warnings when lookup + verify succeed")
 }
 
 func TestResolveInstallOptions_FallsBackOnLookupFailure(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 	stubLookupRunAsEnvPath(t, func(context.Context, string) (string, error) {
 		return "", errors.New("runuser missing")
 	})
@@ -316,23 +263,16 @@ func TestResolveInstallOptions_FallsBackOnLookupFailure(t *testing.T) {
 	})
 
 	opts, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("resolveInstallOptions: %v", err)
-	}
-	if opts.EnvPath != os.Getenv("PATH") {
-		t.Errorf("EnvPath = %q, want installer PATH fallback %q", opts.EnvPath, os.Getenv("PATH"))
-	}
-	if len(warnings) == 0 || !strings.Contains(warnings[0], "runuser missing") {
-		t.Errorf("expected RunAsPathResolveFailed warning, got %v", warnings)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, os.Getenv("PATH"), opts.EnvPath, "want installer PATH fallback")
+	require.NotEmpty(t, warnings, "expected RunAsPathResolveFailed warning") // guard: next assertion indexes warnings[0]
+	assert.Contains(t, warnings[0], "runuser missing")
 }
 
 func TestResolveInstallOptions_NotExecutableWarning(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 	stubLookupRunAsEnvPath(t, func(context.Context, string) (string, error) {
 		return "/root/.nvm/versions/node/v20.0.0/bin:/usr/bin", nil
 	})
@@ -341,17 +281,12 @@ func TestResolveInstallOptions_NotExecutableWarning(t *testing.T) {
 	})
 
 	_, warnings, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("resolveInstallOptions: %v", err)
-	}
-	if len(warnings) == 0 {
-		t.Fatal("expected NodeNotExecutableWarning")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, warnings, "expected NodeNotExecutableWarning")
 	// The warning must point at the Permission-denied fix path (per-user node),
 	// not the "install Node.js" path that NodeMissingWarning suggests.
-	if !strings.Contains(warnings[0], "Permission denied") && !strings.Contains(warnings[0], "无权执行") {
-		t.Errorf("warning should mention Permission denied, got %q", warnings[0])
-	}
+	assert.True(t, strings.Contains(warnings[0], "Permission denied") || strings.Contains(warnings[0], "无权执行"),
+		"warning should mention Permission denied, got %q", warnings[0])
 }
 
 // TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser verifies the production helper
@@ -366,17 +301,11 @@ func TestLinuxLookupRunAsEnvPath_ShellsOutToRunuser(t *testing.T) {
 	t.Cleanup(func() { runCommand = prev })
 
 	p, err := linuxLookupRunAsEnvPath(context.Background(), "openbee")
-	if err != nil {
-		t.Fatalf("linuxLookupRunAsEnvPath: %v", err)
-	}
+	require.NoError(t, err)
 	want := "/home/openbee/.nvm/versions/node/v20.0.0/bin:/usr/bin"
-	if p != want {
-		t.Errorf("PATH = %q, want %q", p, want)
-	}
+	assert.Equal(t, want, p)
 	wantArgs := []string{"runuser", "-l", "openbee", "-c", `bash -ic 'printf %s "$PATH"'`}
-	if strings.Join(got, " ") != strings.Join(wantArgs, " ") {
-		t.Errorf("runuser argv = %v, want %v", got, wantArgs)
-	}
+	assert.Equal(t, wantArgs, got, "runuser argv")
 }
 
 func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {
@@ -401,9 +330,7 @@ func TestLinuxVerifyNodeForRunAsUser_MapsExitCodes(t *testing.T) {
 			t.Cleanup(func() { runWithExitCode = prev })
 
 			got := linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/usr/bin")
-			if got != tc.want {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -426,10 +353,7 @@ func TestLinuxVerifyNodeForRunAsUser_UsesInteractiveLoginShell(t *testing.T) {
 	// Exit-code → result mapping is covered by TestLinuxVerifyNodeForRunAsUser_MapsExitCodes;
 	// this test only pins the argv shape.
 	linuxVerifyNodeForRunAsUser(context.Background(), "openbee", "/ignored")
-	if len(got) < 5 || got[0] != "runuser" || got[1] != "-l" || got[2] != "openbee" || got[3] != "-c" {
-		t.Errorf("expected `runuser -l openbee -c <script>`, got %v", got)
-	}
-	if !strings.HasPrefix(got[4], "bash -ic ") {
-		t.Errorf("expected inner shell to be `bash -ic …`, got %q", got[4])
-	}
+	require.GreaterOrEqual(t, len(got), 5, "expected `runuser -l openbee -c <script>`, got %v", got) // guard: indexes below read got[0..4]
+	assert.Equal(t, []string{"runuser", "-l", "openbee", "-c"}, got[:4])
+	assert.True(t, strings.HasPrefix(got[4], "bash -ic "), "expected inner shell to be `bash -ic …`, got %q", got[4])
 }

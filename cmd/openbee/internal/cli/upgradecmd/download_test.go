@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDownloadFileWritesBodyAndExtra(t *testing.T) {
@@ -24,20 +25,12 @@ func TestDownloadFileWritesBodyAndExtra(t *testing.T) {
 
 	dest := filepath.Join(t.TempDir(), "out")
 	h := sha256.New()
-	if err := downloadFile(srv.URL, dest, h); err != nil {
-		t.Fatalf("downloadFile: %v", err)
-	}
+	require.NoError(t, downloadFile(srv.URL, dest, h))
 	got, err := os.ReadFile(dest)
-	if err != nil {
-		t.Fatalf("read dest: %v", err)
-	}
-	if string(got) != body {
-		t.Fatalf("dest content = %q, want %q", got, body)
-	}
+	require.NoError(t, err)
+	require.Equal(t, body, string(got))
 	want := sha256.Sum256([]byte(body))
-	if hex.EncodeToString(h.Sum(nil)) != hex.EncodeToString(want[:]) {
-		t.Fatalf("extra writer did not receive the downloaded bytes")
-	}
+	require.Equal(t, hex.EncodeToString(want[:]), hex.EncodeToString(h.Sum(nil)), "extra writer did not receive the downloaded bytes")
 }
 
 func TestDownloadFileNon200(t *testing.T) {
@@ -47,80 +40,62 @@ func TestDownloadFileNon200(t *testing.T) {
 	defer srv.Close()
 
 	dest := filepath.Join(t.TempDir(), "out")
-	if err := downloadFile(srv.URL, dest, nil); err == nil {
-		t.Fatalf("downloadFile on 404 returned nil error")
-	}
-	if _, err := os.Stat(dest); !os.IsNotExist(err) {
-		t.Fatalf("dest should not be created on non-200, stat err = %v", err)
-	}
+	err := downloadFile(srv.URL, dest, nil)
+	require.Error(t, err, "downloadFile on 404 returned nil error")
+	_, err = os.Stat(dest)
+	require.True(t, os.IsNotExist(err), "dest should not be created on non-200, stat err = %v", err)
 }
 
 func TestParseChecksumFile(t *testing.T) {
 	data := []byte("aaa111  openbee-1.0.0-linux-amd64.tar.gz\nbbb222  openbee-1.0.0-darwin-arm64.tar.gz\n")
 	got, err := parseChecksumFile(data, "openbee-1.0.0-darwin-arm64.tar.gz")
-	if err != nil {
-		t.Fatalf("parseChecksumFile: %v", err)
-	}
-	if got != "bbb222" {
-		t.Fatalf("parseChecksumFile = %q, want %q", got, "bbb222")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "bbb222", got)
 }
 
 func TestParseChecksumFileMissing(t *testing.T) {
 	data := []byte("aaa111  openbee-1.0.0-linux-amd64.tar.gz\n")
-	if _, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.tar.gz"); err == nil {
-		t.Fatalf("parseChecksumFile for missing asset returned nil error")
-	}
+	_, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.tar.gz")
+	require.Error(t, err, "parseChecksumFile for missing asset returned nil error")
 }
 
 func TestParseChecksumFileBinaryMode(t *testing.T) {
 	// sha256sum -b marks binary-mode entries with a leading '*'.
 	data := []byte("aaa111 *openbee-1.0.0-windows-amd64.zip\n")
 	got, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.zip")
-	if err != nil {
-		t.Fatalf("parseChecksumFile(*name): %v", err)
-	}
-	if got != "aaa111" {
-		t.Fatalf("parseChecksumFile(*name) = %q, want %q", got, "aaa111")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "aaa111", got)
 }
 
 func TestParseChecksumFileCRLF(t *testing.T) {
 	data := []byte("aaa111  openbee-1.0.0-windows-amd64.zip\r\nbbb222  openbee-1.0.0-linux-amd64.tar.gz\r\n")
 	got, err := parseChecksumFile(data, "openbee-1.0.0-windows-amd64.zip")
-	if err != nil {
-		t.Fatalf("parseChecksumFile(CRLF): %v", err)
-	}
-	if got != "aaa111" {
-		t.Fatalf("parseChecksumFile(CRLF) = %q, want %q", got, "aaa111")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "aaa111", got)
 }
 
 func TestVerifyChecksumIgnoresHexCase(t *testing.T) {
 	sum := sha256.Sum256([]byte("archive"))
 	upper := strings.ToUpper(hex.EncodeToString(sum[:]))
 	checksums := []byte(upper + "  openbee-1.0.0-linux-amd64.tar.gz\n")
-	if err := verifyChecksum(checksums, "openbee-1.0.0-linux-amd64.tar.gz", sum[:]); err != nil {
-		t.Fatalf("verifyChecksum with uppercase hex: %v", err)
-	}
+	err := verifyChecksum(checksums, "openbee-1.0.0-linux-amd64.tar.gz", sum[:])
+	require.NoError(t, err, "verifyChecksum with uppercase hex")
 }
 
 func TestVerifyChecksumMismatch(t *testing.T) {
 	sum := sha256.Sum256([]byte("archive"))
 	checksums := []byte(strings.Repeat("0", 64) + "  openbee-1.0.0-linux-amd64.tar.gz\n")
 	err := verifyChecksum(checksums, "openbee-1.0.0-linux-amd64.tar.gz", sum[:])
-	if err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
-		t.Fatalf("verifyChecksum mismatch: err = %v, want SHA256 mismatch", err)
-	}
+	require.Error(t, err, "verifyChecksum mismatch: want SHA256 mismatch")
+	require.Contains(t, err.Error(), "SHA256 mismatch")
 }
 
 func TestVerifyChecksumMissingEntry(t *testing.T) {
 	sum := sha256.Sum256([]byte("archive"))
 	checksums := []byte(strings.Repeat("0", 64) + "  openbee-1.0.0-linux-amd64.tar.gz\n")
 	err := verifyChecksum(checksums, "openbee-1.0.0-windows-amd64.zip", sum[:])
-	if err == nil || !strings.Contains(err.Error(), "in checksums.txt") {
-		t.Fatalf("verifyChecksum missing entry: err = %v, want not-found error", err)
-	}
+	require.Error(t, err, "verifyChecksum missing entry: want not-found error")
+	require.Contains(t, err.Error(), "in checksums.txt")
 }
 
 // newReleaseServer serves files keyed by URL path (without the leading slash).
@@ -149,16 +124,10 @@ func TestFetchVerifiedArchive(t *testing.T) {
 	})
 
 	path, err := fetchVerifiedArchive(srv.URL, name, t.TempDir())
-	if err != nil {
-		t.Fatalf("fetchVerifiedArchive: %v", err)
-	}
+	require.NoError(t, err)
 	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read archive: %v", err)
-	}
-	if string(got) != body {
-		t.Fatalf("archive content = %q, want %q", got, body)
-	}
+	require.NoError(t, err, "read archive")
+	require.Equal(t, body, string(got))
 }
 
 func TestFetchVerifiedArchiveAbortsWithoutChecksums(t *testing.T) {
@@ -167,12 +136,10 @@ func TestFetchVerifiedArchiveAbortsWithoutChecksums(t *testing.T) {
 
 	dir := t.TempDir()
 	_, err := fetchVerifiedArchive(srv.URL, name, dir)
-	if err == nil || !strings.Contains(err.Error(), "checksums.txt") {
-		t.Fatalf("fetchVerifiedArchive with checksums.txt unavailable: err = %v, want checksums.txt error", err)
-	}
-	if _, statErr := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(statErr) {
-		t.Fatalf("archive should not be downloaded when checksums.txt is unavailable, stat err = %v", statErr)
-	}
+	require.Error(t, err, "fetchVerifiedArchive with checksums.txt unavailable: want checksums.txt error")
+	require.Contains(t, err.Error(), "checksums.txt")
+	_, statErr := os.Stat(filepath.Join(dir, name))
+	require.True(t, os.IsNotExist(statErr), "archive should not be downloaded when checksums.txt is unavailable, stat err = %v", statErr)
 }
 
 func TestFetchVerifiedArchiveMismatch(t *testing.T) {
@@ -183,9 +150,8 @@ func TestFetchVerifiedArchiveMismatch(t *testing.T) {
 	})
 
 	_, err := fetchVerifiedArchive(srv.URL, name, t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
-		t.Fatalf("fetchVerifiedArchive with wrong hash: err = %v, want SHA256 mismatch", err)
-	}
+	require.Error(t, err, "fetchVerifiedArchive with wrong hash: want SHA256 mismatch")
+	require.Contains(t, err.Error(), "SHA256 mismatch")
 }
 
 func TestCopyWithLimit(t *testing.T) {
@@ -200,11 +166,9 @@ func TestCopyWithLimit(t *testing.T) {
 	for _, tc := range cases {
 		var buf bytes.Buffer
 		err := copyWithLimit(&buf, strings.NewReader(tc.body), 4)
-		if (err != nil) != tc.wantErr {
-			t.Fatalf("copyWithLimit(%q, limit 4) err = %v, wantErr %v", tc.body, err, tc.wantErr)
-		}
-		if !tc.wantErr && buf.String() != tc.body {
-			t.Fatalf("copyWithLimit(%q) copied %q", tc.body, buf.String())
+		require.Equal(t, tc.wantErr, err != nil, "copyWithLimit(%q, limit 4) err = %v", tc.body, err)
+		if !tc.wantErr {
+			require.Equal(t, tc.body, buf.String(), "copyWithLimit(%q) copied", tc.body)
 		}
 	}
 }
@@ -226,7 +190,6 @@ func TestDownloadFileTimesOut(t *testing.T) {
 
 	err := downloadFile(srv.URL, filepath.Join(t.TempDir(), "out"), nil)
 	var netErr net.Error
-	if !errors.As(err, &netErr) || !netErr.Timeout() {
-		t.Fatalf("downloadFile against a stalled server: err = %v, want a timeout", err)
-	}
+	require.ErrorAs(t, err, &netErr, "downloadFile against a stalled server: want a timeout")
+	require.True(t, netErr.Timeout())
 }

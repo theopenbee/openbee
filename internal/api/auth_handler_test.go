@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -17,14 +18,11 @@ import (
 func newAuthTestServer(t *testing.T, maxAttempts int) (*gin.Engine, *store.UserStore, *auth.JWTService) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	us := store.NewUserStore(db)
-	if _, err := us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin}); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
+	_, err = us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin})
+	require.NoError(t, err)
 	jwtSvc := auth.NewJWTService("secret", time.Hour, 24*time.Hour)
 	rl := auth.NewLoginRateLimiter(maxAttempts, time.Minute)
 	resolver := auth.NewPermissionResolver(us.PermissionsForUser)
@@ -43,21 +41,15 @@ func TestAuthHandler_LoginSuccess(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var pair auth.TokenPair
 	_ = json.Unmarshal(rec.Body.Bytes(), &pair)
-	if pair.AccessToken == "" {
-		t.Fatal("expected access token")
-	}
+	require.NotEmpty(t, pair.AccessToken)
 }
 
 func TestAuthHandler_LoginBadPassword(t *testing.T) {
 	r, _, _ := newAuthTestServer(t, 50)
-	if code := login(t, r, "alice", "nope"); code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", code)
-	}
+	require.Equal(t, http.StatusUnauthorized, login(t, r, "alice", "nope"))
 }
 
 func login(t *testing.T, r *gin.Engine, username, password string) int {
@@ -75,9 +67,7 @@ func login(t *testing.T, r *gin.Engine, username, password string) int {
 func TestAuthHandler_SuccessfulLoginsNeverRateLimited(t *testing.T) {
 	r, _, _ := newAuthTestServer(t, 3)
 	for i := 0; i < 10; i++ {
-		if code := login(t, r, "alice", "s3cret"); code != http.StatusOK {
-			t.Fatalf("successful login %d: expected 200, got %d", i+1, code)
-		}
+		require.Equal(t, http.StatusOK, login(t, r, "alice", "s3cret"), "successful login %d", i+1)
 	}
 }
 
@@ -85,11 +75,7 @@ func TestAuthHandler_SuccessfulLoginsNeverRateLimited(t *testing.T) {
 func TestAuthHandler_RepeatedFailuresRateLimited(t *testing.T) {
 	r, _, _ := newAuthTestServer(t, 3)
 	for i := 0; i < 3; i++ {
-		if code := login(t, r, "alice", "wrong"); code != http.StatusUnauthorized {
-			t.Fatalf("failed login %d: expected 401, got %d", i+1, code)
-		}
+		require.Equal(t, http.StatusUnauthorized, login(t, r, "alice", "wrong"), "failed login %d", i+1)
 	}
-	if code := login(t, r, "alice", "wrong"); code != http.StatusTooManyRequests {
-		t.Fatalf("expected 429 after exhausting attempts, got %d", code)
-	}
+	require.Equal(t, http.StatusTooManyRequests, login(t, r, "alice", "wrong"), "expected 429 after exhausting attempts")
 }

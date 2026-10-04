@@ -6,9 +6,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func withFastVerify(t *testing.T) {
@@ -53,9 +55,7 @@ func writeFakeConfig(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 	return cfg
 }
 
@@ -69,19 +69,11 @@ func TestInstall_DefaultAutoStart(t *testing.T) {
 	cmd.SetOut(new(bytes.Buffer))
 	cmd.SetErr(new(bytes.Buffer))
 	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
+	require.NoError(t, cmd.Execute())
 
-	if len(fm.installCalls) != 1 {
-		t.Fatalf("Install called %d times", len(fm.installCalls))
-	}
-	if !fm.installCalls[0].AutoStart {
-		t.Errorf("AutoStart should default to true")
-	}
-	if fm.installCalls[0].Force {
-		t.Errorf("Force should default to false")
-	}
+	require.Len(t, fm.installCalls, 1)
+	assert.True(t, fm.installCalls[0].AutoStart, "AutoStart should default to true")
+	assert.False(t, fm.installCalls[0].Force, "Force should default to false")
 }
 
 func TestInstall_VerifyFailsWhenNotRunning(t *testing.T) {
@@ -97,12 +89,8 @@ func TestInstall_VerifyFailsWhenNotRunning(t *testing.T) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error when post-install verification fails")
-	}
-	if !strings.Contains(out.String(), "78") {
-		t.Errorf("expected last exit code in output, got %q", out.String())
-	}
+	require.Error(t, cmd.Execute(), "expected error when post-install verification fails")
+	assert.Contains(t, out.String(), "78")
 }
 
 func TestStart_SuccessWhenRunning(t *testing.T) {
@@ -115,12 +103,8 @@ func TestStart_SuccessWhenRunning(t *testing.T) {
 	cmd.SetOut(out)
 	cmd.SetErr(new(bytes.Buffer))
 	cmd.SetArgs([]string{"start"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	if !strings.Contains(out.String(), "4242") {
-		t.Errorf("expected PID in output, got %q", out.String())
-	}
+	require.NoError(t, cmd.Execute())
+	assert.Contains(t, out.String(), "4242")
 }
 
 func TestStart_FailureWhenStopped(t *testing.T) {
@@ -135,12 +119,8 @@ func TestStart_FailureWhenStopped(t *testing.T) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.SetArgs([]string{"start"})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error when start verification fails")
-	}
-	if !strings.Contains(out.String(), "SIGSEGV") {
-		t.Errorf("expected exit reason in output, got %q", out.String())
-	}
+	require.Error(t, cmd.Execute(), "expected error when start verification fails")
+	assert.Contains(t, out.String(), "SIGSEGV")
 }
 
 func TestInstall_NoStart(t *testing.T) {
@@ -152,12 +132,8 @@ func TestInstall_NoStart(t *testing.T) {
 	cmd.SetOut(new(bytes.Buffer))
 	cmd.SetErr(new(bytes.Buffer))
 	cmd.SetArgs([]string{"install", "--config", cfg, "--no-start", "--run-as", currentUsername(t)})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	if fm.installCalls[0].AutoStart {
-		t.Errorf("AutoStart should be false with --no-start")
-	}
+	require.NoError(t, cmd.Execute())
+	assert.False(t, fm.installCalls[0].AutoStart, "AutoStart should be false with --no-start")
 }
 
 func TestInstall_ManagerError(t *testing.T) {
@@ -171,7 +147,5 @@ func TestInstall_ManagerError(t *testing.T) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.SetArgs([]string{"install", "--config", cfg, "--run-as", currentUsername(t)})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, cmd.Execute())
 }

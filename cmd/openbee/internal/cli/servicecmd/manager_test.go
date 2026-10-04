@@ -4,8 +4,10 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // currentUsername returns the user the test process runs as. Used to populate
@@ -13,54 +15,30 @@ import (
 func currentUsername(t *testing.T) string {
 	t.Helper()
 	u, err := user.Current()
-	if err != nil {
-		t.Fatalf("user.Current: %v", err)
-	}
+	require.NoError(t, err)
 	return u.Username
 }
 
 func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 
 	opts, _, err := resolveInstallOptions(cfg, "", currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if opts.ConfigPath != cfg {
-		t.Errorf("ConfigPath = %q, want %q", opts.ConfigPath, cfg)
-	}
-	if opts.AutoStart != true {
-		t.Errorf("AutoStart should default to true")
-	}
-	if opts.ExePath == "" {
-		t.Errorf("ExePath empty")
-	}
-	if opts.LogPath == "" {
-		t.Errorf("LogPath empty")
-	}
-	if opts.WorkingDir == "" {
-		t.Errorf("WorkingDir empty")
-	}
-	if !filepath.IsAbs(opts.WorkingDir) {
-		t.Errorf("WorkingDir %q must be absolute", opts.WorkingDir)
-	}
-	if opts.EnvPath == "" {
-		t.Errorf("EnvPath should capture the install-time PATH, got empty")
-	}
-	if opts.EnvPath != os.Getenv("PATH") {
-		t.Errorf("EnvPath = %q, want current PATH %q", opts.EnvPath, os.Getenv("PATH"))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, cfg, opts.ConfigPath)
+	assert.True(t, opts.AutoStart, "AutoStart should default to true")
+	assert.NotEmpty(t, opts.ExePath)
+	assert.NotEmpty(t, opts.LogPath)
+	assert.NotEmpty(t, opts.WorkingDir)
+	assert.True(t, filepath.IsAbs(opts.WorkingDir), "WorkingDir %q must be absolute", opts.WorkingDir)
+	assert.NotEmpty(t, opts.EnvPath, "EnvPath should capture the install-time PATH")
+	assert.Equal(t, os.Getenv("PATH"), opts.EnvPath)
 }
 
 func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", currentUsername(t), false, false)
-	if err == nil {
-		t.Fatal("expected error for missing config")
-	}
+	require.Error(t, err, "expected error for missing config")
 }
 
 // Regression: passing a directory as --config (e.g. `--config ~/openbee`)
@@ -68,34 +46,21 @@ func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 func TestResolveInstallOptions_ConfigIsDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	_, _, err := resolveInstallOptions(tmp, "", currentUsername(t), false, false)
-	if err == nil {
-		t.Fatal("expected error for directory passed as config")
-	}
-	if !strings.Contains(err.Error(), "must point to a config file") {
-		t.Errorf("expected directory-not-file error, got: %v", err)
-	}
+	require.Error(t, err, "expected error for directory passed as config")
+	assert.Contains(t, err.Error(), "must point to a config file")
 	suggested := filepath.Join(tmp, "config.yaml")
-	if !strings.Contains(err.Error(), suggested) {
-		t.Errorf("error should suggest %q, got: %v", suggested, err)
-	}
+	assert.Contains(t, err.Error(), suggested)
 }
 
 func TestResolveInstallOptions_ExplicitWorkingDir(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := filepath.Join(tmp, "config.yaml")
-	if err := os.WriteFile(cfg, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfg, []byte("{}"), 0o600))
 	wd := filepath.Join(tmp, "run")
 
 	opts, _, err := resolveInstallOptions(cfg, wd, currentUsername(t), false, false)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if opts.WorkingDir != wd {
-		t.Errorf("WorkingDir = %q, want %q", opts.WorkingDir, wd)
-	}
-	if _, err := os.Stat(wd); err != nil {
-		t.Errorf("working dir not created: %v", err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, wd, opts.WorkingDir)
+	_, err = os.Stat(wd)
+	assert.NoError(t, err, "working dir not created")
 }
