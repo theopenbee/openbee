@@ -14,21 +14,22 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServer(t *testing.T, register func(*gin.RouterGroup, *ExecutionHandler)) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+func newTestServer(t *testing.T, register func(*gin.RouterGroup, *ExecutionHandler)) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTokenStatsStore(db)
 	h := NewExecutionHandler(es, ts)
 	router := gin.New()
 	api := router.Group("/api")
 	register(api, h)
-	return router, es, ts, func() { db.Close() }
+	return router, es, ts
 }
 
-func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+func newTestServerWithExecutions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore) {
 	return newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
 		api.GET("/sessions", h.List)
 	})
@@ -61,11 +62,10 @@ func TestTokenStatsIncluded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			router, es, ts, cleanup := newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
+			router, es, ts := newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
 				api.GET("/sessions", h.List)
 				api.GET("/sessions/:id", h.GetSession)
 			})
-			defer cleanup()
 
 			_, err := es.Create(store.ExecutionCreate{WorkerID: "worker-1", TriggerInput: "hello", SessionID: "session-abc", Engine: "claude"})
 			require.NoError(t, err)
@@ -98,8 +98,7 @@ func TestTokenStatsIncluded(t *testing.T) {
 }
 
 func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
-	router, es, _, cleanup := newTestServerWithExecutions(t)
-	defer cleanup()
+	router, es, _ := newTestServerWithExecutions(t)
 
 	_, err := es.Create(store.ExecutionCreate{WorkerID: "worker-1", TriggerInput: "hello", SessionID: "session-xyz", Engine: "claude"})
 	require.NoError(t, err)
@@ -118,15 +117,14 @@ func TestExecutionsList_NoTokenStats_WhenNoneExist(t *testing.T) {
 	}
 }
 
-func newTestServerWithSessions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore, func()) {
+func newTestServerWithSessions(t *testing.T) (*gin.Engine, *store.ExecutionStore, *store.TokenStatsStore) {
 	return newTestServer(t, func(api *gin.RouterGroup, h *ExecutionHandler) {
 		api.GET("/sessions/:id", h.GetSession)
 	})
 }
 
 func TestGetSession_NullTokenStats_WhenNoneExist(t *testing.T) {
-	router, es, _, cleanup := newTestServerWithSessions(t)
-	defer cleanup()
+	router, es, _ := newTestServerWithSessions(t)
 
 	_, err := es.Create(store.ExecutionCreate{WorkerID: "worker-1", TriggerInput: "hello", SessionID: "session-xyz", Engine: "claude"})
 	require.NoError(t, err)

@@ -13,12 +13,13 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServerWithStats(t *testing.T) (*gin.Engine, *store.StatsStore, func()) {
+func newTestServerWithStats(t *testing.T) (*gin.Engine, *store.StatsStore) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 
 	ss := store.NewStatsStore(db)
 
@@ -28,12 +29,11 @@ func newTestServerWithStats(t *testing.T) (*gin.Engine, *store.StatsStore, func(
 	api.GET("/stats/overview", h.GetOverview)
 	api.GET("/stats/token-trend", h.GetTokenTrend)
 
-	return router, ss, func() { db.Close() }
+	return router, ss
 }
 
 func TestGetStatsOverview_ReturnsOK(t *testing.T) {
-	router, _, cleanup := newTestServerWithStats(t)
-	defer cleanup()
+	router, _ := newTestServerWithStats(t)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/stats/overview", nil)
@@ -50,8 +50,7 @@ func TestGetStatsOverview_ReturnsOK(t *testing.T) {
 }
 
 func TestGetTokenTrend_ValidDays(t *testing.T) {
-	router, _, cleanup := newTestServerWithStats(t)
-	defer cleanup()
+	router, _ := newTestServerWithStats(t)
 
 	for _, days := range []int{7, 15, 30} {
 		w := httptest.NewRecorder()
@@ -73,8 +72,7 @@ func TestGetTokenTrend_ValidDays(t *testing.T) {
 }
 
 func TestGetTokenTrend_InvalidDays_Returns400(t *testing.T) {
-	router, _, cleanup := newTestServerWithStats(t)
-	defer cleanup()
+	router, _ := newTestServerWithStats(t)
 
 	for _, bad := range []string{"99", "0", "abc", "-1"} {
 		w := httptest.NewRecorder()

@@ -15,12 +15,13 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore, func()) {
+func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','Worker1','/','idle',1,1)`)
 	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m1','s1','feishu','hi','','',1,1,1)`)
 
@@ -34,12 +35,11 @@ func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore, func()
 	api.DELETE("/tasks/:id", h.Cancel)
 	api.POST("/workers/:id/tasks/cancel-all", h.CancelByWorker)
 
-	return router, taskStore, func() { db.Close() }
+	return router, taskStore
 }
 
 func TestListTasks_FiltersByTypeAndStatus(t *testing.T) {
-	router, ts, cleanup := newTestServerWithTasks(t)
-	defer cleanup()
+	router, ts := newTestServerWithTasks(t)
 
 	ctx := context.Background()
 	now := time.Now().UnixMilli()
@@ -91,8 +91,7 @@ func TestCancelTask_Succeeds(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			router, ts, cleanup := newTestServerWithTasks(t)
-			defer cleanup()
+			router, ts := newTestServerWithTasks(t)
 
 			ctx := context.Background()
 			now := time.Now().UnixMilli()
@@ -117,8 +116,7 @@ func TestCancelTask_Succeeds(t *testing.T) {
 }
 
 func TestCancelTask_CompletedReturns409(t *testing.T) {
-	router, ts, cleanup := newTestServerWithTasks(t)
-	defer cleanup()
+	router, ts := newTestServerWithTasks(t)
 
 	ctx := context.Background()
 	now := time.Now().UnixMilli()
@@ -136,8 +134,7 @@ func TestCancelTask_CompletedReturns409(t *testing.T) {
 }
 
 func TestCancelWorkerTasks_CancelsAllPending(t *testing.T) {
-	router, ts, cleanup := newTestServerWithTasks(t)
-	defer cleanup()
+	router, ts := newTestServerWithTasks(t)
 
 	ctx := context.Background()
 	now := time.Now().UnixMilli()

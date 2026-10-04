@@ -28,11 +28,12 @@ func (f *fakeAdapter) CollectTokenUsage(ctx context.Context, sessionID string) (
 	return f.collect(ctx, sessionID)
 }
 
-func newSyncerTestDB(t *testing.T) (*sql.DB, *store.TokenStatsStore, func()) {
+func newSyncerTestDB(t *testing.T) (*sql.DB, *store.TokenStatsStore) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
-	return db, store.NewTokenStatsStore(db), func() { db.Close() }
+	t.Cleanup(func() { db.Close() })
+	return db, store.NewTokenStatsStore(db)
 }
 
 func insertTestWorker(t *testing.T, db *sql.DB, id, engine string) {
@@ -62,8 +63,7 @@ func insertTestExecution(t *testing.T, db *sql.DB, workerID, sessionID string, c
 
 // TestSyncer_Direct_KnownEngine: known engine adapter returns usages → row written with correct AgentType.
 func TestSyncer_Direct_KnownEngine(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "claude")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-1", "claude", time.Now().UnixMilli())
@@ -125,8 +125,7 @@ func TestSyncer_Direct_KnownEngine_Tombstones(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			db, tokenStore, cleanup := newSyncerTestDB(t)
-			defer cleanup()
+			db, tokenStore := newSyncerTestDB(t)
 
 			insertTestWorker(t, db, "w1", "claude")
 			insertTestExecutionWithEngine(t, db, "w1", tc.sessionID, "claude", time.Now().UnixMilli())
@@ -169,8 +168,7 @@ func TestSyncer_Direct_KnownEngine_Tombstones(t *testing.T) {
 
 // TestSyncer_Legacy_FallbackHits: engine empty, third adapter in chain succeeds.
 func TestSyncer_Legacy_FallbackHits(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecution(t, db, "w1", "sess-legacy", time.Now().UnixMilli())
@@ -198,8 +196,7 @@ func TestSyncer_Legacy_FallbackHits(t *testing.T) {
 
 // TestSyncer_Legacy_AllNotFound_Tombstones: engine empty, all adapters return NotFound → tombstone.
 func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecution(t, db, "w1", "sess-all-nf", time.Now().UnixMilli())
@@ -226,8 +223,7 @@ func TestSyncer_Legacy_AllNotFound_Tombstones(t *testing.T) {
 
 // TestSyncer_UnknownEngine_FallsBack: engine set but not in adapter map → walks fallback chain.
 func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-unknown", "obsolete-engine", time.Now().UnixMilli())
@@ -249,8 +245,7 @@ func TestSyncer_UnknownEngine_FallsBack(t *testing.T) {
 
 // TestSyncer_UnknownEngine_AllNotFound_Tombstones: unknown engine, all fallbacks also NotFound → tombstone.
 func TestSyncer_UnknownEngine_AllNotFound_Tombstones(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "")
 	insertTestExecutionWithEngine(t, db, "w1", "sess-unk-nf", "obsolete-engine", time.Now().UnixMilli())
@@ -271,8 +266,7 @@ func TestSyncer_UnknownEngine_AllNotFound_Tombstones(t *testing.T) {
 
 // TestSyncer_DoesNotResyncCompleted: session with synced_at > completed_at is skipped.
 func TestSyncer_DoesNotResyncCompleted(t *testing.T) {
-	db, tokenStore, cleanup := newSyncerTestDB(t)
-	defer cleanup()
+	db, tokenStore := newSyncerTestDB(t)
 
 	insertTestWorker(t, db, "w1", "claude")
 	completedAt := time.Now().Add(-1 * time.Hour).UnixMilli()

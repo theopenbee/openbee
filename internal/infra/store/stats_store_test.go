@@ -14,22 +14,21 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-func newStatsTestDB(t *testing.T) (*StatsStore, *WorkerStore, *ExecutionStore, *MessageStore, *OutboundMessageStore, *TaskStore, func()) {
+func newStatsTestDB(t *testing.T) (*StatsStore, *WorkerStore, *ExecutionStore, *MessageStore, *OutboundMessageStore, *TaskStore) {
 	t.Helper()
 	db, err := InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
 	return NewStatsStore(db),
 		NewWorkerStore(db),
 		NewExecutionStore(db, t.TempDir()),
 		NewMessageStore(db),
 		NewOutboundMessageStore(db),
-		NewTaskStore(db),
-		func() { db.Close() }
+		NewTaskStore(db)
 }
 
 func TestStatsStore_GetOverview_Counts(t *testing.T) {
-	ss, ws, es, ms, oms, ts, cleanup := newStatsTestDB(t)
-	defer cleanup()
+	ss, ws, es, ms, oms, ts := newStatsTestDB(t)
 	ctx := context.Background()
 
 	// Create 2 workers
@@ -108,8 +107,7 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 }
 
 func TestStatsStore_GetTokenTrend_MultipleExecutionsSameDay_NoDuplication(t *testing.T) {
-	ss, _, _, _, _, _, cleanup := newStatsTestDB(t)
-	defer cleanup()
+	ss, _, _, _, _, _ := newStatsTestDB(t)
 	ctx := context.Background()
 	db := ss.db
 

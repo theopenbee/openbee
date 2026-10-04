@@ -10,16 +10,16 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-func newTokenStatsTestDB(t *testing.T) (*TokenStatsStore, func()) {
+func newTokenStatsTestDB(t *testing.T) *TokenStatsStore {
 	t.Helper()
 	db, err := InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
-	return NewTokenStatsStore(db), func() { db.Close() }
+	t.Cleanup(func() { db.Close() })
+	return NewTokenStatsStore(db)
 }
 
 func TestTokenStatsStore_IsEmpty_WhenEmpty(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	empty, err := s.IsEmpty()
 	require.NoError(t, err)
@@ -27,8 +27,7 @@ func TestTokenStatsStore_IsEmpty_WhenEmpty(t *testing.T) {
 }
 
 func TestTokenStatsStore_Upsert_InsertsRecord(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	require.NoError(t, s.Upsert(model.TokenStats{
 		SessionID:           "session-1",
@@ -46,8 +45,7 @@ func TestTokenStatsStore_Upsert_InsertsRecord(t *testing.T) {
 }
 
 func TestTokenStatsStore_Upsert_UpdatesOnConflict(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	base := model.TokenStats{
 		SessionID: "session-1", AgentType: "claude", Model: "claude-3-5-sonnet",
@@ -68,8 +66,7 @@ func TestTokenStatsStore_Upsert_UpdatesOnConflict(t *testing.T) {
 }
 
 func TestTokenStatsStore_Upsert_TotalTokensStored(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	require.NoError(t, s.Upsert(model.TokenStats{
 		SessionID:           "session-total",
@@ -106,8 +103,7 @@ func TestTokenStatsStore_Upsert_TotalTokensStored(t *testing.T) {
 }
 
 func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	for _, m := range []string{"claude-3-5-sonnet", "claude-3-opus"} {
 		require.NoError(t, s.Upsert(model.TokenStats{
@@ -122,8 +118,7 @@ func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
 }
 
 func TestTokenStatsStore_GetBySessionIDs_ReturnsMatchingRows(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	now := time.Now().UnixMilli()
 	for _, stat := range []model.TokenStats{
@@ -143,8 +138,7 @@ func TestTokenStatsStore_GetBySessionIDs_ReturnsMatchingRows(t *testing.T) {
 }
 
 func TestTokenStatsStore_GetBySessionIDs_NilSlice(t *testing.T) {
-	s, cleanup := newTokenStatsTestDB(t)
-	defer cleanup()
+	s := newTokenStatsTestDB(t)
 
 	rows, err := s.GetBySessionIDs(nil)
 	require.NoError(t, err)
