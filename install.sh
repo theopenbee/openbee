@@ -293,8 +293,8 @@ usage() {
 OpenBee installer
 
 Usage:
-  curl -fsSL <url>/install.sh | sh
-  curl -fsSL <url>/install.sh | sh -s -- [options]
+  curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | sh -s -- [options]
 
 Options:
   --version, -v <version>     Specify version (e.g. v1.0.0), default: latest
@@ -305,13 +305,13 @@ Options:
 
 Examples:
   # Install latest version
-  curl -fsSL <url>/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | sh
 
   # Install specific version
-  curl -fsSL <url>/install.sh | sh -s -- --version v1.0.0
+  curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | sh -s -- --version v1.0.0
 
   # Install to custom directory
-  curl -fsSL <url>/install.sh | sh -s -- --install-dir ~/.local/bin
+  curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | sh -s -- --install-dir ~/.local/bin
 EOF
 }
 
