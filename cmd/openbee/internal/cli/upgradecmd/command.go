@@ -195,7 +195,7 @@ func doUpgrade(newVersion string) error {
 	}
 	fmt.Printf(i18n.M.Output.Upgrade.BinaryAt+"\n", execPath)
 
-	// Atomic replace: extract directly into a temp file next to the target, then rename.
+	// Extract into a temp file next to the target (same filesystem), then swap it in.
 	dir := filepath.Dir(execPath)
 	tmpBin, err := os.CreateTemp(dir, ".openbee-new-*")
 	if err != nil {
@@ -215,7 +215,7 @@ func doUpgrade(newVersion string) error {
 	if err := os.Chmod(tmpBinPath, executablePerm); err != nil {
 		return fmt.Errorf("set permissions: %w", err)
 	}
-	if err := os.Rename(tmpBinPath, execPath); err != nil {
+	if err := replaceExecutable(tmpBinPath, execPath); err != nil {
 		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 
