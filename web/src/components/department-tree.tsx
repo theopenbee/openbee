@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon, UsersIcon, InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -7,13 +7,17 @@ import type { DepartmentTree as DepartmentTreeType } from "@/lib/types"
 
 export const UNGROUPED_FILTER = "ungrouped" as const
 
+// Expansion is controlled by the caller (a set of collapsed ids, so nodes start
+// expanded), which lets several mounted copies of the tree stay in sync.
 interface DepartmentTreeProps {
   departments: DepartmentTreeType[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  collapsedIds: ReadonlySet<string>
+  onToggle: (id: string) => void
 }
 
-export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: DepartmentTreeProps) {
+export function DepartmentTreeSidebar({ departments, selectedId, onSelect, collapsedIds, onToggle }: DepartmentTreeProps) {
   const { t } = useTranslation()
 
   return (
@@ -51,6 +55,8 @@ export function DepartmentTreeSidebar({ departments, selectedId, onSelect }: Dep
                   dept={dept}
                   selectedId={selectedId}
                   onSelect={onSelect}
+                  collapsedIds={collapsedIds}
+                  onToggle={onToggle}
                   depth={0}
                 />
               ))}
@@ -66,14 +72,18 @@ function DepartmentNode({
   dept,
   selectedId,
   onSelect,
+  collapsedIds,
+  onToggle,
   depth,
 }: {
   dept: DepartmentTreeType
   selectedId: string | null
   onSelect: (id: string) => void
+  collapsedIds: ReadonlySet<string>
+  onToggle: (id: string) => void
   depth: number
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const expanded = !collapsedIds.has(dept.id)
   const hasChildren = dept.children.length > 0
   const isSelected = selectedId === dept.id
 
@@ -86,7 +96,7 @@ function DepartmentNode({
         {hasChildren ? (
           <button
             type="button"
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => onToggle(dept.id)}
             aria-label={dept.name}
             aria-expanded={expanded}
             className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-strong focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -119,6 +129,8 @@ function DepartmentNode({
           dept={child}
           selectedId={selectedId}
           onSelect={onSelect}
+          collapsedIds={collapsedIds}
+          onToggle={onToggle}
           depth={depth + 1}
         />
       ))}

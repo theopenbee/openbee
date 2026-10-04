@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { api, ApiError } from "@/lib/api"
 import { saveTokens, saveUsername } from "@/lib/auth"
 import { cn, getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, PAGE_TITLE } from "@/lib/styles"
 
 const MIN_PASSWORD_LENGTH = 6
 
@@ -70,7 +70,7 @@ export function Setup() {
           <header>
             <LogoFull className="h-7" />
             <div className="mt-6 space-y-1">
-              <h1 className="text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
+              <h1 className={PAGE_TITLE}>
                 {t("setup.title")}
               </h1>
               <p className="text-sm text-muted-foreground">

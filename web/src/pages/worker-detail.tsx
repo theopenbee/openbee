@@ -31,7 +31,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, HEADER_BAR, PAGE_TITLE, RAIL_ITEM, RAIL_ITEM_IDLE, RAIL_ITEM_SELECTED } from "@/lib/styles"
 import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
@@ -286,11 +286,11 @@ export function WorkerDetail() {
 
         {/* Content pane: section header on the base surface, content on the canvas. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex min-h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-background px-6 py-3">
+          <header className={HEADER_BAR}>
             {/* The colleague's name titles the page; the active section is a
                 quiet sub-line, since the rail already shows the selection. */}
             <div className="min-w-0">
-              <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
+              <h1 className={cn("truncate", PAGE_TITLE)}>
                 {worker.name}
               </h1>
               <p className="text-body-sm leading-5 text-muted-foreground">{t(activeLabelKey)}</p>

@@ -6,10 +6,9 @@ import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
 import { useDepartments } from "@/hooks/use-departments"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, FIELD_LABEL, SURFACE } from "@/lib/styles"
+import { ALERT_DESTRUCTIVE, FIELD_LABEL, HEADER_BAR, PAGE_TITLE, SURFACE } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Button } from "@/components/ui/button"
@@ -61,8 +60,8 @@ export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const canWrite = useCan(Perm.ContactsWrite)
-  const isMobile = useIsMobile()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
+  const [collapsedDeptIds, setCollapsedDeptIds] = useState<ReadonlySet<string>>(() => new Set())
   const { data: departments = [] } = useDepartments()
   const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
   const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
@@ -105,15 +104,26 @@ export function Workers() {
     setDeleteTarget(target)
   }
 
+  const toggleDept = (id: string) => {
+    setCollapsedDeptIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   // The department filter is a fixed left rail from md up, and stacks under the
   // page header on narrow screens (where a side rail would starve the table).
-  // Only one placement is mounted, so the tree (and each node's expanded
-  // state) exists once; the CSS breakpoints just cover the first paint.
+  // Both placements stay mounted and CSS picks one; selection and expansion
+  // live here, so the two copies never disagree.
   const departmentFilter = (
     <DepartmentTreeSidebar
       departments={departments}
       selectedId={selectedDeptId}
       onSelect={setSelectedDeptId}
+      collapsedIds={collapsedDeptIds}
+      onToggle={toggleDept}
     />
   )
 
@@ -121,20 +131,18 @@ export function Workers() {
     <FadeIn className="h-full">
       <div className="flex h-full">
         {/* Left rail: department filter, flush to the layout edge with its own scroll. */}
-        {!isMobile && (
-          <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
-            <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
-              <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-            </div>
-            <div className="min-h-0 flex-1">{departmentFilter}</div>
-          </aside>
-        )}
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
+          <div className="flex h-18 shrink-0 items-center border-b border-border px-5">
+            <h2 className="text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+          </div>
+          <div className="min-h-0 flex-1">{departmentFilter}</div>
+        </aside>
 
         {/* Content pane: header row on the base surface, worker table on the canvas. */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex min-h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-background px-6 py-3">
+          <header className={HEADER_BAR}>
             <div className="min-w-0">
-              <h1 className="text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">
+              <h1 className={PAGE_TITLE}>
                 {t("workers.title")}
               </h1>
               {displayedWorkers.length > 0 && (
@@ -153,12 +161,10 @@ export function Workers() {
           </header>
 
           <div className="min-w-0 flex-1 overflow-auto">
-            {isMobile && (
-              <div className="border-b border-border bg-background md:hidden">
-                <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
-                <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
-              </div>
-            )}
+            <div className="border-b border-border bg-background md:hidden">
+              <h2 className="px-5 pt-3 text-sm font-semibold text-strong">{t("departments.filter")}</h2>
+              <div className="max-h-56 overflow-y-auto">{departmentFilter}</div>
+            </div>
 
             <div className="p-6">
               {error && (

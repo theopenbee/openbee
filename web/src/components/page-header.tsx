@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { PAGE_TITLE } from "@/lib/styles"
 
 interface PageHeaderProps {
   title: string
@@ -10,7 +11,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
-        <h1 className="text-xl leading-7 font-semibold tracking-[-0.015em] text-strong">{title}</h1>
+        <h1 className={PAGE_TITLE}>{title}</h1>
         {subtitle && (
           <p className="mt-1 text-sm text-muted-foreground" aria-live="polite">{subtitle}</p>
         )}

@@ -17,6 +17,7 @@ interface ClaudeStreamEvent {
     }>
   }
   result?: string
+  is_error?: boolean
 }
 
 export function stringify(value: unknown): string {
@@ -129,7 +130,7 @@ export class ClaudeParser implements StreamParser {
         }
 
         if (event.type === "result") {
-          entries.push({ kind: "result", text: event.result ?? "", subtype: event.subtype ?? "" })
+          entries.push({ kind: "result", text: event.result ?? "", subtype: event.subtype ?? "", isError: event.is_error })
           return
         }
 

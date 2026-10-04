@@ -406,7 +406,7 @@ export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
       />
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("common.delete")}</DialogTitle>
             <DialogDescription>

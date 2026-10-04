@@ -8,7 +8,7 @@ export type ParsedEntry =
       result?: string
       isError?: boolean
     }
-  | { kind: "result"; text: string; subtype: string }
+  | { kind: "result"; text: string; subtype: string; isError?: boolean }
   | { kind: "raw"; content: string; logType: string; lineCount: number }
   | {
       kind: "codex-command"

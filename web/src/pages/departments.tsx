@@ -245,7 +245,7 @@ export function Departments() {
         </Dialog>
 
         <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("departments.deleteConfirm.title")}</DialogTitle>
               <DialogDescription>
@@ -302,7 +302,7 @@ interface DepartmentRowProps {
   onDelete: (dept: Department) => void
 }
 
-// Indentation per tree level, on top of the row's base 16px inset. Rows are
+// Indentation per tree level, on top of the row's base 12px inset. Rows are
 // rendered as flat siblings (row, then its expanded children) so the parent
 // list's hairline dividers run edge to edge under every row.
 const INDENT_PX = 24

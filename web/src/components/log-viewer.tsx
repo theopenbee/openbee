@@ -168,6 +168,11 @@ function ExpandedDetails({ input, output }: { input: ReactNode; output: ReactNod
   )
 }
 
+function resultBadgeVariant(entry: Extract<ParsedEntry, { kind: "result" }>) {
+  if (entry.isError || entry.subtype.startsWith("error")) return "destructive"
+  return entry.subtype === "success" ? "success" : "secondary"
+}
+
 function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }> }) {
   const { t } = useTranslation()
 
@@ -178,7 +183,7 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
           {t("logViewer.result")}
         </p>
         {entry.subtype && (
-          <Badge variant={entry.subtype === "success" ? "success" : "secondary"} className="font-mono">
+          <Badge variant={resultBadgeVariant(entry)} className="font-mono">
             {entry.subtype}
           </Badge>
         )}
@@ -193,15 +198,20 @@ function ResultEntry({ entry }: { entry: Extract<ParsedEntry, { kind: "result" }
 
 function CodexCommandEntry({
   entry,
+  live,
 }: {
   entry: Extract<ParsedEntry, { kind: "codex-command" }>
+  live: boolean
 }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(entry.inProgress)
+  // Same rule as ToolEntry: an unfinished command only counts as running while
+  // the execution is live; after it ends, the command never reported back.
+  const running = live && entry.inProgress
+  const [open, setOpen] = useState(running)
 
   useEffect(() => {
-    if (!entry.inProgress) setOpen(false)
-  }, [entry.inProgress])
+    if (!running) setOpen(false)
+  }, [running])
 
   return (
     <div>
@@ -212,7 +222,7 @@ function CodexCommandEntry({
           t,
           open,
           t("logViewer.commandExecution"),
-          entry.inProgress ? t("logViewer.running") : null,
+          running ? t("logViewer.running") : null,
         )}
         onClick={() => setOpen((current) => !current)}
         className={TOGGLE_ROW}
@@ -220,7 +230,7 @@ function CodexCommandEntry({
         <ToolTag>SH</ToolTag>
         <span className="shrink-0 text-sm font-medium text-strong">{t("logViewer.commandExecution")}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{entry.command}</span>
-        {entry.inProgress && <Badge variant="info">{t("logViewer.running")}</Badge>}
+        {running && <Badge variant="info">{t("logViewer.running")}</Badge>}
         <Chevron open={open} />
       </button>
 
@@ -228,7 +238,7 @@ function CodexCommandEntry({
         <ExpandedDetails
           input={<pre className={cn(LOG_WELL, "text-foreground")}>{entry.command}</pre>}
           output={
-            entry.inProgress ? (
+            running ? (
               <p className="rounded-sm bg-recessed px-3 py-2.5 text-body-sm text-muted-foreground">{t("logViewer.running")}</p>
             ) : (
               <pre className={cn(LOG_WELL, "text-foreground")}>{entry.output || "—"}</pre>
@@ -501,12 +511,14 @@ export function LogViewer({
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" })
   }
 
+  const live = isActiveStatus(status)
   const shellClassName = variant === "embedded" ? "overflow-hidden" : SURFACE
 
   return (
     <div className={shellClassName}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-4 py-2.5">
         <SegmentedControl
+          ariaLabel={t("logViewer.filterLabel")}
           value={filter}
           onChange={setFilter}
           options={filterOptions.map((option) => ({
@@ -558,9 +570,9 @@ export function LogViewer({
             {visibleItems.map(({ entry, index: k }) => {
               if (entry.kind === "pi-thinking") return <PiThinkingEntry key={entry.id} entry={entry} />
               if (entry.kind === "text") return <AssistantEntry key={`text-${k}`} text={entry.text} />
-              if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} live={isActiveStatus(status)} />
+              if (entry.kind === "tool") return <ToolEntry key={entry.id} entry={entry} live={live} />
               if (entry.kind === "result") return <ResultEntry key={`result-${k}`} entry={entry} />
-              if (entry.kind === "codex-command") return <CodexCommandEntry key={entry.id} entry={entry} />
+              if (entry.kind === "codex-command") return <CodexCommandEntry key={entry.id} entry={entry} live={live} />
               if (entry.kind === "codex-turn") return <CodexTurnEntry key={`codex-turn-${k}`} entry={entry} />
               return <RawEntry key={`raw-${k}`} entry={entry} />
             })}

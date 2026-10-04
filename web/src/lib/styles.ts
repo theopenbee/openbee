@@ -6,6 +6,17 @@
 // uppercase or wide tracking, which also keeps CJK labels evenly set.
 export const FIELD_LABEL = "text-xs font-medium text-muted-foreground"
 
+// Page title: the one h1 per page (page headers, the worker-detail and workers
+// header bars, the login/setup cards). 20px semibold with slight negative
+// tracking, in the strong tone.
+export const PAGE_TITLE = "text-xl leading-7 font-semibold tracking-[-0.015em] text-strong"
+
+// Header bar: the full-width strip atop a split-pane page (workers, worker
+// detail) on the base surface, at least 72px tall so it lines up with the 72px
+// heading of the left rail beside it; wraps its actions under the title when narrow.
+export const HEADER_BAR =
+  "flex min-h-18 shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-background px-6 py-3"
+
 // Surface: the white working panel drawn with a single 1px Line ring (tables,
 // lists, detail sections, empty states). Clips its content to the corners so
 // row hover fills and dividers stay inside the ring.

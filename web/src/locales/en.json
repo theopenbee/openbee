@@ -119,6 +119,7 @@
       "constraints": "Work Constraints",
       "constraintsPlaceholder": "The work constraints for this worker...",
       "engineArgs": "Engine Args",
+      "engineArgsFor": "{{engine}} engine args",
       "engineArgsPlaceholder": "--effort high",
       "sectionDepartment": "Department",
       "departmentHelper": "Assign the worker to departments (optional)",
@@ -152,6 +153,7 @@
     "viewSession": "View session {{id}}",
     "turnCount_one": "{{count}} turn",
     "turnCount_other": "{{count}} turns",
+    "turnStatus": "Turn {{n}}: {{status}}",
     "summary_one": "{{count}} session",
     "summary_other": "{{count}} sessions",
     "summaryWithActive_one": "{{count}} session — {{active}} active",
@@ -241,6 +243,7 @@
     "tokens": "Tokens"
   },
   "logViewer": {
+    "filterLabel": "Filter log entries",
     "all": "All",
     "narrative": "Narrative",
     "tools": "Tool calls",

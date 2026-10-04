@@ -94,7 +94,7 @@ function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }
                 <SidebarMenuSubItem>
                   <SidebarMenuSubButton
                     isActive={isActive(sub.url)}
-                                        render={<Link to={sub.url} />}
+                    render={<Link to={sub.url} />}
                   >
                     <span>{sub.title}</span>
                   </SidebarMenuSubButton>
@@ -130,7 +130,7 @@ export function NavMain({
           ) : (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
-                                tooltip={item.title}
+                tooltip={item.title}
                 isActive={isActive(item.url)}
                 render={<Link to={item.url} />}
               >

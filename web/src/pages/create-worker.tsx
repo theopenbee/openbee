@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { ArrowLeft, Search } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { useCreateWorker, useWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
+import { DepartmentChecklist } from "@/components/department-checklist"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
@@ -81,7 +82,6 @@ export function CreateWorker() {
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
-  const [deptSearch, setDeptSearch] = useState("")
 
   // Bring submission failures into view: on a long form the alert sits above
   // the submit button, so scroll it into the viewport when it appears.
@@ -134,12 +134,6 @@ export function CreateWorker() {
 
   const isPending = createWorker.isPending || setWorkerDepts.isPending
   const isCopyLoading = isCopy && !copyWorker
-
-  const filteredDepts = deptSearch.trim()
-    ? flatDepts.filter(({ dept }) =>
-        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
-      )
-    : flatDepts
 
   // Panel titles carry an optional selection count, shown as a neutral badge.
   const countTitle = (text: string, count: number) => (
@@ -238,48 +232,7 @@ export function CreateWorker() {
               title={countTitle(t("workers.form.sectionDepartment"), selectedDeptIds.size)}
               flush
             >
-              <div className="border-b border-hairline p-3">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={deptSearch}
-                    onChange={(e) => setDeptSearch(e.target.value)}
-                    placeholder={t("workers.form.searchDepartments")}
-                    aria-label={t("workers.form.searchDepartments")}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
-
-              <div className="max-h-56 overflow-y-auto p-1.5">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-4 text-center text-body-sm text-muted-foreground">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
-                      style={{ paddingLeft: `${12 + depth * 16}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        id={`cw-dept-${dept.id}`}
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
-                      />
-                      <span className="truncate text-sm text-foreground">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
+              <DepartmentChecklist selected={selectedDeptIds} onChange={setSelectedDeptIds} flush />
             </Panel>
           )}
 
@@ -311,7 +264,7 @@ export function CreateWorker() {
               {KNOWN_SCOPES.map((scope) => (
                 <label
                   key={scope.id}
-                  className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
+                  className="flex min-h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 py-1.5 transition-colors hover:bg-accent"
                 >
                   <input
                     type="checkbox"
@@ -322,7 +275,7 @@ export function CreateWorker() {
                     disabled={isPending}
                     className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
                   />
-                  <span className="truncate text-sm text-foreground">
+                  <span className="min-w-0 text-sm leading-5 break-words text-foreground">
                     {t(scope.titleKey)}
                   </span>
                 </label>

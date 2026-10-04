@@ -5,19 +5,6 @@ export function SkeletonLine({ className }: { className?: string }) {
   return <div className={cn("skeleton h-4 w-full", className)} />
 }
 
-export function SkeletonCard() {
-  return (
-    <div className="space-y-3 rounded-sm bg-card p-5 ring-1 ring-border">
-      <div className="flex items-center justify-between">
-        <div className="skeleton h-5 w-32" />
-        <div className="skeleton h-5 w-16 rounded-full" />
-      </div>
-      <div className="skeleton h-4 w-full" />
-      <div className="skeleton h-4 w-2/3" />
-    </div>
-  )
-}
-
 export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
     <div className={SURFACE}>

@@ -119,6 +119,7 @@
       "constraints": "工作约束",
       "constraintsPlaceholder": "这个员工的工作约束...",
       "engineArgs": "引擎参数",
+      "engineArgsFor": "{{engine}} 引擎参数",
       "engineArgsPlaceholder": "--effort high",
       "sectionDepartment": "部门",
       "departmentHelper": "将员工分配到所属部门（可选）",
@@ -152,6 +153,7 @@
     "viewSession": "查看会话 {{id}}",
     "turnCount_one": "{{count}} 轮",
     "turnCount_other": "{{count}} 轮",
+    "turnStatus": "第 {{n}} 轮：{{status}}",
     "summary_one": "{{count}} 条会话",
     "summary_other": "{{count}} 条会话",
     "summaryWithActive_one": "{{count}} 条会话 — {{active}} 活跃中",
@@ -241,6 +243,7 @@
     "tokens": "Token 用量"
   },
   "logViewer": {
+    "filterLabel": "筛选日志条目",
     "all": "全部",
     "narrative": "叙述",
     "tools": "工具调用",

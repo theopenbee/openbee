@@ -260,10 +260,12 @@ const MessageBubble = memo(function MessageBubble({
       <div className="relative w-full max-w-[52rem] min-w-0 pl-8">
         {body}
 
+        {/* Sits in the avatar gutter: the body spans the full column, so a
+            button past its right edge would be clipped by the scroller. */}
         {hasContent && (
           <CopyButton
             value={message.content}
-            className="absolute top-0.5 -right-7 p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            className="absolute top-0.5 left-1 p-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           />
         )}
       </div>

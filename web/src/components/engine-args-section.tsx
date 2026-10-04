@@ -18,10 +18,14 @@ export function EngineArgsSection({ engines, value, onChange, showLabel = true }
 
   // Label above; one row per engine with the engine named beside its input.
   // Several engines share a fixed name column so their inputs line up.
+  // The visible label can only point at one input, so whenever it doesn't
+  // (several engines, or no label) each input names its own engine.
+  const labelTargetsInput = showLabel && engines.length === 1
+
   return (
     <div className="space-y-2">
       {showLabel && (
-        <Label htmlFor={engines.length === 1 ? `engine-args-${engines[0]}` : undefined}>
+        <Label htmlFor={labelTargetsInput ? `engine-args-${engines[0]}` : undefined}>
           {t("workers.form.engineArgs")}
         </Label>
       )}
@@ -38,6 +42,11 @@ export function EngineArgsSection({ engines, value, onChange, showLabel = true }
           </span>
           <Input
             id={`engine-args-${engine}`}
+            aria-label={
+              labelTargetsInput
+                ? undefined
+                : t("workers.form.engineArgsFor", { engine: formatEngineLabel(engine, t) })
+            }
             value={value[engine] ?? ""}
             onChange={(e) =>
               onChange({ ...value, [engine]: e.target.value })

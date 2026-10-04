@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useExecutions } from "@/hooks/use-executions"
+import type { ExecutionStatus, WorkerExecution } from "@/lib/types"
 import {
   Table,
   TableBody,
@@ -22,6 +23,36 @@ import { ALERT_DESTRUCTIVE, SURFACE } from "@/lib/styles"
 import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus } from "@/lib/format"
 
 const PAGE_SIZE = 20
+
+const TURN_DOT: Record<ExecutionStatus, string> = {
+  running: "bg-status-working",
+  completed: "bg-status-idle",
+  failed: "bg-status-error",
+  pending: "bg-muted-foreground/40",
+}
+
+// One dot per turn, oldest first, so a failure earlier in the session stays
+// visible even when the latest turn (the status column) succeeded.
+function TurnPips({ executions }: { executions: WorkerExecution[] }) {
+  const { t } = useTranslation()
+  const ordered = [...executions].reverse()
+  return (
+    <div className="flex max-w-full flex-wrap items-center gap-0.5">
+      {ordered.map((e, i) => {
+        const label = t("sessions.turnStatus", { n: i + 1, status: t(`statuses.${e.status}`, e.status) })
+        return (
+          <span
+            key={e.id}
+            role="img"
+            aria-label={label}
+            title={label}
+            className={cn("size-2 shrink-0 rounded-full", TURN_DOT[e.status] ?? "bg-muted-foreground/40")}
+          />
+        )
+      })}
+    </div>
+  )
+}
 
 export function Sessions() {
   const { t } = useTranslation()
@@ -69,7 +100,7 @@ export function Sessions() {
                 <TableRow>
                   <TableHead className="w-32 pl-4">{t("sessions.columns.session")}</TableHead>
                   <TableHead>{t("sessions.columns.worker")}</TableHead>
-                  <TableHead className="hidden w-24 md:table-cell">{t("sessions.columns.turns")}</TableHead>
+                  <TableHead className="hidden w-28 md:table-cell">{t("sessions.columns.turns")}</TableHead>
                   <TableHead className="hidden w-32 md:table-cell">{t("sessions.columns.latestStatus")}</TableHead>
                   <TableHead className="w-32">{t("sessions.columns.started")}</TableHead>
                   <TableHead className="hidden w-28 md:table-cell">{t("sessions.columns.duration")}</TableHead>
@@ -115,8 +146,13 @@ export function Sessions() {
                         )}
                       </TableCell>
 
-                      <TableCell className="hidden text-body-sm text-muted-foreground tabular-nums md:table-cell">
-                        {t("sessions.turnCount", { count: group.length })}
+                      <TableCell className="hidden md:table-cell">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-body-sm text-muted-foreground tabular-nums">
+                            {t("sessions.turnCount", { count: group.length })}
+                          </span>
+                          <TurnPips executions={group} />
+                        </div>
                       </TableCell>
 
                       <TableCell className="hidden md:table-cell">

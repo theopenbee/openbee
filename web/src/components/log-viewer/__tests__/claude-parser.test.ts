@@ -56,6 +56,12 @@ describe("ClaudeParser", () => {
     expect(entries[0]).toMatchObject({ kind: "result", text: "done", subtype: "success" })
   })
 
+  it("carries is_error on result events", () => {
+    const line = JSON.stringify({ type: "result", result: "", subtype: "error_max_turns", is_error: true })
+    const entries = run([line])
+    expect(entries[0]).toMatchObject({ kind: "result", subtype: "error_max_turns", isError: true })
+  })
+
   it("ignores system events", () => {
     const line = JSON.stringify({ type: "system", data: "init" })
     const entries = run([line])

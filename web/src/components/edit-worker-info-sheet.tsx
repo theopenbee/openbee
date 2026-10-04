@@ -1,6 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { Search } from "lucide-react"
 import { useUpdateWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/select"
 import { EngineSelectItems, EngineSelectValue } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
+import { DepartmentChecklist } from "@/components/department-checklist"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
@@ -49,7 +49,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
-  const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
 
   useEffect(() => {
@@ -60,7 +59,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
       setEngineArgs(worker.engine_args ?? {})
-      setDeptSearch("")
       setSubmitError("")
     }
   }, [open, worker, enabledEngines])
@@ -105,12 +103,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   }
 
   const isPending = updateWorker.isPending || setWorkerDepts.isPending
-
-  const filteredDepts = deptSearch.trim()
-    ? flatDepts.filter(({ dept }) =>
-        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
-      )
-    : flatDepts
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -190,45 +182,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
                 badge={selectedDeptIds.size}
               />
 
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  aria-label={t("workers.form.searchDepartments")}
-                  className="pl-8"
-                />
-              </div>
-
-              <div className="-mx-1.5 max-h-56 overflow-y-auto">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-4 text-center text-body-sm text-muted-foreground">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex h-8.5 cursor-pointer items-center gap-2.5 rounded-sm px-3 transition-colors hover:bg-accent"
-                      style={{ paddingLeft: `${12 + depth * 16}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-4 shrink-0 cursor-pointer rounded-sm accent-primary"
-                      />
-                      <span className="truncate text-sm text-foreground">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
+              <DepartmentChecklist selected={selectedDeptIds} onChange={setSelectedDeptIds} />
 
               <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
             </div>
