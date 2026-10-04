@@ -29,10 +29,13 @@ func runWithIsolatedHome(m *testing.M) int {
 	defer os.RemoveAll(dir)
 	testHome = dir
 
-	// darwin resolves the home via os.UserHomeDir ($HOME); Linux via the
-	// run-as user's passwd entry, hence the lookupUser override.
-	if err := os.Setenv("HOME", dir); err != nil {
-		panic("set HOME: " + err.Error())
+	// Non-Linux resolves the home via os.UserHomeDir ($HOME, or %USERPROFILE%
+	// on Windows); Linux via the run-as user's passwd entry, hence the
+	// lookupUser override.
+	for _, key := range []string{"HOME", "USERPROFILE"} {
+		if err := os.Setenv(key, dir); err != nil {
+			panic("set " + key + ": " + err.Error())
+		}
 	}
 	lookupUser = func(name string) (*user.User, error) {
 		u, err := user.Lookup(name)
