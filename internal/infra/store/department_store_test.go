@@ -3,43 +3,32 @@ package store
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func setupDeptTestDB(t *testing.T) (*DepartmentStore, *WorkerStore) {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
+	db := newTestDB(t)
 	return NewDepartmentStore(db), NewWorkerStore(db)
 }
 
 func TestDepartmentStore_Create(t *testing.T) {
 	ds, _ := setupDeptTestDB(t)
 	d, err := ds.Create(model.Department{Name: "Engineering"})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if d.ID == "" {
-		t.Error("expected non-empty ID")
-	}
-	if d.Name != "Engineering" {
-		t.Errorf("expected Engineering, got %s", d.Name)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, d.ID)
+	assert.Equal(t, "Engineering", d.Name)
 }
 
 func TestDepartmentStore_GetByID(t *testing.T) {
 	ds, _ := setupDeptTestDB(t)
 	d, _ := ds.Create(model.Department{Name: "Sales"})
 	got, err := ds.GetByID(d.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Name != "Sales" {
-		t.Errorf("expected Sales, got %s", got.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Sales", got.Name)
 }
 
 func TestDepartmentStore_Update(t *testing.T) {
@@ -47,24 +36,16 @@ func TestDepartmentStore_Update(t *testing.T) {
 	d, _ := ds.Create(model.Department{Name: "Old"})
 	d.Name = "New"
 	updated, err := ds.Update(d)
-	if err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	if updated.Name != "New" {
-		t.Errorf("expected New, got %s", updated.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "New", updated.Name)
 }
 
 func TestDepartmentStore_Delete_Empty(t *testing.T) {
 	ds, _ := setupDeptTestDB(t)
 	d, _ := ds.Create(model.Department{Name: "ToDelete"})
-	if err := ds.Delete(d.ID); err != nil {
-		t.Fatalf("Delete empty dept: %v", err)
-	}
+	require.NoError(t, ds.Delete(d.ID))
 	_, err := ds.GetByID(d.ID)
-	if err == nil {
-		t.Error("expected error after delete")
-	}
+	assert.Error(t, err)
 }
 
 func TestDepartmentStore_Delete_HasChildren(t *testing.T) {
@@ -72,9 +53,7 @@ func TestDepartmentStore_Delete_HasChildren(t *testing.T) {
 	parent, _ := ds.Create(model.Department{Name: "Parent"})
 	ds.Create(model.Department{Name: "Child", ParentID: &parent.ID})
 	err := ds.Delete(parent.ID)
-	if err == nil {
-		t.Error("expected error deleting department with children")
-	}
+	assert.Error(t, err)
 }
 
 func TestDepartmentStore_Delete_HasWorkers(t *testing.T) {
@@ -83,9 +62,7 @@ func TestDepartmentStore_Delete_HasWorkers(t *testing.T) {
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	ds.SetWorkerDepartments(w.ID, []string{dept.ID})
 	err := ds.Delete(dept.ID)
-	if err == nil {
-		t.Error("expected error deleting department with workers")
-	}
+	assert.Error(t, err)
 }
 
 func TestDepartmentStore_BuildTree(t *testing.T) {
@@ -97,18 +74,10 @@ func TestDepartmentStore_BuildTree(t *testing.T) {
 	all, _ := ds.ListAll()
 	tree := ds.BuildTree(all)
 
-	if len(tree) != 1 {
-		t.Fatalf("expected 1 root, got %d", len(tree))
-	}
-	if tree[0].Name != "Root" {
-		t.Errorf("expected Root, got %s", tree[0].Name)
-	}
-	if len(tree[0].Children) != 1 {
-		t.Fatalf("expected 1 child, got %d", len(tree[0].Children))
-	}
-	if len(tree[0].Children[0].Children) != 1 {
-		t.Fatalf("expected 1 grandchild, got %d", len(tree[0].Children[0].Children))
-	}
+	require.Len(t, tree, 1)
+	assert.Equal(t, "Root", tree[0].Name)
+	require.Len(t, tree[0].Children, 1)
+	require.Len(t, tree[0].Children[0].Children, 1)
 }
 
 func TestDepartmentStore_BuildTree_SortOrder(t *testing.T) {
@@ -120,12 +89,10 @@ func TestDepartmentStore_BuildTree_SortOrder(t *testing.T) {
 	all, _ := ds.ListAll()
 	tree := ds.BuildTree(all)
 
-	if len(tree) != 3 {
-		t.Fatalf("expected 3 roots, got %d", len(tree))
-	}
-	if tree[0].Name != "A" || tree[1].Name != "B" || tree[2].Name != "C" {
-		t.Errorf("expected A,B,C order, got %s,%s,%s", tree[0].Name, tree[1].Name, tree[2].Name)
-	}
+	require.Len(t, tree, 3)
+	assert.Equal(t, "A", tree[0].Name)
+	assert.Equal(t, "B", tree[1].Name)
+	assert.Equal(t, "C", tree[2].Name)
 }
 
 func TestDepartmentStore_SetWorkerDepartments(t *testing.T) {
@@ -135,31 +102,19 @@ func TestDepartmentStore_SetWorkerDepartments(t *testing.T) {
 	d2, _ := ds.Create(model.Department{Name: "Dept2"})
 
 	// Set initial departments
-	if err := ds.SetWorkerDepartments(w.ID, []string{d1.ID, d2.ID}); err != nil {
-		t.Fatalf("SetWorkerDepartments: %v", err)
-	}
+	require.NoError(t, ds.SetWorkerDepartments(w.ID, []string{d1.ID, d2.ID}))
 	depts, _ := ds.GetWorkerDepartments(w.ID)
-	if len(depts) != 2 {
-		t.Errorf("expected 2 departments, got %d", len(depts))
-	}
+	assert.Len(t, depts, 2)
 
 	// Replace with just one
-	if err := ds.SetWorkerDepartments(w.ID, []string{d1.ID}); err != nil {
-		t.Fatalf("SetWorkerDepartments replace: %v", err)
-	}
+	require.NoError(t, ds.SetWorkerDepartments(w.ID, []string{d1.ID}))
 	depts, _ = ds.GetWorkerDepartments(w.ID)
-	if len(depts) != 1 {
-		t.Errorf("expected 1 department, got %d", len(depts))
-	}
+	assert.Len(t, depts, 1)
 
 	// Clear all
-	if err := ds.SetWorkerDepartments(w.ID, []string{}); err != nil {
-		t.Fatalf("SetWorkerDepartments clear: %v", err)
-	}
+	require.NoError(t, ds.SetWorkerDepartments(w.ID, []string{}))
 	depts, _ = ds.GetWorkerDepartments(w.ID)
-	if len(depts) != 0 {
-		t.Errorf("expected 0 departments, got %d", len(depts))
-	}
+	assert.Empty(t, depts)
 }
 
 func TestDepartmentStore_GetWorkerIDsForDepartments(t *testing.T) {
@@ -172,12 +127,8 @@ func TestDepartmentStore_GetWorkerIDsForDepartments(t *testing.T) {
 	ds.SetWorkerDepartments(w2.ID, []string{dept.ID})
 
 	ids, err := ds.GetWorkerIDsForDepartments([]string{dept.ID})
-	if err != nil {
-		t.Fatalf("GetWorkerIDsForDepartments: %v", err)
-	}
-	if len(ids) != 2 {
-		t.Errorf("expected 2 worker IDs, got %d", len(ids))
-	}
+	require.NoError(t, err)
+	assert.Len(t, ids, 2)
 }
 
 func TestDepartmentStore_DeleteWorkerDepartments(t *testing.T) {
@@ -186,13 +137,9 @@ func TestDepartmentStore_DeleteWorkerDepartments(t *testing.T) {
 	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
 	ds.SetWorkerDepartments(w.ID, []string{dept.ID})
 
-	if err := ds.DeleteWorkerDepartments(w.ID); err != nil {
-		t.Fatalf("DeleteWorkerDepartments: %v", err)
-	}
+	require.NoError(t, ds.DeleteWorkerDepartments(w.ID))
 	depts, _ := ds.GetWorkerDepartments(w.ID)
-	if len(depts) != 0 {
-		t.Errorf("expected 0 departments after cleanup, got %d", len(depts))
-	}
+	assert.Empty(t, depts)
 }
 
 func TestDepartmentStore_CheckCircularReference(t *testing.T) {
@@ -203,13 +150,9 @@ func TestDepartmentStore_CheckCircularReference(t *testing.T) {
 
 	// Moving A under C would create A -> B -> C -> A cycle
 	err := ds.CheckCircularReference(a.ID, c.ID)
-	if err == nil {
-		t.Error("expected circular reference error")
-	}
+	assert.Error(t, err)
 
 	// Moving C under A is fine (already the case via B)
 	err = ds.CheckCircularReference(c.ID, a.ID)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 }

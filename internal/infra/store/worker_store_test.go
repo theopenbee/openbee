@@ -1,20 +1,17 @@
 package store
 
 import (
-	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 func setupTestDB(t *testing.T) *WorkerStore {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return NewWorkerStore(db)
+	return NewWorkerStore(newTestDB(t))
 }
 
 func TestWorkerStore_Create(t *testing.T) {
@@ -25,15 +22,9 @@ func TestWorkerStore_Create(t *testing.T) {
 		WorkDir:     "/tmp/testbot",
 	}
 	created, err := s.Create(w)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if created.ID == "" {
-		t.Error("expected non-empty ID")
-	}
-	if created.Status != model.WorkerStatusIdle {
-		t.Errorf("expected status idle, got %s", created.Status)
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, created.ID)
+	assert.Equal(t, model.WorkerStatusIdle, created.Status)
 }
 
 func TestWorkerStore_GetByID(t *testing.T) {
@@ -42,12 +33,8 @@ func TestWorkerStore_GetByID(t *testing.T) {
 		Name: "Bot1", WorkDir: "/tmp/bot1",
 	})
 	got, err := s.GetByID(w.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Name != "Bot1" {
-		t.Errorf("expected Bot1, got %s", got.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Bot1", got.Name)
 }
 
 func TestWorkerStore_List(t *testing.T) {
@@ -55,12 +42,8 @@ func TestWorkerStore_List(t *testing.T) {
 	s.Create(model.Worker{Name: "A", WorkDir: "/tmp/a"})
 	s.Create(model.Worker{Name: "B", WorkDir: "/tmp/b"})
 	list, err := s.List()
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(list) != 2 {
-		t.Errorf("expected 2 workers, got %d", len(list))
-	}
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
 }
 
 func TestWorkerStore_Update(t *testing.T) {
@@ -68,24 +51,16 @@ func TestWorkerStore_Update(t *testing.T) {
 	w, _ := s.Create(model.Worker{Name: "Old", WorkDir: "/tmp/old"})
 	w.Name = "New"
 	updated, err := s.Update(w)
-	if err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	if updated.Name != "New" {
-		t.Errorf("expected New, got %s", updated.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "New", updated.Name)
 }
 
 func TestWorkerStore_Delete(t *testing.T) {
 	s := setupTestDB(t)
 	w, _ := s.Create(model.Worker{Name: "Del", WorkDir: "/tmp/del"})
-	if err := s.Delete(w.ID); err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
+	require.NoError(t, s.Delete(w.ID))
 	_, err := s.GetByID(w.ID)
-	if err == nil {
-		t.Error("expected error after delete")
-	}
+	assert.Error(t, err)
 }
 
 func TestWorkerStore_GetByName_ExactMatch(t *testing.T) {
@@ -93,12 +68,8 @@ func TestWorkerStore_GetByName_ExactMatch(t *testing.T) {
 	s.Create(model.Worker{Name: "天天", WorkDir: "/tmp/tt"})
 
 	got, err := s.GetByName("天天")
-	if err != nil {
-		t.Fatalf("GetByName: %v", err)
-	}
-	if got.Name != "天天" {
-		t.Errorf("expected 天天, got %s", got.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "天天", got.Name)
 }
 
 func TestWorkerStore_GetByName_CaseInsensitive(t *testing.T) {
@@ -106,29 +77,19 @@ func TestWorkerStore_GetByName_CaseInsensitive(t *testing.T) {
 	s.Create(model.Worker{Name: "Alice", WorkDir: "/tmp/alice"})
 
 	got, err := s.GetByName("alice")
-	if err != nil {
-		t.Fatalf("GetByName lowercase: %v", err)
-	}
-	if got.Name != "Alice" {
-		t.Errorf("expected Alice, got %s", got.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Alice", got.Name)
 
 	got2, err := s.GetByName("ALICE")
-	if err != nil {
-		t.Fatalf("GetByName uppercase: %v", err)
-	}
-	if got2.Name != "Alice" {
-		t.Errorf("expected Alice, got %s", got2.Name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Alice", got2.Name)
 }
 
 func TestWorkerStore_GetByName_NotFound(t *testing.T) {
 	s := setupTestDB(t)
 
 	_, err := s.GetByName("nobody")
-	if err == nil {
-		t.Fatal("expected error for missing worker, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestWorkerStore_GetByName_DuplicateName_ReturnsEarliest(t *testing.T) {
@@ -137,42 +98,25 @@ func TestWorkerStore_GetByName_DuplicateName_ReturnsEarliest(t *testing.T) {
 	s.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot2"})
 
 	got, err := s.GetByName("bot")
-	if err != nil {
-		t.Fatalf("GetByName: %v", err)
-	}
-	if got.ID != first.ID {
-		t.Errorf("expected earliest worker %s, got %s", first.ID, got.ID)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, got.ID)
 }
 
 func TestWorkerStore_EngineField(t *testing.T) {
 	dir := t.TempDir()
-	db, err := InitDB(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	ws := NewWorkerStore(db)
+	ws := NewWorkerStore(newTestDB(t))
 
 	w, err := ws.Create(model.Worker{
 		Name:    "test-worker",
 		WorkDir: dir,
 		Engine:  "codex",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if w.Engine != "codex" {
-		t.Errorf("expected engine %q, got %q", "codex", w.Engine)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "codex", w.Engine)
 
 	got, err := ws.GetByID(w.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Engine != "codex" {
-		t.Errorf("after get: expected engine %q, got %q", "codex", got.Engine)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "codex", got.Engine, "after get")
 
 	updated, err := ws.Update(model.Worker{
 		ID:      w.ID,
@@ -180,34 +124,22 @@ func TestWorkerStore_EngineField(t *testing.T) {
 		WorkDir: w.WorkDir,
 		Engine:  "pi",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Engine != "pi" {
-		t.Errorf("after update: expected engine %q, got %q", "pi", updated.Engine)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "pi", updated.Engine, "after update")
 }
 
 func TestWorkerStore_CountByStatus(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
+	db := newTestDB(t,
+		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','a','/tmp','idle',0,0)`,
+		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','b','/tmp','idle',0,0)`,
+		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w3','c','/tmp','working',0,0)`,
+	)
 	ws := NewWorkerStore(db)
 
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','a','/tmp','idle',0,0)`)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','b','/tmp','idle',0,0)`)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w3','c','/tmp','working',0,0)`)
-
 	counts, err := ws.CountByStatus()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if counts["idle"] != 2 || counts["working"] != 1 {
-		t.Errorf("unexpected counts: %v", counts)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, counts["idle"])
+	assert.Equal(t, 1, counts["working"])
 }
 
 func TestWorkerStore_ListNames(t *testing.T) {
@@ -215,30 +147,20 @@ func TestWorkerStore_ListNames(t *testing.T) {
 
 	// Empty store returns empty slice without error
 	names, err := s.ListNames()
-	if err != nil {
-		t.Fatalf("ListNames on empty store: %v", err)
-	}
-	if len(names) != 0 {
-		t.Errorf("expected 0 names, got %d", len(names))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, names)
 
 	// Seed two workers
 	s.Create(model.Worker{Name: "Alpha"})
 	s.Create(model.Worker{Name: "Beta"})
 
 	names, err = s.ListNames()
-	if err != nil {
-		t.Fatalf("ListNames: %v", err)
-	}
-	if len(names) != 2 {
-		t.Errorf("expected 2 names, got %d: %v", len(names), names)
-	}
+	require.NoError(t, err)
+	assert.Len(t, names, 2)
 
 	nameSet := map[string]bool{}
 	for _, n := range names {
 		nameSet[n] = true
 	}
-	if !nameSet["Alpha"] || !nameSet["Beta"] {
-		t.Errorf("expected Alpha and Beta in %v", names)
-	}
+	assert.True(t, nameSet["Alpha"] && nameSet["Beta"], "expected Alpha and Beta in %v", names)
 }
